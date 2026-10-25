@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: Spec `k3yx72` (approved) has the review agent rate each plan's review tier (`simple`, `standard`, `complex`) after answering five recorded tier questions (Section 5.2, MD-1). Three pieces it needs do not exist. (1) The plan has nowhere to store the tier: `ipd_schema.META_RECOGNIZED` has no `Review-Depth` field, so writing one makes `aw ipd lint` report an unknown field (`IPD-M103`). (2) The runner collects none of the facts the tier questions ask about (Section 4.1 item 4), so the agent must search for them, which costs model steps (Section 1 problem 1). (3) Run state records no tier and no answers, so the analytics the spec relies on (Section 5.2, "records the tier and the five answers in run state") cannot compare tiers with outcomes.
 - Scope: Register `- Review-Depth:` as a recognized, optional, closed-enum plan field; add a pure function that computes the pre-pass tier facts from a plan's text; add a pure parser for the `AW-TIER:` reply marker and for the five tier answers in a review record's `### Step T` subsection; add a run-state recorder that writes the tier, its source, and the answers onto the current review attempt; and carry the tier into the attempt-grain analytics. EXCLUDES sending prompts, deciding when to call the recorder, and the re-ask on a malformed marker (all Order 04); EXCLUDES writing `- Review-Depth:` into a plan (S7's job, Order 01 step file plus Order 04 postcondition).
-- Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/review_tier.py, agent_workflows/run_dashboard.py, agent_workflows/run_analytics_attempts.py, docs/run-analytics.md, .aw/records/plans/README.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_review_tier.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/review_tier.py, agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_analytics_attempts.py, docs/run-analytics.md, .aw/records/plans/README.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_review_tier.py, tests/test_run_analytics_review_cost.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
@@ -18,6 +19,8 @@
 - Id: gv3smb
 
 ## Workflow history
+- 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
+- 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261024-revsteps-02-gv3smb-add-the-review-depth-field-pre-pass-tier-facts-and-run-state.review.md
 - 2026-10-25 to-review (aw set): authored review-ready from spec k3yx72 Stage 1 (MD-20)
 
 - 2026-10-25 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -32,7 +35,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the plan field
 
-- [ ] E-01 In `agent_workflows/ipd_schema.py`, add `META_REVIEW_DEPTH = "Review-Depth"` and `REVIEW_DEPTH_VALUES: FrozenSet[str] = frozenset(("simple", "standard", "complex", "orchestrator"))` beside the `META_ATTENDED` block, add `META_REVIEW_DEPTH` to the tuple that builds `META_RECOGNIZED`, and in `parse_metadata_block` add a `MetaError` for a present value outside `REVIEW_DEPTH_VALUES` (the pattern the `attended` check uses), so lint reports it as `IPD-M104`. Absence is silent. `orchestrator` is included because spec Section 5.1 gives every Order-00 plan a fixed profile, and S7 records that profile like any tier. The field is not added to `ipd_lifecycle.frozen_region_digest`, which covers only `- Scope-Paths:` and E/V action text (spec Section 7.2).
+- [ ] E-01 In `agent_workflows/ipd_schema.py`, add `META_REVIEW_DEPTH = "Review-Depth"` and `REVIEW_DEPTH_VALUES: FrozenSet[str] = frozenset(("simple", "standard", "complex", "orchestrator"))` beside the `META_ATTENDED` block, add `META_REVIEW_DEPTH` to the tuple that builds `META_RECOGNIZED`, and in `validate_metadata` (where the `attended` check lives; `parse_metadata_block` only records duplicate and unknown fields) add a `MetaError` for a present value outside `REVIEW_DEPTH_VALUES`, so `ipd_lint.check_metadata` reports it as `IPD-M104`. Absence is silent, so no existing plan is affected. `orchestrator` is included because spec Section 5.1 gives every Order-00 plan a fixed profile, and S7 records that profile like any tier. The field is not added to `ipd_lifecycle.frozen_region_digest`, which covers only `- Scope-Paths:` and E/V action text (spec Section 7.2).
   - Depends on: none
   - Expected outcome: a plan with `- Review-Depth: standard` lints with no `IPD-M103`; `- Review-Depth: huge` reports `IPD-M104`.
   - Execution state: pending
@@ -46,29 +49,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 Create `agent_workflows/review_tier.py` with `tier_facts(plan_text: str) -> dict`, a pure function built on `ipd_lint.parse`, returning: `kind` (from `- Kind:`), `scope_paths` (the `- Scope-Paths:` list, or `None` when absent or `TODO`), `names_spec` (true when any scope path ends in `.spec.md`), `e_items` (count of `E-*` leaves), `task_groups` (count of task-group H3s, the `ParsedDoc.exec_task_groups` value), `exceeds_size` (`ipd_schema.size_warning(task_groups, e_items)`), and `in_set` (true when `- Set:` is present). Add `render_tier_facts(facts) -> str`, a short Markdown block the runner puts into prompt 1 (spec Section 4.1 item 6), one line per fact.
   - Depends on: none
-  - Expected outcome: `tier_facts` returns the seven keys for any plan text and never raises on a malformed plan (it returns `None` values instead).
+  - Expected outcome: `tier_facts` returns the seven keys for any plan text and never raises; on a malformed plan the parsed counts are 0 (what `ipd_lint.parse` returns: measured at review, `parse('')` gives `meta_fields={}`, `exec_task_groups=0`, no leaves) and `kind`/`scope_paths` are `None`.
   - Execution state: pending
 
-- [ ] E-04 In `review_tier.py`, add `parse_tier_marker(reply_text: str) -> str | None`: the last non-empty line of the reply, after stripping surrounding whitespace and ignoring a trailing code-fence line, must equal exactly `AW-TIER: simple`, `AW-TIER: standard`, or `AW-TIER: complex` (case-sensitive), and the function returns the tier, else `None` (spec Section 6 row T and Section 8.1 rules 1 and 2, applied to this marker). Add `parse_tier_answers(review_text: str) -> dict[int, str] | None`: find the last `## Round <n>` section, then its `### Step T` subsection, and return the answers to questions 1 to 5, read as lines starting with `1.` to `5.` (or `Q1:` to `Q5:`); return `None` when the subsection is absent. Add `tier_answers_complete(answers) -> bool` (all five present and non-empty), which Order 04's postcondition for check T calls.
+- [ ] E-04 In `review_tier.py`, add `parse_tier_marker(reply_text: str) -> str | None`: the last non-empty line of the reply, after ignoring a trailing code-fence line and stripping that line's leading and trailing whitespace, must equal exactly `AW-TIER: simple`, `AW-TIER: standard`, or `AW-TIER: complex` (case-sensitive), and the function returns the tier, else `None` (spec `k3yx72` Section 6 row T and Section 8.1 rules 1 and 2, applied to this marker; `k3yx72` AC-08). Add `parse_tier_answers(review_text: str) -> dict[int, str] | None`: find the last `## Round <n>` section, then its `### Step T` subsection, and return the answers to questions 1 to 5, read as lines starting with `1.` to `5.` (or `Q1:` to `Q5:`); return `None` when the subsection is absent. Add `tier_answers_complete(answers) -> bool` (all five present and non-empty), which Order 04's postcondition for check T calls.
   - Depends on: none
-  - Expected outcome: the three functions exist and are pure.
+  - Expected outcome: `parse_tier_marker("text\nAW-TIER: standard\n```\n")` returns `"standard"`; `parse_tier_marker("aw-tier: simple")` returns `None`; `parse_tier_answers` on a two-round review returns the last round's answers; none of the three reads files or mutates its input.
   - Execution state: pending
 
 ### Task group 3: run state and analytics
 
-- [ ] E-05 In `review_tier.py`, add `record_review_tier(attempt: MutableMapping, *, tier: str | None, source: str, answers: Mapping[int, str] | None, facts: Mapping | None) -> None`, which writes `attempt["review_tier"]` (the tier or `None`), `attempt["review_tier_source"]` (`"agent"` for a marker-chosen tier, `"orchestrator"` for the fixed profile, `"raised"` when the agent raised it later per spec Section 5.3), `attempt["review_tier_answers"]` (a dict with string keys `"1"` to `"5"`, JSON-safe), and `attempt["review_tier_facts"]`. It never changes the tier it is given: spec MD-1 says the runner forces no tier. Order 04 calls it; this plan only provides it.
+- [ ] E-05 In `review_tier.py`, add `record_review_tier(attempt: MutableMapping, *, tier: str | None, source: str, answers: Mapping[int, str] | None, facts: Mapping | None) -> None`, which writes `attempt["review_tier"]` (one of `REVIEW_DEPTH_VALUES`, or `None`; any other value raises `ValueError`, so a caller bug cannot record a tier the plan field would refuse), `attempt["review_tier_source"]` (`"agent"` for a marker-chosen tier, `"orchestrator"` for the fixed profile, `"raised"` when the agent raised it later per spec Section 5.3; any other source raises `ValueError`), `attempt["review_tier_answers"]` (a dict with string keys `"1"` to `"5"`, JSON-safe), and `attempt["review_tier_facts"]`. It never changes the tier it is given: spec `k3yx72` MD-1 says the runner forces no tier (`k3yx72` AC-08). Order 04 calls it; this plan only provides it.
   - Depends on: E-03, E-04
-  - Expected outcome: after a call, the attempt dict carries the four keys and `json.dumps(attempt)` succeeds.
+  - Expected outcome: after a call, the attempt dict carries the four keys and `json.dumps(attempt)` succeeds; an unknown tier or source raises `ValueError`.
   - Execution state: pending
 
-- [ ] E-06 Carry the tier into the attempt grain: in `run_dashboard.collect_rows` add a `review_tier` row value (the attempt's `review_tier` when a non-empty string, `""` when the key is missing), add `review_tier` to `COLUMNS` and `ATTEMPT_FACT_FIELDS`, and bump `ATTEMPT_FACTS_SCHEMA_VERSION` by one; in `run_analytics_attempts` add `review_tier` to `ATTEMPT_FILTER_FIELDS` and `ATTEMPT_GROUP_FIELDS`. This follows the `readiness` addition of plan `avg8qv` exactly. In `docs/run-analytics.md` section "Review cost: per-attempt analysis", add the row `| Attempts by review tier | aw runs query attempts --filter action=review --group-by review_tier --metric cost,steps |` and remove nothing from "What is not recorded yet" (review steps stay listed until Order 04).
+- [ ] E-06 Carry the tier into the attempt grain: in `run_dashboard.collect_rows` add a `review_tier` row value to BOTH attempt `base` dicts (the recorded-attempt dict, which reads the attempt's `review_tier` when a non-empty string and `""` when the key is missing or `None`, and the synthesized-attempt dict, which is always `""`), add `review_tier` to `COLUMNS` and `ATTEMPT_FACT_FIELDS`, and bump `ATTEMPT_FACTS_SCHEMA_VERSION` by one; in `run_analytics_attempts` add `review_tier` to `ATTEMPT_FILTER_FIELDS` and `ATTEMPT_GROUP_FIELDS`. In `run_dashboard_assets/dashboard.js` add `review_tier` to the list of fields normalized to `(none)`, to `DIMS` (label `Review tier`, help text naming `simple` / `standard` / `complex` / `orchestrator`, recorded for plan reviews run with `--review-mode steps` only), to `FACETS`, and to `GROUPABLE`. This follows the `readiness` addition of plan `avg8qv` (its E-03, E-04 and E-06). In `docs/run-analytics.md` section "Review cost: per-attempt analysis", add the row `| Attempts by review tier | aw runs query attempts --filter action=review --group-by review_tier --metric cost,steps |` and remove nothing from "What is not recorded yet" (review steps stay listed until Order 04).
   - Depends on: E-05
   - Expected outcome: `aw runs query attempts --group-by review_tier` is accepted, and `aw runs query schema` lists `review_tier`.
   - Execution state: pending
 
 ### Task group 4: tests and commit
 
-- [ ] E-07 Add `tests/test_review_tier.py`, marked `core`, covering: (a) `ipd_lint.lint_text` on a minimal conformant plan with `- Review-Depth: standard` reports no `IPD-M103`/`IPD-M104`, and with `huge` reports `IPD-M104`; (b) `ipd_lifecycle.frozen_region_digest` is equal for the same plan with and without the field; (c) `tier_facts` on three fixture plans (one naming a `.spec.md`, one with 19 E-items, one with no `- Scope-Paths:`) returns the expected values; (d) `parse_tier_marker` accepts each valid marker, accepts it before a trailing fence line, and returns `None` for `aw-tier: simple`, a marker that is not on the last line, and an unknown tier; (e) `parse_tier_answers` on a review text with two rounds reads the last round only and `tier_answers_complete` is false when answer 4 is missing; (f) `record_review_tier` writes the four keys and the result survives `json.dumps`; (g) the attempt-grain round trip: a fixture run whose attempt carries `review_tier: "simple"`, analyzed by the real `aw runs analyze` leaf, answers `run_query("attempts", group_by="review_tier", ...)` with a `simple` row (reuse the fixture helpers of `tests/test_run_analytics_review_cost.py`).
+- [ ] E-07 Add `tests/test_review_tier.py`, marked `core`, covering: (a) `ipd_lint.lint_text` on a minimal conformant plan with `- Review-Depth: standard` reports no `IPD-M103`/`IPD-M104`, and with `huge` reports `IPD-M104`; (b) `ipd_lifecycle.frozen_region_digest` is equal for the same plan with and without the field; (c) `tier_facts` on three fixture plans (one naming a `.spec.md`, one with 19 E-items, one with no `- Scope-Paths:`) returns the expected values; (d) `parse_tier_marker` accepts each valid marker, accepts it before a trailing fence line, and returns `None` for `aw-tier: simple`, a marker that is not on the last line, and an unknown tier; (e) `parse_tier_answers` on a review text with two rounds reads the last round only and `tier_answers_complete` is false when answer 4 is missing; (f) `record_review_tier` writes the four keys, passes the tier through unchanged (spec `k3yx72` MD-1), the result survives `json.dumps`, and an unknown tier or source raises `ValueError`; (g) the attempt-grain round trip: a fixture run whose attempt carries `review_tier: "simple"`, analyzed by the real `aw runs analyze` leaf, answers `run_query("attempts", group_by="review_tier", ...)` with a `simple` row, and an attempt with no `review_tier` key lands in the `""`/`(none)` group rather than being dropped (reuse `_review_run` and the `AttemptQueryTests` setup of `tests/test_run_analytics_review_cost.py`, adding a `review_tier` keyword the way `avg8qv` E-05 added `readiness`); (h) `tier_facts` on an empty string and on a plan with no metadata block returns the seven keys without raising.
   - Depends on: E-01, E-03, E-04, E-05, E-06
   - Expected outcome: a passing core test module that calls the real functions and CLI leaf.
   - Execution state: pending
@@ -104,12 +107,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Calling `tier_facts` and `record_review_tier` from the runner: Order 04 owns the review sequence.
+  - Carrier: uiyoax
 - Storage under metadata spec `4sd62s` (event logs): spec `k3yx72` Section 12 requires the `4sd62s` migration to carry `Review-Depth` like any other field if this lands first; nothing is owed here.
+  - Carrier-Declined: owed by the `4sd62s` migration, not by this plan; spec `k3yx72` Section 12 states the obligation on that migration.
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. Spec Sections 4.1 item 4, 5.2 (recording), 7.2 (field) and 12 (field naming) are covered.
+- Under-scope: none. Spec Sections 4.1 item 4, 5.2 (recording), 7.2 (field) and 12 (field naming) are covered. This plan targets today's front-matter storage (spec `k3yx72` Section 12 requires the format be declared): `- Review-Depth:` is a front-matter field, not a `4sd62s` event.
 
 ## Required tests / validation
 
@@ -136,7 +141,7 @@ Amends spec `20260802-1904` (IPD structure and linting) Section 4.4 with the new
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `git diff` hunk of `agent_workflows/ipd_schema.py` adding `META_REVIEW_DEPTH`, `REVIEW_DEPTH_VALUES`, the `META_RECOGNIZED` entry, and the enum check.
+  - Required evidence: paste the `git diff` hunk of `agent_workflows/ipd_schema.py` adding `META_REVIEW_DEPTH`, `REVIEW_DEPTH_VALUES`, the `META_RECOGNIZED` entry, and the enum check in `validate_metadata`; and `aw ipd lint --phase author --agent` output on two scratch copies of this plan, one with `- Review-Depth: standard` (no `IPD-M103`/`IPD-M104`) and one with `- Review-Depth: huge` (`IPD-M104`).
   - Observed evidence:
   - Result: pending
 
@@ -161,7 +166,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: paste the `git diff` hunks in `run_dashboard.py` and `run_analytics_attempts.py`, and `aw runs query schema --json` output filtered to show `review_tier` in both attempt-grain field lists.
+  - Required evidence: paste the `git diff` hunks in `run_dashboard.py` (both `base` dicts, `COLUMNS`, `ATTEMPT_FACT_FIELDS`, the version bump), `run_dashboard_assets/dashboard.js`, and `run_analytics_attempts.py`, and `aw runs query schema --json` output filtered to show `review_tier` in `data.payload.attempt_grain.filter_fields` and `group_by_fields`.
   - Observed evidence:
   - Result: pending
 
