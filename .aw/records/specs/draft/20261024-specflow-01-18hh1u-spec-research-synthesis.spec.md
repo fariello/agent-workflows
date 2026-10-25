@@ -9,6 +9,7 @@
 
 ## Workflow history
 
+- 2026-10-24 refined (3ekww3): address adversarial review findings F-80 through F-88 (synthesized specification schema ## Workflow history block alignment for validate_spec compliance, State Diagram 7.3 Stage 1 worker failure transitions for FR-30 parity, research flow turn bounds mathematical formula and Flowchart 7.2 candidate refinement symmetry, Section 6.2 positional regex outer optionality preservation for bare .md dual-read, Table 3.4 CLI options synchronization for --max-retries and limits on from-spec and resume, Table 3.4 merge and reconcile premature to-review finalization guard, Table 6.2 NN collision resolution between input brief and context packets, Section 11 Phase 1 CLI subcommands config verb addition, and AT-37..AT-40 acceptance test expansion)
 - 2026-10-24 refined (ei43pd): address adversarial review findings F-68 through F-79 (Decision D177 positional right-to-left middle segment parsing regex correction, CLI investigation mode flag disambiguation with --investigation-mode in Table 3.4 and AT-34, State Diagram 7.3 terminal transitions and partial roster failure handling, Flowchart 7.2 --prepare-only and single-participant routing, Table 6.2 generic synthesis prompt pattern, Table 3.4 missing CLI options --budget/--turn-timeout/--slug/--set/--allow-unresolved-findings, runner profiles variant schema boundary clarification for agy, built-in fallback defaults specification in Section 5.1, Table 3.4 quote syntax repairs, finalize contract on capped runs with unresolved findings, comprehensive research-models.toml normalization mappings, and AT-35/AT-36 acceptance test additions)
 - 2026-10-24 refined (rzz6ik): address adversarial review findings F-57 through F-67 (Mermaid flowchart O node and subgraph syntax hardening, Mermaid research diagram flat hot root alignment, comprehensive AT-29..AT-34 acceptance test coverage for all functional requirements, Section 13.2 Claude Opus 5.5 model string correction, AT-23 cancellation exit parity, complete intermediate artifact placement matrix rows in Table 6.2, two-digit NN dynamic slot stride and 99 exhaustion handling, immutable id6 provenance linking in synthesis matrices, research-models.toml vocabulary registration in Section 11, resume setid selector and --agent option parity in CLI tables, state diagram terminal transitions, and FR-03B token metrics accounting)
 - 2026-10-24 refined (ye6osz): address adversarial review findings F-47 through F-56 (intermediate candidate validator isolation in _spec_files, maintainer auto-advance ruling DL-17 leaving single-model runs in draft, FR-35 from-spec successor spec contract, canonical flat hot research root citation, FR-36 prompt injection defense data fencing, research flow bounds and verifier accounting, Claude Opus 5.5 model string correction, cancellation CLI exit code consistency, research CLI module placement in research_cmd.py, and prepare-only prompt staging phasing)
@@ -188,20 +189,20 @@ A critical architectural decision is where intermediate candidate specs, reviews
 
 | Canonical Command | Mode & Rigor | Arguments & Options | Result & Side Effects | Exit Codes |
 | --- | --- | --- | --- | --- |
-| `aw specs flow new` | Quick or Thorough | `--brief <path>` (required or stdin)<br>`--title <str>`<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--allow-partial-roster` (flag: proceed to synthesis if a participant fails)<br>`--prepare-only` (flag: render prompts only)<br>`--apply` (default: preview only)<br>`--agent` / `--json` | Generates candidate specs in `draft/intermediate/<setid>/`, executes refinement, synthesizes merged design, and writes final candidate: to `.aw/records/specs/to-review/` if multi-model synthesis, or to `.aw/records/specs/draft/` if single-participant/single-model (per maintainer ruling DL-17). If `--prepare-only`, writes rendered Stage 1 prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow new` | Quick or Thorough | `--brief <path>` (required or stdin)<br>`--title <str>`<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster` (flag: proceed to synthesis if a participant fails)<br>`--prepare-only` (flag: render prompts only)<br>`--apply` (default: preview only)<br>`--agent` / `--json` | Generates candidate specs in `draft/intermediate/<setid>/`, executes refinement, synthesizes merged design, and writes final candidate: to `.aw/records/specs/to-review/` if multi-model synthesis, or to `.aw/records/specs/draft/` if single-participant/single-model (per maintainer ruling DL-17). If `--prepare-only`, writes rendered Stage 1 prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow prepare` | Prompt Prep Only | `--brief <path>`<br>`--slug <slug>`<br>`--set <setid>`<br>`--roster <roster-spec>`<br>`--apply`<br>`--agent` / `--json` | Freezes baseline commit, validates brief, renders all initial generation prompt artifacts to `.aw/records/prompts/pending/`, and displays the execution plan and turn bounds without dispatching execution. | 0: clean<br>2: usage error |
-| `aw specs flow from-spec` | Quick or Thorough | `<spec-selector>` (id6, setid, or path)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional)<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--objective <str>` (focus area)<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Reads existing spec as baseline, gathers independent alternative revisions across roster in `draft/intermediate/<setid>/`, refines, and synthesizes into a successor candidate spec carrying `- Supersedes: <prior-id6>` (FR-35). | 0: clean<br>1: findings/cap<br>2: usage error |
-| `aw specs flow merge` | Synthesis Only | `<setid>` (or `<candidate-paths...>`)<br>`--synthesizer <profile>` (default: roster verifier)<br>`--synth-refine-cap <int>`<br>`--apply`<br>`--agent` / `--json` | Takes candidates from `draft/intermediate/<setid>/`, compiles Similarities/Differences Matrix in `.aw/records/reviews/`, executes synthesis refinement, and finalizes to `to-review/`. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow from-spec` | Quick or Thorough | `<spec-selector>` (id6, setid, or path)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional)<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--objective <str>` (focus area)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster`<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Reads existing spec as baseline, gathers independent alternative revisions across roster in `draft/intermediate/<setid>/`, refines, and synthesizes into a successor candidate spec carrying `- Supersedes: <prior-id6>` (FR-35). | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow merge` | Synthesis Only | `<setid>` (or `<candidate-paths...>`)<br>`--synthesizer <profile>` (default: roster verifier)<br>`--synth-refine-cap <int>`<br>`--apply`<br>`--agent` / `--json` | Takes candidates from `draft/intermediate/<setid>/`, compiles Similarities/Differences Matrix in `.aw/records/reviews/`, and executes synthesis refinement. If clean multi-model synthesis, finalizes to `to-review/`; if single-model, finalizes to `draft/` (DL-17); if caps are reached with unresolved critical/major findings, halts with exit 1 leaving candidates in `draft/intermediate/<setid>/`. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow status` | Read-Only | `<flow-run-id6>` (or latest if omitted)<br>`--verbose`<br>`--agent` / `--json` | Displays live or completed execution status: participant stage progress, iteration counts, active findings, cap warnings, token metrics. | 0: clean<br>1: findings/active<br>2: usage error |
-| `aw specs flow resume` | Recovery | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--refine-cap <int>` (optional new cap)<br>`--force-stale-resume` (flag: bypass brief mutation check)<br>`--apply`<br>`--agent` / `--json` | Resumes an interrupted, failed, or capped run from its frozen state without re-running completed participant turns. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow resume` | Recovery | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--refine-cap <int>` (optional new cap)<br>`--synth-refine-cap <int>` (optional new cap)<br>`--budget <int>` (optional new turn budget)<br>`--force-stale-resume` (flag: bypass brief mutation check)<br>`--apply`<br>`--agent` / `--json` | Resumes an interrupted, failed, or capped run from its frozen state without re-running completed participant turns. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow cancel` | Abort & Cleanup | `<flow-run-id6>`<br>`--apply`<br>`--agent` / `--json` | Cancels an active or interrupted flow run, terminates all spawned child worker subprocesses to prevent runaway background execution and billing, marks the run ledger status as `cancelled`, and updates attention pipeline position. Exits 0 on clean cancellation, 1 if run is not active/cancellable. | 0: clean<br>1: not-active<br>2: usage error |
 | `aw specs flow finalize` | Finalization | `<flow-run-id6>`<br>`--status to-review\|draft` (default: `to-review` for clean multi-model synthesis; `draft` for solo/single-model per DL-17)<br>`--allow-unresolved-minor` (flag)<br>`--allow-unresolved-findings` (flag: force finalize capped run with findings into `draft/`)<br>`--apply`<br>`--agent` / `--json` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory (`to-review/` if clean multi-model synthesis; `draft/` if single-model/solo per DL-17 or capped with unresolved findings via `--allow-unresolved-findings`), marks intermediates as `synthesized`, and outputs `/spec-review` (multi-model) or `aw specs set to-review <id6>` (single-model/draft). Refuses to advance to `to-review/` if unresolved critical or major findings remain. | 0: clean<br>1: blocked/findings<br>2: usage error |
-| `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--mode quick\|thorough`<br>`--investigation-mode parallel\|decomposed` (default: `parallel`)<br>`--roster <roster-spec>`<br>`--topic <str>`<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--reconcile-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Formulates research prompt, collects independent evidence reports across roster in flat hot root `.aw/records/research/`, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. If `--prepare-only`, writes rendered Stage 1 prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--mode quick\|thorough`<br>`--investigation-mode parallel\|decomposed` (default: `parallel`)<br>`--roster <roster-spec>`<br>`--topic <str>`<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--reconcile-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Formulates research prompt, collects independent evidence reports across roster in flat hot root `.aw/records/research/`, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. If `--prepare-only`, writes rendered Stage 1 prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw research flow prepare` | Prompt Prep Only | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--roster <roster-spec>`<br>`--apply`<br>`--agent` / `--json` | Freezes baseline commit, validates research brief, renders all initial investigation prompt artifacts to `.aw/records/prompts/pending/`, and displays the execution plan without dispatching execution. | 0: clean<br>2: usage error |
-| `aw research flow reconcile` | Synthesis Only | `<setid>` (or `<report-paths...>`)<br>`--reconciler <profile>` (default: roster verifier)<br>`--reconcile-refine-cap <int>`<br>`--apply`<br>`--agent` / `--json` | Takes candidate research reports from flat hot root `.aw/records/research/`, cross-verifies citations, identifies direct contradictions, drafts reconciled synthesis directly in `.aw/records/research/` or finalizes to `.aw/records/research/reference/<YYYYMM-Www>/`. Alias: `aw research flow merge`. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow reconcile` | Synthesis Only | `<setid>` (or `<report-paths...>`)<br>`--reconciler <profile>` (default: roster verifier)<br>`--reconcile-refine-cap <int>`<br>`--apply`<br>`--agent` / `--json` | Takes candidate research reports from flat hot root `.aw/records/research/`, cross-verifies citations, identifies direct contradictions, and drafts reconciled synthesis directly in `.aw/records/research/` or finalizes to `.aw/records/research/reference/<YYYYMM-Www>/` if clean; exits 1 if unverified claims or findings remain without `--allow-unverified`. Alias: `aw research flow merge`. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw research flow finalize` | Finalization | `<flow-run-id6>`<br>`--allow-unverified` (flag)<br>`--apply`<br>`--agent` / `--json` | Validates reconciled research report against research contract, moves report from flat hot root `.aw/records/research/` to `.aw/records/research/reference/<YYYYMM-Www>/`, runs `aw research index`, and outputs durable reference path. | 0: clean<br>1: blocked/unverified<br>2: usage error |
 | `aw research flow status` | Read-Only | `<flow-run-id6>` (or latest if omitted)<br>`--verbose`<br>`--agent` / `--json` | Displays live or completed research execution status: participant progress, citation verification count, contradiction count, and report paths. | 0: clean<br>1: findings/active<br>2: usage error |
-| `aw research flow resume` | Recovery | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--apply`<br>`--agent` / `--json` | Resumes an interrupted, failed, or capped research run from its frozen state without re-running completed participant investigation turns. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow resume` | Recovery | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--refine-cap <int>` (optional new cap)<br>`--reconcile-refine-cap <int>` (optional new cap)<br>`--budget <int>` (optional new turn budget)<br>`--force-stale-resume` (flag: bypass brief mutation check)<br>`--apply`<br>`--agent` / `--json` | Resumes an interrupted, failed, or capped research run from its frozen state without re-running completed participant investigation turns. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw research flow cancel` | Abort & Cleanup | `<flow-run-id6>`<br>`--apply`<br>`--agent` / `--json` | Cancels an active or interrupted research flow run, terminates all spawned child worker subprocesses, marks the run ledger status as `cancelled`, and updates research catalog tracking. | 0: clean<br>1: not-active<br>2: usage error |
 | `aw specs flow config` | Read-Only / Mutate | `show` \| `set-roster` \| `set-defaults`<br>`--roster <roster-spec>`<br>`--profile <name>`<br>`--agent` / `--json` | Displays resolved configuration hierarchy or writes user-local flow defaults to `<config_dir>/flow-preferences.json`. Alias: `aw research flow config`. | 0: clean<br>2: usage error |
 
@@ -268,11 +269,12 @@ Where:
 For Research Flows (`aw research flow`), turn bounds are governed by an equivalent closed ceiling:
 ```text
 Max_Research_Turns = [ N_participants * (1 + Max_Retries) ]
+                   + [ N_participants * Refine_Cap * 2 * (1 + Max_Retries) ]
                    + [ (1 if Citation_Verification == 'llm' else 0) * (1 + Max_Retries) ]
                    + [ (1 if N_participants > 1 else 0) * (1 + Max_Retries) ]
                    + [ (Reconcile_Refine_Cap if N_participants > 1 else 0) * 2 * (1 + Max_Retries) ]
 ```
-Where `Citation_Verification` dispatches once across all collected reports using the assigned `research-verifier` profile when LLM cross-verification is enabled (deterministic git/URL citation checks consume 0 model turns), and reconciliation synthesis and refinement execute if `N > 1`.
+Where `Stage 1 (Evidence Gathering)` dispatches `N * (1 + R)`; `Stage 2 (Candidate Research Refinement)` executes up to `Refine_Cap` verification/revision cycles per participant `N * Refine_Cap * 2 * (1 + R)`; `Stage 3 (Citation Cross-Verification)` dispatches once across collected reports using the assigned `research-verifier` profile when LLM cross-verification is enabled (deterministic git/URL citation checks consume 0 model turns); `Stage 4 (Reconciliation Synthesis)` executes 1 multi-participant synthesis turn if `N > 1`; and `Stage 5 (Reconciliation Refinement)` executes up to `Reconcile_Refine_Cap * 2 * (1 + R)` turns if `N > 1`. For single-participant research (`N = 1`), reconciliation is skipped and refinement is governed by `Refine_Cap`.
 
 **Worked Example 1: Standard 3-Participant Thorough Mode (Happy Path)**
 - Configuration: `N = 3`, `Refine_Cap = 3`, `Synth_Refine_Cap = 2`, `Max_Retries = 0` (no errors).
@@ -588,7 +590,7 @@ All files conform to the decided uniform grammar:
 | Stage | Artifact Purpose | Type Facet | Target Filename Pattern | Resolved Directory Location | Retention & Lifecycle |
 | --- | --- | --- | --- | --- | --- |
 | **0. Input** | Frozen brief & scope | `prompt` | `YYYYMMDD-<setid>-00-<id6>-<slug>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
-| **0. Context** | Scoped repository context packet | `prompt` | `YYYYMMDD-<setid>-00-<id6>-context.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
+| **0. Context** | Scoped repository context packet | `prompt` | `YYYYMMDD-<setid>-0X-<id6>-context.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (allocated in `01`..`09` prior to gen prompts) |
 | **1. Gen Prompt** | Rendered prompt for participant | `prompt` | `YYYYMMDD-<setid>-01-<id6>-gen.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
 | **1. Refine Prompt** | Rendered refinement prompt | `prompt` | `YYYYMMDD-<setid>-02-<id6>-refine.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
 | **1. Synth Prompt** | Rendered synthesis prompt | `prompt` | `YYYYMMDD-<setid>-05-<id6>-synth.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
@@ -609,8 +611,9 @@ All files conform to the decided uniform grammar:
 Currently, `agent_workflows.artifact_naming._CLUSTERED_RE` accepts only a single closed `<type>` facet after the slug. D177 names with optional middle segments (`[.<ace>][.<model>]`) are accepted by the permissive rename regex but fail the canonical clustered validator. The planned extension to `artifact_naming.py`:
 1. Update `_CLUSTERED_RE` to insert an optional positional attribution group preceding the closed type facet:
    ```python
-   # Positional right-to-left regex supporting optional [.<ace>][.<model>] preceding the closed type facet:
-   r"(?:\.(?P<ace>[a-z0-9-]+)\.(?P<model>[a-z0-9-]+)|\.(?P<model_only>[a-z0-9-]+))?\.(?P<type>" + _FACET_ALT + r")\.md\Z"
+   # Positional right-to-left regex supporting optional [.<ace>][.<model>] preceding the closed type facet,
+   # with outer optionality to preserve bare .md dual-read compatibility:
+   r"(?:(?:\.(?P<ace>[a-z0-9-]+)\.(?P<model>[a-z0-9-]+)|\.(?P<model_only>[a-z0-9-]+))?\.(?P<type>" + _FACET_ALT + r"))?\.md\Z"
    ```
    When matching from the right per Decision D177: if two middle segments are present, they bind to `ace` and `model` respectively; if one middle segment is present, it binds to `model` (`model = m.group('model') or m.group('model_only')`); if zero are present, both `ace` and `model` are `None`. This guarantees that single-facet records (such as `.reconciliation.spec.md` or `.opus55high.research-report.md`) are correctly identified as model tokens rather than erroneously captured as ACEs.
 2. Update `artifact_naming.build_clustered_name` to accept optional `ace: Optional[str]` and `model: Optional[str]` parameters.
@@ -677,16 +680,21 @@ Intermediate artifacts carry explicit machine-readable metadata in their front m
   - Reviewed-At: YYYY-MM-DD
   - Reviewer: <ace_token>/<model_token>
   - Verdict: REVIEWED - MATERIAL CHANGES APPLIED | NO MATERIAL IMPROVEMENTS FOUND
-  - Audited-Scope: [FR-01..FR-36, AT-01..AT-36, Decisions 01..13]
+  - Audited-Scope: [FR-01..FR-36, AT-01..AT-40, Decisions 01..13]
   ```
 - **Synthesized Specification (`.spec.md`)**:
   ```yaml
   - Date: YYYY-MM-DD
   - Status: draft
   - Id: <id6>
+  - Scope: <scope_summary>
   - Contributors: [<id6_1> (<model_1>), <id6_2> (<model_2>), ...]
   - Matrix-Ref: <matrix_id6>
   - Set: <setid>
+
+  ## Workflow history
+
+  - YYYY-MM-DD created (flow): synthesized from candidates <id6_1>, <id6_2> via matrix <matrix_id6>
   ```
 
 ### 6.4 Worked Filename Inventories
@@ -830,7 +838,11 @@ flowchart TD
     DP_res -- No --> DR_res{Roster Size?}
 
     DR_res -- N = 1 --> Single_Evidence[Single Evidence Collection: Flat Hot Root research/]
-    Single_Evidence --> RF[Citation Verification & Corroboration Engine]
+    Single_Evidence --> RF_solo[Citation Verification Pass]
+    RF_solo --> RR_solo[Candidate Research Refinement Loop]
+    RR_solo --> RK_solo[Validate Against Research Contract]
+    RK_solo --> RL_solo[Index in Research Manifest: aw research index]
+    RL_solo --> RM_solo["End: Single Model Research Record in reference/YYYYMM-Www/"]
 
     DR_res -- N > 1 --> RD[Parallel Evidence Gathering Across Roster]
 
@@ -840,20 +852,24 @@ flowchart TD
         RD --> RE3[Report 3: Standards & Architecture Audit]
     end
 
-    RE1 --> RF
-    RE2 --> RF
-    RE3 --> RF
+    RE1 --> RF_multi[Citation Verification Pass]
+    RE2 --> RF_multi
+    RE3 --> RF_multi
+
+    RF_multi --> RR_multi[Candidate Refinement Loop: research/]
+    RR_multi --> Reconcile_Phase
 
     subgraph Reconcile_Phase ["Reconciliation Phase"]
-        RF --> RG[Identify Fact vs Inference vs Recommendation]
+        RG[Identify Fact vs Inference vs Recommendation]
         RG --> RH[Detect & Flag Direct Contradictions]
         RH --> RI[Compile Reconciliation Report]
         RI --> RJ[Author Synthesis with Traceable Citations]
+        RJ --> R_loop[Reconciliation Refinement Loop]
     end
 
-    RJ --> RK[Validate Against Research Contract]
+    R_loop --> RK[Validate Against Research Contract]
     RK --> RL[Index in Research Manifest: aw research index]
-    RL --> RM[End: Durable Reconciled Research Record in reference/YYYYMM-Www/]
+    RL --> RM["End: Durable Reconciled Research Record in reference/YYYYMM-Www/"]
 ```
 
 ### 7.3 State, Recovery, and Cap Flow Diagram
@@ -870,6 +886,9 @@ stateDiagram-v2
     Dispatching --> Generating: Sessions Spawned
 
     Generating --> CandidateRefining: Initial Candidates in draft/intermediate/
+    Generating --> PartialRoster: Worker Failure without --allow-partial-roster (Exit 1)
+    Generating --> CandidateRefining: Worker Failure with --allow-partial-roster
+    Generating --> Failed: All Participants Failed (Exit 1)
     Generating --> Failed: Host Crash / Auth Error (Exit 2)
     Generating --> Interrupted: SIGINT / SIGTERM Trapped
     Generating --> Cancelled: aw specs flow cancel
@@ -996,6 +1015,10 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-34** | FR-18A | Execute research flow with `--investigation-mode parallel` vs `--investigation-mode decomposed`. | Parallel mode issues identical research question across all roster prompts; decomposed mode generates discrete non-overlapping sub-question prompts and reconciles findings into composite report. | Pass if prompt generation differentiates parallel inquiry from modular question decomposition. |
 | **AT-35** | FR-33, Sec 8.3 | Simulate hanging runner worker exceeding `--turn-timeout 600`. | Engine issues SIGTERM, waits 3-second grace period, issues SIGKILL, logs timeout diagnostic in run ledger, and triggers isolated retry up to `--max-retries`. | Pass if timeout terminates hung process and isolates retry attempt. |
 | **AT-36** | FR-11, FR-20 | Execute `aw specs flow finalize` on a flow run capped with unresolved major findings without vs with `--allow-unresolved-findings`. | Without flag, finalization refuses with exit code 1 (`blocked/findings`). With flag, spec is finalized to `specs/draft/` with status `draft` (exit 1), documenting unresolved findings in workflow history, and refusing promotion to `to-review/`. | Pass if unearned promotion to `to-review/` is prevented and draft placement succeeds with flag. |
+| **AT-37** | Sec 6.3 | Simulate artifact generation in a Set where two-digit NN sequence reaches 99. | Workflow engine halts unconditionally, logs diagnostic, and refuses further dispatch with exit code 1 (`refusal: two-digit NN sequence space exhausted`). | Pass if NN space exhaustion is refused cleanly without overwriting existing files. |
+| **AT-38** | Table 3.4, FR-26 | Execute `aw research flow prepare --question "..." --slug "..." --set "..." --apply`. | Freezes baseline commit, renders Stage 1 investigation prompts to `.aw/records/prompts/pending/`, displays execution bounds, and exits 0 without launching model sessions. | Pass if research prompt artifacts are staged and zero agent turns are dispatched. |
+| **AT-39** | FR-11, Sec 4.3.1 | Resume a flow run halted by `--budget 10` or synthesis cap using `aw specs flow resume <run-id6> --budget 20 --synth-refine-cap 3 --apply`. | Engine loads checkpointed state, consumes increased turn budget and cap, and resumes synthesis refinement without re-running completed generation or candidate refinement turns. | Pass if resume adopts updated limits and resumes execution. |
+| **AT-40** | FR-33, Table 3.4 | Execute `aw specs flow cancel <run-id6>` on an inactive or already finalized flow run. | Process outputs error indicating run is not active and exits with code 1. | Pass if cancelling inactive/finalized run exits 1. |
 
 ---
 
@@ -1049,8 +1072,8 @@ Every functional requirement is mapped to an observable behavioral acceptance te
   - `flow_refine.py`: Finding parser, iteration counter, and convergence checker.
   - `flow_synth.py`: Matrix generator and provenance tagger.
 - Add CLI subcommands in `agent_workflows/cli.py`, `specs.py` (specs flow), and `research_cmd.py` (research flow):
-  - `aw specs flow [new|prepare|from-spec|merge|status|resume|cancel|finalize]`
-  - `aw research flow [new|prepare|reconcile|finalize|status|resume|cancel]`
+  - `aw specs flow [new|prepare|from-spec|merge|status|resume|cancel|finalize|config]`
+  - `aw research flow [new|prepare|reconcile|finalize|status|resume|cancel|config]`
 - Extend `agent_workflows/attention.py` to support spec flow Set rollups and `TODO:` footer banners for `draft/intermediate/<setid>/`.
 - Register canonical model tokens in `agent_workflows/data/research-models.toml`: add `opus55`, `opus55high`, `gpt61sol`, `gpt61solmedium` to `models` and their comprehensive alias mappings to `[normalizations]` (`claude-opus-5-5-high = "opus55high"`, `claude-opus-5-5 = "opus55"`, `opus-5-5-high = "opus55high"`, `opus55-high = "opus55high"`, `gpt-6.1-sol-medium = "gpt61solmedium"`, `gpt-6-1-sol-medium = "gpt61solmedium"`, `gpt61-sol-medium = "gpt61solmedium"`, `gpt61sol-medium = "gpt61solmedium"`, `gpt-6.1-sol = "gpt61sol"`, `gpt-6.1 = "gpt61"`) to ensure D177 filename validation and model token normalization succeed without warnings.
 - Unit and integration tests in `tests/test_specflow_*.py`.
@@ -1068,7 +1091,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 ## 12. Source Inventory, Self-Check, and Worked Transcripts
 
 ### 12.1 Source Inventory
-- Inspected repository baseline commits: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (initial), `182161e5d3d8c850647facd730055891bdd748a5` (refinement iteration 10 baseline), `47bd8f9e94ac369121fdd93a51596f629a841ae6` (refinement iteration 11 baseline), `6936316fdee618d4b0566fa3c0aee99fe13984a0` (refinement iteration 12 baseline), `517a22a58db03d4638fa4ff60068f1d021b211c6` (refinement iteration 13 baseline)
+- Inspected repository baseline commits: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (initial), `182161e5d3d8c850647facd730055891bdd748a5` (refinement iteration 10 baseline), `47bd8f9e94ac369121fdd93a51596f629a841ae6` (refinement iteration 11 baseline), `6936316fdee618d4b0566fa3c0aee99fe13984a0` (refinement iteration 12 baseline), `517a22a58db03d4638fa4ff60068f1d021b211c6` (refinement iteration 13 baseline), `00260f4b84c17abf14dd8112738284cec37165d1` (refinement iteration 14 baseline)
 - Primary files cited:
   - `DECISIONS.md` (Decision D177: Attributed artifact filenames; maintainer rulings DL-16 and DL-17)
   - `agent_workflows/cli.py` (CLI parser and subcommand registration)
@@ -1096,7 +1119,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - [x] Mandatory Mermaid diagrams: ERD, Spec Flow, Research Flow, State/Recovery Flow.
 - [x] Persistence classification table accompanying ERD.
 - [x] Worked filename inventories for 3-participant chunked, 1-participant quick, and resumed runs adhering to D177 and DL-17.
-- [x] Acceptance test matrix (`AT-01`..`AT-36`).
+- [x] Acceptance test matrix (`AT-01`..`AT-40`).
 - [x] Zero em or en dashes throughout the document.
 - [x] Zero file URI schemes and zero absolute home directory paths.
 
