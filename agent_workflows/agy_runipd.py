@@ -2765,8 +2765,8 @@ def run_agy_turn(
             # Armed for EVERY unattended turn, isolated or not (R4.4a).
             #
             # R4.4d, THE OVERLAP THIS HOST HAS AND THE OC HOST DOES NOT. Antigravity ALREADY enforces a
-            # per-turn ceiling: `DEFAULT_TIMEOUT` is "240m" and is passed to the child as
-            # `--print-timeout`, so the HOST kills the turn at nominally 4 hours - numerically identical
+            # per-turn ceiling: `DEFAULT_TIMEOUT` is "480m" and is passed to the child as
+            # `--print-timeout`, so the HOST kills the turn at nominally 8 hours - numerically identical
             # to `MAX_TURN_TIMEOUT`'s default. Two timers with the same value and different owners is
             # precisely the duplication that leaves a post-mortem unable to say which one killed a turn.
             # RESOLUTION, spec option (ii): the DRIVER bound is deliberately OFFSET to fire FIRST (see

@@ -1153,8 +1153,8 @@ def evaluate_policy_observation(
 #: RESET BY: NOTHING. That is its entire reason for existing alongside the no-progress watchdog: a
 #: chatty-but-wedged turn keeps resetting a no-progress window forever and cannot reset this.
 #:
-#: DEFAULT 4 HOURS. Measured when it was chosen: across 263 recorded turns the longest was 2.46
-#: hours, so this is roughly 1.6x the observed worst case. Accepts `0` to disable.
+#: DEFAULT 8 HOURS (raised from 4 hours in commit `48321755b`, 2026-10-12). When the original 4-hour
+#: default was chosen, the longest of 263 recorded turns was 2.46 hours. Accepts `0` to disable.
 #:
 #: SCOPE IS ONE TURN, NOT ONE RUN. Each queue item gets its own fresh budget, so a 22-item run has no
 #: run-wide ceiling and could legitimately span days; a run-wide ceiling does not exist in this design
@@ -1162,7 +1162,7 @@ def evaluate_policy_observation(
 #: driver records the safe-failure disposition and proceeds to the next item.
 #:
 #: ANTIGRAVITY OVERLAP, stated rather than discovered (R4.4d). That host ALREADY enforces a per-turn
-#: ceiling of `240m` via `--print-timeout`, numerically the same 4 hours, so two timers with different
+#: ceiling of `480m` via `--print-timeout`, numerically the same 8 hours, so two timers with different
 #: owners would fire at the same nominal instant. RESOLUTION: the driver bound is deliberately OFFSET
 #: to fire FIRST on that host (see `driver_bound_for_host`), so a termination is attributable to the
 #: driver, which records WHICH bound fired, rather than to an opaque host timeout. OpenCode has no
@@ -1198,8 +1198,8 @@ def driver_bound_for_host(host_ceiling_seconds: float | None) -> float:
     """`MAX_TURN_TIMEOUT`, pulled in ahead of a HOST-ENFORCED ceiling when one exists (R4.4d).
 
     Returns the driver's own ceiling in seconds, or `0.0` when disabled. When the host enforces its
-    own per-turn ceiling at nominally the same instant (antigravity's `240m` `--print-timeout` versus
-    this bound's 4 hours), the driver's fires FIRST by `HOST_CEILING_OFFSET_SECONDS`, so the
+    own per-turn ceiling at nominally the same instant (antigravity's `480m` `--print-timeout` versus
+    this bound's 8 hours), the driver's fires FIRST by `HOST_CEILING_OFFSET_SECONDS`, so the
     termination is attributable to the driver, which names the bound, rather than to an opaque host
     timeout. WHICH IS EXPECTED TO WIN: the driver's, by construction. The host timer remains the
     backstop for the case where the driver's own supervision thread dies.

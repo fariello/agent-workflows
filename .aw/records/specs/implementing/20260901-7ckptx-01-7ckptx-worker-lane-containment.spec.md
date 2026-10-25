@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): AMENDED 2026-10-25 on maintainer ruling (spec audit): R4.4(b), R4.4d, A10b, A10d updated to the shipped values MAX_TURN_TIMEOUT=8h and agy DEFAULT_TIMEOUT=480m, set by commit 48321755b (2026-10-12) without a spec change. Stale 4h/240m code comments in lane_containment.py and agy_runipd.py corrected. Spec stays implementing: ~12 criteria rely on tests deleted by 19313eed7.
 - 2026-10-13 note (aw specs): AMENDED 2026-10-13 (4xtpvg-02 thzrpo): R4.1d and A8d added to specify question-only denial and partial-denial posture on non-isolated unattended opencode turns (backlog 8ctu3u, research 7so8uz)
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-10-12 note (aw specs): AMENDED 2026-10-12 (4xtpvg-02 15db4k): R4.4 and R4.4(a)/R4.4b/R4.4c, A10/A10b/A10c/A10e amended on the maintainer's DELETE ruling for backlog e6zeta; the permission bound is removed and MAX_TURN_TIMEOUT is the single R4.4 turn bound
@@ -357,12 +358,13 @@ observed progress clears the pending ask and disarms it. Seconds rather than min
 because an unattended turn has NO answerer, so a permission ask is not a slow operation but a dead one and
 waiting longer cannot change the outcome.
 
-(b) `MAX_TURN_TIMEOUT`, default 4 HOURS. Measured from CHILD PROCESS START, once. NOT RESETTABLE BY
+(b) `MAX_TURN_TIMEOUT`, default 8 HOURS. Measured from CHILD PROCESS START, once. NOT RESETTABLE BY
 ANYTHING, and that is its entire reason for existing alongside the no-progress bound: a chatty-but-wedged
 turn keeps resetting a no-progress window forever, and it cannot reset this. Named `MAX_` rather than
 `ABSOLUTE_` because "absolute" invites reading it as a wall-clock instant, which it is not. MEASURED when
-the default was chosen: across 263 recorded turns the longest was 2.46 hours, so 4 hours is roughly 1.6x
-the observed worst case.
+the default was chosen: across 263 recorded turns the longest was 2.46 hours, so the original 4-hour default was
+roughly 1.6x the observed worst case. AMENDED 2026-10-25: the maintainer raised the default to 8 hours in commit
+`48321755b` (2026-10-12), together with the antigravity host ceiling below; this amendment records that change.
 
 SCOPE IS ONE TURN, NOT ONE RUN, and this MUST be stated wherever the bound is described because "max turn"
 is easy to over-read. Each item in a queue gets its own fresh budget, so a 22-item run has no run-wide
@@ -387,8 +389,8 @@ at `0`, and `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission
 on an unproven detector is non-conforming, because a false positive kills a healthy turn.
 
 R4.4d THE ANTIGRAVITY OVERLAP MUST BE STATED, NOT DISCOVERED. That host ALREADY has a per-turn ceiling:
-`agy_runipd.DEFAULT_TIMEOUT` is `"240m"` and is passed to the child as `--print-timeout`, so it is
-HOST-ENFORCED. That is 4 hours, numerically identical to `MAX_TURN_TIMEOUT`'s default, which means on
+`agy_runipd.DEFAULT_TIMEOUT` is `"480m"` (raised from `"240m"` in commit `48321755b`) and is passed to the child as `--print-timeout`, so it is
+HOST-ENFORCED. That is 8 hours, numerically identical to `MAX_TURN_TIMEOUT`'s default, which means on
 antigravity the two bounds would fire at the same nominal time with different owners. The implementing plan
 MUST NOT silently ship both as if they were independent. It MUST either (i) document that the host bound is
 authoritative on that host and the driver bound is a backstop for the case where the host's own timer fails
@@ -627,7 +629,7 @@ re-flag it as a traceability gap.
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
 - A10b. THE BOUND IS NAMED, DEFAULTED, AND SCOPED AS SPECIFIED. Assert the constant is named
-  `MAX_TURN_TIMEOUT` (not `..._DEADLINE`); that `MAX_TURN_TIMEOUT` defaults to 4
+  `MAX_TURN_TIMEOUT` (not `..._DEADLINE`); that `MAX_TURN_TIMEOUT` defaults to 8
   hours; that it accepts `0` to disable; and that it is armed for a NON-isolated turn as well as an
   isolated one. Paste the constant's docstring showing it states WHAT INSTANT it measures from and
   WHETHER ANYTHING RESETS IT, and showing the artifact states that `MAX_TURN_TIMEOUT` is
@@ -646,7 +648,7 @@ re-flag it as a traceability gap.
   configurable, and the maintainer's KISS ruling was that the knob waits until a real need appears. Also
   show the bound still accepts `0` to disable in-code, so declining a flag did not remove the operator's
   ability to turn it off. (R4.4c)
-- A10d. THE ANTIGRAVITY OVERLAP IS DOCUMENTED. Show that the relationship between the host's 240m
+- A10d. THE ANTIGRAVITY OVERLAP IS DOCUMENTED. Show that the relationship between the host's 480m
   `--print-timeout` and the driver's `MAX_TURN_TIMEOUT` is stated in the code, naming which is expected to
   fire first, and that a post-mortem can attribute a termination to one of them rather than guessing.
   (R4.4d)
