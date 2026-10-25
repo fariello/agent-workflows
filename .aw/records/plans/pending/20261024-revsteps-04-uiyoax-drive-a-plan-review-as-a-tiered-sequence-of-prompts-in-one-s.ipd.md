@@ -4,20 +4,23 @@
 - Kind: child
 - Concern: Today a runner review is ONE host turn: `runner_shared.build_review_prompt` returns `/plan-review <path>` (plus a lane notice when isolated), `runner_shared.execute_item_core` spawns it once through `spawn_executor`, and `runner_shared.reconcile_disposition` checks only the final plan state. The runner cannot tell which checks ran (spec `k3yx72` Section 1 problem 3) and every plan gets the same review (problem 2). Spec `k3yx72` (approved) Sections 4 to 7 and 9 specify the replacement: a runner pre-pass, then the tier's prompts sent in order to ONE session, a postcondition checked after each prompt with one re-ask, a guard that keeps verdict outputs out of every prompt before S7 (MD-15), a structural preservation check around proofreading (Section 6.1), defined outcomes, and resume after the last completed prompt (Section 9.3). None of it exists. The pilot (Order 09) cannot run without it.
 - Scope: Implement, in shared runner code so both hosts get it: the per-tier prompt lists and the `review_variant` grouping setting; the pre-pass; the prompt loop over one session using the existing same-session follow-up primitive `runner_shared.resume_via_launcher`; per-prompt postconditions with one re-ask; the verdict-output guard; the structural preservation check; the four outcomes; per-prompt run-state recording and resume; the children-before-orchestrator review ordering; and the Section 17.1 amendments to runner spec `25kzda`. The multi-prompt review is OPT-IN for this Stage (`--review-mode steps`; the default stays the current single `/plan-review` turn) so the pilot can compare the two on the same code (spec MD-19, MD-20). EXCLUDES the `AW-REVIEW` re-review loop (Order 05; until it lands, the sequence runs S6 once and treats its marker per Order 05's contract only when Order 05 is present, see E-06), the citation resolver (Order 03), the split step (Order 06), and the no-go clearing path (Order 05 Stage 2).
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/review_sequence.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/run_dashboard.py, agent_workflows/run_analytics_attempts.py, docs/run-analytics.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_review_sequence.py, tests/test_review_sequence_runner.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/review_sequence.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_analytics_attempts.py, docs/run-analytics.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_review_sequence.py, tests/test_review_sequence_runner.py, CHANGELOG.md
 - Item-Dependencies: executed:3bwrfx, executed:gv3smb
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
 - From-Spec: k3yx72
 - Set: revsteps
 - Order: 4
-- Highest E allocated: 16
+- Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: uiyoax
 
 ## Workflow history
+- 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED
+- 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261024-revsteps-04-uiyoax-drive-a-plan-review-as-a-tiered-sequence-of-prompts-in-one-s.review.md
 - 2026-10-25 to-review (aw set): authored review-ready from spec k3yx72 Stage 1 (MD-20)
 
 - 2026-10-25 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -42,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: rendered prompts name only step files that exist in the Order 01 tree; the re-ask wording matches spec Section 6 byte for byte.
   - Execution state: pending
 
-- [ ] E-03 In `review_sequence.py`, add the postcondition checks of spec Section 6 as pure functions over `(plan_text_before, plan_text_after, review_text, reply_text)` returning `None` on success or the failed postcondition text: `check_P` (the `### Proofreading` subsection exists in the current round, read with the last-round logic of `review_tier.parse_tier_answers`), `check_T` (`review_tier.parse_tier_marker` is not `None` and `review_tier.tier_answers_complete` is true), `check_steps` (each `Q`/`R*` check in the prompt has a `### Step <check>` subsection whose first non-blank line starts `- Checked:`), `check_S5` (every open question parsed by `ipd_lint.parse` has `Blocking:` and `Status:`, and `check.review-finding-unescalated` reports nothing for this review record, called through the `check_engine` rule function that `aw check` uses), and `check_S7` (Section 6 row S7 (a) or (b), exactly one new verdict-bearing history entry as counted by comparing `plan_readiness.newest_verdict` and the count of history lines containing a `plan_readiness.REVIEW_VERDICT_TOKENS` token before and after, and no new `aw ipd lint --phase author` error except `IPD-Q501`). Add `verdict_outputs(plan_text) -> tuple` returning `(read_readiness, Status value, newest_verdict raw entry)` for the MD-15 guard.
+- [ ] E-03 In `review_sequence.py`, add the postcondition checks of spec Section 6 as pure functions over `(plan_text_before, plan_text_after, review_text, reply_text)` returning `None` on success or the failed postcondition text: `check_P` (the `### Proofreading` subsection exists in the current round, read with the last-round logic of `review_tier.parse_tier_answers`), `check_T` (`review_tier.parse_tier_marker` is not `None` and `review_tier.tier_answers_complete` is true), `check_steps` (each `Q`/`R*` check in the prompt has a `### Step <check>` subsection whose first non-blank line starts `- Checked:`), `check_S5` (every open question parsed by `ipd_lint.parse` has `Blocking:` and `Status:`, and `check.review-finding-unescalated` reports nothing for this review record, called through the `check_engine` rule function that `aw check` uses), and `check_S7` (Section 6 row S7 (a) or (b), exactly one new verdict-bearing history entry as counted by comparing `plan_readiness.newest_verdict` and the count of history lines containing a `plan_readiness.REVIEW_VERDICT_TOKENS` token before and after, and no new `aw ipd lint --phase author` error except `IPD-Q501`). Add `verdict_outputs(plan_text) -> tuple` returning `(read_readiness, Status value, newest_verdict raw entry)` for the MD-15 guard. Count verdict-bearing entries with `plan_readiness.is_review_history_entry` plus `plan_readiness.classify_verdict` returning a token, never by token substring alone: measured at review, a progress line `- <date> /plan-review pass 2 (<agent>): re-ran R2` IS a review record to `is_review_history_entry` (the `/plan-review` label) and makes `newest_verdict` return `(None, ...)`, hiding an older approving verdict, so progress lines must use a non-review label (for example `- <date> review progress (<agent>): ...`, which `newest_verdict` skips). Order 01's `s7-finalize.md` and Order 05 must use that form; this plan's E-08 guard treats a verdict-less `/plan-review` line added before S7 the same as a verdict line (restore and re-ask).
   - Depends on: E-01
   - Expected outcome: each check returns `None` on a conforming fixture and the spec's postcondition text on a failing one.
   - Execution state: pending
@@ -59,7 +62,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw oc run start --help` and `aw agy run start --help` list `--review-mode`; a run started with `--review-mode steps --review-variant grouped-6` records both in `options`.
   - Execution state: pending
 
-- [ ] E-06 Add `runner_shared.run_review_sequence(...)`, called from `execute_item_core` in place of the single `spawn_executor` call when `is_review`, the item is an `ipd`, and `options["review_mode"] == "steps"` (spec reviews and `single` mode keep the existing path unchanged). It: (1) runs the pre-pass of spec Section 4.1 (lint, coverage for an orchestrator, `review_tier.tier_facts`, the two baseline hashes: the plan-file SHA-256 and `ipd_lifecycle.frozen_region_digest`); the pre-review commit stays the agent's job in `_kernel.md`/checklist as today, and the runner only refuses a commit subject starting `plan-review:` before S7 (see E-08); (2) sends prompt 1 through the existing `spawn_executor` so session capture, telemetry, and the launcher-caller count are unchanged; (3) for every later prompt, writes it with `write_prompt(..., suffix=f"step-{k:02d}-{label}")` and sends it through `resume_via_launcher` with the host spelling already used by `handle_review_orchestrator_readiness` (OpenCode `resume_session=<id>`, Antigravity `session_id=<id>, use_continue=False`), with `log_suffix=f"review-step-{k:02d}-{label}"`, so every prompt has its own log file; (4) after prompt 1 fixes the tier from `review_tier.parse_tier_marker` (orchestrators use the `orchestrator` list and skip T) and records it with `review_tier.record_review_tier`; (5) when the agent raises the tier (a later `AW-TIER:` marker naming a higher tier, or a changed `- Review-Depth:` is NOT the signal), inserts `raise_tier_plan` groups before `S5`; (6) before S7, sends `S6` once; if Order 05's `review_rereview` module is importable, delegates the S6 marker handling and loop to it, otherwise treats any S6 reply as done. If no session id was captured after prompt 1, the review ends `incomplete` rather than using `--continue` (spec MD-13).
+- [ ] E-06 Add `runner_shared.run_review_sequence(...)`, called from `execute_item_core` in place of the single `spawn_executor` call when `is_review`, the item is an `ipd`, and `options["review_mode"] == "steps"` (spec reviews and `single` mode keep the existing path unchanged). It: (1) runs the pre-pass of spec Section 4.1 (lint, coverage for an orchestrator, `review_tier.tier_facts`, the two baseline hashes: the plan-file SHA-256 and `ipd_lifecycle.frozen_region_digest`); the pre-review commit stays the agent's job in `_kernel.md`/checklist as today, and the runner only refuses a commit subject starting `plan-review:` before S7 (see E-08); (2) sends prompt 1 through the existing `spawn_executor` so session capture, telemetry, and the launcher-caller count are unchanged; (3) for every later prompt, writes it with `write_prompt(..., suffix=f"step-{k:02d}-{label}")` and sends it through `resume_via_launcher` with the host spelling already used by `handle_review_orchestrator_readiness` (OpenCode `resume_session=<id>`, Antigravity `session_id=<id>, use_continue=False`), with `log_suffix=f"review-step-{k:02d}-{label}"`, where `label` is the prompt's check names lowercased and joined by `-` (for example `r1-r2`), because `run_dashboard._SESSION_NAME_RE` accepts only a role matching `[a-z][a-z0-9-]*` (measured at review: `...-attempt-1-review-step-02-R1+R2.jsonl` does not match, `...-review-step-02-r1-r2.jsonl` does), so every prompt has its own log file that the attempt grain can read; (4) after prompt 1 fixes the tier from `review_tier.parse_tier_marker` (orchestrators use the `orchestrator` list and skip T) and records it with `review_tier.record_review_tier`; (5) when the agent raises the tier (a later `AW-TIER:` marker naming a higher tier, or a changed `- Review-Depth:` is NOT the signal), inserts `raise_tier_plan` groups before `S5`; (6) before S7, sends `S6` once; if Order 05's `review_rereview` module is importable, delegates the S6 marker handling and loop to it by calling `review_rereview.run_rereview_loop(ctx)` with a `ReviewSequenceContext` this plan defines in `review_sequence.py` (fields: `send_prompt`, a callable that sends one prompt in the review's session and returns its reply text; `tier`; `variant`; `checks_run`; `plan_path`; `review_path`; `pass_start_text`, the plan text at the start of the current pass; `pass_no`; `baseline`, the pre-pass values; and `review_steps`, the list E-11 appends to; the first seven are the ones `is2xiv` E-03 names), otherwise treats any S6 reply as done. Order 05 (`is2xiv` E-03) consumes exactly that object, so define it here and name its fields in the module docstring. If no session id was captured after prompt 1, the review ends `incomplete` rather than using `--continue` (spec MD-13).
   - Depends on: E-02, E-03, E-05
   - Expected outcome: a `standard` review in steps mode spawns exactly one executor turn and four resumed turns in the same session id.
   - Execution state: pending
@@ -69,7 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a fixture agent that skips `### Step R1` is re-asked once and, if it skips again, the item ends `incomplete` with no `- Readiness:` written.
   - Execution state: pending
 
-- [ ] E-08 The verdict-output guard (MD-15): after every prompt before S7, compare `verdict_outputs` with the pre-pass values; on any change, restore those three (the `- Readiness:` line, the `- Status:` line, and remove history lines added in this invocation that carry a verdict token), re-ask once, and end `incomplete` on a second change. Also refuse, the same way, a commit made during the invocation whose subject starts `plan-review:` before S7 (read with `git log` from the attempt's starting head in the review tree). After S7 passes its postcondition, the existing review commit path (`commit_review_lane_output` / `commit_review_shared_output`) runs unchanged, except that in steps mode their fallback subject becomes `plan-review: record the review of <id6> (<host>)` so `plan_readiness.review_staleness_index`, which finds reviews by the `plan-review:` prefix, finds runner-committed reviews too (spec Section 7.2 last bullet).
+- [ ] E-08 The verdict-output guard (MD-15): after every prompt before S7, compare `verdict_outputs` with the pre-pass values; on any change, restore those three (the `- Readiness:` line, the `- Status:` line, and remove history lines added in this invocation that `is_review_history_entry` accepts, including the `reviewed (aw set): ...` line `aw ipd set reviewed` writes), re-ask once, and end `incomplete` on a second change. Also refuse, the same way, a commit made during the invocation whose subject starts `plan-review:` before S7 (read with `git log` from the attempt's starting head in the review tree). After S7 passes its postcondition, the existing review commit path (`commit_review_lane_output` / `commit_review_shared_output`) runs unchanged, except that in steps mode their fallback subject becomes `plan-review: record the review of <id6> (<host>)` so `plan_readiness.review_staleness_index`, which finds reviews by the `plan-review:` prefix, finds runner-committed reviews too (spec Section 7.2 last bullet).
   - Depends on: E-06
   - Expected outcome: a fixture that writes `- Readiness: go` in the S5+S6 prompt has the line reverted and is re-asked.
   - Execution state: pending
@@ -81,14 +84,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: sessions, recording, resume, ordering
 
-- [ ] E-10 Session rules (spec Section 9.2): one review invocation counts as one item toward `max_items_per_session` (increment `session_turn_counts` once per invocation, not per prompt); no rotation between prompts of one invocation; a steps-mode invocation continues the previous review's session only when its plan is in the same Set as the previous reviewed plan, and starts a new session otherwise (record the last reviewed Set in state beside `REVIEW_SWEEP_SESSION_KEY`). Never use Antigravity `--continue` for any prompt of a steps-mode review.
+- [ ] E-10 Session rules (spec Section 9.2): one review invocation counts as one item toward `max_items_per_session` (increment `session_turn_counts` once per invocation, not per prompt); no rotation between prompts of one invocation; a steps-mode invocation continues the previous review's session only when its plan is in the same Set as the previous reviewed plan, and starts a new session otherwise (record the last reviewed Set in state beside `REVIEW_SWEEP_SESSION_KEY`). This changes TWO existing sweep behaviors for steps mode only, and both must change together: the session read (`oc_runipd.run_opencode` `sweep_lane_turn` branch and the `review_uses_sweep_session` branch of `runner_shared.execute_item_core` reuse `state[REVIEW_SWEEP_SESSION_KEY]` for every review in the run) must start fresh on a Set change; and the post-turn guard in `execute_item_core` that raises `DriverError("Review sweep changed session unexpectedly: ...")` when the captured id differs from the recorded sweep session and no rotation is due must accept a Set-change new session in steps mode, or the second Set's first review aborts the run. `single` mode keeps today's run-wide sweep session unchanged. Never use Antigravity `--continue` for any prompt of a steps-mode review.
   - Depends on: E-06
-  - Expected outcome: two same-Set plans share one session id; a third plan from another Set gets a new one; a fifth same-Set plan rotates.
+  - Expected outcome: in steps mode two same-Set plans share one session id; a third plan from another Set gets a new one without a `DriverError`; a fifth same-Set invocation rotates; a `single`-mode sweep over two Sets still shares one session (unchanged).
   - Execution state: pending
 
-- [ ] E-11 Per-prompt recording (spec Section 9.3): after each prompt, append to `attempt["review_steps"]` one entry `{"invocation": <uuid>, "pass": <n>, "prompt": <k>, "checks": [...], "plan_sha256": ..., "session_id": ..., "reasked": bool, "log": <path>}` and save state, so the runner knows the last completed prompt. Carry the step into the attempt grain: in `run_dashboard.collect_rows`, the session-log name already carries the role suffix (`_SESSION_NAME_RE` group `role`), so derive `review_step` (`<k>`) and `review_checks` from `review-step-<k>-<label>` roles, add both to `ATTEMPT_FACT_FIELDS` and the two `run_analytics_attempts` allowlists, make `run_dashboard.phase_of` keep these rows in phase `review` (not `recovery`), and bump `ATTEMPT_FACTS_SCHEMA_VERSION`. In `docs/run-analytics.md`, move "Review steps (Q9)" out of "What is not recorded yet" and add a question row for `--group-by review_step`.
+- [ ] E-11 Per-prompt recording (spec Section 9.3): after each prompt, append to `attempt["review_steps"]` one entry `{"invocation": <uuid>, "pass": <n>, "prompt": <k>, "checks": [...], "plan_sha256": ..., "session_id": ..., "reasked": bool, "log": <path>}` and save state, so the runner knows the last completed prompt; also write the plan text after the prompt to a snapshot file under the run directory named by that hash, which E-12 restores from.
   - Depends on: E-06
-  - Expected outcome: `aw runs query attempts --filter action=review --group-by review_step` returns one row per prompt index for a steps-mode fixture run.
+  - Expected outcome: after a `standard` steps-mode fixture review, `attempt["review_steps"]` holds five entries with prompt indices 1 to 5, each with a `plan_sha256` whose snapshot file exists under the run directory, and `state.json` on disk carries them after each prompt.
   - Execution state: pending
 
 - [ ] E-12 Resume (spec Section 9.3): on `aw <host> run resume`, a steps-mode review item interrupted mid-sequence restores the plan to the `plan_sha256` content of its last recorded step (from the prompt's saved plan snapshot under the run directory, written by E-11), then, if that step's `session_id` can be resumed, continues with the next prompt in that session; otherwise restarts the invocation at prompt 1 in a new session. Because no verdict output exists before S7 (E-08), an interrupted review leaves the plan at `to-review`.
@@ -101,6 +104,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a queue holding a Set's orchestrator and two children, all at action `review`, dispatches both children before the orchestrator.
   - Execution state: pending
 
+- [ ] E-17 Carry the review step into the attempt grain (the per-prompt logs E-06 names): in `run_dashboard.collect_rows`, the session-log name already carries the role suffix (`_SESSION_NAME_RE` group `role`), so derive `review_step` (`<k>`) and `review_checks` (the label split on `-`) from `review-step-<k>-<label>` roles in the unclaimed-session-file branch of `collect_rows` (per-step logs are not the attempt's own `log`, so they arrive there, built from the attempt's `base`), with `""` on every other row, add both to `COLUMNS`, `ATTEMPT_FACT_FIELDS`, the two `run_analytics_attempts` allowlists, and the `dashboard.js` field lists `gv3smb` E-06 extends (`DIMS`, `FACETS`, `GROUPABLE`, the `(none)` normalization list), make `run_dashboard.phase_of` keep these rows in phase `review` (not `recovery`), and bump `ATTEMPT_FACTS_SCHEMA_VERSION`. In `docs/run-analytics.md`, move "Review steps (Q9)" out of "What is not recorded yet" and add a question row for `--group-by review_step`.
+  - Depends on: E-06
+  - Expected outcome: `aw runs query attempts --filter action=review --group-by review_step` returns one row per prompt index for a steps-mode fixture run, and those rows have phase `review`.
+  - Execution state: pending
+
 ### Task group 4: spec amendment, tests, commit
 
 - [ ] E-14 Amend runner spec `25kzda` per spec `k3yx72` Section 17.1: Section 3.2 rows `draft` (complete) and `to-review` ("run plan review" means the single-turn review or, with `--review-mode steps`, the multi-prompt review of `k3yx72`); Section 4.4 `IPD-REVIEW-HISTORY` ("exactly one new verdict-bearing review entry; progress entries without a verdict token are allowed"); Section 5.4 (an orchestrator at action `review` is ordered after the Set's children at action `review`); a sessions paragraph (items 4 of Section 17.1); Section 2.6 unchanged. Append a `## Workflow history` note naming this plan.
@@ -108,8 +116,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the four amended passages read as Section 17.1 states.
   - Execution state: pending
 
-- [ ] E-15 Add `tests/test_review_sequence.py` (core; pure functions: prompt counts per tier and variant for AC-01, `raise_tier_plan`, postconditions, `structural_diff`, re-ask wording) and `tests/test_review_sequence_runner.py` (both hosts, through `oc_runipd.execute_item` and `agy_runipd.execute_item` with the host launcher patched by a scripted fake that edits the plan and review record per prompt, the harness of `tests/test_rereview_reviewed_plan.py`), covering spec acceptance criteria AC-01 (prompt count read from the attempt's `review_steps`), AC-02 (proofreading edit that ticks an `E-*` box is restored and re-asked; second refusal is `incomplete`), AC-07 first half (Readiness written in a pre-S7 prompt is reverted and re-asked), AC-08 (tier and five answers in run state; the runner does not change the agent's tier), AC-14 (resume at next prompt; restart at P when the session is gone), AC-16 (non-empty `### Proofreading` subsection in every fixture's review record), and the E-10 session and E-13 ordering outcomes, and that `--review-mode single` (the default) still sends exactly the one `/plan-review <path>` turn.
-  - Depends on: E-09, E-10, E-11, E-12, E-13
+- [ ] E-15 Add `tests/test_review_sequence.py` (core; pure functions: prompt counts per tier and variant for AC-01, `raise_tier_plan`, postconditions, `structural_diff`, re-ask wording) and `tests/test_review_sequence_runner.py` (both hosts, through `oc_runipd.execute_item` and `agy_runipd.execute_item` with the host launcher patched by a scripted fake that edits the plan and review record per prompt, the harness of `tests/test_rereview_reviewed_plan.py`), covering spec acceptance criteria `k3yx72` AC-01 (prompt count read from the attempt's `review_steps`), `k3yx72` AC-02 (proofreading edit that ticks an `E-*` box is restored and re-asked; second refusal is `incomplete`), `k3yx72` AC-07 first half (Readiness written in a pre-S7 prompt is reverted and re-asked), `k3yx72` AC-08 (tier and five answers in run state; the runner does not change the agent's tier), `k3yx72` AC-14 (resume at next prompt; restart at P when the session is gone), `k3yx72` AC-16 (non-empty `### Proofreading` subsection in every fixture's review record), the `completed-negative` outcome leaving the plan `reviewed` with `- Readiness: no-go` (`k3yx72` AC-09 first half), the progress-line and `aw set` history-line cases of E-03/E-08, and the E-10 session (including the no-`DriverError` Set change) and E-13 ordering outcomes, and that `--review-mode single` (the default) still sends exactly the one `/plan-review <path>` turn.
+  - Depends on: E-09, E-10, E-11, E-12, E-13, E-17
   - Expected outcome: both modules pass on both hosts.
   - Execution state: pending
 
@@ -142,14 +150,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 1. E-01 to E-04: pure sequence model, prompts, postconditions, structural diff.
 2. E-05 to E-09: run option, loop, re-ask and preservation, verdict guard, outcomes.
-3. E-10 to E-13: sessions, recording, resume, ordering.
+3. E-10 to E-13 and E-17: sessions, recording, resume, ordering, review-step analytics.
 4. E-14 to E-16: spec amendment, tests, gates, commit.
 
 ## Deferred / out of scope (with reason)
 
 - Re-review marker and loop: Order 05. E-06 delegates to it when present.
+  - Carrier: is2xiv
 - Making `steps` the default mode and removing `single`: Stage 2, only after the pilot (Order 09) records BUILD THE REST (spec MD-20).
+  - Carrier: kk62qt
 - The citation resolver report in prompt 1: Order 03 (Stage 2); R1 checks citations itself until then (Order 01 E-05).
+  - Carrier: kk62qt
 
 ## Scope check
 
@@ -158,7 +169,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- AC-01, AC-02, AC-07 (first half), AC-08, AC-14, AC-16 on both hosts: E-15.
+- AC-01, AC-02, AC-07 (first half), AC-08, AC-09 (first half), AC-14, AC-16 on both hosts: E-15.
 - Default single mode unchanged: E-15 last case and the existing review test modules in E-16.
 - Commands: E-16 named run, bare core gate, `make test-all`, `aw check`, summaries pasted.
 
@@ -237,7 +248,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-11 validates E-11
-  - Required evidence: paste `aw runs query attempts --filter action=review --group-by review_step --metric steps --stat count` output from the E-15 fixture run (or the test asserting it), and the `docs/run-analytics.md` diff.
+  - Required evidence: paste the E-15 test output asserting the five `review_steps` entries of a `standard` steps-mode fixture (prompt indices, `plan_sha256`, `session_id`, snapshot file present) on both hosts.
   - Observed evidence:
   - Result: pending
 
@@ -263,6 +274,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-16 validates E-16
   - Required evidence: paste the summary lines of the E-16 named run, the bare `python3 -m pytest`, and `make test-all`, the `aw check` summary compared with the baseline taken before E-01, and the `aw commit` output.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-17 validates E-17
+  - Required evidence: paste `aw runs query attempts --filter action=review --group-by review_step --metric steps --stat count` output from the E-15 fixture run (or the test asserting it), the `git diff` hunks in `run_dashboard.py`, `dashboard.js` and `run_analytics_attempts.py`, and the `docs/run-analytics.md` diff.
   - Observed evidence:
   - Result: pending
 
