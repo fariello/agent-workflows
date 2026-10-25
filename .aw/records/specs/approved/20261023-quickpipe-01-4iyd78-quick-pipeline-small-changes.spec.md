@@ -1,7 +1,7 @@
 # Spec: Quick pipeline for small changes
 
 - Date: 2026-10-23
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Id: 4iyd78
 - Author: aw specs new
@@ -18,6 +18,7 @@
   (`llbr2b`, `approved`), which owns the configurable per-(type, transition) permission surface.
 
 ## Workflow history
+- 2026-10-25 approved (aw set, --by-human): Approved by maintainer 2026-10-25 in session: 'Accept both defaults + approve'. OQ-01 (verb aw ipd quick + scaffold --quick alias) and OQ-02 (explicit Pipeline: quick field) resolved to the recommendations. OQ-03 and OQ-05 remain open, non-blocking.
 
 - 2026-10-25 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-012 FIXED; OQ-05 added (Part 2 scope vs shipped --full-auto); OQ-03 decoupled from Part 1; OQ-04 resolved from evidence
 - 2026-10-25 reviewed (aw set): REVIEWED - OPEN QUESTIONS; SR-001..SR-012 FIXED; OQ-01, OQ-02, OQ-03, OQ-05 open (non-blocking); OQ-04 resolved
@@ -520,22 +521,24 @@ that nothing waits on the `k3yx72` pilot except what depends on its result:
 #### OQ-01: Entry point syntax: dedicated verb vs scaffold flag
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Question: Should the quick pipeline entry point be a dedicated CLI verb (`aw ipd quick`) or a flag on the existing scaffold command (`aw ipd scaffold --quick`)?
 - Recommendation: Dedicated verb `aw ipd quick`, aliasing `aw ipd scaffold --quick`.
 - Recommendation strength: Strong. A distinct verb emphasizes the streamlined workflow while preserving discoverability.
 - Closes when: the maintainer answers, at or before approval of this spec. The default if approved unanswered is the recommendation (both spellings, one implementation).
+- Resolution: RESOLVED 2026-10-25 by the user via /askme: accepted the recommendation. Dedicated verb `aw ipd quick`, aliasing `aw ipd scaffold --quick` (both spellings, one implementation). No reason was given.
 
 #### OQ-02: Front-matter marker: explicit field vs implicit derivation
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Question: Should plans declare `- Pipeline: quick` in front matter, or should the runner infer quick handling solely from a `simple` review tier and the Section 3.2 admission rules?
 - Recommendation: Explicit `- Pipeline: quick` field.
 - Recommendation strength: Moderate. Explicit declaration makes author intent unambiguous and allows upfront linting.
 - Closes when: the maintainer answers, at or before approval of this spec. Section 4.2 and R-06 already assume the recommendation; choosing implicit derivation instead deletes R-06 and the field from AC-01.
+- Resolution: RESOLVED 2026-10-25 by the user via /askme: accepted the recommendation. Explicit `- Pipeline: quick` front-matter field; R-06 and AC-01 stand as written. No reason was given.
 
 #### OQ-03: Plan approval mechanical enforcement
 
