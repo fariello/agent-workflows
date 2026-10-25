@@ -4481,6 +4481,7 @@ def run_queue(
                     lanes = reclaim_lanes_on_interrupt(
                         Path(state["repo"]), run_dir, state, reason="interrupt"
                     )
+                    save_state(run_dir, state)
                     print_lane_interrupt_report(lanes)
                 except KeyboardInterrupt:
                     # E-10: a SECOND interrupt while reclaiming. The operator is trying harder to stop, so
@@ -4495,6 +4496,7 @@ def run_queue(
                             interactive=False,
                             reason="repeated-interrupt",
                         )
+                        save_state(run_dir, state)
                         print_lane_interrupt_report(lanes)
                 except Exception:
                     pass
