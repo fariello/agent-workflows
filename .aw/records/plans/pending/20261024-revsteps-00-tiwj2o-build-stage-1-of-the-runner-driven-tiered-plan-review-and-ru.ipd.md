@@ -6,9 +6,10 @@
 - Scope: Orchestration only: sequence the five Stage 1 children below and confirm each reaches `executed`. No code, test, or record of its own. Stage 2 plans are not part of this Set's table; Order 09 files the backlog item that carries them.
 - Scope-Paths: .aw/records/plans/pending/20261024-revsteps-00-tiwj2o-build-stage-1-of-the-runner-driven-tiered-plan-review-and-ru.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 5b9f1882704e5eb6d6bd8b9d30a8f5fd6c6abe0399e495a0d17e60260e3a1bcc
+- Coverage-Fingerprint: e13950f897e1e2c23545cfbf7dc4231949e554e4147278a18284410d369135c8
 - Coverage-Checked: 2026-10-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +22,9 @@
 - Id: tiwj2o
 
 ## Workflow history
+- 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261024-revsteps-00-tiwj2o-build-stage-1-of-the-runner-driven-tiered-plan-review-and-ru.review.md
+- 2026-10-25 coverage pass (aw oc run): fingerprint e13950f897e1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-25 to-review (aw set): authored review-ready: orchestrates spec k3yx72 Stage 1 across 5 children; coverage pass
 
 - 2026-10-25 coverage pass (aw oc run): fingerprint 5b9f1882704e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -71,13 +75,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 05 | `is2xiv` | `20261024-revsteps-05-is2xiv-add-the-aw-review-re-review-marker-runner-triggers-and-the-b.ipd.md` | Stage 1 part of Order 05: `AW-REVIEW` marker, runner triggers, the two-pass loop and its `no-go` limit rule (spec 8). | `executed:uiyoax` |
 | 09 | `kk62qt` | `20261024-revsteps-09-kk62qt-run-the-review-pilot-against-the-current-plan-review-and-rec.ipd.md` | Attended pilot: 9 fixture plans, 84 reviews, 252 blind judge runs, the MD-20 gate decision, the `complex` default, and a Stage 2 backlog item when the gate says build (spec 13, AC-17). | `executed:uiyoax`, `executed:is2xiv` |
 
-Orders 01 and 02 have no prerequisite and may run in either order. Order 04 depends on both. Order 05 depends on 04. Order 09 depends on 04 and 05 and is `Attended: required`, so the runner holds it for an interactive session. Orders 03, 06, 07 and 08 and the Section 9.4 part of Order 05 are Stage 2 (spec MD-20) and are deliberately absent from this table.
+Orders 01 and 02 have no prerequisite and may run in either order. Order 04 depends on both. Order 05 depends on 04. Order 09 depends on 04 and 05 and is `Attended: required`: a run at a terminal opens an interactive session for it when its turn comes, while an `--unattended` run holds it `not-run` for zero tokens (`runner_shared.hold_attended_plan`), so this orchestrator cannot retire in an unattended run until Order 09 has been run attended. Orders 03, 06, 07 and 08 and the Section 9.4 part of Order 05 are Stage 2 (spec MD-20) and are deliberately absent from this table.
 
 ## Completion criteria (the whole Set is done only when)
 
 - Every review check of spec Section 4.2 exists as a step file, `/plan-review` runs them as a checklist, and the section map shows nothing was lost. Owner: `3bwrfx`.
 - A plan may carry `- Review-Depth:`, and the tier, its answers, and the pre-pass facts can be computed and recorded in run state. Owner: `gv3smb`.
-- `aw oc run` and `aw agy run` can review a plan as the tier's prompt sequence in one session, with postconditions, the verdict guard, outcomes, per-step recording, and resume (AC-01, AC-02, AC-07 first half, AC-08, AC-14, AC-16). Owner: `uiyoax`.
+- `aw oc run` and `aw agy run` can review a plan as the tier's prompt sequence in one session, with postconditions, the verdict guard, outcomes, per-step recording, and resume (AC-01, AC-02, AC-07 first half, AC-08, AC-14, AC-16). A steps-mode review ending `no-go` leaves the plan `reviewed` with `- Readiness: no-go` (AC-09 first half, `uiyoax` E-09/V-09 `completed-negative`); that a later `reviews` run does not re-dispatch it (AC-09 second half) is existing behaviour, `run_selection_policy.runner_action` refinement (ii) mapping IPD `reviewed` to `execute`, which steps mode does not change. Owner: `uiyoax`.
 - A steps-mode review re-reviews its own material edits at most twice before the verdict (AC-03 to AC-06, AC-07 second half). Owner: `is2xiv`.
 - The pilot has run and its report records the MD-20 gate decision and the `complex` default (AC-17). Owner: `kk62qt`.
 
@@ -91,9 +95,12 @@ Orders 01 and 02 have no prerequisite and may run in either order. Order 04 depe
 
 ## Deferred / out of scope (with reason)
 
-- Stage 2 (spec Section 15 Orders 03, 06, 07, 08, and the Section 9.4 part of 05): authored only after `kk62qt` records BUILD THE REST (spec MD-20); `kk62qt` E-09 files the backlog item.
-- The sized experiment run (spec Section 13.3 stage 2): only on the maintainer's request after the pilot, in its own plan carrying OQ-10 as `Blocking: yes`.
+- Stage 2 (spec Section 15 Orders 03, 06, 07, 08, and the Section 9.4 part of 05): authored only after `kk62qt` records BUILD THE REST (spec MD-20); `kk62qt` E-09 files the backlog item. The acceptance criteria those Orders own (AC-10 Section 9.4, AC-11 and AC-12 split, AC-13 resolver, AC-15 `/plan-review-long` retirement) are therefore not demonstrated by this Set, so spec `k3yx72` cannot reach `implemented` from Stage 1 alone.
+  - Carrier: kk62qt
+- The sized experiment run (spec Section 13.3 stage 2): only on the maintainer's request after the pilot, in its own plan carrying OQ-10 as `Blocking: yes`. `kk62qt` E-09 offers it to the maintainer through `/askme` when the gate result is OTHERWISE.
+  - Carrier: kk62qt
 - Spec `4iyd78` (quick pipeline) Part 2 depends on this Set's Order 09 result; it is tracked under Set `quickpipe`, not here.
+  - Carrier-Declined: not an obligation of this Set; a dependency note for the quickpipe Set, whose spec `4iyd78` records the Part 2 dependency on Order 09 itself (its 2026-10-24 workflow-history note).
 
 ## Scope check
 
@@ -147,4 +154,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). The runner retires this orchestrator once every child is `executed`. Commit only through `aw commit tiwj2o -- <paths>`; never push.
+Execute only after explicit human approval (`Status: approved`) of this plan and of each child. EXECUTION CONTRACT: every open question of this plan is resolved. This plan performs no work of its own; each child carries its own scope fence, test evidence and path-scoped `aw commit`. Each `V-*` item MUST paste the actual `aw find plans <id6>` output; never claim a child executed without it. Under `aw oc run` / `aw agy run` the runner retires this plan once every child is `executed` on disk. When executing by hand, run the children in table order (Order 09 attended), then confirm each, run `aw ipd lint --phase pre-transition` and `aw ipd finalize` on this plan. Commit only through `aw commit tiwj2o -- <paths>`; never push.
