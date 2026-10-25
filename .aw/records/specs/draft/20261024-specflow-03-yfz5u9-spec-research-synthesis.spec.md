@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): maintainer answered OQ-1 (yes: candidates in research tree) and OQ-2 (auto to-review only after a final merge across multiple model candidates); R-64, R-67, AC-37b, AC-38, flows and transcripts updated
 - 2026-10-25 note (aw specs): independent candidate authored from generation prompt 443ltw (opencode); code citations pinned to 6f430cefd; not reviewed; input to specflow synthesis
 - 2026-10-24 created (aw specs): Independent candidate (opencode, opus55high prompt slot) for configurable spec and research synthesis
 
@@ -379,7 +380,7 @@ decrements one counter (R-37).
 | Decide a conflict | `aw synth decide <run> X-3 --choose b --message "..." --by-human` | | Decision recorded; synth-refine applies it | Decision event; reconciliation-report row updated on next publish |
 | Cancel | `aw synth cancel <run> --reason "..." --apply` | | Running dispatches stopped; state `cancelled` | Intermediates moved to `archive` |
 | Import existing candidates and merge only | `aw synth import --kind spec --brief brief.md --candidate a=a.md@opencode/opus55high --candidate b=b.md@agy/gemini38flashhigh --from-stage synthesize --apply` | | Run that starts at synthesis | Imported copies become research records after leak scan |
-| Finalize | `aw synth finalize <run> --apply` | `--commit --agent` | Final spec in specs tree (`to-review` when R-64 holds, else `draft`), or final research report | Spec record, research status moves |
+| Finalize | `aw synth finalize <run> --apply` | `--commit --agent` | Final spec in specs tree (`to-review` when R-64 holds, which requires a multi-model synthesis; else `draft`), or final research report | Spec record, research status moves |
 | `/spec-review` handoff | printed by finalize: `Next  /spec-review <spec-id6>` | | | none |
 
 ### 3.6 Per-command contracts [PROPOSED]
@@ -507,10 +508,10 @@ is fixed now but which is outside release 1.
 - R-61: A single-survivor run (N >= 2 but only one candidate available) MUST create the spec record at finalize from that candidate's last revision and record `participation: 1 of N`.
 - R-62: The engine MUST NOT create, edit, or move any record under the reviews tree, MUST NOT write `- Readiness:`, `- Approval:`, or `- Subject-Id:` fields, and MUST NOT call `aw specs set` with `reviewed`, `approved`, `implementing`, or `implemented`.
 - R-63: Finalize MUST run these checks and record each result: `aw specs check <spec path>`; requirement ids parse under `89xjll` with at least one `R-` id; brief coverage (R-43 coverage subset); no unresolved placeholder text (`TODO`, `TBD`, `<fill`); every citation key resolves inside the document; `aw sanitize --agent` over the published records reports no `fail`; for research, the evidence checks of R-114.
-- R-64: Finalize MUST set the spec to `to-review` only when: every R-63 check passes; no loop outcome is `capped-open`, `oscillating`, or `failed`; no `needs: maintainer` conflict is open; participation is complete or the reduction was accepted. Otherwise it MUST leave the spec `draft`, list every blocking condition, and exit 1 (`finalized-with-limitations`), unless `--accept-limitations "<text>" --by-human` is given, which MAY set `to-review` only if every R-63 check passes, and MUST write the text into the spec's workflow history and a `## Known limitations` section.
+- R-64: Finalize MUST set the spec to `to-review` automatically only when all of these hold: (a) the final spec is a synthesis, meaning the synthesize stage ran over at least two candidates; (b) those candidates were authored by at least two distinct requested model ids (an incumbent spec does not count as a model candidate); (c) every R-63 check passes; (d) no loop outcome is `capped-open`, `oscillating`, or `failed`; (e) no `needs: maintainer` conflict is open; (f) participation is complete or the reduction was accepted. When (a) or (b) does not hold (one participant, a single surviving candidate, or a roster whose candidates all came from one model) and (c) to (f) hold, finalize MUST leave the spec `draft`, report `finalized-clean` with `auto_advance: not-multi-model`, exit 0, and print `Next  aw specs set to-review <spec-id6>` so a human promotes it. When any of (c) to (f) fails, finalize MUST leave the spec `draft`, list every blocking condition, and exit 1 (`finalized-with-limitations`), unless `--accept-limitations "<text>" --by-human` is given, which MAY set `to-review` only if (a), (b), and (c) hold, and MUST write the text into the spec's workflow history and a `## Known limitations` section. Maintainer decision, 2026-10-25 (OQ-2).
 - R-65: Finalize MUST write a `## Synthesis provenance` section into the final record containing: run id, setid, the reconciliation-report id6, every candidate id6 with ACE, token, observed identity class, and participation; assurance (`quick|thorough`); loop outcomes. It MUST link rather than copy the matrix.
 - R-66: Finalize MUST move every intermediate research record of the run to status `reference` through `aw research promote`, with outcome `adopted` (a candidate that contributed at least one `adopted` or `adapted` row, and every assessment and reconciliation of a finalized spec run) or `informational`. In a spec run `consumed-by` MUST name the final spec id6. In a research run `consumed-by` MUST stay empty (the index treats a research id there as dangling, `research_index.DANGLING_CONSUMED_RULE`) and the link MUST be written as `synth-consumed-into: <final id6>`. Rejected or cancelled outputs MUST be `archive` with outcome `rejected`.
-- R-67: Finalize MUST print `Next  /spec-review <spec-id6>` for a spec run at `to-review`, or the blocking list and `aw synth finalize <run> --accept-limitations ... --by-human` otherwise. For research it MUST print the final record path.
+- R-67: Finalize MUST print `Next  /spec-review <spec-id6>` for a spec run at `to-review`; `Next  aw specs set to-review <spec-id6>` for a clean run that is not multi-model (R-64); or the blocking list and `aw synth finalize <run> --accept-limitations ... --by-human` otherwise. For research it MUST print the final record path.
 - R-68: Nothing MAY be deleted by finalize, cancel, or reject. Earlier candidates and revisions MUST stay readable.
 
 ### 4.9 Identity, naming, persistence
@@ -790,7 +791,7 @@ stateDiagram-v2
     running --> interrupted: SIGINT or crash
     interrupted --> running: resume (alive dispatch refused, dead dispatch adopted or counted lost)
     running --> ready_to_finalize: all stages ended
-    ready_to_finalize --> finalized_clean: finalize, every R-64 condition holds
+    ready_to_finalize --> finalized_clean: finalize, R-64 (c)-(f) hold (spec to-review if multi-model synthesis, else stays draft)
     ready_to_finalize --> finalized_with_limitations: finalize, a limitation remains
     capped --> finalized_with_limitations: finalize (spec stays draft unless --accept-limitations --by-human)
     waiting_for_human --> finalized_with_limitations: finalize, only if no blocking reason is a hard block
@@ -983,7 +984,8 @@ with cap 1 (the synth-refine cap), no synthesis, no matrix, three dispatches whe
 
 With N = 1 the candidate IS the working document (R-60): the generate stage creates it directly as the spec
 record (no `source-draft`), and the self-review assessment is attributed to the same participant and labelled
-`self-reviewed`. No `reconciliation-report` exists, and nothing claims consensus.
+`self-reviewed`. No `reconciliation-report` exists, and nothing claims consensus. After a clean finalize the spec stays in
+`specs/draft/` (R-64: auto-advance needs a multi-model merge) until the maintainer runs `aw specs set to-review m8kd4s`.
 
 #### 6.6.7 Worked inventory: resumed run
 
@@ -1204,10 +1206,12 @@ flowchart TD
     VER --> RTF
     VF -- no --> RTF[ready-to-finalize]
     RTF --> FIN[aw synth finalize: deterministic checks]
-    FIN --> OK{All R-64 conditions?}
-    OK -- yes --> TR[spec set to-review; intermediates to reference]
+    FIN --> OK{R-64 checks c-f hold?}
+    OK -- yes --> MM{Multi-model synthesis? R-64 a, b}
+    MM -- yes --> TR[spec set to-review; intermediates to reference]
+    MM -- no --> DH[spec stays draft; intermediates to reference; Next: aw specs set to-review]
     OK -- no --> DR[spec stays draft; limitations listed; exit 1]
-    DR -- --accept-limitations --by-human --> TR
+    DR -- --accept-limitations --by-human, multi-model only --> TR
     TR --> HAND[Next: /spec-review spec-id6]
 ```
 
@@ -1301,8 +1305,9 @@ existing pattern for driver tests) and never inspect source structure.
 | AC-34 | R-54 | A synthesis input larger than every permitted budget stops with `context-overflow` naming the estimate; no summary document is produced. |
 | AC-35 | R-55 | With no discoverable limits the preview shows `32000/8000 (fallback)`. |
 | AC-36 | R-62 | After any run, the reviews tree is unchanged and no spec ever reached `reviewed`; the engine refuses `--role` values that would name a review stage. |
-| AC-37 | R-63, R-64 | A final spec with a `TODO` placeholder stays `draft`, finalize exits 1, lists `placeholder-text`; with every check passing and no limitation it moves to `to-review` (exit 0). |
-| AC-38 | R-64 | `--accept-limitations "cap reached on F07" --by-human` moves a `capped-open` spec to `to-review` and writes the text into history and `## Known limitations`; without `--by-human` it exits 2. |
+| AC-37 | R-63, R-64 | A final spec with a `TODO` placeholder stays `draft`, finalize exits 1, lists `placeholder-text`; a 3-model synthesis with every check passing and no limitation moves to `to-review` (exit 0). |
+| AC-37b | R-64, R-67 | With every check passing, finalize leaves the spec `draft`, exits 0 with `auto_advance: not-multi-model`, and prints `Next  aw specs set to-review <id6>` in each of: a one-participant run; a 3-participant run where only one candidate survived; a 2-participant run whose two profiles name the same model id. |
+| AC-38 | R-64 | On a multi-model synthesis, `--accept-limitations "cap reached on F07" --by-human` moves a `capped-open` spec to `to-review` and writes the text into history and `## Known limitations`; without `--by-human` it exits 2; on a one-model run it records the limitation and leaves the spec `draft`. |
 | AC-39 | R-66 | After a clean finalize every intermediate is under `reference/YYYYMM/` with `consumed-by` naming the spec id6 (spec run), and `aw research index --check` reports no drift. |
 | AC-40 | R-70, R-75 | Every id6 of the run is unique repository-wide (`aw check` id6 collision rules pass); revisions keep id6 and filename; revision bodies exist in the companion. |
 | AC-41 | R-71 | A scripted OpenCode export reporting a different model than requested fails the dispatch `identity-mismatch`, no retry, run `waiting-for-human`. |
@@ -1379,14 +1384,16 @@ existing pattern for driver tests) and never inspect source structure.
 - AS-2: `opencode export` keeps reporting provider and model for a session (existing observer depends on it).
 - AS-3: Antigravity keeps `-p`, `--model`, `--effort`, `--output-format stream-json`.
 - AS-4: Research front matter keeps accepting optional extra keys (verified today, FND-9; a test SHOULD pin the behaviour by exercising it).
-- AS-5: The maintainer accepts candidates living in the research tree (OQ-1).
+- AS-5: (Confirmed by the maintainer 2026-10-25, OQ-1.) Candidates live in the research tree.
 
 ### 10.4 Open questions
 
-Blocking (need the maintainer):
+Resolved by the maintainer (2026-10-25):
 
-- OQ-1 (blocking): Accept the research tree as the home of spec candidates and their findings (Section 6.6.2)? Recommendation: yes. The alternative is a new tracked-but-exempt specs subtree with its own scanner policy.
-- OQ-2 (blocking): Should finalize be allowed to move a spec to `to-review` automatically when every R-64 condition holds, or should it always leave `draft` for a human to promote? Recommendation: automatic `to-review`, because R-64 conditions are deterministic and `to-review` is not approval; `/spec-review` still gates.
+- OQ-1 (resolved): The research tree is the home of spec candidates and their findings (Section 6.6.2). Answer: yes.
+- OQ-2 (resolved): Finalize moves the spec to `to-review` automatically only after a final merge across candidates from multiple models; otherwise the spec stays `draft` for a human to promote (R-64). Interpretation recorded here: "multiple models" means at least two distinct requested model ids among the merged candidates, so a roster of several sessions of one model does not qualify, consistent with R-15.
+
+No blocking questions remain.
 
 Nonblocking (recommendation given, can change in review):
 
@@ -1416,6 +1423,8 @@ Nonblocking (recommendation given, can change in review):
 | DL-13 | Synth never writes review records or attestation fields | FND-10 |
 | DL-14 | Corroboration counts distinct origins | brief 4.D |
 | DL-15 | Unknown limits fall back to 32k/8k | R-55 |
+| DL-16 | Candidates and findings live in the research tree | maintainer, OQ-1, 2026-10-25 |
+| DL-17 | Auto `to-review` only for a multi-model synthesis; one-model results stay `draft` | maintainer, OQ-2, 2026-10-25 |
 
 ---
 
@@ -1551,9 +1560,10 @@ Next  aw synth finalize synth-0a1b2c3d4e5f6071 --apply
 
 $ aw synth finalize last --apply
 ✓ OK  finalized-clean
-  Spec  .aw/records/specs/to-review/20261105-retrypol-02-m8kd4s-retry-policy.spec.md  (to-review)
+  Spec  .aw/records/specs/draft/20261105-retrypol-02-m8kd4s-retry-policy.spec.md  (draft)
   Checks specs-check ok, requirement-ids 14, brief-coverage 7/7, placeholders 0, leaks 0
-Next  /spec-review m8kd4s
+  Not advanced to to-review: one model, no synthesis (auto-advance needs a multi-model merge)
+Next  aw specs set to-review m8kd4s
 ```
 
 #### 12.3.2 Configured multi-model thorough spec run
@@ -1581,6 +1591,11 @@ $ aw synth resume last --apply
 [INFO ] verify sol (d023): 0 material
 ✓ OK  ready-to-finalize  (dispatches used 23 of 40; cost 14 known, 9 unknown)
 Next  aw synth finalize synth-3f9a0c21d4b7e811 --apply
+
+$ aw synth finalize last --apply
+✓ OK  finalized-clean
+  Spec  .aw/records/specs/to-review/20261102-cachelyr-09-h4ty6e-cache-layer.spec.md  (to-review: merged from 3 models)
+Next  /spec-review h4ty6e
 ```
 
 #### 12.3.3 Research run with contradictory evidence
