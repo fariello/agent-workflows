@@ -646,6 +646,174 @@ The log is the authority. These are deliberate mirrors, each checked, each repai
 - The opt-in hooks extend to reject staged `meta/*.jsonl` changes that are not a pure append of
   valid events.
 
+### 4.9 Diagrams (informative)
+
+These diagrams illustrate 4.1a, 4.3, 4.4, 4.5, 4.7, 5.2 and section 7. They are INFORMATIVE: the prose
+sections they cite are normative, and if a diagram and its section disagree, the section wins and the
+diagram is the defect. They add no requirement.
+
+#### 4.9.1 SQLite cache entities (`.aw/state/index.db`, 4.5)
+
+Only the columns 4.5 names are shown; 4.5's tables end in `...`, so the full column set is the plan's
+to decide (OQ-1). Every row is DERIVED: deleting the file loses nothing (AC-8), and the tracked logs
+under `meta/` remain the durable record.
+
+```mermaid
+erDiagram
+    SCHEMA_VERSION {
+        int version "mismatch drops and rebuilds the whole db"
+    }
+    FILES {
+        text worktree PK "git rev-parse --show-toplevel"
+        text path PK "a meta log or an artifact md file"
+        int size
+        int mtime_ns
+        text blob_sha FK "tiebreak for same-tick mtime"
+    }
+    ARTIFACTS {
+        text worktree PK
+        text id6 PK "full match artifact_core.ID6_RE"
+        text path "current location, follows moves"
+        text type
+        text bucket "disposition directory"
+        text status "folded from the log"
+        text set
+        int order
+    }
+    EVENTS {
+        text worktree PK
+        text id6 PK, FK
+        int seq PK "contiguous per artifact, 0 is the migration checkpoint"
+        text op "create set unset transition note checkpoint legacy review coverage"
+    }
+    BLOBS {
+        text blob_sha PK "content addressed, valid in every worktree, no worktree key"
+    }
+
+    FILES ||--o| ARTIFACTS : "artifact md file mirrors"
+    FILES ||--o{ EVENTS : "meta log folds into"
+    ARTIFACTS ||--o{ EVENTS : "state is the fold of"
+    FILES }o--o| BLOBS : "blob_sha resolves to"
+```
+
+Review records have NO `ARTIFACTS` row and NO log of their own (4.1a): each review round is an
+`EVENTS` row with `op = review` under its SUBJECT's `id6`, attributed to its file by `review_ref`.
+
+#### 4.9.2 A metadata read (4.3, 4.5; C5a)
+
+```mermaid
+flowchart TD
+    A["Any metadata read: aw find, attention, board, a gate, a hook, a runner"] --> B["artifact_meta read / history / query"]
+    B --> C{"index.db opens and schema version matches?"}
+    C -- "no, or corrupt" --> D["drop and rebuild"]
+    D --> E
+    C -- yes --> E["for each file in scope: stat, compare size and mtime_ns, blob sha tiebreak, against FILES"]
+    E --> F{"changed, new, or removed?"}
+    F -- removed --> G["delete its FILES and ARTIFACTS rows"]
+    F -- "changed or new" --> H["LOADER, the only code that opens a meta log: parse, validate, fold"]
+    H --> I{"log valid? JSON, contiguous seq, known op and field, id matches, legal transition"}
+    I -- no --> J["not cached as valid; reads of that artifact fail closed naming the defect"]
+    I -- yes --> K["write FILES, ARTIFACTS, EVENTS rows"]
+    F -- unchanged --> L
+    G --> L
+    K --> L["answer with a parameterized SQL query"]
+    C -. "busy past the timeout" .-> M["rebuild in memory and answer; never fail the command"]
+```
+
+Before the cutover (phase B) the LOADER box is the legacy loader reading bullet blocks and
+`## Workflow history` from the artifact `.md` files; nothing else in the diagram changes (4.3, 3c).
+
+#### 4.9.3 A tooled metadata write (4.3, 4.8; C6, C7)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Setter or verb (status_set engine, aw ipd, finalize, coverage recorder)
+    participant M as artifact_meta.append
+    participant L as Per-artifact lock (platform_lock)
+    participant G as Tracked files (meta log, front matter)
+    participant C as index.db
+    S->>M: append(id6, events, expect_seq)
+    alt dry-run, or the setter refused earlier
+        M-->>S: no event written, log byte-identical (AC-5)
+    else
+        M->>L: acquire
+        M->>C: read current state (refreshed as in 4.9.2)
+        alt seq is not expect_seq, or transition or field invalid
+            M-->>S: refuse, nothing written
+        else
+            M->>G: write whole log to temp file, fsync, atomic replace
+            M->>G: rewrite front-matter status mirror
+            Note over M,G: log and mirror change together or not at all, and a failure leaves status unchanged
+            M->>C: update rows (best effort)
+            Note over M,C: if this fails, the next read reloads from the log
+        end
+        M->>L: release
+        M-->>S: ok, diff shows one status line and one appended log line (AC-6)
+    end
+```
+
+#### 4.9.4 A gate reading a staged or committed revision (4.4 `read_at`)
+
+```mermaid
+flowchart LR
+    A["hook or check_engine gate"] --> B["artifact_meta.read_at id6, rev"]
+    B --> C["blob sha of the meta log and the md file at rev: git ls-files -s for the index, git rev-parse rev:path for a commit"]
+    C --> D{"sha in BLOBS?"}
+    D -- yes --> F
+    D -- no --> E["git cat-file bytes, handed to the SAME loader"]
+    E --> F["State: folded log state plus front-matter mirror status at rev"]
+    F --> G["gate compares HEAD state and staged state, e.g. terminal now and not before"]
+```
+
+#### 4.9.5 Same artifact changed on two branches (4.7)
+
+```mermaid
+flowchart TD
+    A["lanes 1 and 2 both append after seq N to the same log"] --> B["merge"]
+    B --> C["git conflict at the log tail and on the front-matter status line"]
+    C --> D["runner's existing conflict path preserves the lane"]
+    D --> E["aw meta repair id6: re-sequence the losing side's events onto the winner"]
+    E --> F{"re-validated against the transition table, and a human confirms?"}
+    F -- yes --> G["one valid contiguous log"]
+    F -- no --> H["left conflicted; aw check meta fails; never a silent duplicate seq"]
+```
+
+#### 4.9.6 Cutover migration `m0001` (5.2)
+
+```mermaid
+flowchart TD
+    P["Preflight: clean records tree, integration lock free and then held, no lane with unmerged plan changes, NOT a lane worktree, sidecar present with its count reported"] --> Q{"all pass?"}
+    Q -- "no, without --force" --> R["refuse, write nothing"]
+    Q -- yes --> S2["2: export and fold history.jsonl sidecar"]
+    S2 --> S3["3: mint id6 for lifecycle records with none; reviews excluded"]
+    S3 --> S4["4: per artifact: checkpoint seq 0 with local date, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
+    S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, kind, legacy verdict verbatim, review_ref"]
+    S4r --> S4a["4a: terminal directories migrated too, under a journaled marker the executed-plan hook accepts"]
+    S4a --> S5["5: delete STATUS.md and INDEX files and their ignore lines"]
+    S5 --> S6{"6: round trip recovers every legacy value and line, and aw check meta is clean?"}
+    S6 -- no --> X["roll back via the MigrationManager journal"]
+    S6 -- yes --> S6b["stamp metadata_schema: 2"]
+    S6b --> S7["7: one commit via aw commit --no-plan, passing every installed gate with no --no-verify"]
+```
+
+#### 4.9.7 Facade-first build order (section 7; C10a)
+
+```mermaid
+flowchart LR
+    subgraph A["Phase A, additive, legacy format on disk"]
+        A1["1: artifact_meta, registry, cache, legacy loader; supersede 2vev8j"] --> A2["2: aw show --history, aw index rebuild"] --> A3["3: migration framework and m0001, run on a COPY only"]
+    end
+    subgraph B["Phase B, one green merge per plan, legacy format on disk"]
+        B4["4: writers via artifact_meta"] --> B5["5: readers via artifact_meta and read_at"] --> B6["6: fixtures on one shared builder"] --> B7["7: delete INDEX, STATUS and legacy parsers; AC-1 test"]
+    end
+    subgraph C["Phase C, ONE attended commit in the sidecar-holding checkout"]
+        C8["8: docs, managed block, templates"] --- C9["9: loader and writer switch to logs, legacy loader into m0001, migrate, stamp; measure AC-13"]
+    end
+    A3 --> B4
+    B7 --> C8
+```
+
 ## 5. Installer and migration
 
 ### 5.1 Versioned migration chain (new)
@@ -849,6 +1017,7 @@ merge-contention risk. Phase B exists for proof at each step, not for concurrenc
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): diagrams: added informative section 4.9 (SQLite entity diagram; read, write, read_at, same-artifact merge, cutover migration and build-order flows) at maintainer request; no requirement changed; all 7 mermaid blocks render with mermaid-cli
 - 2026-10-25 note (aw specs): /spec-review round 7 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-601 (refinement-only reviews must not satisfy ->reviewed; named the consumer and AC), SR-602 (counts) FIXED; no maintainer question needed; no Readiness written
 - 2026-10-25 reviewed (aw set): /spec-review round 7: APPROVE WITH REVISIONS APPLIED; SR-601, SR-602 FIXED
 
