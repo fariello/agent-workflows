@@ -159,3 +159,20 @@ Re-review requested by the maintainer on 2026-10-24 (HEAD `61fce3bfd`). Structur
 | --- | -------- | ------ | ----------------------- | ----- | ---------- |
 | D-17 | Should 4.5 decide that lanes share one cache under `--git-common-dir`? | No; record the measured per-worktree placement and leave sharing undecided. | Mandate a shared cache at `<git-common-dir>`; mandate per-worktree only. | Choosing a placement is a design decision the spec never made (rounds 4/5 asserted a fact that was false); the measured behavior of the resolver the spec already mandates is the conservative reading, and AC-13 measures the cost. | yes |
 | D-18 | Which id6 validator does 4.2 require? | `artifact_core.ID6_RE` (full match). | A new regex. | Existing single authority; avoids a 96th regex literal (P1). | yes |
+
+## Round 7
+
+Re-review requested by the maintainer on 2026-10-24 (HEAD `2edf1f3ac`). Structural preflight `aw specs check` was clean before and after the edits. Every cited symbol in 4.3-4.5 and the 4.4 inventory was re-located by `rg` and resolves; section 9 statuses are current. One design gap found; no question needed the maintainer.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-601 | medium | UNDER-SCOPE | C (coverage) / G (plannable) | `agent_workflows/attention_contract.py:581` `TRANSITION_AUTHORITY["->reviewed"]` (`review_record: True`); `agent_workflows/review_findings.py:1022` `review_attestation_missing` checks Subject-Id, Subject-Type and parse only, never the verdict; consumers `specs.py:1240` `_review_attestation_refusal`, `status_set.py:811`, `check_engine.py:8236` `check_spec_review_attestation`; 21 refinement records with `Subject-Type: spec` for `18hh1u` | 4.1a point 3 says a `refinement` event "never satisfies the `->reviewed` transition authority on its own", but no section names the consumer that enforces it, and no AC tests it. Today's single predicate would accept a refinement-only record set, so a plan built from the spec could port the predicate unchanged and silently violate 4.1a. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | 4.4 gains a bullet re-pointing the one predicate (still shared by both setters and `aw check`) at the folded state and requiring a `gate` review event; migrated gate events count, so no spec at `reviewed` is invalidated. AC-14a extended with the refusal and success cases. |
+| SR-602 | low | IN-SCOPE | A (current measurements) | re-count at HEAD `2edf1f3ac`: 1278 reviews, 21 id6-mismatched (all `18hh1u`), 32 off-vocabulary verdicts (17 `MATERIAL CHANGES APPLIED`), 4391 tracked records, sidecar 414 lines over 296 id6s, 12,144 commits since `v1.3.0-rc.1` | Counts drifted by further specflow iterations. AC wording already avoids fixed counts (SR-504), so only the measurement rows were stale. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Section 1 rows and 4.1a point 4 carry r7 values. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-19 | Do migrated legacy gate reviews satisfy the post-cutover `->reviewed` attestation? | Yes; a migrated event of kind `gate` counts regardless of `legacy_verdict`. | Require a non-legacy gate event (would invalidate the specs at `reviewed` today, `4sd62s` and `4iyd78`, at cutover). | 4.1a point 5 forbids legacy events as readiness/APPROVAL signals, not as proof a review occurred, which is all the attestation proves (`attention_contract.py:577` honest limit); `check_spec_review_attestation` docstring forbids retroactive invalidation (R-13). | yes |

@@ -17,7 +17,8 @@ Artifact metadata today is a hand-editable `- Field: value` bullet block plus an
 2026-09-25), at review round 1 (HEAD `44df26b3`, same day), at review round 2 (HEAD
 `46ab9fdbf`, 2026-10-24, about 7950 commits later), RE-MEASURED at review round 5 (HEAD
 `e12f81ac1`, 2026-10-24, 12,137 commits after baseline), and spot-checked at review round 6 (HEAD
-`61fce3bfd`, 12,139 commits; the rows that moved are marked "r6"). The table shows round-5 values
+`61fce3bfd`, 12,139 commits; the rows that moved are marked "r6"), and again at round 7 (HEAD
+`2edf1f3ac`, 12,144 commits; marked "r7"). The table shows round-5 values
 unless marked; round-1 values are in brackets where they differ. Re-derive at implementation time; these drift daily, and the growth
 between rounds (the corpus more than doubled in a month) is itself the strongest argument for doing
 this before 2.0.0.
@@ -30,11 +31,11 @@ this before 2.0.0.
 | Modules referencing `## Workflow history` | 27 [23], with four incompatible orderings (see `2vev8j` section 1) |
 | Readers that DISAGREE on the same corpus | `selectors` vs `plans_index`: 24 plans (the PARITY CONSTRAINT note in `selectors.py`, still present) |
 | Distinct pre-`##` field names in use | 68 [57]. New since round 1 include `Coverage`, `Coverage-Fingerprint`, `Coverage-Checked`, `Scope-Exceeded`, `Close-Evidence`, `Attended`, `Findings` (reviews), and from specs `Review-Depth`/`Pipeline` (see 4.2c) |
-| Tracked `.md` records under `.aw/records/` | 4382 (r6: 4383) [1969]: plans 1696, reviews 1275, backlog 1113, research 171, specs 45, prompts 36, walkthroughs 27, other 19. 2922 [1411] carry `## Workflow history`; 1535 [549] carry no `- Id:` BULLET, 1275 of which are reviews; 39 non-review records carry no id6 in ANY form (excluding 24 READMEs, 4 prompt-library templates, and 2 research templates) |
-| Review records | 1275 `.review.md` (r6: 1276) [338] (re-counted at round 5). 1257 have a filename id6 equal to their `Subject-Id`, by design; 18 (r6: 19) do not (all of them `specflow` refinement records for `18hh1u`, which grows by one per refinement iteration). Subjects reviewed by more than one record file: 5 (`18hh1u` by 18 (r6: 19) files, plus `rtvdak`, `e25iy9`, `l4vw9o`, and `urv602` with 2 each). Rounds per file: 1151 one, 109 two, 12 three, 2 four, 1 six. 29 (r6: 30) carry a verdict outside `plan_readiness.VERDICTS` (14 (r6: 15) `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`; see 4.1a) |
+| Tracked `.md` records under `.aw/records/` | 4382 (r6: 4383; r7: 4391) [1969]: plans 1696, reviews 1275, backlog 1113, research 171, specs 45, prompts 36, walkthroughs 27, other 19. 2922 [1411] carry `## Workflow history`; 1535 [549] carry no `- Id:` BULLET, 1275 of which are reviews; 39 non-review records carry no id6 in ANY form (excluding 24 READMEs, 4 prompt-library templates, and 2 research templates) |
+| Review records | 1275 `.review.md` (r6: 1276; r7: 1278) [338] (re-counted at round 5). 1257 have a filename id6 equal to their `Subject-Id`, by design; 18 (r6: 19; r7: 21) do not (all of them `specflow` refinement records for `18hh1u`, which grows by one per refinement iteration). Subjects reviewed by more than one record file: 5 (`18hh1u` by 18 (r6: 19; r7: 21) files, plus `rtvdak`, `e25iy9`, `l4vw9o`, and `urv602` with 2 each). Rounds per file: 1151 one, 109 two, 12 three, 2 four, 1 six. 29 (r6: 30; r7: 32) carry a verdict outside `plan_readiness.VERDICTS` (14 (r6: 15; r7: 17) `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`; see 4.1a) |
 | Terminal-directory records | 2828 [1055]: executed 1650, done 1086, superseded 59, implemented 17, not-executed 16 |
 | Generated index files | 6 gitignored `INDEX.{json,md}` [4]: plans, research, and prompts (`prompts_index.py`, new), plus committed `plans/STATUS.md`, stale since 2026-08-17 |
-| History sidecar `.aw/records/history.jsonl` (gitignored) | 413 records over 296 id6s [306 records]: backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1 |
+| History sidecar `.aw/records/history.jsonl` (gitignored) | 413 (r7: 414) records over 296 id6s [306 records]: backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1 |
 | INDEX churn before untracking | 14 of 328 commits in 14 days only fixed INDEX drift (backlog `ila6vl`) |
 
 Consequences:
@@ -147,7 +148,7 @@ Front-matter options:
 | AC-12 | C8 | `pyproject.toml` `dependencies` unchanged. | Pasted. |
 | AC-13 | C11 | Measured before/after: bytes per plan read by an agent, and warm/cold end-to-end `aw find` and `aw attention`. | Numbers pasted, measured per the AGENTS.md end-to-end rule. No target asserted. |
 | AC-14 | 4.1a | A review record has no log of its own; each review round is ONE `op: review` event in its SUBJECT's log, and the file's round count equals the subject's review-event count attributed to that file. | `rg` showing no `meta/*.jsonl` is created for a review; a test that runs a review and asserts exactly one `review` event is appended to the subject's log; `aw check meta` detecting a round-count mismatch in a fixture, pasted. |
-| AC-14a | 4.1a | Review kinds are typed: a `gate` event accepts only `plan_readiness.VERDICTS`, a `refinement` event accepts only the refinement vocabulary and never carries `readiness`, and migrated legacy verdicts are preserved verbatim. | Tests: a `gate` event with a refinement verdict is refused; a `refinement` event carrying `readiness` is refused; any number of `refinement` rounds append in `seq` order; and after a migration fixture containing each DISTINCT off-vocabulary verdict string found in the corpus at implementation time (4 distinct strings over 29 records at round 5, 30 at round 6), every original verdict string is recoverable byte for byte, pasted. |
+| AC-14a | 4.1a | Review kinds are typed: a `gate` event accepts only `plan_readiness.VERDICTS`, a `refinement` event accepts only the refinement vocabulary and never carries `readiness`, and migrated legacy verdicts are preserved verbatim. | Tests: a `gate` event with a refinement verdict is refused; a `refinement` event carrying `readiness` is refused; any number of `refinement` rounds append in `seq` order; a spec whose log holds only `refinement` review events is refused `->reviewed` by both setter spellings and flagged by `check.spec-review-unattested`, while one `gate` event (migrated or new) satisfies it (4.4, SR-601); and after a migration fixture containing each DISTINCT off-vocabulary verdict string found in the corpus at implementation time (4 distinct strings over 29 records at round 5, 30 at round 6, 32 at round 7), every original verdict string is recoverable byte for byte, pasted. |
 | AC-15 | 4.4 | `readiness` (plans) is refused unless the same append carries an `op: review` event of kind `gate` for that subject in the same transaction; the same coupling holds for the coverage record (`coverage`, 4.4). | A test in which a bare `set readiness=go` is refused and the same write accompanied by a gate review event succeeds; and the equivalent pair for `coverage`, pasted. |
 | AC-16 | 5.2 | The migration's one commit may rewrite terminal-directory artifacts, and ONLY the migration may; and it passes every installed gate. | The migration commit passes the executed-plan hook, `backlog_blocking_close_gate`, and the pre-push `aw attention --check --agent` gate with no `--no-verify`; a separate raw edit to an executed plan after cutover is still refused, all pasted. |
 | AC-17 | C3, 4.7 | Two lanes changing the SAME artifact produce a detected, non-silent conflict, and nothing merges a duplicated `seq`. | A two-branch test on one artifact asserting the merge does not produce a valid log with duplicate `seq` (it conflicts or `aw check meta` fails), pasted. |
@@ -282,7 +283,7 @@ iteration of that kind keep working. Therefore:
    carries `readiness` and never satisfies the `->reviewed` transition authority on its own. Any number
    of rounds is legal; the round number orders them, and `seq` orders everything.
 4. Disambiguation across review files (`review_ref`). ANY review record whose filename id6 differs
-   from its subject (18 at round 5, 19 at round 6: all `specflow` refinement records for `18hh1u`) keeps that id6
+   from its subject (18 at round 5, 19 at round 6, 21 at round 7: all `specflow` refinement records for `18hh1u`) keeps that id6
    as a REFERENCE (`review_ref`) inside the subject's events and its front matter (`ref: <own-id6>`).
    Where multiple review files share the subject's id6 (such as the 4 historical gate re-review pairs
    for `rtvdak`, `e25iy9`, `l4vw9o`, `urv602` across 2026-09-30 and 2026-10-07), each file's date
@@ -511,6 +512,20 @@ second conforms to the other (section 9).
   event. The implementing plan names that command. `aw ipd recheck-readiness`
   (`readiness_recheck.py`, which today regex-substitutes the field) likewise appends a gate
   `review` event rather than editing a field.
+- THE `->reviewed` SPEC ATTESTATION IS RE-POINTED AND NARROWED (round 7, finding SR-601). Today
+  `attention_contract.TRANSITION_AUTHORITY["->reviewed"]` (`review_record: True`) is enforced by ONE
+  predicate, `review_findings.review_attestation_missing`, consulted by both spec setters
+  (`specs._review_attestation_refusal`, `status_set` positional path) and by
+  `check_engine.check_spec_review_attestation` (`check.spec-review-unattested`). It accepts ANY record
+  that names the subject, declares `Subject-Type: spec`, and parses; it does not look at the verdict,
+  so each of the 21 `specflow` refinement records for `18hh1u` would satisfy it today. Under this spec
+  the same single predicate (still one function, still consulted by all three) is satisfied only when
+  the subject's folded state holds at least one `review` event of kind `gate` whose review file parses;
+  a subject with only `refinement` events is refused. Migrated gate events count whatever their
+  `legacy_verdict` (4.1a point 5 assigns `kind` at migration), so no spec already at `reviewed` is
+  invalidated by the cutover; the check stays scoped to specs currently at `reviewed`, as today. This
+  is the consumer that implements 4.1a point 3; it is a deliberate behavior change, and the plan that
+  ports the predicate names it as such.
 - THE COVERAGE RECORD IS THE SAME KIND OF ATTESTATION (round 2, finding SR-106). Spec `25kzda` 2.5e
   (added 2026-10-06) records the orchestrator coverage verdict as `- Coverage:`,
   `- Coverage-Fingerprint:`, `- Coverage-Checked:` bullets, plus a required history line (`IPD-M112`)
@@ -833,6 +848,9 @@ merge-contention risk. Phase B exists for proof at each step, not for concurrenc
 | `tg80ht` spec-to-plan bridge | open (backlog) | Bridges approved specs to runner dispatch and IPD Set authoring; automates graduation from this spec into the implementing IPD Set without modifying the metadata schema |
 
 ## Workflow history
+
+- 2026-10-25 note (aw specs): /spec-review round 7 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-601 (refinement-only reviews must not satisfy ->reviewed; named the consumer and AC), SR-602 (counts) FIXED; no maintainer question needed; no Readiness written
+- 2026-10-25 reviewed (aw set): /spec-review round 7: APPROVE WITH REVISIONS APPLIED; SR-601, SR-602 FIXED
 
 - 2026-10-25 note (aw specs): /spec-review round 6 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-501..SR-504 all FIXED (SR-501 per-worktree cache placement measured, SR-502 nonexistent cleanup_lane_worktree, SR-503 full-match ID6_RE); no maintainer question needed; no Readiness written
 - 2026-10-25 note (aw specs): /spec-review round 5 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-401..SR-407 all FIXED (SR-401 show-toplevel worktree keying, SR-402 read_at dual resolution, SR-403 worktree cache pruning, SR-404 review front matter ref key, SR-405 aw index aliases); no maintainer question needed; no Readiness written
