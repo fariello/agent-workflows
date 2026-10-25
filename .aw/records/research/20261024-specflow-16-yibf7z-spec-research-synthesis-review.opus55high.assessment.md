@@ -12,7 +12,9 @@ summary: Refinement iteration 1 (self-review, prompt khjc70) of candidate spec y
 consumed-by: []
 ---
 
-# Refinement iteration 1 of candidate spec `yfz5u9` (self-review)
+# Refinement record for candidate spec `yfz5u9` (self-review iterations)
+
+## Iteration 1
 
 This is a design-improvement record, not a `/spec-review`. It is filed in the research tree on purpose: a
 parseable record under `.aw/records/reviews/` naming `yfz5u9` would satisfy
@@ -106,3 +108,45 @@ iteration, with these qualifications:
 Material changes made; rerun warranted. The four `high` findings changed requirements that downstream sections
 depend on (configuration, launch argv, isolation, protocol), so another iteration, preferably by a different
 model, should check the revised sections.
+
+## Iteration 2
+
+| Field | Value |
+| --- | --- |
+| Prompt | `khjc70`, run again by the operator |
+| Reviewer | OpenCode, same model and conversation as the author and iteration 1 (self-review; not independent evidence) |
+| Baseline | HEAD `766875058`; spec sha256 `87b5bb7ec2dfcdc4...`, 1676 lines, 102 requirement ids, 81 acceptance ids |
+| Code drift since pin `6f430cefd` | `runner_shared`, `lane_containment`, both drivers: fix-it lane handling and an interrupt `save_state`. No symbol cited by the spec changed behaviour. |
+| Result | 6 ids added (`R-96`, `AC-20b`, `AC-22b`, `AC-24b`, `AC-29b`, `AC-56c`), 0 removed |
+
+Iteration-1 findings `RF-01` to `RF-22`: rechecked, none reopened.
+
+| ID | Severity | Area | Defect and evidence | Correction | Blocks handoff |
+| --- | --- | --- | --- | --- | --- |
+| RF-23 | high | Convergence, R-34 | R-34 required "the deterministic checks for the document (R-63)" to pass, and R-63 starts with `aw specs check`. Candidates are research `source-draft` records, not specs, so a candidate loop could never reach `converged`. | R-34 now names the checks per document type; candidates are never run through `aw specs check`. AC-22b. | yes |
+| RF-24 | high | Naming, D177, R-74 | A one-participant research run named its final `findings` record `.reconciliation.`, which D177 reserves for multi-contributor documents, so the file would misstate authorship. | Single-author research finals carry the author's facets. Matrix row and AC-56c updated. | yes |
+| RF-25 | high | Lifecycle, `accept` | `accept` set a loop to `accepted`, but R-64 (d) did not list `accepted`, so accepting a `capped-open` loop could have produced an automatic `to-review` with open material findings, that is, a clean label on known defects. | New R-96: acceptance with open findings is a limitation for R-64 (d) and R-117, requires `--by-human --message`, and the findings are listed under `## Known limitations`. AC-24b. | yes |
+| RF-26 | medium | CLI, 3.2 | 13 flags or verbs used in requirements, diagrams, or transcripts had no grammar entry: `--from-stage`, `--defer-decisions`, `--allow-reduced`, `--allow-uncataloged`, `--from-run`/`--reuse`, `--finalize`, `--freeze-worktree`, `--progress`, `--review`, `--participant`, `--default`, `aw synth prune`. Found by extracting every `--flag` and diffing against Section 3.2. | All added to the grammar or the run-option table with defaults. | no |
+| RF-27 | medium | Reject, R-44 vs R-76 | R-44 said a rejected synthesis is "redone"; R-76 said a rejected working document is revised in place. The two disagreed on whether refinement history survives. | R-44: reject before synth-refine starts redoes the synthesis in place (new revision, new matrix); after it starts, `reject` exits 2 `use-from-run`. AC-29b. | no |
+| RF-28 | medium | Naming, inventory 6.6.5/6.6.6 | Iteration 1 moved the brief to NN `00` but left the other records numbered from `02`, leaving a gap at `01` that `plan_new` would never produce; the dispatch range `d001..d031` disagreed with the transcript's 23 dispatches. | Renumbered every example record (inventories, transcripts, finalize paths) and stated the 23-dispatch breakdown. | no |
+| RF-29 | medium | Attribution, assessments | One "synthesis assessment" held synth-refine and verify findings even when two different participants wrote them, giving one author facet to another participant's work. | One assessment per (document, reviewer) pair; NN worst case recomputed to `4N + 7`; AC-51 arithmetic redone. | no |
+| RF-30 | medium | Review assignment, R-31 | Cross review assigned candidate i to participant i+1 even when that participant had failed and the run continued reduced. | Fallback to the next available participant, else self-review with the label. AC-20b. | no |
+| RF-31 | medium | Status exit codes, 3.6 | `status` exited 1 for any run "not clean", so a polling script saw exit 1 for every running run. | Exit 0 and exit 1 states listed explicitly. | no |
+| RF-32 | medium | Baseline, Section 0 | Section 0 still described only the authoring HEAD. | Records the re-inspected HEAD and the code drift since the pin. | no |
+| RF-33 | low | Prose consistency | Section 1.1 said "read-only view" (contradicts R-81); FND-13 named a nonexistent `aw synth start`; FND-17 said rendered prompts are research-prompt records (contradicts 6.6.3); 1.6 placed research citation checks inside synthesize; the 2.2 table omitted R-11 (b); stage table verify skip rule disagreed with the role table. | Each corrected. | no |
+| RF-34 | low | Diagram | State diagram allowed `capped -> finalized-with-limitations` even with no working document, contradicting the hard-block list. | Edge label qualified. | no |
+
+### Iteration 2 validation actually performed
+
+- `aw specs check <spec>`: conforms.
+- Requirement and acceptance ids: 0 removed, 6 added; every `R-` and `AC-` reference resolves; every requirement has at least one acceptance criterion.
+- All four Mermaid diagrams rendered to SVG with `mmdc` 12.0.0.
+- Every `aw.agent/v1` example record in the spec validated with `agent_schema.validate_agent_record` (0 errors).
+- Every example research filename in the spec: 5 round-trip through `research_contract.parse_name`/`format_name`; 9 carry an ACE facet and cannot be checked until R-90 exists (expected, stated in the spec).
+- Flag inventory: every `--flag` in the spec is now defined in Section 3.2 or is an existing house or host flag.
+- Walkthroughs re-run against the revised text: one-participant quick (finalize leaves `draft`, Next `aw specs set to-review`); three-model thorough (23 dispatches, `to-review`); research with conflicting sources (single author: author facets; multiple: `.reconciliation.`); participant failure (review fallback, reduced participation); cap with open findings then `accept` (still a limitation, stays `draft` unless `--accept-limitations`); resume after brief edit (exit 2) and after profile edit (frozen launch, warning).
+
+### Iteration 2 stopping result
+
+Material changes made; rerun warranted. Three `high` findings (RF-23 to RF-25) were found that iteration 1 missed,
+so this self-review loop is still finding defects; a review by a different model is the more useful next step.
