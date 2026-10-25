@@ -9,9 +9,10 @@
 
 ## Workflow history
 
+- 2026-10-24 refined (2q7ppl): address adversarial review findings F-145 through F-158 (apply maintainer ruling DL-16 so every intermediate artifact is a research-tree record with existing kinds and owner verbs; replace Sections 3.3 and 6.2 to 6.4 with a research-tree placement matrix, set and NN allocation by owner verb, revision-in-place identity, and recomputed inventories; remove the shared default setid; correct shard naming to monthly YYYYMM; make model tokens validated rather than invented and drop unreachable dotted normalization keys; stop substituting an unsupported agy variant; mark provider model ids as unverified examples; align FR-20 and FR-28 machine outcomes with agent_schema.VALID_OUTCOMES; define roster-spec resolution and concise versus explicit equivalence; fix ERD cardinalities; update diagrams, transcripts, and acceptance tests)
 - 2026-10-24 refined (49zxqu): address adversarial review findings F-137 through F-144 (add participant failure and partial roster decision diamonds to Flowcharts 7.1 and 7.2; add cap-with-findings --allow-unresolved-findings decision branches to Flowchart 7.2; disambiguate Flowchart 7.1 solo cap exit to code 1 findings; add REVIEW_RECORD document entity to ERD 6.1 and Table 6.1 persistence classification; add synthesis and reconciliation refinement critique and revision rows to Table 6.2; add BudgetExhausted to Finalizing and Interrupted to Synthesizing recovery transitions in State Diagram 7.3; synchronize Table 3.4 CLI options across prepare, merge, reconcile, and finalize; add - Author: bullets to Section 6.3 spec schemas; and expand acceptance tests AT-65..AT-68)
 - 2026-10-24 refined (ablqqq): address adversarial review findings F-129 through F-136 (add explicit BudgetExhausted state to State Diagram 7.3 with transitions from active dispatch stages and resume paths; add --allow-unresolved-findings routing to draft and partial roster failure recovery to Flowchart 7.1; add explicit citation check decision diamonds to Flowchart 7.2; expand Worked Inventory 1 to include Iteration 2 candidates/critiques, synthesis refinement, P2 chunk index, and an Input-to-Final Artifact Traceability Matrix; add --allow-partial-roster to resume commands in Table 3.4; add Worked Inventory 4 for 3-participant research flow with sharded reference indexing; add reconcile and decomposed prompt rows to Table 6.2; connect final entities to synthesis/candidate/reconciliation in Section 6.1 ERD with operational ledger attributes; and expand acceptance tests AT-61..AT-64)
-- 2026-10-24 refined (9bct5l): address adversarial review findings F-121 through F-128 (generalize Section 4.3.1 mathematical bounds formula to formally incorporate FR-34 two-pass hierarchical synthesis section drafting turns; eliminate Flowchart 7.1 and 7.2 dangling terminal graph sinks by connecting all cap-with-findings halt nodes to explicit End states; add explicit research report transition nodes to weekly reference shards in Flowchart 7.2; disambiguate State Diagram 7.3 cap transitions to specify advisory-only or forced continuation; harmonize Table 3.4 CLI options across prepare, from-spec, merge/reconcile, and finalize with explicit defaults and title/slug options; expand Table 6.2 research candidate matrix rows for single-participant final reports, decomposed mode sub-topics, and ACE attribution; specify finalized research report front matter status: reference in Section 6.3; register Gemini 3.8 Flash dotted model normalizations in Section 11; and expand acceptance tests AT-57..AT-60)
+- 2026-10-24 refined (9bct5l): address adversarial review findings F-121 through F-128 (generalize Section 4.3.1 mathematical bounds formula to formally incorporate FR-34 two-pass hierarchical synthesis section drafting turns; eliminate Flowchart 7.1 and 7.2 dangling terminal graph sinks by connecting all cap-with-findings halt nodes to explicit End states; add explicit research report transition nodes to monthly reference shards in Flowchart 7.2; disambiguate State Diagram 7.3 cap transitions to specify advisory-only or forced continuation; harmonize Table 3.4 CLI options across prepare, from-spec, merge/reconcile, and finalize with explicit defaults and title/slug options; expand Table 6.2 research candidate matrix rows for single-participant final reports, decomposed mode sub-topics, and ACE attribution; specify finalized research report front matter status: reference in Section 6.3; register Gemini 3.8 Flash dotted model normalizations in Section 11; and expand acceptance tests AT-57..AT-60)
 - 2026-10-24 refined (qx2rv2): address adversarial review findings F-113 through F-120 (harmonize non-normative severity vocabulary across Table 3.4, FR-20, State Diagram 7.3, acceptance tests, and Section 13 transcripts to review_findings.SEVERITIES blocker/high and low/medium; add Flowchart 7.1 and 7.2 cap-with-findings decision diamonds and halted states for FR-11 and Diagram 7.3 conformance; add --title to aw research flow new/prepare and --allow-unresolved-findings across new/from-spec/merge/reconcile; add --turn-timeout and --max-retries overrides to resume commands; add research reconciliation evaluation relationship to Section 6.1 ERD; add BlockedFindings recovery transitions to State Diagram 7.3; specify TOML quoted string keys for dotted model normalizations in Section 11; and expand acceptance tests AT-53..AT-56)
 - 2026-10-24 refined (5fpnhm): address adversarial review findings F-105 through F-112 (align FR-07, Section 6.1 ERD, and Section 6.3 review critique schema with review_findings.py normative FINDING_COLUMNS, closed SEVERITIES, and DECISIONS vocabularies; add State Diagram 7.3 CappedHalted state and resumption branches for FR-11 and Section 13.3 transcript conformance; add --title/--slug to aw research flow reconcile and <setid> selector support to status in Table 3.4; harmonize Flowchart 7.1 destination lifecycle routing and Flowchart 7.2 candidate research refinement loops; correct Section 6.2 item 4 check.name-nonconformant error severity; register gpt61 in Section 11 models; update Section 6.3 review front matter schema with Round and Findings headers; and expand acceptance tests AT-49..AT-52)
 - 2026-10-24 refined (aytuko): address adversarial review findings F-97 through F-104 (prompt artifact HTML metadata comment schema in Section 6.3 conforming to prompts_index._parse_metadata_comment and check.prompt-metadata-missing, research front matter YAML delimiter and closed enum outcome alignment in Section 6.3 conforming to research_contract.validate_frontmatter, State Diagram 7.3 single-participant bypass transition to Finalizing and PartialRoster resumability, Table 6.2 prompt NN dynamic range allocation, Table 3.4 CLI options synchronization for --mode on prepare and --title/--slug on merge/reconcile, Table 3.4 <setid> selector resolution parity on finalize and cancel, metastore spec 4sd62s event log coordination in Section 2.2 and Section 11, and AT-45..AT-48 acceptance test expansion)
@@ -20,7 +21,7 @@
 - 2026-10-24 refined (ei43pd): address adversarial review findings F-68 through F-79 (Decision D177 positional right-to-left middle segment parsing regex correction, CLI investigation mode flag disambiguation with --investigation-mode in Table 3.4 and AT-34, State Diagram 7.3 terminal transitions and partial roster failure handling, Flowchart 7.2 --prepare-only and single-participant routing, Table 6.2 generic synthesis prompt pattern, Table 3.4 missing CLI options --budget/--turn-timeout/--slug/--set/--allow-unresolved-findings, runner profiles variant schema boundary clarification for agy, built-in fallback defaults specification in Section 5.1, Table 3.4 quote syntax repairs, finalize contract on capped runs with unresolved findings, comprehensive research-models.toml normalization mappings, and AT-35/AT-36 acceptance test additions)
 - 2026-10-24 refined (rzz6ik): address adversarial review findings F-57 through F-67 (Mermaid flowchart O node and subgraph syntax hardening, Mermaid research diagram flat hot root alignment, comprehensive AT-29..AT-34 acceptance test coverage for all functional requirements, Section 13.2 Claude Opus 5.5 model string correction, AT-23 cancellation exit parity, complete intermediate artifact placement matrix rows in Table 6.2, two-digit NN dynamic slot stride and 99 exhaustion handling, immutable id6 provenance linking in synthesis matrices, research-models.toml vocabulary registration in Section 11, resume setid selector and --agent option parity in CLI tables, state diagram terminal transitions, and FR-03B token metrics accounting)
 - 2026-10-24 refined (ye6osz): address adversarial review findings F-47 through F-56 (intermediate candidate validator isolation in _spec_files, maintainer auto-advance ruling DL-17 leaving single-model runs in draft, FR-35 from-spec successor spec contract, canonical flat hot research root citation, FR-36 prompt injection defense data fencing, research flow bounds and verifier accounting, Claude Opus 5.5 model string correction, cancellation CLI exit code consistency, research CLI module placement in research_cmd.py, and prepare-only prompt staging phasing)
-- 2026-10-24 refined (fy6rfp): address adversarial review findings F-37 through F-46 (specs_cli module citation correction, research sharding format YYYYMM-Www, research flow finalize and refinement symmetry, lifecycle-placement-conflict rule citation, mathematical bounds formula conditioning for single-participant runs, state diagram cancellation transition from interrupted state, research ERD entities, role registry schema boundary, Section 8.3 turn budget consistency, and test/check counters)
+- 2026-10-24 refined (fy6rfp): address adversarial review findings F-37 through F-46 (specs_cli module citation correction, research sharding format YYYYMM, research flow finalize and refinement symmetry, lifecycle-placement-conflict rule citation, mathematical bounds formula conditioning for single-participant runs, state diagram cancellation transition from interrupted state, research ERD entities, role registry schema boundary, Section 8.3 turn budget consistency, and test/check counters)
 - 2026-10-24 created (aw specs): Configurable single-agent and multi-agent spec and research synthesis
 - 2026-10-24 updated: incorporate decision D177 naming, intermediate candidate staging in draft/intermediate/<setid>/, and attention board pipeline rollup
 - 2026-10-24 refined (vprs7o): address adversarial review findings F-01 through F-07 (review tree separation, work arithmetic bounds, prepare-only entry point, complete worked inventories, ERD persistence classification, research flow modes, and model-specific context budgets)
@@ -58,7 +59,7 @@ Authoring high-stakes software specifications and deep research findings current
 - **Traceable Synthesis with Accountability**: Synthesize competing candidates into a single coherent design, producing an explicit Similarities and Differences Matrix, logging contribution provenance for all requirements, and preventing silent consensus fabrication.
 - **Research Parity**: Support research formulation, independent evidence gathering, contradiction tracking, and reconciliation into durable research records without borrowing inapplicable spec approval semantics.
 - **Normalized Artifact Grammar and Set Clustered Identity**: Strictly adhere to repository decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), ensuring stable `id6` identity, immutable Set grouping, and clean separation between durable records and disposable state.
-- **Zero-Lost-Work Attention Surfacing**: Ensure that intermediate candidates staging in `draft/intermediate/<setid>/` are permanently surfaced on the daily cross-tree attention view (`aw attention` and `aw todo`) via Set pipeline rollups and dedicated reminder banners so work is never hidden or lost to time.
+- **Zero-Lost-Work Attention Surfacing**: Ensure that every live or halted run is visible on the daily cross-tree attention view (`aw attention` and `aw todo`) through the existing research pipeline position of its set, so work is never hidden or lost to time.
 - **Deterministic CLI & Agent Protocol**: Provide ergonomic human CLI commands alongside strict non-interactive, machine-readable output conforming to `aw.agent/v1` JSONL.
 
 ### 1.5 Non-Goals
@@ -75,9 +76,9 @@ Authoring high-stakes software specifications and deep research findings current
   - Prepare-only entry point (`--prepare-only` / `aw specs flow prepare`) to freeze baselines and render prompt files without dispatching execution.
   - Participant roster resolution via `runner-profiles.json` and explicit CLI overrides.
   - OpenCode (`oc`) and Antigravity (`agy`) execution drivers for generation, refinement, and synthesis.
-  - OpenCode-hosted execution for GPT-6.1 Sol Medium via profile `sol` (confirmed by operator ruling; standalone Codex runner deferred).
-  - Intermediate candidate staging under `.aw/records/specs/draft/intermediate/<setid>/` for `.spec.md` files, and `.aw/records/reviews/` for `.review.md` critique records.
-  - Set-level pipeline state rollup in `aw attention` (`aw todo`) and persistent footer reminder banner.
+  - OpenCode-hosted execution for the GPT-6.1 Sol Medium slot via profile `sol` (the maintainer accepted OpenCode for this slot; standalone Codex runner deferred).
+  - Intermediate artifacts (candidates, findings, matrix, synthesis draft) as research-tree records using existing kinds, created and moved by research owner verbs (Section 3.3, maintainer ruling DL-16).
+  - Set-level visibility in `aw attention` (`aw todo`) through the existing research pipeline position, plus a local footer line for halted runs.
   - Execution modes: Quick (`--mode quick`) and Thorough (`--mode thorough`).
   - Iteration loops with configurable caps (`--refine-cap`, `--synth-refine-cap`) and convergence detection.
   - Production of the Similarities and Differences Matrix and requirement provenance tags.
@@ -96,7 +97,7 @@ Authoring high-stakes software specifications and deep research findings current
 ## 2. Repository Findings and Integration Seams
 
 ### 2.1 Codebase Inspection Baseline
-- **Inspected Commit**: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (branch `specflow-refinement-1` / `main`).
+- **Inspected Commit**: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (initial, branch `specflow-refinement-1` / `main`). Refinement iteration 22 re-verified every claim it changed against `main` at `41e6f96f7` (this file unchanged since `59f6d3137`).
 - **Inspection Date**: 2026-10-24.
 
 ### 2.2 Integration Seams and Findings
@@ -107,13 +108,13 @@ Authoring high-stakes software specifications and deep research findings current
 | **Runner Profiles & Launch Resolution** | `agent_workflows/runner_profiles.py`<br>`docs/runner-profiles.md` | Stored in `<config_dir>/runner-profiles.json`. Schema version 2. Precedence: explicit caller > named profile > runner default > host default. Registers `oc` (supports variant/agent) and `agy` (no variant/agent in registry). `roles` map exists but is currently inert. | Define flow-specific roles (`synthesizer`, `research-verifier`, `reviewer`) in `flow-preferences.json` mapping to named profile references in `runner-profiles.json`, preserving the closed `ROLE_NAMES` vocabulary in `runner_profiles.py`. Add validation for flow participant rosters. Support profile references in workflow config. |
 | **Host Capabilities & Adapters** | `agent_workflows/host_adapters.py`<br>`agent_workflows/host_capability_registry.py` | `V1_HOSTS` includes `opencode`, `codex`, `antigravity`. Codex has `HOST_NONINTERACTIVE_RUNTIME = "codex exec"`, but no active runner profile row in `runner_profiles.py`. | Per maintainer instruction, route Sol slot (`gpt-6.1-sol-medium`) through OpenCode profile `sol` with OpenAI provider model and `variant=medium`. Standalone Codex runner deferred to Phase 2. |
 | **Machine Protocol & Output** | `docs/cli-output-contract.md`<br>`docs/cli-agent-protocol.md` | `aw.agent/v1` JSONL protocol with typed events (`result`, `diagnostic`, `change`, `evidence`). Redacts local home paths. Strict anti-greenwashing rules. | Emit `flow` status events via `aw.agent/v1`. Distinguish `clean` (converged without findings), `findings` (capped with unresolved issues), and `fail`. |
-| **Spec Lifecycle & Validation** | `agent_workflows/specs.py`<br>`agent_workflows/cli.py`<br>`.aw/records/specs/README.md` | Specs have closed status enum: `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `implemented`, `deferred`, `parked`, `superseded`. Location matches status directory. Tool-owned minting via `aw specs new`. Recursive walk `rglob("*.md")` validates every spec in tree. | Flow finalization writes multi-model synthesized candidates to `to-review/` and single-model/solo candidates to `draft/` (per maintainer ruling DL-17). Must never forge review attestations or set `approved`. Links to `/spec-review` for multi-model or `aw specs set to-review <id6>` for single-model. Ensure non-spec records (`.review.md`) live outside `specs/`. Filter out `draft/intermediate/` from individual spec enumeration in `specs._spec_files()` and `attention.py` so intermediate candidate specs do not fail `validate_spec()` or pollute the daily board (maintainer confirmed alternative DL-16 stages candidates in the research tree). |
-| **Attention Board & Cross-Tree View** | `agent_workflows/attention.py`<br>`agent_workflows/attention_contract.py` | `aw attention` (and `aw todo`) maps tracked artifacts to 5 classes: `ready`, `active`, `blocked`, `done`, `parked`. Research prompts use `_PROMPT_PIPELINE_MAP` (`unrun` -> `ready`, `partial` -> `active`, `synthesized` -> `done`). | Add spec flow Set pipeline position mapping (`awaiting-synthesis` -> `ready`, `refining` -> `active`, `synthesized` -> `done`). Add footer reminder banner for unmerged intermediate candidate sets. |
-| **Review Records & Critique Storage** | `agent_workflows/review_findings.py`<br>`agent_workflows/check_engine.py` | `SUBJECT_TYPES` is strictly `("ipd", "spec")`. `_review_subject_id_sets` only resolves IPD and Spec IDs. Reviews require `## Round <N>` header and 5 metadata fields. | Extend `SUBJECT_TYPES` to include `"research"` and update `check_engine` to query `resolve_research_root(repo_root)` by id6 for research critique verification. Ensure `_review_subject_id_sets["spec"]` indexes candidate spec IDs from `draft/intermediate/<setid>/` so candidate review critiques in `.aw/records/reviews/` do not trigger `check.review-dangling`. Ensure synthesis matrices carry `## Round 1` and valid `- Subject-Id:` to satisfy parser and avoid `check.review-dangling`. |
-| **Metastore & Event Log Coordination** | `.aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` (Spec `4sd62s`) | Metastore spec Section 4.1a partitions review events into `kind: gate` and `kind: refinement`. Refinement reviews carry registry-owned convergence verdicts and store `review_ref: <own-id6>`. | Coordinate event schemas: iterative refinement turns emit `op: review` with `kind: refinement` and reference review id6 in subject event, without requiring separate event logs for review records. |
-| **Research Contracts & Index** | `agent_workflows/research_contract.py`<br>`agent_workflows/research_cmd.py`<br>`.aw/records/research/README.md` | Naming: `YYYYMMDD-<set>-<NN>-<id6>-<slug>[.<model>].<kind>.md`. Kinds: `research-prompt`, `research-report`, `reconciliation-report`. `reconciliation` denotes multi-author synthesis. Sharded by weekly directories for `reference` and `archive`. Hot root is flat `.aw/records/research/`. | Reuse research kinds and index generators. Hot records stage directly in the flat hot root `.aw/records/research/` (no `todo/` or `active/` subdirectories). Multi-agent research outputs write `research-report` per model and `reconciliation-report` for the synthesized report directly in the hot root during active runs, moving to `reference/<YYYYMM-Www>/` upon finalization without spec approval gates. |
+| **Spec Lifecycle & Validation** | `agent_workflows/specs.py`<br>`agent_workflows/cli.py`<br>`.aw/records/specs/README.md` | Specs have closed status enum: `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `implemented`, `deferred`, `parked`, `superseded`. Location matches status directory. Tool-owned minting via `aw specs new`. Recursive walk `rglob("*.md")` validates every spec in tree. | Flow finalization writes multi-model synthesized candidates to `to-review/` and single-model/solo candidates to `draft/` (per maintainer ruling DL-17). Must never forge review attestations or set `approved`. Links to `/spec-review` for multi-model or `aw specs set to-review <id6>` for single-model. The final spec is the only record a run writes in the specs tree (DL-16), so `specs._spec_files()` and `validate_spec()` need no change. |
+| **Attention Board & Cross-Tree View** | `agent_workflows/attention.py`<br>`agent_workflows/attention_contract.py` | `aw attention` (and `aw todo`) maps tracked artifacts to 5 classes: `ready`, `active`, `blocked`, `done`, `parked`. Research prompts use `_PROMPT_PIPELINE_MAP` (`unrun` -> `ready`, `partial` -> `active`, `synthesized` -> `done`). | No new mapping. The run brief is a statusless `research-prompt`, so `attention.py` classifies the set through `research_index.derive_pipeline_positions` and `_PROMPT_PIPELINE_MAP` (`unrun` ready, `partial` active, `synthesized` done). Add only a local footer line for halted runs read from the run ledger (FR-24). |
+| **Review Records & Critique Storage** | `agent_workflows/review_findings.py`<br>`agent_workflows/check_engine.py` | `SUBJECT_TYPES` is strictly `("ipd", "spec")`. `_review_subject_id_sets` only resolves IPD and Spec IDs. Reviews require `## Round <N>` header and 5 metadata fields. | No change. A run writes no `.review.md` records (DL-16). Refinement findings are research `assessment` records whose body tables reuse the `review_findings.FINDING_COLUMNS` header and row parser. A `.review.md` with `- Subject-Type: research` would raise `REV-M102`, which is one reason this design avoids the reviews tree. |
+| **Metastore & Event Log Coordination** | `.aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` (Spec `4sd62s`) | Metastore spec Section 4.1a partitions review events into `kind: gate` and `kind: refinement`. Refinement reviews carry registry-owned convergence verdicts and store `review_ref: <own-id6>`. | Coordinate when `4sd62s` ships: each refinement round MAY emit `op: review` with `kind: refinement`, `review_ref: <assessment id6>`. Until then the assessment record is the only durable source. |
+| **Research Contracts & Index** | `agent_workflows/research_contract.py`<br>`agent_workflows/research_cmd.py`<br>`.aw/records/research/README.md` | Naming: `YYYYMMDD-<set>-<NN>-<id6>-<slug>[.<model>].<kind>.md`. Kinds: `research-prompt`, `research-report`, `reconciliation-report`. `reconciliation` denotes multi-author synthesis. Cold statuses live in monthly `YYYYMM` shards (`artifact_core.shard_for_date`; legacy weekly names are still accepted on read). Hot root is flat. Kinds include `source-draft` and `assessment`. `parse_name` accepts zero or one facet today. | Reuse kinds, owner verbs (`aw research new`, `promote`), companions, and index. Spec and research intermediates are hot-root records during a run and move to `reference/<YYYYMM>/` at finalize or `archive/<YYYYMM>/` at cancel. Extend `parse_name` for the optional `<ace>` facet (Section 6.2). |
 | **Artifact Naming & Authority** | `agent_workflows/artifact_naming.py`<br>`DECISIONS.md` (Decision D177) | Clustered grammar: `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`. The type is ALWAYS the last facet before `.md`. Model tokens are dot-free model-plus-effort tokens (e.g. `opus55high`, `gemini38flashhigh`, `gpt61solmedium`). | Extend `artifact_naming` to parse and emit optional `[.<ace>][.<model>]` segments preceding the closed `<type>` facet. Document compatibility gap until plan executes. |
-| **Storage Root Resolution** | `agent_workflows/project_context.py` | `project_records_dir(repo_root)` resolves physical location for `.aw/records/`, including external companion and home placement. Never hard-code `.aw/records/` as a static string. | Route all artifact writes through `project_records_dir()`. Stage intermediate candidates under `project_records_dir() / "specs" / "draft" / "intermediate" / setid`, and review records under `project_records_dir() / "reviews"`. |
+| **Storage Root Resolution** | `agent_workflows/project_context.py` | `project_records_dir(repo_root)` resolves physical location for `.aw/records/`, including external companion and home placement. Never hard-code `.aw/records/` as a static string. | Route all writes through the owner verbs, which resolve roots themselves (`research_contract.resolve_research_root`, `project_records_dir`). The run ledger lives under `project_records_dir() / "runs"`. |
 
 ---
 
@@ -156,64 +157,64 @@ The canonical primary grammar is **Family A**:
 
 Convenience aliases: `aw specs synth` is an alias for `aw specs flow`; `aw research synth` is an alias for `aw research flow`.
 
-### 3.3 Evaluation of Intermediate Artifact Placement and Attention Surfacing
+### 3.3 Intermediate Artifact Placement and Attention Surfacing (decided: research tree, maintainer ruling DL-16)
 
-A critical architectural decision is where intermediate candidate specs, reviews, and matrices live, and how they surface on the daily attention view (`aw attention` and `aw todo`) so work is never lost to time. Three distinct solutions were analyzed:
+Where intermediate candidates, refinement findings, and matrices live decides three things: which validator reads them, how `aw attention` shows a live run, and whether durable provenance has an owner verb. The maintainer settled this question (OQ-1, recorded 2026-10-25 in sibling candidate `yfz5u9`, commit `47bd8f9e9`, and confirmed for this candidate in refinement iteration 22): candidates and their findings live in the research tree.
 
-#### Solution 1: Subdirectory Staging with Set Pipeline Rollup (Selected Best Solution)
-- **Directory Path**: `.aw/records/specs/draft/intermediate/<setid>/` for candidate specifications (`.spec.md`), and `.aw/records/reviews/` for review critiques and matrices (`.review.md`).
-- **Design**:
-  - All intermediate candidate specifications for a given Set are grouped under `draft/intermediate/<setid>/`.
-  - The path sits *inside* `draft/`, which preserves the `draft` lifecycle bucket in `agent_workflows/lifecycle_dirs.py` and passes `check.lifecycle-placement-conflict` with zero schema violations.
-  - Review records (`.review.md`) stage in `.aw/records/reviews/`, which preserves the strict repository invariant that `.aw/records/specs/` contains only `.spec.md` records, preventing `aw specs check` from failing on missing spec status headers.
-  - Keeps top-level `.aw/records/specs/draft/` clean, holding only consolidated/authoritative drafts.
-  - To prevent `aw specs check` from failing on intermediate candidates (via `specs.py:148` recursive `rglob("*.md")`) and to prevent `aw attention` from listing each candidate as an individual spec item, `_spec_files()` and `attention.py` filter out `intermediate/` directories, handling them exclusively through the Set pipeline rollup.
-- **Maintainer Ruling DL-16 (Alternative Solution 4 - Research Tree Staging)**:
-  - On 2026-10-25, the maintainer confirmed DL-16 (OQ-1), ruling that spec candidates and findings may live in the research tree (as `source-draft` and `assessment` records), where attribution facets (`.<ace>.<model>.`), companion data directories (`.data/`), and pipeline positions are native and do not collide with spec contracts. Under Solution 1, intermediate candidate specs require the `specs._spec_files()` filter; under DL-16, intermediate candidates stage directly in `.aw/records/research/`.
-- **Attention Surfacing**:
-  - `aw attention` maps the Set's pipeline position into a single consolidated row:
-    - While refining: under `## active`: `- [specs] <setid>: N candidate(s) in draft/intermediate/ [active: candidate-refinement]`.
-    - When paused, capped, or awaiting synthesis: under `## ready`: `- [specs] <setid>: N candidate(s) in draft/intermediate/ (awaiting synthesis) [next: aw specs flow merge <setid>]`.
-    - When final spec is written to `to-review/` or `draft/`: transitions to `DONE` (hidden from default board).
-  - Emits a persistent reminder banner in the `aw attention` footer:
-    `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/. Run 'aw specs flow merge <setid> --apply' to synthesize.`
-- **Verdict**: Adopted. Combines directory cleanliness, tree-facet alignment, zero board clutter, and guaranteed visibility.
+#### Decision (normative)
+- Every intermediate artifact of a spec run or a research run is a research-tree record. Records are created in the flat hot root returned by `research_contract.resolve_research_root(repo_root)` through the research owner verb (`aw research new`, which mints the id6 with `artifact_core.mint_id6` and allocates the order). They move to `reference/<YYYYMM>/` or `archive/<YYYYMM>/` only through `aw research promote <id6> --to reference|archive`.
+- Kinds are drawn from the existing closed set `research_contract.KINDS`. No new kind is added:
+  - Run brief: `research-prompt` (NN `00`, statusless, one per run).
+  - Spec candidate, every spec candidate revision, every split part and part index, and the spec synthesis working draft: `source-draft`.
+  - Research candidate and every research candidate revision: `research-report`.
+  - Refinement findings for any subject (candidate, part set, synthesis draft, reconciliation): `assessment`.
+  - Similarities and Differences Matrix (spec runs) and the reconciled report (research runs): `reconciliation-report`.
+- Rendered prompts, the live matrix body, the run summary, and dispatch logs are companion files in the brief's tracked companion directory `<brief-stem>.data/` (`research_contract.companion_dir_for`). The research scanner skips companion contents (`research_index._scan_docs` calls `companion_owner_stem`), so companion files are never counted as records.
+- The only record a spec run writes in the specs tree is the final spec. A run writes nothing in `.aw/records/reviews/` and nothing in `.aw/records/prompts/`.
 
-#### Solution 2: Flat Direct Placement in `draft/` (Evaluated & Rejected)
-- **Design**: All candidate specs live directly in `.aw/records/specs/draft/`.
-- **Evaluation**:
-  - With 3 models over 2 iterations, 6-10 separate files appear in `draft/`.
-  - The `aw attention` board is flooded with duplicate candidate rows for a single feature, creating operator confusion over which file is the authoritative draft.
-  - When synthesis completes, old candidate drafts must be manually culled or moved to `superseded/`.
-- **Verdict**: Rejected due to high noise and board pollution.
+#### Why this placement (evidence)
+- `specs._spec_files()` walks the specs tree recursively (`rglob`), and `aw attention` lists every spec it finds. A candidate under `specs/draft/` must therefore pass `validate_spec()` and appears as its own spec on the board. Exempting a subtree would add a new scanner exception to `specs.py` and `attention.py`.
+- `review_findings.SUBJECT_TYPES` is `("ipd", "spec")`. A review record whose `- Subject-Type:` is `research` produces diagnostic `REV-M102` (observed in iteration 22 by calling `review_findings.parse_review_text`). The metastore spec `4sd62s` also measured that `18hh1u` refinement records already distort review-record statistics (its Section 4.1a). Research `assessment` records need neither a new subject type nor a reviews-tree change.
+- A prompt record in `.aw/records/prompts/pending/` is classified `ready` by `attention_contract._PROMPTS_MAP`, so each rendered prompt would appear on the board as a prompt for a human to run. A run renders 10 to 50 prompts.
+- `research_index.derive_pipeline_positions` gives a set a position only when one member is a `research-prompt`. With the brief as that member, the set reads `unrun` (ready) before dispatch, `partial` (active) while any non-prompt member has a body, and `synthesized` (done) when a member of kind `reconciliation-report` or `findings` has a body. `attention.py` maps these through `attention_contract._PROMPT_PIPELINE_MAP`. No attention code change is needed for the board row.
 
-#### Solution 3: Dedicated Top-Level `candidates/` Lifecycle Tree (Evaluated & Rejected)
-- **Design**: Create a new top-level tree `.aw/records/candidates/` with custom lifecycle states (`generated`, `refining`, `synthesized`).
-- **Evaluation**:
-  - Candidate specs are transient materials leading to a specification, not a permanent new documentation class.
-  - Proliferating top-level lifecycle trees causes high churn across `layout.py`, `lifecycle_dirs.py`, `attention_contract.py`, and `check_engine.py`.
-- **Verdict**: Rejected as unnecessary over-engineering.
+#### Keeping a live run visible (normative)
+- A `reconciliation-report` record MUST be created with front matter only (empty body) while its run is live. Its live body is kept in the brief companion (`<C>/matrix.md` for a spec run, `<C>/reconciliation.md` for a research run). Finalize and cancel copy the body into the record. Reason: a body on a `SYNTHESIS_KINDS` member would flip the set to `synthesized` (done) while synthesis refinement or a maintainer decision is still pending, which hides live work.
+- A halted run (capped, budget exhausted, partial roster, blocked finalize, interrupted) stays `partial` (active) because its candidate records have bodies. The board therefore never drops a halted run.
+- `aw attention` additionally prints one footer line per halted run found in the local run ledger (FR-24). The ledger directory `.aw/records/runs/` is gitignored, so this line is a local convenience. The durable signal is the pipeline position.
+
+#### Alternatives considered and rejected
+- **Spec subtree staging (`specs/draft/intermediate/<setid>/`, the previous Solution 1 of this candidate).** Rejected: it needs a validator and attention exception in `specs.py` and `attention.py`, a new review subject type, and a bespoke attention rollup, and it contradicts the maintainer ruling above.
+- **Flat placement in `specs/draft/`.** Rejected: every candidate is validated and listed as a separate spec.
+- **New top-level `candidates/` tree.** Rejected: a new lifecycle tree touches `layout.py`, `lifecycle_dirs.py`, `attention_contract.py`, and `check_engine.py` with no capability the research tree lacks.
+- Cost of the decision: a spec's candidates live in a different tree from the spec. The shared setid (`aw find --set <setid>`) and the final spec's `- From-Research-Set:` and `## Synthesis provenance` section join them.
 
 ### 3.4 Command Matrix
 
 | Canonical Command | Mode & Rigor | Arguments & Options | Result & Side Effects | Exit Codes |
 | --- | --- | --- | --- | --- |
-| `aw specs flow new` | Quick or Thorough | `--brief <path>` (required or stdin)<br>`--title <str>`<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: `specflow`)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster` (flag: proceed to synthesis if a participant fails)<br>`--allow-unresolved-findings` (flag: force finalize capped run with findings into `draft/` with exit 1)<br>`--prepare-only` (flag: render prompts only)<br>`--apply` (default: preview only)<br>`--agent` / `--json` | Generates candidate specs in `draft/intermediate/<setid>/`, executes refinement, synthesizes merged design, and writes final candidate: to `.aw/records/specs/to-review/` if multi-model synthesis, or to `.aw/records/specs/draft/` if single-participant/single-model (per maintainer ruling DL-17). If `--prepare-only`, writes rendered Stage 1 prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/cap<br>2: usage error |
-| `aw specs flow prepare` | Prompt Prep Only | `--brief <path>` (or `--from-spec <spec-selector>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: `specflow`)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--refine-cap <int>` (optional override)<br>`--synth-refine-cap <int>` (optional override)<br>`--budget <int>` (optional override)<br>`--apply`<br>`--agent` / `--json` | Freezes baseline commit, validates brief or existing spec, renders all initial generation prompt artifacts to `.aw/records/prompts/pending/`, and displays the execution plan and turn bounds without dispatching execution. | 0: clean<br>2: usage error |
-| `aw specs flow from-spec` | Quick or Thorough | `<spec-selector>` (id6, setid, or path)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: inherited or `specflow`)<br>`--mode quick\|thorough`<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--objective <str>` (optional focus directive)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster`<br>`--allow-unresolved-findings`<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Reads existing spec as baseline, gathers independent alternative revisions across roster in `draft/intermediate/<setid>/`, refines, and synthesizes into a successor candidate spec carrying `- Supersedes: <prior-id6>` (FR-35). | 0: clean<br>1: findings/cap<br>2: usage error |
-| `aw specs flow merge` | Synthesis Only | `<setid>` (or `<candidate-paths...>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--synthesizer <profile>` (default: roster verifier)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 20)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-unresolved-findings` (flag: force finalize capped synthesis with findings into `draft/` with exit 1)<br>`--apply`<br>`--agent` / `--json` | Takes candidates from `draft/intermediate/<setid>/`, compiles Similarities/Differences Matrix in `.aw/records/reviews/`, and executes synthesis refinement. If clean multi-model synthesis, finalizes to `to-review/`; if single-model, finalizes to `draft/` (DL-17); if caps are reached with unresolved blocker/high findings, halts with exit 1 leaving candidates in `draft/intermediate/<setid>/`. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow new` | Quick or Thorough | `--brief <path>` (required or stdin)<br>`--title <str>`<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: derived from the slug; Section 6.3)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster` (flag: proceed to synthesis if a participant fails)<br>`--allow-unresolved-findings` (flag: force finalize capped run with findings into `draft/` with exit 1)<br>`--prepare-only` (flag: render prompts only)<br>`--apply` (default: preview only)<br>`--agent` / `--json` | Generates candidate records in the research tree (Section 3.3), executes refinement, synthesizes merged design, and writes final candidate: to `.aw/records/specs/to-review/` if multi-model synthesis, or to `.aw/records/specs/draft/` if single-participant/single-model (per maintainer ruling DL-17). If `--prepare-only`, writes the brief record and the rendered Stage 1 prompts in its companion without dispatching execution. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow prepare` | Prompt Prep Only | `--brief <path>` (or `--from-spec <spec-selector>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: derived from the slug; Section 6.3)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--refine-cap <int>` (optional override)<br>`--synth-refine-cap <int>` (optional override)<br>`--budget <int>` (optional override)<br>`--apply`<br>`--agent` / `--json` | Freezes baseline commit, validates brief or existing spec, writes the brief record, renders all Stage 1 prompts into its companion, and displays the execution plan and turn bounds without dispatching execution. | 0: clean<br>2: usage error |
+| `aw specs flow from-spec` | Quick or Thorough | `<spec-selector>` (id6, setid, or path)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: the source spec's set)<br>`--mode quick\|thorough`<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--objective <str>` (optional focus directive)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster`<br>`--allow-unresolved-findings`<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Reads existing spec as baseline, gathers independent alternative revisions across the roster as research-tree records, refines, and synthesizes into a successor candidate spec carrying `- Supersedes: <prior-id6>` (FR-35). | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow merge` | Synthesis Only | `<setid>` (or `<candidate-paths...>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--synthesizer <profile>` (default: `roles.synthesizer`)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 20)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-unresolved-findings` (flag: force finalize capped synthesis with findings into `draft/` with exit 1)<br>`--apply`<br>`--agent` / `--json` | Takes the set's candidate records, compiles the Similarities/Differences Matrix as a `reconciliation-report` record, and executes synthesis refinement. If clean multi-model synthesis, finalizes to `to-review/`; if single-model, finalizes to `draft/` (DL-17); if caps are reached with unresolved blocker/high findings, halts with exit 1 leaving every record in place. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow status` | Read-Only | `[selector]` (flow-run-id6, setid, or omitted for latest active/recent run in repo)<br>`--verbose`<br>`--agent` / `--json` | Displays live or completed execution status: participant stage progress, iteration counts, active findings, cap warnings, token metrics. | 0: clean<br>1: findings/active<br>2: usage error |
 | `aw specs flow resume` | Recovery | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--refine-cap <int>` (optional new cap)<br>`--synth-refine-cap <int>` (optional new cap)<br>`--budget <int>` (optional new turn budget)<br>`--turn-timeout <int>` (optional new timeout)<br>`--max-retries <int>` (optional new max retries)<br>`--allow-partial-roster` (flag: proceed to synthesis with surviving valid candidates)<br>`--force-stale-resume` (flag: bypass brief mutation check)<br>`--apply`<br>`--agent` / `--json` | Resumes an interrupted, failed, or capped run from its frozen state without re-running completed participant turns. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow cancel` | Abort & Cleanup | `<flow-run-id6> \| <setid>` (id6 or latest active run for set)<br>`--apply`<br>`--agent` / `--json` | Cancels an active or interrupted flow run, terminates all spawned child worker subprocesses to prevent runaway background execution and billing, marks the run ledger status as `cancelled`, and updates attention pipeline position. Exits 0 on clean cancellation, 1 if run is not active/cancellable. | 0: clean<br>1: not-active<br>2: usage error |
-| `aw specs flow finalize` | Finalization | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--status to-review\|draft` (default: `to-review` for clean multi-model synthesis; `draft` for solo/single-model per DL-17)<br>`--allow-unresolved-findings` (flag: force finalize capped run with findings into `draft/`)<br>`--apply`<br>`--agent` / `--json` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory (`to-review/` if clean multi-model synthesis; `draft/` if single-model/solo per DL-17 or capped with unresolved findings via `--allow-unresolved-findings`), marks intermediates as `synthesized`, and outputs `/spec-review` (multi-model) or `aw specs set to-review <id6>` (single-model/draft). Refuses to advance to `to-review/` if unresolved blocker or high findings remain. | 0: clean<br>1: blocked/findings<br>2: usage error |
-| `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: `specflow`)<br>`--mode quick\|thorough`<br>`--investigation-mode parallel\|decomposed` (default: `parallel`)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--topic <str>` (optional, default: derived from question or brief)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--reconcile-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster` (flag: proceed to reconciliation if a participant fails)<br>`--allow-unverified` (flag: allow unverified citations)<br>`--allow-unresolved-findings` (flag: force finalize capped research with findings into `reference/` with exit 1)<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Formulates research prompt, collects independent evidence reports across roster in flat hot root `.aw/records/research/`, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. If `--prepare-only`, writes rendered Stage 1 prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/unverified<br>2: usage error |
-| `aw research flow prepare` | Prompt Prep Only | `--question <str>` (or `--brief <path>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: `specflow`)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--investigation-mode parallel\|decomposed` (default: `parallel`)<br>`--topic <str>` (optional, default: derived from question or brief)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--refine-cap <int>` (optional override)<br>`--reconcile-refine-cap <int>` (optional override)<br>`--budget <int>` (optional override)<br>`--apply`<br>`--agent` / `--json` | Freezes baseline commit, validates research brief, renders all initial investigation prompt artifacts to `.aw/records/prompts/pending/`, and displays the execution plan and turn bounds without dispatching execution. | 0: clean<br>2: usage error |
-| `aw research flow reconcile` | Synthesis Only | `<setid>` (or `<report-paths...>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--reconciler <profile>` (default: roster verifier)<br>`--reconcile-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--allow-unverified` (flag: allow unverified citations)<br>`--allow-unresolved-findings` (flag: force finalize capped reconciliation with findings with exit 1)<br>`--budget <int>` (default: 20)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--apply`<br>`--agent` / `--json` | Takes candidate research reports from flat hot root `.aw/records/research/`, cross-verifies citations, identifies direct contradictions, and drafts reconciled synthesis directly in `.aw/records/research/` or finalizes to `.aw/records/research/reference/<YYYYMM-Www>/` if clean; exits 1 if unverified claims or findings remain without `--allow-unverified`. Alias: `aw research flow merge`. | 0: clean<br>1: findings/unverified<br>2: usage error |
-| `aw research flow finalize` | Finalization | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--destination reference\|archive` (default: `reference`)<br>`--allow-unverified` (flag)<br>`--allow-unresolved-findings` (flag: force finalize capped research run with findings)<br>`--apply`<br>`--agent` / `--json` | Validates reconciled research report against research contract, moves report from flat hot root `.aw/records/research/` to `.aw/records/research/reference/<YYYYMM-Www>/` (or `archive/<YYYYMM-Www>/`), runs `aw research index`, and outputs durable reference path. | 0: clean<br>1: blocked/unverified<br>2: usage error |
+| `aw specs flow finalize` | Finalization | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--status to-review\|draft` (default: computed by FR-20; `to-review` is refused with exit 2 unless FR-20 conditions (a) to (d) hold)<br>`--allow-unresolved-findings` (flag: force finalize capped run with findings into `draft/`)<br>`--apply`<br>`--agent` / `--json` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory (`to-review/` if clean multi-model synthesis; `draft/` if single-model/solo per DL-17 or capped with unresolved findings via `--allow-unresolved-findings`), promotes the run's research records to `reference/<YYYYMM>/` and writes the matrix body, and outputs `/spec-review` (multi-model) or `aw specs set to-review <id6>` (single-model/draft). Refuses to advance to `to-review/` if unresolved blocker or high findings remain. | 0: clean<br>1: blocked/findings<br>2: usage error |
+| `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: derived from the slug; Section 6.3)<br>`--mode quick\|thorough`<br>`--investigation-mode parallel\|decomposed` (default: `parallel`)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--topic <str>` (optional, default: derived from question or brief)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--reconcile-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--budget <int>` (default: 40 thorough, 10 quick)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--allow-partial-roster` (flag: proceed to reconciliation if a participant fails)<br>`--allow-unverified` (flag: allow unverified citations)<br>`--allow-unresolved-findings` (flag: finalize a capped research run with a `## Known limitations` section, exit 1)<br>`--prepare-only`<br>`--apply`<br>`--agent` / `--json` | Formulates research prompt, collects independent evidence reports across roster in flat hot root `.aw/records/research/`, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. If `--prepare-only`, writes the brief record and the rendered Stage 1 prompts in its companion without dispatching execution. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow prepare` | Prompt Prep Only | `--question <str>` (or `--brief <path>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional, default: derived from the slug; Section 6.3)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--investigation-mode parallel\|decomposed` (default: `parallel`)<br>`--topic <str>` (optional, default: derived from question or brief)<br>`--roster <roster-spec>` (optional, default: `preferred-three` in thorough, `quick-solo` in quick)<br>`--refine-cap <int>` (optional override)<br>`--reconcile-refine-cap <int>` (optional override)<br>`--budget <int>` (optional override)<br>`--apply`<br>`--agent` / `--json` | Freezes baseline commit, validates research brief, writes the brief record, renders all Stage 1 prompts into its companion, and displays the execution plan and turn bounds without dispatching execution. | 0: clean<br>2: usage error |
+| `aw research flow reconcile` | Synthesis Only | `<setid>` (or `<report-paths...>`)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--reconciler <profile>` (default: `roles.synthesizer`)<br>`--reconcile-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--allow-unverified` (flag: allow unverified citations)<br>`--allow-unresolved-findings` (flag: force finalize capped reconciliation with findings with exit 1)<br>`--budget <int>` (default: 20)<br>`--turn-timeout <int>` (default: 600)<br>`--max-retries <int>` (default: 2)<br>`--apply`<br>`--agent` / `--json` | Takes candidate research reports from flat hot root `.aw/records/research/`, cross-verifies citations, identifies direct contradictions, and drafts reconciled synthesis directly in `.aw/records/research/` or finalizes to `.aw/records/research/reference/<YYYYMM>/` if clean; exits 1 if unverified claims or findings remain without `--allow-unverified`. Alias: `aw research flow merge`. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow finalize` | Finalization | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--title <str>` (optional)<br>`--slug <slug>` (optional)<br>`--allow-unverified` (flag)<br>`--allow-unresolved-findings` (flag: force finalize capped research run with findings)<br>`--apply`<br>`--agent` / `--json` | Validates reconciled research report against research contract, moves report from flat hot root `.aw/records/research/` to `.aw/records/research/reference/<YYYYMM>/` , runs `aw research index`, and outputs durable reference path. | 0: clean<br>1: blocked/unverified<br>2: usage error |
 | `aw research flow status` | Read-Only | `[selector]` (flow-run-id6, setid, or omitted for latest active/recent run in repo)<br>`--verbose`<br>`--agent` / `--json` | Displays live or completed research execution status: participant progress, citation verification count, contradiction count, and report paths. | 0: clean<br>1: findings/active<br>2: usage error |
 | `aw research flow resume` | Recovery | `<flow-run-id6> \| <setid>` (id6 or latest run for set)<br>`--refine-cap <int>` (optional new cap)<br>`--reconcile-refine-cap <int>` (optional new cap)<br>`--budget <int>` (optional new turn budget)<br>`--turn-timeout <int>` (optional new timeout)<br>`--max-retries <int>` (optional new max retries)<br>`--allow-partial-roster` (flag: proceed to reconciliation with surviving valid candidates)<br>`--force-stale-resume` (flag: bypass brief mutation check)<br>`--apply`<br>`--agent` / `--json` | Resumes an interrupted, failed, or capped research run from its frozen state without re-running completed participant investigation turns. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw research flow cancel` | Abort & Cleanup | `<flow-run-id6> \| <setid>` (id6 or latest active run for set)<br>`--apply`<br>`--agent` / `--json` | Cancels an active or interrupted research flow run, terminates all spawned child worker subprocesses, marks the run ledger status as `cancelled`, and updates research catalog tracking. | 0: clean<br>1: not-active<br>2: usage error |
 | `aw specs flow config` | Read-Only / Mutate | `show` \| `set-roster` \| `set-defaults`<br>`--roster <roster-spec>`<br>`--profile <name>`<br>`--agent` / `--json` | Displays resolved configuration hierarchy or writes user-local flow defaults to `<config_dir>/flow-preferences.json`. Alias: `aw research flow config`. | 0: clean<br>2: usage error |
+
+### 3.5 Concise and Explicit Forms, Roster Specs, and Mode
+- **Equivalence.** Every invocation resolves to one fully explicit argument set: each option takes its value from the CLI, then `.aw/config/flow.json`, then user `flow-preferences.json`, then the built-in default (Section 5.1). Preview prints that explicit form as one copy-pasteable command line, and the run records it as `resolved_argv` in `<C>/run.json`. Running the printed explicit form MUST resolve to the same argument set. AT-69 checks this.
+- **Mode is independent of roster size and verbosity.** `--mode quick|thorough` selects caps, budget, and the default roster only. An explicit `--roster` keeps its size in either mode. `--verbose`, `--agent`, and `--json` change output only.
+- **Roster spec.** `<roster-spec>` is either the name of a roster in the resolved configuration or a comma-separated list of runner-profile names (`opus,gem,sol`). A single token that names both a roster and a profile is refused with exit 2 (`refusal: roster spec '<x>' is ambiguous; rename the roster or the profile`), so neither can shadow the other. Every named profile must exist (FR-32). A list of one profile is a valid one-participant roster.
+- **No preferences configured.** With no `flow.json` and no `flow-preferences.json`, the built-in defaults of Section 5.1.1 apply and preview states that they were used.
 
 ---
 
@@ -223,16 +224,16 @@ A critical architectural decision is where intermediate candidate specs, reviews
 - **FR-01 (Frozen Baseline Snapshot)**: The workflow engine MUST capture and hash the source repository baseline (git commit SHA, dirty state summary, and referenced file content hashes) at turn start. All participants in the generation phase MUST receive identical frozen baselines.
 - **FR-02 (Input Brief Validation)**: The workflow MUST accept an input brief via file path (`--brief <path>`), literal argument, or standard input (`--brief -`). If the brief is empty, contains unresolved template markers (e.g. `<TODO>`), or exceeds 250,000 characters without chunking instructions, the command MUST refuse execution with exit code 2.
 - **FR-03 (Standard Objectives Injection)**: The engine MUST automatically prepend non-negotiable repository objectives to every generated prompt: security, remote SSH safety (no file URI schemes, no absolute machine home paths), prose style (no em or en dashes in user-facing text), and testability (outcomes, not code structure).
-- **FR-03A (Auditable Process Replay vs Non-Deterministic Sampling)**: Tracked prompt artifacts (`.prompt.md`) and frozen commit baselines guarantee auditable provenance and structured replay capability. Due to non-zero sampling temperatures in underlying LLM hosts, prompt replays provide auditable semantic equivalence rather than bit-for-bit identical token outputs.
+- **FR-03A (Auditable Process Replay vs Non-Deterministic Sampling)**: Tracked rendered prompts in the brief companion and frozen commit baselines guarantee auditable provenance and structured replay capability. Due to non-zero sampling temperatures in underlying LLM hosts, prompt replays provide auditable semantic equivalence rather than bit-for-bit identical token outputs.
 - **FR-03B (Observed Token Telemetry and Cost Invariant)**: The workflow engine MUST record observed token metrics (`prompt_tokens`, `completion_tokens`, `total_tokens`) in the `FLOW_RUN` ledger when provided by the underlying runner driver. If the host runner does not expose verified usage data, the fields MUST be recorded as `null` / `"unknown"`. The engine MUST NOT fabricate estimated token counts or project dollar costs without verified host telemetry.
 
 ### 4.2 Independent Candidate Generation
 - **FR-04 (Zero Cross-Contamination)**: During initial candidate generation, no participant session MAY receive, read, or be informed of the output, intermediate tokens, or identity of any peer participant.
-- **FR-05 (Deterministic Prompt Rendering)**: Prompts for each participant MUST be rendered from versioned templates (`agent_workflows/templates/flow/`) and persisted as tracked prompt artifacts (`.prompt.md`) prior to host dispatch.
+- **FR-05 (Deterministic Prompt Rendering)**: Prompts for each participant MUST be rendered from versioned templates (`agent_workflows/templates/flow/`) and written to the brief companion (`<C>/prompts/`) before host dispatch, with the template id and the SHA-256 digest of the rendered text recorded in `<C>/run.json`. Rendered prompts are not prompt-tree records (Section 3.3).
 - **FR-06 (Single-Participant Graceful Degradation)**: When the roster contains exactly one participant, the generation phase MUST execute once for that participant. Synthesis machinery MUST bypass multi-candidate diffing and route directly to single-candidate refinement and finalization without fabricating consensus. Finalization leaves the spec with status `draft` in `.aw/records/specs/draft/` per maintainer ruling DL-17.
 
 ### 4.3 Controlled Iterative Refinement and Execution Bounds
-- **FR-07 (Structured Finding Schema and Severity Decoupling)**: Review and refinement turns MUST classify critique items in `.review.md` artifacts conforming strictly to `agent_workflows.review_findings.FINDING_COLUMNS` (`ID`, `Severity`, `Scope`, `Area`, `Evidence`, `Finding`, `Remediation Risk`, `Decision`, `Resolution`) under `## Round <N>` and `### Findings`. Field vocabularies are strictly closed per `review_findings.py`:
+- **FR-07 (Structured Finding Schema and Severity Decoupling)**: Review and refinement turns MUST classify critique items in `assessment` records (Section 6.2), in tables whose header and cell vocabularies conform strictly to `agent_workflows.review_findings.FINDING_COLUMNS` (`ID`, `Severity`, `Scope`, `Area`, `Evidence`, `Finding`, `Remediation Risk`, `Decision`, `Resolution`) under `## Round <N>` and `### Findings`. Field vocabularies are strictly closed per `review_findings.py`:
   - `ID`: Stable identifier (`F-01`, `F-02`, etc.).
   - `Severity`: Strictly closed to `review_findings.SEVERITIES` (`low`, `medium`, `high`, `blocker`). Gating severities are `high` and `blocker` (prevent convergence and block unforced finalization). Advisory severities are `low` and `medium`.
   - `Scope`: Scope status (`IN-SCOPE`, `OUT-OF-SCOPE`).
@@ -244,7 +245,7 @@ A critical architectural decision is where intermediate candidate specs, reviews
   - `Resolution`: Remedy applied, architectural rationale for deferral, or replanning explanation.
   Findings with Severity `low` or `medium` (or stylistic concerns recorded in `Area`/`Finding`) are advisory-only: they MUST NOT block convergence, and MUST NOT advance iteration caps.
 - **FR-08 (Iteration Accounting)**: The iteration counter MUST increment only upon completion of a full review-and-revision cycle. Host failures, transport timeouts, or transient API errors MUST trigger isolated retries (up to `--max-retries`, default 2) and MUST NOT increment the quality iteration counter.
-- **FR-09 (Convergence Detection)**: An iteration loop MUST declare convergence ("no material improvements") when a review pass yields zero `blocker` and zero `high` findings (or all are resolved with `Decision: fixed`), all previous findings are either verified as fixed or formally accepted with rationale, and the review record (`.review.md`) includes an explicit audited scope census certifying that all candidate sections, requirement tables, and architectural constraints were evaluated. A cursory or empty review lacking this scope certification MUST NOT trigger convergence. Rising numerical self-scores (e.g. "9/10") MUST NOT be used as a convergence signal.
+- **FR-09 (Convergence Detection)**: An iteration loop MUST declare convergence ("no material improvements") when a review pass yields zero `blocker` and zero `high` findings (or all are resolved with `Decision: fixed`), all previous findings are either verified as fixed or formally accepted with rationale, and the assessment round includes an explicit audited scope census certifying that all candidate sections, requirement tables, and architectural constraints were evaluated. A cursory or empty review lacking this scope certification MUST NOT trigger convergence. Rising numerical self-scores (e.g. "9/10") MUST NOT be used as a convergence signal.
 - **FR-10 (Design Oscillation Guard)**: If a finding's proposed remedy directly reverses an architectural decision adopted in the immediately preceding iteration, the engine MUST flag an oscillation warning, halt automated refinement, and prompt the operator or mark the finding as `unresolved-oscillation`.
 - **FR-11 (Honest Cap Enforcement)**: If `--refine-cap` or `--synth-refine-cap` is reached while `blocker` or `high` findings remain unresolved, the command MUST:
   1. Halt further automated refinement.
@@ -261,13 +262,14 @@ A critical architectural decision is where intermediate candidate specs, reviews
 - **FR-30 (Partial Participation and Fallback Policy)**: If a participant in a multi-model roster permanently fails after exhausting `--max-retries`:
   - If surviving valid candidates >= 1: in interactive mode, prompts operator; in non-interactive agent mode, requires `--allow-partial-roster` to proceed to synthesis with surviving candidates. If `--allow-partial-roster` is omitted, halts and checkpoints state in the run ledger with outcome `partial` (exit 1).
   - If surviving valid candidates == 0: halts immediately with outcome `fail` (exit 1).
-- **FR-31 (Resume Baseline Verification Guard)**: When `aw specs flow resume` or `aw research flow resume` is invoked, the engine MUST re-verify the input brief file's SHA-256 hash and git commit SHA against the `FROZEN_BASELINE` recorded in `FLOW_RUN`. If the input brief or git working tree has mutated since the initial run was frozen, the command MUST refuse execution with exit code 2 (`refusal: input brief has mutated since baseline was frozen; start a new flow via 'aw specs flow new' or pass '--force-stale-resume'`).
-- **FR-32 (Dangling Profile Validation and Identity Recording)**: Prior to dispatching execution, the profile resolver MUST verify that every profile named in the participant roster exists in `runner-profiles.json`. If a referenced profile is missing or dangling, the command MUST refuse execution with exit code 2. Every generated artifact front matter MUST explicitly record both `- Requested-Model:` (user-configured string) and `- Resolved-Model:` (actual host/model identifier dispatched).
+- **FR-31 (Resume Baseline Verification Guard)**: When `aw specs flow resume` or `aw research flow resume` is invoked, the engine MUST re-verify the input brief file's SHA-256 hash, the git commit SHA, and the digest of the resolved roster (profiles, model ids, variants, tokens) against the values recorded in `FLOW_RUN`. If the input brief, the git working tree, or the resolved roster has changed since the initial run was frozen, the command MUST refuse execution with exit code 2 (`refusal: input brief has mutated since baseline was frozen; start a new flow via 'aw specs flow new' or pass '--force-stale-resume'`).
+- **FR-32 (Dangling Profile Validation and Identity Recording)**: Prior to dispatching execution, the profile resolver MUST verify that every profile named in the participant roster exists in `runner-profiles.json`. If a referenced profile is missing or dangling, the command MUST refuse execution with exit code 2. Every candidate and assessment record MUST record `requested-model`, `requested-variant`, `observed-model`, and `identity-class` (Section 6.3). `observed-model` is what the driver reports (`observe_host_model` in `oc_runipd.py` and `agy_runipd.py`); `identity-class` is `confirmed`, `echoed`, or `unknown`. The engine MUST NOT claim a confirmed identity it did not observe.
+- **FR-37 (No Silent Setting Substitution)**: When a slot requests a setting its runner cannot apply (for example a variant on `agy`, whose `RUNNER_REGISTRY` row has `supports_variant=False`), preview MUST report `variant-not-applied` for that slot, the record MUST store `requested-variant` and `applied-variant: none`, and the slot's filename token MUST describe the configuration actually launched. The engine MUST NOT substitute prompt text for the setting and present the result as the requested configuration.
 - **FR-33 (Graceful Cancellation, Signal Trapping, and Subprocess Termination)**: The workflow engine MUST install signal handlers for `SIGINT` (Ctrl+C) and `SIGTERM`. Upon receiving an interrupt signal, or upon invocation of `aw specs flow cancel <run-id6>` or `aw research flow cancel <run-id6>`:
   1. The engine MUST immediately issue termination signals (`SIGTERM` followed by `SIGKILL` after a 3-second grace period) to all spawned runner child worker subprocesses (e.g. `opencode run`, `agy run`), preventing orphaned background processes, runaway token billing, and uncoordinated writes.
   2. The active run state in `.aw/records/runs/flow-<run-id6>.json` MUST be checkpointed with status `interrupted` (if signal-interrupted) or `cancelled` (if CLI-cancelled), recording the exact stage, completed candidate artifacts, and exit code 1. A signal-trapped execution exits 1 upon halting; invoking `aw specs flow cancel <run-id6>` directly exits 0 upon successful cancellation (exit 1 if the run is not active or already finalized).
-  3. All generated intermediate candidate artifacts in `.aw/records/specs/draft/intermediate/<setid>/` and critiques in `.aw/records/reviews/` MUST remain preserved on disk.
-  4. The attention board pipeline state for `<setid>` MUST transition to `READY` with next-action pointer `aw specs flow resume <run-id6>` for interrupted runs, or `DONE` for cancelled runs, eliminating orphaned active indicators.
+  3. Every published record and companion file MUST remain on disk.
+  4. An interrupted run keeps its records `active` (the set stays `partial`) and gains the FR-24 footer line. A cancelled run writes the matrix body, promotes its records to `archive/<YYYYMM>/` with `aw research promote --to archive`, and therefore leaves the active board.
 
 #### 4.3.1 Mathematical Proof of Execution Bounds and Work Arithmetic
 To guarantee that no nested retry or refinement loop escapes its bounds, the maximum possible dispatched turns across all roles is governed by a strict closed mathematical ceiling:
@@ -315,7 +317,7 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 40 model turns in Thorou
 
 ### 4.4 Synthesis and Accountable Provenance
 - **FR-12 (Non-Voting Architectural Synthesis)**: Synthesis MUST evaluate proposals on technical merit, constraint satisfaction, and repository consistency. It MUST NOT adopt features based on majority voting or model popularity. Valuable minority proposals MUST remain eligible for adoption.
-- **FR-13 (Similarities and Differences Matrix)**: Synthesis MUST generate a dedicated Markdown comparison table (`.review.md` in `.aw/records/reviews/`) detailing:
+- **FR-13 (Similarities and Differences Matrix)**: Synthesis MUST generate a dedicated Markdown comparison table in a `reconciliation-report` record (body held in `<C>/matrix.md` until finalize, Section 3.3) detailing:
   - Consensus Elements: Requirements shared across all candidates.
   - Divergent Elements: Alternative approaches proposed for the same requirement.
   - Unique Contributions: Novel features or constraints proposed by a single candidate.
@@ -337,7 +339,7 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 40 model turns in Thorou
   - `[Rejected: <candidate-id6> (<model>) - <reason>]`: Explicit exclusion recorded in the matrix.
 - **FR-15 (Coverage Verification Check)**: Following synthesis, the engine MUST run a deterministic lint pass verifying that every functional requirement present in the original brief is addressed in the synthesis. Any dropped requirement MUST fail the synthesis stage.
 - **FR-34 (Synthesizer Context Overflow Protection)**: When the combined character volume of all candidate specifications, matrices, and brief context exceeds 80% of the assigned synthesizer model's context budget (`context_budget_chars`), the engine MUST execute a two-pass hierarchical synthesis strategy rather than a monolithic single prompt:
-  1. *Pass 1 (Comparative Matrix Compilation)*: The synthesizer extracts and reconciles requirements cluster-by-cluster, compiling the Similarities and Differences Matrix (`.review.md`) and recording adopted/adapted/rejected dispositions.
+  1. *Pass 1 (Comparative Matrix Compilation)*: The synthesizer extracts and reconciles requirements cluster-by-cluster, compiling the Similarities and Differences Matrix (`reconciliation-report` record) and recording adopted/adapted/rejected dispositions.
   2. *Pass 2 (Modular Section Authoring)*: The engine dispatches partitioned drafting turns guided by the compiled matrix and targeted candidate sections, assembling the complete synthesized specification without truncating technical substance or dropping requirement tables.
 
 ### 4.5 Research Reconciliation and Evidence
@@ -347,7 +349,7 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 40 model turns in Thorou
 - **FR-18A (Research Investigation Modes)**: Configured via `--investigation-mode parallel|decomposed` (default: `parallel`):
   - *Mode A (Parallel Identical Investigation, `--investigation-mode parallel`)*: All roster participants investigate the identical research prompt. Used to verify claim reproducibility, unearth blind spots, and detect contradictory evidence.
   - *Mode B (Complementary Sub-Question Decomposition, `--investigation-mode decomposed`)*: The prompt planner partitions a broad research objective into discrete, non-overlapping sub-topics (e.g. participant 1 benchmarks disk latency, participant 2 audits memory layout). The reconciliation report synthesizes these into a cohesive composite report while preserving individual model report links.
-- **FR-18B (Research Completion & Cataloging)**: Active intermediate research reports stage directly in the flat hot root `.aw/records/research/` (no `todo/` or `active/` subdirectories). Finalized research reports are written to `.aw/records/research/reference/<YYYYMM-Www>/`: for multi-participant runs, as `reconciliation-report` (via `aw research flow finalize` or auto-finalized `reconcile`); for single-participant runs (`N = 1`), as `research-report` preserving single-model provenance without consensus fabrication. All finalized reports are indexed directly via `aw research index` with lifecycle status `reference` (or remaining in the hot root with status `active` if unverified findings remain). Research reports are durable reference documents and MUST NOT require `/spec-review` approval or IPD graduation.
+- **FR-18B (Research Completion & Cataloging)**: Active intermediate research reports stage directly in the flat hot root `.aw/records/research/` (no `todo/` or `active/` subdirectories). Finalized research reports are written to `.aw/records/research/reference/<YYYYMM>/`: for multi-participant runs, as `reconciliation-report` (via `aw research flow finalize` or auto-finalized `reconcile`); for single-participant runs (`N = 1`), as `research-report` preserving single-model provenance without consensus fabrication. All finalized reports are moved with `aw research promote --to reference` and indexed with `aw research index`. When unverified citations or unresolved `blocker`/`high` findings remain and neither `--allow-unverified` nor `--allow-unresolved-findings` is passed, finalize refuses with exit 1 and every record stays `active` in the hot root. With the relevant flag, the report is promoted to `reference` with a `## Known limitations` section listing each open item, and the command exits 1. Research reports are durable reference documents and MUST NOT require `/spec-review` approval or IPD graduation.
 - **FR-18C (Epistemic Claim Classification & Temporal Anchoring)**: Every factual statement in a research report MUST be classified under an explicit epistemic taxonomy:
   - `fact`: Verified statement supported by a direct, accessible primary source citation.
   - `inference`: Deductive conclusion logically derived from verified facts.
@@ -355,21 +357,17 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 40 model turns in Thorou
   Every factual claim MUST include a temporal anchor (`as_of: YYYY-MM-DD`). Inaccessible citations or broken URLs MUST be classified as `inaccessible-evidence` and quarantined to an appendix rather than cited as fact.
 
 ### 4.6 Intermediate Staging, Attention Surfacing, and Protocol Parity
-- **FR-19 (Tool-Owned Identity)**: All generated specs, research docs, prompts, and reviews MUST receive a tool-minted `id6` via `agent_workflows.artifact_core.mint_id6()`. Hand-minted IDs are strictly prohibited.
-- **FR-20 (Lifecycle Status Integrity and Multi-Model Auto-Advance Ruling)**: Final candidate specifications MUST be written with status `to-review` automatically ONLY when all of the following conditions hold: (a) the final spec is a synthesis resulting from the synthesize stage across at least two candidates; (b) those candidates were authored by at least two distinct requested model identifiers (an incumbent spec does not count as a model candidate); (c) all brief requirements are verified; (d) no unresolved blocker or high findings remain. When condition (a) or (b) does not hold (a single-participant run, a single surviving candidate, or a roster whose candidates all originated from the same model identifier), finalization MUST leave the spec with status `draft` in `.aw/records/specs/draft/`, emit outcome `finalized-clean` with `auto_advance: not-multi-model`, and output next-action `aw specs set to-review <id6>`. When condition (d) does not hold (unresolved blocker or high findings remain), finalization is REFUSED with exit code 1 unless `--allow-unresolved-findings` is passed; with that flag, the spec is written to `draft/` with status `draft` (exit 1). Under no circumstances MAY the workflow engine write status `reviewed` or `approved`.
+- **FR-19 (Tool-Owned Identity)**: Every record a run creates (the final spec and every research-tree record) MUST receive its `id6` from its owner verb (`aw specs new`, `aw research new`), which mints through `agent_workflows.artifact_core.mint_id6()`. Hand-minted IDs are prohibited. Companion files carry no id6; they are identified by their owning record and path.
+- **FR-20 (Lifecycle Status Integrity and Multi-Model Auto-Advance Ruling)**: Final candidate specifications MUST be written with status `to-review` automatically ONLY when all of the following conditions hold: (a) the final spec is a synthesis resulting from the synthesize stage across at least two candidates; (b) those candidates were authored by at least two distinct requested model identifiers (an incumbent spec does not count as a model candidate); (c) all brief requirements are verified; (d) no unresolved blocker or high findings remain. When condition (a) or (b) does not hold (a single-participant run, a single surviving candidate, or a roster whose candidates all originated from the same model identifier), finalization MUST leave the spec with status `draft` in `.aw/records/specs/draft/`, emit outcome `clean` (exit 0) with field `auto_advance: "not-multi-model"`, and output next-action `aw specs set to-review <id6>`. When condition (d) does not hold (unresolved blocker or high findings remain), finalization is REFUSED with exit code 1 unless `--allow-unresolved-findings` is passed; with that flag, the spec is written to `draft/` with status `draft` (exit 1). Under no circumstances MAY the workflow engine write status `reviewed` or `approved`.
 - **FR-21 (Clean Review Handoff)**: Upon successful finalization, the command MUST output the exact next-action command:
   - For multi-model synthesis advancing to `to-review`: `aw specs check .aw/records/specs/to-review/<filename>` followed by `/spec-review .aw/records/specs/to-review/<filename>`.
   - For single-model or solo runs remaining in `draft`: `aw specs set to-review <id6>`.
-- **FR-22 (Intermediate Staging Isolation)**: All intermediate candidate specifications (`.spec.md`) MUST stage in `.aw/records/specs/draft/intermediate/<setid>/`. Review critiques and matrices (`.review.md`) MUST stage in `.aw/records/reviews/`. Staging candidate files directly in the top-level `draft/` root is forbidden.
-- **FR-23 (Set Pipeline Attention Rollup)**: The cross-tree attention view (`aw attention` and `aw todo`) MUST scan `.aw/records/specs/draft/intermediate/` and roll up active candidate sets into a single consolidated row:
-  - If a runner session is active: classified as `ACTIVE` (surfaced under `## active`).
-  - If paused, capped, or awaiting synthesis without a final spec: classified as `READY` (surfaced under `## ready`).
-  - If a final spec exists in `to-review/` or `draft/`: classified as `DONE` (hidden from the default board).
-- **FR-24 (Persistent Attention Footer Banner)**: Whenever any candidate set in `draft/intermediate/` is in an unmerged or capped state, `aw attention` MUST append a dedicated reminder banner in its footer:
-  `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/. Run 'aw specs flow merge <setid> --apply' to synthesize.`
-- **FR-25 (Attributed Naming Conformance)**: Attributed intermediate filenames MUST strictly follow Decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), with the type token as the final facet before `.md` and dot-free model tokens from `research-models.toml`.
-- **FR-26 (Prepare-Only Prompt Staging Phasing)**: When `--prepare-only` is passed, the engine MUST freeze the baseline, validate inputs, write the frozen brief and rendered Stage 1 generation prompt files for all roster participants to `.aw/records/prompts/pending/`, display the planned execution bounds and turn count, and terminate with exit code 0 without launching agent sessions. Subsequent stage prompts (critiques, revisions, matrices, and synthesis) depend dynamically on candidate outputs and are rendered just-in-time from versioned templates during live execution.
-- **FR-28 (Dual-Audience Machine Protocol Parity)**: Invocations with `--agent` MUST emit valid JSONL records strictly conforming to `SCHEMA_VERSION = "aw.agent/v1"`. Streaming stages emit `kind: "item"` records terminated by a single `kind: "summary"` record (or a single `kind: "result"` record for single-shot commands). Envelope fields (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) MUST enforce strict exit code parity (exit 0 with `clean`/`ok`, exit 1 with `findings`/`fail`/`partial`, exit 2 with `error`/`cannot-run`). Machine-readable payloads MUST redact local home directories and user identifiers.
+- **FR-22 (Intermediate Staging Isolation)**: Every intermediate artifact of a run MUST be a research-tree record of an existing kind, or a companion file of the run brief, as listed in Section 6.2. A run MUST NOT write intermediate artifacts to `.aw/records/specs/`, `.aw/records/reviews/`, or `.aw/records/prompts/`, and MUST NOT keep the only copy of any durable artifact in a gitignored or private location.
+- **FR-23 (Set Pipeline Attention Visibility)**: A run MUST create its brief as a statusless `research-prompt` record before any dispatch, and MUST publish the matrix and the reconciled report with an empty body until finalize (Section 3.3). As a result `aw attention` shows the set as `ready` before dispatch, `active` from the first published candidate until finalize (including every halted state), and `done` after finalize, with no attention code change.
+- **FR-24 (Halted-Run Footer Line)**: When the local run ledger holds a run in state `capped_with_findings`, `budget_exhausted`, `partial`, `blocked_findings`, or `interrupted`, `aw attention` MUST print one footer line per run: `Halted flow run <run-id6> (set '<setid>', state <state>): next 'aw <specs|research> flow resume <run-id6> --apply'`. The ledger is gitignored, so on another checkout the line is absent and the pipeline position (FR-23) remains the durable signal.
+- **FR-25 (Attributed Naming Conformance)**: Attributed filenames MUST follow Decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), with the type (research kind) as the final facet before `.md`, and a model token that `research_contract.normalize_model` recognizes (Section 6.3). An unrecognized token is refused at preview with exit 2.
+- **FR-26 (Prepare-Only Prompt Staging Phasing)**: When `--prepare-only` is passed, the engine MUST freeze the baseline, validate inputs, write the brief record and the rendered Stage 1 generation prompts for all roster participants into its companion, display the planned execution bounds and turn count, and terminate with exit code 0 without launching agent sessions. Subsequent stage prompts (critiques, revisions, matrices, and synthesis) depend dynamically on candidate outputs and are rendered just-in-time from versioned templates during live execution.
+- **FR-28 (Dual-Audience Machine Protocol Parity)**: Invocations with `--agent` MUST emit valid JSONL records strictly conforming to `SCHEMA_VERSION = "aw.agent/v1"`. Streaming stages emit `kind: "item"` records terminated by a single `kind: "summary"` record (or a single `kind: "result"` record for single-shot commands). Envelope fields (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) MUST enforce strict exit code parity as checked by `agent_schema.validate_agent_record`: exit 0 with `clean` or `ok`; exit 1 with `findings`, `fail`, `partial`, or `unverified`; exit 2 with `error` or `cannot-run`. Outcomes are drawn only from `agent_schema.VALID_OUTCOMES`. Run states (`capped_with_findings`, `budget_exhausted`, `blocked_findings`, `interrupted`, `cancelled`) are reported in a separate `state` field, never as an outcome. A capped or budget-exhausted run reports outcome `findings` with `complete: false`; a partial roster reports `partial`; a refusal reports `cannot-run`. Machine-readable payloads MUST redact local home directories and user identifiers.
 - **FR-35 (`from-spec` Successor Flow Contract)**: When `aw specs flow from-spec` is invoked with an existing spec target:
   1. The engine MUST freeze the baseline commit and capture the target specification as the primary architectural constraint baseline.
   2. If an optional `--objective <text>` is provided, it is injected as the focus directive alongside the target spec's existing requirements.
@@ -377,7 +375,7 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 40 model turns in Thorou
   4. The successor spec's front matter MUST include `- Supersedes: <source-spec-id6>`.
   5. Candidate revisions are independently authored across the roster, refined, synthesized, and finalized following the standard spec lifecycle rules.
 - **FR-36 (Prompt Injection Defense and Data Delimiters)**: When user briefs, external source documents, or model outputs are interpolated into prompt templates:
-  1. The engine MUST encapsulate all external text inside random per-run delimiter fences formatted as `<<<SYNTH-DATA-<16hex>>>>` and `<<<<SYNTH-DATA-<16hex>>>>`.
+  1. The engine MUST encapsulate all external text between an opening fence `<<<SYNTH-DATA-<16hex>>>>` and a closing fence `<<<END-SYNTH-DATA-<16hex>>>>`, where `<16hex>` is drawn from a cryptographic random source once per run.
   2. Every prompt template MUST explicitly instruct the model that content enclosed within these data delimiters represents passive data to be analyzed or refined, and MUST NOT be executed as instructions.
   3. The prompt compiler MUST scan incoming text prior to insertion; if the text contains an exact collision with the generated delimiter token, the run MUST refuse dispatch with exit code 2 (`refusal: delimiter collision in input content`).
 
@@ -395,10 +393,10 @@ CLI Arguments  >  Project Flow Config (.aw/config/flow.json)  >  User Flow Prefe
 When neither `.aw/config/flow.json` nor `~/.config/agent-workflows/flow-preferences.json` exists, the engine resolves built-in hardcoded fallback defaults:
 - `default_mode`: `thorough`
 - `limits`: `default_refine_cap`: 3, `default_synth_refine_cap`: 2, `quick_refine_cap`: 1, `quick_synth_refine_cap`: 0, `max_retries_per_turn`: 2, `turn_timeout_seconds`: 600, `global_turn_budget`: 40.
-- Fallback participant roster: Resolves from `runner-profiles.json`. If `runner-profiles.json` defines `default_runner`, uses that runner with its default profile in a single-participant slot; otherwise defaults to `oc` (Claude Opus 5.5) or `agy` (Gemini 3.8 Flash) depending on which host adapter is installed and authenticated.
+- Fallback participant roster: one slot using the runner profile marked default in `runner-profiles.json`. When no default profile exists, preview refuses with exit 2 and names `aw specs flow config set-roster`. The engine never guesses a model from which host happens to be installed.
 
 ### 5.2 Schema: Flow Preferences (`flow-preferences.json`)
-The configuration schema integrates directly with `agent_workflows.runner_profiles`:
+The configuration schema integrates directly with `agent_workflows.runner_profiles`. The `model` values below are illustrative provider ids that have NOT been verified against any provider catalog in this repository; the starter configuration MUST take each slot's model id from the user's runner profile, and `aw host capabilities <host>` plus a probe dispatch are the evidence of support. `filename_model` is the filename model token, validated with `research_contract.normalize_model` (Section 6.3).
 
 ```json
 {
@@ -418,6 +416,7 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
     "preferred-three": [
       {
         "slot": "opus",
+        "filename_model": "opus55high",
         "profile": "opus",
         "runner": "oc",
         "model": "anthropic/claude-opus-5-5",
@@ -428,6 +427,7 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
       },
       {
         "slot": "gemini",
+        "filename_model": "gemini38flash",
         "profile": "gem",
         "runner": "agy",
         "model": "google/gemini-3.8-flash",
@@ -438,6 +438,7 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
       },
       {
         "slot": "sol",
+        "filename_model": "gpt61solmedium",
         "profile": "sol",
         "runner": "oc",
         "model": "openai/gpt-6.1",
@@ -450,6 +451,7 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
     "quick-solo": [
       {
         "slot": "primary",
+        "filename_model": "gemini38flash",
         "profile": "gem",
         "runner": "agy",
         "model": "google/gemini-3.8-flash",
@@ -469,16 +471,16 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
 ```
 
 #### Note on Profile Schema Boundary and Runner Variant Decoupling
-In `runner-profiles.json`, profile `"gem"` MUST omit `variant` because `RUNNER_REGISTRY["agy"].supports_variant` is False (storing a variant in `runner-profiles.json` triggers `ProfileSchemaError`). In `flow-preferences.json`, variant specifications for `supports_variant=False` runners are treated as flow-level prompt instructions (`variant_instruction`), and `flow_config.py` strips `variant` before invoking `runner_profiles.resolve()`.
+In `runner-profiles.json`, profile `"gem"` MUST omit `variant` because `RUNNER_REGISTRY["agy"].supports_variant` is False (storing a variant in `runner-profiles.json` triggers `ProfileSchemaError`). In `flow-preferences.json`, a `variant` on a `supports_variant=False` runner is recorded as requested and not applied (FR-37); `flow_config.py` strips it before invoking `runner_profiles.resolve()`. The `gemini` slot's token is therefore `gemini38flash`, not `gemini38flashhigh`, unless the profile's model id itself selects the high-effort configuration (open question OQ-I22-1).
 Furthermore, `flow-preferences.json` defines its own flow-specific role vocabulary (`synthesizer`, `reviewer`, `research-verifier`), whose values refer to profiles defined in `runner-profiles.json`. These flow roles MUST NOT be placed into `runner-profiles.json`'s top-level `roles` map, which is strictly closed to `runner_profiles.ROLE_NAMES` (`write-prose`, `write-code`, `write-code-fast`, `research-online`, `check-content`, `verify`).
 
 ### 5.3 Host and Model Capability Handling
 
 | Target Participant | Requested ACE | Requested Model | Requested Variant | Actual Repository Capability & Resolution Strategy |
 | --- | --- | --- | --- | --- |
-| **Participant 1** | OpenCode (`oc`) | Claude Opus 5.5 | `high` | Fully supported. `runner_profiles.py` registers `oc` with `supports_variant=True`. Launched via `oc run --model anthropic/claude-opus-5-5 --variant high`. Context budget: 80,000 characters. |
-| **Participant 2** | Antigravity (`agy`) | Gemini 3.8 Flash | `high` | Partial support gap: `runner_profiles.py` registers `agy` with `supports_variant=False` (driver takes `--model` only). Resolution: Flow engine passes exact model string `google/gemini-3.8-flash`. Variant `high` is injected into prompt instructions. Context budget: 25,000 characters with modular chunking preference. |
-| **Participant 3** | Codex or OpenCode | GPT-6.1 Sol | `medium` | Operator confirmed ruling: OpenCode (`oc`) is sufficient for Phase 1. Route Sol slot to OpenCode profile `sol` with `--model openai/gpt-6.1 --variant medium`. Native standalone Codex runner driver is deferred to Phase 2. Context budget: 80,000 characters. |
+| **Participant 1** | OpenCode (`oc`) | Claude Opus 5.5 | `high` | `runner_profiles.py` registers `oc` with `supports_variant=True`, so model and variant are both passed to `opencode run`. The model id is taken from the user's profile; the id shown in Section 5.2 is an unverified example. Context budget: 80,000 characters (operator-set). |
+| **Participant 2** | Antigravity (`agy`) | Gemini 3.8 Flash | `high` | Gap: `runner_profiles.py` registers `agy` with `supports_variant=False` (driver takes `--model` only). The engine passes the profile's model id and reports `variant-not-applied` (FR-37). Whether a high-effort Gemini 3.8 Flash configuration is selectable through the model id is unverified (OQ-I22-1). Context budget: 25,000 characters (operator-set) with modular chunking preference. |
+| **Participant 3** | Codex or OpenCode | GPT-6.1 Sol | `medium` | OpenCode (`oc`) for Phase 1, because only `oc` and `agy` have runner rows. Route the Sol slot to OpenCode profile `sol` with variant `medium`; the model id comes from the profile and is unverified here. Native standalone Codex runner driver is deferred to Phase 2. Context budget: 80,000 characters. |
 
 ---
 
@@ -488,470 +490,262 @@ Furthermore, `flow-preferences.json` defines its own flow-specific role vocabula
 
 ```mermaid
 erDiagram
-    FLOW_RUN ||--|| FROZEN_BASELINE : captures
+    FLOW_RUN ||--|| RUN_BRIEF : "frozen as"
     FLOW_RUN ||--|{ PARTICIPANT_SLOT : allocates
-    FLOW_RUN ||--o{ PROMPT_ARTIFACT : renders
-    FLOW_RUN ||--o{ CANDIDATE_ARTIFACT : produces
-    FLOW_RUN ||--o{ RESEARCH_REPORT : gathers
-    FLOW_RUN ||--o{ REVIEW_RECORD : records
-    REVIEW_RECORD ||--o{ ITERATION_FINDING : contains
-    REVIEW_RECORD }|--|| CANDIDATE_ARTIFACT : critiques
-    REVIEW_RECORD }|--|| SYNTHESIS_ARTIFACT : critiques
-    REVIEW_RECORD }|--|| RESEARCH_REPORT : critiques
-    CANDIDATE_ARTIFACT ||--o{ ITERATION_FINDING : generates
-    RESEARCH_REPORT ||--o{ ITERATION_FINDING : verifies
-    FLOW_RUN ||--o| SIMILARITIES_DIFFERENCES_MATRIX : compiles
-    SIMILARITIES_DIFFERENCES_MATRIX }|--|{ CANDIDATE_ARTIFACT : compares
-    FLOW_RUN ||--o| SYNTHESIS_ARTIFACT : creates
-    FLOW_RUN ||--o| RECONCILIATION_REPORT : reconciles
-    RECONCILIATION_REPORT }|--|{ RESEARCH_REPORT : synthesizes
-    SYNTHESIS_ARTIFACT ||--o{ ITERATION_FINDING : evaluates
-    RECONCILIATION_REPORT ||--o{ ITERATION_FINDING : evaluates
-    FLOW_RUN ||--|| FINAL_SPEC_OR_REPORT : finalizes
-    SYNTHESIS_ARTIFACT ||--o| FINAL_SPEC_OR_REPORT : promotes
-    RECONCILIATION_REPORT ||--o| FINAL_SPEC_OR_REPORT : publishes
-    CANDIDATE_ARTIFACT ||--o| FINAL_SPEC_OR_REPORT : promotes_solo
+    RUN_BRIEF ||--o{ RENDERED_PROMPT : "companion holds"
+    FLOW_RUN ||--o{ CANDIDATE_RECORD : produces
+    CANDIDATE_RECORD ||--o{ CANDIDATE_RECORD : "index has parts"
+    CANDIDATE_RECORD |o--o| CANDIDATE_RECORD : supersedes
+    PARTICIPANT_SLOT ||--o{ CANDIDATE_RECORD : authors
+    PARTICIPANT_SLOT ||--o{ ASSESSMENT_RECORD : reviews
+    ASSESSMENT_RECORD }o--|| SUBJECT_RECORD : critiques
+    ASSESSMENT_RECORD ||--o{ ITERATION_FINDING : contains
+    FLOW_RUN ||--o| RECONCILIATION_RECORD : compiles
+    RECONCILIATION_RECORD }o--|{ CANDIDATE_RECORD : compares
+    FLOW_RUN ||--o| SYNTHESIS_DRAFT : "creates (spec, N > 1)"
+    SYNTHESIS_DRAFT }o--|| RECONCILIATION_RECORD : "follows"
+    FLOW_RUN ||--o| FINAL_SPEC : "finalizes (spec runs)"
+    FINAL_SPEC }o--|{ CANDIDATE_RECORD : "Contributors"
+    FINAL_SPEC |o--o| RECONCILIATION_RECORD : "Matrix-Ref"
 
     FLOW_RUN {
-        string run_id6 PK
+        string run_id6 PK "run identifier, never an artifact id6"
         string setid
+        string flow_kind "spec or research"
         string mode
-        string status
+        string state
         int budget_ceiling
         int dispatched_turns
-        string frozen_commit_sha
-        timestamp started_at
-        timestamp completed_at
+        string baseline_commit
+        string brief_sha256
+        string profile_digest
     }
-
-    FROZEN_BASELINE {
-        string git_commit_sha PK
-        string brief_hash
-        boolean is_dirty
+    RUN_BRIEF {
+        string id6 PK
+        string kind "research-prompt, NN 00"
     }
-
     PARTICIPANT_SLOT {
-        string slot_name PK
-        string runner_host
-        string model_id
-        string variant
-        string assigned_role
+        string run_id6 FK
+        string slot_name "unique within run"
+        string runner
+        string requested_model
+        string requested_variant
+        string applied_variant
+        string filename_model
+        string role
     }
-
-    PROMPT_ARTIFACT {
-        string id6 PK
-        string stage
-        string target_participant
-        string file_path
+    RENDERED_PROMPT {
+        string path "companion, derived key"
+        string template_id
+        string sha256
+        int attempt
     }
-
-    CANDIDATE_ARTIFACT {
+    CANDIDATE_RECORD {
         string id6 PK
-        string participant_slot
-        int iteration_num
-        string file_path
+        string kind "source-draft or research-report"
+        string slot
+        int revision
+        string part_of FK
+        string supersedes FK
         string status
     }
-
-    RESEARCH_REPORT {
-        string id6 PK
-        string participant_slot
-        string file_path
-        string lifecycle_status
+    SUBJECT_RECORD {
+        string id6 PK "a candidate, synthesis draft, or reconciliation record"
     }
-
-    RECONCILIATION_REPORT {
+    ASSESSMENT_RECORD {
         string id6 PK
-        string file_path
-        int contradiction_count
-        string lifecycle_status
+        string subject FK
+        string reviewer_token
+        int rounds
     }
-
-    REVIEW_RECORD {
-        string id6 PK
-        string subject_id
-        string subject_type
-        string reviewer
-        string verdict
-        int round_num
-        string file_path
-    }
-
     ITERATION_FINDING {
-        string finding_id PK
+        string assessment_id6 FK
+        int round
+        string finding_id "unique within assessment"
         string severity
-        string scope
-        string area
-        string evidence
-        string finding
-        string remediation_risk
         string decision
-        string resolution
     }
-
-    SIMILARITIES_DIFFERENCES_MATRIX {
+    RECONCILIATION_RECORD {
         string id6 PK
-        string file_path
-        int consensus_count
-        int divergence_count
+        string kind "reconciliation-report"
+        string inputs "list of candidate id6"
     }
-
-    SYNTHESIS_ARTIFACT {
+    SYNTHESIS_DRAFT {
         string id6 PK
-        int iteration_num
-        string file_path
+        string kind "source-draft"
+        int revision
     }
-
-    FINAL_SPEC_OR_REPORT {
+    FINAL_SPEC {
         string id6 PK
-        string title
-        string lifecycle_status
-        string file_path
+        string status "draft or to-review"
+        string from_research_set
     }
 ```
 
+Notes: `SUBJECT_RECORD` is the role a candidate, synthesis draft, or reconciliation record plays when assessed, not a separate file. Every entity with an `id6` is a persisted record owned by its owner verb. `RENDERED_PROMPT` is a persisted companion file. `PARTICIPANT_SLOT` is persisted inside `<C>/run.json`. `ITERATION_FINDING` rows are persisted inside assessment bodies. For research runs the `RECONCILIATION_RECORD` (N > 1) or the single `CANDIDATE_RECORD` (N = 1) is the final output.
+
 #### Entity Persistence and Ownership Classification
 
-| Entity | Persistence Classification | Storage Location & File Format | Lifecycle Owner |
+| Entity | Persistence | Storage | Owner |
 | --- | --- | --- | --- |
-| **FLOW_RUN** | Transient-Persisted | `.aw/records/runs/flow-<run-id6>.json` (JSON, resolved via `project_records_dir() / "runs"`) | Flow Engine (`agent_workflows.specflow`) |
-| **FROZEN_BASELINE** | Derived-Runtime | Computed SHA-256 in memory; serialized in `FLOW_RUN` ledger | Baseline Capture Module |
-| **PARTICIPANT_SLOT** | Derived-Runtime | Resolved in memory from `flow-preferences.json` and CLI flags | Profile Resolver |
-| **PROMPT_ARTIFACT** | Durable-Persisted | `.aw/records/prompts/pending/*.prompt.md` (Markdown) | Prompt Manager (`aw prompts`) |
-| **CANDIDATE_ARTIFACT** | Durable-Persisted | `.aw/records/specs/draft/intermediate/<setid>/*.spec.md` | Flow Engine / Participant Session |
-| **RESEARCH_REPORT** | Durable-Persisted | `.aw/records/research/*.research-report.md` (flat hot root) | Participant Session / Research Catalog |
-| **REVIEW_RECORD** | Durable-Persisted | `.aw/records/reviews/*.review.md` (Markdown) | Reviewer Agent / Flow Engine |
-| **ITERATION_FINDING** | Durable-Persisted | Stored inside `.aw/records/reviews/*.review.md` tables conforming to `review_findings.FINDING_COLUMNS` | Reviewer Agent |
-| **SIMILARITIES_DIFFERENCES_MATRIX** | Durable-Persisted | `.aw/records/reviews/*matrix.reconciliation.review.md` | Synthesizer Agent |
-| **SYNTHESIS_ARTIFACT** | Durable-Persisted | `.aw/records/specs/draft/intermediate/<setid>/*synth*.spec.md` | Synthesizer Agent |
-| **RECONCILIATION_REPORT** | Durable-Persisted | `.aw/records/research/*` (hot root) or `reference/<YYYYMM-Www>/` | Reconciler Agent / Research Catalog |
-| **FINAL_SPEC_OR_REPORT** | Durable-Persisted | `.aw/records/specs/to-review/*.spec.md` (multi-model) or `specs/draft/*.spec.md` (single-model) or `.aw/records/research/reference/<YYYYMM-Www>/` | Spec Owner (`aw specs`) / Research Owner |
+| FLOW_RUN | Local ledger plus durable copy | `project_records_dir() / "runs" / flow-<run-id6>.json` (gitignored) and `<C>/run.json` (tracked) | Flow engine |
+| RUN_BRIEF | Durable record | `<R>/` then `<R>/reference/<YYYYMM>/` | `aw research new` / `promote` |
+| PARTICIPANT_SLOT | Durable, embedded | `<C>/run.json` | Flow engine |
+| RENDERED_PROMPT | Durable companion file | `<C>/prompts/` | Flow engine |
+| CANDIDATE_RECORD | Durable record | `<R>/` then `reference/` or `archive/` | `aw research new` / `promote` |
+| ASSESSMENT_RECORD | Durable record | `<R>/` then `reference/` or `archive/` | `aw research new` / `promote` |
+| ITERATION_FINDING | Durable, embedded | assessment body tables | Reviewer participant |
+| RECONCILIATION_RECORD | Durable record | `<R>/` (body in `<C>/matrix.md` or `<C>/reconciliation.md` while live) | `aw research new` / `promote` |
+| SYNTHESIS_DRAFT | Durable record | `<R>/` then `reference/` | `aw research new` / `promote` |
+| FINAL_SPEC | Durable record | `<S>/draft/` or `<S>/to-review/` | `aw specs new`, `aw group specs`, `aw specs set` |
 
 ### 6.2 Artifact Naming and Placement Matrix (conforming to Decision D177)
 
-All files conform to the decided uniform grammar:
-- Attributed form: `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`
-- Multi-author synthesis: uses model facet `reconciliation` and no ACE: `YYYYMMDD-<setid>-NN-<id6>-<slug>.reconciliation.<type>.md`
-- Finalized authoritative form: `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`
+Every record follows the D177 grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`. In the research tree `<type>` is the research `<kind>`. Facet rules for this feature:
+- A single-author record carries `.<ace>.<model>.` when the ACE is known and `.<model>.` when only the model token is known (an imported candidate). It carries no facet when the author is unknown. Facets are never invented to fill a name.
+- An `assessment` is attributed to the participant that wrote it (the reviewer), not to the subject's author.
+- A multi-contributor record (matrix, synthesis draft, reconciled report) carries the model token `reconciliation` and no ACE.
+- The final spec carries no facet. Its contributors are recorded in `- Contributors:` and `## Synthesis provenance`.
+- Workflow stage, lifecycle status, revision number, chunk part, and attempt number are metadata. They are never filename facets. A chunk part is a slug suffix (`-parta`).
 
-| Stage | Artifact Purpose | Type Facet | Target Filename Pattern | Resolved Directory Location | Retention & Lifecycle |
-| --- | --- | --- | --- | --- | --- |
-| **0. Input** | Frozen brief & scope | `prompt` | `YYYYMMDD-<setid>-00-<id6>-<slug>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
-| **0. Context** | Scoped repository context packet | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-context.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (allocated in `01`..`09` prior to gen prompts) |
-| **1. Gen Prompt** | Rendered prompt for participant | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-gen.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (NN in `01`..`09`) |
-| **1. Gen Prompt (Decomposed)** | Rendered sub-topic prompt | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-gen-<subtopic>[.<ace>].<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (NN in `01`..`09`) |
-| **1. Refine Prompt** | Rendered refinement prompt | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-refine.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (NN in `01`..`09`) |
-| **1. Synth Prompt** | Rendered synthesis prompt | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-synth.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (NN in `01`..`09`) |
-| **1. Reconcile Prompt** | Rendered research reconciliation prompt | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-reconcile.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (NN in `01`..`09`) |
-| **2. Candidate** | Independent raw candidate spec | `spec` | `YYYYMMDD-<setid>-10-<id6>-cand.<ace>.<model>.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/`; rolled up in `aw attention` |
-| **2. Candidate (Split)** | Modular chunked candidate spec | `spec` | `YYYYMMDD-<setid>-20-<id6>-cand-<part>.<ace>.<model>.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/`; rolled up in `aw attention` |
-| **2. Split Part Index** | Chunk index manifest | `spec` | `YYYYMMDD-<setid>-NN-<id6>-cand-index.<ace>.<model>.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/`; rolled up in `aw attention` (allocated in modular slot block, e.g. `20` or `29`) |
-| **2. Candidate (Research)** | Independent research report | `research-report` | `YYYYMMDD-<setid>-10-<id6>-cand[.<ace>].<model>.research-report.md` | `.aw/records/research/` | Staged in flat hot root; retained as model-specific report |
-| **2. Candidate (Research Decomposed)** | Decomposed sub-topic research report | `research-report` | `YYYYMMDD-<setid>-10-<id6>-cand-<subtopic>[.<ace>].<model>.research-report.md` | `.aw/records/research/` | Staged in flat hot root |
-| **3. Verification Prompt** | Research citation verification | `prompt` | `YYYYMMDD-<setid>-NN-<id6>-verify[.<ace>].<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance (NN in `01`..`09`) |
-| **3. Findings** | Per-iteration review critique | `review` | `YYYYMMDD-<setid>-11-<id6>-iter1.<ace>.<model>.review.md` | `.aw/records/reviews/` | Permanent audit record in reviews tree |
-| **4. Revised Candidate** | Iteration 2 revised candidate | `spec` | `YYYYMMDD-<setid>-12-<id6>-cand-i2.<ace>.<model>.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/` |
-| **4. Revised Candidate (Research)** | Iteration 2 revised research report | `research-report` | `YYYYMMDD-<setid>-12-<id6>-cand-i2[.<ace>].<model>.research-report.md` | `.aw/records/research/` | Staged in flat hot root |
-| **5. Merge Matrix** | Similarities/Differences Matrix | `review` | `YYYYMMDD-<setid>-50-<id6>-matrix.reconciliation.review.md` | `.aw/records/reviews/` | Permanent audit record in reviews tree |
-| **6. Synthesis** | Initial synthesized spec | `spec` | `YYYYMMDD-<setid>-80-<id6>-synth-i0.reconciliation.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/` |
-| **6. Synthesis Critique** | Synthesis refinement critique | `review` | `YYYYMMDD-<setid>-81-<id6>-synth-iter1.<ace>.<model>.review.md` | `.aw/records/reviews/` | Permanent audit record in reviews tree |
-| **6. Revised Synthesis** | Iteration 2 synthesized spec | `spec` | `YYYYMMDD-<setid>-82-<id6>-synth-i1.reconciliation.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/` |
-| **6. Reconciliation (Research)** | Active multi-participant reconciled report | `reconciliation-report` | `YYYYMMDD-<setid>-80-<id6>-reconcile-i0.reconciliation.reconciliation-report.md` | `.aw/records/research/` | Staged in flat hot root |
-| **6. Reconciliation Critique** | Research reconciliation critique | `review` | `YYYYMMDD-<setid>-81-<id6>-reconcile-iter1.<ace>.<model>.review.md` | `.aw/records/reviews/` | Permanent audit record in reviews tree |
-| **6. Revised Reconciliation Report** | Iteration 2 reconciled research report | `reconciliation-report` | `YYYYMMDD-<setid>-82-<id6>-reconcile-i1.reconciliation.reconciliation-report.md` | `.aw/records/research/` | Staged in flat hot root |
-| **7. Final Candidate Spec** | Final candidate ready for review | `spec` | `YYYYMMDD-<setid>-01-<id6>-<slug>.spec.md` | `.aw/records/specs/to-review/` (multi-model) or `draft/` (single-model) | Authoritative spec; advances through spec lifecycle |
-| **7. Final Research (Reconciled)** | Final multi-participant reconciled research report | `reconciliation-report` | `YYYYMMDD-<setid>-01-<id6>-<slug>.reconciliation.reconciliation-report.md` | `.aw/records/research/reference/<YYYYMM-Www>/` | Authoritative research record; indexed in research catalog |
-| **7. Final Research (Solo)** | Final single-participant research report | `research-report` | `YYYYMMDD-<setid>-01-<id6>-<slug>[.<ace>].<model>.research-report.md` | `.aw/records/research/reference/<YYYYMM-Www>/` | Authoritative single-model research record; indexed in research catalog |
-| **Run State** | Checkpointed run ledger | `json` | `flow-<run-id6>.json` | `.aw/records/runs/` | Machine ledger; resolved via `project_records_dir() / "runs"` |
+`<R>` below is `research_contract.resolve_research_root(repo_root)`, normally `.aw/records/research/`. `<C>` is the brief's companion directory `<R>/<brief-stem>.data/`. `<S>` is `project_records_dir(repo_root) / "specs"`.
+
+| Artifact | Kind / type | Filename pattern | Location while live | Location after finalize | Identity owner | Retention |
+| --- | --- | --- | --- | --- | --- | --- |
+| Run brief (frozen input) | `research-prompt` | `YYYYMMDD-<setid>-00-<id6>-<slug>-brief.research-prompt.md` | `<R>/` (statusless) | `<R>/reference/<YYYYMM>/` (finalize) or `<R>/archive/<YYYYMM>/` (cancel) | `aw research new --kind research-prompt` | Durable |
+| Rendered prompts (every stage) | companion file | `<C>/prompts/<stage>-<slot>-a<attempt>.prompt.txt` | `<C>/` | moves with the brief | template id plus SHA-256 digest recorded in `<C>/run.json` | Durable |
+| Context packet | companion file | `<C>/context/<packet-id>.md` | `<C>/` | moves with the brief | packet digest in `<C>/run.json` | Durable |
+| Spec candidate | `source-draft` | `YYYYMMDD-<setid>-NN-<id6>-<slug>.<ace>.<model>.source-draft.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new --kind source-draft` | Durable |
+| Spec candidate part (split) | `source-draft` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-part<x>.<ace>.<model>.source-draft.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new` | Durable |
+| Split part index | `source-draft` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-index.<ace>.<model>.source-draft.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new` | Durable |
+| Research candidate (parallel) | `research-report` | `YYYYMMDD-<setid>-NN-<id6>-<slug>.<ace>.<model>.research-report.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new --kind research-report` | Durable |
+| Research candidate (decomposed sub-question) | `research-report` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-<subq>.<ace>.<model>.research-report.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new` | Durable |
+| Refinement findings (one record per subject, one `## Round <k>` per iteration) | `assessment` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-review.<ace>.<model>.assessment.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new --kind assessment` | Durable |
+| Citation verification findings (research, LLM verifier) | `assessment` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-verify.<ace>.<model>.assessment.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new` | Durable |
+| Similarities and Differences Matrix (spec run) | `reconciliation-report` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-matrix.reconciliation.reconciliation-report.md` | `<R>/` (`active`, front matter only; body in `<C>/matrix.md`) | `<R>/reference/<YYYYMM>/` with body | `aw research new --kind reconciliation-report` | Durable |
+| Spec synthesis working draft | `source-draft` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-synth.reconciliation.source-draft.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new` | Durable |
+| Synthesis or reconciliation findings | `assessment` | `YYYYMMDD-<setid>-NN-<id6>-<slug>-synth-review.<ace>.<model>.assessment.md` | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | `aw research new` | Durable |
+| Reconciled research report (N > 1) | `reconciliation-report` | `YYYYMMDD-<setid>-NN-<id6>-<slug>.reconciliation.reconciliation-report.md` | `<R>/` (`active`, front matter only; body in `<C>/reconciliation.md`) | `<R>/reference/<YYYYMM>/` with body; this is the final research output | `aw research new` | Durable |
+| Final research output (N = 1) | `research-report` | the single candidate record, unchanged name | `<R>/` (`active`) | `<R>/reference/<YYYYMM>/` | existing record (no new id6) | Durable |
+| Final spec | `spec` | `YYYYMMDD-<setid>-NN-<id6>-<slug>.spec.md` | not written until finalize | `<S>/draft/` or `<S>/to-review/` (FR-20) | `aw specs new --date <set date>`, then `aw group specs <id6> --set <setid> --order <NN>` | Durable |
+| Prior revision snapshot | companion file | `<C>/revisions/<id6>.r<k>.md` | `<C>/` | moves with the brief | subject id6 plus revision number | Durable |
+| Run ledger | JSON | `flow-<run-id6>.json` | `project_records_dir() / "runs"` (gitignored) | same | engine (`run-id6` is a run identifier, never an artifact id6) | Local; the durable copy is `<C>/run.json` |
+| Run lock | lock file | `flow-<setid>.lock` | `project_records_dir() / "runs"` | removed at exit | engine | Disposable |
 
 #### Parser Gap and Tool Extension Specification (Decision D177)
-Currently, `agent_workflows.artifact_naming._CLUSTERED_RE` accepts only a single closed `<type>` facet after the slug. D177 names with optional middle segments (`[.<ace>][.<model>]`) are accepted by the permissive rename regex but fail the canonical clustered validator. The planned extension to `artifact_naming.py`:
-1. Update `_CLUSTERED_RE` to insert an optional positional attribution group preceding the closed type facet:
-   ```python
-   # Positional right-to-left regex supporting optional [.<ace>][.<model>] preceding the closed type facet,
-   # with outer optionality to preserve bare .md dual-read compatibility:
-   r"(?:(?:\.(?P<ace>[a-z0-9-]+)\.(?P<model>[a-z0-9-]+)|\.(?P<model_only>[a-z0-9-]+))?\.(?P<type>" + _FACET_ALT + r"))?\.md\Z"
-   ```
-   When matching from the right per Decision D177: if two middle segments are present, they bind to `ace` and `model` respectively; if one middle segment is present, it binds to `model` (`model = m.group('model') or m.group('model_only')`); if zero are present, both `ace` and `model` are `None`. This guarantees that single-facet records (such as `.reconciliation.spec.md` or `.opus55high.research-report.md`) are correctly identified as model tokens rather than erroneously captured as ACEs.
-2. Update `artifact_naming.build_clustered_name` to accept optional `ace: Optional[str]` and `model: Optional[str]` parameters.
-3. Update `agent_workflows.research_contract.parse_name` and `ResearchName`: currently, `parse_name` strictly allows only zero or one middle segment (`[.<model>]`) before `<kind>`, refusing two segments (`<ace>.<model>.<kind>`) with `'name has too many dotted segments'`. Extending `ResearchName` to include an optional `ace: Optional[str] = None` field and adjusting dotted segment splitting will align research contract parsing with D177.
-4. Until this plan executes, `check.name-nonconformant` will report error findings on D177 filenames outside research; these error diagnostics are grandfathered by D177 for existing pre-cutover records, while implementing the D177 extension in Phase 1 eliminates all naming errors permanently.
+Research records with one facet (`.<model>.<kind>.md`) parse today. Two facets do not. Verified in iteration 22: `research_contract.parse_name("20261024-specflow-03-abc123-netmesh.opencode.opus55high.source-draft.md")` returns `name has too many dotted segments; expected [.<model>].<kind>`, while the one-facet form parses. Required extensions, owned by the Phase 1 plan:
+1. `research_contract.parse_name`, `format_name`, and `ResearchName` accept an optional `<ace>` before `<model>`, parsed positionally from the right (last facet is the kind, the one before it is the model, the one before that is the ACE). `<ace>` comes from a closed list `ACES = ("opencode", "agy", "codex", "claude")`.
+2. `aw research new` gains `--ace <token>`, validated against `ACES`.
+3. `artifact_naming._CLUSTERED_RE` gains the same optional group for non-research types. This feature does not depend on it, because no attributed record is written outside the research tree. Until the extension ships, `check.name-nonconformant` keeps reporting attributed names outside research, as D177 states.
+4. The model vocabulary is checked by `research_contract.normalize_model`. That function rejects any token containing a dot as malformed before it consults the normalization table (verified: `normalize_model("gemini-3.8-flash-high")` returns `malformed model token`). Normalization keys that contain dots are therefore unreachable and MUST NOT be added. Section 6.3 defines how a profile's model id becomes a token.
 
 ### 6.3 Setid, Date, NN, and Id6 Governance Rules
-- **Setid**: Shared across all intermediate and final artifacts for a given flow run. MUST NOT exceed 14 characters (catalog invariant I-17). Examples: `specflow`, `authv2`, `synthrsc`.
-- **Date**: The 8-digit date (`YYYYMMDD`) prefix represents the Set creation date. Resumed runs or runs crossing midnight preserve the canonical Set date in the filename; file metadata carries actual creation/modification timestamps.
-- **NN (Order Sequence)**: Bounded 2-digit sequence (`00`..`99`) defining stage progression:
-  - `00`: Input brief / baseline.
-  - `01`..`09`: Rendered prompts.
-  - `10`..`49`: Independent candidate generation and refinement iterations.
-  - `50`..`79`: Cross-candidate comparison matrices and reconciliation tables.
-  - `80`..`98`: Synthesis and synthesis-refinement iterations.
-  - `01` (in final directory): Authoritative final candidate spec (matches `aw specs new` convention).
-- **NN Slot-Block Allocation and Exhaustion Rules**:
-  To guarantee collision-free concurrent ordering across parallel participants and iterative refinement turns, NN is computed deterministically:
-  1. *Slot-Block Partitioning (Default Roster N <= 4)*:
-     `NN = 10 + (participant_slot_index * 10) + step`
-     Where `participant_slot_index` is 0-indexed (0 for Participant 1, 1 for Participant 2, etc.), and `step` tracks local progression within that slot (even numbers for candidate drafts, odd numbers for review critiques). Synthesis matrices and merged candidates occupy the fixed reserved block `50`..`98`.
-  2. *Dynamic Stride for Larger Rosters (N > 4)*:
-     When participant count `N > 4`, the stride per participant adjusts dynamically: `stride = max(2, (40 // N))`.
-  3. *Fallback Sequential Monotonic Allocation*:
-     If a participant's local refinement turns exceed their allocated slot block, or if dynamic slot partitioning fills the available `10`..`49` range, the engine transitions to monotonic sequential allocation registered in the run ledger (`FLOW_RUN.allocated_nns`). The ledger tracks all allocated NN numbers in the Set, assigning the lowest unused two-digit integer in the range `10`..`49` for pre-synthesis artifacts, or `50`..`98` for synthesis artifacts.
-  4. *Two-Digit NN Exhaustion Handling*:
-     If the two-digit NN sequence reaches `99`, the workflow engine unconditionally halts and refuses further artifact generation with exit code 1 (`refusal: two-digit NN sequence space exhausted for Set '<setid>'; finalize or synthesize active candidates via 'aw specs flow merge' or initiate a new Set`).
-  5. *Disambiguation from Internal Iteration/Attempt Counters*:
-     The filename `NN` represents artifact sort ordering within the Set. It MUST NOT be conflated with:
-     - Quality iteration counters (tracked in front matter via `- Iteration: <int>`).
-     - Modular chunk parts (tracked via slug suffix e.g. `-parta`, `-partb`).
-     - Runner execution retry attempts (tracked in the run ledger via `attempt_id`).
-- **Id6**: Every artifact receives an independent, globally unique 6-character alphanumeric ID minted by `artifact_core.mint_id6()`. An updated iteration receives a NEW id6 and references its parent id6 in front matter via `- Prior-Id: <id6>`.
-- **Model Token Normalization Algorithm**: Attributed filename middle segments require dot-free model tokens. The engine normalizes model identifiers deterministically:
-  1. If the model is registered in `agent_workflows/data/research-models.toml`, its canonical table token (e.g. `opus55high`, `gemini38flashhigh`, `gpt61solmedium`) MUST be used.
-  2. For unregistered or custom provider models, strip the provider prefix (`provider/model` -> `model`), strip all punctuation, dots, and hyphens, lowercase all letters, and concatenate with the sanitized variant (`re.sub(r'[^a-z0-9]', '', model) + re.sub(r'[^a-z0-9]', '', variant)`).
-  3. If the resulting string is empty, fallback to `custom`.
-  4. The raw, provider-qualified model string and variant are ALWAYS preserved intact in the artifact's front matter YAML (`- Model-Id:`, `- Model-Variant:`).
+- **Setid.** One setid per run, shared by every record of the run in every tree. `--set` names it. When `--set` is omitted the default is the slug trimmed at a hyphen to at most 14 characters, which matches the singleton default of `aw research new`. A shared default setid such as `specflow` for every run is forbidden, because unrelated runs would share an order space and a run lock. The length rule is the repository rule implemented by `config.validate_setid_length_for_authoring`: above 24 characters is refused, above 14 warns. A setid is never derived from a model label.
+- **Reusing a setid.** A run MAY name an existing set. Its records then take the next free orders of that set. Two live runs on one set are refused at start with exit 2 (`refusal: set '<setid>' has a live flow run <run-id6>`), enforced by the run lock.
+- **Date.** The `YYYYMMDD` prefix is the set date. When the set already exists, the research owner verb reuses its date (`research_cmd._set_date_for_set`); the final spec is created with `aw specs new --date <set date>`. A run that crosses midnight or resumes on another day keeps the prefix. Real times live in front matter `created` and in workflow history.
+- **NN.** NN is the order of a record within its set, across trees. It is allocated at publish time by the owner verb: the engine holds the run lock, takes the next free order for the set in the research tree (`aw research new` with `--order` omitted), and checks the specs tree for the same set. The final spec receives the next free order through `aw group specs <id6> --set <setid> --order <NN>`, because `aw specs new` takes no `--set` (`config.validate_setid_length_for_authoring` docstring). NN `00` is the brief. NN does not encode stage, participant, iteration, chunk, or attempt. A retry does not allocate, because only a published record takes an order. Inserting a record between two existing orders is not supported; order is publish order.
+- **NN capacity.** At preview the engine computes the worst-case record count and refuses with exit 2 when `next_free_order + worst_case - 1 > 99` (`refusal: set '<setid>' cannot hold this run`). Worst case for a spec run with N > 1: `1 brief + N*(1 + P_max) candidate records + N assessments + 1 matrix + 1 synthesis draft + 1 synthesis assessment + 1 final spec`, where `P_max` is the largest planned part count (a split candidate has one index and P parts; an unsplit candidate has P = 0). For N = 3 with one candidate split into 2 parts: `1 + (1 + 1 + 3) + 3 + 1 + 1 + 1 + 1 = 13`. For N = 1: `1 brief + 1 candidate + 1 assessment + 1 final spec = 4`. Research runs replace the final spec and the synthesis draft with nothing (the reconciled report is the final record) and add 1 verification assessment when LLM citation verification runs. Regenerated candidates (R-regeneration below) count against the same check before dispatch.
+- **Id6.** Every record's id6 is minted by its owner verb through `artifact_core.mint_id6`. A run id is never used as an artifact id6.
+- **Revision versus new record.** A refinement revision edits the same record in place: the id6, NN, and filename stay, the front matter key `revision` increments, and the previous body is first copied to `<C>/revisions/<id6>.r<k>.md`. A regeneration (a fresh candidate replacing a failed or rejected one) is a new record with a new id6 and front matter `supersedes: <old-id6>`. Two independent records never share an id6. Promote, archive, regroup, and finalize never change an id6.
+- **Model token derivation.** Each roster slot carries a `filename_model` (Section 5.2). At preview the engine validates it with `research_contract.normalize_model(token, repo_root=...)`. An unrecognized token is refused with exit 2 and the message names `aw research add-model <token>`. When a slot omits `filename_model`, the engine derives a candidate by lowercasing the profile's model id, dropping a `provider/` prefix, removing every character outside `[a-z0-9]`, and appending the effort setting with the same rule. It uses the result only if `normalize_model` recognizes it; otherwise it refuses as above. It never writes an unrecognized token into a filename. Exact identity (provider-qualified model id, variant or effort, ACE version, observed model, session id) lives in front matter and in `<C>/run.json`.
 
-#### Front Matter Metadata Schemas for Intermediate and Synthesis Artifacts
-Intermediate artifacts carry explicit machine-readable metadata in their front matter:
-- **Prompt Artifact (`.prompt.md`)** conforming to `prompts_index._parse_metadata_comment` and `check.prompt-metadata-missing`:
-  ```html
-  <!-- aw-prompt: Kind: flow | Id: <id6> | Set: <setid> | Status: pending | Created: YYYY-MM-DD | Author: <runner> (<model>) | Targets: <role> -->
-  ```
-- **Intermediate Candidate Specification (`.spec.md`)**:
-  ```yaml
-  - Date: YYYY-MM-DD
-  - Status: draft
-  - Id: <id6>
-  - Author: <runner> (<model>)
-  - Prior-Id: <prior-id6>
-  - Slot: <slot_name>
-  - ACE: <ace_token>
-  - Requested-Model: <configured_model_string>
-  - Resolved-Model: <actual_dispatched_model>
-  - Variant: <variant_string>
-  - Iteration: <int>
-  - Set: <setid>
+#### Front Matter Schemas
+All research records use the `---` delimited block that `research_contract.parse_frontmatter` reads, with every key in `research_contract.FRONTMATTER_FIELDS`. `validate_frontmatter` accepts additional keys (verified in iteration 22), so the flow keys below are additions, not schema changes.
 
-  ## Workflow history
-
-  - YYYY-MM-DD created (flow): candidate generated by <model>
-  ```
-- **Review Critique Record (`.review.md`) conforming to `review_findings.py`**:
-  ```markdown
-  - Subject-Id: <target_candidate_id6>
-  - Subject-Type: spec | research
-  - Reviewed-At: YYYY-MM-DD
-  - Reviewer: <ace_token>/<model_token>
-  - Verdict: REVIEWED - MATERIAL CHANGES APPLIED | NO MATERIAL IMPROVEMENTS FOUND
-  - Audited-Scope: [FR-01..FR-36, AT-01..AT-68, Decisions 01..13]
-
-  ## Round 1
-
-  ### Findings
-
-  | ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
-  |---|---|---|---|---|---|---|---|---|
-  | F-01 | HIGH | IN-SCOPE | Section 4.2 | Sec 4.2:12 | Missing boundary validation | Low | FIXED | Added bounds check |
-  ```
-- **Similarities and Differences Matrix (`.review.md`)**:
-  ```yaml
-  - Subject-Id: <synthesized_spec_id6>
-  - Subject-Type: spec
-  - Reviewed-At: YYYY-MM-DD
-  - Reviewer: reconciliation/<synthesizer_model>
-  - Verdict: REVIEWED - MATERIAL CHANGES APPLIED
-  - Matrix-Candidates: [<id6_1>, <id6_2>, <id6_3>]
-  - Set: <setid>
-
-  ## Round 1
-
-  ### Synthesis Similarities and Differences Matrix
-  ```
-- **Candidate Research Report (`.research-report.md`) conforming to `research_contract.FRONTMATTER_FIELDS`**:
+- **Run brief (`research-prompt`)**, statusless:
   ```yaml
   ---
   id: <id6>
   created: YYYYMMDD
   set: <setid>
-  order: NN
-  topic: [<topic_string>]
-  model: <model_token>
-  kind: research-report
+  order: "00"
+  topic: [<topic>]
+  model:
+  kind: research-prompt
+  outcome: none-yet
+  summary: <one line>
+  consumed-by: []
+  flow-run: <run-id6>
+  flow-kind: spec | research
+  baseline-commit: <sha>
+  brief-sha256: <hex>
+  ---
+  ```
+- **Candidate (`source-draft` or `research-report`)**:
+  ```yaml
+  ---
+  id: <id6>
+  created: YYYYMMDD
+  set: <setid>
+  order: "NN"
+  topic: [<topic>]
+  model: <token>
+  kind: source-draft | research-report
   status: active
   outcome: none-yet
-  summary: <detailed_summary>
+  summary: <one line>
   consumed-by: []
+  flow-run: <run-id6>
+  slot: <slot>
+  ace: <ace>
+  requested-model: <profile model id>
+  requested-variant: <variant or effort, or none>
+  observed-model: <observed id, or unknown>
+  identity-class: confirmed | echoed | unknown
+  revision: <int>
+  supersedes: <id6, optional>
+  part-of: <index id6, optional>
   ---
   ```
-- **Reconciled Research Report (`.reconciliation-report.md`) conforming to `research_contract.FRONTMATTER_FIELDS`**:
-  ```yaml
-  ---
-  id: <id6>
-  created: YYYYMMDD
-  set: <setid>
-  order: NN
-  topic: [<topic_string>]
-  model: reconciliation
-  kind: reconciliation-report
-  status: active
-  outcome: informational
-  summary: <detailed_summary>
-  consumed-by: []
-  ---
+- **Assessment (`assessment`)**: the same keys, with `model` and `ace` naming the reviewer, plus `subject: <id6>`. The body is one `## Round <k>` per iteration, each holding a `### Findings` table with the `review_findings.FINDING_COLUMNS` header and a scope census (FR-09). The engine parses these tables with the `review_findings` row parser. The review-record metadata diagnostics (`REV-M101`, `REV-M102`) do not apply, because identity lives in the research front matter.
+- **Matrix and reconciled report (`reconciliation-report`)**: `model: reconciliation`, no `ace`, plus `inputs: [<id6>, ...]` listing every candidate record compared.
+- **Final spec**: the owner-verb bullets (`- Date:`, `- Status:`, `- Id:`, `- Author: aw specs new`, `- Set:`) plus:
+  ```markdown
+  - From-Research-Set: <setid>
+  - Contributors: <id6> (<token>), <id6> (<token>), ...
+  - Matrix-Ref: <matrix id6>
+  - Supersedes: <prior spec id6>   (from-spec runs only)
   ```
-- **Finalized Research Report (`.research-report.md` or `.reconciliation-report.md` in `reference/<YYYYMM-Www>/`) conforming to `research_contract.FRONTMATTER_FIELDS`**:
-  ```yaml
-  ---
-  id: <id6>
-  created: YYYYMMDD
-  set: <setid>
-  order: 01
-  topic: [<topic_string>]
-  model: <model_token> | reconciliation
-  kind: research-report | reconciliation-report
-  status: reference
-  outcome: informational | adopted
-  summary: <detailed_summary>
-  consumed-by: []
-  ---
-  ```
-- **Synthesized Specification (`.spec.md`)**:
-  ```yaml
-  - Date: YYYY-MM-DD
-  - Status: draft
-  - Id: <id6>
-  - Author: aw specs flow
-  - Scope: <scope_summary>
-  - Contributors: [<id6_1> (<model_1>), <id6_2> (<model_2>), ...]
-  - Matrix-Ref: <matrix_id6>
-  - Set: <setid>
-
-  ## Workflow history
-
-  - YYYY-MM-DD created (flow): synthesized from candidates <id6_1>, <id6_2> via matrix <matrix_id6>
-  ```
+  and the sections `## Synthesis provenance` and `## Workflow history`.
 
 ### 6.4 Worked Filename Inventories
+Paths are relative to the repository root. Set dates and id6 values are illustrative; real id6 values are minted.
 
-#### Inventory 1: 3-Participant Thorough Spec Run with Modular Chunking
-Assume Set: `specflow`, Date: `20261024`, Slug: `netmesh`. Split into Part A (CLI/Protocol) and Part B (Engine).
-1. Frozen Brief:
-   - `.aw/records/prompts/pending/20261024-specflow-00-f1a001-netmesh.prompt.md`
-2. Rendered Prompts:
-   - P1 (Opus): `.aw/records/prompts/pending/20261024-specflow-01-f1p001-gen.opencode.opus55high.prompt.md`
-   - P2 (Gemini Chunk A): `.aw/records/prompts/pending/20261024-specflow-02-f1p002-gen-parta.agy.gemini38flashhigh.prompt.md`
-   - P2 (Gemini Chunk B): `.aw/records/prompts/pending/20261024-specflow-03-f1p003-gen-partb.agy.gemini38flashhigh.prompt.md`
-   - P3 (Sol): `.aw/records/prompts/pending/20261024-specflow-04-f1p004-gen.opencode.gpt61solmedium.prompt.md`
-3. Candidates Staged in `draft/intermediate/specflow/`:
-   - P1: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-f1c001-cand.opencode.opus55high.spec.md`
-   - P2 (Index Manifest): `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-f1c002-cand-index.agy.gemini38flashhigh.spec.md`
-   - P2 (Part A): `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-21-f1c003-cand-parta.agy.gemini38flashhigh.spec.md`
-   - P2 (Part B): `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-22-f1c004-cand-partb.agy.gemini38flashhigh.spec.md`
-   - P3: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-f1c005-cand.opencode.gpt61solmedium.spec.md`
-4. Iteration 1 Critiques in `reviews/`:
-   - P1: `.aw/records/reviews/20261024-specflow-11-f1r001-iter1.opencode.opus55high.review.md`
-   - P2: `.aw/records/reviews/20261024-specflow-23-f1r002-iter1.agy.gemini38flashhigh.review.md`
-   - P3: `.aw/records/reviews/20261024-specflow-31-f1r003-iter1.opencode.gpt61solmedium.review.md`
-5. Iteration 2 Revised Candidates in `draft/intermediate/specflow/`:
-   - P1: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-12-f1c006-cand-i2.opencode.opus55high.spec.md`
-   - P2 (Part A): `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-24-f1c007-cand-parta-i2.agy.gemini38flashhigh.spec.md`
-   - P2 (Part B): `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-25-f1c008-cand-partb-i2.agy.gemini38flashhigh.spec.md`
-   - P3: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-32-f1c009-cand-i2.opencode.gpt61solmedium.spec.md`
-6. Iteration 2 Critiques in `reviews/`:
-   - P1: `.aw/records/reviews/20261024-specflow-13-f1r004-iter2.opencode.opus55high.review.md` (converged)
-   - P2: `.aw/records/reviews/20261024-specflow-26-f1r005-iter2.agy.gemini38flashhigh.review.md` (converged)
-   - P3: `.aw/records/reviews/20261024-specflow-33-f1r006-iter2.opencode.gpt61solmedium.review.md` (converged)
-7. Similarities & Differences Matrix in `reviews/`:
-   - `.aw/records/reviews/20261024-specflow-50-f1m001-matrix.reconciliation.review.md`
-8. Synthesis Iteration 1 in `draft/intermediate/specflow/`:
-   - `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-80-f1s001-synth-i0.reconciliation.spec.md`
-9. Synthesis Refinement Critique in `reviews/`:
-   - `.aw/records/reviews/20261024-specflow-81-f1r007-synth-iter1.opencode.opus55high.review.md`
-10. Synthesis Revised Draft in `draft/intermediate/specflow/`:
-   - `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-82-f1s002-synth-i1.reconciliation.spec.md`
-11. Final Candidate Spec (moved to `to-review/`):
-   - `.aw/records/specs/to-review/20261024-specflow-01-f1f001-netmesh.spec.md`
+#### Inventory 1: three-participant thorough spec run, two refinement iterations, one split candidate
+Set `netmesh`, date `20261024`. Gemini splits its candidate into parts A and B.
+| NN | Record | Path |
+| --- | --- | --- |
+| 00 | brief | `.aw/records/research/20261024-netmesh-00-f1a001-netmesh-brief.research-prompt.md` |
+| 01 | Opus candidate | `.aw/records/research/20261024-netmesh-01-f1c001-netmesh.opencode.opus55high.source-draft.md` |
+| 02 | Gemini part index | `.aw/records/research/20261024-netmesh-02-f1c002-netmesh-index.agy.gemini38flash.source-draft.md` |
+| 03 | Gemini part A | `.aw/records/research/20261024-netmesh-03-f1c003-netmesh-parta.agy.gemini38flash.source-draft.md` |
+| 04 | Gemini part B | `.aw/records/research/20261024-netmesh-04-f1c004-netmesh-partb.agy.gemini38flash.source-draft.md` |
+| 05 | Sol candidate | `.aw/records/research/20261024-netmesh-05-f1c005-netmesh.opencode.gpt61solmedium.source-draft.md` |
+| 06 | review of Opus candidate, by Gemini (cross-peer) | `.aw/records/research/20261024-netmesh-06-f1r001-netmesh-review.agy.gemini38flash.assessment.md` |
+| 07 | review of Gemini part set, by Sol | `.aw/records/research/20261024-netmesh-07-f1r002-netmesh-review.opencode.gpt61solmedium.assessment.md` |
+| 08 | review of Sol candidate, by Opus | `.aw/records/research/20261024-netmesh-08-f1r003-netmesh-review.opencode.opus55high.assessment.md` |
+| 09 | matrix | `.aw/records/research/20261024-netmesh-09-f1m001-netmesh-matrix.reconciliation.reconciliation-report.md` |
+| 10 | synthesis draft | `.aw/records/research/20261024-netmesh-10-f1s001-netmesh-synth.reconciliation.source-draft.md` |
+| 11 | synthesis review, by Gemini | `.aw/records/research/20261024-netmesh-11-f1r004-netmesh-synth-review.agy.gemini38flash.assessment.md` |
+| 12 | final spec | `.aw/records/specs/to-review/20261024-netmesh-12-f1f001-netmesh.spec.md` |
+Iterations 1 and 2 add `## Round 1` and `## Round 2` to records 06 to 08 and revise records 01 to 05 in place (`revision: 2`, prior bodies in `.aw/records/research/20261024-netmesh-00-f1a001-netmesh-brief.research-prompt.data/revisions/`). Rendered prompts are in the same companion under `prompts/`. Thirteen records, 13 orders. After finalize, records 00 to 11 are in `.aw/records/research/reference/202610/`.
+Lineage: `f1f001` cites matrix `f1m001` and contributors `f1c001`, `f1c002` (parts `f1c003`, `f1c004`), `f1c005`; the matrix cites the same inputs; each assessment cites its subject; the brief companion `run.json` lists every dispatch with its prompt digest.
 
-##### Inventory 1 Input Traceability Matrix
-- Final Spec `f1f001` traces to:
-  - Input Brief: `f1a001` (`.prompt.md`)
-  - Retained Candidate Revisions: P1 `f1c006`, P2 `f1c007` + `f1c008`, P3 `f1c009`
-  - Reconciling Matrix: `f1m001` (`.review.md`)
-  - Immediate Synthesis Parent: `f1s002` (`.spec.md`)
+#### Inventory 2: one-participant quick spec run
+Set `tokenauth`, date `20261024`, roster `quick-solo` (Gemini).
+| NN | Record | Path |
+| --- | --- | --- |
+| 00 | brief | `.aw/records/research/20261024-tokenauth-00-q1a001-token-auth-brief.research-prompt.md` |
+| 01 | candidate | `.aw/records/research/20261024-tokenauth-01-q1c001-token-auth.agy.gemini38flash.source-draft.md` |
+| 02 | self-adversarial review (fresh session) | `.aw/records/research/20261024-tokenauth-02-q1r001-token-auth-review.agy.gemini38flash.assessment.md` |
+| 03 | final spec | `.aw/records/specs/draft/20261024-tokenauth-03-q1f001-token-auth.spec.md` |
+No matrix and no synthesis draft. Status `draft` per DL-17.
 
-#### Inventory 2: Single-Participant Quick Spec Run
-Assume Set: `quickauth`, Date: `20261024`, Slug: `token-auth`, Participant: `gemini38flashhigh`.
-1. Frozen Brief:
-   - `.aw/records/prompts/pending/20261024-quickauth-00-q1a001-token-auth.prompt.md`
-2. Rendered Prompt:
-   - `.aw/records/prompts/pending/20261024-quickauth-01-q1p001-gen.agy.gemini38flashhigh.prompt.md`
-3. Initial Candidate in `draft/intermediate/quickauth/`:
-   - `.aw/records/specs/draft/intermediate/quickauth/20261024-quickauth-10-q1c001-cand.agy.gemini38flashhigh.spec.md`
-4. Quick Review Pass in `reviews/`:
-   - `.aw/records/reviews/20261024-quickauth-11-q1r001-iter1.agy.gemini38flashhigh.review.md`
-5. Revised Candidate in `draft/intermediate/quickauth/`:
-   - `.aw/records/specs/draft/intermediate/quickauth/20261024-quickauth-12-q1c002-cand-i2.agy.gemini38flashhigh.spec.md`
-6. Authoritative Final Candidate (moved to `draft/` per maintainer ruling DL-17; requires human `aw specs set to-review` promotion):
-   - `.aw/records/specs/draft/20261024-quickauth-01-q1f001-token-auth.spec.md`
+#### Inventory 3: resumed run after a cap
+Set `storv2`. Run `cp73m9` capped with Gemini candidate `c1c002` carrying unresolved finding `F-02` (`high`). Records 00 to 06 exist; the set reads `partial`. The ledger `.aw/records/runs/flow-cp73m9.json` and `<C>/run.json` record outcome `findings`, state `capped_with_findings`. `aw specs flow resume cp73m9 --refine-cap 2 --apply` verifies the baseline (FR-31), adds `## Round 2` to `c1r002`, revises `c1c002` in place (`revision: 2`), then publishes matrix `07`, synthesis draft `08`, synthesis review `09`, and final spec `10`. No record is renamed. If the brief or the resolved roster changed since the freeze, resume refuses (FR-31).
 
-##### Inventory 2 Input Traceability Matrix
-- Final Spec `q1f001` traces to:
-  - Input Brief: `q1a001` (`.prompt.md`)
-  - Retained Candidate Revision: `q1c002` (`cand-i2.spec.md`)
-  - Quality Review Record: `q1r001` (`iter1.review.md`)
-
-#### Inventory 3: Resumed Run After Refinement Cap
-Assume Set: `storv2`, Date: `20261024`, Run Id: `cp73m9`.
-1. Frozen Run Ledger:
-   - `.aw/records/runs/flow-cp73m9.json` (checkpointed with state `capped_with_findings`, resolved via `project_records_dir() / "runs"`)
-2. Existing Retained Candidates in `draft/intermediate/storv2/`:
-   - `...-10-c1a001-cand.opencode.opus55high.spec.md`
-   - `...-20-c1a002-cand.agy.gemini38flashhigh.spec.md` (carried unresolved finding `F-02`)
-   - `...-30-c1a003-cand.opencode.gpt61solmedium.spec.md`
-3. Resume Execution (`aw specs flow resume cp73m9 --refine-cap 2`):
-   - Revised Candidate 2 emitted: `...-22-c1a004-cand-i2.agy.gemini38flashhigh.spec.md` (resolves `F-02`)
-   - Synthesis executed: `...-80-c1s001-synth-i0.reconciliation.spec.md`
-4. Final Candidate Finalized:
-   - `.aw/records/specs/to-review/20261024-storv2-01-c1f001-storage-v2.spec.md`
-
-##### Inventory 3 Input Traceability Matrix
-- Final Spec `c1f001` traces to:
-  - Run Ledger Checkpoint: `flow-cp73m9.json`
-  - Retained Candidates: `c1a001`, `c1a004` (resumed revision), `c1a003`
-  - Synthesis Candidate: `c1s001` (`synth-i0.spec.md`)
-
-#### Inventory 4: 3-Participant Research Flow with Parallel Investigation, Citation Verification, Reconciliation, and Sharded Reference Finalization
-Assume Set: `synthrsc`, Date: `20261024`, Topic: `disk-io`, Slug: `disk-latency`.
-1. Frozen Brief:
-   - `.aw/records/prompts/pending/20261024-synthrsc-00-r1a001-disk-latency.prompt.md`
-2. Rendered Prompts:
-   - P1 (Opus): `.aw/records/prompts/pending/20261024-synthrsc-01-r1p001-gen.opencode.opus55high.prompt.md`
-   - P2 (Gemini): `.aw/records/prompts/pending/20261024-synthrsc-02-r1p002-gen.agy.gemini38flashhigh.prompt.md`
-   - P3 (Sol): `.aw/records/prompts/pending/20261024-synthrsc-03-r1p003-gen.opencode.gpt61solmedium.prompt.md`
-   - Citation Verifier: `.aw/records/prompts/pending/20261024-synthrsc-04-r1p004-verify.opencode.opus55high.prompt.md`
-   - Reconciler: `.aw/records/prompts/pending/20261024-synthrsc-05-r1p005-reconcile.opencode.opus55high.prompt.md`
-3. Candidates Staged in flat hot root `.aw/records/research/`:
-   - P1: `.aw/records/research/20261024-synthrsc-10-r1c001-cand.opencode.opus55high.research-report.md`
-   - P2: `.aw/records/research/20261024-synthrsc-20-r1c002-cand.agy.gemini38flashhigh.research-report.md`
-   - P3: `.aw/records/research/20261024-synthrsc-30-r1c003-cand.opencode.gpt61solmedium.research-report.md`
-4. Citation Verification Pass & Iteration 1 Critiques in `reviews/`:
-   - P1: `.aw/records/reviews/20261024-synthrsc-11-r1r001-iter1.opencode.opus55high.review.md`
-   - P2: `.aw/records/reviews/20261024-synthrsc-21-r1r002-iter1.agy.gemini38flashhigh.review.md`
-   - P3: `.aw/records/reviews/20261024-synthrsc-31-r1r003-iter1.opencode.gpt61solmedium.review.md`
-5. Revised Candidates in flat hot root `research/`:
-   - P1: `.aw/records/research/20261024-synthrsc-12-r1c004-cand-i2.opencode.opus55high.research-report.md`
-   - P2: `.aw/records/research/20261024-synthrsc-22-r1c005-cand-i2.agy.gemini38flashhigh.research-report.md`
-   - P3: `.aw/records/research/20261024-synthrsc-32-r1c006-cand-i2.opencode.gpt61solmedium.research-report.md`
-6. Active Reconciled Report in flat hot root `research/`:
-   - `.aw/records/research/20261024-synthrsc-80-r1s001-reconcile-i0.reconciliation.reconciliation-report.md`
-7. Final Reconciled Research Report (moved to weekly reference shard):
-   - `.aw/records/research/reference/202610-W43/20261024-synthrsc-01-r1f001-disk-latency.reconciliation.reconciliation-report.md`
-
-##### Inventory 4 Input Traceability Matrix
-- Final Reconciled Research Report `r1f001` traces to:
-  - Input Brief: `r1a001` (`.prompt.md`)
-  - Retained Research Reports: P1 `r1c004`, P2 `r1c005`, P3 `r1c006`
-  - Reconciled Working Draft: `r1s001` (`reconcile-i0.reconciliation-report.md`)
-  - Manifest Index: registered in research catalog with `status: reference` and `outcome: informational` via `aw research index`
+#### Inventory 4: three-participant research run with conflicting sources
+Set `disklat`. Records: `00` brief (`research-prompt`), `01` to `03` research reports (one per participant, `.<ace>.<model>.research-report.md`), `04` to `06` assessments, `07` verification assessment (LLM verifier), `08` reconciled report `.aw/records/research/20261024-disklat-08-r1f001-disk-latency.reconciliation.reconciliation-report.md`. After finalize all records are in `.aw/records/research/reference/202610/`; the reconciled report is the final output and carries a `## Contradictions and Discrepancies` section.
 
 ---
 
@@ -963,13 +757,13 @@ Assume Set: `synthrsc`, Date: `20261024`, Topic: `disk-io`, Slug: `disk-latency`
 flowchart TD
     A[Start: aw specs flow new] --> B[Capture Baseline & Hash Brief]
     B --> C[Resolve Roster & Verify Host Capabilities]
-    C --> D[Render Frozen Prompts: prompts/pending/]
+    C --> D[Write Brief Record and Render Prompts into its Companion]
     D --> DP{--prepare-only?}
     DP -- Yes --> DStop[Stop: Prompts Written, Exit 0]
     DP -- No --> DR{Roster Size?}
 
     DR -- N = 1 --> E_solo[Single Candidate Generation]
-    E_solo --> F_solo["Refinement Loop: reviews/ and intermediate/"]
+    E_solo --> F_solo["Refinement Loop: assessment and revision records"]
     F_solo --> G_solo{Converged or Cap?}
     G_solo -- Converged or Advisory --> H_solo[Single Candidate Ready]
     G_solo -- Cap with Blocker/High --> CapDec_solo{--allow-unresolved-findings?}
@@ -984,7 +778,7 @@ flowchart TD
 
     DR -- N > 1 --> E[Parallel Independent Generation]
 
-    subgraph Gen_Phase ["Independent Generation Phase: draft/intermediate/setid/"]
+    subgraph Gen_Phase ["Independent Generation Phase: source-draft records"]
         E --> E1[Candidate 1: Opus High]
         E --> E2[Candidate 2: Gemini 3.8 Flash High]
         E --> E3[Candidate 3: Sol Medium]
@@ -994,9 +788,9 @@ flowchart TD
     E2 --> F2[Refinement Loop Candidate 2]
     E3 --> F3[Refinement Loop Candidate 3]
 
-    subgraph Refine_Phase ["Candidate Refinement Phase: reviews/ and draft/intermediate/"]
-        F1 --> R1[Adversarial Review Turn: reviews/]
-        R1 --> V1[Candidate Revision Turn: draft/intermediate/]
+    subgraph Refine_Phase ["Candidate Refinement Phase: assessment records, revisions in place"]
+        F1 --> R1[Adversarial Review Turn: assessment record]
+        R1 --> V1[Candidate Revision Turn: revise record in place]
         V1 --> G1{Converged or Cap?}
         G1 -- Retrying --> R1
         G1 -- Converged or Advisory --> H1[Candidate 1 Ready]
@@ -1007,8 +801,8 @@ flowchart TD
         FailDec1 -- Yes --> I
         FailDec1 -- No --> Halt_part1[Halt: Exit 1 in state partial]
 
-        F2 --> R2[Adversarial Review Turn: reviews/]
-        R2 --> V2[Candidate Revision Turn: draft/intermediate/]
+        F2 --> R2[Adversarial Review Turn: assessment record]
+        R2 --> V2[Candidate Revision Turn: revise record in place]
         V2 --> G2{Converged or Cap?}
         G2 -- Retrying --> R2
         G2 -- Converged or Advisory --> H2[Candidate 2 Ready]
@@ -1019,8 +813,8 @@ flowchart TD
         FailDec2 -- Yes --> I
         FailDec2 -- No --> Halt_part2[Halt: Exit 1 in state partial]
 
-        F3 --> R3[Adversarial Review Turn: reviews/]
-        R3 --> V3[Candidate Revision Turn: draft/intermediate/]
+        F3 --> R3[Adversarial Review Turn: assessment record]
+        R3 --> V3[Candidate Revision Turn: revise record in place]
         V3 --> G3{Converged or Cap?}
         G3 -- Retrying --> R3
         G3 -- Converged or Advisory --> H3[Candidate 3 Ready]
@@ -1037,8 +831,8 @@ flowchart TD
     H3 --> I
 
     subgraph Synth_Phase ["Synthesis & Finalization Phase"]
-        I --> J[Compile Similarities & Differences Matrix: reviews/]
-        J --> K[Author Initial Synthesis in draft/intermediate/setid/]
+        I --> J[Compile Similarities & Differences Matrix: reconciliation-report record]
+        J --> K[Author Synthesis Draft: source-draft record]
         K --> L[Synthesis Refinement Loop]
         L --> M{Synth Converged or Cap?}
         M -- Retrying --> L
@@ -1070,7 +864,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     RA[Start: aw research flow new] --> RB[Select Investigation Mode: Parallel or Decomposed]
-    RB --> RC[Render Independent Question Prompts: prompts/pending/]
+    RB --> RC[Write Brief Record and Render Question Prompts into its Companion]
     RC --> DP_res{--prepare-only?}
     DP_res -- Yes --> Stop_res[Stop: Prompts Written, Exit 0]
     DP_res -- No --> DR_res{Roster Size?}
@@ -1079,7 +873,7 @@ flowchart TD
     Single_Evidence --> RF_solo[Citation Verification Pass]
     RF_solo --> CV_solo{Citations Verified or --allow-unverified?}
     CV_solo -- No --> Stop_unverified_solo[Halt: Exit 1 unverified citations]
-    CV_solo -- Yes --> RR_solo[Adversarial Review Turn: reviews/]
+    CV_solo -- Yes --> RR_solo[Adversarial Review Turn: assessment record]
     RR_solo --> RV_solo[Candidate Revision Turn: research/]
     RV_solo --> RG_solo{Converged or Cap?}
     RG_solo -- Retrying --> RR_solo
@@ -1087,9 +881,9 @@ flowchart TD
     RCapDec_solo -- Yes --> RK_solo
     RCapDec_solo -- No --> RC_solo_halt[Halt: Exit 1 in state capped_with_findings]
     RG_solo -- Converged or Advisory --> RK_solo[Validate Against Research Contract]
-    RK_solo --> RMove_solo[Move to reference/YYYYMM-Www/]
+    RK_solo --> RMove_solo[Move to reference/YYYYMM/]
     RMove_solo --> RL_solo[Index in Research Manifest: aw research index]
-    RL_solo --> RM_solo["End: Single Model Research Record in reference/YYYYMM-Www/ (Exit 0 or 1 findings)"]
+    RL_solo --> RM_solo["End: Single Model Research Record in reference/YYYYMM/ (Exit 0 or 1 findings)"]
 
     DR_res -- N > 1 --> RD[Parallel Evidence Gathering Across Roster]
 
@@ -1105,7 +899,7 @@ flowchart TD
 
     RF_multi --> CV_multi{Citations Verified or --allow-unverified?}
     CV_multi -- No --> Stop_unverified_multi[Halt: Exit 1 unverified citations]
-    CV_multi -- Yes --> RR_multi[Adversarial Review Turn: reviews/]
+    CV_multi -- Yes --> RR_multi[Adversarial Review Turn: assessment record]
     RR_multi --> RV_multi[Candidate Revision Turn: research/]
     RV_multi --> RG_multi{Converged or Cap?}
     RG_multi -- Retrying --> RR_multi
@@ -1131,9 +925,9 @@ flowchart TD
         RM_check -- Converged or Advisory --> RK[Validate Against Research Contract]
     end
 
-    RK --> RMove_multi[Move to reference/YYYYMM-Www/]
+    RK --> RMove_multi[Move to reference/YYYYMM/]
     RMove_multi --> RL[Index in Research Manifest: aw research index]
-    RL --> RM["End: Durable Reconciled Research Record in reference/YYYYMM-Www/ (Exit 0 or 1 findings)"]
+    RL --> RM["End: Durable Reconciled Research Record in reference/YYYYMM/ (Exit 0 or 1 findings)"]
 
     RC_solo_halt --> Stop_halt[End: Exit 1 in state capped_with_findings]
     RC_multi_halt --> Stop_halt
@@ -1149,6 +943,7 @@ flowchart TD
 stateDiagram-v2
     [*] --> Initialized: CLI Invocation
     Initialized --> BaselineFrozen: Git & Brief Validated
+    Initialized --> Refused: Set Busy / NN Capacity / Unknown Model Token / Ambiguous Roster Spec (Exit 2)
     Initialized --> Refused: Validation Error (Exit 2)
 
     BaselineFrozen --> Dispatching: Prompts Rendered
@@ -1157,7 +952,7 @@ stateDiagram-v2
     PromptsPrepared --> [*]
     Dispatching --> Generating: Sessions Spawned
 
-    Generating --> CandidateRefining: Initial Candidates in draft/intermediate/
+    Generating --> CandidateRefining: Initial Candidate Records Published
     Generating --> PartialRoster: Worker Failure without --allow-partial-roster (Exit 1)
     Generating --> CandidateRefining: Worker Failure with --allow-partial-roster
     Generating --> Failed: All Participants Failed (Exit 1)
@@ -1227,6 +1022,7 @@ stateDiagram-v2
     PartialRoster --> [*]: Unresumed Partial Roster (Exit 1)
     Failed --> Interrupted: Ledger Checkpointed (if resumable)
     Interrupted --> Dispatching: aw specs flow resume
+    Interrupted --> Refused: resume after brief or profile change (Exit 2)
     Interrupted --> Synthesizing: aw specs flow resume --allow-partial-roster
     Interrupted --> Cancelled: aw specs flow cancel
     Cancelled --> [*]: Process Terminated & Ledger Finalized (CLI Exit 0, Run Interrupted Exit 1)
@@ -1236,9 +1032,10 @@ stateDiagram-v2
 To prevent quality degradation observed when smaller context models encounter oversized specifications:
 1. **Source Packet Sizing**: Source code snippets injected into prompt contexts MUST be scoped strictly to targeted interfaces and signatures rather than raw directory dumps. Maximum prompt payload is budgeted at 40,000 tokens for generation turns.
 2. **Model Context Ceilings**:
-   - `gemini38flashhigh`: Configured with `"context_budget_chars": 25000` and `"chunk_preference": "modular-chunks"`. If the brief exceeds 25,000 characters, the prompt planner automatically divides the requirements into modular parts (e.g. Part A: Protocol, Part B: Storage Engine).
+   - `gemini38flash` (Gemini slot): Configured with `"context_budget_chars": 25000` and `"chunk_preference": "modular-chunks"`. If the brief exceeds 25,000 characters, the prompt planner automatically divides the requirements into modular parts (e.g. Part A: Protocol, Part B: Storage Engine).
    - `opus55high` and `gpt61solmedium`: Configured with `"context_budget_chars": 80000` and `"chunk_preference": "single-pass"`.
    - Conservative fallback when unknown: 30,000 characters.
+   - These budgets are operator-configured prompt-size targets, not provider context limits. The spec makes no claim about any provider's context window. Each dispatch records the rendered prompt size in `<C>/run.json`; a prompt over its slot budget triggers modular chunking or, when chunking is disabled, a refusal with exit 2 before dispatch.
 3. **Modular Document Chunking Rules**:
    - The brief is partitioned into numbered sub-components.
    - Candidates are generated per part with shared interface contracts.
@@ -1247,7 +1044,7 @@ To prevent quality degradation observed when smaller context models encounter ov
 5. **Synthesizer Context Overflow Protection (Two-Pass Hierarchical Synthesis)**:
    When multi-candidate specifications, matrix comparisons, and background context collectively exceed 80% of the assigned synthesizer's context ceiling (e.g. > 64,000 characters for an 80,000 character budget):
    - The engine disallows a monolithic prompt that dumps all candidate texts simultaneously.
-   - *Pass 1*: The synthesizer receives structured requirement tables and section outlines extracted from each candidate, generating the Similarities and Differences Matrix (`.review.md`) with explicit requirement-level dispositions.
+   - *Pass 1*: The synthesizer receives structured requirement tables and section outlines extracted from each candidate, generating the Similarities and Differences Matrix (`reconciliation-report` record) with explicit requirement-level dispositions.
    - *Pass 2*: The engine dispatches partitioned drafting turns for individual spec sections (e.g. CLI & Architecture, Functional Requirements, Schemas & Lifecycle), providing the synthesizer with the approved matrix dispositions and only the relevant candidate passages for that section.
    - This ensures full technical depth is preserved without context truncation or loss of critical edge case requirements.
 
@@ -1280,18 +1077,18 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | --- | --- | --- | --- | --- |
 | **AT-01** | FR-01, FR-02 | Execute `aw specs flow new --brief ""` with an empty file. | Process exits with code 2. Standard error contains `refusal: empty brief`. No files written. | Pass if exit code 2 and zero files created. |
 | **AT-02** | FR-04 | Execute 3-participant run. Intercept prompts dispatched to participant 2. | Prompt dispatched to participant 2 contains no text, hashes, or tokens from participant 1. | Pass if candidate 1 content is absent from participant 2 prompt. |
-| **AT-03** | FR-06, FR-20 | Execute `aw specs flow new --brief valid.md --roster "gem" --mode quick --apply`. | Run completes with exactly one generation turn and one refinement turn. Matrix stage is skipped. Final spec written to `draft/` with status `draft`. Next-action outputs `aw specs set to-review <id6>`. | Pass if exit code 0 and final spec created in `draft/` with single-model provenance and not auto-promoted to `to-review`. |
+| **AT-03** | FR-06, FR-20 | Execute `aw specs flow new --brief valid.md --roster "gem" --mode quick --apply`. | Run completes with exactly one generation turn and one refinement turn. Matrix stage is skipped. Final spec written to `draft/` with status `draft`. Next-action outputs `aw specs set to-review <id6>`. | Pass if exit code 0, outcome `clean`, field `auto_advance` is `not-multi-model`, and the final spec is in `draft/`. |
 | **AT-04** | FR-07, FR-09 | Mock review turn returning 0 blocker/high findings and 1 low/medium advisory finding. | Engine marks candidate converged. Iteration stops before reaching cap. | Pass if iteration halts early on clean criteria. |
 | **AT-05** | FR-10 | Mock review turn where iteration 2 reverses iteration 1's architectural choice. | Engine emits warning `unresolved-oscillation`. Automated refinement halts. | Pass if warning logged and oscillation flagged in findings record. |
 | **AT-06** | FR-11 | Execute run with `--refine-cap 1` on candidate with unresolved blocker/high finding. | Process exits with code 1. Human output prints `WARNING: [FLOW-CAP-REACHED]`. | Pass if exit code 1 and machine state is `capped_with_findings`. |
-| **AT-07** | FR-13, FR-14 | Inspect synthesized spec and accompanying `.review.md` matrix. | Matrix lists all candidate requirements. Synthesized spec has `[Adopted: ...]`, `[Adapted: ...]`, or `[Synthesizer-Novel: ...]` tags. | Pass if all sections have provenance tags and matrix exists. |
+| **AT-07** | FR-13, FR-14 | Inspect the synthesized spec and the matrix `reconciliation-report` record. | Matrix lists all candidate requirements. Synthesized spec has `[Adopted: ...]`, `[Adapted: ...]`, or `[Synthesizer-Novel: ...]` tags. | Pass if all sections have provenance tags and matrix exists. |
 | **AT-08** | FR-15 | Synthesize candidates where Candidate A dropped Requirement 3 from the brief. | Synthesis verification rejects the omission. Synthesis re-integrates Requirement 3. | Pass if final synthesis contains all brief requirements. |
 | **AT-09** | FR-16, FR-18 | Run `aw research flow new` with contradictory evidence. | Reconciliation report contains `## Contradictions and Discrepancies` detailing both sides. | Pass if conflicting claims are preserved with citations. |
 | **AT-10** | FR-19, FR-20 | Finalize multi-model synthesized spec and inspect metadata. | Filename matches `YYYYMMDD-<set>-01-<id6>-<slug>.spec.md`. Status is `to-review`. Review attestation is absent. | Pass if status is `to-review` and `aw specs check` succeeds. |
 | **AT-11** | FR-21 | Execute `aw specs flow finalize <run-id6> --apply`. | Output terminal displays `aw specs check .aw/records/specs/to-review/...` followed by `/spec-review .aw/records/specs/to-review/...`. | Pass if handoff commands are printed verbatim with valid spec file path. |
-| **AT-12** | FR-22 | Check location of generated candidates during flow run. | Files exist under `.aw/records/specs/draft/intermediate/<setid>/`. No candidates exist in top-level `draft/`. Review records exist under `.aw/records/reviews/`. | Pass if candidate specs are staged under `intermediate/<setid>/` and reviews under `reviews/`. |
-| **AT-13** | FR-23, FR-24 | Run `aw attention` while a spec flow has unmerged candidates in `draft/intermediate/`. | Board displays Set under `## ready` (or `## active`), and footer prints `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/`. | Pass if board and footer surface pending intermediate work. |
-| **AT-14** | FR-26 | Execute `aw specs flow new --brief valid.md --prepare-only --apply`. | Renders prompt files under `.aw/records/prompts/pending/` and prints execution bounds. Exits 0 without launching agent sessions. | Pass if prompts are written and zero agent turns are dispatched. |
+| **AT-12** | FR-22 | List new files after a three-participant spec run. | Every new intermediate file is a research-tree record of kind `research-prompt`, `source-draft`, `assessment`, or `reconciliation-report`, or lies in the brief companion. The only new file under `.aw/records/specs/` is the final spec. No new file exists under `.aw/records/reviews/` or `.aw/records/prompts/`. `aw specs check` and `aw research index --check` both exit 0. | Pass if the file census matches and both checks exit 0. |
+| **AT-13** | FR-23, FR-24 | Run `aw attention --agent` after `prepare`, during refinement, after a cap halt, and after finalize. | The brief's class is `ready`, `active`, `active`, `done` in that order. After the cap halt the human output prints the FR-24 footer line naming the run. The matrix record has an empty body until finalize. | Pass if the four classes and the footer line are observed. |
+| **AT-14** | FR-26 | Execute `aw specs flow new --brief valid.md --prepare-only --apply`. | Writes the brief record and the rendered prompts in its companion and prints execution bounds. Exits 0 without launching agent sessions. | Pass if prompts are written and zero agent turns are dispatched. |
 | **AT-15** | FR-11, Sec 4.3.1 | Simulate a workflow exceeding `--budget 10`. | Dispatches halt precisely when turn count reaches 10. Ledger is checkpointed with `budget_exhausted`. Exits 1. | Pass if turn count ceiling is strictly enforced. |
 | **AT-16** | FR-18C | Run `aw research flow new` and inspect output reports. | Every factual statement carries an `as_of` date tag. Unverified statements are classified under `## Unverified Claims`. | Pass if taxonomy tags and temporal anchors exist. |
 | **AT-17** | FR-27 | Mock participant turn emitting output without `<!-- end-of-artifact -->`. | Engine flags output as `truncated`, triggers isolated retry, and does not forward draft to review. | Pass if truncation detected and retried. |
@@ -1305,7 +1102,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-25** | FR-35 | Execute `aw specs flow from-spec <spec-id6> --objective "Add caching" --apply`. | Engine captures existing spec baseline, mints successor spec with `- Supersedes: <spec-id6>`, generates revisions across roster, and synthesizes successor design. | Pass if successor spec is created with valid `- Supersedes:` link. |
 | **AT-26** | FR-36 | Pass brief containing delimiter string `<<<SYNTH-DATA-deadbeef12345678>>>>`. | Prompt compiler detects delimiter collision and refuses dispatch with exit code 2. Normal inputs are safely wrapped in data delimiters. | Pass if delimiter collision is refused with exit code 2. |
 | **AT-27** | FR-20 | Execute 3-participant run where all profiles reference model `google/gemini-3.8-flash`. | Synthesis executes, but finalize leaves spec with status `draft` in `.aw/records/specs/draft/` with `auto_advance: not-multi-model` because all candidates originated from the same model ID. | Pass if single-model multi-candidate run remains in `draft`. |
-| **AT-28** | FR-18B | Execute `aw research flow new --question "Benchmarking" --apply`. | Independent reports stage directly in flat hot root `.aw/records/research/`, reconciled report is generated, and finalized document moves to `reference/<YYYYMM-Www>/`. No `todo/` or `active/` subdirectories are created. | Pass if research stages in flat hot root and finalizes to weekly reference shard. |
+| **AT-28** | FR-18B | Execute `aw research flow new --question "Benchmarking" --apply`. | Independent reports stage directly in flat hot root `.aw/records/research/`, reconciled report is generated, and finalized document moves to `reference/<YYYYMM>/`. No `todo/` or `active/` subdirectories are created. | Pass if research stages in flat hot root and finalizes to monthly reference shard. |
 | **AT-29** | FR-03, FR-03A, FR-03B | Inspect generated prompt artifact and `FLOW_RUN` ledger. | Prompt headers mandate SSH path safety, no em/en dashes, and outcome-based verification; ledger records observed token counts as integers or `null`/`unknown` without fabricated cost estimates. | Pass if prompt injection invariants and honest token telemetry are verified. |
 | **AT-30** | FR-05, FR-25 | Inspect rendered generation prompt filename and front matter. | Filename matches `YYYYMMDD-<setid>-01-<id6>-gen.<ace>.<model>.prompt.md` adhering to D177 type-last grammar with dot-free model token and matching front matter. | Pass if prompt filename conforms to D177 and template renders deterministically. |
 | **AT-31** | FR-08 | Simulate a network timeout retry during candidate refinement turn followed by successful revision. | Transient retry attempt triggers without incrementing the refinement iteration counter; iteration counter increments by exactly 1 only upon full review-and-revision cycle completion. | Pass if transient failure retries do not inflate iteration counter. |
@@ -1315,18 +1112,18 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-35** | FR-33, Sec 8.3 | Simulate hanging runner worker exceeding `--turn-timeout 600`. | Engine issues SIGTERM, waits 3-second grace period, issues SIGKILL, logs timeout diagnostic in run ledger, and triggers isolated retry up to `--max-retries`. | Pass if timeout terminates hung process and isolates retry attempt. |
 | **AT-36** | FR-11, FR-20 | Execute `aw specs flow finalize` on a flow run capped with unresolved blocker/high findings without vs with `--allow-unresolved-findings`. | Without flag, finalization refuses with exit code 1 (`blocked/findings`). With flag, spec is finalized to `specs/draft/` with status `draft` (exit 1), documenting unresolved findings in workflow history, and refusing promotion to `to-review/`. | Pass if unearned promotion to `to-review/` is prevented and draft placement succeeds with flag. |
 | **AT-37** | Sec 6.3 | Simulate artifact generation in a Set where two-digit NN sequence reaches 99. | Workflow engine halts unconditionally, logs diagnostic, and refuses further dispatch with exit code 1 (`refusal: two-digit NN sequence space exhausted`). | Pass if NN space exhaustion is refused cleanly without overwriting existing files. |
-| **AT-38** | Table 3.4, FR-26 | Execute `aw research flow prepare --question "..." --slug "..." --set "..." --apply`. | Freezes baseline commit, renders Stage 1 investigation prompts to `.aw/records/prompts/pending/`, displays execution bounds, and exits 0 without launching model sessions. | Pass if research prompt artifacts are staged and zero agent turns are dispatched. |
+| **AT-38** | Table 3.4, FR-26 | Execute `aw research flow prepare --question "..." --slug "..." --set "..." --apply`. | Freezes baseline commit, writes the brief record and Stage 1 prompts in its companion, displays execution bounds, and exits 0 without launching model sessions. | Pass if research prompt artifacts are staged and zero agent turns are dispatched. |
 | **AT-39** | FR-11, Sec 4.3.1 | Resume a flow run halted by `--budget 10` or synthesis cap using `aw specs flow resume <run-id6> --budget 20 --synth-refine-cap 3 --apply`. | Engine loads checkpointed state, consumes increased turn budget and cap, and resumes synthesis refinement without re-running completed generation or candidate refinement turns. | Pass if resume adopts updated limits and resumes execution. |
 | **AT-40** | FR-33, Table 3.4 | Execute `aw specs flow cancel <run-id6>` on an inactive or already finalized flow run. | Process outputs error indicating run is not active and exits with code 1. | Pass if cancelling inactive/finalized run exits 1. |
 | **AT-41** | Table 3.4, Sec 5.1 | Execute `aw specs flow config show` and `aw specs flow config set-roster --roster "preferred-three"`. | `show` displays resolved 4-tier configuration hierarchy; `set-roster` updates user `flow-preferences.json` without modifying `runner-profiles.json`. | Pass if config resolves accurately and mutations isolate strictly to `flow-preferences.json`. |
-| **AT-42** | Table 3.4, FR-18B | Execute `aw research flow finalize` or `aw research flow reconcile` with unverified citations without vs with `--allow-unverified`. | Without flag, command halts with exit 1 (`blocked/unverified`). With flag, moves report to `reference/<YYYYMM-Www>/` and indexes catalog. | Pass if unverified claims are blocked by default and flag permits override. |
-| **AT-43** | FR-06, FR-18B | Execute `aw research flow new --question "Benchmarking" --roster "gem" --mode quick --apply`. | Single-participant research run bypasses reconciliation and finalizes to `reference/<YYYYMM-Www>/` as kind `research-report` (preserving single-model attribution), never as `reconciliation-report`. | Pass if single-participant research is cataloged as `research-report` without consensus fabrication. |
+| **AT-42** | Table 3.4, FR-18B | Execute `aw research flow finalize` or `aw research flow reconcile` with unverified citations without vs with `--allow-unverified`. | Without flag, command halts with exit 1 (`blocked/unverified`). With flag, moves report to `reference/<YYYYMM>/` and indexes catalog. | Pass if unverified claims are blocked by default and flag permits override. |
+| **AT-43** | FR-06, FR-18B | Execute `aw research flow new --question "Benchmarking" --roster "gem" --mode quick --apply`. | Single-participant research run bypasses reconciliation and finalizes to `reference/<YYYYMM>/` as kind `research-report` (preserving single-model attribution), never as `reconciliation-report`. | Pass if single-participant research is cataloged as `research-report` without consensus fabrication. |
 | **AT-44** | FR-34, Sec 4.3.1 | Trace turn counts during a two-pass hierarchical synthesis run under FR-34. | Stage 3 executes 1 matrix compilation turn followed by M modular section drafting turns (M <= 3), staying within overall ceiling bounds. | Pass if hierarchical synthesis dispatches are bounded and tracked in run ledger. |
-| **AT-45** | FR-05, FR-26, Sec 6.3 | Inspect line 1 of rendered prompt artifact in `.aw/records/prompts/pending/`. | Line 1 starts with `<!-- aw-prompt:` and contains valid `Kind`, `Id`, `Set`, `Status`, `Created`, `Author`; `prompts_index._parse_metadata_comment()` succeeds and `check.prompt-metadata-missing` produces zero findings. | Pass if prompt metadata comment is valid and recognized by check engine. |
+| **AT-45** | FR-05, FR-26, Sec 6.3 | After `prepare`, recompute the SHA-256 of each file in `<C>/prompts/`. | Each digest equals the digest recorded in `<C>/run.json`, and `aw attention` lists no new prompt-tree item. | Pass if all digests match and no prompt record was created. |
 | **AT-46** | FR-18B, Sec 6.3 | Validate candidate and reconciled research report frontmatter using `research_contract.validate_frontmatter()`. | Reports use `---` delimiter block, `order: NN`, `topic: [...]`, `outcome: none-yet|informational|adopted|rejected`, and `consumed-by: []`; `validate_frontmatter()` returns zero errors. | Pass if frontmatter passes research_contract validation without errors. |
 | **AT-47** | Table 3.4, FR-20, FR-33 | Execute `aw specs flow finalize <setid> --apply` and `aw specs flow cancel <setid> --apply` using `<setid>` selector. | Engine queries run ledger, resolves latest active/completed run for `<setid>`, and executes finalization or cancellation without requiring internal `flow-run-id6`. | Pass if setid selector resolves and executes cleanly. |
 | **AT-48** | Table 3.4, FR-26, Sec 5.1 | Execute `aw specs flow prepare --brief valid.md --mode quick --apply`. | Engine resolves quick-mode roster (`quick-solo`) and displays quick-mode bounds (3 turns) instead of thorough defaults. | Pass if `--mode quick` is honored during prompt preparation. |
-| **AT-49** | FR-07, Sec 6.3 | Parse generated critique `.review.md` using `review_findings.parse_review_text()`. | Document parses with zero diagnostics; `FINDING_COLUMNS` match, and `SEVERITIES` (`blocker`, `high`, `medium`, `low`) and `DECISIONS` (`fixed`, `deferred`, `open`, `replan`) normalize without errors. | Pass if review parser produces zero diagnostics and recognizes all findings. |
+| **AT-49** | FR-07, Sec 6.3 | Parse every `### Findings` table in a generated `assessment` record with the `review_findings` row parser. | Zero row diagnostics (`REV-P001`..`REV-P003`); `FINDING_COLUMNS` match, and `SEVERITIES` (`blocker`, `high`, `medium`, `low`) and `DECISIONS` (`fixed`, `deferred`, `open`, `replan`) normalize without errors. | Pass if review parser produces zero diagnostics and recognizes all findings. |
 | **AT-50** | Table 3.4 | Execute `aw specs flow status <setid>` and `aw research flow status <setid>` using `<setid>` selector. | Engine queries run ledger, resolves latest run for `<setid>`, and displays status without requiring internal `flow-run-id6`. | Pass if status resolves via setid selector. |
 | **AT-51** | Table 3.4 | Execute `aw research flow reconcile <setid> --title "My Title" --slug "my-slug" --apply`. | Synthesized research report uses specified title and slug for output artifact. | Pass if title and slug options are honored during research reconciliation. |
 | **AT-52** | FR-11, Sec 7.3 | Simulate flow reaching `--refine-cap 1` with unresolved blocker/high finding. | Workflow engine halts execution, checkpoints state `capped_with_findings`, exits with code 1 without automatically transitioning to synthesis, and allows resume or force merge. | Pass if cap halts with exit 1 and does not prematurely dispatch synthesis. |
@@ -1335,17 +1132,25 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-55** | FR-07, Sec 13 | Verify all diagnostic and review outputs across specification and research flow stages against `review_findings.SEVERITIES`. | All findings use closed vocabularies (`blocker`, `high`, `medium`, `low`); zero `REV-P002` diagnostics occur; `critical` and `major` terms are rejected. | Pass if emitted review records strictly conform to closed severity vocabulary. |
 | **AT-56** | FR-11, Sec 7.1, Sec 7.2 | Trace execution of candidate refinement when `--refine-cap 1` is reached with an unresolved blocker/high finding. | Workflow engine halts at refinement cap, checkpoints `capped_with_findings` state, and exits with code 1 without dispatching synthesis or writing final spec. | Pass if flowchart cap halt branches execute deterministically. |
 | **AT-57** | FR-34, Sec 4.3.1 | Trace turn counts during a two-pass hierarchical synthesis run with M section drafting turns under FR-34. | Closed mathematical formula calculates `Max_Turns` using `(1 + M_synth_sections) * (1 + Max_Retries)`, remaining bounded by `--budget 40`. | Pass if hierarchical synthesis dispatches are bounded and tracked in run ledger. |
-| **AT-58** | FR-18B, Sec 6.3 | Finalize candidate or reconciled research report to `reference/<YYYYMM-Www>/` and validate front matter using `research_contract.validate_frontmatter()`. | Finalized report front matter transitions to `status: reference` and `outcome: informational` (or `adopted`), passing validation with zero errors. | Pass if finalized research report in weekly shard carries status reference. |
-| **AT-59** | Table 3.4, FR-20, FR-26 | Execute `aw specs flow prepare` and `aw research flow prepare` with omitted `--slug` and `--set`, and `finalize` with `--title` and `--slug`. | `prepare` derives slug from title/brief and defaults set to `specflow`; `finalize` updates title and slug on destination spec/report. | Pass if prepare arguments are optional and finalize honors title/slug overrides. |
-| **AT-60** | Sec 11 Phase 1, research-models.toml | Verify `agent_workflows/data/research-models.toml` normalizations map dotted keys `"gemini-3.8-flash"` and `"gemini-3.8-flash-high"`. | `normalize_model("gemini-3.8-flash")` and `normalize_model("gemini-3.8-flash-high")` resolve to `gemini38flash` and `gemini38flashhigh` respectively with `ok=True, recognized=True`. | Pass if dotted Gemini 3.8 Flash model strings normalize without warnings. |
+| **AT-58** | FR-18B, Sec 6.3 | Finalize candidate or reconciled research report to `reference/<YYYYMM>/` and validate front matter using `research_contract.validate_frontmatter()`. | Finalized report front matter transitions to `status: reference` and `outcome: informational` (or `adopted`), passing validation with zero errors. | Pass if finalized research report in monthly shard carries status reference. |
+| **AT-59** | Table 3.4, FR-20, FR-26 | Execute `aw specs flow prepare` and `aw research flow prepare` with omitted `--slug` and `--set`, and `finalize` with `--title` and `--slug`. | `prepare` derives the slug from the title or brief and the setid from the slug (at most 14 characters); `finalize` updates title and slug on destination spec/report. | Pass if prepare arguments are optional and finalize honors title/slug overrides. |
+| **AT-60** | Sec 6.3, FR-25 | Run preview with a slot whose `filename_model` is `gemini-3.8-flash` and another whose token is unregistered. | Both are refused with exit 2 before any record is written: the first as malformed (dots), the second naming `aw research add-model`. A registered token passes. | Pass if both refusals occur and no file is written. |
 | **AT-61** | FR-11, Sec 4.3.1, Sec 7.3 | Simulate workflow dispatch exceeding turn budget ceiling (`--budget 10`). | Process halts dispatch precisely at budget ceiling, checkpoints state `budget_exhausted` (exit 1), enters state `BudgetExhausted` in State Diagram 7.3, and permits resuming with increased `--budget`. | Pass if budget ceiling triggers exit 1 and State Diagram 7.3 BudgetExhausted state is reached. |
 | **AT-62** | FR-30, Table 3.4, Sec 7.3 | Simulate participant worker failure in multi-model run and resume with `aw specs flow resume <run-id6> --allow-partial-roster --apply`. | Workflow engine loads checkpointed state and proceeds to synthesis with surviving valid candidates without requiring all initial participants to be present. | Pass if resume with --allow-partial-roster succeeds. |
-| **AT-63** | FR-05, FR-18A, FR-18B, Table 6.2 | Execute `aw research flow prepare --question "..."` with `--investigation-mode decomposed` and stage reconcile prompts. | Decomposed investigation prompts match `gen-<subtopic>.<ace>.<model>.prompt.md` and reconciliation prompts match `reconcile.<ace>.<model>.prompt.md` in `.aw/records/prompts/pending/`. | Pass if decomposed and reconcile prompt filenames conform to Table 6.2. |
-| **AT-64** | FR-18B, Table 6.2, Sec 6.4 | Trace full artifact lifecycle of 3-participant research flow from generation through reconciliation and finalization. | Reports stage in flat hot root `.aw/records/research/`, reconciled report is generated, and finalized report moves to `reference/<YYYYMM-Www>/` with `status: reference` and `outcome: informational`. | Pass if research artifacts follow exact lifecycle staging and sharded reference promotion. |
+| **AT-63** | FR-05, FR-18A, FR-18B, Table 6.2 | Execute `aw research flow prepare --question "..."` with `--investigation-mode decomposed` and stage reconcile prompts. | Decomposed mode writes one rendered prompt per sub-question in `<C>/prompts/`, and `<C>/run.json` lists the sub-question of each slot. | Pass if each slot has a distinct sub-question and the planned report names carry `-<subq>` slug suffixes per Table 6.2. |
+| **AT-64** | FR-18B, Table 6.2, Sec 6.4 | Trace full artifact lifecycle of 3-participant research flow from generation through reconciliation and finalization. | Reports stage in flat hot root `.aw/records/research/`, reconciled report is generated, and finalized report moves to `reference/<YYYYMM>/` with `status: reference` and `outcome: informational`. | Pass if research artifacts follow exact lifecycle staging and sharded reference promotion. |
 | **AT-65** | FR-30, Sec 7.1, Sec 7.2 | Trace execution of Flowchart 7.1 and 7.2 when a worker permanently fails during generation or refinement with vs without `--allow-partial-roster`. | With flag, flow proceeds to synthesis/reconciliation with surviving valid candidates; without flag, halts with exit 1 in state `partial`. | Pass if partial roster decision diamond routes to synthesis or partial halt exit 1. |
-| **AT-66** | FR-11, FR-18B, Sec 7.2 | Trace research refinement and reconciliation loops in Flowchart 7.2 when cap is reached with blocker/high findings with vs without `--allow-unresolved-findings`. | Without flag, halts with exit 1 in state `capped_with_findings`; with flag, finalizes report into weekly reference shard with exit 1 documenting unresolved issues. | Pass if research cap decision diamonds route to reference placement with exit 1. |
-| **AT-67** | FR-07, Table 6.1, Table 6.2, Sec 6.1 | Inspect ERD 6.1 entities, Table 6.1 persistence rows, and Table 6.2 matrix rows for `REVIEW_RECORD` and synthesis/reconciliation refinement artifacts. | `REVIEW_RECORD` documents link to `FLOW_RUN` and critique entities; Table 6.2 lists `synth-iter1`, `synth-i1`, `reconcile-iter1`, and `reconcile-i1` rows. | Pass if review record entity and refinement artifact rows are fully cataloged. |
+| **AT-66** | FR-11, FR-18B, Sec 7.2 | Trace research refinement and reconciliation loops in Flowchart 7.2 when cap is reached with blocker/high findings with vs without `--allow-unresolved-findings`. | Without flag, halts with exit 1 in state `capped_with_findings`; with flag, finalizes report into monthly reference shard with exit 1 documenting unresolved issues. | Pass if research cap decision diamonds route to reference placement with exit 1. |
+| **AT-67** | FR-07, Table 6.1, Table 6.2, Sec 6.1 | Inspect ERD 6.1 entities, Table 6.1 persistence rows, and Table 6.2 matrix rows for `REVIEW_RECORD` and synthesis/reconciliation refinement artifacts. | Every ERD entity has a row in Table 6.1 and every Table 6.2 artifact maps to one ERD entity. | Pass if the mapping is total in both directions. |
 | **AT-68** | Table 3.4, FR-26, Sec 4.3.1 | Execute `aw specs flow prepare --brief valid.md --refine-cap 5 --budget 50` and `aw specs flow merge <setid> --mode quick`. | `prepare` calculates and prints turn bounds using custom limits (40 turns); `merge --mode quick` defaults `--synth-refine-cap` to 0. | Pass if custom limits are reflected in prepare bounds calculation and merge quick mode defaults cap to 0. |
+| **AT-69** | Sec 3.5 | Run `aw specs flow new --brief b.md` (preview) with no CLI options, then run the printed explicit command in preview. | Both previews print identical resolved argument sets and identical planned record lists. | Pass if the two resolved argument sets are byte-identical. |
+| **AT-70** | Sec 3.5, FR-32 | Configure a roster and a profile both named `gem`, then pass `--roster gem`. | Refusal with exit 2 naming the ambiguity; no record written. | Pass if exit 2 and no file is written. |
+| **AT-71** | Sec 6.3 | Start a second run on a set that has a live run. | Refusal with exit 2 `set '<setid>' has a live flow run`. | Pass if exit 2 and the live run is untouched. |
+| **AT-72** | Sec 6.3 | Preview a run on a set whose next free order plus the computed worst case exceeds 99. | Refusal with exit 2 before any record is written. | Pass if exit 2 and no file is written. |
+| **AT-73** | Sec 6.3 | Run two refinement iterations on one candidate. | The candidate keeps its id6, NN, and filename; `revision` is 2; `<C>/revisions/<id6>.r1.md` holds the prior body. | Pass if identity is unchanged and the snapshot exists. |
+| **AT-74** | FR-37 | Run a roster whose `agy` slot requests variant `high`. | Preview reports `variant-not-applied` for that slot; the record stores `requested-variant: high` and `applied-variant: none`. | Pass if both are observed. |
+| **AT-75** | FR-28 | Validate every `result` and `summary` record emitted in AT-03, AT-06, AT-15, AT-20, and AT-36 with `agent_schema.validate_agent_record`. | Zero errors; run states appear only in `state`. | Pass if zero validation errors. |
+| **AT-76** | FR-33 | Cancel a run, then run `aw research find --set <setid>`. | Every record of the run has status `archive` and the matrix record has a body. | Pass if all records are archived with bodies written. |
 
 ---
 
@@ -1358,13 +1163,16 @@ Every functional requirement is mapped to an observable behavioral acceptance te
   - *Mitigation*: Mandatory coverage verification check (FR-15) and structured Similarities/Differences Matrix (FR-13).
 - **Risk 3: Model Hallucination in Research Citations**: LLMs frequently invent URLs or paper citations.
   - *Mitigation*: Citation verification pass requiring local repository verification or validated web links; unverified claims are segregated into an `Unverified Claims` appendix.
-- **Risk 4: Work Lost to Time in Subdirectories**: Intermediate candidates staged in `draft/intermediate/<setid>/` could be overlooked if the workflow pauses.
-  - *Mitigation*: Mandatory Set pipeline position rollup in `aw attention` (`aw todo`) and persistent footer reminder banner (FR-23, FR-24).
+- **Risk 4: Work Lost to Time**: A halted run could be overlooked.
+  - *Mitigation*: The set stays `active` on `aw attention` until finalize or cancel (FR-23), and a local footer line names each halted run (FR-24).
+- **Risk 5: Candidates Far From the Spec**: A spec's candidates live in the research tree.
+  - *Mitigation*: Shared setid (`aw find --set`), and the final spec's `- From-Research-Set:` and `## Synthesis provenance`.
 
 ### 10.2 Alternatives Rejected
 - **Rejected Alternative 1: Flat Direct Placement in `draft/`**: Placing all candidate files directly in `.aw/records/specs/draft/`. Rejected because 3 models x 2 iterations floods the directory with 6-10 files per feature, causing severe clutter and confusing which file is the active draft.
-- **Rejected Alternative 2: Dedicated Top-Level `candidates/` Lifecycle Tree**: Creating `.aw/records/candidates/`. Rejected as unnecessary schema proliferation; candidate specs are transient stages leading to a spec and belong inside `draft/intermediate/<setid>/`.
-- **Rejected Alternative 3: Placing `.review.md` Files in `specs/draft/intermediate/`**: Rejected because `aw specs check` scans all `*.md` files under `specs/` and fails with `attention.missing-status` when encountering review records lacking a `- Status:` bullet. Review files belong in `.aw/records/reviews/`.
+- **Rejected Alternative 2: Dedicated Top-Level `candidates/` Lifecycle Tree**: Rejected as unnecessary schema proliferation (Section 3.3).
+- **Rejected Alternative 3: Spec Subtree Staging (`specs/draft/intermediate/<setid>/`) with `.review.md` Findings**: Adopted in iterations 1 to 21 of this candidate; replaced in iteration 22 by maintainer ruling DL-16 because it needs scanner exceptions in `specs.py` and `attention.py`, a new review subject type (`REV-M102` today), and a bespoke attention rollup (Section 3.3).
+- **Rejected Alternative 5: Rendered Prompts as Prompt-Tree Records**: Rejected because `_PROMPTS_MAP` classifies each as `ready` work, and 10 to 50 per run would flood the board and consume set orders.
 - **Rejected Alternative 4: Free-Form Prose Review Feedback**: Allowing models to critique in arbitrary paragraph prose. Rejected because automated convergence checking and oscillation detection require structured finding records (`F-01..F-NN`).
 
 ### 10.3 Assumptions
@@ -1372,19 +1180,23 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - The repository root remains accessible and tracked via standard git mechanisms.
 
 ### 10.4 Decision Log
-- **Decision 01 (Setid Length)**: The Setid for spec and research flows MUST NOT exceed 14 characters, adhering strictly to catalog invariant I-17. Recommended Set: `specflow`.
-- **Decision 02 (Sol Slot Runner Binding)**: OpenCode (`oc`) is selected as the default runner for the GPT-6.1 Sol Medium slot in Phase 1 due to native variant flag support and absence of a standalone Codex runner profile row. Confirmed by operator instruction.
+- **Decision 01 (Setid)**: One setid per run, defaulted from the slug; above 24 characters refused and above 14 warned (`config.validate_setid_length_for_authoring`). No shared default setid.
+- **Decision 02 (Sol Slot Runner Binding)**: OpenCode (`oc`) is selected as the default runner for the GPT-6.1 Sol Medium slot in Phase 1 due to native variant flag support and absence of a standalone Codex runner profile row. Accepted by the maintainer for Phase 1 (sibling candidate `yfz5u9` Section 5, "Choosing OpenCode over Codex for the Sol slot").
 - **Decision 03 (Decision D177 Naming Grammar)**: Attributed intermediate filenames strictly adhere to Decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), with the type facet as the final component before `.md`.
-- **Decision 04 (Subdirectory Staging with Set Rollup)**: Intermediate candidate specs stage in `.aw/records/specs/draft/intermediate/<setid>/`. The daily attention view (`aw attention` / `aw todo`) surfaces the Set as a single rollup row under `## ready` / `## active` and prints a persistent footer reminder banner until synthesis finalizes.
-- **Decision 05 (Review Tree Placement for Matrices & Critiques)**: All `.review.md` artifacts stage in `.aw/records/reviews/` to preserve tree-facet alignment and prevent `aw specs check` from failing on review headers.
-- **Decision 06 (Context Window Payload Ceilings)**: Gemini 3.8 Flash High is budgeted at 25,000 characters per prompt turn with modular chunking preference; Opus and Sol are budgeted at 80,000 characters with single-pass preference.
+- **Decision 04 (Superseded in iteration 22 by Decision 12)**: Spec subtree staging is withdrawn.
+- **Decision 05 (Superseded in iteration 22 by Decision 12)**: Findings and matrices are research records, not `.review.md` records.
+- **Decision 06 (Prompt Size Budgets)**: Operator-configured prompt-size budgets of 25,000 characters (Gemini slot, modular chunking) and 80,000 characters (Opus and Sol slots, single pass). These reflect the maintainer's observation that Gemini 3.8 Flash High does better with smaller tasks; they are not provider context limits.
 - **Decision 07 (Reviewer Session Isolation and Topology)**: Candidate refinement review turns execute in fresh, isolated worker sessions with zero prior conversation memory. Reviewer assignment defaults to `cross-peer` for multi-model rosters and `self-adversarial` in an isolated session for single-model rosters.
-- **Decision 08 (Run Ledger Resolution via project_records_dir())**: Flow execution ledgers reside at `.aw/records/runs/flow-<run-id6>.json` to ensure compatibility with companion and home directory record placements.
+- **Decision 08 (Run Ledger Resolution via project_records_dir())**: Flow execution ledgers reside at `project_records_dir() / "runs" / flow-<run-id6>.json`. That directory is gitignored (`.aw/.gitignore`), so the durable copy of run state is `<C>/run.json`, written at every stage boundary.
 - **Decision 09 (Resume Input Mutation Refusal)**: Resuming a flow requires an unmutated input brief hash and git commit SHA against `FROZEN_BASELINE`, preventing silent mixing of stale candidate drafts with altered requirements.
 - **Decision 10 (Graceful Cancellation and Subprocess Cleanup Invariant)**: When an active flow is interrupted (via SIGINT/SIGTERM) or cancelled (via `aw specs flow cancel` or `aw research flow cancel`), the engine guarantees immediate, non-orphaned termination of all spawned child runner processes (`oc`/`agy`) and checkpoints the run ledger with status `interrupted` or `cancelled`. This prevents unmonitored background token consumption and ensures clean, reproducible state recovery.
 - **Decision 11 (Multi-Model Auto-Advance Ruling DL-17)**: Automatic advancement of a finalized spec to status `to-review` is restricted strictly to multi-model syntheses (at least two distinct requested model identifiers among the merged candidates). Single-participant runs, single-model runs, or single-survivor runs finalize with status `draft` in `.aw/records/specs/draft/` and output `Next: aw specs set to-review <id6>`, requiring human maintainer promotion. Confirmed by maintainer ruling 2026-10-25.
-- **Decision 12 (Research Tree Candidate Staging Alternative DL-16)**: Maintainer ruling DL-16 (OQ-1) confirms that candidate drafts and assessments may reside in the research tree (as `source-draft` and `assessment`), avoiding spec contract and validator collisions without custom subdirectory exclusion logic in `specs.py`.
+- **Decision 12 (Research Tree Staging, maintainer ruling DL-16)**: Every intermediate artifact is a research-tree record of an existing kind (`research-prompt`, `source-draft`, `research-report`, `assessment`, `reconciliation-report`) or a companion file of the run brief. Ruled by the maintainer (OQ-1, 2026-10-25) and confirmed for this candidate in iteration 22.
+- **Decision 14 (Revision in Place)**: A refinement revision keeps the record's id6, NN, and filename and increments `revision`; only a regeneration mints a new record with `supersedes:`. This bounds NN use and keeps durable references stable.
 - **Decision 13 (Prompt Data Fencing and Injection Defense)**: All untrusted brief texts, candidate drafts, and external materials interpolated into prompt templates must be encapsulated in random per-run delimiter fences (`<<<SYNTH-DATA-...>>>`) with explicit non-executable data instructions, guarding reviewer and synthesizer sessions against prompt injection attacks.
+
+### 10.5 Open Questions
+- **OQ-I22-1 (nonblocking)**: How is Gemini 3.8 Flash High selected on `agy`? The `agy` driver accepts only `--model`. Options: (a) a distinct model id that selects high effort, if the provider offers one (token `gemini38flashhigh`); (b) default effort only (token `gemini38flash`, preview reports `variant-not-applied`); (c) add variant support to the `agy` driver first. Recommendation: (b) for Phase 1, and (a) once a model id is verified with `aw host capabilities antigravity` and a probe dispatch. This spec's examples use (b).
 
 ---
 
@@ -1401,11 +1213,10 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - Add CLI subcommands in `agent_workflows/cli.py`, `specs.py` (specs flow), and `research_cmd.py` (research flow):
   - `aw specs flow [new|prepare|from-spec|merge|status|resume|cancel|finalize|config]`
   - `aw research flow [new|prepare|reconcile|finalize|status|resume|cancel|config]`
-- Extend `agent_workflows/attention.py` to support spec flow Set rollups and `TODO:` footer banners for `draft/intermediate/<setid>/`.
-- Extend `review_findings.SUBJECT_TYPES` and `check_engine._review_subject_id_sets` to support research review critiques with subject type `"research"` resolving against `resolve_research_root(repo_root)`.
-- Register canonical model tokens in `agent_workflows/data/research-models.toml`: add `opus55`, `opus55high`, `gpt61`, `gpt61sol`, `gpt61solmedium` to `models` and their comprehensive alias mappings to `[normalizations]` (`claude-opus-5-5-high = "opus55high"`, `claude-opus-5-5 = "opus55"`, `opus-5-5-high = "opus55high"`, `opus55-high = "opus55high"`, `"gpt-6.1-sol-medium" = "gpt61solmedium"`, `"gpt-6.1" = "gpt61"`, `"claude-opus-5.5" = "opus55"`, `gpt-6-1-sol-medium = "gpt61solmedium"`, `gpt61-sol-medium = "gpt61solmedium"`, `gpt61sol-medium = "gpt61solmedium"`, `gpt-6.1-sol = "gpt61sol"`, `"gemini-3.8-flash" = "gemini38flash"`, `"gemini-3.8-flash-high" = "gemini38flashhigh"` -- noting that keys containing dots must be quoted string keys in TOML syntax) to ensure D177 filename validation and model token normalization succeed without warnings.
+- Extend `agent_workflows/attention.py` only with the FR-24 halted-run footer line (read-only use of the run ledger). No new tree or class mapping.
+- Extend `research_contract.parse_name`, `format_name`, and `ResearchName` with the optional `<ace>` facet, and add `--ace` to `aw research new` (Section 6.2).
+- Model tokens: `opus55high` and `gpt61solmedium` are already registered in the repository layer `.aw/config/research-models.toml`; `gemini38flash` and `gemini38flashhigh` are in the package default. Phase 1 adds `opus55high` and `gpt61solmedium` to the package default `agent_workflows/data/research-models.toml` so other repositories recognize the starter roster (sibling candidate `yfz5u9` OQ-8). Normalization keys MUST be dot-free, because `normalize_model` rejects a dotted token before consulting the table.
 - Coordinate with metastore spec `4sd62s`: ensure iterative refinement turns log `op: review` events with `kind: refinement` and reference review records via `review_ref` in the subject event log.
-- Enforce prompt metadata comment emission (`<!-- aw-prompt: ... -->`) across all rendered prompt artifacts to pass `check.prompt-metadata-missing`.
 - Unit and integration tests in `tests/test_specflow_*.py`.
 
 ### Phase 2: Autonomous Codex Runner and Large Document Chunking
@@ -1421,7 +1232,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 ## 12. Source Inventory, Self-Check, and Worked Transcripts
 
 ### 12.1 Source Inventory
-- Inspected repository baseline commits: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (initial), `182161e5d3d8c850647facd730055891bdd748a5` (refinement iteration 10 baseline), `47bd8f9e94ac369121fdd93a51596f629a841ae6` (refinement iteration 11 baseline), `6936316fdee618d4b0566fa3c0aee99fe13984a0` (refinement iteration 12 baseline), `517a22a58db03d4638fa4ff60068f1d021b211c6` (refinement iteration 13 baseline), `00260f4b84c17abf14dd8112738284cec37165d1` (refinement iteration 14 baseline), `e12f81ac1f251eb3fa774e50bb2be7ee9ea8df42` (refinement iteration 18 baseline), `61fce3bfd53a53c431889ebf3a452973a166928e` (refinement iteration 19 baseline), `ca24f93bccd2f0b0e54ff8349ec515e9f7f218e6` (refinement iteration 20 baseline), `f10f8f3cd50567f123f81df697efc05128038933` (refinement iteration 21 baseline)
+- Inspected repository baseline commits: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (initial), `182161e5d3d8c850647facd730055891bdd748a5` (refinement iteration 10 baseline), `47bd8f9e94ac369121fdd93a51596f629a841ae6` (refinement iteration 11 baseline), `6936316fdee618d4b0566fa3c0aee99fe13984a0` (refinement iteration 12 baseline), `517a22a58db03d4638fa4ff60068f1d021b211c6` (refinement iteration 13 baseline), `00260f4b84c17abf14dd8112738284cec37165d1` (refinement iteration 14 baseline), `e12f81ac1f251eb3fa774e50bb2be7ee9ea8df42` (refinement iteration 18 baseline), `61fce3bfd53a53c431889ebf3a452973a166928e` (refinement iteration 19 baseline), `ca24f93bccd2f0b0e54ff8349ec515e9f7f218e6` (refinement iteration 20 baseline), `f10f8f3cd50567f123f81df697efc05128038933` (refinement iteration 21 baseline), `41e6f96f7` (refinement iteration 22 baseline; this file unchanged since `59f6d3137`)
 - Primary files cited:
   - `DECISIONS.md` (Decision D177: Attributed artifact filenames; maintainer rulings DL-16 and DL-17)
   - `agent_workflows/cli.py` (CLI parser and subcommand registration)
@@ -1439,20 +1250,23 @@ Every functional requirement is mapped to an observable behavioral acceptance te
   - `agent_workflows/project_context.py` (Project roots, records placement resolution)
   - `docs/cli-output-contract.md` (Audience modes, `aw.agent/v1` protocol, exit codes)
   - `.aw/records/specs/README.md` (Spec lifecycle states, directory layout, review handoff)
-  - `.aw/records/reviews/README.md` (Review records structure and validation gates)
+  - `agent_workflows/research_index.py` (`derive_pipeline_positions`, `_scan_docs` companion skip)
+  - `agent_workflows/agent_schema.py` (`VALID_OUTCOMES`, `validate_agent_record`)
+  - `agent_workflows/artifact_core.py` (`mint_id6`, `shard_for_date` monthly shards)
+  - `agent_workflows/config.py` (`validate_setid_length_for_authoring`)
 
 ### 12.2 Self-Check of Spec Completeness
 - [x] Summary, problem, actors, goals, non-goals, and first-release boundary clearly defined.
 - [x] Repository findings table with accurate, revision-pinned citations.
 - [x] Three CLI families evaluated; canonical grammar justified with command matrix.
-- [x] Three intermediate placement architectures evaluated; recommended Solution 1 justified with DL-16 alternative noted.
-- [x] Stable functional requirements (`FR-01`..`FR-36`) with observable pass/fail conditions.
+- [x] Intermediate placement decided by maintainer ruling DL-16 (research tree), with rejected alternatives recorded.
+- [x] Stable functional requirements (`FR-01`..`FR-37`) with observable pass/fail conditions.
 - [x] Closed mathematical formulas proving finite work bounds (Section 4.3.1) for both spec and research flows.
 - [x] Schema for configuration and participant roster provided with model context ceilings.
 - [x] Mandatory Mermaid diagrams: ERD, Spec Flow, Research Flow, State/Recovery Flow.
 - [x] Persistence classification table accompanying ERD.
-- [x] Worked filename inventories for 3-participant chunked, 1-participant quick, and resumed runs adhering to D177 and DL-17.
-- [x] Acceptance test matrix (`AT-01`..`AT-68`).
+- [x] Worked filename inventories for 3-participant chunked, 1-participant quick, resumed, and research runs, recomputed for the research-tree placement.
+- [x] Acceptance test matrix (`AT-01`..`AT-76`).
 - [x] Zero em or en dashes throughout the document.
 - [x] Zero file URI schemes and zero absolute home directory paths.
 
@@ -1463,106 +1277,70 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 ### 13.1 Worked Transcript: Single-Participant Quick Spec Run
 
 ```text
-$ aw specs flow new --brief .aw/records/prompts/pending/auth-brief.prompt.md --roster "gem" --mode quick --apply
+$ aw specs flow new --brief auth-brief.md --slug token-auth --roster gem --mode quick --apply
 
-[FLOW-INIT] Starting specification flow (run id: qk91a2, set: specflow)
-[FLOW-INIT] Baseline git commit: 6f430cefd88a (clean)
-[FLOW-ROSTER] Resolved 1 participant:
-  - Slot 'gem': Antigravity (model: google/gemini-3.8-flash, variant: high)
-[FLOW-STAGE-1] Dispatching independent candidate generation...
-  - Dispatching to agy [google/gemini-3.8-flash] -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-qk91c1-cand.agy.gemini38flashhigh.spec.md
-  - agy completed in 14.2s (18,410 chars)
-[FLOW-STAGE-2] Executing Quick Mode quality review pass (iteration 1/1)...
-  - Critique recorded -> .aw/records/reviews/20261024-specflow-11-qk91r1-iter1.agy.gemini38flashhigh.review.md
-  - Review finding: F-01 (low, clarity): Clarify token expiration edge case in Section 4.2
-  - Quick refinement revision applied -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-12-qk91c2-cand-i2.agy.gemini38flashhigh.spec.md
-[FLOW-STAGE-3] Single-participant run: bypassing multi-candidate synthesis matrix.
-[FLOW-FINAL] Candidate finalized:
-  - Destination: .aw/records/specs/draft/20261024-specflow-01-qk91f1-auth-brief.spec.md
-  - Lifecycle Status: draft (single-model run; auto-advance to to-review requires multi-model synthesis per DL-17)
-  - Discovered Findings: 0 blocker, 0 high, 1 low (resolved)
-  - Intermediate candidates in draft/intermediate/specflow/ transitioned to synthesized.
-[FLOW-HANDOFF] Next action for human maintainer:
-  aw specs set to-review 20261024-specflow-01-qk91f1-auth-brief.spec.md
-
+[FLOW-INIT] run qk91a2, set tokenauth (derived from slug), baseline 6f430cefd88a (clean)
+[FLOW-ROSTER] 1 participant: slot 'gem' agy, model from profile, token gemini38flash
+  - variant-not-applied: slot 'gem' requested variant 'high'; agy accepts --model only
+[FLOW-BRIEF] .aw/records/research/20261024-tokenauth-00-q1a001-token-auth-brief.research-prompt.md
+[FLOW-STAGE-1] candidate -> .aw/records/research/20261024-tokenauth-01-q1c001-token-auth.agy.gemini38flash.source-draft.md
+[FLOW-STAGE-2] self-adversarial review (fresh session), iteration 1/1
+  - assessment -> .aw/records/research/20261024-tokenauth-02-q1r001-token-auth-review.agy.gemini38flash.assessment.md
+  - F-01 (low): clarify token expiry edge case; revision applied in place (revision 2)
+[FLOW-STAGE-3] single participant: synthesis skipped
+[FLOW-FINAL] .aw/records/specs/draft/20261024-tokenauth-03-q1f001-token-auth.spec.md (status draft, auto_advance not-multi-model)
+  - research records q1a001, q1c001, q1r001 promoted to .aw/records/research/reference/202610/
+Next  aw specs set to-review q1f001
 Exit code: 0
 ```
 
 ### 13.2 Worked Transcript: Configured Multi-Model Thorough Spec Run
 
 ```text
-$ aw specs flow new --brief .aw/records/prompts/pending/storage-v2.prompt.md --mode thorough --apply
+$ aw specs flow new --brief storage-v2.md --slug storage-v2 --mode thorough --apply
 
-[FLOW-INIT] Starting specification flow (run id: th48x1, set: specflow)
-[FLOW-INIT] Baseline git commit: 6f430cefd88a (clean)
-[FLOW-ROSTER] Resolved 3 participants from preferred roster:
-  - Slot 'opus': OpenCode (model: anthropic/claude-opus-5-5, variant: high)
-  - Slot 'gemini': Antigravity (model: google/gemini-3.8-flash, variant: high)
-  - Slot 'sol': OpenCode (model: openai/gpt-6.1, variant: medium)
-[FLOW-STAGE-1] Dispatching parallel independent candidate generation (3 workers)...
-  [worker-1] OpenCode (opus) completed in 42.1s -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-th48c1-cand.opencode.opus55high.spec.md
-  [worker-2] Antigravity (gemini) completed in 18.4s -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md
-  [worker-3] OpenCode (sol) completed in 31.0s -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md
-[FLOW-STAGE-2] Iterative candidate refinement (cap: 3 iterations)...
-  - Iteration 1:
-    - Candidate 1 (opus): 1 high finding fixed. Converged.
-    - Candidate 2 (gemini): 2 low findings fixed. Converged.
-    - Candidate 3 (sol): 1 high finding fixed. Converged.
-  - Review records written to .aw/records/reviews/.
-[FLOW-STAGE-3] Cross-candidate synthesis & matrix compilation...
-  - Synthesizer: OpenCode (opus)
-  - Similarities & Differences Matrix compiled:
-    - Consensus items: 14 requirements
-    - Divergent architectures: 2 (cache invalidation protocol, schema migration)
-    - Minority contribution adopted: Sol's lockless ring buffer design
-  - Matrix saved -> .aw/records/reviews/20261024-specflow-50-th48m1-matrix.reconciliation.review.md
-  - Initial synthesis emitted -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-80-th48s1-synth-i0.reconciliation.spec.md
-[FLOW-STAGE-4] Synthesis refinement (iteration 1/2)...
-  - Review pass: 0 blocker, 0 high findings.
-  - Coverage verification: 100% of brief requirements preserved.
-[FLOW-FINAL] Final candidate specification ready:
-  - Spec: .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md
-  - Status: to-review
-  - Intermediate candidates in draft/intermediate/specflow/ transitioned to synthesized.
-[FLOW-HANDOFF] Next action:
-  /spec-review .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md
-
+[FLOW-INIT] run th48x1, set storage-v2, baseline 6f430cefd88a (clean)
+[FLOW-ROSTER] preferred-three: opus (oc, opus55high), gemini (agy, gemini38flash, variant-not-applied), sol (oc, gpt61solmedium)
+[FLOW-BRIEF] 00 th48a1 brief (research-prompt)
+[FLOW-STAGE-1] 01 th48c1 opencode.opus55high, 02 th48c2 agy.gemini38flash, 03 th48c3 opencode.gpt61solmedium (source-draft)
+[FLOW-STAGE-2] cross-peer review, cap 3
+  - iteration 1: opus 1 high fixed; gemini 2 low; sol 1 high fixed. All converged.
+  - assessments 04 th48r1, 05 th48r2, 06 th48r3
+[FLOW-STAGE-3] synthesizer opus
+  - matrix 07 th48m1 (reconciliation-report, body held in companion until finalize)
+  - consensus 14, divergent 2, minority adopted: sol lockless ring buffer [Adopted: th48c3]
+  - synthesis draft 08 th48s1 (source-draft, reconciliation)
+[FLOW-STAGE-4] synthesis review 09 th48r4 by gemini: 0 blocker, 0 high. Coverage: every brief requirement traced.
+[FLOW-FINAL] .aw/records/specs/to-review/20261024-storage-v2-10-th48f1-storage-v2.spec.md (status to-review)
+  - research records 00 to 09 promoted to reference/202610/; matrix body written
+Next  aw specs check .aw/records/specs/to-review/20261024-storage-v2-10-th48f1-storage-v2.spec.md
+Next  /spec-review .aw/records/specs/to-review/20261024-storage-v2-10-th48f1-storage-v2.spec.md
 Exit code: 0
 ```
 
-### 13.3 Worked Transcript: Interrupted or Capped Run with Attention Board Surfacing
+### 13.3 Worked Transcript: Capped Run, Attention, and Resume
 
 ```text
-$ aw specs flow new --brief network-mesh.prompt.md --refine-cap 1 --apply
+$ aw specs flow new --brief storage-v2.md --slug storage-v2 --set storv2 --refine-cap 1 --apply
 
-[FLOW-INIT] Starting specification flow (run id: cp73m9, set: specflow)
-[FLOW-STAGE-1] Independent candidates generated (3 candidates in draft/intermediate/specflow/).
-[FLOW-STAGE-2] Candidate refinement iteration 1 reached refine-cap!
-  - Candidate 2 (gemini) has 1 UNRESOLVED HIGH FINDING:
-    - F-02 (high, security): Missing replay attack protection in packet header.
-WARNING: [FLOW-CAP-REACHED] Refinement cap reached with unresolved high findings.
-State checkpointed to run ledger: cp73m9 (status: capped_with_findings).
-Artifacts preserved in .aw/records/specs/draft/intermediate/specflow/.
+[FLOW-INIT] run cp73m9, set storv2
+[FLOW-STAGE-1] 3 candidate records published (01 to 03)
+[FLOW-STAGE-2] refine cap 1 reached
+  - candidate 02 c1c002 (gemini) has 1 unresolved high finding: F-02 (security) missing replay protection
+WARNING: [FLOW-CAP-REACHED] state capped_with_findings; records left active
 Exit code: 1
 
-$ aw attention --tree specs
-
-## ready (12)
-- [specs] specflow: 3 candidate(s) in draft/intermediate/ (awaiting synthesis) [next: aw specs flow resume cp73m9]
-- [specs] .aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md (approved)
+$ aw attention
+## active
+- [research] .aw/records/research/20261024-storv2-00-c1a001-storage-v2-brief.research-prompt.md (partial)
 ...
-Checkup 2 commits ago: CI PASSING; spec pointers: 0 stale
-TODO: Spec flow 'specflow' has 3 candidates waiting in draft/intermediate/. Run 'aw specs flow resume cp73m9 --apply' to proceed.
+Halted flow run cp73m9 (set 'storv2', state capped_with_findings): next 'aw specs flow resume cp73m9 --apply'
 
 $ aw specs flow resume cp73m9 --refine-cap 2 --apply
-
-[FLOW-RESUME] Resuming workflow run cp73m9 from checkpoint...
-[FLOW-RESUME] Loaded 3 completed candidates from draft/intermediate/specflow/. Skipping Stage 1.
-[FLOW-STAGE-2] Resuming refinement (iteration 2/2)...
-  - Candidate 2 (gemini): Resolved F-02 (replay attack protection added).
-  - All candidates converged.
-[FLOW-STAGE-3] Synthesis executed -> .aw/records/specs/to-review/20261024-specflow-01-cp73f2-network-mesh.spec.md
-[FLOW-FINAL] Completed cleanly.
+[FLOW-RESUME] baseline, brief digest, and roster digest unchanged; stage 1 reused
+[FLOW-STAGE-2] iteration 2/2: candidate 02 revised in place (revision 2), F-02 fixed
+[FLOW-STAGE-3] matrix 07, synthesis draft 08, synthesis review 09
+[FLOW-FINAL] .aw/records/specs/to-review/20261024-storv2-10-c1f001-storage-v2.spec.md
 Exit code: 0
 ```
 
@@ -1572,9 +1350,11 @@ When invoked with `--agent`, output is emitted as strictly structured JSONL reco
 
 ```json
 {"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"baseline","commit":"6f430cefd88a","dirty":false}
-{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"opus","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-th48c1-cand.opencode.opus55high.spec.md"}
-{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"gemini","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md"}
-{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"sol","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md"}
-{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"synthesis","artifact":".aw/records/reviews/20261024-specflow-50-th48m1-matrix.reconciliation.review.md"}
-{"schema":"aw.agent/v1","kind":"summary","cmd":"specs flow new","exit":0,"outcome":"clean","verified":true,"complete":true,"total":5,"emitted":5,"omitted":0,"target":".aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md","findings":0,"evidence":["brief-coverage","matrix-reconciliation"],"next":"aw specs check .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md"}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"opus","artifact":".aw/records/research/20261024-storage-v2-01-th48c1-storage-v2.opencode.opus55high.source-draft.md"}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"gemini","artifact":".aw/records/research/20261024-storage-v2-02-th48c2-storage-v2.agy.gemini38flash.source-draft.md","warnings":["variant-not-applied"]}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"sol","artifact":".aw/records/research/20261024-storage-v2-03-th48c3-storage-v2.opencode.gpt61solmedium.source-draft.md"}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"synthesis","artifact":".aw/records/research/20261024-storage-v2-07-th48m1-storage-v2-matrix.reconciliation.reconciliation-report.md"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"specs flow new","exit":0,"outcome":"clean","state":"finalized","verified":true,"complete":true,"total":5,"emitted":5,"omitted":0,"target":".aw/records/specs/to-review/20261024-storage-v2-10-th48f1-storage-v2.spec.md","auto_advance":"multi-model","findings":0,"next":"aw specs check .aw/records/specs/to-review/20261024-storage-v2-10-th48f1-storage-v2.spec.md"}
 ```
+
+A capped run ends with `{"kind":"summary","exit":1,"outcome":"findings","state":"capped_with_findings","complete":false,...}`. A refusal ends with a `result` record carrying `exit: 2` and `outcome: "cannot-run"`.
