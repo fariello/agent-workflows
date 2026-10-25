@@ -9,7 +9,7 @@
 - Status: reviewed
 - Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: e13950f897e1e2c23545cfbf7dc4231949e554e4147278a18284410d369135c8
+- Coverage-Fingerprint: a14722251660e3b80158de981c3dbb070ca761c7f6889bd5dee1a084f94d71b8
 - Coverage-Checked: 2026-10-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
@@ -22,6 +22,8 @@
 - Id: tiwj2o
 
 ## Workflow history
+- 2026-10-25 coverage pass (aw oc run): fingerprint a14722251660, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Order 01 `3bwrfx` now depends on `executed:gv3smb` (3bwrfx review round 1, PR-004); child-table row, ordering note and E-01 edge updated to match.
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261024-revsteps-00-tiwj2o-build-stage-1-of-the-runner-driven-tiered-plan-review-and-ru.review.md
 - 2026-10-25 coverage pass (aw oc run): fingerprint e13950f897e1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -41,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 1: Children
 
 - [ ] E-01 CONFIRM 3bwrfx REACHED executed
-  - Depends on: none
+  - Depends on: E-02
   - Expected outcome: `aw find plans 3bwrfx` shows it under `executed/`.
   - Execution state: pending
 
@@ -69,13 +71,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
-| 01 | `3bwrfx` | `20261024-revsteps-01-3bwrfx-split-plan-review-into-step-files-with-a-section-map-round-l.ipd.md` | Step files for every check, `/plan-review` as a checklist, old-to-new section map, round layout in the reviews README, five-level recommendation strength in `/askme` (spec 4.2, 4.3, 7.1, 17.3, 17.4). | none |
+| 01 | `3bwrfx` | `20261024-revsteps-01-3bwrfx-split-plan-review-into-step-files-with-a-section-map-round-l.ipd.md` | Step files for every check, `/plan-review` as a checklist, old-to-new section map, round layout in the reviews README, five-level recommendation strength in `/askme` (spec 4.2, 4.3, 7.1, 17.3, 17.4). | `executed:gv3smb` |
 | 02 | `gv3smb` | `20261024-revsteps-02-gv3smb-add-the-review-depth-field-pre-pass-tier-facts-and-run-state.ipd.md` | `- Review-Depth:` field, pre-pass tier facts, `AW-TIER:` and tier-answer parsers, run-state recorder, `review_tier` analytics field (spec 4.1 item 4, 5.2, 7.2). | none |
 | 04 | `uiyoax` | `20261024-revsteps-04-uiyoax-drive-a-plan-review-as-a-tiered-sequence-of-prompts-in-one-s.ipd.md` | Opt-in `--review-mode steps` on both hosts: pre-pass, per-tier prompt lists and `review_variant`, postconditions and re-ask, structural preservation, verdict-output guard, outcomes, sessions, per-step recording, resume, children-before-orchestrator review ordering, `25kzda` amendments (spec 4 to 7, 9, 17.1). | `executed:3bwrfx`, `executed:gv3smb` |
 | 05 | `is2xiv` | `20261024-revsteps-05-is2xiv-add-the-aw-review-re-review-marker-runner-triggers-and-the-b.ipd.md` | Stage 1 part of Order 05: `AW-REVIEW` marker, runner triggers, the two-pass loop and its `no-go` limit rule (spec 8). | `executed:uiyoax` |
 | 09 | `kk62qt` | `20261024-revsteps-09-kk62qt-run-the-review-pilot-against-the-current-plan-review-and-rec.ipd.md` | Attended pilot: 9 fixture plans, 84 reviews, 252 blind judge runs, the MD-20 gate decision, the `complex` default, and a Stage 2 backlog item when the gate says build (spec 13, AC-17). | `executed:uiyoax`, `executed:is2xiv` |
 
-Orders 01 and 02 have no prerequisite and may run in either order. Order 04 depends on both. Order 05 depends on 04. Order 09 depends on 04 and 05 and is `Attended: required`: a run at a terminal opens an interactive session for it when its turn comes, while an `--unattended` run holds it `not-run` for zero tokens (`runner_shared.hold_attended_plan`), so this orchestrator cannot retire in an unattended run until Order 09 has been run attended. Orders 03, 06, 07 and 08 and the Section 9.4 part of Order 05 are Stage 2 (spec MD-20) and are deliberately absent from this table.
+Order 02 has no prerequisite. Order 01 depends on 02, because its `s7-finalize.md` writes `- Review-Depth:`, a field Order 02 registers (without it a reviewed plan fails `aw ipd lint` with `IPD-M103`). Order 04 depends on both. Order 05 depends on 04. Order 09 depends on 04 and 05 and is `Attended: required`: a run at a terminal opens an interactive session for it when its turn comes, while an `--unattended` run holds it `not-run` for zero tokens (`runner_shared.hold_attended_plan`), so this orchestrator cannot retire in an unattended run until Order 09 has been run attended. Orders 03, 06, 07 and 08 and the Section 9.4 part of Order 05 are Stage 2 (spec MD-20) and are deliberately absent from this table.
 
 ## Completion criteria (the whole Set is done only when)
 
