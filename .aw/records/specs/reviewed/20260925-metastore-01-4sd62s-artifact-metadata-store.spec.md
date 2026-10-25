@@ -67,7 +67,7 @@ The table below shows measured values. The values were measured at these points:
 |---|---|---|
 | (authoring) | Authoring, 2026-09-25 | `83b14a5f` |
 | [round 1] | Review round 1, 2026-09-25 | `44df26b3` |
-| round 2 | Review round 2, 2026-10-24, about 7,950 commits after round 1 | `46ab9fdbf` |
+| round 2 | Review round 2, 2026-10-24, about 7,950 commits after the earlier measurements (the original text does not name the reference commit) | `46ab9fdbf` |
 | (no label) | Review round 5, 2026-10-24 (full re-measurement) | `e12f81ac1` |
 | r6 | Review round 6 (spot check) | `61fce3bfd` |
 | r7 | Review round 7 (spot check) | `2edf1f3ac` |
@@ -106,7 +106,7 @@ Problems that result:
   the full history. The task almost never needs the history.
 - P5 Query cost. `aw find`, `aw attention` and `aw ipd board` read all records on each call. The
   worst duplicate reads were removed after round 1 (backlog `59t9x5`, Set `findonce`; backlog `8cpbia`,
-  plan `jpn6hy`; both `done`). So P5 now comes from the full read itself, and that cost grows with the
+  plan `jpn6hy`; both closed, the backlog items as `done` and the plan as `executed`). So P5 now comes from the full read itself, and that cost grows with the
   corpus. AC-13 measures this cost. This spec does not state a value for it.
 
 ## 2. Evidence and options considered
@@ -209,7 +209,7 @@ into the plan's validation evidence.
 
 | ID | Covers | Criterion | Evidence that satisfies it |
 |---|---|---|---|
-| AC-1 | C1, C5 | No module outside `artifact_meta` reads or writes front matter, bullet metadata, `## Workflow history` or `meta/*.jsonl`. | (1) A pasted `rg` search of `agent_workflows/` for the legacy bullet and heading patterns and for `records/meta`. It finds matches ONLY in `artifact_meta.py` and `migrations/m0001_metadata_v2.py`. Body-prose bullets that N3 keeps in Markdown (for example the `Carrier`, `Carrier-Evidence` and `Carrier-Declined` bullets in plan open-question rows) The `rg` command excludes them with an explicit pattern that the evidence lists. (2) A behavioral test that creates a test repository and shows that the result of a metadata command changes only through `artifact_meta`. The test must not read source code (the repository's no-code-pinning rule). |
+| AC-1 | C1, C5 | No module outside `artifact_meta` reads or writes front matter, bullet metadata, `## Workflow history` or `meta/*.jsonl`. | (1) A pasted `rg` search of `agent_workflows/` for the legacy bullet and heading patterns and for `records/meta`. It finds matches ONLY in `artifact_meta.py` and `migrations/m0001_metadata_v2.py`. Body-prose bullets that N3 keeps in Markdown (for example the `Carrier`, `Carrier-Evidence` and `Carrier-Declined` bullets in plan open-question rows) are not counted: the `rg` command excludes them with an explicit pattern that the evidence lists, never silently. (2) A behavioral test that creates a test repository and shows that the result of a metadata command changes only through `artifact_meta`. The test must not read source code (the repository's no-code-pinning rule). |
 | AC-1a | C5a | The cache serves every metadata read, and only the loader opens a log. | From the cutover commit: (1) A test builds the cache. It then counts every open of a `meta/*.jsonl` file during `aw find`, `aw attention --format json`, `aw show <id6> --history`, a status setter, `aw check meta` and one pre-commit gate (for example with an `open` audit hook in a subprocess). It asserts that the output does not change and that the loader made every open. (2) A test edits a log without `artifact_meta`, as a `git pull` does, and asserts that the next read shows the edited log. Both pasted. In phase B, the same tests run against the legacy loader and the artifact `.md` files (3c). |
 | AC-1b | C10a | `main` uses one format and passes its tests at every commit of the Set. | For each merge of a child plan, the pasted core-tier summary line. For the end of each phase and for the cutover commit, the pasted thorough-tier summary line. For the cutover commit, a pasted check that no migrated record still has a bullet block, and that no `meta/` directory existed before that commit. |
 | AC-2 | C2 | A `git clone --depth 1` contains the full state and history. | Clone into a temporary directory. Run `aw show <id6> --history` on a migrated plan that has several events. Paste the output. |
@@ -241,7 +241,7 @@ into the plan's validation evidence.
 
 ## 3c. Honest limits
 
-- The size counts in section 6 come from one inventory pass. The implementing plan must measure
+- The size counts in sections 1 and 6 come from one inventory pass. The implementing plan must measure
   them again.
 - Two lanes that change the SAME artifact still conflict at the end of its log. This is expected to
   be rare, because each lane owns different plans. The toolkit reports the conflict and does not
@@ -397,9 +397,10 @@ K4. How each event is matched to its review file (`review_ref`):
      front matter. (There are 18 such records at round 5, 19 at round 6 and 21 at round 7. All are
      `specflow` refinement records for `18hh1u`.)
    - When several review files use the subject's `id6`, each file uses its date prefix or its
-     clustered filename stem as `review_ref`, in its front matter (`ref: <stem>`) and in its events.
-     Example: `20260930-reqids-02` and `20261007-reqids-02`. For example, it applies to the 4 historical pairs of
-     gate re-reviews for `rtvdak`, `e25iy9`, `l4vw9o` and `urv602`, from 2026-09-30 and 2026-10-07.
+     clustered filename stem (for example `20260930-reqids-02` and `20261007-reqids-02`) as
+     `review_ref`, in its front matter (`ref: <stem>`) and in its events. This case applies to the 4
+     historical pairs of gate re-reviews for `rtvdak`, `e25iy9`, `l4vw9o` and `urv602`, from
+     2026-09-30 and 2026-10-07.
    - A review file that is the only file for its subject, and that uses the subject's `id6`, has no
      `review_ref`.
    - No record is renamed.
@@ -872,7 +873,7 @@ column for each registry field of that type, generated from the registry.
 | `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at` and `tool_version`. A mismatch in `schema_hash` or `records_root` causes a rebuild. |
 | `directories` | `path` PK, `mtime_ns` | Shows whether a directory changed (4.3 check 1). |
 | `files` | `path` PK, `file_role` (`log`, `artifact` or `review`), `id6`, `size`, `mtime_ns`, `blob_sha`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
-| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `date`, `created_at`, `updated_at`, `last_seq`, `valid`, `defect` | One row for each lifecycle record, with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the event with the highest `seq` (`attention_contract.last_history_at`). A row with `valid = 0` is never returned as state, and `defect` states why. |
+| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `date`, `created_at`, `updated_at`, `last_seq`, `valid`, `defect` | One row for each artifact, with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the event with the highest `seq` (`attention_contract.last_history_at`). A row with `valid = 0` is never returned as state, and `defect` states why. |
 | `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `readiness`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_exceeded`, `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the filename type facet (4.5c). |
 | `scope_paths` | (`id6`, `ordinal`) PK, `path` | The values of the multi-value field `scope-paths`. |
 | `dependencies` | (`dependent_id6`, `ordinal`) PK, `condition` (`executed`, `exists` or `state`), `target_type`, `required_status`, `target_raw`, `target_id6` | The parsed `Item-Dependencies` (4.2). An index on `target_id6` answers "which artifacts wait for X" with one lookup. |
@@ -1341,7 +1342,7 @@ flowchart TD
     Q -- "no (--force overrides only an unmerged lane or a missing sidecar)" --> R["refuse, write nothing"]
     Q -- yes --> W["run steps 2 to 6 in a SCRATCH COPY"]
     W --> S2["2: export the history.jsonl sidecar and add its records to the logs"]
-    S2 --> S3["3: mint id6 for lifecycle records with none; reviews excluded"]
+    S2 --> S3["3: mint id6 for non-review records with none"]
     S3 --> S4["4: per artifact: checkpoint seq 0 with local date and mapped field names, parsed dependencies, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
     S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review_kind, legacy verdict verbatim, review_ref"]
     S4r --> S4a["4a: terminal directories migrated too, under a journaled marker the executed-plan hook accepts"]
@@ -1434,7 +1435,8 @@ flowchart TD
    records. So the preflight must report whether the sidecar exists and how many records it holds.
    It must refuse, unless `--force` is given, when a sidecar is expected but not present. After this
    step, the migration retires the sidecar writer (4.8) and deletes the sidecar's `.gitignore` line.
-3. NEW IDS. Give an `id6` to each LIFECYCLE record that has none in any form. At round 5 there were 39
+3. NEW IDS. Give an `id6` to each non-review record that has none in any form (the same population
+   as the "39 non-review records" count in section 1). At round 5 there were 39
    such records, not counting 24 READMEs, 4 prompt-library templates and 2 research templates. These
    include 14 legacy specs in `implemented/` and `superseded/`, 8 walkthroughs, 7 comms messages, 3
    companion data files (`s1..s3.md`), and `plans/STATUS.md`, which step 5 deletes instead. Review
@@ -1461,7 +1463,9 @@ flowchart TD
    4a. TERMINAL ARTIFACTS ARE ALSO MIGRATED, AS A NAMED ONE-TIME EXCEPTION. MAINTAINER DECISION,
    2026-09-25, during spec review (finding SR-002).
    - The repository forbids new commits to an executed plan (AGENTS.md: "Do NOT add commits to a plan
-     already in `.aw/records/plans/executed/`"). The `ipd-executed-gate` pre-commit hook enforces the
+     already in `.aw/records/plans/executed/`", the wording on 2026-09-25; the current AGENTS.md
+     states the rule as "Never change what a plan already in `.aw/records/plans/executed/` RECORDS").
+     The `ipd-executed-gate` pre-commit hook enforces the
      terminal-state part of this rule. The hook is in `agent_workflows/hooks/executed_transition_gate.py`.
    - C9 (one format, no readers for two formats) does not permit terminal artifacts to stay in the old
      format. So this migration commit is the one deliberate exception. It rewrites every artifact in
@@ -1651,6 +1655,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): proofread pass 3 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request, against the pre-proofread text and the technical-artifact writing requirements: AC-1 fragment repaired (body-prose exclusion "never silently" restored); round-2 commit-count reference made explicit; P5 closure states (backlog done, plan executed); 3c inventory limit covers sections 1 and 6; K4 example sentence de-duplicated; 5.2 step 4a quotes both the 2026-09-25 and the current AGENTS.md wording of the executed-plan rule; "lifecycle record" replaced by the section 0 terms (artifact; non-review record in step 3 and diagram 4.9.6); no requirement, decision, identifier or measured value changed
 - 2026-10-25 note (aw specs): proofread pass 2 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request: full section-by-section comparison against the pre-proofread text (commit ad4e1cd98) and against the technical-artifact writing requirements; restored lost qualifiers (deterministic repair, crash case, isolated worktree, key/value parsers, round-1 bracket rule, cold-lane cost); reverted meaning drift (commit-count column, AC-13 cold OS cache, AC-17/AC-20 wording, P4, 5.2 --force scope, all writes lock, release_id6, hooks pure-append, yfz5u9 row, phase A additive); labelled 4.1a lists R1-R4 and K1-K6; one term per concept (artifact, blob sha, interface, mirror, review_kind); new section 0 terms; new OQ-12 (--force scope, non-blocking); diagram columns plan_role/branch/loaded_at added
 - 2026-10-25 note (aw specs): proofread (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request, to ASD-STE100 Part 1 writing rules (no Part 2 dictionary): body rewritten for short active sentences and one term per concept; new section 0 defines terms (replay replaces fold); measurement labels tabulated in section 1; OQ-10/OQ-11 record the round-8 maintainer decisions; review_kind used for the review event key per 4.5c; owners added to open OQ-1..OQ-3; no requirement, decision, identifier or measured value changed; front matter and history untouched
 - 2026-10-25 note (aw specs): /spec-review round 8 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-701..SR-709 FIXED (maintainer decisions D-20 index runs read-only, D-21 Kind->plan_role); new 4.5a cache schema, 4.5b run index, 4.5c naming rule; 4.3 ordered write and two-check staleness; AC-23..AC-26; diagrams redrawn; no Readiness written
