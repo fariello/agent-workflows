@@ -3,7 +3,7 @@
 - Subject-Id: 4sd62s
 - Subject-Type: spec
 - Reviewed-At: 2026-10-24
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewer: antigravity/gemini-3.8-flash
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -90,3 +90,27 @@ Re-review requested by the maintainer on 2026-10-24 (HEAD `46ab9fdbf` plus `f276
 | D-8 | Should the maintainer be asked where the cutover runs? | No; resolved from evidence. | Ask. | The sidecar's only location (`record_history.history_path`) and the runner's isolated worktrees leave exactly one place where the migration can succeed without loss; the existing preflight refusal (5.2 step 2) already encodes the maintainer's no-loss ruling. | yes |
 | D-9 | How is a multi-round file's single verdict mapped onto events? | Last round only; earlier rounds null. | Copy the verdict to every round; map rounds from git history. | 4.2a forbids invented precision; git-history mapping is possible later as an `inferred-from-git` enrichment without changing the format. | yes |
 | D-10 | Are directory-mtime shortcuts acceptable for freshness? | No. | Allow them as an optimization. | POSIX directory mtime changes on entry add/remove/rename, not on in-place content edits, so a shortcut based on it can serve a stale row, breaking C5a's log-wins guarantee. | yes |
+
+## Round 4
+
+Re-review requested by the maintainer on 2026-10-24. Structural preflight `aw specs check` was clean before and after the edits. Every measured claim was re-derived; findings SR-301..SR-308 all FIXED from repository evidence without requiring maintainer questions.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-301 | high | UNDER-SCOPE | D (decisions) / B (testable) / F (compatibility) | Spec 4.1a (point 4), 4.6 (Review rounds row), AC-14; 4 multi-review subjects (`rtvdak`, `e25iy9`, `l4vw9o`, `urv602`) sharing subject id6 | Round 3's attribution rule assumed that only refinement reviews with differing id6s share a subject. In fact, 4 historical subjects each have 2 review files (from 2026-09-30 and 2026-10-07) where both files share the subject id6. Under the round-3 rule, neither file has a differing id6 so both emit events with no `review_ref`, causing `aw check meta` to fail on round counts for all 4 subjects across the migrated corpus. | C:Low;U:Low;S:Low;F:Medium;Overall:Low | fixed | 4.1a point 4, 4.6, and AC-14 updated: `review_ref` disambiguates ANY multi-review subject. When id6 differs (17 specflow files), `review_ref` is that id6; when multiple files share the subject id6, `review_ref` is the distinct date/stem prefix (e.g. `20260930-reqids-02` vs `20261007-reqids-02`). Single-file subjects omit `review_ref`. Zero files renamed. |
+| SR-302 | medium | IN-SCOPE | C (coverage) / B (testable) | AC-14 table text vs 4.1a (point 4) and 4.6 | AC-14 stated that "the file's round count equals the subject's review-event count", which fails for any subject with multiple review files (such as 18hh1u with 17 files, or the 4 re-review pairs). | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | AC-14 updated to "the file's round count equals the subject's review-event count attributed to that file". |
+| SR-303 | medium | IN-SCOPE | D (decisions) / G (plannable) | Spec 4.1 "Artifact file shape" vs 4.1a (point 2) and 5.2 (step 4) | Review records have no `id` or `status`, yet Section 4.1 and 5.2 step 4 specified "two-key front matter and banner" without defining the review banner template. An agent reading a standard banner pointing to `meta/<id>.jsonl` would seek a non-existent review log. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | 4.1/4.1a updated with the review banner template: `<!-- aw-managed: review metadata lives in .aw/records/meta/<subject>.jsonl; use aw show <subject>; agents read .aw/AGENT_QUICKSTART.md -->`. |
+| SR-304 | medium | IN-SCOPE | B (testable) / D (decisions) / G (plannable) | Spec 4.2 "Event schema (v1)" vs 4.1a and 4.4 | 4.2 enumerated top-level event keys but omitted the payload fields for `op: review` (`round`, `verdict`, `kind`, `review_ref`, `findings_summary`, `legacy_verdict`, `readiness`) and `op: coverage` (`coverage`, `coverage_fingerprint`, `coverage_checked`), leaving schema validation underspecified. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | 4.2 Event schema (v1) updated with explicit field listings for `op: review` and `op: coverage`. |
+| SR-305 | low | IN-SCOPE | A (current measurements) / G | `.aw/records/history.jsonl` (413 records); `git ls-files .aw/records/*.md` (4381); reviews (1275); `v1.3.0-rc.1..HEAD` (12,135) | Sidecar count grew from 408 to 413 (specs 77 -> 82), tracked records from 4374 to 4381, reviews from 1273 to 1275, commits from 12,133 to 12,135. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Section 1, 2, 3c, 5.2 step 2, and Section 7 updated with fresh counts. |
+| SR-306 | low | IN-SCOPE | A (current measurements) | Section 1 (line 32) and 4.1a (point 5, line 290) verdict census | The 28 off-vocabulary verdicts were misstated as containing 9 `MATERIAL CHANGES APPLIED` and a "template placeholder". Re-measured: 13 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Corrected census breakdown in Section 1 and 4.1a point 5. |
+| SR-307 | low | IN-SCOPE | F (compatibility) / D (decisions) | Spec 4.5 "SQLite cache: .aw/state/index.db" table listings | Cache table schemas listed `events(id6, seq, ...)` and `files(path, size, mtime_ns, blob_sha)` without worktree keys, risking cross-worktree collisions when multiple runner lanes share one common cache. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | 4.5 updated to key `files` and `events` by `worktree`. |
+| SR-308 | low | IN-SCOPE | F (compatibility) / G (plannable) | Spec Section 9; backlog item `tg80ht` (spec-to-plan bridge) | Backlog `tg80ht` bridges approved specs to runner dispatch and IPD Set authoring, directly citing `4sd62s`. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Section 9 updated to reference `tg80ht`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-11 | How are multiple review files sharing the subject id6 disambiguated in events and drift checks? | Disambiguate by distinct date/stem prefix (e.g. `20260930-reqids-02`) as `review_ref`. | Merge historical files; delete older files. | Zero file deletions or renames; preserves all 1275 historical review files; fully deterministic attribution in `aw check meta`. | yes |
+| D-12 | What banner is written to review files? | Subject-directed banner referencing `meta/<subject>.jsonl` and `aw show <subject>`. | No banner; standard banner with non-existent id. | Prevents agents from attempting to read non-existent `meta/<review_id>.jsonl` while maintaining consistent pointer guidance. | yes |

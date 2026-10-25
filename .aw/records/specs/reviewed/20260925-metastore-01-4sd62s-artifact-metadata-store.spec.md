@@ -28,11 +28,11 @@ this before 2.0.0.
 | Modules referencing `## Workflow history` | 27 [23], with four incompatible orderings (see `2vev8j` section 1) |
 | Readers that DISAGREE on the same corpus | `selectors` vs `plans_index`: 24 plans (the PARITY CONSTRAINT note in `selectors.py`, still present) |
 | Distinct pre-`##` field names in use | 68 [57]. New since round 1 include `Coverage`, `Coverage-Fingerprint`, `Coverage-Checked`, `Scope-Exceeded`, `Close-Evidence`, `Attended`, `Findings` (reviews), and from specs `Review-Depth`/`Pipeline` (see 4.2c) |
-| Tracked `.md` records under `.aw/records/` | 4374 [1969]: plans 1696, reviews 1270, backlog 1112, research 170, specs 45, prompts 36, walkthroughs 27, other 18. 2837 [1411] carry `## Workflow history`; 1528 [549] carry no `- Id:` BULLET, 1269 of which are reviews; 76 [64] non-review records carry no id6 in ANY form, of which 25 are READMEs (not records, excluded) |
-| Review records | 1273 `.review.md` [338] (re-counted at round 3; the 1270 figure above counted tracked `.md` before two more landed). 1253 have a filename id6 equal to their `Subject-Id`, by design; 20 do not: 18 from the spec-refinement pipeline of spec `18hh1u` (each with its own id6) plus 2 older records (`dcri4s`, `bbxvpq`). Subjects reviewed by more than one record file: 5 (`18hh1u` by 16, plus `urv602` and `rtvdak` with 2 each, and 2 others). Rounds per file: 1149 one, 110 two, 14 three or more. 28 carry a verdict outside `plan_readiness.VERDICTS` (see 4.1a) |
+| Tracked `.md` records under `.aw/records/` | 4381 [1969]: plans 1696, reviews 1275, backlog 1113, research 171, specs 45, prompts 36, walkthroughs 27, other 18. 2837 [1411] carry `## Workflow history`; 1528 [549] carry no `- Id:` BULLET, 1269 of which are reviews; 76 [64] non-review records carry no id6 in ANY form, of which 25 are READMEs (not records, excluded) |
+| Review records | 1275 `.review.md` [338] (re-counted at round 4). 1258 have a filename id6 equal to their `Subject-Id`, by design; 17 do not (the 17 `specflow` refinement records for `18hh1u`). Subjects reviewed by more than one record file: 5 (`18hh1u` by 17 files, plus `rtvdak`, `e25iy9`, `l4vw9o`, and `urv602` with 2 each). Rounds per file: 1150 one, 109 two, 13 three, 1 four, 1 six. 28 carry a verdict outside `plan_readiness.VERDICTS` (13 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`; see 4.1a) |
 | Terminal-directory records | 2828 [1055]: executed 1650, done 1086, superseded 59, implemented 17, not-executed 16 |
 | Generated index files | 6 gitignored `INDEX.{json,md}` [4]: plans, research, and prompts (`prompts_index.py`, new), plus committed `plans/STATUS.md`, stale since 2026-08-17 |
-| History sidecar `.aw/records/history.jsonl` (gitignored) | 408 records over 296 id6s [306 records]: backlog 309, specs 77, research 11, plans 8, walkthroughs 2, roadmaps 1 |
+| History sidecar `.aw/records/history.jsonl` (gitignored) | 413 records over 296 id6s [306 records]: backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1 |
 | INDEX churn before untracking | 14 of 328 commits in 14 days only fixed INDEX drift (backlog `ila6vl`) |
 
 Consequences:
@@ -56,7 +56,7 @@ Consequences:
 
 The maintainer asked for the optimal solution across cost, maintainability, and UX, noting adoption
 is effectively zero and nothing has shipped since 1.2.0 (`v1.3.0-rc.1..HEAD` was 4050 commits at
-authoring, 4125 at round 1, and 12,133 at round 3), so a
+authoring, 4125 at round 1, 12,133 at round 3, and 12,135 at round 4), so a
 breaking change costs the community almost nothing. `CHANGELOG.md` already carries `2.0.0 (pending)`.
 
 Storage options, evaluated against this repo's execution model (isolated git worktree per execute
@@ -144,7 +144,7 @@ Front-matter options:
 | AC-11 | C9 | An unmigrated repo is refused by every metadata-reading command with a message naming `aw migrate metadata`. | Test, pasted. |
 | AC-12 | C8 | `pyproject.toml` `dependencies` unchanged. | Pasted. |
 | AC-13 | C11 | Measured before/after: bytes per plan read by an agent, and warm/cold end-to-end `aw find` and `aw attention`. | Numbers pasted, measured per the AGENTS.md end-to-end rule. No target asserted. |
-| AC-14 | 4.1a | A review record has no log of its own; each review round is ONE `op: review` event in its SUBJECT's log, and the file's round count equals the subject's review-event count. | `rg` showing no `meta/*.jsonl` is created for a review; a test that runs a review and asserts exactly one `review` event is appended to the subject's log; `aw check meta` detecting a round-count mismatch in a fixture, pasted. |
+| AC-14 | 4.1a | A review record has no log of its own; each review round is ONE `op: review` event in its SUBJECT's log, and the file's round count equals the subject's review-event count attributed to that file. | `rg` showing no `meta/*.jsonl` is created for a review; a test that runs a review and asserts exactly one `review` event is appended to the subject's log; `aw check meta` detecting a round-count mismatch in a fixture, pasted. |
 | AC-14a | 4.1a | Review kinds are typed: a `gate` event accepts only `plan_readiness.VERDICTS`, a `refinement` event accepts only the refinement vocabulary and never carries `readiness`, and migrated legacy verdicts are preserved verbatim. | Tests: a `gate` event with a refinement verdict is refused; a `refinement` event carrying `readiness` is refused; any number of `refinement` rounds append in `seq` order; and after a migration fixture containing each of the 28 off-vocabulary verdicts, every original verdict string is recoverable byte for byte, pasted. |
 | AC-15 | 4.4 | `readiness` (plans) is refused unless the same append carries an `op: review` event of kind `gate` for that subject in the same transaction; the same coupling holds for the coverage record (`coverage`, 4.4). | A test in which a bare `set readiness=go` is refused and the same write accompanied by a gate review event succeeds; and the equivalent pair for `coverage`, pasted. |
 | AC-16 | 5.2 | The migration's one commit may rewrite terminal-directory artifacts, and ONLY the migration may; and it passes every installed gate. | The migration commit passes the executed-plan hook, `backlog_blocking_close_gate`, and the pre-push `aw attention --check --agent` gate with no `--no-verify`; a separate raw edit to an executed plan after cutover is still refused, all pasted. |
@@ -185,7 +185,7 @@ Front-matter options:
   logs. C5a's "only the loader parses a log" therefore becomes testable only from the cutover commit.
   Before it, the testable property is the same one with the artifact `.md` files in place of the
   logs: only the legacy loader parses metadata out of them (AC-1, AC-1a phase-B form).
-- The cutover depends on machine-local state. The gitignored history sidecar is the only copy of 408
+- The cutover depends on machine-local state. The gitignored history sidecar is the only copy of 413
   records, and it exists only in the maintainer's main checkout. So the cutover must run there, not
   in a runner lane worktree, where the sidecar is absent (AC-22). That makes the cutover an attended
   step by construction, not an unattended runner item.
@@ -213,7 +213,8 @@ status: approved
   renders as a large heading on GitHub, collides with the "first H1 is the title" rule in
   `ipd_schema` section-order checks, and ~80 tokens across ~2000 files is a real recurring cost. The
   comment is invisible when rendered and still read by agents. Its exact text is a template owned by
-  `artifact_meta` and checked for presence.
+  `artifact_meta` and checked for presence (for lifecycle records: pointing to `meta/<id>.jsonl` and
+  `aw show <id>`; for review records per 4.1a: `<!-- aw-managed: review metadata lives in .aw/records/meta/<subject>.jsonl; use aw show <subject>; agents read .aw/AGENT_QUICKSTART.md -->`).
 - `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md` are created by the installer (they do not exist
   today).
 - No `## Workflow history` section. `aw show <id6> --history` renders it.
@@ -277,19 +278,22 @@ iteration of that kind keep working. Therefore:
    separate closed vocabulary that the registry owns (at minimum the two `18hh1u` values). It NEVER
    carries `readiness` and never satisfies the `->reviewed` transition authority on its own. Any number
    of rounds is legal; the round number orders them, and `seq` orders everything.
-4. ANY review record whose filename id6 differs from its subject (20 at round 3: the 18 refinement
-   records plus 2 older gate records) keeps that id6 as a REFERENCE (`review_ref`) inside the
-   subject's events. It still gets no log of its own, because it remains metadata about its subject.
-   Its front matter follows point 2 above (`subject`/`subject_type`) plus `ref: <own-id6>`. No record
-   is renamed. A subject may have SEVERAL review files (5 subjects do at round 3; `18hh1u` has 16), so
-   the 4.6 round-count rule counts events per (subject, review file): it matches each file's rounds
-   to the subject's `review` events carrying that file's `review_ref` (or no ref, for a file named by
-   the subject id6). It does not compare a single file against all of the subject's events.
+4. Disambiguation across review files (`review_ref`). ANY review record whose filename id6 differs
+   from its subject (17 at round 4: the 17 `specflow` refinement records for `18hh1u`) keeps that id6
+   as a REFERENCE (`review_ref`) inside the subject's events and its front matter (`ref: <own-id6>`).
+   Where multiple review files share the subject's id6 (such as the 4 historical gate re-review pairs
+   for `rtvdak`, `e25iy9`, `l4vw9o`, `urv602` across 2026-09-30 and 2026-10-07), each file's date
+   prefix or clustered stem (e.g. `20260930-reqids-02` vs `20261007-reqids-02`) serves as `review_ref`
+   in its front matter (`ref: <stem>`) and events, so rounds are attributed unambiguously. A single
+   review file sharing its subject id6 omits `review_ref`. No record is renamed. A subject may have
+   SEVERAL review files (5 subjects do at round 4; `18hh1u` has 17), so the 4.6 round-count rule
+   counts events per (subject, review file): it matches each file's rounds to the subject's `review`
+   events carrying that file's `review_ref` (or unreferenced events for single-file subjects). It does
+   not compare a single file against all of the subject's events.
 5. Migration preserves every legacy verdict string VERBATIM in the event (`legacy_verdict`), and the
    vocabulary checks apply only to events written after the cutover. The 28 off-vocabulary verdicts
-   measured at round 3 (among them 11 `REVIEWED`, 9 `REVIEWED - MATERIAL CHANGES APPLIED`, 3 `REVIEWED -
-   NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`, and 1
-   template placeholder) are therefore kept, not mapped (inherits the legacy-import rule, 4.2a). A
+   measured at round 4 (13 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`,
+   and 1 `REVIEWED - CONVERGED WITH REVISIONS`) are therefore kept, not mapped (inherits the legacy-import rule, 4.2a). A
    legacy verdict is assigned `kind` by its writer where the record shows it (the `specflow`
    refinement files are `refinement`; the rest are `gate`), and an event carrying `legacy_verdict` is
    never consulted as a readiness or approval signal.
@@ -333,6 +337,10 @@ either spec's prose.
   - `message`: optional free text.
   - `legacy`: for `op: legacy`, the verbatim original line, observed day, original ordinal, and
     `ordering_confidence` (`known` / `inferred-from-git` / `unknown`) per 4.2a.
+  - For `op: review` (4.1a): `round` (int), `verdict` (str), `kind` (`gate` | `refinement`), `reviewer`
+    (str), optional `review_ref` (str), optional `findings_summary` (str), optional `legacy_verdict`
+    (str), optional `readiness` (str, plans only).
+  - For `op: coverage` (4.4): `coverage` (str), `coverage_fingerprint` (str), `coverage_checked` (str).
 - Current state = fold of events in `seq` order. The log carries EVERY aw-owned field (4.2c). Review
   records carry no log (4.1a). The exact per-type field registry is a table in `artifact_meta`, and
   unknown fields are refused.
@@ -541,12 +549,12 @@ carrier type", so this table is the only place the obligation is recorded, and A
   its own.
 - ROLE: the SOLE READ PATH for metadata (C5a), and never the durable record. It is filled ONLY by the
   `artifact_meta` loader (4.3).
-- Tables: `artifacts(id6, worktree, path, type, bucket, status, set, order, ...)`, `events(id6, seq,
-  ...)`, `files(path, size, mtime_ns, blob_sha)`, and `blobs(blob_sha, ...)` holding folded state for
-  staged/committed revisions read by gates (4.4). Refresh is incremental: re-read a log or artifact
-  only when size/mtime_ns change, with a blob-sha tiebreak to close the same-tick mtime gap measured
-  in backlog `8mkt5l`. The blob-sha-keyed rows are content-addressed, so they are valid in every
-  worktree and need no worktree key.
+- Tables: `artifacts(worktree, id6, path, type, bucket, status, set, order, ...)`, `events(worktree,
+  id6, seq, op, ...)`, `files(worktree, path, size, mtime_ns, blob_sha)`, and `blobs(blob_sha, ...)`
+  holding folded state for staged/committed revisions read by gates (4.4). Refresh is incremental:
+  re-read a log or artifact only when size/mtime_ns change, with a blob-sha tiebreak to close the
+  same-tick mtime gap measured in backlog `8mkt5l`. The blob-sha-keyed rows are content-addressed, so
+  they are valid in every worktree and need no worktree key.
 - Schema version row; a mismatch drops and rebuilds. Any open/corruption error drops and rebuilds.
   A command must never fail because the cache is missing or broken (AC-8). Concurrent processes
   (parallel lanes, a hook running during a command) are serialized by SQLite's own locking under WAL,
@@ -625,8 +633,8 @@ The log is the authority. These are deliberate mirrors, each checked, each repai
    worktrees with unmerged plan changes (report them; refuse without `--force`). The migration runs
    in the checkout that holds the history sidecar, under the integration lock, and refuses in a
    lane worktree (3c, AC-22). It is therefore performed attended, not as an unattended runner item.
-2. Export and fold the gitignored `.aw/records/history.jsonl` sidecar FIRST. At round 2 it holds
-   the only copy of 408 records over 296 id6s (backlog 309, specs 77, research 11, plans 8,
+2. Export and fold the gitignored `.aw/records/history.jsonl` sidecar FIRST. At round 4 it holds
+   the only copy of 413 records over 296 id6s (backlog 309, specs 82, research 11, plans 8,
    walkthroughs 2, roadmaps 1), and it exists only on the machine running the migration. A repository
    migrated on a machine WITHOUT that sidecar loses those records. The preflight must report the
    sidecar's presence and record count, and refuse without `--force` when a sidecar is expected but
@@ -789,19 +797,21 @@ merge-contention risk. Phase B exists for proof at each step, not for concurrenc
 
 ## 9. Compatibility with specs written since round 1
 
-| Spec | Status at round 3 | Relation |
+| Spec | Status at round 4 | Relation |
 |---|---|---|
 | `2vev8j` artifact metadata storage | approved | SUPERSEDED by this spec (OQ-4) |
 | `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its Section 12 maps itself onto this spec: `review-depth` becomes a field set by the gate `review` event, one verdict-bearing `review` event per invocation, and its structural check compares folded state. Whichever is implemented second conforms to the other; its plans must say which format they target |
 | `4iyd78` quick pipeline | reviewed, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its 6.1 row "Plan `## Workflow history`: Kept" means the AUDIT TRAIL is kept; under this spec that trail lives in the log. If `4iyd78` is implemented first, its history writes go through `status_set` and migrate like any other |
 | `wy9aru` canonical set dispatch | approved | Its setter engine is where writers are re-pointed (4.8). The sidecar it keeps is retired at the cutover, which its 3a defers to this spec |
 | `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4) |
-| `18hh1u` spec/research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not pre-registered (4.2c). Its review records already exist on disk (18 at round 3) and are migrated under 4.1a whatever `18hh1u`'s own status is |
+| `18hh1u` spec/research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not pre-registered (4.2c). Its review records already exist on disk (17 at round 4) and are migrated under 4.1a whatever `18hh1u`'s own status is |
 | `yfz5u9` multi-participant synthesis | draft | Its research YAML keys and its `.<ace>.` filename facet must be reconciled with the two-key front matter and C10 by whichever spec lands second. Its own `events.jsonl` is a RUN log (N4), not artifact metadata, so the two are distinct by design and must stay that way |
 | `89xjll` requirement IDs | implemented | No conflict; it grandfathers this spec's C/P/F ids |
+| `tg80ht` spec-to-plan bridge | open (backlog) | Bridges approved specs to runner dispatch and IPD Set authoring; automates graduation from this spec into the implementing IPD Set without modifying the metadata schema |
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): /spec-review round 4 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-301..SR-308 all FIXED (SR-301 multi-review attribution via date/stem review_ref, SR-302 AC-14 alignment, SR-303 review banner template); no maintainer question needed; no Readiness written
 - 2026-10-25 note (aw specs): /spec-review round 3 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-201..SR-208 all FIXED (SR-201 attended cutover in the sidecar-holding checkout, SR-202 per-file review verdict and round attribution); no maintainer question needed; no Readiness written
 - 2026-10-25 note (aw specs): /spec-review round 2 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-101..SR-114 all FIXED (SR-101 SQLite sole read path, SR-102 supersede 2vev8j, SR-103 facade-first, SR-104 typed review kinds, by maintainer decision 2026-10-24); no Readiness written
 - 2026-09-26 same-status (aw set): Maintainer 2026-09-25: implementing this spec blocks the 2.0.0 release
