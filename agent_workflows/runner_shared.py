@@ -19288,7 +19288,7 @@ LANE_PROMPT_TIMEOUT: float = GATE_PROMPT_TIMEOUT
 def prompt_for_gate_phrase(
     question: str,
     *,
-    timeout: float = GATE_PROMPT_TIMEOUT,
+    timeout: float | None = GATE_PROMPT_TIMEOUT,
     stdin: Any = None,
     stderr: Any = None,
 ) -> str | None:
@@ -19306,7 +19306,9 @@ def prompt_for_gate_phrase(
     * NO TTY, NO PROMPT. Both stdin and stderr must be a real TTY. The caller normally establishes
       this through :func:`is_interactive_run` (which also honors the operator's `--unattended`
       declaration); the check is repeated here so this function is safe called directly.
-    * IT NEVER BLOCKS. `select` with a bounded timeout, never a plain read.
+    * IT NEVER BLOCKS UNLESS EXPLICITLY REQUESTED. `select` with a bounded timeout by default, or
+      unbounded (`timeout=None`) for interactive pre-flight gates where the human operator is
+      present at run launch.
     * AN UNANSWERED PROMPT FALLS THROUGH, returning `None` so the caller takes its automatic
       decision. For an exact-phrase gate `None` is REFUSED by
       :func:`run_selection_policy.is_confirmation_accepted`, so a timeout can only ever produce the
@@ -19333,10 +19335,12 @@ def prompt_for_gate_phrase(
         print(file=stream_err)
         return None
     if not ready:
-        print(
-            "\n  (no answer in {0}s; taking the automatic decision)".format(timeout),
-            file=stream_err,
+        msg = (
+            f"\n  (no answer in {timeout}s; taking the automatic decision)"
+            if timeout is not None
+            else "\n  (no answer; taking the automatic decision)"
         )
+        print(msg, file=stream_err)
         return None
     try:
         return stream_in.readline()
@@ -19740,12 +19744,15 @@ def enforce_draft_admission_gate(
             host=host,
             selector=selector,
         ).record.preview
-        asker = prompt if prompt is not None else prompt_for_gate_phrase
-        answer = asker(
+        prompt_text = (
             "{0}\nType '{1}' to admit them, anything else to skip them: ".format(
                 preview, run_selection_policy.DRAFTS_CONFIRM_PHRASE
             )
         )
+        if prompt is not None:
+            answer = prompt(prompt_text)
+        else:
+            answer = prompt_for_gate_phrase(prompt_text, timeout=None)
 
     verdict = run_selection_policy.decide_draft_admission(
         candidates,
@@ -21834,7 +21841,6 @@ def enforce_orchestrator_probe_gate(
 
     answer = response
     if answer is None and interactive:
-        asker_fn = prompt if prompt is not None else prompt_for_gate_phrase
         prompt_text = format_orchestrator_probe_prompt(
             labels,
             blocking_id6s,
@@ -21842,7 +21848,10 @@ def enforce_orchestrator_probe_gate(
             unknown=any(o.answer == PROBE_ANSWER_UNKNOWN for o in blocking),
             color=color,
         )
-        answer = asker_fn(prompt_text)
+        if prompt is not None:
+            answer = prompt(prompt_text)
+        else:
+            answer = prompt_for_gate_phrase(prompt_text, timeout=None)
     if answer is not None and str(answer).strip() == PROBE_CONFIRM_PHRASE:
         # An interactive consent is still an override and is recorded as one, with the phrase as its
         # justification: an operator who typed it at 03:00 must be distinguishable in the record from
@@ -22474,8 +22483,10 @@ def enforce_spec_edit_ack_gate(
         lines.append("Proceed? [y/N]: ")
         question = "\n".join(lines)
 
-        asker_fn = prompt if prompt is not None else prompt_for_gate_phrase
-        answer = asker_fn(question)
+        if prompt is not None:
+            answer = prompt(question)
+        else:
+            answer = prompt_for_gate_phrase(question, timeout=None)
         if answer is not None and str(answer).strip().lower() in ("y", "yes"):
             ack_str = "interactive confirmation: y"
             state.setdefault("options", {})["ack_spec_edits"] = ack_str
@@ -35611,7 +35622,7 @@ def initialize_run_core(
                         f"Approval will be withdrawn for approved plan(s) and must be given again.\n"
                         f"Type '{_policy.REREVIEW_CONFIRM_PHRASE}' to confirm re-review, anything else to abort: "
                     )
-                    response = prompt_for_gate_phrase(question)
+                    response = prompt_for_gate_phrase(question, timeout=None)
 
                 verdict = _policy.decide_rereview_admission(
                     rereview_candidates,

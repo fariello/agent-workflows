@@ -18,7 +18,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-import unittest.mock
+from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd
 from agent_workflows import ipd_lint as lint
@@ -759,6 +759,25 @@ class TestOrchestratorProbeFormatting(unittest.TestCase):
             self.assertEqual(len(captured_prompts), 1)
             self.assertNotIn("\033[", captured_prompts[0])
             self.assertIn("prs001", captured_prompts[0])
+
+            # Test prompt=None passes timeout=None to prompt_for_gate_phrase
+            with mock.patch.object(
+                rs, "prompt_for_gate_phrase", return_value="refuse"
+            ) as mock_p:
+                decision_unbounded = rs.enforce_orchestrator_probe_gate(
+                    run_dir,
+                    state,
+                    repo=repo,
+                    host="oc",
+                    interactive=True,
+                    write_report_fn=lambda *a: None,
+                    asker=double_asker,
+                    prompt=None,
+                )
+                self.assertFalse(decision_unbounded.proceed)
+                mock_p.assert_called_once()
+                _, kwargs = mock_p.call_args
+                self.assertIsNone(kwargs.get("timeout"))
 
 
 if __name__ == "__main__":

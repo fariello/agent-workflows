@@ -1431,6 +1431,41 @@ def test_the_combined_case_collects_both_confirmations_in_one_interaction():
     assert only_drafts.drafts.admitted == ("c0",)
 
 
+def test_enforce_draft_admission_gate_passes_timeout_none(tmp_path: Path):
+    from unittest import mock
+    from agent_workflows import runner_shared
+
+    manifest = {"plans": {}}
+    with (
+        mock.patch.object(
+            runner_shared,
+            "sweep_draft_candidates",
+            return_value=[
+                pol.DraftCandidate(identity="d001", spec_type="plan", complete=True)
+            ],
+        ),
+        mock.patch.object(
+            runner_shared,
+            "prompt_for_gate_phrase",
+            return_value=pol.DRAFTS_CONFIRM_PHRASE,
+        ) as mock_p,
+    ):
+        q_ids, verdict = runner_shared.enforce_draft_admission_gate(
+            manifest,
+            ["d001"],
+            repo=tmp_path,
+            allow_drafts=False,
+            interactive=True,
+            host="oc",
+            selector="all",
+            prompt=None,
+        )
+        assert "d001" in verdict.admitted
+        mock_p.assert_called_once()
+        _, kwargs = mock_p.call_args
+        assert kwargs.get("timeout") is None
+
+
 # --------------------------------------------------------------------------------------------------
 # runnoop Order 02 (`m85gxh`): the per-artifact disposition line and its closed reason set
 # --------------------------------------------------------------------------------------------------

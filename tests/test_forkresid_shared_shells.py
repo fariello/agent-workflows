@@ -203,6 +203,20 @@ class LanePromptSuppressionTests(unittest.TestCase):
             self.assertIsNone(res)
             self.assertIn("no answer in 180.0s", stderr_tty.buffer)
 
+        # Verify prompt_for_gate_phrase with timeout=None blocks without timeout
+        stdin_tty = _TTYStub(readline_value="yes\n")
+        stderr_tty = _TTYStub()
+        with (
+            mock.patch("select.select", return_value=([stdin_tty], [], [])) as mock_sel,
+            mock.patch("sys.stdin", stdin_tty),
+            mock.patch("sys.stderr", stderr_tty),
+        ):
+            res = runner_shared.prompt_for_gate_phrase(
+                "Confirm action? ", timeout=None, stdin=stdin_tty, stderr=stderr_tty
+            )
+            self.assertEqual(res, "yes\n")
+            mock_sel.assert_called_once_with([stdin_tty], [], [], None)
+
         # Verify lane_reclaim_prompt timeout message
         stderr_tty = _TTYStub()
         with (

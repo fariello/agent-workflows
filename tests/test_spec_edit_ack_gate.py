@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream, runner_shared
 
@@ -368,6 +369,26 @@ Test.
         self.assertIsNotNone(refusal)
         self.assertEqual(refusal.code, "spec-edit-unacknowledged")
         self.assertIn("tst001", decision.message)
+
+    def test_tty_prompt_passes_timeout_none(self) -> None:
+        """Interactive TTY prompt passes timeout=None to prompt_for_gate_phrase."""
+        run_dir, state = self.make_run_setup()
+        gate_fn = getattr(runner_shared, "enforce_spec_edit_ack_gate")
+        with mock.patch.object(
+            runner_shared, "prompt_for_gate_phrase", return_value="y"
+        ) as mock_p:
+            decision = gate_fn(
+                run_dir,
+                state,
+                repo=self.repo,
+                interactive=True,
+                write_report_fn=self.dummy_write_report,
+                prompt=None,
+            )
+            self.assertTrue(decision.proceed)
+            mock_p.assert_called_once()
+            _, kwargs = mock_p.call_args
+            self.assertIsNone(kwargs.get("timeout"))
 
 
 if __name__ == "__main__":
