@@ -8,7 +8,7 @@ model: opus55high
 kind: assessment
 status: active
 outcome: none-yet
-summary: Refinement iterations 1-4 (prompt khjc70) of candidate spec yfz5u9; not a /spec-review
+summary: Refinement iterations 1-7 (prompt khjc70) of candidate spec yfz5u9; not a /spec-review
 consumed-by: []
 ---
 
@@ -320,3 +320,45 @@ Iteration 1 to 5 findings (`RF-01` to `RF-64`): rechecked, none reopened.
 ### Iteration 6 stopping result
 
 Material changes made; rerun warranted. The third independent cross-model review by Antigravity / Gemini 3.8 Flash High uncovered 3 high-severity issues (synthesis skip condition contradicting R-40 for N=1 with incumbent, missing thorough verify dispatch branch in the research flowchart, and a lifecycle contradiction where rejected working documents were stated to be archived) as well as 5 medium and 3 low issues across cancel transitions from ready-to-finalize, stage retry exhaustion wait reasons, list command CLI contract separation, resume resolution gating, N=1 with incumbent NN allocation bounds, decide keyword aliases, and promoted research shard paths. All 11 findings are resolved in the candidate spec.
+
+## Iteration 7
+
+| Field | Value |
+| --- | --- |
+| Subject | spec `yfz5u9`, `.aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md` |
+| Prompt | `khjc70` (`.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md`) |
+| Reviewer | Antigravity, model Gemini 3.8 Flash High |
+| Independence | Independent review. Conducted by a distinct host environment (Antigravity) and a different model family (Gemini 3.8 Flash High) from the author and iterations 1-3 (OpenCode / Opus 5.5 High). |
+| Iteration | 7 of an operator-run loop. |
+| Baseline | HEAD `def40d511`; spec sha256 `507863f9a30bc6aee9977abe690643341eac1c408a58494163211581f86b4b46`, 1739 lines, 106 requirement ids, 95 acceptance ids |
+| Code drift since pin `6f430cefd` | driver fix-it lane handling, interrupt `save_state`, plan review tooling (`revsteps`), spec 4sd62s diagrams, and specflow refinement iterations 1-6; no symbol cited by the candidate changed behaviour. |
+| Result | 1 requirement id added (`R-118`), 3 acceptance ids added (`AC-32b`, `AC-56d`, `AC-76`), 0 removed. Clarified `R-21`, `R-42`, `R-48`, `R-49`, `R-51`. Current totals: 107 requirements, 98 acceptance criteria. |
+
+Iteration 1 to 6 findings (`RF-01` to `RF-75`): rechecked, none reopened.
+
+| ID | Severity | Area | Defect and evidence | Correction | Blocks handoff |
+| --- | --- | --- | --- | --- | --- |
+| RF-76 | high | Research Lifecycle / Working Doc, Section 4.13, R-60, R-118, AC-56d | Missing normative lifecycle requirement for working document in research runs: R-60 specifies that for a spec run the working document is a spec record in `specs/` from creation. However, research runs have no corresponding requirement defining the working document lifecycle. A research run creates its working document as a `findings` record (with model token `reconciliation` when N>=2, or author facets when N=1 without incumbent), published with front matter only until finalize under R-97. | Added R-118 and AC-56d to Section 4.13 and Section 9, formally defining the research working document lifecycle. | yes |
+| RF-77 | high | CLI Contracts / Pruning, Section 3.2, Table 3.6, Section 9 | Missing `aw synth prune` leaf contract in Table 3.6 and acceptance criteria: Section 3.2 line 262 declared `aw synth prune [--older-than <days>] [--apply]`, but Table 3.6 omitted `prune` from the CLI leaf commands table, and Section 9 had no acceptance criteria testing prune semantics. | Added `prune` leaf row to Table 3.6 defining arguments (`--older-than`), state eligibility (terminal states only), preview vs `--apply`, and added AC-76 to Section 9. | yes |
+| RF-78 | high | Recovery / Total Participant Failure, Section 4.7, R-49, AC-32b | Unhandled `--allow-reduced` under total participant failure (`k = 0`): R-49 specified that `--allow-reduced` bypasses `waiting-for-human` when a participant fails. However, if all participants fail (or the sole participant of an N=1 run fails), synthesis cannot proceed because 0 candidates exist. The engine must stop and refuse resume. | Updated R-49 to mandate stopping in `waiting-for-human` with reason `reduced-participation` even if `--allow-reduced` was passed when `k = 0` candidates remain, and specified that `resume --continue-reduced` exits 2 `no-candidates-available`. Added AC-32b. | yes |
+| RF-79 | medium | Selectors / Resolution, Section 3.3, rule 4 | Setid selector resolution distinction between read and mutation verbs: Section 3.3 rule 4 stated that for a setid selector, "exactly one non-terminal run resolves; several, or only terminal runs, exit 2 listing them." This rule is appropriate for mutating verbs (`resume`, `accept`, `reject`, `decide`, `cancel`, `finalize`), but breaks read verbs (`status`, `findings`) when querying a completed/terminal run or when multiple runs exist for a setid. | Updated Section 3.3 rule 4 to distinguish mutating verbs (which resolve exactly one non-terminal run) from read verbs (which resolve a single run whether active or terminal, preferring an active run or the most recent terminal run when multiple exist). | no |
+| RF-80 | medium | Configuration / Mutation, Section 5.2, Table 3.6 | Missing specification of dotted key paths and typing for `config set`: Table 3.6 and Section 5.2 mentioned `config set`, but did not specify whether key paths can be dotted (e.g. `defaults.mode`, `defaults.concurrency`) or shorthand, nor how type coercion behaves for integer/boolean config values. | Updated Table 3.6 and Section 5.2 to explicitly specify dotted path resolution (`defaults.<key>` or shorthand), type coercion (integer, boolean, string), and rejection of invalid keys/types before mutation. | no |
+| RF-81 | medium | Assessment Attribution / Verify, Section 4.6, R-48, Table 6.1, Table 6.6.4 | Attribution contradiction for verify findings in R-48: R-48 stated that verify reports dropped items and contradictions "as findings in the synthesis assessment record". However, Table 6.1 line 741 and Table 6.6.4 line 973 explicitly mandate that when `verify` and `synth-refine` are performed by different participants, each participant has its own assessment record to maintain strict single-author attribution. | Updated R-48 to state that verify findings are recorded in the synthesis assessment when `synth-refine` and `verify` are the same participant, or in a separate verify assessment attributed to the verify participant when they differ. | no |
+| RF-82 | medium | Heuristic Budgeting / Heuristic Bytes, Section 4.7, R-51, Section 7.6 | R-51 packet token estimate omitted definition of `bytes` and `read_factor`: R-51 specified the token estimate as `ceil(bytes / 4)` without defining what constitutes `bytes`. Section 7.6 line 1223 defines it as rendered prompt bytes + inline document bytes + (`read_factor * repo_files_bytes`). | Updated R-51 to explicitly define `bytes` with prompt bytes, inline documents, and the repository file `read_factor` factor (default 0.25). | no |
+| RF-83 | low | Persistence / Revisions, Table 6.6.4, R-75 | Purpose column in Table 6.6.4 for `revisions/` stated "earlier bodies", contradicting R-75: Table 6.6.4 line 969 described the purpose of companion `revisions/` files as "earlier bodies". But R-75 explicitly requires storing all revision bodies, "including revision 0 and the current one". | Updated Table 6.6.4 line 969 to "all revision bodies (r00 through current)". | no |
+| RF-84 | low | Freezing / Obligations, Section 4.3, R-21 | Clarify top-level list items for `B-1..B-n` assignment: R-21 stated that brief obligation ids are assigned to "every list item" under designated headings. If an author uses nested sub-bullets for examples or details, a naive parser would assign separate `B-n` ids to each sub-bullet. | Clarified R-21 to state that `B-1..B-n` are assigned to top-level list items, preserving nested sub-bullets within their parent item. | no |
+| RF-85 | low | ER Diagram / Research Claims, Section 6.1 | ER diagram omitted synthesis relationship to claims in research runs: Section 6.1 Mermaid ER diagram showed `CANDIDATE ||--o{ CLAIM : "asserts (research)"`, but omitted the consolidated claims ledger produced by synthesis under R-113. | Added `SYNTHESIS ||--o{ CLAIM : "consolidates (research)"` to the Section 6.1 ER diagram. | no |
+| RF-86 | low | Deterministic Synthesis Checks, Section 4.6, R-42 | Quote character limit on normalized text: R-42 specifies that row source quotes must be at most 200 characters from the cited revision, but did not specify whether character count is measured before or after whitespace normalization. | Clarified R-42 that the 200-character limit is measured on normalized text with internal whitespace collapsed. | no |
+
+### Iteration 7 validation actually performed
+
+- `aw specs check <spec>`: conforms (1 specs checked, 0 errors).
+- Requirement and acceptance ids parsed with `production_checks.parse_spec_requirement_ids`: 0 removed, 1 requirement added (`R-118`), 3 acceptance criteria added (`AC-32b`, `AC-56d`, `AC-76`). Every requirement resolves to at least one acceptance criterion (107 declared `R-`, 98 declared `AC-`, 0 uncovered).
+- All four Mermaid diagrams syntax-checked against spec prose, tables, and state transitions. No headless SVG renderer was run.
+- Machine-output result record in Section 12.3.5 validated with `agent_schema.validate_agent_record` (0 errors).
+- Clean worktree isolation maintained: all reviews, edits, and checks performed in `.aw/worktrees/refine-yfz5u9-iter7`.
+- Leak checks passed via `check-local-leaks --agent` (0 findings).
+
+### Iteration 7 stopping result
+
+Material changes made; rerun warranted. The fourth independent cross-model review by Antigravity / Gemini 3.8 Flash High uncovered 3 high-severity issues (missing normative lifecycle requirement for research working documents, omission of the `aw synth prune` leaf command from the CLI table and acceptance criteria, and failure to handle total participant failure under `--allow-reduced`) as well as 4 medium and 4 low issues across setid resolution for read vs mutation verbs, dotted key path and typing rules for `config set`, attribution rules for verify assessments, packet token byte definitions with `read_factor`, companion revision retention definitions, top-level obligation item parsing, claims ledger consolidation in the ER diagram, and whitespace normalization for quote length limits. All 11 findings are resolved in the candidate spec.
