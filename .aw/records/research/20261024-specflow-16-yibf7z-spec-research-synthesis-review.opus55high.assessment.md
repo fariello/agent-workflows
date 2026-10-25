@@ -8,11 +8,11 @@ model: opus55high
 kind: assessment
 status: active
 outcome: none-yet
-summary: Refinement iteration 1 (self-review, prompt khjc70) of candidate spec yfz5u9; not a /spec-review
+summary: Refinement iterations 1-4 (prompt khjc70) of candidate spec yfz5u9; not a /spec-review
 consumed-by: []
 ---
 
-# Refinement record for candidate spec `yfz5u9` (self-review iterations)
+# Refinement record for candidate spec `yfz5u9` (review iterations)
 
 ## Iteration 1
 
@@ -193,3 +193,49 @@ Material changes made; rerun warranted. Two `high` findings were still found on 
 (attention integration, process and lock lifetime) the earlier iterations did not walk. The finding rate is falling
 (22, 12, 7), but it has not reached zero, and further self-review by the same model has diminishing value
 compared with an independent review.
+
+## Iteration 4
+
+| Field | Value |
+| --- | --- |
+| Subject | spec `yfz5u9`, `.aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md` |
+| Prompt | `khjc70` (`.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md`) |
+| Reviewer | Antigravity, model Gemini 3.8 Flash High |
+| Independence | Independent review. Conducted by a distinct host environment (Antigravity) and a different model family (Gemini 3.8 Flash High) from the author and iterations 1-3 (OpenCode / Opus 5.5 High). This provides true multi-model adversarial scrutiny. |
+| Iteration | 4 of an operator-run loop. |
+| Baseline | HEAD `59f6d3137`; spec sha256 `713b54f8dae059ef1912f7b881491941b3f806fb430789b7eb00eea91820c991`, 1718 lines, 104 requirement ids, 89 acceptance ids |
+| Code drift since pin `6f430cefd` | driver fix-it lane handling, interrupt `save_state`, and plan review tooling (`revsteps`); no symbol cited by the candidate changed behaviour. |
+| Result | 2 requirement ids added (`R-98`, `R-99`), 2 acceptance ids added (`AC-9b`, `AC-29c`), 0 removed. Current totals: 106 requirements, 91 acceptance criteria. |
+
+Iteration 1 to 3 findings (`RF-01` to `RF-41`): rechecked, none reopened.
+
+| ID | Severity | Area | Defect and evidence | Correction | Blocks handoff |
+| --- | --- | --- | --- | --- | --- |
+| RF-42 | high | Workflow / Lifecycle, R-44, Table 3.6 | Candidate rejection allowed after synthesis started. Table 3.6 permitted `reject <doc-id6>` for any published record not yet consumed by finalize. However, R-44 only addressed working document rejection before synth-refine. Allowing a candidate to be rejected after synthesis has already merged it would leave the published matrix and working document citing an archived/rejected candidate. Also R-44 specified `<spec-id6>`, omitting research working documents. | Added R-98: `reject` on a candidate after synthesize has started is refused (exit 2 `candidate-already-synthesized`, AC-29c). Generalized R-44 from `<spec-id6>` to `<doc-id6>` to cover research working documents. Updated Table 3.6. | yes |
+| RF-43 | high | Concurrency / Lifecycle, R-85 | R-85 restricted `accept`, `reject`, and `decide` to when the run is stopped in `waiting-for-human`. But under R-03, every stopping state ends the process and releases the run lock. `accept` on a document whose loop capped open (R-96, AC-24b) and `decide` on deferred conflicts are specifically valid and required at `ready-to-finalize` or `capped`. | R-85 updated to state that `accept`, `reject`, and `decide` can be used in any non-terminal stopped state (`waiting-for-human`, `ready-to-finalize`, `capped`), where the run lock is released. | yes |
+| RF-44 | high | Diagram, Section 6.1 ER diagram | Cardinality `SYNTHESIS ||--o| ASSESSMENT : "reviewed in (0..1)"` contradicts Sections 6.1, 6.6.1, and 6.6.4, which specify that when synth-refine and verify are different participants, the synthesis has two separate assessments. Also `MATRIX ||--|| SYNTHESIS` enforces a 1:1 relationship that breaks on N=1 runs where no matrix exists. | ER diagram updated: `SYNTHESIS ||--o{ ASSESSMENT : "reviewed in (0..2)"` and `MATRIX }o--|| SYNTHESIS : "explains (0..1 to 1)"`. | yes |
+| RF-45 | medium | Diagram, Section 7.7 Spec Flow | Spec flow diagram had no branch for `PART` when `--allow-reduced` is active (it showed only `no, and not allow-reduced`), an unlabeled edge from `VER` to `RTF`, and unqualified `DR --> TR` transition. | Added `PART -->|"no, and allow-reduced"| N`, labeled `VER -->|"no material findings, or no cap left"| RTF`, and qualified `DR --> TR` with condition (c) pass requirement. | no |
+| RF-46 | medium | Diagram, Section 7.5 Research Flow | Diagram 7.5 unconditionally routed research runs through reconciliation and a second citation check (CC2), with no path for N=1 runs where synthesis and reconciliation are skipped. | Added `Sources >= 2?` decision after CC1; N=1 bypasses reconcile and CC2 directly to CF and synth-refine on findings. | no |
+| RF-47 | medium | CLI / Config, Table 3.2, Section 3.6 | Behavior when no user preferences file exists (`defaults.roster` missing) and no `--with` flag is passed was undefined. | New R-99 and AC-9b: start without `--with` when no preferences file exists or `defaults.roster` is unset exits 2 `no-roster-configured` with a hint to run `aw synth config init --apply` or pass `--with`. Table 3.2 and Table 3.6 updated. | no |
+| RF-48 | medium | Research / Roles, Section 3.4, Table 5.3 | Section 3.4 line 350 used undefined term "every claim marked important" instead of schema term `every claim with confidence medium or above` (R-114). Table 5.3 listed `verify` role default for N=1 as `(thorough only)`, leaving quick research runs without a designated verify participant for high-impact citation checks. | Section 3.4 updated to match R-114 schema terms. Table 5.3 updated to clarify `the participant (thorough mode for spec runs; thorough and quick for research runs)`. | no |
+| RF-49 | medium | Research / Arithmetic, Section 3.4 | Dispatch arithmetic formula `(research ? 2 : 0)` unconditionally added 2 citation checks even when N=1 (where reconciliation is skipped and only 1 citation check runs). | Formula updated to `(research ? (N>=2 ? 2 : 1) : 0)`; N=1 thorough research example updated (Q = 9, W = 27, ceiling 27). | no |
+| RF-50 | medium | Owner Verbs, R-66, Section 6.6.1 | R-66 and Section 6.6.1 cited `aw research promote` as setting outcome and `consumed-by`. But `promote` only updates status and moves files into monthly shards. Outcome and consumption provenance are owned by `aw research set-outcome`. | R-66 and Section 6.6.1 updated to explicitly cite `aw research set-outcome` for outcome and consumed-by provenance, followed by `aw research promote` for status transition. | no |
+| RF-51 | medium | Naming / Inventory, Section 6.6.5 | Worked inventory companion directory tree omitted `matrix.md` despite R-97 and Section 6.6.2b requiring live bodies in `<C>/matrix.md` during the run. | `matrix.md` added to the companion file listing in Section 6.6.5. | no |
+| RF-52 | low | Naming / Inventory, Section 6.6.4, Section 6.6.5 | Table 6.6.4 line 970 listed worktree as `synth-<run>-<did>/`, contradicting R-81 and AC-44c `synth-<run>-<label>-<stage>`. Section 6.6.5 line 1019 parser check had typo `...-02-b3xq8n-...` for `NN '01'`. | Table 6.6.4 corrected to `synth-<run>-<label>-<stage>/`; line 1019 example corrected to `...-01-b3xq8n-...`. | no |
+| RF-53 | low | CLI, Table 3.2 | `--slug` derivation from brief's H1 fails when brief has no H1 (e.g. `--brief-text` or plain-text stdin). | Table 3.2 specifies fallback to first non-empty line or `--brief-text` (kebab-cased); if still empty, `--slug` is required (exit 2 `slug-missing`). | no |
+| RF-54 | low | Security / Policy, R-18, R-80 | Model ID provider prefix rule assumed `/`, which fails on single-segment Antigravity IDs (`gemini-3.8-flash-high`). | R-18 and R-80 updated: single-segment `agy` model IDs derive provider from runner and model prefix (e.g. `gemini` -> `google`). | no |
+| RF-55 | low | Splitting, R-52 | R-52 mandated units receive "the glossary" and "the interface contract section", which are not guaranteed sections in briefs (R-21). | R-52 updated to state units receive shared context from the brief when present (glossary, problem statement, interface definitions). | no |
+| RF-56 | low | Provenance / Matrix, Table 7.3 | Matrix row `origin` admitted only `candidate` or `new`, omitting `incumbent` when merging with `--from-spec`. Also quote matching mechanics were unspecified. | Table 7.3 updated with `origin: candidate|incumbent|new`; quote verification specified as normalized substring match. | no |
+
+### Iteration 4 validation actually performed
+
+- `aw specs check <spec>`: conforms (1 specs checked, 0 errors).
+- Requirement and acceptance ids parsed with `production_checks.parse_spec_requirement_ids`: 0 removed, 2 requirements added (`R-98`, `R-99`), 2 acceptance criteria added (`AC-9b`, `AC-29c`). Every requirement resolves to at least one acceptance criterion (106 declared `R-`, 91 declared `AC-`, 0 uncovered).
+- All four Mermaid diagrams syntax-checked against spec prose, tables, and state transitions. No headless SVG renderer was run.
+- Machine-output result record in Section 12.3.5 validated with `agent_schema.validate_agent_record` (0 errors).
+- Clean worktree isolation maintained: all reviews, edits, and checks performed in `.aw/worktrees/refine-yfz5u9-iter4`.
+- Leak checks passed.
+
+### Iteration 4 stopping result
+
+Material changes made; rerun warranted. The independent cross-model review by Antigravity / Gemini 3.8 Flash High uncovered 3 high-severity issues (candidate rejection lifecycle, stopping state lock release semantics, and ER diagram multi-assessment cardinality) that three prior OpenCode self-review iterations overlooked, as well as 7 medium and 5 low issues across owner-verb precision, diagram branch coverage, arithmetic, and CLI fallbacks. All 15 findings are resolved in the candidate spec.
