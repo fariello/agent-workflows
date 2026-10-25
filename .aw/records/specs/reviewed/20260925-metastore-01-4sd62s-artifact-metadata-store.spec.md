@@ -14,8 +14,9 @@
 
 Artifact metadata today is a hand-editable `- Field: value` bullet block plus an unbounded
 `## Workflow history` section in every Markdown artifact. Measured at authoring (HEAD `83b14a5f`,
-2026-09-25), at review round 1 (HEAD `44df26b3`, same day), and RE-MEASURED at review round 2 (HEAD
-`46ab9fdbf`, 2026-10-24, about 7950 commits later). The table shows round-2 values; round-1 values are
+2026-09-25), at review round 1 (HEAD `44df26b3`, same day), at review round 2 (HEAD
+`46ab9fdbf`, 2026-10-24, about 7950 commits later), and RE-MEASURED at review round 5 (HEAD
+`e12f81ac1`, 2026-10-24, 12,137 commits after baseline). The table shows round-5 values; round-1 values are
 in brackets where they differ. Re-derive at implementation time; these drift daily, and the growth
 between rounds (the corpus more than doubled in a month) is itself the strongest argument for doing
 this before 2.0.0.
@@ -28,8 +29,8 @@ this before 2.0.0.
 | Modules referencing `## Workflow history` | 27 [23], with four incompatible orderings (see `2vev8j` section 1) |
 | Readers that DISAGREE on the same corpus | `selectors` vs `plans_index`: 24 plans (the PARITY CONSTRAINT note in `selectors.py`, still present) |
 | Distinct pre-`##` field names in use | 68 [57]. New since round 1 include `Coverage`, `Coverage-Fingerprint`, `Coverage-Checked`, `Scope-Exceeded`, `Close-Evidence`, `Attended`, `Findings` (reviews), and from specs `Review-Depth`/`Pipeline` (see 4.2c) |
-| Tracked `.md` records under `.aw/records/` | 4381 [1969]: plans 1696, reviews 1275, backlog 1113, research 171, specs 45, prompts 36, walkthroughs 27, other 18. 2837 [1411] carry `## Workflow history`; 1528 [549] carry no `- Id:` BULLET, 1269 of which are reviews; 76 [64] non-review records carry no id6 in ANY form, of which 25 are READMEs (not records, excluded) |
-| Review records | 1275 `.review.md` [338] (re-counted at round 4). 1258 have a filename id6 equal to their `Subject-Id`, by design; 17 do not (the 17 `specflow` refinement records for `18hh1u`). Subjects reviewed by more than one record file: 5 (`18hh1u` by 17 files, plus `rtvdak`, `e25iy9`, `l4vw9o`, and `urv602` with 2 each). Rounds per file: 1150 one, 109 two, 13 three, 1 four, 1 six. 28 carry a verdict outside `plan_readiness.VERDICTS` (13 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`; see 4.1a) |
+| Tracked `.md` records under `.aw/records/` | 4382 [1969]: plans 1696, reviews 1275, backlog 1113, research 171, specs 45, prompts 36, walkthroughs 27, other 19. 2922 [1411] carry `## Workflow history`; 1535 [549] carry no `- Id:` BULLET, 1275 of which are reviews; 39 non-review records carry no id6 in ANY form (excluding 24 READMEs, 4 prompt-library templates, and 2 research templates) |
+| Review records | 1275 `.review.md` [338] (re-counted at round 5). 1257 have a filename id6 equal to their `Subject-Id`, by design; 18 do not (the 18 `specflow` refinement records for `18hh1u`). Subjects reviewed by more than one record file: 5 (`18hh1u` by 18 files, plus `rtvdak`, `e25iy9`, `l4vw9o`, and `urv602` with 2 each). Rounds per file: 1151 one, 109 two, 12 three, 2 four, 1 six. 29 carry a verdict outside `plan_readiness.VERDICTS` (14 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, 1 `REVIEWED - CONVERGED WITH REVISIONS`; see 4.1a) |
 | Terminal-directory records | 2828 [1055]: executed 1650, done 1086, superseded 59, implemented 17, not-executed 16 |
 | Generated index files | 6 gitignored `INDEX.{json,md}` [4]: plans, research, and prompts (`prompts_index.py`, new), plus committed `plans/STATUS.md`, stale since 2026-08-17 |
 | History sidecar `.aw/records/history.jsonl` (gitignored) | 413 records over 296 id6s [306 records]: backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1 |
@@ -56,7 +57,7 @@ Consequences:
 
 The maintainer asked for the optimal solution across cost, maintainability, and UX, noting adoption
 is effectively zero and nothing has shipped since 1.2.0 (`v1.3.0-rc.1..HEAD` was 4050 commits at
-authoring, 4125 at round 1, 12,133 at round 3, and 12,135 at round 4), so a
+authoring, 4125 at round 1, 12,133 at round 3, 12,135 at round 4, and 12,137 at round 5), so a
 breaking change costs the community almost nothing. `CHANGELOG.md` already carries `2.0.0 (pending)`.
 
 Storage options, evaluated against this repo's execution model (isolated git worktree per execute
@@ -207,8 +208,9 @@ status: approved
 ...body...
 ```
 
-- YAML-delimited, exactly two keys, fixed order. Parsed by `artifact_meta` with a strict line
-  grammar, not a YAML library (C8; no ambiguity).
+- YAML-delimited. For lifecycle records: exactly two keys (`id`, `status`), fixed order. For review
+  records: `subject`, `subject_type`, and optional `ref` (4.1a). Parsed by `artifact_meta` with a
+  strict line grammar, not a YAML library (C8; no ambiguity).
 - The banner is ONE HTML comment, not the proposed `# START README FIRST` H1 block. Reason: an H1
   renders as a large heading on GitHub, collides with the "first H1 is the title" rule in
   `ipd_schema` section-order checks, and ~80 tokens across ~2000 files is a real recurring cost. The
@@ -279,20 +281,20 @@ iteration of that kind keep working. Therefore:
    carries `readiness` and never satisfies the `->reviewed` transition authority on its own. Any number
    of rounds is legal; the round number orders them, and `seq` orders everything.
 4. Disambiguation across review files (`review_ref`). ANY review record whose filename id6 differs
-   from its subject (17 at round 4: the 17 `specflow` refinement records for `18hh1u`) keeps that id6
+   from its subject (18 at round 5: the 18 `specflow` refinement records for `18hh1u`) keeps that id6
    as a REFERENCE (`review_ref`) inside the subject's events and its front matter (`ref: <own-id6>`).
    Where multiple review files share the subject's id6 (such as the 4 historical gate re-review pairs
    for `rtvdak`, `e25iy9`, `l4vw9o`, `urv602` across 2026-09-30 and 2026-10-07), each file's date
    prefix or clustered stem (e.g. `20260930-reqids-02` vs `20261007-reqids-02`) serves as `review_ref`
    in its front matter (`ref: <stem>`) and events, so rounds are attributed unambiguously. A single
    review file sharing its subject id6 omits `review_ref`. No record is renamed. A subject may have
-   SEVERAL review files (5 subjects do at round 4; `18hh1u` has 17), so the 4.6 round-count rule
+   SEVERAL review files (5 subjects do at round 5; `18hh1u` has 18), so the 4.6 round-count rule
    counts events per (subject, review file): it matches each file's rounds to the subject's `review`
    events carrying that file's `review_ref` (or unreferenced events for single-file subjects). It does
    not compare a single file against all of the subject's events.
 5. Migration preserves every legacy verdict string VERBATIM in the event (`legacy_verdict`), and the
-   vocabulary checks apply only to events written after the cutover. The 28 off-vocabulary verdicts
-   measured at round 4 (13 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`,
+   vocabulary checks apply only to events written after the cutover. The 29 off-vocabulary verdicts
+   measured at round 5 (14 `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`,
    and 1 `REVIEWED - CONVERGED WITH REVISIONS`) are therefore kept, not mapped (inherits the legacy-import rule, 4.2a). A
    legacy verdict is assigned `kind` by its writer where the record shows it (the `specflow`
    refinement files are `refinement`; the rest are `gate`), and an event carrying `legacy_verdict` is
@@ -314,7 +316,8 @@ either spec's prose.
 ### 4.2 Event log: `.aw/records/meta/<id6>.jsonl`
 
 - Tracked. Flat directory (resolves `2vev8j` OQ-3; about 3100 logs at round 2 is fine for git and
-  filesystems; sharding is a later reversible change).
+  filesystems; sharding is a later reversible change). The identifier `<id6>` is strictly validated
+  against `^[a-z0-9]{6}$` on every API and path resolution call to prevent directory traversal.
 - One JSON object per line, UTF-8, sorted keys, no trailing whitespace, LF-terminated.
 - Event schema (v1):
   - `v`: schema version (int)
@@ -459,9 +462,10 @@ second conforms to the other (section 9).
   so this is now a port, not a bug fix.)
 - HEAD-vs-STAGED READS GO THROUGH THE CACHE TOO (C5a). A gate that compares a staged or committed
   revision calls `artifact_meta.read_at(id6, rev)`. The function resolves the blob sha of
-  `meta/<id6>.jsonl` at that revision (`git ls-files -s` for the index, `git rev-parse <rev>:<path>`
-  for a commit), and looks it up in a cache table keyed by blob sha. If the sha is missing, it hands
-  the blob bytes (`git cat-file`) to the SAME loader. Gates never parse a blob themselves. Rule
+  `meta/<id6>.jsonl` and the artifact `.md` at that revision (`git ls-files -s` for the index, `git rev-parse <rev>:<path>`
+  for a commit), looking each up in cache tables keyed by blob sha. If a sha is missing, it hands
+  the blob bytes (`git cat-file`) to the SAME loader. Gates never parse a blob themselves. The returned
+  `State` carries both the replayed log state and the artifact's front-matter mirror status at that revision. Rule
   rewrites:
   - "status changed without a matching history line" becomes "front-matter `status` differs from the
     folded state" (drift), or "the log gained an event not produced by a tool" (untooled).
@@ -545,28 +549,35 @@ carrier type", so this table is the only place the obligation is recorded, and A
   whose `records_backend` is `companion` or `home` keeps its records, and therefore its
   `meta/*.jsonl` logs, OUTSIDE the repo; the logs always live under the RESOLVED records root, beside
   the records they describe (AC-18). Where lane worktrees share one cache, rows are keyed by worktree
-  root (located with `git rev-parse --git-common-dir`), so a lane never reads another tree's state as
+  root (located with `git rev-parse --show-toplevel`), while `--git-common-dir` and `project_context`
+  locate the common repository and shared database location, so a lane never reads another tree's state as
   its own.
 - ROLE: the SOLE READ PATH for metadata (C5a), and never the durable record. It is filled ONLY by the
-  `artifact_meta` loader (4.3).
+  `artifact_meta` loader (4.3). All SQL queries in `artifact_meta` MUST use parameterized bindings (`?`),
+  never string formatting.
 - Tables: `artifacts(worktree, id6, path, type, bucket, status, set, order, ...)`, `events(worktree,
   id6, seq, op, ...)`, `files(worktree, path, size, mtime_ns, blob_sha)`, and `blobs(blob_sha, ...)`
   holding folded state for staged/committed revisions read by gates (4.4). Refresh is incremental:
   re-read a log or artifact only when size/mtime_ns change, with a blob-sha tiebreak to close the
-  same-tick mtime gap measured in backlog `8mkt5l`. The blob-sha-keyed rows are content-addressed, so
-  they are valid in every worktree and need no worktree key.
+  same-tick mtime gap measured in backlog `8mkt5l`. Incremental refresh drops entries from `files`
+  and `artifacts` when files are removed or moved (such as lifecycle transitions). The blob-sha-keyed
+  rows are content-addressed, so they are valid in every worktree and need no worktree key.
 - Schema version row; a mismatch drops and rebuilds. Any open/corruption error drops and rebuilds.
   A command must never fail because the cache is missing or broken (AC-8). Concurrent processes
   (parallel lanes, a hook running during a command) are serialized by SQLite's own locking under WAL,
   plus a busy timeout; a busy cache degrades to a rebuild-in-memory read, never a failed command.
+  Worktree pruning: `aw index rebuild`, `aw check meta`, and runner lane teardown (`cleanup_lane_worktree`)
+  prune cache rows whose `worktree` directory no longer exists on disk (`DELETE FROM ... WHERE worktree NOT IN ...`).
 - Precedents in-repo for the keying and placement choices: `suite_cache.py` keys a cache by
   `--git-common-dir`; `run_ledger_store.py` is an append-only JSONL store under `platform_lock`.
 - Replaces: `plans/INDEX.{json,md}`, `research/INDEX.{json,md}`, `prompts/INDEX.{json,md}` (added
   since round 1, `prompts_index.py`), `plans/STATUS.md`, the `artifact_audit._INDEX_CACHE`, and the
   whole-corpus rescans in `aw find`, `aw attention`, `aw ipd board`. `aw index <type>` becomes
-  `aw index rebuild`. The `--check` drift checks for INDEX files are deleted along with
-  `check.stale-index-*`, which today is emitted by `plans_index`, `research_index` and
-  `prompts_index`. The hard-coded INDEX ignore lines in `placement_switch.py` go too.
+  `aw index rebuild`, while `aw index plans`, `aw index research`, and `aw index prompts` are retained
+  as backward-compatible aliases routing to `aw index rebuild` with an informational notice. The `--check`
+  drift checks for INDEX files are deleted along with `check.stale-index-*`, which today is emitted by
+  `plans_index`, `research_index` and `prompts_index`. The hard-coded INDEX ignore lines in
+  `placement_switch.py` go too.
 - Contracts the rewrite of `aw find` must keep (inherited from executed plans, 4.4a):
   `tests/test_find_filters.py` passes, and a zero-match selector still exits 2.
 
@@ -633,17 +644,17 @@ The log is the authority. These are deliberate mirrors, each checked, each repai
    worktrees with unmerged plan changes (report them; refuse without `--force`). The migration runs
    in the checkout that holds the history sidecar, under the integration lock, and refuses in a
    lane worktree (3c, AC-22). It is therefore performed attended, not as an unattended runner item.
-2. Export and fold the gitignored `.aw/records/history.jsonl` sidecar FIRST. At round 4 it holds
+2. Export and fold the gitignored `.aw/records/history.jsonl` sidecar FIRST. At round 5 it holds
    the only copy of 413 records over 296 id6s (backlog 309, specs 82, research 11, plans 8,
    walkthroughs 2, roadmaps 1), and it exists only on the machine running the migration. A repository
    migrated on a machine WITHOUT that sidecar loses those records. The preflight must report the
    sidecar's presence and record count, and refuse without `--force` when a sidecar is expected but
    absent. After the fold, the sidecar writer is retired (4.8), and the sidecar's `.gitignore` line
    goes with it.
-3. Mint an id6 for each LIFECYCLE record that has none in any form. At round 2 there are 51 such
-   records (76 non-review files lacking an id6, minus 25 READMEs, which are not records). Among them:
-   18 legacy specs in `implemented/`/`superseded/`, 13 walkthroughs, 7 comms, 6 `specflow` prompts,
-   `plans/STATUS.md` (which is deleted instead, step 5), and 1 roadmap. Review records are EXCLUDED
+3. Mint an id6 for each LIFECYCLE record that has none in any form. At round 5 there are 39 such
+   records (excluding 24 READMEs, 4 prompt-library templates, and 2 research templates). Among them:
+   14 legacy specs in `implemented/`/`superseded/`, 8 walkthroughs, 7 comms, 3 companion data files
+   (`s1..s3.md`), and `plans/STATUS.md` (which is deleted instead, step 5). Review records are EXCLUDED
    (4.1a). `aw rename ... --to-id6` handles ONLY legacy timestamp names (`YYYYMMDD-HHMM-NN-<slug>`), so
    records whose names are in another shape need a minting path the plan must name, rather than an
    assumption that the existing verb covers them.
@@ -797,20 +808,21 @@ merge-contention risk. Phase B exists for proof at each step, not for concurrenc
 
 ## 9. Compatibility with specs written since round 1
 
-| Spec | Status at round 4 | Relation |
+| Spec | Status at round 5 | Relation |
 |---|---|---|
 | `2vev8j` artifact metadata storage | approved | SUPERSEDED by this spec (OQ-4) |
 | `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its Section 12 maps itself onto this spec: `review-depth` becomes a field set by the gate `review` event, one verdict-bearing `review` event per invocation, and its structural check compares folded state. Whichever is implemented second conforms to the other; its plans must say which format they target |
 | `4iyd78` quick pipeline | reviewed, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its 6.1 row "Plan `## Workflow history`: Kept" means the AUDIT TRAIL is kept; under this spec that trail lives in the log. If `4iyd78` is implemented first, its history writes go through `status_set` and migrate like any other |
 | `wy9aru` canonical set dispatch | approved | Its setter engine is where writers are re-pointed (4.8). The sidecar it keeps is retired at the cutover, which its 3a defers to this spec |
 | `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4) |
-| `18hh1u` spec/research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not pre-registered (4.2c). Its review records already exist on disk (17 at round 4) and are migrated under 4.1a whatever `18hh1u`'s own status is |
+| `18hh1u` spec/research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not pre-registered (4.2c). Its review records already exist on disk (18 at round 5) and are migrated under 4.1a whatever `18hh1u`'s own status is |
 | `yfz5u9` multi-participant synthesis | draft | Its research YAML keys and its `.<ace>.` filename facet must be reconciled with the two-key front matter and C10 by whichever spec lands second. Its own `events.jsonl` is a RUN log (N4), not artifact metadata, so the two are distinct by design and must stay that way |
 | `89xjll` requirement IDs | implemented | No conflict; it grandfathers this spec's C/P/F ids |
 | `tg80ht` spec-to-plan bridge | open (backlog) | Bridges approved specs to runner dispatch and IPD Set authoring; automates graduation from this spec into the implementing IPD Set without modifying the metadata schema |
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): /spec-review round 5 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-401..SR-407 all FIXED (SR-401 show-toplevel worktree keying, SR-402 read_at dual resolution, SR-403 worktree cache pruning, SR-404 review front matter ref key, SR-405 aw index aliases); no maintainer question needed; no Readiness written
 - 2026-10-25 note (aw specs): /spec-review round 4 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-301..SR-308 all FIXED (SR-301 multi-review attribution via date/stem review_ref, SR-302 AC-14 alignment, SR-303 review banner template); no maintainer question needed; no Readiness written
 - 2026-10-25 note (aw specs): /spec-review round 3 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-201..SR-208 all FIXED (SR-201 attended cutover in the sidecar-holding checkout, SR-202 per-file review verdict and round attribution); no maintainer question needed; no Readiness written
 - 2026-10-25 note (aw specs): /spec-review round 2 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-101..SR-114 all FIXED (SR-101 SQLite sole read path, SR-102 supersede 2vev8j, SR-103 facade-first, SR-104 typed review kinds, by maintainer decision 2026-10-24); no Readiness written
