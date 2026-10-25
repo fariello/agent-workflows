@@ -19,6 +19,7 @@
 - Id: 3bwrfx
 
 ## Workflow history
+- 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): E-04 names the `1.` to `5.` answer-line form that `gv3smb` E-04 parses (gv3smb review round 1, PR-008); no verdict change.
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
 - 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261024-revsteps-01-3bwrfx-split-plan-review-into-step-files-with-a-section-map-round-l.review.md
 - 2026-10-25 to-review (aw set): authored review-ready from spec k3yx72 Stage 1 (MD-20)
@@ -52,7 +53,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `p-proofread.md` exists, names `wcisgc` by path, and carries the fallback summary.
   - Execution state: pending
 
-- [ ] E-04 Create `steps/t-tier.md` (check T): the five tier questions of spec `k3yx72` Section 5.2 verbatim, the instruction to answer each on one line in the round's `### Step T` subsection, the non-binding guidance paragraph of Section 5.2, the statement that the runner supplies the pre-pass facts (Section 4.1 item 4) in the first prompt when run by a runner and that an interactive reviewer collects them itself (`- Scope-Paths:`, E-item and task-group counts, whether a `.spec.md` is named), and the required last line `AW-TIER: <simple|standard|complex>`. Also create `steps/q-quick-risk.md` (check Q): answer "what could this change break, and what existing behavior does something else depend on?", record findings per `_findings.md`.
+- [ ] E-04 Create `steps/t-tier.md` (check T): the five tier questions of spec `k3yx72` Section 5.2 verbatim, the instruction to answer each on one line in the round's `### Step T` subsection, each line starting `1.` to `5.` with the question's number (the form `gv3smb` `review_tier.parse_tier_answers` reads), the non-binding guidance paragraph of Section 5.2, the statement that the runner supplies the pre-pass facts (Section 4.1 item 4) in the first prompt when run by a runner and that an interactive reviewer collects them itself (`- Scope-Paths:`, E-item and task-group counts, whether a `.spec.md` is named), and the required last line `AW-TIER: <simple|standard|complex>`. Also create `steps/q-quick-risk.md` (check Q): answer "what could this change break, and what existing behavior does something else depend on?", record findings per `_findings.md`.
   - Depends on: none
   - Expected outcome: both files exist; `t-tier.md` contains all five questions and the marker line format.
   - Execution state: pending
