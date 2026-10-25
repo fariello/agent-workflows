@@ -3,7 +3,7 @@
 - Subject-Id: 4sd62s
 - Subject-Type: spec
 - Reviewed-At: 2026-10-24
-- Reviewer: antigravity/gemini-3.8-flash
+- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -139,3 +139,23 @@ Re-review requested by the maintainer on 2026-10-24. Structural preflight `aw sp
 | D-14 | How does `read_at(id6, rev)` serve gates checking untooled status changes? | By resolving both `meta/<id6>.jsonl` and the artifact `.md` at `rev` into `State`. | Force gates to parse the `.md` blob themselves. | Preserves C5/C5a prohibition on external front-matter parsing and satisfies `status_untooled_gate` needs. | yes |
 | D-15 | How are stale worktree rows in SQLite pruned? | Pruned on `aw index rebuild`, `aw check meta`, and lane teardown when the worktree path is gone; deleted files pruned during incremental refresh. | Leave them indefinitely; drop entire cache on every run. | Prevents unbounded growth in multi-worktree execution while keeping caching fast and incremental. | yes |
 | D-16 | Are `aw index <type>` invocations preserved as compatibility aliases? | Yes, aliased to `aw index rebuild` with a notice. | Fail immediately with an error. | Preserves existing scripts and AGENTS.md conventions. | yes |
+
+## Round 6
+
+Re-review requested by the maintainer on 2026-10-24 (HEAD `61fce3bfd`). Structural preflight `aw specs check` was clean before and after the edits. This round re-verified the round-4/5 additions against code rather than prose; three were factually wrong. No question needed the maintainer.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-501 | medium | IN-SCOPE | F (compatibility) / D (decisions) | `agent_workflows/runner_shared.py:392` `state_root` via `project_context.resolve_project_context`; measured: called inside lane worktree `.aw/worktrees/pkz19w` it returns `.aw/worktrees/pkz19w/.aw/state` | 4.5 (rounds 4/5, SR-307/SR-401) asserted that "lane worktrees share one cache" located via `--git-common-dir`. But the placement rule 4.5 itself mandates resolves the `repository`-backend state root PER WORKTREE, so each lane has its own `index.db`. The spec stated two incompatible placements, and a planner could not tell which to build. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | 4.5 states the measured placement fact (per-worktree cache for `repository`, shared only under companion/home), keeps worktree keying for the shared case, and records that sharing via `--git-common-dir` is NOT decided here; the cold-lane cost is left to AC-13. |
+| SR-502 | low | IN-SCOPE | G (plannable) | `rg "def cleanup_lane_worktree" agent_workflows` returns nothing; teardown is `runner_shared.teardown_isolation_worktree` (`runner_shared.py:1667`) over `worktree_lease.teardown_worktree` (`worktree_lease.py:1192`) | 4.5 named a non-existent function `cleanup_lane_worktree` as the lane-teardown pruning hook. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Replaced with the real teardown path and noted pruning is a no-op for a per-worktree cache. |
+| SR-503 | low | IN-SCOPE | Security / B (testable) | `agent_workflows/artifact_core.py:55` `ID6_RE = re.compile(r"\A[0-9a-z]{6}\Z")` vs spec 4.2 `^[a-z0-9]{6}$` | The round-5 traversal guard (SR-406) wrote `^...$`; under Python `re.match`, `$` matches before a trailing newline, so `"abc123\n"` passes. The repository already has the correct full-match constant. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | 4.2 now cites `artifact_core.ID6_RE` and states why `^...$` is insufficient. |
+| SR-504 | low | IN-SCOPE | A (current measurements) / C | `aw` corpus re-count at HEAD `61fce3bfd`: 1276 reviews, 19 id6-mismatched (all `18hh1u`), 30 off-vocabulary verdicts (15 `MATERIAL CHANGES APPLIED`), 4383 tracked records, 12,139 commits since `v1.3.0-rc.1`; 0 review records with an unresolvable Subject-Id | Counts drifted again by one specflow iteration. AC-14a still said "each of the 28 off-vocabulary verdicts", a stale number that would make the AC's evidence unsatisfiable as worded. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Section 1 rows marked with r6 values; 4.1a point 4 count updated; AC-14a reworded to "each DISTINCT off-vocabulary string found at implementation time" so it no longer rots. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-17 | Should 4.5 decide that lanes share one cache under `--git-common-dir`? | No; record the measured per-worktree placement and leave sharing undecided. | Mandate a shared cache at `<git-common-dir>`; mandate per-worktree only. | Choosing a placement is a design decision the spec never made (rounds 4/5 asserted a fact that was false); the measured behavior of the resolver the spec already mandates is the conservative reading, and AC-13 measures the cost. | yes |
+| D-18 | Which id6 validator does 4.2 require? | `artifact_core.ID6_RE` (full match). | A new regex. | Existing single authority; avoids a 96th regex literal (P1). | yes |
