@@ -125,7 +125,9 @@ Front-matter options:
   event kind and changes no status.
 - N3 NOT a move of prose. Body sections (execution/validation checklists, open questions, E/V items)
   stay in Markdown. Only aw-owned metadata FIELDS and history move.
-- N4 NOT a change to comms envelopes, run records (`.aw/records/runs/`), or run analytics.
+- N4 NOT a change to comms envelopes, or to how run records (`.aw/records/runs/`) and run analytics
+  are STORED or written. The cache INDEXES run records read-only (4.5b; maintainer decision
+  2026-10-25, finding SR-701); it never writes to them, and they stay gitignored and machine-local.
 - N5 NOT a dual-format transition period (C9).
 
 ## 3b. Acceptance criteria
@@ -138,7 +140,7 @@ Front-matter options:
 | AC-2 | C2 | A `git clone --depth 1` yields full state and history. | Clone to a temp dir, run `aw show <id6> --history` on a migrated plan with a multi-event history, paste output. |
 | AC-3 | C3 | Two branches transitioning different artifacts merge cleanly. | Two-branch merge test, pasted. |
 | AC-4 | C4 | Read order is independent of line order on disk. | Test shuffling a log's lines and asserting `seq`-ordered replay is unchanged; test rejecting a gapped or duplicate `seq`. |
-| AC-5 | C6 | Refused and dry-run transitions leave the log byte-identical; a forced write failure leaves status unchanged. | Tests, pasted. |
+| AC-5 | C6, 4.3 | Refused and dry-run transitions leave the log byte-identical; a forced LOG write failure leaves every file unchanged; a forced failure AFTER the log commit (mirror or move step) is reported as a failure naming `aw meta repair`, is detected by `aw check meta`, and is fully restored by `aw meta repair --apply`. | Tests for each case (fault injection at each of the 4.3 write steps), pasted. |
 | AC-6 | C7 | A status transition diff shows the front-matter `status` line and one added log line. | `git diff` of a real transition, pasted. |
 | AC-7 | 4.6 | Every mirror (front-matter `status`, filename `set`/`order`/`id`, disposition directory) is checked against the log. | `aw check meta` detects each drift kind in a fixture, output pasted; zero findings on the migrated corpus, pasted. |
 | AC-8 | 4.5 | The SQLite cache is disposable: deleting it changes no command output. | Run `aw find`/`aw attention --format json` with and without `.aw/state/index.db`, diff empty, pasted. |
@@ -156,6 +158,10 @@ Front-matter options:
 | AC-19 | 4.2b | The creation date in the log is compared on the clock that wrote the filename date. | A fixture artifact created at 23:30 local time on a UTC-ahead host: `aw check meta` reports no filename-date drift, and `tests/test_date_reader_clock_parity.py` (or its successor) passes with the date readers re-pointed at `artifact_meta`, pasted. |
 | AC-20 | 4.2c | Every field the corpus or an approved spec carries is in the registry, and nothing is dropped. | The migration dry-run's per-field census on this repo listing every distinct pre-`##` field with its disposition (log field, body section, or a recorded deliberate drop), with zero `unknown-field` refusals, pasted. |
 | AC-21 | 4.4a | Obligations handed to this spec by executed plans are met. | For each row of 4.4a, the pasted evidence its row names. |
+| AC-23 | 4.5, 4.5a | The cache schema is the one 4.5a defines and is generated from the registry. | A test asserting the table set and each table's columns against 4.5a; a test that adding a field to the registry, with no other change, causes the next read to rebuild the cache and expose the new column; `EXPLAIN QUERY PLAN` for `aw find` by status and set, for dependents-of, and for latest-gate-review-of, each using an index, pasted. |
+| AC-24 | 4.2, 4.5a | Dependencies, lineage and actors round-trip in structured form. | Migration fixture with each `Item-Dependencies` form (`executed:`, `exists:`, `state:`, `none`, `unresolved`, and absent) asserting the parsed conditions and `dependency_declaration`, and that `none` and absent stay distinct; a test that a log event carrying a session id, path or username in `actor` is refused by the writer and flagged by the sanitizer; `aw graduation` agreeing in both directions from `lineage` alone, pasted. |
+| AC-25 | 4.5b | Run records are indexed read-only, and their absence is never read as "never ran". | A fixture runs tree indexed into `runs`/`run_items`/`attempts` matching the runner's own reader output; a byte-for-byte check that indexing modified no file under the runs tree; on a fresh clone, a query for an artifact's attempts reporting `runs_indexed: 0` (unknown) rather than an empty success, pasted. |
+| AC-26 | 4.3 | A new, deleted or moved record is seen by the next read with no `aw index rebuild`. | Tests that add a log and artifact, delete one, and `git mv` one between disposition directories outside the API (as a pull or checkout would), each followed by `aw find` showing the change, pasted. |
 | AC-22 | 5.2 | The cutover refuses to run where the history sidecar is absent, and does not lose it when run correctly. | A test running the migration preflight in a lane-style worktree with no sidecar asserting a refusal naming the sidecar; and the real cutover's pasted preflight line reporting the sidecar's record count, pasted. |
 
 ## 3c. Honest limits
@@ -192,6 +198,14 @@ Front-matter options:
   records, and it exists only in the maintainer's main checkout. So the cutover must run there, not
   in a runner lane worktree, where the sidecar is absent (AC-22). That makes the cutover an attended
   step by construction, not an unattended runner item.
+- A tooled write is NOT atomic across files (4.3, SR-705). The log commit is atomic; the
+  front-matter mirror and the directory move follow it. A crash between them leaves detectable,
+  deterministically repairable drift, never lost or contradictory history, but a reader can briefly
+  see a `status:` line or a directory that lags the log.
+- The run index (4.5b) is machine-local and incomplete by construction: it shows only the runs whose
+  records exist on this machine, and a count of zero means unknown, not "never ran".
+- The `actor` object is self-asserted by the writing tool (as is the comms sender). It records who
+  CLAIMED to act; it is not an authentication of the agent or model.
 - The C10a guarantee depends on the full suite catching a regression. A behavior no test exercises
   can still change silently during phase B, which is why each phase-B plan must name the behavior
   its moved consumers had and the test that pins it (section 7).
@@ -328,8 +342,17 @@ either spec's prose.
   - `seq`: contiguous int per artifact. `0` is the migration checkpoint for migrated artifacts; `1`
     is creation for artifacts born under this spec (inherits `2vev8j` 4.3).
   - `at`: RFC 3339 UTC timestamp, display only (inherits `2vev8j` 4.4).
-  - `actor`: tool and host/model identity string (no machine paths, usernames, or hostnames; the
-    leak sanitizer rules apply).
+  - `actor`: a STRUCTURED object, not a string (round 8, finding SR-702), with keys `tool` (the `aw`
+    verb or workflow, e.g. `aw specs set`, `/spec-review`), and, where known, `ace` (the agent
+    environment, e.g. `opencode`, `antigravity`), `host` (runner host id, e.g. `oc`, `agy`), `model`
+    (the model that ACTUALLY ran, the resolved id), `variant` (effort/variant), `run_id`, and
+    `attempt` (int). Absent keys are omitted, never written as null. FORBIDDEN in a tracked log:
+    session ids (the sanitizer's `session-id` rule, `leak_sanitizer.py` `ses_` pattern), command
+    lines, filesystem paths, usernames and hostnames; those stay in the gitignored run records. The
+    REQUESTED model belongs to the run attempt (4.5b), not to the event. Reason it is structured
+    now: the log is tracked and its schema is irreversible once the corpus is migrated, while the
+    cache can be rebuilt at will, so "which model changed what in which run" must be answerable
+    without parsing free text (P1).
   - `op`: one of `create`, `set`, `unset`, `transition`, `note`, `checkpoint`, `legacy`, `review`
     (4.1a), `coverage` (4.4).
   - `fields`: object of field -> new value for `create`/`set`/`checkpoint`; list of names for `unset`.
@@ -348,6 +371,19 @@ either spec's prose.
     (str), optional `review_ref` (str), optional `findings_summary` (str), optional `legacy_verdict`
     (str), optional `readiness` (str, plans only).
   - For `op: coverage` (4.4): `coverage` (str), `coverage_fingerprint` (str), `coverage_checked` (str).
+- FIELD NAMES IN THE LOG are lower snake_case and follow the naming rule in 4.5c. The migration
+  renames the legacy bullet `Kind` (plan role: `child`, `orchestrator`, ...) to `plan_role`
+  (maintainer decision 2026-10-25, finding SR-703; irreversible, because every migrated log and every
+  later writer uses the new name). Other legacy names map one-to-one (`Work-Kind` -> `work_kind`,
+  `Gate-Kind` -> `gate_kind`, `Blocks-Release` -> `blocks_release`). The `aw` flags and docs that name
+  `Kind` are updated in the same Set (5.4).
+- `item_dependencies` is stored PARSED, not as the raw bullet string: a `dependency_declaration`
+  (`listed` | `none` | `unresolved`; field absent means none was declared) plus an ordered list of
+  conditions, each `{condition, target_type, required_status, target_id6, raw}`, where `condition` is
+  `executed`, `exists` or `state`. The three forms in use (measured at round 8:
+  `executed:<id6>` 464 times, `exists:<type>:<id6>` 5, `state:<type>:<status>:<id6>` 5) are the
+  closed grammar today; `none` is a POSITIVE declaration that `ipd_dependency_statement_gate`
+  distinguishes from an absent field, so the two must never collapse.
 - Current state = fold of events in `seq` order. The log carries EVERY aw-owned field (4.2c). Review
   records carry no log (4.1a). The exact per-type field registry is a table in `artifact_meta`, and
   unknown fields are refused.
@@ -422,26 +458,42 @@ second conforms to the other (section 9).
   attention and the board), `append(id6, events, *, expect_seq)`, `create(...)`, `resolve(path|id6)`,
   and `read_at(id6, rev)` for a staged or committed revision (4.4).
 - READS ARE SERVED FROM SQLITE (C5a). Every public read function first brings the cache up to date
-  for what it is about to return, then answers with a SQL query. "Up to date" means: for each log
-  or artifact file in scope, compare `(size, mtime_ns)`, with the blob-sha tiebreak, against the
-  `files` row (4.5), and hand any changed or new file to the LOADER. The loader is the ONE code path
+  for what it is about to return, then answers with a SQL query. "Up to date" is TWO checks, because
+  neither alone is sufficient (round 8, finding SR-704): (1) MEMBERSHIP: for each directory in scope
+  (`meta/` and every records type and disposition directory), compare its `mtime_ns` against the
+  `directories` row (4.5); a changed directory is re-listed, which is the only way a NEW, DELETED or
+  MOVED file is noticed (a `stat` of known files cannot discover a new one); (2) CONTENT: for each
+  known file, compare `(size, mtime_ns)`, with the blob-sha tiebreak, against the `files` row, which
+  catches an in-place edit that leaves the directory mtime unchanged. Any changed or new file goes
+  to the LOADER. The loader is the ONE code path
   that opens and parses a `meta/*.jsonl` log: it validates the log, folds it, and writes the rows. It
   may be several functions, but they form one internal component of `artifact_meta` with one entry
   point. Nothing else, inside or outside `artifact_meta`, opens a log. The `aw meta repair` writer
   and the migration READ through the loader too, and WRITE through the same atomic write path as
   `append`.
 - STALENESS CHECK COST. The baseline is one `stat` per file in scope, about 7,500 files (logs plus
-  artifacts) for a corpus-wide query on this repository. A cheaper strategy is acceptable ONLY if it
-  can never serve a row older than its file. Directory mtimes alone do NOT meet that bar, because an
-  in-place edit of a file does not change its directory's mtime. Neither does `HEAD` plus the index
+  artifacts) plus one per directory for a corpus-wide query on this repository. A cheaper strategy
+  is acceptable ONLY if it can never serve a row older than its file. Directory mtimes alone do NOT
+  meet that bar, because an in-place edit of a file does not change its directory's mtime; they are
+  used for MEMBERSHIP only, never instead of the per-file check. Neither does `HEAD` plus the index
   mtime, which miss unstaged edits. AC-13 measures the end-to-end cost of whichever strategy is
   built, rather than this text asserting it is fast enough.
 - Writes take a per-artifact lock (`platform_lock`, the repository's single `filelock` wrapper),
-  verify `expect_seq` (optimistic concurrency), write the log via temp file + `fsync` + atomic
-  replace of the whole log (logs are small), rewrite the front-matter `status` mirror, and update the
-  cache rows, all inside the lock. The log and the mirror change together or not at all (C6). The
-  cache update is best-effort: if it fails, the next read reloads from the log, because the log is
-  the durable record.
+  verify `expect_seq` (optimistic concurrency), and then perform, IN THIS ORDER, inside the lock
+  (round 8, finding SR-705, which replaces the earlier claim that the log and the mirror change
+  "together or not at all": three separate files cannot be replaced as one atomic step):
+  1. LOG, the COMMIT POINT: write the whole log via temp file + `fsync` + atomic replace (logs are
+     small). If this fails, nothing has changed and the write fails (C6).
+  2. FRONT-MATTER MIRROR: rewrite the `status` line, same atomic-replace technique.
+  3. DISPOSITION: move the artifact file if the new status maps to a different lifecycle
+     directory.
+  4. CACHE rows, best effort.
+  Once step 1 has succeeded, the change HAS happened, because the log is the authority. A crash or
+  failure in steps 2 to 4 leaves only DERIVED copies behind, which is exactly the drift `aw check
+  meta` already detects (4.6, front-matter status and disposition rows) and which `aw meta repair`
+  restores DETERMINISTICALLY from the log, with no human decision needed. The setter reports such a
+  partial completion as a failure naming the repair command, never as success. A failed cache
+  update needs nothing: the next read reloads from the log.
 - AUTHORITY ON DISAGREEMENT. The log wins. A gitignored cache cannot be the durable record (option
   O2), and git delivers changes from pull, merge, checkout and other worktrees as log edits. So
   staleness detection is what makes C5a safe, not a fallback to reading the log.
@@ -493,7 +545,7 @@ second conforms to the other (section 9).
     - `ipd_lifecycle._release_own_plan_edit_before_landing`.
   - **Not metadata readers:**
     - `leak_sanitizer.scan_working_tree_counted` reads tracked files for leaks. That is not a metadata
-      read, and it must scan `meta/*.jsonl` as ordinary text: logs carry an `actor` string and are a
+      read, and it must scan `meta/*.jsonl` as ordinary text: logs carry an `actor` object and are a
       new leak surface.
     - `artifact_audit.FinalizeEvidenceIndex` reads commit SUBJECTS, not blobs, so it is NOT a
       content reader; round 1 mis-listed it.
@@ -569,34 +621,38 @@ carrier type", so this table is the only place the obligation is recorded, and A
   the records they describe (AC-18). PLACEMENT FACT (measured at round 6, finding SR-501): for the
   `repository` backend, `resolve_project_context` called from inside a runner lane worktree returns
   that worktree's OWN `.aw/state`, so under this resolution rule each lane gets its own `index.db`
-  and starts cold; lanes do NOT share a cache. A cache CAN be shared only where the resolved state
-  root is outside the worktree (a `companion` or `home` backend). So rows are still keyed by worktree
-  root (located with `git rev-parse --show-toplevel`, never `--git-common-dir`, which is identical in
-  every worktree), so a lane never reads another tree's state as its own wherever a cache is shared.
-  This spec does NOT move the `repository`-backend cache to `--git-common-dir` to share it; a lane's
-  cold first build is a cost AC-13 measures, not one this text assumes away.
+  and starts cold; lanes do NOT share a cache. This spec does NOT move the `repository`-backend
+  cache to `--git-common-dir` to share it; a lane's cold first build is a cost AC-13 measures, not
+  one this text assumes away.
+- ONE CACHE PER RESOLVED RECORDS ROOT, AND NO WORKTREE COLUMN (round 8, finding SR-706, which
+  replaces the round-5 worktree keying). A cache file describes exactly one records root. For the
+  `repository` backend that root is inside each worktree, so each worktree already has its own
+  cache file and a worktree column would hold one constant value. For `companion`/`home`, every
+  worktree of the repository resolves to the SAME records files, so per-worktree rows would be
+  identical duplicates of one truth. Either way the key is `id6` alone. The `meta` table records the
+  resolved records root, and a cache whose recorded root differs from the one being resolved is
+  dropped and rebuilt, which is the protection the worktree key was meant to give. Pruning by
+  worktree (round 5) is therefore deleted; lane teardown removes a per-worktree cache with its
+  worktree.
 - ROLE: the SOLE READ PATH for metadata (C5a), and never the durable record. It is filled ONLY by the
   `artifact_meta` loader (4.3). All SQL queries in `artifact_meta` MUST use parameterized bindings (`?`),
   never string formatting.
-- Tables: `artifacts(worktree, id6, path, type, bucket, status, set, order, ...)`, `events(worktree,
-  id6, seq, op, ...)`, `files(worktree, path, size, mtime_ns, blob_sha)`, and `blobs(blob_sha, ...)`
-  holding folded state for staged/committed revisions read by gates (4.4). Refresh is incremental:
-  re-read a log or artifact only when size/mtime_ns change, with a blob-sha tiebreak to close the
-  same-tick mtime gap measured in backlog `8mkt5l`. Incremental refresh drops entries from `files`
-  and `artifacts` when files are removed or moved (such as lifecycle transitions). The blob-sha-keyed
-  rows are content-addressed, so they are valid in every worktree and need no worktree key.
-- Schema version row; a mismatch drops and rebuilds. Any open/corruption error drops and rebuilds.
-  A command must never fail because the cache is missing or broken (AC-8). Concurrent processes
-  (parallel lanes, a hook running during a command) are serialized by SQLite's own locking under WAL,
-  plus a busy timeout; a busy cache degrades to a rebuild-in-memory read, never a failed command.
-  Worktree pruning: `aw index rebuild`, `aw check meta`, and runner lane teardown (the lane
-  teardown path, today `runner_shared.teardown_isolation_worktree` over
-  `worktree_lease.teardown_worktree`; there is no `cleanup_lane_worktree`) prune cache rows whose
-  `worktree` directory no longer exists on disk (`DELETE FROM ... WHERE worktree NOT IN ...`). For a
-  per-worktree cache (the `repository` backend, above) this is a no-op, because the cache file is
-  removed with the worktree.
-- Precedents in-repo for the keying and placement choices: `suite_cache.py` keys a cache by
-  `--git-common-dir`; `run_ledger_store.py` is an append-only JSONL store under `platform_lock`.
+- Tables: defined in 4.5a. Refresh is incremental (4.3): a directory is re-listed only when its
+  mtime changes, and a log or artifact is re-read only when size/mtime_ns change, with a blob-sha
+  tiebreak to close the same-tick mtime gap measured in backlog `8mkt5l`. Removing or moving a file
+  (such as a lifecycle transition) drops or re-points its rows. The `rev_*` tables are
+  content-addressed by git blob sha, so they never go stale and need no freshness check.
+- SCHEMA VERSION = A HASH OF THE REGISTRY (round 8, finding SR-707). The cache's per-type tables are
+  GENERATED from the field registry (4.2c, OQ-1), so `meta.schema_hash` is a digest of the registry
+  plus the cache layout version. Any registry change (a field added, renamed, retyped) therefore
+  rebuilds the cache on the next read with no hand-maintained version bump to forget. Any
+  open/corruption error also drops and rebuilds. A command must never fail because the cache is
+  missing or broken (AC-8). Concurrent processes (parallel lanes, a hook running during a command)
+  are serialized by SQLite's own locking under WAL, plus a busy timeout; a busy cache degrades to a
+  rebuild-in-memory read, never a failed command.
+- Precedents in-repo: `run_analytics_cache.py` is already a disposable, fingerprinted, rebuildable
+  cache over the runs tree (the model for 4.5b); `run_ledger_store.py` is an append-only JSONL store
+  under `platform_lock`.
 - Replaces: `plans/INDEX.{json,md}`, `research/INDEX.{json,md}`, `prompts/INDEX.{json,md}` (added
   since round 1, `prompts_index.py`), `plans/STATUS.md`, the `artifact_audit._INDEX_CACHE`, and the
   whole-corpus rescans in `aw find`, `aw attention`, `aw ipd board`. `aw index <type>` becomes
@@ -607,6 +663,103 @@ carrier type", so this table is the only place the obligation is recorded, and A
   `placement_switch.py` go too.
 - Contracts the rewrite of `aw find` must keep (inherited from executed plans, 4.4a):
   `tests/test_find_filters.py` passes, and a zero-match selector still exits 2.
+
+### 4.5a Cache schema (round 8, findings SR-706..SR-709; maintainer-directed design pass 2026-10-25)
+
+DESIGN RULES, each of which decides a case the round-1 sketch left open:
+
+1. TYPED COLUMNS, NOT NAME/VALUE ROWS. The registry is closed (4.2: unknown fields are refused) and
+   the cache is disposable (a schema change costs one rebuild, never a data migration), so the usual
+   reasons for a generic entity-attribute-value table do not apply, while its costs (every value text,
+   multi-field queries need pivots, weak indexes) would. Each field is a typed column on its type's
+   table. A field that can hold several values gets a CHILD TABLE, never a delimited string.
+2. RELATIONSHIPS ARE NAMED FOR WHAT THEY MEAN. Edges with different semantics live in different
+   tables (`dependencies`, `lineage`, `release_gates`, `gates`), not one generic `links` table.
+3. EVERY REFERENCE KEEPS ITS RAW TEXT AND ITS RESOLUTION. A reference column pair is `<x>_raw` (as
+   written) and `<x>_id6` (resolved, NULL when it resolves to nothing). There are NO foreign-key
+   constraints on reference columns: a dangling reference is a FINDING for `aw check`
+   (`check.from-backlog-dangling` and siblings become queries), not a reason for the cache to refuse
+   rows.
+4. HISTORY IS EVENTS; CURRENT STATE IS DERIVED FROM THEM. `events` is the cached log. Every other
+   artifact table is the fold of `events`, materialized for query speed. Status changes are `events`
+   rows with `op = 'transition'`; per-field changes are `field_changes` rows with old and new values.
+5. TIMESTAMPS FOLLOW 4.2b. Columns ending `_at` are UTC RFC 3339 text; columns named `date` are the
+   LOCAL-clock creation day (`YYYY-MM-DD`). No column mixes the two.
+
+TABLES (PK = primary key). Columns shown are the minimum; the per-type tables carry one column per
+registry field for that type, generated from the registry.
+
+| Table | Columns | What it answers |
+|---|---|---|
+| `meta` | `key` PK, `value` | `schema_hash`, `records_root`, `built_at`, `tool_version`. Mismatch on the first two rebuilds. |
+| `directories` | `path` PK, `mtime_ns` | Membership freshness (4.3 check 1). |
+| `files` | `path` PK, `file_role` (`log` \| `artifact` \| `review`), `id6`, `size`, `mtime_ns`, `blob_sha`, `loaded_at`, `load_error` | Content freshness (4.3 check 2); a log that failed validation keeps its `load_error` here. |
+| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `date`, `created_at`, `updated_at`, `last_seq`, `valid`, `defect` | One row per lifecycle record: the columns every type shares and most queries filter on. `updated_at` is the `at` of the highest-`seq` event (`attention_contract.last_history_at`). `valid = 0` rows are never answered as state; their `defect` names why. |
+| `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, ... | `id6` PK and FK to `artifacts`, plus the registry's fields for that type (e.g. `ipd`: `plan_role`, `work_kind`, `readiness`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_exceeded`, `attended`, `dependency_declaration`; `backlog`: `priority`, `work_kind`, `close_evidence`, `release_exempt_kind`, `release_exempt_ref`) | Type-specific current state. Table names are the filename type facet (rule 4.5c). |
+| `scope_paths` | (`id6`, `ordinal`) PK, `path` | Multi-valued `scope-paths`. |
+| `dependencies` | (`dependent_id6`, `ordinal`) PK, `condition` (`executed` \| `exists` \| `state`), `target_type`, `required_status`, `target_raw`, `target_id6` | `Item-Dependencies`, parsed (4.2). Indexed on `target_id6` so "what waits on X" is one lookup. |
+| `lineage` | (`child_id6`, `relation`, `parent_raw`) PK, `parent_id6` | `relation` is `from_backlog`, `from_spec`, `from_plan`, `supersedes`. `graduated-to` is NOT stored: it is this table read in reverse, so `aw graduation` agrees in both directions by construction (obligation `pw2ln3`). |
+| `release_gates` | (`id6`, `release_raw`) PK, `release_id6` | `Blocks-Release`; `release_raw` keeps `next` as written, `release_id6` holds what it resolved to at load time. |
+| `gates` | `id6` PK, `gate_kind`, `gate_ref`, `gate_summary` | The typed blocked-by gate. `gate_ref` may name an issue, date or external thing, so it is never resolved as an id6. |
+| `actors` | `actor_id` PK (digest of the canonical actor JSON), `tool`, `ace`, `host`, `model`, `variant`, `run_id`, `attempt` | Who acted (4.2). The same actor gets the same key on every rebuild. |
+| `events` | (`id6`, `seq`) PK, `op`, `at`, `actor_id` FK, `by_human`, `from_status`, `to_status`, `message`, `raw` | The cached log, one row per line; `raw` is the verbatim JSON line so nothing in the log is lost to the projection. Status history is `WHERE op = 'transition'`. |
+| `field_changes` | (`id6`, `seq`, `field`) PK, `old_value`, `new_value`, `unset` | Per-field audit trail derived while folding (who changed `blocks_release`, from what, when). Values are JSON-encoded text so one table serves every field type. |
+| `review_files` | `path` PK, `subject_id6`, `review_ref`, `round_count`, `parse_ok` | One row per review record file, for the 4.6 round-count rule. |
+| `reviews` | (`subject_id6`, `seq`) PK, `review_ref`, `round`, `review_kind` (`gate` \| `refinement`), `verdict`, `legacy_verdict`, `readiness`, `findings_summary`, `reviewer` | Typed projection of `op = 'review'` events (4.1a). "Latest gate review of X" is one indexed query. Findings themselves stay prose in the file (N3). |
+| `rev_log_states` | `log_blob_sha` PK, `id6`, `status`, `last_seq`, `state_json` | Fold of a log AT A REVISION, for `read_at` (4.4). |
+| `rev_mirrors` | `md_blob_sha` PK, `id6`, `status` | Front-matter mirror AT A REVISION. `read_at` joins the two; one sha could not key both, because the state at a revision depends on two blobs. |
+
+Indexes at minimum: `artifacts(status)`, `artifacts(type, status)`, `artifacts(set_id, order_nn)`,
+`dependencies(target_id6)`, `lineage(parent_id6)`, `release_gates(release_id6)`,
+`events(id6, op)`, `reviews(subject_id6, review_kind, seq)`, `attempts(id6)` (4.5b).
+
+Considered and rejected: a generic `fields(id6, name, value)` table (rule 1); one `links` table
+(rule 2); foreign-key constraints on references (rule 3); caching review findings (they stay prose
+that `review_findings` parses, N3, and re-reading them is cheap); a `worktree` column (SR-706).
+
+### 4.5b Run records are indexed, never written (maintainer decision 2026-10-25, finding SR-701)
+
+The cache also indexes the gitignored runs tree (`.aw/records/runs/`, resolved through
+`runner_shared`; measured at round 8: 597 run directories, about 34,000 run events, per-item attempt
+lists in each `state.json`), so a query can join an artifact to the runs that acted on it.
+
+- READ THROUGH THE RUNNER'S OWN READERS (`runner_shared.load_state` and the event readers that
+  `run_analytics_cache` already uses), never a new parser: a second parser of run state would
+  recreate P1. Freshness uses the same fingerprint rule `run_analytics_cache.source_fingerprint`
+  already defines (a non-terminal run is never a stable hit).
+- READ-ONLY. Indexing writes nothing under the runs tree (AC-25). Run storage, format and
+  retention are unchanged (N4).
+- Tables: `runs(run_id PK, host, driver, started_at, updated_at, outcome, terminal)`,
+  `run_items(run_id, position, id6, action, item_status, plan_role, PK(run_id, position))`,
+  `attempts(run_id, id6, attempt_no, lane_id, branch, requested_model, model, variant, ace,
+  started_at, ended_at, outcome, exit_code, PK(run_id, id6, attempt_no))`. Session ids, command
+  lines and paths are NOT copied in, even though the cache is gitignored, because `aw find --format
+  json` output is routinely pasted.
+- HONEST LIMIT, ENFORCED IN OUTPUT. Run data is MACHINE-LOCAL. A fresh clone has none, and a lane
+  worktree's cache does not see the main checkout's runs. So "no attempts" must never be presented
+  as "never run": any answer drawing on these tables reports how many runs were indexed and from
+  which runs root, and zero means UNKNOWN (AC-25).
+- Event `actor.run_id`/`attempt` (4.2) is the bridge: a tracked event can name the run that wrote
+  it, and the join works wherever that run's records exist.
+
+### 4.5c Naming rule: `type`, `kind`, `status`, `disposition`, `op`
+
+The corpus overloads these words today (measured: `Kind` is plan role on 1,596 plans, `Work-Kind`
+the nature of the work, `Gate-Kind` what blocks an item, `Subject-Type: ipd|spec` the artifact
+class). From the cutover, in logs, cache columns, API fields and JSON output:
+
+| Word | Meaning | Changes? | Values |
+|---|---|---|---|
+| `type` | The CLASS of a record: decides which schema and table apply. Exactly one per record; its values are the filename type facet. | Never | `ipd`, `spec`, `backlog`, `review`, ... |
+| `<thing>_kind` | A behavior-affecting variant WITHIN a type. Always qualified by what it classifies; a bare `kind` column or field is not allowed, because one entity may carry several. | Rarely | `work_kind`, `review_kind`, `gate_kind`, `release_exempt_kind` |
+| `<thing>_role` | A record's structural position relative to others. | Rarely | `plan_role` (`child`, `orchestrator`), `file_role` |
+| `status` | Lifecycle position, changed only by a `transition` event. | Yes | `approved`, `executed` |
+| `disposition` | The lifecycle DIRECTORY a status maps to (N1). | With status | `pending`, `executed` |
+| `op` | What an event did. Events are immutable. | No | `set`, `transition`, `review` |
+| `relation`, `condition` | The meaning of an edge in a relationship table. | No | `from_spec`; `executed` |
+
+Exceptions are kept, not renamed, where the name is someone else's published contract: the
+filename grammar (C10) and `Subject-Type` inside review FILES, which `review_findings` parses (N3).
 
 ### 4.6 Mirrors and drift (`aw check meta`)
 
@@ -648,74 +801,250 @@ The log is the authority. These are deliberate mirrors, each checked, each repai
 
 ### 4.9 Diagrams (informative)
 
-These diagrams illustrate 4.1a, 4.3, 4.4, 4.5, 4.7, 5.2 and section 7. They are INFORMATIVE: the prose
+These diagrams illustrate 4.1a, 4.3, 4.4, 4.5, 4.5a, 4.5b, 4.7, 5.2 and section 7. They are INFORMATIVE: the prose
 sections they cite are normative, and if a diagram and its section disagree, the section wins and the
 diagram is the defect. They add no requirement.
 
-#### 4.9.1 SQLite cache entities (`.aw/state/index.db`, 4.5)
+#### 4.9.1 SQLite cache entities (`.aw/state/index.db`, 4.5a, 4.5b)
 
-Only the columns 4.5 names are shown; 4.5's tables end in `...`, so the full column set is the plan's
-to decide (OQ-1). Every row is DERIVED: deleting the file loses nothing (AC-8), and the tracked logs
-under `meta/` remain the durable record.
+Every row is DERIVED: deleting the file loses nothing (AC-8). The tracked logs under `meta/` are
+the durable record of artifact metadata; the runs tree is the durable record of runs. Reference
+columns carry NO foreign-key constraint (4.5a rule 3); the relationship lines below show what a
+reference RESOLVES to, and a dangling one is an `aw check` finding. `ipd` stands for each per-type
+table (`spec`, `backlog`, ...), whose columns are generated from the registry.
+
+Core artifact state and history:
 
 ```mermaid
 erDiagram
-    SCHEMA_VERSION {
-        int version "mismatch drops and rebuilds the whole db"
-    }
-    FILES {
-        text worktree PK "git rev-parse --show-toplevel"
-        text path PK "a meta log or an artifact md file"
-        int size
-        int mtime_ns
-        text blob_sha FK "tiebreak for same-tick mtime"
-    }
     ARTIFACTS {
-        text worktree PK
         text id6 PK "full match artifact_core.ID6_RE"
-        text path "current location, follows moves"
-        text type
-        text bucket "disposition directory"
-        text status "folded from the log"
-        text set
-        int order
+        text type "filename type facet, never changes"
+        text path "current file, follows moves"
+        text disposition "lifecycle directory"
+        text status "fold of transition events"
+        text title "the H1"
+        text set_id
+        int order_nn
+        text date "LOCAL creation day, compared with filename date"
+        text created_at "UTC, at of first event"
+        text updated_at "UTC, at of highest-seq event"
+        int last_seq
+        int valid "0 means log failed validation"
+        text defect "why invalid"
+    }
+    IPD {
+        text id6 PK, FK
+        text plan_role "child or orchestrator"
+        text work_kind
+        text readiness "written only with a gate review event"
+        text coverage "written only by a coverage event"
+        text review_depth
+        text pipeline
+        text dependency_declaration "listed none unresolved, or NULL if absent"
     }
     EVENTS {
-        text worktree PK
         text id6 PK, FK
-        int seq PK "contiguous per artifact, 0 is the migration checkpoint"
+        int seq PK "contiguous, 0 is migration checkpoint"
         text op "create set unset transition note checkpoint legacy review coverage"
+        text at "UTC RFC 3339"
+        text actor_id FK
+        int by_human "attested human approval"
+        text from_status "transition only"
+        text to_status "transition only"
+        text message
+        text raw "verbatim JSON line"
     }
-    BLOBS {
-        text blob_sha PK "content addressed, valid in every worktree, no worktree key"
+    FIELD_CHANGES {
+        text id6 PK, FK
+        int seq PK, FK
+        text field PK
+        text old_value "JSON"
+        text new_value "JSON"
+        int unset
     }
-
-    FILES ||--o| ARTIFACTS : "artifact md file mirrors"
-    FILES ||--o{ EVENTS : "meta log folds into"
-    ARTIFACTS ||--o{ EVENTS : "state is the fold of"
-    FILES }o--o| BLOBS : "blob_sha resolves to"
+    ACTORS {
+        text actor_id PK "digest of canonical actor JSON"
+        text tool "aw verb or workflow"
+        text ace "agent environment"
+        text host "runner host"
+        text model "model that actually ran"
+        text variant
+        text run_id
+        int attempt
+    }
+    ARTIFACTS ||--o| IPD : "type-specific state"
+    ARTIFACTS ||--|{ EVENTS : "state is the fold of"
+    EVENTS ||--o{ FIELD_CHANGES : "changed"
+    ACTORS ||--o{ EVENTS : "performed"
 ```
 
-Review records have NO `ARTIFACTS` row and NO log of their own (4.1a): each review round is an
-`EVENTS` row with `op = review` under its SUBJECT's `id6`, attributed to its file by `review_ref`.
+Relationships between artifacts (each table named for what its edge means, 4.5a rule 2):
+
+```mermaid
+erDiagram
+    ARTIFACTS {
+        text id6 PK
+    }
+    DEPENDENCIES {
+        text dependent_id6 PK, FK
+        int ordinal PK
+        text condition "executed exists state"
+        text target_type
+        text required_status "state condition only"
+        text target_raw "as written"
+        text target_id6 "resolved, NULL if dangling"
+    }
+    LINEAGE {
+        text child_id6 PK, FK
+        text relation PK "from_backlog from_spec from_plan supersedes"
+        text parent_raw PK
+        text parent_id6 "resolved; graduated-to is this read in reverse"
+    }
+    RELEASE_GATES {
+        text id6 PK, FK
+        text release_raw PK "release id6 or next"
+        text release_id6 "resolved at load"
+    }
+    GATES {
+        text id6 PK, FK
+        text gate_kind "artifact decision todo issue date external"
+        text gate_ref "never resolved as an id6"
+        text gate_summary
+    }
+    SCOPE_PATHS {
+        text id6 PK, FK
+        int ordinal PK
+        text path
+    }
+    ARTIFACTS ||--o{ DEPENDENCIES : "waits on"
+    ARTIFACTS |o--o{ DEPENDENCIES : "is the target of"
+    ARTIFACTS ||--o{ LINEAGE : "came from"
+    ARTIFACTS |o--o{ LINEAGE : "is the parent of"
+    ARTIFACTS ||--o{ RELEASE_GATES : "must ship before"
+    ARTIFACTS ||--o| GATES : "is blocked by"
+    ARTIFACTS ||--o{ SCOPE_PATHS : "declares"
+```
+
+Reviews, runs, freshness and revisions:
+
+```mermaid
+erDiagram
+    ARTIFACTS {
+        text id6 PK
+    }
+    REVIEW_FILES {
+        text path PK
+        text subject_id6 FK
+        text review_ref "own id6 or date stem, NULL if sole file"
+        int round_count "must equal its review events"
+        int parse_ok
+    }
+    REVIEWS {
+        text subject_id6 PK, FK
+        int seq PK "the review event"
+        text review_ref
+        int round
+        text review_kind "gate or refinement"
+        text verdict
+        text legacy_verdict "verbatim, never an approval signal"
+        text readiness "gate only"
+        text reviewer
+        text findings_summary
+    }
+    RUNS {
+        text run_id PK
+        text host
+        text driver
+        text started_at
+        text updated_at
+        text outcome
+        int terminal
+    }
+    RUN_ITEMS {
+        text run_id PK, FK
+        int position PK
+        text id6
+        text action
+        text item_status
+    }
+    ATTEMPTS {
+        text run_id PK, FK
+        text id6 PK
+        int attempt_no PK
+        text lane_id
+        text requested_model
+        text model "resolved"
+        text variant
+        text ace
+        text started_at
+        text ended_at
+        text outcome
+        int exit_code
+    }
+    META {
+        text key PK "schema_hash records_root built_at tool_version"
+        text value
+    }
+    DIRECTORIES {
+        text path PK
+        int mtime_ns "membership freshness"
+    }
+    FILES {
+        text path PK
+        text file_role "log artifact review"
+        text id6
+        int size
+        int mtime_ns
+        text blob_sha "same-tick tiebreak"
+        text load_error
+    }
+    REV_LOG_STATES {
+        text log_blob_sha PK
+        text id6
+        text status
+        int last_seq
+        text state_json
+    }
+    REV_MIRRORS {
+        text md_blob_sha PK
+        text id6
+        text status "front matter at that revision"
+    }
+    ARTIFACTS ||--o{ REVIEW_FILES : "is reviewed in"
+    ARTIFACTS ||--o{ REVIEWS : "has review rounds"
+    REVIEW_FILES ||--o{ REVIEWS : "attributes, by review_ref"
+    RUNS ||--|{ RUN_ITEMS : "queued"
+    RUN_ITEMS ||--o{ ATTEMPTS : "tried"
+    ARTIFACTS |o--o{ RUN_ITEMS : "was queued as"
+    DIRECTORIES ||--o{ FILES : "lists"
+```
+
+`META`, `DIRECTORIES`, `FILES` and the two `REV_*` tables are bookkeeping: they say how fresh the
+cache is and what a file looked like at a git revision. They hold no metadata of their own.
 
 #### 4.9.2 A metadata read (4.3, 4.5; C5a)
 
 ```mermaid
 flowchart TD
     A["Any metadata read: aw find, attention, board, a gate, a hook, a runner"] --> B["artifact_meta read / history / query"]
-    B --> C{"index.db opens and schema version matches?"}
+    B --> C{"index.db opens, and meta.schema_hash and meta.records_root match?"}
     C -- "no, or corrupt" --> D["drop and rebuild"]
     D --> E
-    C -- yes --> E["for each file in scope: stat, compare size and mtime_ns, blob sha tiebreak, against FILES"]
-    E --> F{"changed, new, or removed?"}
-    F -- removed --> G["delete its FILES and ARTIFACTS rows"]
+    C -- yes --> E["MEMBERSHIP: stat each directory in scope, compare mtime_ns with DIRECTORIES"]
+    E --> E2{"directory changed?"}
+    E2 -- yes --> E3["re-list it: find new, deleted and moved files"]
+    E2 -- no --> E4
+    E3 --> E4["CONTENT: stat each known file, compare size and mtime_ns, blob sha tiebreak, with FILES"]
+    E4 --> F{"per file: changed, new, removed, or unchanged?"}
+    F -- removed --> G["delete its rows, or re-point them if the file moved"]
     F -- "changed or new" --> H["LOADER, the only code that opens a meta log: parse, validate, fold"]
     H --> I{"log valid? JSON, contiguous seq, known op and field, id matches, legal transition"}
-    I -- no --> J["not cached as valid; reads of that artifact fail closed naming the defect"]
-    I -- yes --> K["write FILES, ARTIFACTS, EVENTS rows"]
+    I -- no --> J["FILES.load_error and ARTIFACTS.valid = 0; reads of that artifact fail closed naming the defect"]
+    I -- yes --> K["one transaction: replace that artifact's rows in every table"]
     F -- unchanged --> L
     G --> L
+    J --> L
     K --> L["answer with a parameterized SQL query"]
     C -. "busy past the timeout" .-> M["rebuild in memory and answer; never fail the command"]
 ```
@@ -731,25 +1060,32 @@ sequenceDiagram
     participant S as Setter or verb (status_set engine, aw ipd, finalize, coverage recorder)
     participant M as artifact_meta.append
     participant L as Per-artifact lock (platform_lock)
-    participant G as Tracked files (meta log, front matter)
+    participant G as Tracked files
     participant C as index.db
     S->>M: append(id6, events, expect_seq)
     alt dry-run, or the setter refused earlier
-        M-->>S: no event written, log byte-identical (AC-5)
+        M-->>S: no event written, every file byte-identical (AC-5)
     else
         M->>L: acquire
         M->>C: read current state (refreshed as in 4.9.2)
-        alt seq is not expect_seq, or transition or field invalid
+        alt seq is not expect_seq, transition or field invalid, or actor carries a forbidden value
             M-->>S: refuse, nothing written
         else
-            M->>G: write whole log to temp file, fsync, atomic replace
-            M->>G: rewrite front-matter status mirror
-            Note over M,G: log and mirror change together or not at all, and a failure leaves status unchanged
-            M->>C: update rows (best effort)
-            Note over M,C: if this fails, the next read reloads from the log
+            M->>G: 1 LOG: temp file, fsync, atomic replace (the COMMIT POINT)
+            alt log write fails
+                M-->>S: fail, nothing changed
+            else
+                M->>G: 2 MIRROR: rewrite front-matter status line
+                M->>G: 3 DISPOSITION: move the file if its directory changes
+                M->>C: 4 CACHE: update rows (best effort)
+                alt step 2 or 3 failed
+                    M-->>S: fail, change IS recorded, run aw meta repair (drift is detected by aw check meta)
+                else
+                    M-->>S: ok, diff shows one status line and one appended log line (AC-6)
+                end
+            end
         end
         M->>L: release
-        M-->>S: ok, diff shows one status line and one appended log line (AC-6)
     end
 ```
 
@@ -758,12 +1094,16 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     A["hook or check_engine gate"] --> B["artifact_meta.read_at id6, rev"]
-    B --> C["blob sha of the meta log and the md file at rev: git ls-files -s for the index, git rev-parse rev:path for a commit"]
-    C --> D{"sha in BLOBS?"}
-    D -- yes --> F
-    D -- no --> E["git cat-file bytes, handed to the SAME loader"]
-    E --> F["State: folded log state plus front-matter mirror status at rev"]
-    F --> G["gate compares HEAD state and staged state, e.g. terminal now and not before"]
+    B --> C["blob shas of the meta log and the md file at rev: git ls-files -s for the index, git rev-parse rev:path for a commit"]
+    C --> D1{"log sha in REV_LOG_STATES?"}
+    C --> D2{"md sha in REV_MIRRORS?"}
+    D1 -- no --> E1["git cat-file bytes to the SAME loader, store row"]
+    D2 -- no --> E2["git cat-file bytes, read the two-key front matter, store row"]
+    D1 -- yes --> F
+    E1 --> F
+    D2 -- yes --> F
+    E2 --> F["State at rev: folded log state joined with mirror status"]
+    F --> G["gate compares HEAD and staged State, e.g. terminal now and not before"]
 ```
 
 #### 4.9.5 Same artifact changed on two branches (4.7)
@@ -783,18 +1123,24 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    P["Preflight: clean records tree, integration lock free and then held, no lane with unmerged plan changes, NOT a lane worktree, sidecar present with its count reported"] --> Q{"all pass?"}
+    Z["aw migrate metadata"] --> Z1{"journal shows an interrupted apply?"}
+    Z1 -- yes --> Z2["resume or roll back from the MigrationManager journal; never restart half-applied"]
+    Z1 -- no --> P["1: Preflight: clean records tree, integration lock free and then held, no lane with unmerged plan changes, NOT a lane worktree, sidecar present with its count reported"]
+    P --> Q{"all pass?"}
     Q -- "no, without --force" --> R["refuse, write nothing"]
-    Q -- yes --> S2["2: export and fold history.jsonl sidecar"]
+    Q -- yes --> W["run steps 2 to 6 in a SCRATCH COPY"]
+    W --> S2["2: export and fold history.jsonl sidecar"]
     S2 --> S3["3: mint id6 for lifecycle records with none; reviews excluded"]
-    S3 --> S4["4: per artifact: checkpoint seq 0 with local date, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
-    S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, kind, legacy verdict verbatim, review_ref"]
+    S3 --> S4["4: per artifact: checkpoint seq 0 with local date and mapped field names, parsed dependencies, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
+    S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review kind, legacy verdict verbatim, review_ref"]
     S4r --> S4a["4a: terminal directories migrated too, under a journaled marker the executed-plan hook accepts"]
     S4a --> S5["5: delete STATUS.md and INDEX files and their ignore lines"]
-    S5 --> S6{"6: round trip recovers every legacy value and line, and aw check meta is clean?"}
-    S6 -- no --> X["roll back via the MigrationManager journal"]
-    S6 -- yes --> S6b["stamp metadata_schema: 2"]
-    S6b --> S7["7: one commit via aw commit --no-plan, passing every installed gate with no --no-verify"]
+    S5 --> S6{"6: census has no unknown or unparseable field, round trip recovers every legacy value and line, aw check meta clean?"}
+    S6 -- no --> X["report; refuse --apply; nothing written to the repository"]
+    S6 -- yes --> Y{"--apply given?"}
+    Y -- "no (the default)" --> Y1["print census and round-trip result; stop"]
+    Y -- yes --> Y2["apply to the repository under the journal, re-verify, stamp metadata_schema: 2"]
+    Y2 --> S7["7: one commit via aw commit --no-plan, passing every installed gate with no --no-verify"]
 ```
 
 #### 4.9.7 Facade-first build order (section 7; C10a)
@@ -812,6 +1158,18 @@ flowchart LR
     end
     A3 --> B4
     B7 --> C8
+```
+
+#### 4.9.8 Indexing run records (4.5b)
+
+```mermaid
+flowchart TD
+    A["a read that joins artifacts to runs, or aw index rebuild"] --> B["list run directories under the runs root resolved by runner_shared"]
+    B --> C{"per run: fingerprint as in run_analytics_cache.source_fingerprint unchanged, and run terminal?"}
+    C -- yes --> F
+    C -- "no, or run still in progress" --> D["read via runner_shared.load_state and the existing event readers; nothing is written under the runs tree"]
+    D --> E["replace that run's RUNS, RUN_ITEMS, ATTEMPTS rows; drop session ids, command lines, paths"]
+    E --> F["answer, reporting runs indexed and runs root; zero indexed means UNKNOWN, never 'never ran'"]
 ```
 
 ## 5. Installer and migration
@@ -835,6 +1193,10 @@ flowchart LR
 
 ### 5.2 Migration 0001 `metadata-v2` (hard cutover, one commit)
 
+0. DRY-RUN IS THE DEFAULT. Without `--apply` the migration performs steps 1 to 6 in a scratch copy
+   and prints the census (AC-20) and the round-trip result, writing nothing to the repository. Any
+   `unknown-field` or unparseable value in the census refuses `--apply`. An interrupted `--apply`
+   resumes or rolls back from the `MigrationManager` journal (5.1); it never restarts half-applied.
 1. Preflight: clean tree for `.aw/records/`, no live run holding the integration lock, no lane
    worktrees with unmerged plan changes (report them; refuse without `--force`). The migration runs
    in the checkout that holds the history sidecar, under the integration lock, and refuses in a
@@ -855,7 +1217,9 @@ flowchart LR
    assumption that the existing verb covers them.
 4. For each artifact: parse with the legacy loader (the phase-B `artifact_meta` legacy loader, moved
    into the migration, 4.3), emit `checkpoint` (seq 0) holding every field (including the LOCAL
-   creation `date`, 4.2b), emit `legacy` events for every raw history line (4.2a, optionally enriched
+   creation `date`, 4.2b; field names mapped to the 4.2/4.5c names, `Kind` -> `plan_role`;
+   `Item-Dependencies` parsed into structured conditions, and a value that does not parse is a
+   census refusal, not a silent string), emit `legacy` events for every raw history line (4.2a, optionally enriched
    with `inferred-from-git` ordering from `git log -p`), move prose fields into body sections, write
    the new two-key front matter and banner, delete the bullet block and `## Workflow history`. For a
    review record, emit one `review` event per round into the SUBJECT's log instead, with `kind`, the
@@ -878,7 +1242,7 @@ flowchart LR
    because it breaks C9 and leaves two formats in the tree permanently.
 5. Delete `plans/STATUS.md`. Remove the INDEX ignore lines (plans, research, prompts) from the
    `.aw/.gitignore` template and from `placement_switch.py`. Delete the INDEX files on disk.
-6. Verify: automated round-trip (every legacy field value and raw history line recoverable from the
+6. Verify: automated round-trip (every legacy field value, under its mapped name, and raw history line recoverable from the
    logs), `aw check meta` clean, then stamp `metadata_schema: 2`.
 7. Commit via `aw commit --no-plan` with the migration's own path list.
 
@@ -903,6 +1267,8 @@ Any command that reads metadata checks `metadata_schema`; below 2 it exits nonze
   `aw backlog set` does. Where docs need a verb that does not exist yet, the plan adds it or names
   the type-specific verb rather than documenting a missing one.)
 - Research `research_contract` YAML front matter folds into the same two-key format.
+- Every `aw` flag, help text and doc that names the legacy `Kind` field (plan role) is updated to
+  `plan_role` in the cutover commit (4.2, SR-703), and JSON output keys follow 4.5c from the cutover.
 
 ## 6. Blast radius and cost
 
@@ -937,7 +1303,8 @@ decides: C9 holds at every commit (C10a), because the disk keeps exactly one for
 commit, and no caller ever has two readers.
 
 PHASE A: build the single API, over today's format (additive).
-1. `artifact_meta` API, event schema, field registry (OQ-1, 4.2c), the SQLite cache and its loader
+1. `artifact_meta` API, event schema (structured actor, parsed dependencies, 4.2), field registry
+   (OQ-1, 4.2c), the registry-generated cache schema (4.5a, 4.5c), the run index (4.5b), the SQLite cache and its loader
    contract (4.3, 4.5), and the LEGACY loader that fills the cache from bullet blocks and history
    sections. Tests. No callers yet.
 2. `aw show --history`/`--format json`, `aw index rebuild`, served through the API.
@@ -1017,6 +1384,7 @@ merge-contention risk. Phase B exists for proof at each step, not for concurrenc
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): /spec-review round 8 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-701..SR-709 FIXED (maintainer decisions D-20 index runs read-only, D-21 Kind->plan_role); new 4.5a cache schema, 4.5b run index, 4.5c naming rule; 4.3 ordered write and two-check staleness; AC-23..AC-26; diagrams redrawn; no Readiness written
 - 2026-10-25 note (aw specs): diagrams: added informative section 4.9 (SQLite entity diagram; read, write, read_at, same-artifact merge, cutover migration and build-order flows) at maintainer request; no requirement changed; all 7 mermaid blocks render with mermaid-cli
 - 2026-10-25 note (aw specs): /spec-review round 7 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-601 (refinement-only reviews must not satisfy ->reviewed; named the consumer and AC), SR-602 (counts) FIXED; no maintainer question needed; no Readiness written
 - 2026-10-25 reviewed (aw set): /spec-review round 7: APPROVE WITH REVISIONS APPLIED; SR-601, SR-602 FIXED
