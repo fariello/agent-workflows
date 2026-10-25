@@ -2,6 +2,7 @@
 
 - Date: 2026-10-17
 - Status: approved
+- Graduated-To: revsteps
 - Blocks-Release: next
 - Id: k3yx72
 - Author: aw specs new
@@ -872,6 +873,7 @@ The recommendation labels in `.aw/system/workflows/askme/askme.md` change from t
 five of MD-9.
 
 ## Workflow history
+- 2026-10-25 approved (aw set): status set to approved
 - 2026-10-24 approved (aw specs): Blocks release 2.0.0 (f33nrj, the planned release) per maintainer 2026-10-24
 
 - 2026-10-24 note (aw specs): /spec-review round 2 follow-up (opencode/its_direct/pt3-claude-opus-5.5-1m-us), maintainer rulings 2026-10-24: MD-19 pilot compares the proposed review with current /plan-review (9 plans, 3 models incl. GPT-6.1 Sol High on OpenCode, 21 repeats, 3 averaged blind judges; 84 reviews, 252 judge runs; /plan-review-long not tested); MD-20 build Stage 1 (01, 02, 04, minimal 05, 09), then the 13.5 pilot gate before Stage 2 (03, 06, 07, 08, rest of 05). OQ-09 amended. SR-011..SR-013 FIXED. Status unchanged (approved).
