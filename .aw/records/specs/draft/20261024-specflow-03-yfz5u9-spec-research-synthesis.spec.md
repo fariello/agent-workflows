@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): third review against the pre-proofread revision (commit fca4b91bd): fixed cross-references (2.2 R-92 to R-70, R-93 to Section 6.6.1); completed the Section 3.6 exit columns (resume `run-locked` and `no-candidates-available`, accept `--message`, finalize wrong state and `run-locked`, status soft limitation per R-102); aligned N = 1 wording in 3.4, R-53, R-64 (d), 6.1, and 6.2 with R-47 and R-61; synth-refine now depends on `decision-wait` (R-46); verify skip and citation-check count made consistent with Section 3.4; added `skipped` and failed R-63 checks to the 6.3.1 soft-limitation list (R-64); restored ORIG's closed list of states in R-85; corrected the N = 1 incumbent record bound, research facet rule, archive location for superseded runs, AC-26, AC-39, AC-69, and the 7.5 confidence rule; fixed worked examples (distinct fictional run ids for 6.3.3 and 6.6.7, 12.3.2 warning per R-102, gem split reason, 12.3.3 stage name and claim ids, 12.3.5 roster); extended OQ-13 to participant budgets; added OQ-16 (what counts as an accepted reduction). Also recorded here: b27918a05 added precedence level 4 (`modes.<mode>`), changed the Synthesis mode row to sources (R-40), aligned R-56 with the R-52 small-participant split, and extended the R-111 agreement ban to `--partition same` after a participant failure; b3f6e4f16 also named `skipped` in R-64 (d) and aligned the 1.6 splitting, 2.2 launch, and 3.5 handoff rows with R-52, R-83, and R-67
 - 2026-10-25 note (aw specs): second review against the pre-proofread revision (commit fca4b91bd): restored MUST lost in proofread splits (R-24, R-41, R-86); reverted proofread drift (R-72 `revision` on every record, R-39 keys only, Section 8.1 control and network wording, AC-58 walk scope, Summary steps 3 to 5 actors, review-attestation description, model-token gap); fixed contradictions with Section 4 (3.6 exit columns vs R-102, `run-locked` and `capped-unverified` in 3.6, R-07/AC-7 vs R-81 worktree removal, `failed -> superseded` per R-25b, N = 1 refine role and synth-refine dependency, rendered-prompt filenames, hard-block list wording, transcript NN range, ceiling and reference path); fixed escaped pipes in tables; glossary Stage, Stage attempt, Iteration, Generation barrier, run directory refined; recorded the 12-obligation unit bound in Section 7.6 (agrees with R-52); OQ-9 moved into order; OQ-12 to OQ-15 added for questions that need a maintainer decision (R-44 scope, explicit form and `allow_reduced`, R-117 `skipped`, R-96 `oscillating`); no requirement strength changed otherwise
 - 2026-10-25 note (aw specs): post-proofread review against the pre-proofread revision (commit fca4b91bd): R-68/R-27/R-37 prohibitions moved from MAY to MUST NOT; restored meaning the proofread dropped or shifted (MUSTs lost in splits, 'research' scope in R-25b/R-66, verify-role fallback, NN-not-record bound); fixed pre-existing contradictions (state table exits, hard-block list, finalize exit 2, worktree lifetime, R-68 vs R-81, R-117 accepted-open); glossary corrected and extended; OQ-9 restored, OQ-11 added; writing-only otherwise
 - 2026-10-25 note (aw specs): proofread to tmp/20261025-technical-artifact-writing-requirements.md: sentences split one obligation each, actors named, glossary extended (working document, intermediate record, brief companion, runs root, packet, outbox, barrier, owner verb, id6/setid/NN, soft limitation/hard block, abbreviations), terms unified; writing-only, no requirement, acceptance, or obligation changed
@@ -37,7 +38,7 @@ It is not a review, not an approval, and not a merge of the other `specflow` can
 | --- | --- |
 | Produced by (ACE) | OpenCode |
 | Model as reported by the host session | `uri/its_direct/pt3-claude-opus-5.5-1m-us` (prompt slot token `opus55high`; the reasoning setting of this session was not observable from inside the session) |
-| Repository inspected | Branch `main`. The author wrote the candidate at local HEAD `4c01e5be4`. Later refinement iterations re-inspected these revisions: iteration 2 at `766875058`; iteration 3 at `e19492246` (no code change since `766875058`); iteration 4 at `59f6d3137` (candidate spec `18hh1u` iteration 21, plan review and revsteps commits); iteration 5 at `2edf1f3ac` (which incorporates the iteration 4 refinement); iteration 6 at `0d75ca5f0` (which incorporates the iteration 5 refinement); iteration 7 at `def40d511` (which incorporates the iteration 6 refinement); iteration 8 at `87f0de31e` (records-only commits since `def40d511`; every cited symbol was located again in the current source). Iterations 4 to 7 found no change in any cited symbol. All code citations are pinned to `6f430cefd88a4b2ecca9e67548ec340e2911683c`. Between the pin and `def40d511`, code changed in driver fix-it lane handling, interrupt `save_state`, plan review tooling, spec 4sd62s diagrams, and specflow refinement. None of the symbols cited here changed behaviour. |
+| Repository inspected | Branch `main`. The author wrote the candidate at local HEAD `4c01e5be4`. Later refinement iterations re-inspected these revisions: iteration 2 at `766875058`; iteration 3 at `e19492246` (no code change since `766875058`); iteration 4 at `59f6d3137` (candidate spec `18hh1u` iteration 21, plan review and revsteps commits); iteration 5 at `2edf1f3ac` (which incorporates the iteration 4 refinement); iteration 6 at `0d75ca5f0` (which incorporates the iteration 5 refinement); iteration 7 at `def40d511` (which incorporates the iteration 6 refinement); iteration 8 at `87f0de31e` (records-only commits since `def40d511`; every cited symbol was located again in the current source). Iterations 4 to 7 found no change in any cited symbol. All code citations are pinned to `6f430cefd88a4b2ecca9e67548ec340e2911683c`. Between the pin and `def40d511`, code changed in driver fix-it lane handling, interrupt `save_state`, plan review tooling, spec 4sd62s diagrams, and specflow refinement. None of the symbols cited here changed behavior. |
 | Prompt reference snapshot | `a565a0879147110cd1b719e64c79dd20b9fecf79`. The prompt names this revision. The author did not use it and inspected the newer revisions listed in the row above. |
 | Independence disclosure | Another candidate for the same brief (`18hh1u`, Set `specflow`) exists in the tree and was refined while this candidate was being written. During discovery, this author read the first 60 lines of `18hh1u` (title, summary, goals, and part of its first-release boundary) and the finding titles of review record `vprs7o`. The author read no other part of `18hh1u`. A synthesizer SHOULD treat overlap with `18hh1u` sections 1.1 to 1.6 as possibly not independent. |
 | Refinement history | Revisions 1 to 3 apply refinement iterations 1 to 3 (prompt `khjc70`, OpenCode, self-reviews). Revisions 4 to 7 apply iterations 4 to 7 (prompt `khjc70`, Antigravity with Gemini 3.8 Flash High, independent reviews by a different ACE and model). Revision 8 applies iteration 8 (prompt `khjc70`, OpenCode with the authoring model, in a new session; a self-review by model, not independent evidence). Research record `yibf7z` holds the findings and their dispositions, with one `## Iteration` section per iteration (`.aw/records/research/20261024-specflow-16-yibf7z-spec-research-synthesis-review.opus55high.assessment.md`). Its filename omits the `.opencode.` ACE facet because the research grammar cannot carry that facet until R-90 is implemented. |
@@ -52,7 +53,7 @@ Labels used throughout:
 Terms. Each term below has one meaning throughout this document.
 
 - **ACE** (agent coding environment): the host tool that runs a model session (`opencode`, `agy`, `codex`, `claude`). `agy` is the Antigravity command.
-- **Model token**: the filename token that names one model plus its reasoning effort, for example `opus55high`. It contains no dot and comes from the open model vocabulary (`research-models.toml`). Decision D177 fixes this form.
+- **Model token**: the filename token that names one model plus its reasoning effort, for example `opus55high`. It contains no dot and comes from the open model vocabulary (package data, `.aw/config/research-models.toml`, and a user layer; Section 5.1). Decision D177 fixes this form.
 - **Runner profile**: an existing named launch identity in the user-local file `runner-profiles.json`. It holds a runner, an exact model id, a variant, and an agent name.
 - **Participant**: a roster entry. It binds a short label (for example `opus`) to one runner profile, one model token, and optional planning hints (the `budget` object, Section 5.2).
 - **Roster**: an ordered, nonempty list of participants.
@@ -209,7 +210,7 @@ commit `6f430cefd`. Line numbers are approximate and serve only to help navigati
 | Progress and stall | `stall_progress` observers, `StallWatchdog` | yes | none | none |
 | Identity observation | `observe_host_model` (oc confirmed, agy echoed) | yes | none | codex/claude |
 | Model token vocabulary | `model_vocab`, `aw research add-model` | yes | Move `opus55high` and `gpt61solmedium` into the package vocabulary (today they exist only in the repository layer) | No map from provider model id to model token exists. None is planned: the engine never derives a model token from a provider model id (R-73) |
-| Research Set scaffolding | `plan_new_comparison`, `plan_new` | partly | `new-comparison` ignores existing orders and skips the setid guard. Synth instead allocates each record through `plan_new` (R-92) | none |
+| Research Set scaffolding | `plan_new_comparison`, `plan_new` | partly | `new-comparison` ignores existing orders and skips the setid guard. Synth instead allocates each record through `plan_new` (R-70) | none |
 | D177 names | research `[.<model>]` only | partly | Add the `[.<ace>]` facet in `research_contract`, `artifact_naming`, and the shipped normalizer (Section 6.6) | grammar |
 | Spec creation and Set | `aw specs new`, `aw group specs` | yes | Optional `--set/--order` on `specs new` | none |
 | Review records | `review_findings` | no (must not be used for refinement) | none | none |
@@ -298,7 +299,7 @@ Run options:
 | `--only <label>[,<label>...]` | Use a subset of the resolved roster | all |
 | `--role <stage>=<label>` (repeatable) | Assign a stage role (`synthesize`, `verify`, `refine`, `synth-refine`) | Section 5.3 |
 | `--set <setid>` | Setid for every record of the run. The engine refuses `last` (3.3) | Derived from `--slug` (6.6.1). If the derived value equals `last`, the engine appends the suffix `-1` |
-| `--slug <slug>` | Base slug | Derived from the brief's H1 heading. If there is no H1 heading, derived from the first non-empty line or from `--brief-text`. In both cases the engine kebab-cases the result and limits it to 48 characters. If the result is still empty, `--slug` is required (exit 2 `slug-missing`) |
+| `--slug <slug>` | Base slug | Derived from the brief's H1 heading. If there is no H1 heading, derived from the first non-empty line or from `--brief-text`. In every case the engine kebab-cases the result and limits it to 48 characters. If the result is still empty, `--slug` is required (exit 2 `slug-missing`) |
 | `--from-spec <selector>` | Reconsider an existing spec (spec runs only) | none |
 | `--incumbent hidden\|visible` | Whether generators may read the `--from-spec` spec | `hidden` |
 | `--research-from <run\|id6>` | Give generators a finished research report as a source | none |
@@ -384,7 +385,7 @@ Mode profiles (built-in defaults; a flag or the synth preferences file can overr
 | Setting | `quick` | `thorough` |
 | --- | --- | --- |
 | Participants used for generation | whole resolved roster | whole resolved roster |
-| Per-candidate refinement cap (N >= 2 only; with N = 1 the single candidate is the working document and has only the synth-refine loop) | 0 | 3 |
+| Per-candidate refinement cap (N >= 2 only; with N = 1 the engine skips the candidate refine loop, and only the synth-refine loop runs) | 0 | 3 |
 | Refinement reviewer | the author, in a fresh session | rotation across participants (R-31) |
 | Synthesis | yes, when there are 2 or more sources (R-40) | yes, when there are 2 or more sources (R-40) |
 | Synth-refine cap | 1 | 3 |
@@ -399,7 +400,7 @@ rounds, and the verify dispatch.
 
 As a consequence, when the single synth-refine review of a quick run reports a material finding, the loop
 ends `capped-unverified` (R-36). The run then finalizes with limitations, unless a human first reads the fix
-and runs `aw synth accept --by-human`.
+and runs `aw synth accept <run> <doc-id6> --by-human --message <text>` (R-96).
 
 The engine marks the final record of every quick run `assurance: quick` in its metadata and in the finalize
 report, so that a reader knows that fewer independent checks ran.
@@ -478,13 +479,13 @@ The following rules apply to every leaf:
 | `spec`, `research` | Brief is readable UTF-8, at most 256 KiB. Setid is valid and within the length policy (`validate_setid_length_for_authoring`). Every participant resolves to a runner profile whose runner is `oc` or `agy`. The model vocabulary recognizes each token. Caps are in range. The worst-case record count fits the NN range (R-93). The working tree must be clean for the frozen commit only with `--freeze-worktree`; by default the engine freezes `HEAD`, ignores uncommitted changes, and warns when they exist. | Preview: none. `--apply`: run directory, brief record, then dispatches and publications. | Preview printed; or the run reached `ready-to-finalize` or (with `--finalize`) `finalized-clean`, with no warning and no soft limitation (R-102) | Run stopped in `prepared`, `waiting-for-human`, `capped`, `interrupted`, or `cancelled`; or reached `ready-to-finalize` with a warning or a soft limitation, including reduced participation; or (with `--finalize`) reached `finalized-with-limitations` (R-102) | Invalid input, no roster configured, unresolved profile, unsupported ACE, refused capability, lock held, leak in the brief, engine failure (`failed`, R-102) |
 | `import` | Same as start. Each `--candidate` file is readable and its leak scan is clean (or `--allow-leaks --by-human`). The identity `@<ace>/<token>` or `@<token>` is optional; the engine records an omitted identity as `unknown`. With `--from-stage refine`, each candidate `<label>` must match a participant label in the resolved roster (R-06) | Copies become research records with `synth-origin: imported` | Same as start | Same as start | Invalid input, leak in a file, roster mismatch under `--from-stage refine` |
 | `list` | Filter flags: `--active`, `--set <setid>` (valid setid length and syntax) | none | Read succeeded (including 0 matching runs) | Read succeeded with warnings | Invalid `--set` |
-| `status`, `findings` | Selector `<run>` resolves | none | Read succeeded, and the run is `running`, `ready-to-finalize`, or `finalized-clean` with no warnings | Read succeeded, and the run has warnings or open material findings, or is in `prepared`, `waiting-for-human`, `capped`, `interrupted`, `failed`, `finalized-with-limitations`, `superseded`, or `cancelled` (so that a script can gate on the result) | Selector resolves to nothing or is ambiguous |
-| `resume` | Run is not terminal. Frozen config digest matches. Brief digest matches. No dispatch is still running (R-86). When the run is in `waiting-for-human`, the operator supplies the resolution required by the Section 6.3 reason table (`--continue-reduced`, `--defer-decisions`, `--retry-stage`, or an earlier `decide`/`accept`) | Continues the run | Same as start | Same as start | Digest mismatch (`config-changed`, `brief-changed`); dispatch still alive; run terminal; waiting reason unresolved because the flag is missing (`reduced-participation-unconfirmed`, `decisions-pending`, `artifact-modified-unresolved`, `retry-stage-required`); reason that has no continuation within the same run (`use-from-run`) |
-| `accept` | Without `--edit`: the loop for `<doc-id6>` is open, capped, or oscillating. When material findings are open, or the loop ended `capped-unverified`, `--by-human` and `--message` are required (R-96). With `--edit`: the run stopped at `artifact-modified` for `<doc-id6>`, and `--by-human` is required (R-87) | Without `--edit`: an event; loop outcome `accepted`; the event records the open findings, and finalize carries them to the `## Known limitations` section of the final record. With `--edit`: a new revision with actor `human` | Recorded | never | `--by-human` missing when required; not in run; `accept-edit-required`; run is live (`run-locked`, R-85) |
+| `status`, `findings` | Selector `<run>` resolves | none | Read succeeded, and the run is `running`, `ready-to-finalize`, or `finalized-clean`, with no warning and no soft limitation (R-102) | Read succeeded, and the run has a warning, a soft limitation, or an open material finding, or is in `prepared`, `waiting-for-human`, `capped`, `interrupted`, `failed`, `finalized-with-limitations`, `superseded`, or `cancelled` (so that a script can gate on the result) | Selector resolves to nothing or is ambiguous |
+| `resume` | Run is not terminal. Frozen config digest matches. Brief digest matches. No dispatch is still running (R-86). When the run is in `waiting-for-human`, the operator supplies the resolution required by the Section 6.3 reason table (`--continue-reduced`, `--defer-decisions`, `--retry-stage`, or an earlier `decide`/`accept`) | Continues the run | Same as start | Same as start | Digest mismatch (`config-changed`, `brief-changed`); dispatch still alive; run terminal; waiting reason unresolved because the flag is missing (`reduced-participation-unconfirmed`, `decisions-pending`, `artifact-modified-unresolved`, `retry-stage-required`); reason that has no continuation within the same run (`use-from-run`); `--continue-reduced` with no candidate available (`no-candidates-available`, R-49); run is live (`run-locked`, R-85) |
+| `accept` | Without `--edit`: the loop for `<doc-id6>` is open, capped, or oscillating. When material findings are open, or the loop ended `capped-unverified`, `--by-human` and `--message` are required (R-96). With `--edit`: the run stopped at `artifact-modified` for `<doc-id6>`, and `--by-human` is required (R-87) | Without `--edit`: an event; loop outcome `accepted`; the event records the open findings, and finalize carries them to the `## Known limitations` section of the final record. With `--edit`: a new revision with actor `human` | Recorded | never | `--by-human` or `--message` missing when required; not in run; `accept-edit-required`; run is live (`run-locked`, R-85) |
 | `reject` | `<doc-id6>` is a published output of this run that finalize has not yet consumed. The engine refuses to reject a candidate after synthesize has started (R-98). It refuses to reject a working document after synth-refine has started (R-44) | For a candidate or matrix: record status `archive`, outcome `rejected`. For a working document: revised in place under the same id6 (new revision), and the superseded matrix archived. The stage is requeued if the rejection limit allows (R-44, R-76) | Recorded (preview without `--apply`) | Stage cannot be retried (cap); the run is now `waiting-for-human` | Not in run; already finalized; candidate already synthesized; synth-refine of the working document already started; run is live (`run-locked`, R-85) |
 | `decide` | The conflict id exists and is open. The option is one that the conflict lists, or the keyword `recommendation`. `--by-human` is given | Decision event | Recorded | never | Attestation missing; unknown or closed conflict id; unknown option; run is live (`run-locked`, R-85) |
 | `cancel` | Run is not terminal | Stops dispatches (SIGTERM, 30 s grace, then SIGKILL); state `cancelled` | Cancelled | never | Already terminal |
-| `finalize` | Run is in `ready-to-finalize`, or in `capped` / `waiting-for-human` with no hard block (Section 6.3.1) | Creates the final record; moves the intermediate records to `reference` | `finalized-clean` | `finalized-with-limitations`, including any failed R-63 check (R-64) | Hard block (Section 6.3.1); `--accept-limitations` without `--by-human`; `--accept-limitations` on a research run (`not-applicable`) |
+| `finalize` | Run is in `ready-to-finalize`, or in `capped` / `waiting-for-human` with no hard block (Section 6.3.1) | Creates the final record; moves the intermediate records to `reference` | `finalized-clean` | `finalized-with-limitations`, including any failed R-63 check (R-64) | Run is not in a state that this row's inputs allow; run is live (`run-locked`, R-85); hard block (Section 6.3.1); `--accept-limitations` without `--by-human`; `--accept-limitations` on a research run (`not-applicable`) |
 | `config ...` | JSON schema validation. Every profile reference resolves. `set` accepts dotted paths (`defaults.mode`, `defaults.concurrency`) or shorthand keys under `defaults.`, with type coercion | Writes the synth preferences file (preview by default) | Valid | Valid with warnings (for example, a token that the vocabulary does not know) | Invalid key, invalid type, unresolved profile reference |
 | `prune` | `--older-than <days>` is a positive integer (default 30). Only terminal runs (`finalized-clean`, `finalized-with-limitations`, `superseded`, `cancelled`) are eligible. The engine never prunes a run that holds a lock or is in a non-terminal state | Preview: lists the directories to delete. `--apply`: deletes the disposable run directories `<runs root>/synth-<id>/` and any remaining `synth-<run>-*` dispatch worktrees of eligible runs. It never touches brief companions or research records | Preview printed, or eligible directories deleted | No eligible runs to prune | Invalid `--older-than` argument, unknown flag |
 
@@ -528,7 +529,7 @@ requirement whose shape is fixed now but which is outside release 1.
   - (a) Runner `agy` MUST accept `variant`, which synth passes as `--effort <variant>`. The accepted values are `low|medium|high|xhigh|max` (the values `agy --help` lists). The implementation MUST do this by setting `supports_variant=True` for `agy` in `RUNNER_REGISTRY`.
   - (b) For runner `agy` only, `model` MUST also accept a single-segment id matching `^[a-z0-9][a-z0-9.-]*$` (the form `agy models` prints). Reason: `MODEL_RE` refuses this form today.
 
-  The existing `aw agy run` driver ignores a profile's `model`; that behaviour is out of scope and unchanged. For both (a) and (b), synth builds its own `agy` argv from the resolved launch (R-83).
+  The existing `aw agy run` driver ignores a profile's `model`; that behavior is out of scope and unchanged. For both (a) and (b), synth builds its own `agy` argv from the resolved launch (R-83).
 - R-12: In release 1, the preview MUST refuse a participant whose profile runner is not `oc` or `agy`, with `ace-unsupported` and an explanation that names the deferral. For the Sol slot, the starter synth preferences file MUST propose an OpenCode profile (`openai/gpt-6.1-sol`, variant `medium`) when the OpenCode catalog lists that id. The starter synth preferences file MUST present that profile as a proposal, never as a silent substitute for Codex.
 - R-13: The engine MUST NOT substitute an ACE, model, or variant. If the requested model id is absent from the discoverable catalog of the participant's runner (`opencode models`, `agy models`), the preview MUST mark it `catalog-missing`. `--apply` MUST then refuse unless `--allow-uncataloged <label>` names that participant. With this flag, the operator explicitly allows a private id that no catalog lists.
 - R-14: Stage roles (`synthesize`, `verify`, `refine`, `synth-refine`) MUST live in the synth preferences file, not in the runner-profile `roles` map. Reason: the vocabulary of the `roles` map is kinds of work (spec `w15vzb`).
@@ -669,7 +670,7 @@ requirement whose shape is fixed now but which is outside release 1.
   - The engine MUST record the integration review findings in that candidate's assessment record, as an iteration-0 row group. The engine creates the assessment record at that point with the author's facets.
   - When a cross reviewer later reviews the candidate, the cross reviewer's findings go in a second assessment record with the reviewer's facets. There is one assessment record per (document, reviewer) pair (Section 6.1).
   - Material integration findings are `open` findings. The candidate's refine loop MUST assign a disposition to them before the loop can converge.
-  - When the refine cap is 0 or N = 1 (no candidate loop), the engine sends one revise dispatch on the material integration findings to the author. That dispatch is counted in the quality dispatch count Q as part of the split term (Section 3.4). Any finding still open enters synthesis as an open finding of the candidate.
+  - When the refine cap is 0 or N = 1 (no candidate loop), the engine sends one revise dispatch on the material integration findings to the author. That dispatch is counted in the quality dispatch count Q as part of the split term (Section 3.4). Any finding still open enters synthesis as an open finding of the candidate. When synthesis does not run (N = 1 without an incumbent), the finding stays open on the working document and enters the synth-refine loop.
 - R-54: A stage can need input that does not fit the budget of any participant permitted for that stage: the assembled candidate, or the set of all candidates that the one synthesize dispatch reads together. When that happens, the run MUST stop in `waiting-for-human` with `context-overflow`. The engine MUST name the document, its estimate, and the largest budget in the stop record. The engine MUST NOT substitute a summary.
 - R-55: Discovery MUST read OpenCode limits from `opencode models --verbose`:
   - for `max_input_tokens`: `limit.input` when present, else `limit.context` minus `limit.output`;
@@ -699,7 +700,7 @@ requirement whose shape is fixed now but which is outside release 1.
   - (a) the final spec is a synthesis, meaning the synthesize stage ran over at least two candidates;
   - (b) those candidates were authored by at least two distinct requested model ids. An incumbent spec does not count as a model candidate. Two variants of one model id, such as Opus 5.5 high and low, count as one model. An imported candidate with identity `unknown` does not count;
   - (c) every R-63 check passes;
-  - (d) the loop outcome of the working document is `converged`, or `accepted` under R-96 with no open material finding. The loop is the synth-refine loop, or the candidate loop when N = 1. Every other outcome fails (d), including `skipped`, `capped-unverified`, `capped-open`, `oscillating`, `failed`, and `accepted` with open material findings;
+  - (d) the loop outcome of the working document is `converged`, or `accepted` under R-96 with no open material finding. The loop is the synth-refine loop, which is the only loop when N = 1 (R-47). Every other outcome fails (d), including `skipped`, `capped-unverified`, `capped-open`, `oscillating`, `failed`, and `accepted` with open material findings;
   - (e) no `needs: maintainer` conflict is open;
   - (f) participation is complete, or the reduction was accepted.
 
@@ -774,7 +775,7 @@ requirement whose shape is fixed now but which is outside release 1.
   - read verbs (`status`, `list`, `findings`) take no lock;
   - `aw synth cancel` on a locked run MUST NOT wait for the lock. It MUST write a cancel request file (`cancel-requested.json` with reason and time) into the run directory. It MUST send SIGTERM to the pid of the lock holder when the start token of that process matches. The holder MUST check for the request between events and act on it as R-07. As a result, cancel works while the run is live.
 
-  `accept`, `reject`, and `decide` on a live run MUST exit 2 `run-locked`. The operator uses them while the run is stopped in a non-terminal stopping state (R-03), for example `waiting-for-human`, `ready-to-finalize`, or `capped`, where the run lock is released.
+  `accept`, `reject`, and `decide` on a live run MUST exit 2 `run-locked`. The operator uses them while the run is stopped in `waiting-for-human`, `ready-to-finalize`, or `capped`. These are non-terminal stopping states (R-03), so the run lock is released.
 - R-86: `resume` MUST rebuild state from the event log of the run. `resume` MUST launch from the FROZEN `ResolvedLaunch` of each participant, never from the current runner-profile file.
   - Profile change: if the current profile of a participant now resolves to a different runner, model, or variant, resume MUST print warning `profile-changed-since-freeze`, naming the participant and both values. Resume MUST continue with the frozen values. Using the new values requires a new run (`--from-run`).
   - Missing catalog entry: if the frozen model id is no longer in a discoverable catalog, resume MUST stop with `waiting-for-human` reason `catalog-missing`.
@@ -795,7 +796,7 @@ requirement whose shape is fixed now but which is outside release 1.
 - R-90: `research_contract.parse_name` and `format_name` MUST accept `YYYYMMDD-<set>-<NN>-<id6>-<slug>[.<ace>][.<model>].<kind>.md`. `<ace>` comes from a closed list `ACES = (opencode, agy, codex, claude)`. When a name has one middle facet, that facet is the model. `aw research add-model` MUST refuse a model token equal to an ACE token.
 - R-91: `aw research new` MUST gain `--ace`. `aw research mv` MUST gain `--ace` (and `--ace -` to clear). `aw specs new` SHOULD gain `--set` and `--order` (with the setid length guard), so the finalizer does not need a separate group step. `[Should]`
 - R-92: The research index drift check MUST compare the `ace` facet with front-matter `ace`, as it already does for `model`.
-- R-93: Before `--apply`, the planner MUST compute the maximum number of research records that the run can create (Section 6.6.4). The planner MUST refuse with `nn-exhausted` when the highest existing NN in the Set plus that number exceeds 99.
+- R-93: Before `--apply`, the planner MUST compute the maximum number of research records that the run can create (Section 6.6.1, Exhaustion). The planner MUST refuse with `nn-exhausted` when the highest existing NN in the Set plus that number exceeds 99.
 - R-94: `artifact_naming._CLUSTERED_RE` and the shipped normalizer used by `check.name-nonconformant` MUST accept the optional `[.<ace>][.<model>]` group before the closed type token. D177 names in the prompts tree then stop failing. Other D177 work shares this extension. This spec lists it only because synth needs it for research parity. The extension MUST be implemented once.
 - R-97: During a run, the engine MUST publish two records with front matter only: the matrix record (spec and research runs) and the research working `findings` record. The engine MUST hold their live bodies in the brief companion (`matrix.md`, `working.md`). The engine MUST write the bodies into the records at finalize. As a result, `research_index.derive_pipeline_positions` reports the Set `partial`, not `synthesized`, until finalize (Section 6.6.2b). For a cancelled run, the engine MUST also write the bodies at cancel, so that the archived records of the run are readable.
 - R-95: A start MUST refuse with exit 2 `set-busy` when another non-terminal synth run in the same repository names the same setid. The run named by the start's own `--from-run` (R-25b) is excluded. Reason: NN allocation (Section 6.6.1) then never races between runs. Within a run, every publication MUST happen while the engine holds the run lock (R-85).
@@ -997,7 +998,7 @@ Next  aw synth spec <brief.md>
 | CandidateUnit | brief companion `units/<id6>-u<NN>.md` | parent id6 + unit number | Exists only when the candidate is split. |
 | Assessment | research record of kind `assessment`; one for each pair of reviewed document and reviewing participant | id6 | Holds all findings of that reviewer for its subject, across iterations. When different participants perform synth-refine and verify, the synthesis has two assessments, each attributed to its own reviewer. As a result, no record names a single author for the findings of another participant. |
 | Finding | a table inside the Assessment, and `findings.json` in the brief companion | `<subject-id6>.F<nn>` | Stable across iterations. |
-| Synthesis (spec run) | the final spec record (specs tree) | id6 | This record is the working document from its creation: by the synthesize stage, or by the generate stage when N = 1 without an incumbent (R-60). |
+| Synthesis (spec run) | the final spec record (specs tree) | id6 | This record is the working document from its creation: by the synthesize stage, or by the generate stage when N = 1 without an incumbent (R-60), or, for a single surviving candidate, at the point where synthesis would have run (R-61). |
 | Synthesis (research run) | research record of kind `findings` | id6 | Becomes the final research report. |
 | Matrix and decisions | research record of kind `reconciliation-report`, model `reconciliation` | id6 | Rows are `M-<n>`; conflicts are `X-<n>`. |
 | Claim, Source | `claims.json` in the brief companion, rendered in candidate and findings bodies | `<doc-id6>.C<nn>`, `<doc-id6>.S<nn>` | Research runs only. |
@@ -1053,8 +1054,8 @@ The table lists the stages in execution order, with their dependencies:
 | `refine` loop | candidate | generation barrier (every `generate`/`assemble` is done or failed) | cap 0, or N = 1 (with N = 1 the engine skips the candidate refine loop, and the working document has only the synth-refine loop) |
 | `synthesize` | run | all candidate loops have ended | fewer than 2 sources (fewer than 2 candidates, and no incumbent under `--incumbent hidden`) |
 | `decision-wait` | run | `synthesize` | no conflict is marked `needs: maintainer` |
-| `synth-refine` loop | working document | `synthesize`; when synthesis does not run, the generation barrier and any `integrate-review` (N = 1), or the loop of the single surviving candidate (R-61) | cap 0 |
-| `verify` | run | `synth-refine` | quick mode, for spec runs. For research runs, citation checks (CC1/CC2) run in both modes (Table 3.4), and thorough mode adds verification after synth-refine. |
+| `synth-refine` loop | working document | `decision-wait` (or `synthesize` when `decision-wait` is skipped); when synthesis does not run, the generation barrier and any `integrate-review` (N = 1), or the loop of the single surviving candidate (R-61) | cap 0 |
+| `verify` | run | `synth-refine` | quick mode (spec and research runs). Research runs also have citation-check dispatches (CC1 and CC2 in the Section 7.5 diagram), which run in both modes (Section 3.4). |
 | `finalize` | run | an explicit `aw synth finalize` | never automatic |
 
 Finalize is never automatic. A run stops at `ready-to-finalize`, so that a human or a calling agent sees the
@@ -1089,9 +1090,9 @@ it cannot (R-86). A human or a calling agent can also always cancel the run or r
 | `reduced-participation` | `resume --continue-reduced` (refused when no candidate exists, R-49) | only when no candidate exists |
 | `decision-needed` | `decide` each conflict, or `resume --defer-decisions` | no |
 | `artifact-modified` | `accept <run> <id6> --edit --by-human` (adopts the edit), then `resume`; or restore the file so that its digest matches, then `resume` | yes |
-| `leak-detected` | none: the engine never publishes the quarantined output. `resume --retry-stage` dispatches that stage once more (a new dispatch, R-37) | yes |
+| `leak-detected` | `resume --retry-stage` dispatches that stage once more (a new dispatch, R-37). The engine never publishes the quarantined output. | yes |
 | `identity-mismatch` | `resume --retry-stage` after the operator fixes the host configuration; the engine checks the next dispatch again | yes |
-| `context-overflow` | none in the same run: start a new run with `--from-run --reuse refine` and a `--role` with a larger budget (7.6) | yes, when no working document exists |
+| `context-overflow` | none in the same run: start a new run with `--from-run --reuse refine` and a `--role` with a larger budget (7.6) | only when no working document exists |
 | `catalog-missing` | `resume --retry-stage` after the model reappears in the catalog; the engine never replaces the frozen model (R-86) | no |
 | `stage-failed` | `resume --retry-stage` grants the failed stage attempt one new retry budget (R-84), counted against `--max-dispatches` | no, when an earlier revision of the working document exists; otherwise yes |
 | `stage-rejected-cap` | none in the same run: start a new run with `--from-run` | no |
@@ -1160,7 +1161,9 @@ Soft limitations. On a soft limitation, finalize exits 1 and leaves the spec `dr
 - `oscillating`;
 - an open `needs: maintainer` conflict;
 - reduced participation;
-- a `failed` refine loop with a usable earlier revision.
+- a `failed` refine loop with a usable earlier revision;
+- `skipped` on the working document (synth-refine cap 0, R-64 (d));
+- a failed R-63 check (R-64 (c)). In this case `--accept-limitations` cannot move the spec to `to-review`.
 
 #### 6.3.2 Dispatch lifecycle
 
@@ -1176,9 +1179,9 @@ its digest is recorded. As a result, a crash between any two events leaves a sta
   9q4c1m.F07  high    contract     R-14 contradicts R-31 on default concurrency
   9q4c1m.F09  medium  completeness B-12 (resume after midnight) not covered
   These findings were NOT fixed. The document is not clean.
-Next  aw synth findings synth-3f9a0c21d4b7e811 --open
-      aw synth finalize synth-3f9a0c21d4b7e811 --apply          (spec stays draft)
-      aw synth spec brief.md --from-run synth-3f9a0c21d4b7e811 --reuse refine --synth-refine-cap 5 --apply
+Next  aw synth findings synth-1a2b3c4d5e6f7081 --open
+      aw synth finalize synth-1a2b3c4d5e6f7081 --apply          (spec stays draft)
+      aw synth spec brief.md --from-run synth-1a2b3c4d5e6f7081 --reuse refine --synth-refine-cap 5 --apply
 ```
 
 ### 6.4 Why not the `aw run` ledger engine
@@ -1223,7 +1226,7 @@ the only copy of a durable decision (R-77).
 #### 6.6.1 Decisions
 
 - **One setid per run, shared across trees.** The brief, every candidate, every assessment, the matrix, and the final spec (or final findings record) share one setid. Spec `2lcqno` N1 makes a setid shared across types correct, and identity stays in the id6 (N2). A new run on the same topic reuses the setid when `--set` names it; the run then appends at the next free NN. Otherwise the new run gets a new setid. No setid is derived from a model label, whether by the engine or by a default rule.
-- **Setid default.** The default setid is the kebab slug when the slug has at most 14 characters. Otherwise the default is the first 14 characters of the slug, cut back to the last hyphen inside them, with the trailing hyphen removed. If those 14 characters contain no hyphen, the default is the first 14 characters. Examples: `retry-policy` gives `retry-policy`; `cache-layer-design` gives `cache-layer`. `validate_setid_length_for_authoring` refuses an explicit `--set` above 24 characters. An explicit `--set` above 14 characters produces a warning. The operator passed the short setids in the examples below (`cachelyr`, `retrypol`) with `--set`.
+- **Setid default.** The default setid is the kebab slug when the slug has at most 14 characters. Otherwise the default is the first 14 characters of the slug, cut back to the last hyphen inside them, with the trailing hyphen removed. If those 14 characters contain no hyphen, the default is the first 14 characters. Examples: `retry-policy` gives `retry-policy`; `cache-layer-design` gives `cache-layer`. `validate_setid_length_for_authoring` refuses an explicit `--set` above 24 characters. An explicit `--set` above 14 characters produces a warning. The operator passed the short setids in the examples below (`cachelyr`, `retrypol`, `qchanui`) with `--set`.
 - **Date prefix = the set date.** Research `plan_new` already reuses the date of an existing set (`_set_date_for_set`) [s-research-cmd]. The engine creates the spec with `aw specs new --date <YYYY-MM-DD>`. The engine converts the 8-digit date prefix `YYYYMMDD` of the set to ISO 8601, because `specs new` requires that form. A run that crosses midnight, or that is resumed on another day, therefore keeps one prefix. Real times are in these places:
   - the front matter field `created` of each research record (the creation date of that record);
   - the `- Date:` of the spec (the set date) and its history entries (the actual dates);
@@ -1236,7 +1239,7 @@ the only copy of a durable decision (R-77).
   - at most two regenerated matrices (R-44; a regenerated synthesis revises the spec in place and publishes a new matrix);
   - one separate verify assessment when different participants perform verify and synth-refine.
 
-  The total is `6N + 7`. Reused outputs that `--from-run` copies (R-25b) replace generated candidates one for one, so they add nothing. For N = 1 without an incumbent, the count is brief, working document, and one assessment = `3`. The single participant performs the integration review, synth-refine, and verify on the same document, so they share one assessment record. For N = 1 with an incumbent, the count is 1 brief + 1 candidate + 1 candidate integration assessment when split + 1 matrix + 1 working spec + 1 synthesis assessment = `6` (plus up to 2 regenerated matrices = `8`). N = 12 gives 79, so one run always fits an empty set.
+  The total is `6N + 7`. Reused outputs that `--from-run` copies (R-25b) replace generated candidates one for one, so they add nothing. For N = 1 without an incumbent, the count is brief, working document, and one assessment = `3`. The single participant performs the integration review, synth-refine, and verify on the same document, so they share one assessment record. For N = 1 with an incumbent, the count is 1 brief + 1 candidate + 1 candidate integration assessment when split + 1 matrix + 1 working spec + 1 synthesis assessment = `6` (plus up to 2 regenerated matrices, and 1 regenerated candidate with its integration assessment when split, = `10`). N = 12 gives 79, so one run always fits an empty set.
 - **id6.** The id6 comes from `artifact_core.mint_id6` through the owner verb. A revision keeps the id6. A regeneration after a reject gets a new id6 with `supersedes:`. Regrouping, renaming, promote, archive, and finalize never change an id6. The engine never uses the run id as an id6.
 - **Types.** This design adds no new type tokens. It reuses these research kinds: `research-prompt` (brief), `source-draft` (candidate), `assessment` (refinement findings), `reconciliation-report` (matrix and decisions), and `findings` (final research report). The spec working document and the final spec use the spec type `spec`. Workflow stage, lifecycle status, and revision are metadata, never type tokens.
 - **Facets (D177).** The facets of a single-author record depend on what is known:
@@ -1250,7 +1253,7 @@ the only copy of a durable decision (R-77).
   - Creation: `plan_new` creates the record at its default status `todo`.
   - While the run is live: `aw research promote <id6> --to active` moves the record to `active` when its dispatch publishes. The brief is a `research-prompt`, which carries no hot status, so the brief stays statusless until finalize.
   - After finalize: the record moves to `reference/YYYYMM/`. The engine records the outcome and the `consumed-by` provenance with `aw research set-outcome`, then moves the record with `aw research promote`.
-  - When the record is rejected or the run is cancelled: the record moves to `archive/YYYYMM/`.
+  - When the record is rejected, or the run is cancelled or superseded (R-25b): the record moves to `archive/YYYYMM/`.
 
   The spec is in `specs/draft/`. When R-64 allows it, finalize moves the spec to `specs/to-review/` with `aw specs set`. Otherwise the spec stays in `specs/draft/` until a human runs `aw specs set to-review`. External drops go through `.aw/inbox/` and `aw synth import` (or `aw adopt`). No private scratch location is the only copy of anything that Section 6.5 lists as durable.
 
@@ -1315,7 +1318,7 @@ templates are package data, not records.
 | Matrix and decisions | similarities, differences, conflicts, rationale | `reconciliation-report` | `.reconciliation.` | `<R>/` `active`, front matter only; live body in `<C>/matrix.md` (R-97) | `reference/YYYYMM/` | run set | `plan_new` | label map, source revisions | permanent |
 | Synthesis assessment | synth-refine findings, plus verify findings when the same participant performs both; otherwise a separate verify assessment | `assessment` | reviewer facets | `<R>/` `active` | `reference/YYYYMM/` | run set | `plan_new` | `synth-subject`, iterations | permanent |
 | Working document (spec run) | merged spec | `spec` | unattributed spec name | `<S>/draft/` | `<S>/to-review/`, or stays in `draft/` | run set, NN through `aw group` | `aw specs new` + `aw group specs` | `## Synthesis provenance`, and `- From-Spec:` when reconsidering a spec | permanent |
-| Working document (research run) | merged report | `findings` | `.reconciliation.` (N >= 2); the facets of the single author (N = 1) | `<R>/` `active`, front matter only; live body in `<C>/working.md` (R-97) | `reference/YYYYMM/` | run set | `plan_new` | `synth-role: final` | permanent |
+| Working document (research run) | merged report | `findings` | `.reconciliation.` when it merges two or more sources; otherwise the facets of the single author | `<R>/` `active`, front matter only; live body in `<C>/working.md` (R-97) | `reference/YYYYMM/` | run set | `plan_new` | `synth-role: final` | permanent |
 | Claims data | claims and sources | `.json` | `<C>/claims.json` | `<C>` | moves with the brief | n/a | engine | origin ids, verification | permanent |
 | Event log (durable copy) | audit trail | `.jsonl` | `<C>/events.jsonl` | `<C>` | moves with the brief | n/a | engine | hash chain | permanent |
 | Frozen run config | replay input | `.json` | `<C>/run.json` | `<C>` | moves with the brief | n/a | engine | config digest | permanent |
@@ -1336,8 +1339,8 @@ This example uses these facts:
 
 - Run `synth-3f9a0c21d4b7e811`, setid `cachelyr`, slug `cache-layer`, set date 2026-11-02. The run crossed
   midnight, and records published on 2026-11-03 keep the prefix.
-- Participants: `opus` (opencode/opus55high); `gem` (agy/gemini38flashhigh, `task_size: small`, split into 3
-  units); `sol` (opencode/gpt61solmedium).
+- Participants: `opus` (opencode/opus55high); `gem` (agy/gemini38flashhigh, `task_size: small`; its packet does not fit
+  its budget in 2 units, so the planner splits it into 3 units); `sol` (opencode/gpt61solmedium).
 - Synthesizer: `opus`. Synth-refine and verify: `sol`.
 - Refine cap 3. The opus candidate converged after 2 iterations (one revise). The gem candidate reached the cap
   after 3 iterations (three revises), with every material finding dispositioned (`capped-unverified`); its
@@ -1417,7 +1420,7 @@ because R-64 requires a multi-model merge for automatic advance.
 
 #### 6.6.7 Worked inventory: resumed run
 
-Run `synth-77c0e1f2a3b4c5d6` has setid `qchanui` and three participants. On day 1 (2026-11-07), the engine
+Run `synth-5d4c3b2a19f8e7d6` has setid `qchanui` and three participants. On day 1 (2026-11-07), the engine
 published the brief `00`, the opus candidate `01`, and the sol candidate `02`, while gem dispatch `d003` was
 still running (`launched`). The laptop then slept, and the process was killed. On day 2 (2026-11-08),
 the operator runs `aw synth resume last --apply`:
@@ -1548,7 +1551,7 @@ The flow of a research run differs from that of a spec run in these ways:
 
 - the brief states questions instead of design obligations;
 - the run keeps claims and sources ledgers: one pair for each candidate, plus the merged claims ledger that reconciliation produces;
-- a citation-check pass runs before synthesis and again after synthesis;
+- a citation-check pass runs before synthesis and, when N >= 2, again after synthesis;
 - no spec lifecycle applies;
 - the run is complete when the `findings` record reaches `reference`.
 
@@ -1558,7 +1561,7 @@ The flow of a research run differs from that of a spec run in these ways:
 | Source preference | Templates ask for primary sources first (standards, official docs, source code, papers). For each secondary source, the participant must record in `origin` the primary source that the secondary source relies on. |
 | Independence of evidence | Corroboration counts distinct `origin` values (R-113). Two candidates that cite the same blog post count once. A model statement without a source is `unsupported`. |
 | Verification | R-114 citation check: the verifier opens each locator and checks the quote. The verifier opens repository paths at the frozen commit. The verifier opens URLs when the ACE has web access; otherwise the verdict is `not-checked`. |
-| Confidence | The engine caps confidence (R-114). The final report can lower confidence below the candidate values but never raise it above them. |
+| Confidence | The engine caps confidence (R-114). The final report can lower the confidence of a claim, but never raise it above the highest confidence that any candidate assigned to that claim. |
 | Contradictions | Contradictions are kept with both sides stated and are never averaged away. |
 | Missing or stale | Sources older than the freshness limit that the template states for fast-moving topics, and sources marked `after-as-of`, are flagged, not dropped. |
 | Split partition | Comparison is per question. The matrix marks a question that only one participant answered as `single-source`, and the final report states this. |
@@ -1744,8 +1747,8 @@ is the existing pattern for driver tests. Tests never inspect source structure.
 | AC-23 | R-35 | A reviser that alternates a section between two texts ends the loop `oscillating` at the third revision. |
 | AC-24 | R-36 | A loop that ends `capped-open` prints the `! CAPPED` block with the open findings and three next commands. The `--agent` result has a `loops` entry with `outcome: capped-open` and `open_material` > 0. The process exits 1. |
 | AC-24b | R-96 | `accept` on a `capped-open` loop without `--by-human` exits 2. With `--by-human --message`, `accept` records the open finding ids, and the loop becomes `accepted`. Finalize still lists those findings under `## Known limitations`. Finalize exits 1 unless a human also gives `--accept-limitations ... --by-human`. |
-| AC-25 | R-39 | The engine accepts an outcome file with `"score": 10`, ignores the field, and emits the warning `ignored-field`. Gating behaviour is identical to the same file without the field. |
-| AC-26 | R-40, R-60 | With N=1, no `reconciliation-report` exists. The spec record exists from the generate stage onward. No text claims consensus. |
+| AC-25 | R-39 | The engine accepts an outcome file with `"score": 10`, ignores the field, and emits the warning `ignored-field`. Gating behavior is identical to the same file without the field. |
+| AC-26 | R-40, R-60 | With N=1 and no incumbent, no `reconciliation-report` exists. The spec record exists from the generate stage onward. No text claims consensus. |
 | AC-27 | R-41 | The synthesis prompt contains labels A, B, C and none of the model ids or model tokens. The published matrix maps the labels back to candidate id6s. |
 | AC-28 | R-42, R-43 | Setup: a scripted synthesizer omits one candidate's requirement, quotes a sentence that does not exist, and attributes a `new` idea to a candidate. The dispatch fails with `provenance-invalid` and three named problems. The engine counts the following attempt as a retry. |
 | AC-29b | R-44 | `reject` on the working spec record before synth-refine starts produces a new revision of the same spec id6 and a new matrix record. After synth-refine has started, `reject` exits 2 with `use-from-run`. |
@@ -1764,7 +1767,7 @@ is the existing pattern for driver tests. Tests never inspect source structure.
 | AC-37b | R-64, R-67 | With every check passing, finalize leaves the spec `draft`, exits 0 with `auto_advance: not-multi-model`, and prints `Next  aw specs set to-review <id6>`. This result holds in each of these cases: (i) a one-participant run; (ii) a 3-participant run where only one candidate survived; (iii) a 2-participant run whose two profiles name the same model id with different variants; (iv) a one-participant run with a hidden incumbent; (v) an import of two candidates whose identity is `unknown`. |
 | AC-38b | R-69 | `finalize --keep-draft` on a multi-model synthesis that meets every R-64 condition leaves the spec `draft`. Finalize moves the intermediate records to `reference` and reports `auto_advance: kept-draft`. |
 | AC-38 | R-64 | On a multi-model synthesis, `--accept-limitations "cap reached on F07" --by-human` moves a `capped-open` spec to `to-review`. Finalize writes the text into the history and into `## Known limitations`. Without `--by-human`, the command exits 2. On a one-model run, finalize records the limitation and leaves the spec `draft`. |
-| AC-39 | R-66 | After a clean finalize, every intermediate record that was not rejected is under `reference/YYYYMM/`. In a spec run, the `consumed-by` field of each intermediate record names the spec id6. `aw research index --check` reports no drift. |
+| AC-39 | R-66 | After a clean finalize, every intermediate record that was not rejected is under `reference/YYYYMM/`. In a spec run, the `consumed-by` field of each of these records names the spec id6. `aw research index --check` reports no drift. |
 | AC-40 | R-70, R-75 | Every id6 of the run is unique repository-wide (the `aw check` id6 collision rules pass). Revisions keep the id6 and the filename. Revision bodies exist in the brief companion. |
 | AC-41 | R-71 | Setup: a scripted OpenCode export reports a different model than the one requested. The dispatch fails with `identity-mismatch`, the engine does not retry it, and the run enters `waiting-for-human`. |
 | AC-42 | R-73, R-74 | The engine refuses an unknown model token at preview and prints the `aw research add-model` hint. The matrix name uses `.reconciliation.` and no ACE facet. |
@@ -1804,7 +1807,7 @@ is the existing pattern for driver tests. Tests never inspect source structure.
 | AC-66 | R-50, R-51 | For each participant, the preview shows `max_input_tokens`, `max_output_tokens`, `reserve_fraction`, `task_size`, and the source of each value. The preview also shows each generation packet estimate, labelled `heuristic`. |
 | AC-67 | R-56 | The engine never splits a brief whose packet fits and that has 12 or fewer obligations, whatever the participant's `task_size`. The final spec is one file. |
 | AC-68 | R-61 | Setup: 3 participants, and 2 of them fail. `--continue-reduced` creates the spec record from the survivor's last revision before synth-refine runs, with `participation: 1 of 3` and no matrix. Finalize then leaves the spec `draft` (R-64 (a)). |
-| AC-69 | R-65, R-67 | The final spec contains `## Synthesis provenance`. That section names the run id, the matrix id6, and each candidate id6 with its ACE, model token, identity class, and assurance. Finalize prints `Next  /spec-review <id6>` exactly when the spec is `to-review`. |
+| AC-69 | R-65, R-67 | The final spec contains `## Synthesis provenance`. That section names the run id, the matrix id6, each candidate id6 with its ACE, model token, and identity class, and the assurance. Finalize prints `Next  /spec-review <id6>` exactly when the spec is `to-review`. |
 | AC-70 | R-72 | Every research record of a run carries the 11 required front-matter fields plus `synth-run`, `synth-role`, and `revision`. `aw research index --check` reports no drift. |
 | AC-71 | R-77 | Delete the run directory of a finalized run from the runs root. `run.json`, `events.jsonl`, every dispatch summary, and every human decision remain readable in the brief companion. |
 | AC-72 | R-80, R-81 | For each participant, the preview prints `isolation: enforced`, `write-confinement: detected (tracked paths and inputs only)`, `network: not-controlled`, and the provider. A scripted participant that edits a file in its input directory triggers `inputs-modified`. |
@@ -1852,10 +1855,10 @@ is the existing pattern for driver tests. Tests never inspect source structure.
 
 ### 10.3 Assumptions
 
-- AS-1: OpenCode `--file` attaches a file as prompt context. The existing driver uses this behaviour.
-- AS-2: `opencode export` continues to report the provider and model of a session. The existing observer depends on this behaviour.
+- AS-1: OpenCode `--file` attaches a file as prompt context. The existing driver uses this behavior.
+- AS-2: `opencode export` continues to report the provider and model of a session. The existing observer depends on this behavior.
 - AS-3: Antigravity keeps `-p`, `--model`, `--effort`, and `--output-format stream-json`.
-- AS-4: Research front matter continues to accept optional extra keys. Finding FND-9 verified this behaviour by calling `validate_frontmatter` during authoring. A test SHOULD pin the behaviour by exercising it.
+- AS-4: Research front matter continues to accept optional extra keys. Finding FND-9 verified this behavior by calling `validate_frontmatter` during authoring. A test SHOULD pin the behavior by exercising it.
 - AS-5: (Confirmed by the maintainer 2026-10-25, OQ-1.) Candidates live in the research tree.
 
 ### 10.4 Open questions
@@ -1878,15 +1881,16 @@ Nonblocking questions (each has a recommendation, which review can change):
 - OQ-9 (nonblocking, raised in refinement record `yibf7z`, iteration 1): Should a model, rather than a deterministic template, write the task-specific generation and refinement prompts? Recommendation: keep deterministic templates in release 1 (R-23, DL-11). A rendered template can be validated and replayed; a model-written prompt cannot be checked mechanically for the independence and data-block rules. Revisit once a corpus of runs exists.
 - OQ-10: Should `capped-unverified` on the working document (R-36) be a soft limitation, as specified, or only a warning?
   - Context: R-33 requires every valid revise to give a disposition for every open finding. Most capped loops therefore end with fixes that no review has checked. Quick mode (synth-refine cap 1) reaches this state whenever its one review finds anything material.
-  - Option (a): a soft limitation, cleared by `accept --by-human`. This is the specified behaviour. It reports the state truthfully but adds one human step to many quick runs.
+  - Option (a): a soft limitation, cleared by `accept --by-human`. This is the specified behavior. It reports the state truthfully but adds one human step to many quick runs.
   - Option (b): a warning only. This needs fewer steps, but a run can then finalize clean on the reviser's own claim.
   - Option (c): give the working-document loop one extra review dispatch after the last revise. This needs no human step but adds one dispatch per run to Q.
   - Recommendation: (a) for release 1; revisit (c) once run data exists.
 - OQ-11: What wait applies before the fourth and later retries of a stage attempt (R-84 allows a retry budget of up to 10)? Options: (a) repeat 300 s; (b) double the previous wait, up to the stage's `--dispatch-timeout`. Recommendation: (a), because it keeps the worst-case wait easy to compute.
-- OQ-12: Does the R-44 rule "The synthesis MUST NOT be an input to another synthesis" apply across runs? Read literally, it forbids `--from-spec` (R-05) on a spec that an earlier synth run produced, because that spec becomes the hidden incumbent and so a synthesis source (R-40). Option (a): limit R-44 to one run, so a later run may reconsider an earlier final spec. Option (b): keep R-44 unqualified, and make `--from-spec` refuse a spec that carries `synth-run` provenance. Recommendation: (a), because reconsidering a finalized spec is the purpose of `--from-spec`.
-- OQ-13: The explicit form (Section 3.4) does not spell `--allow-reduced`, and no negating flag exists. Under the precedence of Section 3.3, the explicit form therefore still takes `defaults.allow_reduced` from the synth preferences file. Option (a): add `--no-allow-reduced`, so that the explicit form can spell every value. Option (b): make `--with` ignore the synth preferences file entirely. Recommendation: (a), because it keeps one precedence rule for every value.
-- OQ-14: R-64 (d) fails a working-document loop that ended `skipped` (synth-refine cap 0), because only `converged` and `accepted` pass. R-117 does not list `skipped`, so a research run with a skipped loop can finalize clean. Should R-117 also treat `skipped` as a limitation? Recommendation: yes, so that spec and research runs judge an unreviewed working document the same way.
+- OQ-12: Does the R-44 rule "The synthesis MUST NOT be an input to another synthesis" apply across runs? Read literally, it forbids `--from-spec` (R-05) on a spec that an earlier synth run produced, because that spec becomes the hidden incumbent and so a synthesis source (R-40). Option (a): limit R-44 to one run, so a later run may reconsider an earlier final spec. Option (b): keep R-44 unqualified, and make `--from-spec` refuse a spec whose `## Synthesis provenance` section names a synth run (R-65). Recommendation: (a), because reconsidering a finalized spec is the purpose of `--from-spec`.
+- OQ-13: The explicit form (Section 3.4) does not spell `--allow-reduced`, and no negating flag exists. Under the precedence of Section 3.3, the explicit form therefore still takes `defaults.allow_reduced` from the synth preferences file. Option (a): add `--no-allow-reduced`, so that the explicit form can spell every value. Option (b): make `--with` ignore the synth preferences file entirely. Recommendation: (a), because it keeps one precedence rule for every value. A second gap has the same shape: no flag can spell a participant `budget` (`task_size`, `max_input_tokens`, `max_output_tokens`, `reserve_fraction`; Section 5.2, R-50), because budgets live only in roster entries and `--with` replaces the roster. So the explicit equivalent that the preview prints (Section 3.4) cannot reproduce a concise run whose roster sets budgets, and AC-59 fails for such a run. Options: add a per-label budget flag, record budgets as a second exception, or narrow AC-59.
+- OQ-14: R-64 (d) fails a working-document loop that ended `skipped` (synth-refine cap 0), because only `converged`, and `accepted` with no open material finding, pass. R-117 does not list `skipped`, so a research run with a skipped loop can finalize clean. Should R-117 also treat `skipped` as a limitation? Recommendation: yes, so that spec and research runs judge an unreviewed working document the same way.
 - OQ-15: R-96 lets an agent accept an `oscillating` loop without `--by-human` when no material finding is open, and the accepted loop is then not a limitation. Section 6.3.1 treats `oscillating` as a soft limitation that only a human clears. Should R-96 require `--by-human` and `--message` for an `oscillating` loop too? Recommendation: yes, for the same reason R-96 gives for `capped-unverified`.
+- OQ-16: R-64 (f) passes when "the reduction was accepted", and Section 6.3.1 lists "reduced participation" as a soft limitation. The spec does not say whether `resume --continue-reduced` or a start with `--allow-reduced` counts as that acceptance. Option (a): either flag counts, so a reduced run can finalize clean. Option (b): neither counts, so a reduced run always finalizes with limitations unless a human gives `--accept-limitations --by-human`. Recommendation: (b), because both flags can be given by an agent and R-64 reserves clean promotion for complete evidence.
 
 ### 10.5 Decision log
 
@@ -2017,7 +2021,7 @@ Limitations of this candidate:
 - The token estimates (`bytes/4`) and the 32k/8k fallback are heuristics that the author chose. They are not measurements.
 - This document does not specify the error substrings that identify `host-auth` / `host-rate-limit`. The implementer must collect them from real ACE error output during implementation.
 - The author found no way to discover Antigravity limits. Such a mechanism may exist in an `agy` version that the author did not inspect.
-- The author did not run any part of the proposed workflow. All `aw synth` behaviour is proposed.
+- The author did not run any part of the proposed workflow. All `aw synth` behavior is proposed.
 
 ### 12.3 Worked transcripts (all syntax [PROPOSED], all ids fictional)
 
@@ -2063,7 +2067,7 @@ Next  aw specs set to-review m8kd4s
 ```text
 $ aw synth spec cache-brief.md --set cachelyr --apply
 [INFO ] freeze  brief k2m9qa published (18 obligations); roster trio (3 models)
-[INFO ] plan    gem split into 3 units (task_size small, 18 obligations)
+[INFO ] plan    gem split into 3 units (task_size small, 18 obligations; 2 units exceed the 60000-token budget)
 [INFO ] generate opus finished (d001, confirmed)  sol finished (d003, confirmed)
 [INFO ] generate gem u01 u02 u03 finished (d002, d004, d005, echoed); assembled r7tc0d; integration review (d006)
 [INFO ] barrier passed: 3 of 3 candidates
@@ -2081,7 +2085,7 @@ Next  aw synth resume synth-3f9a0c21d4b7e811 --apply
 $ aw synth resume last --apply
 [INFO ] synth-refine sol r1: 3 material (d020) ... r2: 0 new material (d022) converged
 [INFO ] verify sol (d023): 0 material
-✓ OK  ready-to-finalize  (dispatches used 23 of 40; cost 14 known, 9 unknown)
+! READY  ready-to-finalize with 1 warning: fixes-unverified on candidate r7tc0d  (dispatches used 23 of 40; cost 14 known, 9 unknown)
 Next  aw synth finalize synth-3f9a0c21d4b7e811 --apply
 
 $ aw synth finalize last --apply
@@ -2097,13 +2101,13 @@ $ aw synth research sqlite-wal-question.md --set sqlitewal --as-of 2026-11-02 --
 [INFO ] freeze  brief e0kq2v (3 questions, as-of 2026-11-02)
 [INFO ] generate opus gem sol finished
 [INFO ] citation check sol: 22 sources, 17 verified, 3 unsupported, 2 inaccessible
-[INFO ] reconcile opus: 12 claims; 1 contradiction kept
+[INFO ] synthesize opus: 12 claims; 1 contradiction kept
 ✓ OK  ready-to-finalize
-  C-07  "WAL mode is safe on network filesystems"  confidence low
-        supporting: S03 (vendor forum post, origin unknown, unsupported)
-        contradicting: S11 (official docs page on WAL, verified)
+  n4bt7c.C07  "WAL mode is safe on network filesystems"  confidence low
+        supporting: n4bt7c.S03 (vendor forum post, origin unknown, unsupported)
+        contradicting: n4bt7c.S11 (official docs page on WAL, verified)
         candidate A said high, B said medium; capped to low (no verified support)
-  Inaccessible: S14, S19 (listed in report)
+  Inaccessible: n4bt7c.S14, n4bt7c.S19 (listed in report)
 Next  aw synth finalize synth-9e8d7c6b5a493827 --apply
 
 $ aw synth finalize last --apply
@@ -2133,7 +2137,7 @@ Next  aw synth findings synth-77c0e1f2a3b4c5d6 --open
 #### 12.3.5 Machine output (noninteractive agent)
 
 ```text
-$ aw synth spec big-brief.md --with opus=opus-high:opus55high --with sol=sol-med:gpt61solmedium \
+$ aw synth spec big-brief.md --with opus=opus-high:opus55high --with gem=agy-gem:gemini38flashhigh --with sol=sol-med:gpt61solmedium \
     --mode thorough --max-dispatches 10 --no-interactive --agent --progress jsonl --apply 2>progress.jsonl
 {"schema":"aw.agent/v1","kind":"result","cmd":"synth spec","outcome":"partial","exit":1,"verified":true,"complete":false,"run":"synth-77c0e1f2a3b4c5d6","state":"capped","reason":"max-dispatches","dispatches":{"used":10,"limit":10},"loops":[{"doc":"w1ppz4","outcome":"capped-open","open_material":1}],"warnings":[],"next":"aw synth findings synth-77c0e1f2a3b4c5d6 --open","next_actions":["aw synth findings synth-77c0e1f2a3b4c5d6 --open","aw synth spec big-brief.md --from-run synth-77c0e1f2a3b4c5d6 --reuse refine --max-dispatches 30 --apply","aw synth cancel synth-77c0e1f2a3b4c5d6 --reason <text> --apply"]}
 ```
