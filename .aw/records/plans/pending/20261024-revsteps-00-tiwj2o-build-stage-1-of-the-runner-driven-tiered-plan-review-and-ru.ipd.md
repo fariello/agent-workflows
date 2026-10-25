@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the five Stage 1 children below and confirm each reaches `executed`. No code, test, or record of its own. Stage 2 plans are not part of this Set's table; Order 09 files the backlog item that carries them.
 - Scope-Paths: .aw/records/plans/pending/20261024-revsteps-00-tiwj2o-build-stage-1-of-the-runner-driven-tiered-plan-review-and-ru.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a14722251660e3b80158de981c3dbb070ca761c7f6889bd5dee1a084f94d71b8
@@ -20,8 +20,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tiwj2o
+- Approval: 2026-10-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-25 approved (aw set): status set to approved
 - 2026-10-25 coverage pass (aw oc run): fingerprint a14722251660, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Order 01 `3bwrfx` now depends on `executed:gv3smb` (3bwrfx review round 1, PR-004); child-table row, ordering note and E-01 edge updated to match.
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED

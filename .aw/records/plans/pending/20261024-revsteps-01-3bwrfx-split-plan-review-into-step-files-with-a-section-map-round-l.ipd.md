@@ -6,7 +6,7 @@
 - Scope: Create the step files of spec `k3yx72` Section 4.3 under `.aw/system/workflows/plan-review/steps/`, turn `plan-review.md` into a checklist that runs those step files in order (so an interactive `/plan-review` still performs the whole review), keep every existing rule, add the old-to-new section map and the per-tier instruction byte totals to the `plan-review` README, amend `.aw/records/reviews/README.md` with the round layout of Section 7.1, and change `/askme` to the five-level recommendation strength (MD-9, Section 17.4). EXCLUDES all runner code (Orders 02, 04, 05), the citation resolver (Order 03, Stage 2), retiring `/plan-review-long` (Order 07, Stage 2: until then its parity references stay valid because no rule is deleted), and any change to `review_findings` parsing. BEHAVIOR CHANGE TO NOTE AT APPROVAL: from this plan's merge, every `/plan-review`, including the runner's default single-turn review (`runner_shared.build_review_prompt` sends `/plan-review <path>`), runs the tiered checklist, so a plan the agent rates `simple` gets checks P, T, Q, S5 to S7 instead of the full rubric. Spec `k3yx72` MD-7 and Section 4.3 require this, and it lands before the Order 09 pilot; the pre-change file stays readable at the baseline commit E-01 records.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review/README.md, .aw/system/workflows/plan-review/steps/*.md, .aw/system/workflows/askme/askme.md, .aw/records/reviews/README.md, agent_workflows/review_findings.py, agent_workflows/plan_readiness.py, .aw/system/workflows/spec-review/spec-review.md, .aw/system/workflows/spec-review/README.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, .aw/system/workflows/plan-review-long/plan-review-long.md, tests/test_plan_review_feasibility_rule.py, tests/test_v_item_demonstration_reachability.py, tests/test_v_item_evidence_durability.py, tests/test_plan_review_step_files.py, CHANGELOG.md
 - Item-Dependencies: executed:gv3smb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 18
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3bwrfx
+- Approval: 2026-10-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-25 approved (aw set): status set to approved
 - 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): E-09 names the `review progress` history-line form (uiyoax review round 1, PR-004); no verdict change.
 - 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): E-04 names the `1.` to `5.` answer-line form that `gv3smb` E-04 parses (gv3smb review round 1, PR-008); no verdict change.
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED

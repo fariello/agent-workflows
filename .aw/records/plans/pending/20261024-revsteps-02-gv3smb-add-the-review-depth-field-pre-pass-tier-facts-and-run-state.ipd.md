@@ -6,7 +6,7 @@
 - Scope: Register `- Review-Depth:` as a recognized, optional, closed-enum plan field; add a pure function that computes the pre-pass tier facts from a plan's text; add a pure parser for the `AW-TIER:` reply marker and for the five tier answers in a review record's `### Step T` subsection; add a run-state recorder that writes the tier, its source, and the answers onto the current review attempt; and carry the tier into the attempt-grain analytics. EXCLUDES sending prompts, deciding when to call the recorder, and the re-ask on a malformed marker (all Order 04); EXCLUDES writing `- Review-Depth:` into a plan (S7's job, Order 01 step file plus Order 04 postcondition).
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/review_tier.py, agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_analytics_attempts.py, docs/run-analytics.md, .aw/records/plans/README.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_review_tier.py, tests/test_run_analytics_review_cost.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: gv3smb
+- Approval: 2026-10-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-25 approved (aw set): status set to approved
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
 - 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261024-revsteps-02-gv3smb-add-the-review-depth-field-pre-pass-tier-facts-and-run-state.review.md
 - 2026-10-25 to-review (aw set): authored review-ready from spec k3yx72 Stage 1 (MD-20)

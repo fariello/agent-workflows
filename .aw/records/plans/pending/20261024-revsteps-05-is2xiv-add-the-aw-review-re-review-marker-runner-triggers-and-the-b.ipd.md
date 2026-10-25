@@ -6,7 +6,7 @@
 - Scope: Add `agent_workflows/review_rereview.py` with the marker parser, the trigger check, and the loop driver that Order 04's `runner_shared.run_review_sequence` calls; record each pass in the review record layout (`### Pass <k>`) expectations and in run state; enforce the two-pass limit with the `no-go` plus blocking-question rule. EXCLUDES the `AW-MATERIAL` marker, `aw ipd recheck-readiness` automation, and targeted re-review after a human answer (spec Section 9.4, Stage 2), and any change to the single-turn `--review-mode single` path.
 - Scope-Paths: agent_workflows/review_rereview.py, agent_workflows/runner_shared.py, tests/test_review_rereview.py, CHANGELOG.md
 - Item-Dependencies: executed:uiyoax
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: is2xiv
+- Approval: 2026-10-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-25 approved (aw set): status set to approved
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED
 - 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261024-revsteps-05-is2xiv-add-the-aw-review-re-review-marker-runner-triggers-and-the-b.review.md
 - 2026-10-25 to-review (aw set): authored review-ready from spec k3yx72 Stage 1 (MD-20)
