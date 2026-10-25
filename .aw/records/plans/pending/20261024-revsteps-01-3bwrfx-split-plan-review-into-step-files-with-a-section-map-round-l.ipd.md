@@ -19,6 +19,7 @@
 - Id: 3bwrfx
 
 ## Workflow history
+- 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): E-09 names the `review progress` history-line form (uiyoax review round 1, PR-004); no verdict change.
 - 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): E-04 names the `1.` to `5.` answer-line form that `gv3smb` E-04 parses (gv3smb review round 1, PR-008); no verdict change.
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
 - 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261024-revsteps-01-3bwrfx-split-plan-review-into-step-files-with-a-section-map-round-l.review.md
@@ -78,7 +79,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `s5-questions.md` exists and contains the five `ANCHOR_PHRASES` of `tests/test_plan_review_feasibility_rule.py`.
   - Execution state: pending
 
-- [ ] E-09 Create `steps/s6-rereview.md`: decide whether the review's own edits need another pass; end the reply with exactly one last line `AW-REVIEW: AGAIN` or `AW-REVIEW: DONE` (spec Section 8.1); state that an interactive run decides the same thing and loops itself at most twice (Section 8.3). Do NOT write any verdict output in this step (MD-15).
+- [ ] E-09 Create `steps/s6-rereview.md`: decide whether the review's own edits need another pass; end the reply with exactly one last line `AW-REVIEW: AGAIN` or `AW-REVIEW: DONE` (spec Section 8.1); state that an interactive run decides the same thing and loops itself at most twice (Section 8.3). Do NOT write any verdict output in this step (MD-15), and record any progress note in the plan's history only as `- <date> review progress (<agent/model>): <note>`, never with a `/plan-review` label, because `plan_readiness.is_review_history_entry` treats a `/plan-review`-labelled line as a review record and `newest_verdict` would then read it as the newest verdict (`uiyoax` E-03).
   - Depends on: none
   - Expected outcome: `s6-rereview.md` exists with both marker lines spelled exactly.
   - Execution state: pending
