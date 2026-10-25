@@ -2,7 +2,6 @@
 
 - Date: 2026-08-26
 - Status: approved
-- Blocks-Release: next
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 25kzda
 - Scope: the behavior of the single canonical runner verb `aw oc run` / `aw agy run`: selector
@@ -1745,6 +1744,7 @@ aw oc run resume <run-id>
 This example demonstrates the revised guarantees: `all` is safely bounded; dependencies are explicit id6-grounded facts; a failed item is contained instead of poisoning independent work; unmet state cascades without starting dependents; a host capability gap refuses only the affected item; contractless prompt neutrality changes only aggregate exit calculation; and deterministic repository evidence rather than agent confidence decides completion.
 
 ## Workflow history
+- 2026-10-25 approved (aw specs): Release gate cleared on maintainer ruling 2026-10-25 (spec audit): the spec is ~80% shipped and stays approved as the living runner contract; unbuilt pieces are filed as individual backlog items instead of gating 2.0.0 on the whole spec.
 
 - 2026-10-25 note (aw specs): Section 5.5: host-failure fix-it classes apply to execute and production turns (plan ob7aq9)
 - 2026-10-18 note (aw specs): plan sa629y (backlog o58dro) routes a post-merge revalidation whose every test passed and whose only failure is the enforced core-tier wall-time budget to the existing harness-side merge-unchecked refusal (l2mzxn), which defers and ends terminal at merge-needs-human when --integration-retry-limit is spent; this is not a "non-passing combined revalidation" in Section 2.1's sense, because Section 2.1 grounds that exclusion in repetition not fixing the condition, and host load is fixed by repetition; a budget-only red is never treated as a pass
