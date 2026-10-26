@@ -1148,13 +1148,14 @@ def save_state(
 
 
 def add_run_label_flags(sub_parser: argparse.ArgumentParser) -> None:
-    """Register ``--label`` and ``--review-variant`` on a runner's ``start`` parser (both hosts).
+    """Register ``--label``, ``--review-mode``, and ``--review-variant`` on a runner's ``start`` parser (both hosts).
 
-    Pure ANNOTATIONS for analysis: they are frozen into ``state.json`` ``options`` and change no
-    runner behavior. ``--label`` names a run (or a set of runs forming one experiment arm) so
-    ``aw runs query`` can select it; ``--review-variant`` names the review procedure under test
-    (for example ``single-12`` or ``grouped-6``). Start-only: a resumed run keeps the labels it was
-    started with, so they are not registered on ``resume``.
+    ``--label`` names a run (or a set of runs forming one experiment arm) so
+    ``aw runs query`` can select it; ``--review-mode`` selects either ``single`` (default single-turn
+    review) or ``steps`` (tiered sequence of prompt steps per spec k3yx72); ``--review-variant``
+    names the review procedure under test (for example ``single-12`` or ``grouped-6``) and selects
+    the grouping when ``--review-mode steps`` is set. Start-only: a resumed run keeps the labels it
+    was started with, so they are not registered on ``resume``.
     """
 
     sub_parser.add_argument(
@@ -1164,11 +1165,18 @@ def add_run_label_flags(sub_parser: argparse.ArgumentParser) -> None:
         help="Annotate this run for analysis (recorded in state.json options.label; no behavior change).",
     )
     sub_parser.add_argument(
+        "--review-mode",
+        dest="review_mode",
+        choices=["single", "steps"],
+        default="single",
+        help="Select review mode: 'single' (default single-turn review) or 'steps' (tiered sequence of prompts).",
+    )
+    sub_parser.add_argument(
         "--review-variant",
         dest="review_variant",
         default=None,
         metavar="NAME",
-        help="Name the review variant under test (recorded in options.review_variant; no behavior change).",
+        help="Name the review variant under test (recorded in options.review_variant; selects grouping when --review-mode steps is set).",
     )
 
 
@@ -3741,6 +3749,7 @@ def commit_review_lane_output(
     host_label: str,
     run_id: str | None = None,
     own_paths: Sequence[str] | None = None,
+    review_mode: str = "single",
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit a review turn's UNCOMMITTED lane output to the lane branch, so the merge can carry it.
 
@@ -3812,7 +3821,10 @@ def commit_review_lane_output(
         return None, ()
     from agent_workflows import git_commit_helper as _gch
 
-    subject = f"review({host_label}): record the review of {id6}"
+    if review_mode == "steps":
+        subject = f"plan-review: record the review of {id6} ({host_label})"
+    else:
+        subject = f"review({host_label}): record the review of {id6}"
     body = (
         "Committed by the driver because the review turn left its output uncommitted in its "
         "lane. Path-scoped to the paths the turn itself wrote; hooks ran normally."
@@ -3854,6 +3866,7 @@ def commit_review_shared_output(
     host_label: str,
     allowed_paths: Sequence[str | Path] = (),
     run_id: str | None = None,
+    review_mode: str = "single",
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit a non-isolated review turn's uncommitted output to the shared checkout.
 
@@ -3899,7 +3912,10 @@ def commit_review_shared_output(
         return None, ()
     from agent_workflows import git_commit_helper as _gch
 
-    subject = f"review({host_label}): record the review of {id6}"
+    if review_mode == "steps":
+        subject = f"plan-review: record the review of {id6} ({host_label})"
+    else:
+        subject = f"review({host_label}): record the review of {id6}"
     body = (
         "Committed by the driver because the non-isolated review turn left its output "
         "uncommitted in the shared checkout. Path-scoped to the artifact under review and its "
@@ -29697,6 +29713,820 @@ def handle_review_orchestrator_readiness(
         )
 
 
+def run_review_sequence(
+    prompt_path: Path,
+    work_dir: str | None,
+    tracker: Any,
+    plan_path: Path,
+    attempt_no: int,
+    session_id: str | None,
+    use_continue: bool,
+    *,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    run_dir: Path,
+    repo: Path,
+    host_labels: HostLabels,
+    spawn_executor: Callable[..., tuple[int, str | None, Path, list[str]]],
+    raw_launcher: Callable[..., Any],
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+    pal: Palette,
+    attempt: MutableMapping[str, Any],
+    seq: int = 1,
+    total: int = 1,
+) -> tuple[int, str | None, Path, list[str]]:
+    """Execute a plan review as a tiered sequence of prompts (spec k3yx72, Set revsteps, IPD uiyoax)."""
+    import hashlib
+    import uuid
+    from agent_workflows import (
+        ipd_lifecycle,
+        ipd_lint,
+        ipd_schema,
+        review_sequence,
+        review_tier,
+        runner_stop,
+    )
+
+    target_root = Path(work_dir) if work_dir else repo
+    plan_file: Path | None = None
+    if item.get("configured_file"):
+        candidate = target_root / item["configured_file"]
+        if candidate.is_file():
+            plan_file = candidate
+    if plan_file is None:
+        plan_file = (
+            plan_path
+            if plan_path.is_file()
+            else (target_root / item.get("configured_file", ""))
+        )
+
+    plan_text_initial = (
+        plan_file.read_text(encoding="utf-8") if plan_file.is_file() else ""
+    )
+    doc = ipd_lint.parse(plan_text_initial)
+    kind = (doc.meta_fields.get("Kind") or "").strip()
+    in_set = bool(doc.meta_fields.get("Set")) or bool(item.get("setid"))
+
+    baseline_plan_sha = hashlib.sha256(plan_text_initial.encode("utf-8")).hexdigest()
+    baseline_frozen_digest = ipd_lifecycle.frozen_region_digest(plan_text_initial)
+    baseline_verdicts = review_sequence.verdict_outputs(plan_text_initial)
+    tf = review_tier.tier_facts(plan_text_initial)
+    facts_md = review_tier.render_tier_facts(tf)
+
+    _rc_h, head_out, _ = _run_git(target_root, ["rev-parse", "HEAD"])
+    baseline_head = head_out.strip() if _rc_h == 0 else ""
+
+    options = state.get("options", {})
+    review_variant = options.get("review_variant") or "single-12"
+    quick_ok = bool(options.get("quick_pipeline") or options.get("quick_ok"))
+
+    lane_notice = None
+    if work_dir:
+        from agent_workflows import lane_containment
+
+        with contextlib.suppress(Exception):
+            lane_notice = lane_containment.isolation_notice(Path(work_dir))
+
+    plan_rel = (
+        str(plan_file.relative_to(target_root)).replace("\\", "/")
+        if plan_file.is_relative_to(target_root)
+        else str(item.get("configured_file", plan_path.name)).replace("\\", "/")
+    )
+
+    def _get_reply_text(lp: Path | str | None) -> str:
+        if not lp:
+            return ""
+        p = Path(lp)
+        if not p.is_file():
+            return ""
+        try:
+            content = p.read_text(encoding="utf-8", errors="replace")
+            host_id = "agy" if "agy" in getattr(host_labels, "id", "") else "oc"
+            return probe_reply_text(content, host=host_id)
+        except Exception:
+            return ""
+
+    def _get_review_text() -> str:
+        from agent_workflows import review_findings
+
+        id6 = str(item.get("id6") or "")
+        records = review_findings.subject_review_records(target_root, id6)
+        if records:
+            rev_p = records[0]
+            try:
+                return rev_p.read_text(encoding="utf-8")
+            except Exception:
+                return ""
+        rev_dir = target_root / ".aw" / "records" / "reviews"
+        if rev_dir.is_dir():
+            for p in rev_dir.rglob("*.review.md"):
+                if id6 in p.name:
+                    try:
+                        return p.read_text(encoding="utf-8")
+                    except Exception:
+                        return ""
+        return ""
+
+    def _dispatch_resumed_step(
+        p_path: Path,
+        k: int,
+        lbl: str,
+        cur_session: str | None,
+    ) -> tuple[int, str | None, Path, list[str]]:
+        log_suffix = f"review-step-{k:02d}-{lbl}"
+        if host_labels == OC_HOST_LABELS:
+            res = resume_via_launcher(
+                raw_launcher,
+                (
+                    state,
+                    run_dir,
+                    item,
+                    plan_path,
+                    p_path,
+                    attempt_no,
+                ),
+                {
+                    "log_suffix": log_suffix,
+                    "label_suffix": log_suffix,
+                    "tracker": tracker,
+                    "work_dir": work_dir,
+                    "resume_session": cur_session,
+                },
+            )
+        else:
+            res = resume_via_launcher(
+                raw_launcher,
+                (
+                    state,
+                    run_dir,
+                    item,
+                    p_path,
+                    attempt_no,
+                ),
+                {
+                    "session_id": cur_session,
+                    "use_continue": False,
+                    "log_suffix": log_suffix,
+                    "label_suffix": log_suffix,
+                    "work_dir": work_dir,
+                    "tracker": tracker,
+                },
+            )
+        if isinstance(res, tuple):
+            c_code = res[0] if len(res) > 0 else 0
+            s_id = res[1] if len(res) > 1 and res[1] else cur_session
+            l_path = (
+                Path(res[2])
+                if len(res) > 2 and res[2]
+                else (
+                    run_dir
+                    / "sessions"
+                    / f"{attempt_no:02d}-{item['id6']}-attempt-{attempt_no}-{log_suffix}.jsonl"
+                )
+            )
+            a_argv = res[3] if len(res) > 3 else []
+            return c_code, s_id, l_path, a_argv
+        return 0, cur_session, run_dir / f"{log_suffix}.jsonl", []
+
+    def _check_verdict_guard(cur_text: str) -> bool:
+        cur_verdicts = review_sequence.verdict_outputs(cur_text)
+        if cur_verdicts != baseline_verdicts:
+            return True
+        if baseline_head:
+            _rc_l, log_out, _ = _run_git(
+                target_root,
+                ["log", f"{baseline_head}..HEAD", "--format=%s"],
+            )
+            if _rc_l == 0 and any(
+                s.strip().startswith("plan-review:") for s in log_out.splitlines()
+            ):
+                return True
+        return False
+
+    def _revert_verdict_guard(pre_text: str, cur_text: str) -> None:
+        reverted = review_sequence.restore_pre_s7_plan(pre_text, cur_text)
+        plan_file.write_text(reverted, encoding="utf-8")
+        if baseline_head:
+            _rc_l, log_out, _ = _run_git(
+                target_root,
+                ["log", f"{baseline_head}..HEAD", "--format=%s"],
+            )
+            if _rc_l == 0 and any(
+                s.strip().startswith("plan-review:") for s in log_out.splitlines()
+            ):
+                _run_git(target_root, ["reset", "--mixed", baseline_head])
+
+    snap_dir = run_dir / "snapshots"
+    snap_dir.mkdir(parents=True, exist_ok=True)
+
+    invocation_id = str(uuid.uuid4())
+    pass_no = 1
+    review_steps: list[dict[str, Any]] = attempt.setdefault("review_steps", [])
+    resumed_from_step = 0
+
+    if review_steps:
+        last_step = review_steps[-1]
+        resumed_from_step = int(last_step.get("prompt", 0))
+        last_sha = last_step.get("plan_sha256")
+        step_session = last_step.get("session_id")
+        if last_sha:
+            snap_file = snap_dir / f"{last_sha}.plan.md"
+            if snap_file.is_file():
+                plan_file.write_text(
+                    snap_file.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+        if step_session:
+            session_id = step_session
+        else:
+            resumed_from_step = 0
+            session_id = None
+            plan_file.write_text(plan_text_initial, encoding="utf-8")
+
+    def _fail_incomplete(
+        reason: str,
+        last_log: Path,
+        last_argv: list[str],
+        s_id: str | None,
+    ) -> tuple[int, str | None, Path, list[str]]:
+        record_refusal(
+            item,
+            code="review-sequence-incomplete",
+            reason=reason,
+            remedy=f"re-run review for {item['id6']}",
+        )
+        attempt["review_outcome"] = "incomplete"
+        attempt["disposition"] = "fail-gate"
+        item["status"] = "fail-gate"
+        target_sha = review_steps[-1]["plan_sha256"] if review_steps else None
+        if target_sha:
+            snap_p = snap_dir / f"{target_sha}.plan.md"
+            if snap_p.is_file():
+                plan_file.write_text(
+                    snap_p.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            else:
+                plan_file.write_text(plan_text_initial, encoding="utf-8")
+        else:
+            plan_file.write_text(plan_text_initial, encoding="utf-8")
+        cur = plan_file.read_text(encoding="utf-8")
+        doc_c = ipd_lint.parse(cur)
+        if doc_c.meta_fields.get("Status") != "to-review":
+            plan_file.write_text(
+                re.sub(r"(?m)^- Status:.*$", "- Status: to-review", cur),
+                encoding="utf-8",
+            )
+        save_state(run_dir, state)
+        return 1, s_id, last_log, last_argv
+
+    log_path: Path = (
+        run_dir / f"sessions/{attempt_no:02d}-{item['id6']}-attempt-{attempt_no}.jsonl"
+    )
+    argv: list[str] = []
+    exit_code = 0
+    confirm_changes: list[str] = []
+    checks_run: set[str] = set()
+
+    # Determine prompt 1 checks and tier
+    cur_depth = (doc.meta_fields.get(ipd_schema.META_REVIEW_DEPTH) or "").strip()
+    if kind == "orchestrator":
+        tier = "orchestrator"
+        p1_checks = ("P", "R1", "R2")
+    elif cur_depth == "complex" and review_variant == "single-12":
+        tier = "complex"
+        p1_checks = ("P",)
+    elif cur_depth == "simple" and quick_ok:
+        p1_checks = ("P", "T", "Q")
+        tier = "simple"
+    else:
+        p1_checks = ("P", "T")
+        tier = "standard"
+
+    if resumed_from_step == 0:
+        p1_text = review_sequence.render_prompt(
+            p1_checks,
+            first=True,
+            plan_rel=plan_rel,
+            facts_md=facts_md,
+            lane_notice=lane_notice,
+        )
+        p1_prompt_path = write_prompt(run_dir, item, p1_text, attempt_no)
+
+        exit_code, session_id, log_path, argv = spawn_executor(
+            p1_prompt_path,
+            work_dir,
+            tracker,
+            plan_path,
+            attempt_no,
+            session_id,
+            False,
+        )
+
+        log_p = Path(log_path)
+        if not session_id:
+            return _fail_incomplete(
+                "no session id captured after prompt 1", log_p, argv, None
+            )
+
+        p1_lbl = "-".join(c.lower() for c in p1_checks)
+        p1_step_log = (
+            log_p.parent / f"{log_p.stem}-review-step-01-{p1_lbl}{log_p.suffix}"
+        )
+        if log_p.is_file():
+            shutil.copyfile(log_p, p1_step_log)
+
+        p1_was_reasked = False
+        plan_text_after = plan_file.read_text(encoding="utf-8")
+        reply_text = _get_reply_text(log_path)
+        review_text = _get_review_text()
+
+        # Check structural diff on P
+        if "P" in p1_checks:
+            refused_diff, confirm_changes = review_sequence.structural_diff(
+                plan_text_initial, plan_text_after
+            )
+            if refused_diff:
+                plan_file.write_text(plan_text_initial, encoding="utf-8")
+                p1_was_reasked = True
+                reask_body = f"Proofreading edits contained refused structural changes: {'; '.join(refused_diff)}"
+                reask_prompt = review_sequence.render_reask("P", reask_body)
+                p_text = review_sequence.render_prompt(
+                    p1_checks, first=False, plan_rel=plan_rel, reask=reask_prompt
+                )
+                p_path = write_prompt(
+                    run_dir, item, p_text, attempt_no, suffix=f"step-01-{p1_lbl}-reask"
+                )
+                _code, session_id, log_path, _ = _dispatch_resumed_step(
+                    p_path, 1, f"{p1_lbl}-reask", session_id
+                )
+                plan_text_after = plan_file.read_text(encoding="utf-8")
+                reply_text = _get_reply_text(log_path)
+                review_text = _get_review_text()
+                refused_diff2, confirm_changes = review_sequence.structural_diff(
+                    plan_text_initial, plan_text_after
+                )
+                if refused_diff2:
+                    return _fail_incomplete(
+                        f"Structural preservation failed after re-ask: {'; '.join(refused_diff2)}",
+                        log_path,
+                        argv,
+                        session_id,
+                    )
+
+            err_P = review_sequence.check_P(
+                plan_text_initial, plan_text_after, review_text, reply_text
+            )
+            if err_P:
+                p1_was_reasked = True
+                reask_prompt = review_sequence.render_reask("P", err_P)
+                p_text = review_sequence.render_prompt(
+                    p1_checks, first=False, plan_rel=plan_rel, reask=reask_prompt
+                )
+                p_path = write_prompt(
+                    run_dir, item, p_text, attempt_no, suffix=f"step-01-{p1_lbl}-reask"
+                )
+                _code, session_id, log_path, _ = _dispatch_resumed_step(
+                    p_path, 1, f"{p1_lbl}-reask", session_id
+                )
+                plan_text_after = plan_file.read_text(encoding="utf-8")
+                reply_text = _get_reply_text(log_path)
+                review_text = _get_review_text()
+                err_P2 = review_sequence.check_P(
+                    plan_text_initial, plan_text_after, review_text, reply_text
+                )
+                if err_P2:
+                    return _fail_incomplete(
+                        f"Proofreading check P failed after re-ask: {err_P2}",
+                        log_path,
+                        argv,
+                        session_id,
+                    )
+
+        if "T" in p1_checks:
+            err_T = review_sequence.check_T(
+                plan_text_initial, plan_text_after, review_text, reply_text
+            )
+            if err_T:
+                p1_was_reasked = True
+                reask_prompt = review_sequence.render_reask("T", err_T)
+                p_text = review_sequence.render_prompt(
+                    p1_checks, first=False, plan_rel=plan_rel, reask=reask_prompt
+                )
+                p_path = write_prompt(
+                    run_dir, item, p_text, attempt_no, suffix=f"step-01-{p1_lbl}-reask"
+                )
+                _code, session_id, log_path, _ = _dispatch_resumed_step(
+                    p_path, 1, f"{p1_lbl}-reask", session_id
+                )
+                plan_text_after = plan_file.read_text(encoding="utf-8")
+                reply_text = _get_reply_text(log_path)
+                review_text = _get_review_text()
+                err_T2 = review_sequence.check_T(
+                    plan_text_initial, plan_text_after, review_text, reply_text
+                )
+                if err_T2:
+                    return _fail_incomplete(
+                        f"Tier check T failed after re-ask: {err_T2}",
+                        log_path,
+                        argv,
+                        session_id,
+                    )
+            parsed_tier = review_tier.parse_tier_marker(reply_text)
+            if parsed_tier:
+                tier = parsed_tier
+            tier_answers = review_tier.parse_tier_answers(review_text)
+            review_tier.record_review_tier(
+                attempt, tier=tier, source="agent", answers=tier_answers, facts=tf
+            )
+
+        if _check_verdict_guard(plan_text_after):
+            _revert_verdict_guard(plan_text_initial, plan_text_after)
+            p1_was_reasked = True
+            reask_prompt = review_sequence.render_reask(
+                "P", "plan Status, Readiness, or review history was modified before S7"
+            )
+            p_text = review_sequence.render_prompt(
+                p1_checks, first=False, plan_rel=plan_rel, reask=reask_prompt
+            )
+            p_path = write_prompt(
+                run_dir, item, p_text, attempt_no, suffix=f"step-01-{p1_lbl}-reask"
+            )
+            _code, session_id, log_path, _ = _dispatch_resumed_step(
+                p_path, 1, f"{p1_lbl}-reask", session_id
+            )
+            plan_text_after = plan_file.read_text(encoding="utf-8")
+            if _check_verdict_guard(plan_text_after):
+                _revert_verdict_guard(plan_text_initial, plan_text_after)
+                return _fail_incomplete(
+                    "verdict outputs or commit prefix modified before S7 after re-ask",
+                    log_path,
+                    argv,
+                    session_id,
+                )
+
+        p1_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
+        (snap_dir / f"{p1_sha}.plan.md").write_text(plan_text_after, encoding="utf-8")
+        step_1_rec = {
+            "invocation": invocation_id,
+            "pass": pass_no,
+            "prompt": 1,
+            "checks": list(p1_checks),
+            "plan_sha256": p1_sha,
+            "session_id": session_id,
+            "reasked": p1_was_reasked,
+            "log": str(p1_step_log),
+        }
+        review_steps.append(step_1_rec)
+        save_state(run_dir, state)
+        checks_run.update(p1_checks)
+        resumed_from_step = 1
+
+    # Build prompt groups for the sequence
+    groups = list(
+        review_sequence.prompt_plan(
+            tier, review_variant, in_set=in_set, quick_ok=quick_ok
+        )
+    )
+
+    # Process remaining prompts
+    k = resumed_from_step + 1
+    while k <= len(groups):
+        group_checks = groups[k - 1]
+        lbl = "-".join(c.lower() for c in group_checks)
+        was_reasked = False
+        step_log_path = (
+            run_dir
+            / "sessions"
+            / f"{attempt_no:02d}-{item['id6']}-attempt-{attempt_no}-review-step-{k:02d}-{lbl}.jsonl"
+        )
+
+        conf_to_pass = (
+            confirm_changes if any(c in ("R2", "R4") for c in group_checks) else None
+        )
+        p_text = review_sequence.render_prompt(
+            group_checks,
+            first=False,
+            plan_rel=plan_rel,
+            confirm_changes=conf_to_pass,
+        )
+        p_path = write_prompt(
+            run_dir, item, p_text, attempt_no, suffix=f"step-{k:02d}-{lbl}"
+        )
+
+        plan_text_before = plan_file.read_text(encoding="utf-8")
+
+        try:
+            exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
+                p_path, k, lbl, session_id
+            )
+        except (
+            KeyboardInterrupt,
+            StallTimeout,
+            runner_stop.StopNowForce,
+            runner_stop.StopAtCheckpoint,
+        ):
+            raise
+        except Exception as disp_err:
+            if resumed_from_step > 0 and k == resumed_from_step + 1:
+                # Session is gone on resume (AC-14): restart at prompt 1 in a new session
+                attempt["review_steps"] = []
+                plan_file.write_text(plan_text_initial, encoding="utf-8")
+                return run_review_sequence(
+                    prompt_path,
+                    work_dir,
+                    tracker,
+                    plan_path,
+                    attempt_no,
+                    None,
+                    False,
+                    state=state,
+                    item=item,
+                    run_dir=run_dir,
+                    repo=repo,
+                    host_labels=host_labels,
+                    spawn_executor=spawn_executor,
+                    raw_launcher=raw_launcher,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
+                    pal=pal,
+                    attempt=attempt,
+                    seq=seq,
+                    total=total,
+                )
+            return _fail_incomplete(
+                f"step {k} dispatch failed: {disp_err}", step_log_path, argv, session_id
+            )
+
+        plan_text_after = plan_file.read_text(encoding="utf-8")
+        reply_text = _get_reply_text(step_log_path)
+        review_text = _get_review_text()
+
+        # Postcondition checks
+        failed_check = None
+        failed_reason = None
+
+        if "T" in group_checks:
+            err = review_sequence.check_T(
+                plan_text_before, plan_text_after, review_text, reply_text
+            )
+            if err:
+                failed_check, failed_reason = "T", err
+
+        if failed_check is None and any(
+            c == "Q" or c.startswith("R") for c in group_checks
+        ):
+            err = review_sequence.check_steps(
+                plan_text_before, plan_text_after, review_text, reply_text, group_checks
+            )
+            if err:
+                failed_check, failed_reason = group_checks[0], err
+
+        if failed_check is None and "S5" in group_checks:
+            err = review_sequence.check_S5(
+                plan_text_before,
+                plan_text_after,
+                review_text,
+                reply_text,
+                repo_root=target_root,
+                plan_path=plan_file,
+            )
+            if err:
+                failed_check, failed_reason = "S5", err
+
+        if failed_check is None and "S6" in group_checks:
+            err = review_sequence.check_S6(
+                plan_text_before, plan_text_after, review_text, reply_text
+            )
+            if err:
+                failed_check, failed_reason = "S6", err
+
+        if failed_check is None and "S7" in group_checks:
+            err = review_sequence.check_S7(
+                plan_text_before, plan_text_after, review_text, reply_text
+            )
+            if err:
+                failed_check, failed_reason = "S7", err
+
+        # Re-ask if failed
+        if failed_check:
+            was_reasked = True
+            reask_prompt = review_sequence.render_reask(
+                failed_check, failed_reason or ""
+            )
+            reask_body = review_sequence.render_prompt(
+                group_checks,
+                first=False,
+                plan_rel=plan_rel,
+                reask=reask_prompt,
+                confirm_changes=conf_to_pass,
+            )
+            reask_p = write_prompt(
+                run_dir,
+                item,
+                reask_body,
+                attempt_no,
+                suffix=f"step-{k:02d}-{lbl}-reask",
+            )
+            exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
+                reask_p, k, f"{lbl}-reask", session_id
+            )
+            plan_text_after = plan_file.read_text(encoding="utf-8")
+            reply_text = _get_reply_text(step_log_path)
+            review_text = _get_review_text()
+
+            # Re-check postconditions
+            err2 = None
+            if failed_check == "T":
+                err2 = review_sequence.check_T(
+                    plan_text_before, plan_text_after, review_text, reply_text
+                )
+            elif failed_check == "S5":
+                err2 = review_sequence.check_S5(
+                    plan_text_before,
+                    plan_text_after,
+                    review_text,
+                    reply_text,
+                    repo_root=target_root,
+                    plan_path=plan_file,
+                )
+            elif failed_check == "S6":
+                err2 = review_sequence.check_S6(
+                    plan_text_before, plan_text_after, review_text, reply_text
+                )
+            elif failed_check == "S7":
+                err2 = review_sequence.check_S7(
+                    plan_text_before, plan_text_after, review_text, reply_text
+                )
+            else:
+                err2 = review_sequence.check_steps(
+                    plan_text_before,
+                    plan_text_after,
+                    review_text,
+                    reply_text,
+                    group_checks,
+                )
+            if err2:
+                return _fail_incomplete(
+                    f"check {failed_check} failed after re-ask: {err2}",
+                    step_log_path,
+                    argv,
+                    session_id,
+                )
+
+        # Update tier if T was in this prompt
+        if "T" in group_checks:
+            parsed_tier = review_tier.parse_tier_marker(reply_text)
+            if parsed_tier:
+                tier = parsed_tier
+            tier_answers = review_tier.parse_tier_answers(review_text)
+            review_tier.record_review_tier(
+                attempt, tier=tier, source="agent", answers=tier_answers, facts=tf
+            )
+            groups = list(
+                review_sequence.prompt_plan(
+                    tier, review_variant, in_set=in_set, quick_ok=quick_ok
+                )
+            )
+
+        # Mid-review tier raise check
+        marker = review_tier.parse_tier_marker(reply_text)
+        if marker and tier != "orchestrator":
+            tier_ranks = {"simple": 1, "standard": 2, "complex": 3}
+            if tier_ranks.get(marker, 0) > tier_ranks.get(tier, 0):
+                extra_groups = review_sequence.raise_tier_plan(
+                    checks_run | set(group_checks),
+                    marker,
+                    review_variant,
+                    in_set=in_set,
+                )
+                if extra_groups:
+                    s5_idx = next(
+                        (i for i, grp in enumerate(groups) if "S5" in grp), len(groups)
+                    )
+                    groups = (
+                        list(groups[:s5_idx])
+                        + list(extra_groups)
+                        + list(groups[s5_idx:])
+                    )
+                tier = marker
+                tier_answers = review_tier.parse_tier_answers(review_text)
+                review_tier.record_review_tier(
+                    attempt, tier=tier, source="raised", answers=tier_answers, facts=tf
+                )
+
+        # Verdict guard before S7
+        if "S7" not in group_checks:
+            if _check_verdict_guard(plan_text_after):
+                _revert_verdict_guard(plan_text_before, plan_text_after)
+                was_reasked = True
+                reask_prompt = review_sequence.render_reask(
+                    group_checks[0],
+                    "plan Status, Readiness, or review history was modified before S7",
+                )
+                reask_body = review_sequence.render_prompt(
+                    group_checks,
+                    first=False,
+                    plan_rel=plan_rel,
+                    reask=reask_prompt,
+                    confirm_changes=conf_to_pass,
+                )
+                reask_p = write_prompt(
+                    run_dir,
+                    item,
+                    reask_body,
+                    attempt_no,
+                    suffix=f"step-{k:02d}-{lbl}-reask",
+                )
+                exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
+                    reask_p, k, f"{lbl}-reask", session_id
+                )
+                plan_text_after = plan_file.read_text(encoding="utf-8")
+                if _check_verdict_guard(plan_text_after):
+                    _revert_verdict_guard(plan_text_before, plan_text_after)
+                    return _fail_incomplete(
+                        "verdict outputs or commit prefix modified before S7 after re-ask",
+                        step_log_path,
+                        argv,
+                        session_id,
+                    )
+
+        # Delegate S6 if review_rereview is present
+        if "S6" in group_checks:
+            try:
+                from agent_workflows import review_rereview
+
+                has_rereview = True
+            except ImportError:
+                has_rereview = False
+            if has_rereview:
+
+                def _send_rereview_prompt(r_prompt: str) -> str:
+                    nonlocal session_id
+                    p_file = write_prompt(
+                        run_dir, item, r_prompt, attempt_no, suffix=f"rereview-{lbl}"
+                    )
+                    _c, session_id, s_log, _a = _dispatch_resumed_step(
+                        p_file, k, f"rereview-{lbl}", session_id
+                    )
+                    return _get_reply_text(s_log)
+
+                ctx = review_sequence.ReviewSequenceContext(
+                    send_prompt=_send_rereview_prompt,
+                    tier=tier,
+                    variant=review_variant,
+                    checks_run=checks_run | set(group_checks),
+                    plan_path=plan_file,
+                    review_path=target_root / ".aw" / "records" / "reviews",
+                    pass_start_text=plan_text_initial,
+                    pass_no=pass_no,
+                    baseline={
+                        "plan_sha": baseline_plan_sha,
+                        "frozen_digest": baseline_frozen_digest,
+                        "verdicts": baseline_verdicts,
+                        "head": baseline_head,
+                    },
+                    review_steps=review_steps,
+                )
+                review_rereview.run_rereview_loop(ctx)
+
+        cur_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
+        (snap_dir / f"{cur_sha}.plan.md").write_text(plan_text_after, encoding="utf-8")
+        step_rec = {
+            "invocation": invocation_id,
+            "pass": pass_no,
+            "prompt": k,
+            "checks": list(group_checks),
+            "plan_sha256": cur_sha,
+            "session_id": session_id,
+            "reasked": was_reasked,
+            "log": str(step_log_path),
+        }
+        review_steps.append(step_rec)
+        checks_run.update(group_checks)
+        save_state(run_dir, state)
+
+        k += 1
+
+    # End of sequence outcomes (spec Section 9.1)
+    final_plan_text = plan_file.read_text(encoding="utf-8")
+    final_readiness = ipd_schema.read_readiness(final_plan_text)
+    review_text = _get_review_text()
+    if final_readiness in ("go", "go-pending-approval"):
+        attempt["review_outcome"] = "completed-pass"
+        exit_code = 0
+    elif final_readiness == "no-go" or (
+        final_readiness is None and "exhausted" in review_text.lower()
+    ):
+        attempt["review_outcome"] = "completed-negative"
+        exit_code = 0
+    else:
+        attempt["review_outcome"] = "completed-pass"
+        exit_code = 0
+
+    save_state(run_dir, state)
+    return exit_code, session_id, log_path, argv
+
+
 # ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
@@ -36306,6 +37136,7 @@ def initialize_run_core(
             # Analysis-only annotations (`add_run_label_flags`); no runner behavior reads them.
             "label": getattr(args, "label", None),
             "review_variant": getattr(args, "review_variant", None),
+            "review_mode": getattr(args, "review_mode", "single") or "single",
             # `repo=repo` is load-bearing: this is the ONLY `resolve_retry_budget` call whose RESULT
             # is kept, so it is the only one that can put spec 5.5's repository-policy tier into
             # durable run state. Drop it and a repository's `run.retry_budget` is silently ignored
@@ -40912,7 +41743,17 @@ def execute_item_core(
     review_uses_sweep_session = is_review and isolation_for_action(options, "review")
     raw_session = None
     if review_uses_sweep_session:
-        recorded_sweep_session = state.get(REVIEW_SWEEP_SESSION_KEY)
+        is_steps_mode = options.get("review_mode") == "steps"
+        last_reviewed_set = state.get("review_sweep_set")
+        current_set = item.get("setid")
+        if (
+            is_steps_mode
+            and last_reviewed_set is not None
+            and current_set != last_reviewed_set
+        ):
+            recorded_sweep_session = None
+        else:
+            recorded_sweep_session = state.get(REVIEW_SWEEP_SESSION_KEY)
         if recorded_sweep_session:
             raw_session = recorded_sweep_session
         elif options.get("session"):
@@ -40977,7 +41818,13 @@ def execute_item_core(
 
     session_id = raw_session
     use_continue = (
-        False if (options.get("new_session") or is_rotation) else (session_id is None)
+        False
+        if (
+            options.get("new_session")
+            or is_rotation
+            or (is_review and options.get("review_mode") == "steps")
+        )
+        else (session_id is None)
     )
 
     exec_model, exec_model_source = launch_model_for_role(options, role="execute")
@@ -42173,15 +43020,43 @@ def execute_item_core(
     try:
         try:
             try:
-                exit_code, session_id, log_path, argv = spawn_executor(
-                    prompt_path,
-                    work_dir,
-                    tracker,
-                    plan_path,
-                    attempt_no,
-                    session_id,
-                    use_continue,
-                )
+                if (
+                    is_review
+                    and queue_entry_type(item) == "ipd"
+                    and options.get("review_mode") == "steps"
+                ):
+                    exit_code, session_id, log_path, argv = run_review_sequence(
+                        prompt_path,
+                        work_dir,
+                        tracker,
+                        plan_path,
+                        attempt_no,
+                        session_id,
+                        False,
+                        state=state,
+                        item=item,
+                        run_dir=run_dir,
+                        repo=repo,
+                        host_labels=host_labels,
+                        spawn_executor=spawn_executor,
+                        raw_launcher=raw_launcher,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                        pal=pal,
+                        attempt=attempt,
+                        seq=seq,
+                        total=total,
+                    )
+                else:
+                    exit_code, session_id, log_path, argv = spawn_executor(
+                        prompt_path,
+                        work_dir,
+                        tracker,
+                        plan_path,
+                        attempt_no,
+                        session_id,
+                        use_continue,
+                    )
             except (
                 FileNotFoundError,
                 PermissionError,
@@ -42333,15 +43208,26 @@ def execute_item_core(
                 sweep_rotation = bool(
                     max_items and max_items > 0 and existing_turns >= max_items
                 )
+                is_steps_mode = options.get("review_mode") == "steps"
+                last_reviewed_set = state.get("review_sweep_set")
+                current_set = item.get("setid")
+                set_changed = bool(
+                    is_steps_mode
+                    and last_reviewed_set is not None
+                    and current_set != last_reviewed_set
+                )
                 if (
                     existing_sweep
                     and existing_sweep != session_id
                     and not sweep_rotation
+                    and not set_changed
                 ):
                     raise DriverError(
                         f"Review sweep changed session unexpectedly: {existing_sweep} -> {session_id}"
                     )
                 state[REVIEW_SWEEP_SESSION_KEY] = session_id
+                if is_steps_mode:
+                    state["review_sweep_set"] = current_set
                 counts[session_id] = counts.get(session_id, 0) + 1
             if not work_dir:
                 counts = state.setdefault("session_turn_counts", {})
@@ -44398,6 +45284,7 @@ def execute_item_core(
                     host_label=host_labels.command,
                     run_id=str(state.get("run_id") or "") or None,
                     own_paths=own_paths,
+                    review_mode=options.get("review_mode", "single"),
                 )
                 if rev_commit:
                     attempt["review_lane_commit"] = rev_commit
@@ -44554,6 +45441,7 @@ def execute_item_core(
                 host_label=host_labels.command,
                 run_id=str(state.get("run_id") or "") or None,
                 own_paths=own_paths,
+                review_mode=options.get("review_mode", "single"),
             )
             if review_commit:
                 attempt["review_lane_commit"] = review_commit
@@ -44844,6 +45732,7 @@ def execute_item_core(
                 host_label=host_labels.command,
                 allowed_paths=extra_allowed,
                 run_id=str(state.get("run_id") or "") or None,
+                review_mode=options.get("review_mode", "single"),
             )
             if review_commit:
                 attempt["review_shared_commit"] = review_commit
@@ -50941,6 +51830,20 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
                     other_id != node
                     and other.get("setid") == setid
                     and other.get("action") != "orchestrate"
+                    and other_id not in seen
+                ):
+                    best = max(best, 1 + _depth(other_id, seen | {node}))
+        elif entry.get("action") == "review" and (
+            entry.get("kind") == "orchestrator" or entry.get("order") == 0
+        ):
+            setid = entry.get("setid")
+            for other_id, other in by_id.items():
+                if (
+                    other_id != node
+                    and other.get("setid") == setid
+                    and other.get("action") == "review"
+                    and other.get("kind") != "orchestrator"
+                    and other.get("order") != 0
                     and other_id not in seen
                 ):
                     best = max(best, 1 + _depth(other_id, seen | {node}))

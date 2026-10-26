@@ -561,16 +561,18 @@ class AttemptQueryTests(unittest.TestCase):
         self.assertEqual(res.rows[0]["cost"], 24)
 
     def test_attempts_jsonl_schema_version_and_readiness_key(self) -> None:
-        """(d) published attempts.jsonl header line reports schema: 4 and rows carry readiness and review_tier."""
+        """(d) published attempts.jsonl header line reports schema: 5 and rows carry readiness, review_tier, review_step, review_checks."""
         latest = self.repo / ".aw" / "records" / "runs" / "analytics" / "latest"
         lines = (latest / dash.ATTEMPT_FACTS_FILENAME).read_text().splitlines()
         header = json.loads(lines[0])
         self.assertEqual(header["record"], "header")
-        self.assertEqual(header["schema"], 4)
+        self.assertEqual(header["schema"], 5)
         row = json.loads(lines[1])
         self.assertEqual(row["record"], "row")
         self.assertIn("readiness", row)
         self.assertIn("review_tier", row)
+        self.assertIn("review_step", row)
+        self.assertIn("review_checks", row)
 
     def test_schema_view_lists_readiness(self) -> None:
         """(e) schema view attempt_grain lists readiness in filter_fields and group_by_fields."""

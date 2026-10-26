@@ -2710,7 +2710,17 @@ def run_opencode(
     max_items = options.get("max_items_per_session", 4)
     raw_session = None
     if sweep_lane_turn:
-        recorded_sweep_session = state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY)
+        is_steps_mode = options.get("review_mode") == "steps"
+        last_reviewed_set = state.get("review_sweep_set")
+        current_set = item.get("setid")
+        if (
+            is_steps_mode
+            and last_reviewed_set is not None
+            and current_set != last_reviewed_set
+        ):
+            recorded_sweep_session = None
+        else:
+            recorded_sweep_session = state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY)
         if recorded_sweep_session:
             raw_session = recorded_sweep_session
         elif options.get("session"):
