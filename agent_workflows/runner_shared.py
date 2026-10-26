@@ -29920,14 +29920,35 @@ def run_review_sequence(
     snap_dir = run_dir / "snapshots"
     snap_dir.mkdir(parents=True, exist_ok=True)
 
+    if not attempt.get("review_steps"):
+        all_attempts = [
+            a for a in item.get("attempts", []) if isinstance(a, MutableMapping)
+        ]
+        if len(all_attempts) >= 2 and all_attempts[-1] is attempt:
+            prev_att = all_attempts[-2]
+            if prev_att.get("review_steps"):
+                attempt["review_steps"] = list(prev_att["review_steps"])
+            if prev_att.get("rereview"):
+                attempt["rereview"] = dict(prev_att["rereview"])
+            if prev_att.get("review_tier"):
+                attempt["review_tier"] = prev_att["review_tier"]
+            if prev_att.get("review_tier_answers"):
+                attempt["review_tier_answers"] = dict(prev_att["review_tier_answers"])
+            if prev_att.get("review_tier_facts"):
+                attempt["review_tier_facts"] = dict(prev_att["review_tier_facts"])
+
     invocation_id = str(uuid.uuid4())
     pass_no = 1
     review_steps: list[dict[str, Any]] = attempt.setdefault("review_steps", [])
     resumed_from_step = 0
+    resumed_rereview = False
+    rereview_reasons: list[str] = []
+    limit_reached = False
+    limit_instruction = ""
+    after_r_text: str | None = None
 
     if review_steps:
         last_step = review_steps[-1]
-        resumed_from_step = int(last_step.get("prompt", 0))
         last_sha = last_step.get("plan_sha256")
         step_session = last_step.get("session_id")
         if last_sha:
@@ -29938,9 +29959,36 @@ def run_review_sequence(
                 )
         if step_session:
             session_id = step_session
+            if attempt.get("rereview") and attempt["rereview"].get("pass", 1) >= 2:
+                resumed_rereview = True
+                pass_no = int(attempt["rereview"]["pass"])
+                pstart_sha = attempt["rereview"].get("pass_start_sha256")
+                if pstart_sha:
+                    snap_p = snap_dir / f"{pstart_sha}.plan.md"
+                    if snap_p.is_file():
+                        plan_text_initial = snap_p.read_text(encoding="utf-8")
+                if attempt["rereview"].get("after_r_sha256"):
+                    snap_ar = (
+                        snap_dir / f"{attempt['rereview']['after_r_sha256']}.plan.md"
+                    )
+                    if snap_ar.is_file():
+                        after_r_text = snap_ar.read_text(encoding="utf-8")
+                rereview_reasons = list(attempt["rereview"].get("reasons", []))
+                limit_reached = bool(attempt["rereview"].get("limit_reached", False))
+                if limit_reached:
+                    from agent_workflows import review_rereview
+
+                    limit_instruction = review_rereview.limit_reached_instruction(
+                        review_rereview.RereviewResult(
+                            "limit-reached", pass_no, rereview_reasons, "AGAIN"
+                        )
+                    )
+            else:
+                resumed_from_step = int(last_step.get("prompt", 0))
         else:
             resumed_from_step = 0
             session_id = None
+            attempt.pop("rereview", None)
             plan_file.write_text(plan_text_initial, encoding="utf-8")
 
     def _fail_incomplete(
@@ -29986,6 +30034,9 @@ def run_review_sequence(
     exit_code = 0
     confirm_changes: list[str] = []
     checks_run: set[str] = set()
+    if review_steps:
+        for s in review_steps:
+            checks_run.update(s.get("checks", []))
 
     # Determine prompt 1 checks and tier
     cur_depth = (doc.meta_fields.get(ipd_schema.META_REVIEW_DEPTH) or "").strip()
@@ -30002,7 +30053,16 @@ def run_review_sequence(
         p1_checks = ("P", "T")
         tier = "standard"
 
-    if resumed_from_step == 0:
+    if attempt.get("review_tier"):
+        tier = str(attempt["review_tier"])
+
+    if resumed_rereview:
+        for grp in review_sequence.prompt_plan(
+            tier, review_variant, in_set=in_set, quick_ok=quick_ok
+        ):
+            checks_run.update(grp)
+
+    if resumed_from_step == 0 and not resumed_rereview:
         p1_text = review_sequence.render_prompt(
             p1_checks,
             first=True,
@@ -30164,6 +30224,8 @@ def run_review_sequence(
                     session_id,
                 )
 
+        if any(c in ("R2", "R4") for c in p1_checks):
+            after_r_text = plan_text_after
         p1_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
         (snap_dir / f"{p1_sha}.plan.md").write_text(plan_text_after, encoding="utf-8")
         step_1_rec = {
@@ -30188,8 +30250,12 @@ def run_review_sequence(
         )
     )
 
-    # Process remaining prompts
-    k = resumed_from_step + 1
+    s6_idx = next((i for i, g in enumerate(groups, 1) if "S6" in g), len(groups))
+    if resumed_rereview:
+        k = s6_idx
+    else:
+        k = resumed_from_step + 1
+
     while k <= len(groups):
         group_checks = groups[k - 1]
         lbl = "-".join(c.lower() for c in group_checks)
@@ -30209,139 +30275,99 @@ def run_review_sequence(
             plan_rel=plan_rel,
             confirm_changes=conf_to_pass,
         )
-        p_path = write_prompt(
-            run_dir, item, p_text, attempt_no, suffix=f"step-{k:02d}-{lbl}"
-        )
+        if "S7" in group_checks and limit_instruction:
+            p_text = p_text + "\n\n" + limit_instruction
 
         plan_text_before = plan_file.read_text(encoding="utf-8")
 
-        try:
-            exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
-                p_path, k, lbl, session_id
-            )
-        except (
-            KeyboardInterrupt,
-            StallTimeout,
-            runner_stop.StopNowForce,
-            runner_stop.StopAtCheckpoint,
-        ):
-            raise
-        except Exception as disp_err:
-            if resumed_from_step > 0 and k == resumed_from_step + 1:
-                # Session is gone on resume (AC-14): restart at prompt 1 in a new session
-                attempt["review_steps"] = []
-                plan_file.write_text(plan_text_initial, encoding="utf-8")
-                return run_review_sequence(
-                    prompt_path,
-                    work_dir,
-                    tracker,
-                    plan_path,
-                    attempt_no,
-                    None,
-                    False,
-                    state=state,
-                    item=item,
-                    run_dir=run_dir,
-                    repo=repo,
-                    host_labels=host_labels,
-                    spawn_executor=spawn_executor,
-                    raw_launcher=raw_launcher,
-                    save_state=save_state,
-                    append_jsonl=append_jsonl,
-                    pal=pal,
-                    attempt=attempt,
-                    seq=seq,
-                    total=total,
-                )
-            return _fail_incomplete(
-                f"step {k} dispatch failed: {disp_err}", step_log_path, argv, session_id
+        if not (resumed_rereview and k == s6_idx):
+            p_path = write_prompt(
+                run_dir, item, p_text, attempt_no, suffix=f"step-{k:02d}-{lbl}"
             )
 
-        plan_text_after = plan_file.read_text(encoding="utf-8")
-        reply_text = _get_reply_text(step_log_path)
-        review_text = _get_review_text()
+            try:
+                exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
+                    p_path, k, lbl, session_id
+                )
+            except (
+                KeyboardInterrupt,
+                StallTimeout,
+                runner_stop.StopNowForce,
+                runner_stop.StopAtCheckpoint,
+            ):
+                raise
+            except Exception as disp_err:
+                if (
+                    resumed_from_step > 0 and k == resumed_from_step + 1
+                ) or resumed_rereview:
+                    # Session is gone on resume (AC-14): restart at prompt 1 in a new session
+                    attempt["review_steps"] = []
+                    attempt.pop("rereview", None)
+                    plan_file.write_text(plan_text_initial, encoding="utf-8")
+                    return run_review_sequence(
+                        prompt_path,
+                        work_dir,
+                        tracker,
+                        plan_path,
+                        attempt_no,
+                        None,
+                        False,
+                        state=state,
+                        item=item,
+                        run_dir=run_dir,
+                        repo=repo,
+                        host_labels=host_labels,
+                        spawn_executor=spawn_executor,
+                        raw_launcher=raw_launcher,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                        pal=pal,
+                        attempt=attempt,
+                        seq=seq,
+                        total=total,
+                    )
+                return _fail_incomplete(
+                    f"step {k} dispatch failed: {disp_err}",
+                    step_log_path,
+                    argv,
+                    session_id,
+                )
+
+            plan_text_after = plan_file.read_text(encoding="utf-8")
+            reply_text = _get_reply_text(step_log_path)
+            review_text = _get_review_text()
+        else:
+            plan_text_after = plan_text_before
+            reply_text = ""
+            review_text = _get_review_text()
 
         # Postcondition checks
         failed_check = None
         failed_reason = None
 
-        if "T" in group_checks:
-            err = review_sequence.check_T(
-                plan_text_before, plan_text_after, review_text, reply_text
-            )
-            if err:
-                failed_check, failed_reason = "T", err
-
-        if failed_check is None and any(
-            c == "Q" or c.startswith("R") for c in group_checks
-        ):
-            err = review_sequence.check_steps(
-                plan_text_before, plan_text_after, review_text, reply_text, group_checks
-            )
-            if err:
-                failed_check, failed_reason = group_checks[0], err
-
-        if failed_check is None and "S5" in group_checks:
-            err = review_sequence.check_S5(
-                plan_text_before,
-                plan_text_after,
-                review_text,
-                reply_text,
-                repo_root=target_root,
-                plan_path=plan_file,
-            )
-            if err:
-                failed_check, failed_reason = "S5", err
-
-        if failed_check is None and "S6" in group_checks:
-            err = review_sequence.check_S6(
-                plan_text_before, plan_text_after, review_text, reply_text
-            )
-            if err:
-                failed_check, failed_reason = "S6", err
-
-        if failed_check is None and "S7" in group_checks:
-            err = review_sequence.check_S7(
-                plan_text_before, plan_text_after, review_text, reply_text
-            )
-            if err:
-                failed_check, failed_reason = "S7", err
-
-        # Re-ask if failed
-        if failed_check:
-            was_reasked = True
-            reask_prompt = review_sequence.render_reask(
-                failed_check, failed_reason or ""
-            )
-            reask_body = review_sequence.render_prompt(
-                group_checks,
-                first=False,
-                plan_rel=plan_rel,
-                reask=reask_prompt,
-                confirm_changes=conf_to_pass,
-            )
-            reask_p = write_prompt(
-                run_dir,
-                item,
-                reask_body,
-                attempt_no,
-                suffix=f"step-{k:02d}-{lbl}-reask",
-            )
-            exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
-                reask_p, k, f"{lbl}-reask", session_id
-            )
-            plan_text_after = plan_file.read_text(encoding="utf-8")
-            reply_text = _get_reply_text(step_log_path)
-            review_text = _get_review_text()
-
-            # Re-check postconditions
-            err2 = None
-            if failed_check == "T":
-                err2 = review_sequence.check_T(
+        if not (resumed_rereview and k == s6_idx):
+            if "T" in group_checks:
+                err = review_sequence.check_T(
                     plan_text_before, plan_text_after, review_text, reply_text
                 )
-            elif failed_check == "S5":
-                err2 = review_sequence.check_S5(
+                if err:
+                    failed_check, failed_reason = "T", err
+
+            if failed_check is None and any(
+                c == "Q" or c.startswith("R") for c in group_checks
+            ):
+                err = review_sequence.check_steps(
+                    plan_text_before,
+                    plan_text_after,
+                    review_text,
+                    reply_text,
+                    group_checks,
+                )
+                if err:
+                    failed_check, failed_reason = group_checks[0], err
+
+            if failed_check is None and "S5" in group_checks:
+                err = review_sequence.check_S5(
                     plan_text_before,
                     plan_text_after,
                     review_text,
@@ -30349,79 +30375,43 @@ def run_review_sequence(
                     repo_root=target_root,
                     plan_path=plan_file,
                 )
-            elif failed_check == "S6":
-                err2 = review_sequence.check_S6(
+                if err:
+                    failed_check, failed_reason = "S5", err
+
+            if failed_check is None and "S6" in group_checks:
+                try:
+                    from agent_workflows import review_rereview
+
+                    has_rereview = True
+                except ImportError:
+                    has_rereview = False
+                if not has_rereview:
+                    err = review_sequence.check_S6(
+                        plan_text_before, plan_text_after, review_text, reply_text
+                    )
+                    if err:
+                        failed_check, failed_reason = "S6", err
+
+            if failed_check is None and "S7" in group_checks:
+                err = review_sequence.check_S7(
                     plan_text_before, plan_text_after, review_text, reply_text
                 )
-            elif failed_check == "S7":
-                err2 = review_sequence.check_S7(
-                    plan_text_before, plan_text_after, review_text, reply_text
-                )
-            else:
-                err2 = review_sequence.check_steps(
-                    plan_text_before,
-                    plan_text_after,
-                    review_text,
-                    reply_text,
-                    group_checks,
-                )
-            if err2:
-                return _fail_incomplete(
-                    f"check {failed_check} failed after re-ask: {err2}",
-                    step_log_path,
-                    argv,
-                    session_id,
-                )
+                if err:
+                    failed_check, failed_reason = "S7", err
+                elif limit_reached:
+                    from agent_workflows import review_rereview
 
-        # Update tier if T was in this prompt
-        if "T" in group_checks:
-            parsed_tier = review_tier.parse_tier_marker(reply_text)
-            if parsed_tier:
-                tier = parsed_tier
-            tier_answers = review_tier.parse_tier_answers(review_text)
-            review_tier.record_review_tier(
-                attempt, tier=tier, source="agent", answers=tier_answers, facts=tf
-            )
-            groups = list(
-                review_sequence.prompt_plan(
-                    tier, review_variant, in_set=in_set, quick_ok=quick_ok
-                )
-            )
-
-        # Mid-review tier raise check
-        marker = review_tier.parse_tier_marker(reply_text)
-        if marker and tier != "orchestrator":
-            tier_ranks = {"simple": 1, "standard": 2, "complex": 3}
-            if tier_ranks.get(marker, 0) > tier_ranks.get(tier, 0):
-                extra_groups = review_sequence.raise_tier_plan(
-                    checks_run | set(group_checks),
-                    marker,
-                    review_variant,
-                    in_set=in_set,
-                )
-                if extra_groups:
-                    s5_idx = next(
-                        (i for i, grp in enumerate(groups) if "S5" in grp), len(groups)
+                    err_lim = review_rereview.check_limit_s7(
+                        plan_text_before, plan_text_after
                     )
-                    groups = (
-                        list(groups[:s5_idx])
-                        + list(extra_groups)
-                        + list(groups[s5_idx:])
-                    )
-                tier = marker
-                tier_answers = review_tier.parse_tier_answers(review_text)
-                review_tier.record_review_tier(
-                    attempt, tier=tier, source="raised", answers=tier_answers, facts=tf
-                )
+                    if err_lim:
+                        failed_check, failed_reason = "S7", err_lim
 
-        # Verdict guard before S7
-        if "S7" not in group_checks:
-            if _check_verdict_guard(plan_text_after):
-                _revert_verdict_guard(plan_text_before, plan_text_after)
+            # Re-ask if failed
+            if failed_check:
                 was_reasked = True
                 reask_prompt = review_sequence.render_reask(
-                    group_checks[0],
-                    "plan Status, Readiness, or review history was modified before S7",
+                    failed_check, failed_reason or ""
                 )
                 reask_body = review_sequence.render_prompt(
                     group_checks,
@@ -30430,6 +30420,8 @@ def run_review_sequence(
                     reask=reask_prompt,
                     confirm_changes=conf_to_pass,
                 )
+                if "S7" in group_checks and limit_instruction:
+                    reask_body = reask_body + "\n\n" + limit_instruction
                 reask_p = write_prompt(
                     run_dir,
                     item,
@@ -30441,14 +30433,156 @@ def run_review_sequence(
                     reask_p, k, f"{lbl}-reask", session_id
                 )
                 plan_text_after = plan_file.read_text(encoding="utf-8")
-                if _check_verdict_guard(plan_text_after):
-                    _revert_verdict_guard(plan_text_before, plan_text_after)
+                reply_text = _get_reply_text(step_log_path)
+                review_text = _get_review_text()
+
+                # Re-check postconditions
+                err2 = None
+                if failed_check == "T":
+                    err2 = review_sequence.check_T(
+                        plan_text_before, plan_text_after, review_text, reply_text
+                    )
+                elif failed_check == "S5":
+                    err2 = review_sequence.check_S5(
+                        plan_text_before,
+                        plan_text_after,
+                        review_text,
+                        reply_text,
+                        repo_root=target_root,
+                        plan_path=plan_file,
+                    )
+                elif failed_check == "S6":
+                    err2 = review_sequence.check_S6(
+                        plan_text_before, plan_text_after, review_text, reply_text
+                    )
+                elif failed_check == "S7":
+                    err2 = review_sequence.check_S7(
+                        plan_text_before, plan_text_after, review_text, reply_text
+                    )
+                    if not err2 and limit_reached:
+                        from agent_workflows import review_rereview
+
+                        err2 = review_rereview.check_limit_s7(
+                            plan_text_before, plan_text_after
+                        )
+                else:
+                    err2 = review_sequence.check_steps(
+                        plan_text_before,
+                        plan_text_after,
+                        review_text,
+                        reply_text,
+                        group_checks,
+                    )
+                if err2:
                     return _fail_incomplete(
-                        "verdict outputs or commit prefix modified before S7 after re-ask",
+                        f"check {failed_check} failed after re-ask: {err2}",
                         step_log_path,
                         argv,
                         session_id,
                     )
+
+            # Update tier if T was in this prompt
+            if "T" in group_checks:
+                parsed_tier = review_tier.parse_tier_marker(reply_text)
+                if parsed_tier:
+                    tier = parsed_tier
+                tier_answers = review_tier.parse_tier_answers(review_text)
+                review_tier.record_review_tier(
+                    attempt, tier=tier, source="agent", answers=tier_answers, facts=tf
+                )
+                groups = list(
+                    review_sequence.prompt_plan(
+                        tier, review_variant, in_set=in_set, quick_ok=quick_ok
+                    )
+                )
+
+            # Mid-review tier raise check
+            marker = review_tier.parse_tier_marker(reply_text)
+            if marker and tier != "orchestrator":
+                tier_ranks = {"simple": 1, "standard": 2, "complex": 3}
+                if tier_ranks.get(marker, 0) > tier_ranks.get(tier, 0):
+                    extra_groups = review_sequence.raise_tier_plan(
+                        checks_run | set(group_checks),
+                        marker,
+                        review_variant,
+                        in_set=in_set,
+                    )
+                    if extra_groups:
+                        s5_idx = next(
+                            (i for i, grp in enumerate(groups) if "S5" in grp),
+                            len(groups),
+                        )
+                        groups = (
+                            list(groups[:s5_idx])
+                            + list(extra_groups)
+                            + list(groups[s5_idx:])
+                        )
+                    tier = marker
+                    tier_answers = review_tier.parse_tier_answers(review_text)
+                    review_tier.record_review_tier(
+                        attempt,
+                        tier=tier,
+                        source="raised",
+                        answers=tier_answers,
+                        facts=tf,
+                    )
+
+            # Verdict guard before S7
+            if "S7" not in group_checks:
+                if _check_verdict_guard(plan_text_after):
+                    _revert_verdict_guard(plan_text_before, plan_text_after)
+                    was_reasked = True
+                    reask_prompt = review_sequence.render_reask(
+                        group_checks[0],
+                        "plan Status, Readiness, or review history was modified before S7",
+                    )
+                    reask_body = review_sequence.render_prompt(
+                        group_checks,
+                        first=False,
+                        plan_rel=plan_rel,
+                        reask=reask_prompt,
+                        confirm_changes=conf_to_pass,
+                    )
+                    reask_p = write_prompt(
+                        run_dir,
+                        item,
+                        reask_body,
+                        attempt_no,
+                        suffix=f"step-{k:02d}-{lbl}-reask",
+                    )
+                    exit_code, session_id, step_log_path, argv = _dispatch_resumed_step(
+                        reask_p, k, f"{lbl}-reask", session_id
+                    )
+                    plan_text_after = plan_file.read_text(encoding="utf-8")
+                    if _check_verdict_guard(plan_text_after):
+                        _revert_verdict_guard(plan_text_before, plan_text_after)
+                        return _fail_incomplete(
+                            "verdict outputs or commit prefix modified before S7 after re-ask",
+                            step_log_path,
+                            argv,
+                            session_id,
+                        )
+
+            cur_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
+            (snap_dir / f"{cur_sha}.plan.md").write_text(
+                plan_text_after, encoding="utf-8"
+            )
+            step_rec = {
+                "invocation": invocation_id,
+                "pass": pass_no,
+                "prompt": k,
+                "checks": list(group_checks),
+                "plan_sha256": cur_sha,
+                "session_id": session_id,
+                "reasked": was_reasked,
+                "log": str(step_log_path),
+            }
+            review_steps.append(step_rec)
+            checks_run.update(group_checks)
+            save_state(run_dir, state)
+
+            if any(c in ("R2", "R4") for c in group_checks):
+                after_r_text = plan_text_after
 
         # Delegate S6 if review_rereview is present
         if "S6" in group_checks:
@@ -30458,17 +30592,206 @@ def run_review_sequence(
                 has_rereview = True
             except ImportError:
                 has_rereview = False
-            if has_rereview:
 
-                def _send_rereview_prompt(r_prompt: str) -> str:
-                    nonlocal session_id
-                    p_file = write_prompt(
-                        run_dir, item, r_prompt, attempt_no, suffix=f"rereview-{lbl}"
+            if has_rereview:
+                last_rereview_log = step_log_path
+                cur_pass_holder = [pass_no]
+
+                def _send_rereview_prompt(
+                    r_prompt: str,
+                    group_checks: Sequence[str] | None = None,
+                    pass_no_arg: int | None = None,
+                ) -> str:
+                    nonlocal session_id, last_rereview_log
+                    if pass_no_arg is not None:
+                        cur_pass_holder[0] = pass_no_arg
+                    elif "## Re-review pass " in r_prompt:
+                        try:
+                            cur_pass_holder[0] = int(
+                                r_prompt.split("## Re-review pass ")[1].split()[0]
+                            )
+                        except Exception:
+                            pass
+                    cur_pno = cur_pass_holder[0]
+                    if group_checks is not None:
+                        r_checks = tuple(group_checks)
+                    else:
+                        r_checks = tuple(
+                            c
+                            for c, f in review_sequence.CHECK_STEP_FILES.items()
+                            if f in r_prompt and c not in ("P", "T", "R3s")
+                        )
+                    is_marker_reask = len(r_checks) == 0
+
+                    steps_in_cur_pass = [
+                        s for s in review_steps if s.get("pass") == cur_pno
+                    ]
+                    r_step_num = len(steps_in_cur_pass) + 1
+                    r_lbl = (
+                        "-".join(c.lower() for c in r_checks)
+                        if r_checks
+                        else "marker-reask"
                     )
-                    _c, session_id, s_log, _a = _dispatch_resumed_step(
-                        p_file, k, f"rereview-{lbl}", session_id
+                    r_suffix = f"pass-{cur_pno:02d}-step-{r_step_num:02d}-{r_lbl}"
+
+                    r_prompt_path = write_prompt(
+                        run_dir, item, r_prompt, attempt_no, suffix=r_suffix
                     )
-                    return _get_reply_text(s_log)
+                    plan_text_b = plan_file.read_text(encoding="utf-8")
+                    _rc, session_id, r_log_path, _argv = _dispatch_resumed_step(
+                        r_prompt_path,
+                        r_step_num,
+                        f"p{cur_pno:02d}-{r_lbl}",
+                        session_id,
+                    )
+                    last_rereview_log = Path(r_log_path)
+                    plan_text_a = plan_file.read_text(encoding="utf-8")
+                    r_reply = _get_reply_text(r_log_path)
+                    r_review = _get_review_text()
+
+                    r_was_reasked = False
+                    failed_chk = None
+                    failed_rsn = None
+
+                    if not is_marker_reask:
+                        if any(c == "Q" or c.startswith("R") for c in r_checks):
+                            err = review_sequence.check_steps(
+                                plan_text_b, plan_text_a, r_review, r_reply, r_checks
+                            )
+                            if err:
+                                failed_chk, failed_rsn = r_checks[0], err
+                        if failed_chk is None and "S5" in r_checks:
+                            err = review_sequence.check_S5(
+                                plan_text_b,
+                                plan_text_a,
+                                r_review,
+                                r_reply,
+                                repo_root=target_root,
+                                plan_path=plan_file,
+                            )
+                            if err:
+                                failed_chk, failed_rsn = "S5", err
+
+                        if failed_chk:
+                            r_was_reasked = True
+                            reask_p = review_sequence.render_reask(
+                                failed_chk, failed_rsn or ""
+                            )
+                            reask_body = r_prompt + "\n\n" + reask_p
+                            reask_path = write_prompt(
+                                run_dir,
+                                item,
+                                reask_body,
+                                attempt_no,
+                                suffix=f"{r_suffix}-reask",
+                            )
+                            _rc, session_id, r_log_path, _argv = _dispatch_resumed_step(
+                                reask_path,
+                                r_step_num,
+                                f"p{ctx.pass_no:02d}-{r_lbl}-reask",
+                                session_id,
+                            )
+                            last_rereview_log = Path(r_log_path)
+                            plan_text_a = plan_file.read_text(encoding="utf-8")
+                            r_reply = _get_reply_text(r_log_path)
+                            r_review = _get_review_text()
+                            if failed_chk == "S5":
+                                err2 = review_sequence.check_S5(
+                                    plan_text_b,
+                                    plan_text_a,
+                                    r_review,
+                                    r_reply,
+                                    repo_root=target_root,
+                                    plan_path=plan_file,
+                                )
+                            else:
+                                err2 = review_sequence.check_steps(
+                                    plan_text_b,
+                                    plan_text_a,
+                                    r_review,
+                                    r_reply,
+                                    r_checks,
+                                )
+                            if err2:
+                                raise RuntimeError(
+                                    f"check {failed_chk} failed after re-ask: {err2}"
+                                )
+
+                    # Verdict guard before S7
+                    if _check_verdict_guard(plan_text_a):
+                        _revert_verdict_guard(plan_text_b, plan_text_a)
+                        r_was_reasked = True
+                        reask_p = review_sequence.render_reask(
+                            r_checks[0] if r_checks else "S6",
+                            "plan Status, Readiness, or review history was modified before S7",
+                        )
+                        reask_body = r_prompt + "\n\n" + reask_p
+                        reask_path = write_prompt(
+                            run_dir,
+                            item,
+                            reask_body,
+                            attempt_no,
+                            suffix=f"{r_suffix}-verdict-reask",
+                        )
+                        _rc, session_id, r_log_path, _argv = _dispatch_resumed_step(
+                            reask_path,
+                            r_step_num,
+                            f"p{ctx.pass_no:02d}-{r_lbl}-verdict-reask",
+                            session_id,
+                        )
+                        last_rereview_log = Path(r_log_path)
+                        plan_text_a = plan_file.read_text(encoding="utf-8")
+                        r_reply = _get_reply_text(r_log_path)
+                        if _check_verdict_guard(plan_text_a):
+                            _revert_verdict_guard(plan_text_b, plan_text_a)
+                            raise RuntimeError(
+                                "verdict outputs or commit prefix modified before S7 after re-ask"
+                            )
+
+                    if not is_marker_reask:
+                        r_sha = hashlib.sha256(plan_text_a.encode("utf-8")).hexdigest()
+                        (snap_dir / f"{r_sha}.plan.md").write_text(
+                            plan_text_a, encoding="utf-8"
+                        )
+                        step_rec_r = {
+                            "invocation": invocation_id,
+                            "pass": cur_pno,
+                            "prompt": r_step_num,
+                            "checks": list(r_checks),
+                            "plan_sha256": r_sha,
+                            "session_id": session_id,
+                            "reasked": r_was_reasked,
+                            "log": str(r_log_path),
+                        }
+                        review_steps.append(step_rec_r)
+                        checks_run.update(r_checks)
+
+                        pstart_sha = hashlib.sha256(
+                            ctx.pass_start_text.encode("utf-8")
+                        ).hexdigest()
+                        (snap_dir / f"{pstart_sha}.plan.md").write_text(
+                            ctx.pass_start_text, encoding="utf-8"
+                        )
+
+                        after_r_sha = None
+                        if after_r_text is not None:
+                            after_r_sha = hashlib.sha256(
+                                after_r_text.encode("utf-8")
+                            ).hexdigest()
+                            (snap_dir / f"{after_r_sha}.plan.md").write_text(
+                                after_r_text, encoding="utf-8"
+                            )
+
+                        attempt["rereview"] = {
+                            "pass": cur_pno,
+                            "pass_start_sha256": pstart_sha,
+                            "reasons": list(rereview_reasons),
+                            "after_r_sha256": after_r_sha,
+                            "limit_reached": limit_reached,
+                        }
+                        save_state(run_dir, state)
+
+                    return r_reply
 
                 ctx = review_sequence.ReviewSequenceContext(
                     send_prompt=_send_rereview_prompt,
@@ -30487,23 +30810,80 @@ def run_review_sequence(
                     },
                     review_steps=review_steps,
                 )
-                review_rereview.run_rereview_loop(ctx)
 
-        cur_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
-        (snap_dir / f"{cur_sha}.plan.md").write_text(plan_text_after, encoding="utf-8")
-        step_rec = {
-            "invocation": invocation_id,
-            "pass": pass_no,
-            "prompt": k,
-            "checks": list(group_checks),
-            "plan_sha256": cur_sha,
-            "session_id": session_id,
-            "reasked": was_reasked,
-            "log": str(step_log_path),
-        }
-        review_steps.append(step_rec)
-        checks_run.update(group_checks)
-        save_state(run_dir, state)
+                try:
+                    s6_arg = "" if resumed_rereview else reply_text
+                    rereview_res = review_rereview.run_rereview_loop(
+                        ctx, s6_arg, after_r_text=after_r_text
+                    )
+                except (
+                    KeyboardInterrupt,
+                    StallTimeout,
+                    runner_stop.StopNowForce,
+                    runner_stop.StopAtCheckpoint,
+                ):
+                    raise
+                except Exception as r_err:
+                    if (
+                        resumed_from_step > 0 and k == resumed_from_step + 1
+                    ) or resumed_rereview:
+                        # Session is gone on resume (AC-14): restart at prompt 1 in a new session
+                        attempt["review_steps"] = []
+                        attempt.pop("rereview", None)
+                        plan_file.write_text(plan_text_initial, encoding="utf-8")
+                        return run_review_sequence(
+                            prompt_path,
+                            work_dir,
+                            tracker,
+                            plan_path,
+                            attempt_no,
+                            None,
+                            False,
+                            state=state,
+                            item=item,
+                            run_dir=run_dir,
+                            repo=repo,
+                            host_labels=host_labels,
+                            spawn_executor=spawn_executor,
+                            raw_launcher=raw_launcher,
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
+                            pal=pal,
+                            attempt=attempt,
+                            seq=seq,
+                            total=total,
+                        )
+                    return _fail_incomplete(
+                        f"re-review loop failed: {r_err}",
+                        last_rereview_log,
+                        argv,
+                        session_id,
+                    )
+
+                if rereview_res.outcome == "incomplete":
+                    return _fail_incomplete(
+                        "re-review loop incomplete (marker malformed or failed)",
+                        last_rereview_log,
+                        argv,
+                        session_id,
+                    )
+                elif rereview_res.outcome == "limit-reached":
+                    limit_reached = True
+                    limit_instruction = review_rereview.limit_reached_instruction(
+                        rereview_res
+                    )
+                    attempt["rereview"] = {
+                        "pass": rereview_res.passes,
+                        "pass_start_sha256": hashlib.sha256(
+                            ctx.pass_start_text.encode("utf-8")
+                        ).hexdigest(),
+                        "reasons": list(rereview_res.reasons),
+                        "after_r_sha256": None,
+                        "limit_reached": True,
+                    }
+                    save_state(run_dir, state)
+
+                resumed_rereview = False
 
         k += 1
 
