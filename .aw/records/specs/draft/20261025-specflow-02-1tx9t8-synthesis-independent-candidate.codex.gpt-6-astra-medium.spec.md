@@ -22,7 +22,7 @@ Release one includes new briefs, reconsideration of an existing spec without alt
 
 Release one ships a proven OpenCode transport and an external prepare/import route for other ACEs. Antigravity dispatch is eligible only for settings its adapter can enforce. Native Codex dispatch and Antigravity High reasoning are adapter extensions, not prerequisites for useful synthesis. A preferred but unsupported binding refuses dispatch; it never silently becomes OpenCode or loses High. A user may explicitly choose a different binding, prepare a manual task, or wait for adapter support. Unknown provider identities are never filled from marketing labels.
 
-All `aw synth` syntax below is PROPOSED. Existing commands are explicitly marked. This document is a candidate, not an approved contract. The authoring request names Codex/GPT-6.1 Sol Medium; this session has no independent runtime attestation of that exact model/tier, so the actual candidate filename remains unattributed.
+All `aw synth` syntax below is PROPOSED. Existing commands are explicitly marked. This document is a candidate, not an approved contract. The initiating prompt targeted Codex/GPT-6.1 Sol Medium. The maintainer subsequently specified the filename attribution `codex.gpt-6-astra-medium`; the filename follows that explicit instruction. This label is maintainer-supplied attribution, not an independently measured runtime attestation.
 
 ## 2. Repository baseline and integration evidence
 
@@ -532,7 +532,7 @@ Research equivalents replace candidate/index/part `.spec.md` records with `.rese
 
 ### 8.4 Compatibility of this delivered candidate
 
-This authoring pass uses current `aw specs new`, `aw group specs` and `aw research new`, not the proposed allocator. The current tools created spec `1tx9t8` with a 20261025 prefix and research `ear8qy` with the existing Set's 20261024 prefix. `aw group specs ... --date 20261024` preserved the existing spec date in its emitted name. This is observed behavior, not a reason to hand-rename the record. The candidate retains valid owner-generated naming, no unsupported authorship facets, and explicitly proposes consistent canonical dates for new synthesis-owned records. Historical Set order/date discrepancies remain legacy data; this proposal does not rewrite them. The metadata and creation history produced by owners are preserved, including their timestamps.
+This authoring pass uses current `aw specs new`, `aw group specs` and `aw research new`, not the proposed allocator. The current tools created spec `1tx9t8` with a 20261025 prefix and research `ear8qy` with the existing Set's 20261024 prefix. `aw group specs ... --date 20261024` preserved the existing spec date in its emitted name. This is observed behavior, not a reason to hand-rename the record. The candidate initially retained the owner-generated name. At the maintainer's explicit request, it now carries `.codex.gpt-6-astra-medium` before `.spec.md`, preserving its stable identity and date. Current owner tools do not expose these attribution fields, so this requested rename is a manual compatibility exception. The candidate explicitly proposes consistent canonical dates for new synthesis-owned records. Historical Set order/date discrepancies remain legacy data; this proposal does not rewrite them. The metadata and creation history produced by owners are preserved, including their timestamps.
 
 ## 9. Safety, quality, finalization and nonfunctional behavior
 
