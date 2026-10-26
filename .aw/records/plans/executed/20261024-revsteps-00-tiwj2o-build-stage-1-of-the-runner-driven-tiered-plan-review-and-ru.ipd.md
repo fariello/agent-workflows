@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the five Stage 1 children below and confirm each reaches `executed`. No code, test, or record of its own. Stage 2 plans are not part of this Set's table; Order 09 files the backlog item that carries them.
 - Scope-Paths: .aw/records/plans/pending/20261024-revsteps-00-tiwj2o-build-stage-1-of-the-runner-driven-tiered-plan-review-and-ru.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a14722251660e3b80158de981c3dbb070ca761c7f6889bd5dee1a084f94d71b8
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tiwj2o
-- Approval: 2026-10-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-26 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set revsteps reached executed, so the runner (run run-20261025T224352Z-3331747) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 3bwrfx, gv3smb, uiyoax, is2xiv, kk62qt.
 - 2026-10-25 approved (aw set): status set to approved
 - 2026-10-25 coverage pass (aw oc run): fingerprint a14722251660, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-25 re-scope (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Order 01 `3bwrfx` now depends on `executed:gv3smb` (3bwrfx review round 1, PR-004); child-table row, ordering note and E-01 edge updated to match.
@@ -39,6 +39,9 @@
 Build Stage 1 of spec `k3yx72` as five independently executable children and run the pilot whose result decides whether Stage 2 is built.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
