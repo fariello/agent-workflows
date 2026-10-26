@@ -1339,7 +1339,7 @@ flowchart TD
     Z1 -- yes --> Z2["resume or roll back from the MigrationManager journal; never restart half-applied"]
     Z1 -- no --> P["1: Preflight: clean records tree, integration lock free and then held, no lane with unmerged plan changes, NOT a lane worktree, sidecar present with its count reported"]
     P --> Q{"all pass?"}
-    Q -- "no (--force overrides only an unmerged lane or a missing sidecar)" --> R["refuse, write nothing"]
+    Q -- "no, without --force (--force overrides the three preflight conditions and a missing sidecar)" --> R["refuse, write nothing"]
     Q -- yes --> W["run steps 2 to 6 in a SCRATCH COPY"]
     W --> S2["2: export the history.jsonl sidecar and add its records to the logs"]
     S2 --> S3["3: mint id6 for non-review records with none"]
@@ -1419,14 +1419,20 @@ flowchart TD
    - The `.aw/records/` tree has uncommitted changes.
    - A live run holds the integration lock.
    - A lane worktree has plan changes that are not merged. The migration lists each such worktree.
-     `--force` overrides this condition.
 
-   `--force` does not override the first two conditions, because the migration must hold the
-   integration lock itself and must start from committed records. (Earlier wording of this step was
-   ambiguous on this point; OQ-12 asks the maintainer to confirm.)
+   `--force` overrides each of these three conditions (maintainer decision 2026-10-25, OQ-12). The
+   migration still reports every condition that `--force` overrode. The consequences of each
+   override:
+   - Uncommitted changes in `.aw/records/`: the migration rewrites those files, so the uncommitted
+     edits are mixed into the migration commit or lost.
+   - A live run holds the integration lock: the migration cannot acquire the lock, so it runs and
+     commits without holding it, and it can race a driver that publishes to `main`.
+   - A lane has unmerged plan changes: when that lane merges later, git reports a conflict on each
+     file that the migration also rewrote, and a person must resolve it.
 
-   The migration runs in the checkout that holds the history sidecar, and it holds the integration
-   lock while it runs. It refuses to run in a lane worktree (3c, AC-22). So a person must attend the
+   The migration runs in the checkout that holds the history sidecar. When no live run holds the
+   integration lock, the migration acquires it and holds it while it runs. It refuses to run in a
+   lane worktree (3c, AC-22). So a person must attend the
    migration. The runner cannot run it unattended.
 2. SIDECAR FIRST. Export the gitignored `.aw/records/history.jsonl` sidecar and add its records to
    the logs before any other step. At round 5, it held the only copy of 413 records for 296 `id6`
@@ -1634,10 +1640,13 @@ for concurrency.
   (4.5b; finding SR-701).
 - OQ-11 `[RESOLVED 2026-10-25 by the maintainer]` Does the migration rename `Kind` to `plan_role` in
   the logs? Yes. This cannot be reversed (4.2; finding SR-703).
-- OQ-12 `[Non-blocking]` Which preflight conditions in 5.2 step 1 can `--force` override? Earlier
-  wording was ambiguous. This spec states that `--force` overrides only the unmerged-lane condition
-  (and, in step 2, a missing sidecar). Owner: the maintainer. It does not block approval, because
-  this is the stricter and safer reading.
+- OQ-12 `[RESOLVED 2026-10-25 by the maintainer]` Which preflight conditions in 5.2 step 1 can
+  `--force` override? Earlier wording was ambiguous. This spec stated that `--force` overrides only
+  the unmerged-lane condition (and, in step 2, a missing sidecar). Owner: the maintainer. It did not
+  block approval, because this was the stricter and safer reading. RESOLVED 2026-10-25 by the user
+  via /askme: `--force` overrides all three preflight conditions (uncommitted changes in
+  `.aw/records/`, a live run holding the integration lock, and a lane with unmerged plan changes).
+  5.2 step 1 now states this and the consequence of each override. No reason was given.
 
 ## 9. Compatibility with specs written after round 1
 
@@ -1655,6 +1664,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): OQ-12 resolved by the maintainer via /askme: `--force` overrides all three 5.2 step 1 preflight conditions; step 1 and diagram 4.9.6 updated to state this and the consequence of each override; no reason was given
 - 2026-10-25 note (aw specs): proofread pass 3 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request, against the pre-proofread text and the technical-artifact writing requirements: AC-1 fragment repaired (body-prose exclusion "never silently" restored); round-2 commit-count reference made explicit; P5 closure states (backlog done, plan executed); 3c inventory limit covers sections 1 and 6; K4 example sentence de-duplicated; 5.2 step 4a quotes both the 2026-09-25 and the current AGENTS.md wording of the executed-plan rule; "lifecycle record" replaced by the section 0 terms (artifact; non-review record in step 3 and diagram 4.9.6); no requirement, decision, identifier or measured value changed
 - 2026-10-25 note (aw specs): proofread pass 2 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request: full section-by-section comparison against the pre-proofread text (commit ad4e1cd98) and against the technical-artifact writing requirements; restored lost qualifiers (deterministic repair, crash case, isolated worktree, key/value parsers, round-1 bracket rule, cold-lane cost); reverted meaning drift (commit-count column, AC-13 cold OS cache, AC-17/AC-20 wording, P4, 5.2 --force scope, all writes lock, release_id6, hooks pure-append, yfz5u9 row, phase A additive); labelled 4.1a lists R1-R4 and K1-K6; one term per concept (artifact, blob sha, interface, mirror, review_kind); new section 0 terms; new OQ-12 (--force scope, non-blocking); diagram columns plan_role/branch/loaded_at added
 - 2026-10-25 note (aw specs): proofread (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request, to ASD-STE100 Part 1 writing rules (no Part 2 dictionary): body rewritten for short active sentences and one term per concept; new section 0 defines terms (replay replaces fold); measurement labels tabulated in section 1; OQ-10/OQ-11 record the round-8 maintainer decisions; review_kind used for the review event key per 4.5c; owners added to open OQ-1..OQ-3; no requirement, decision, identifier or measured value changed; front matter and history untouched
