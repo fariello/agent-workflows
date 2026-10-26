@@ -437,6 +437,12 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             False,
             "OPTIONAL: `required` means a human must be present; absent means the plan may run unattended",
         ),
+        (
+            "Review-Depth",
+            "META_REVIEW_DEPTH",
+            False,
+            "OPTIONAL review depth (spec k3yx72 Section 7.2; Set revsteps, IPD gv3smb); written by review finalize",
+        ),
     )
 
     def test_every_recognized_field_has_the_requiredness_the_schema_promises(self):
