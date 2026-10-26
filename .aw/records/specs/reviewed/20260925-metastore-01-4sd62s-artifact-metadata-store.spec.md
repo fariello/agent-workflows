@@ -30,7 +30,7 @@ for the same concept.
 | bullet block | The legacy metadata format: `- Field: value` lines at the top of a record. |
 | front matter | The block between two `---` lines at the start of a record. (Some legacy function names, such as `_front_matter_bullets`, use the name for the bullet block.) |
 | event | One immutable entry that records one change to an artifact. Its `op` value states the type of change (4.2). |
-| event log, log | The tracked file `.aw/records/meta/<id6>.jsonl`, which holds every event of one artifact, one JSON object per line (JSON Lines, JSONL). |
+| event log, log | The tracked file `.aw/records/meta/<id6>.jsonl`, which holds every event of one artifact or walkthrough, one JSON object per line (JSON Lines, JSONL). |
 | `seq` | The sequence number of an event in its log: 0, 1, 2, and so on, with no gaps. |
 | replay | Calculate the current state of an artifact: start with no values, apply each event in `seq` order, and let each event overwrite the values that it changes. The values that remain after the last event are the current state. Example: events `create status=draft`, `transition draft->to-review`, `set blocks_release=next` replay to `status=to-review, blocks_release=next`. |
 | current state | The result of a replay. |
@@ -40,7 +40,7 @@ for the same concept.
 | mirror | A copy of a logged value outside the log, kept for people or for the filename grammar, for example the front-matter `status` line. |
 | drift | A difference between a mirror and the current state. |
 | disposition | The lifecycle directory that holds an artifact, for example `pending/` or `executed/`. |
-| registry | The table in `artifact_meta` that lists every allowed field for each artifact type, with its value type. |
+| registry | The table in `artifact_meta` that lists every allowed field for each record type that has a log (artifacts and walkthroughs), with its value type. |
 | gate | A check that refuses an action, for example a pre-commit hook or an `aw check` rule. Two other terms use the same word: a "gate review" is a review event with `review_kind: gate` (4.1a), and a "blocked-by gate" is the `Gate-Kind`/`Gate-Ref` fields of a blocked item. |
 | blob sha | The hash that git uses to identify the content of one file version. |
 | setter | An `aw` command that changes metadata, for example `aw specs set`. |
@@ -71,7 +71,7 @@ The table below shows measured values. The values were measured at these points:
 | (no label) | Review round 5, 2026-10-24 (full re-measurement) | `e12f81ac1` |
 | r6 | Review round 6 (spot check) | `61fce3bfd` |
 | r7 | Review round 7 (spot check) | `2edf1f3ac` |
-| r9 | Review round 9 (spot check of the sidecar, review and id-less counts) | `34f785e4d` |
+| r9 | Review rounds 9 and 10 (spot checks of the sidecar, id-less, walkthrough, `Kind` and coverage counts) | `34f785e4d` |
 
 Values without a label are round-5 values. Values in square brackets are round-1 values, shown only
 where they differ from round 5. The values
@@ -227,7 +227,7 @@ into the plan's validation evidence.
 | AC-13 | C11 | Before and after values are measured for: the bytes that an agent reads for one plan, and the end-to-end time of `aw find` and `aw attention`, with a warm and with a cold operating-system file cache, as the AGENTS.md end-to-end rule defines them. | The pasted values, measured by the end-to-end rule in AGENTS.md. This spec sets no target value. |
 | AC-14 | 4.1a | A review record has no log of its own. Each review round is ONE `op: review` event in the SUBJECT's log. The number of rounds in a review file equals the number of `review` events that the subject's log attributes to that file. | (1) An `rg` search that shows no `meta/*.jsonl` file is created for a review. (2) A test that records a review and asserts that exactly one `review` event is added to the subject's log. (3) `aw check meta` output that detects a round-count mismatch in a test repository. All pasted. |
 | AC-14a | 4.1a | Review kinds are typed. A `gate` event accepts only `plan_readiness.VERDICTS`. A `refinement` event accepts only the refinement vocabulary and never has `readiness`. The migration keeps each legacy verdict unchanged. | Pasted tests: (1) a `gate` event with a refinement verdict is refused; (2) a `refinement` event that has `readiness` is refused; (3) any number of `refinement` rounds are added in `seq` order; (4) both setter spellings refuse `->reviewed` for a spec whose log has only `refinement` review events, and `check.spec-review-unattested` reports it, while one `gate` event (migrated or new) satisfies the rule (4.4, finding SR-601); (5) after the migration of a test corpus that contains each DIFFERENT off-vocabulary verdict string found in the corpus at implementation time, every original verdict string can be recovered byte for byte. (At round 5 there were 4 different strings in 29 records; 30 records at round 6 and 32 at round 7.) |
-| AC-15 | 4.4 | For a plan, the setter refuses a `readiness` value unless the same append adds an `op: review` event with `review_kind: gate` for that plan, in the same transaction. The same rule applies to the coverage fields (`coverage`, 4.4). | Pasted tests: (1) a `set readiness=go` without a review event is refused; (2) the same write with a gate review event succeeds; (3) the same two cases for `coverage`. |
+| AC-15 | 4.4 | For a plan, the setter refuses a `readiness` value unless the same append adds an `op: review` event with `review_kind: gate` for that plan, in the same transaction. The coverage fields have the parallel rule: only an `op: coverage` event writes them (4.4). | Pasted tests: (1) a `set readiness=go` without a review event is refused; (2) the same write with a gate review event succeeds; (3) a `set coverage=...` is refused, and an `op: coverage` event that carries the value succeeds. |
 | AC-16 | 5.2 | Only the migration may rewrite artifacts in terminal directories. The migration makes exactly one commit, and that commit passes every installed gate. | Pasted output that shows: (1) the migration commit passes the executed-plan hook, `backlog_blocking_close_gate` and the pre-push gate `aw attention --check --agent`, without `--no-verify`; (2) after the cutover, the hook still refuses a separate raw edit to an executed plan. |
 | AC-17 | C3, 4.7 | Two lanes that change the SAME artifact cause a conflict that the toolkit reports. No merge can produce a log with a duplicate `seq` that `aw check meta` accepts. | A pasted two-branch test on one artifact. It asserts that the merge does not produce a valid log with a duplicate `seq`: either git reports a conflict, or `aw check meta` fails. |
 | AC-18 | 4.5 | With a `companion` or `home` records backend, the logs are next to the records that they describe, and the cache still works. | A pasted test with a companion backend that shows `meta/<id6>.jsonl` under the resolved records root, and a working `aw find`. |
@@ -244,6 +244,7 @@ into the plan's validation evidence.
 | AC-29 | 4.1, 4.6 | Only the record types that 4.1 names get an event log. Comms messages and research companion data files keep no `id6`, front matter or log, and `aw check meta` does not report them. | Pasted: (1) after a migration of a test corpus with one walkthrough without an id, one comms message and one `<doc-stem>.data/` file, the walkthrough has an `id6`, the one-key front matter (`id` only, no `status`) and a log with no `transition` event, and the comms message and the data file are byte-identical; a walkthrough setter call that requests a status is refused; (2) `aw check meta` on that corpus reports no orphan for the comms message or the data file, and does report an orphan for a walkthrough whose log was deleted. |
 | AC-30 | 5.2 | Every sidecar record is kept: in the log of its record, or, for an `id6` with no tracked record, in the gitignored export. Nothing purged is committed, and the sidecar cannot be committed by accident after the cutover. | Pasted: (1) a migration test on a test corpus whose sidecar has a status record, a record that repeats an inline history line, a rename record and a record for an `id6` with no tracked record. It asserts one `legacy` event with `source: sidecar` and the JSON object unchanged for each of the first three (the repeated line also stays as its `source: history` event), no log for the fourth, and the fourth in the export; (2) after the apply, `git status --porcelain --ignored` shows no `records/history.jsonl` in the working tree, and an `rg` search finds no `history.jsonl` ignore line in `.aw/.gitignore`, the `engine.py` template or `placement_switch.py`; (3) the real cutover's census lines for the `id6` values with no tracked record. |
 | AC-31 | 4.2 | After the cutover, `aw rename` and `aw group` record each rename as one `rename` event, and nothing writes the sidecar. | Pasted: (1) a test that renames an artifact and regroups another, and asserts one `rename` event each, with `verb`, `from_name` and `to_name` as basenames, and a `set` event in the same append when `set` or `order` changed; (2) a test that runs a spec setter, a backlog setter, a rename and a group, and asserts that no `history.jsonl` file is created. |
+| AC-32 | 4.2, 4.2a, 4.4 | A migrated log has the 4.2a layout, every event time is the time it was written, and migration does not change how old an artifact looks. | Pasted: (1) a migration test on an artifact with two inline history lines, one sidecar record and a review file with two rounds: the log is `seq` 0 checkpoint, two `source: history` legacy events, one `source: sidecar` legacy event, two `review` events, in that order, and the replayed state equals the checkpoint state plus the review values; (2) every migrated event has `at` with a time of day equal to the migration time, and each legacy and review event carries the original day in `observed_day`; (3) `aw attention --format json` gives the same `last_history_at` for that artifact before and after the migration; (4) after one post-cutover setter call, `last_history_at` is that event's `at`; (5) after the cutover, an `rg` over the new logs written by a test run finds no day-only value outside `date` and `observed_day`. |
 
 ## 3c. Honest limits
 
@@ -449,11 +450,11 @@ K5. The migration keeps every legacy verdict string UNCHANGED in the event field
 
    K5a. A file's `- Verdict:` line is ONE verdict for the whole file, but a file can have several rounds
    (124 files had two or more rounds at round 3). So the migration puts the file's verdict, and the
-   file's one `Reviewer` value and one `Reviewed-At` value, on the event of the LAST round only. The
+   file's one `Reviewer` value and one `Reviewed-At` value (as `observed_day`, 4.2a), on the event of the LAST round only. The
    events of earlier rounds have `legacy_verdict: null` and the observed round number. A verdict for
    each round would be invented data (4.2a).
 K6. The other bullet-block fields of a review record become fields OF THE REVIEW EVENT: `Reviewer`
-   becomes `reviewer`, `Reviewed-At` becomes `at`, and the `Findings` summary bullet becomes
+   becomes `reviewer`, `Reviewed-At` becomes `observed_day` (it is a day, not a time; 4.2a), and the `Findings` summary bullet becomes
    `findings_summary`. (`/plan-review` started to write the `Findings` bullet on 2026-10-12. 431
    records have it.) `Findings` is a summary of the file's findings table, so a check compares the
    event value with the table and does not trust it.
@@ -475,11 +476,16 @@ spec owns it.
 - Event schema, version 1:
   - `v`: the schema version (integer).
   - `seq`: the sequence number (integer), with no gaps, for each artifact. `0` is the migration
-    checkpoint of a migrated artifact. `1` is the creation event of an artifact created after the
+    checkpoint of a migrated artifact, and the migration's `legacy` and `review` events follow it as
+    `1`, `2`, and so on (4.2a). `1` is the creation event of an artifact created after the
     cutover (from `2vev8j` 4.3).
-  - `at`: an RFC 3339 timestamp in UTC. It is used for display, and for age and staleness comparisons on the UTC
+  - `at`: an RFC 3339 timestamp in UTC, with a time of day, always. It is used for display, and for age and staleness comparisons on the UTC
     clock (4.2b). It never sets the order (from
-    `2vev8j` 4.4).
+    `2vev8j` 4.4). It is the time the event was WRITTEN, so every event that the migration writes has the
+    migration's time. A day-only value is never an event time (maintainer decision 2026-10-25, round 9,
+    finding SR-808): after the cutover, no writer stores a day without a time in a log, except the two
+    fields that exist only to mirror or keep a day-only value: `date` (the filename date mirror, 4.2b)
+    and `observed_day` (an imported legacy day, 4.2a).
   - `actor`: an OBJECT, not a string (round 8, finding SR-702). Keys:
     - `tool`: the `aw` command or workflow that wrote the event, for example `aw specs set` or
       `/spec-review`. Always present.
@@ -512,7 +518,7 @@ spec owns it.
     implementation uses the tables that exist at implementation time, not this list.
   - `by_human`: a boolean. It is present only on events that a setter records with `--by-human`.
   - `message`: optional free text.
-  - `legacy`: for `op: legacy`, the original line unchanged, the observed day, the original position
+  - `legacy`: for `op: legacy`, the original line unchanged, `observed_day` (the day the line states, as written, with no clock conversion), the original position
     in the file, `ordering_confidence` (`known`, `inferred-from-git` or `unknown`), per 4.2a, and
     `source`: `history` for a line from the record's `## Workflow history` section, or `sidecar` for
     a record from the history sidecar. For `source: sidecar`, the original line is the sidecar's JSON
@@ -525,10 +531,16 @@ spec owns it.
   - For `op: review` (4.1a): `round` (integer), `verdict` (string), `review_kind` (`gate` or `refinement`),
     `reviewer` (string), and the optional strings `review_ref`, `findings_summary`, `legacy_verdict`
     and `readiness` (plans only).
-  - For `op: coverage` (4.4): `coverage`, `coverage_fingerprint` and `coverage_checked` (strings).
+  - For `op: coverage` (4.4): `coverage` and `coverage_fingerprint` (strings). The event's `at` and
+    `actor` record when and by whom the coverage was checked. `coverage_checked` (string) is kept only
+    on migrated values, because today it is a day plus a model name (`2026-10-06 by <model>`, 39
+    plans at r9).
 - FIELD NAMES in the log are lowercase snake_case and follow the naming rule in 4.5c. The migration
   renames the legacy field `Kind` (the plan role: `child`, `orchestrator` and so on) to `plan_role`
-  (maintainer decision 2026-10-25, finding SR-703). This rename cannot be reversed, because every
+  (maintainer decision 2026-10-25, finding SR-703). It also renames the research YAML key `kind`
+  (161 records at r9, for example `research-report` and `findings`) to `research_kind`, and the
+  prompt `Kind` in the `aw-prompt` comment (25 prompts, for example `run-once`) to `prompt_kind`
+  (maintainer decision 2026-10-25, round 9, finding SR-809). This rename cannot be reversed, because every
   migrated log and every later writer uses the new name. The other legacy names map one to one: for
   example `Work-Kind` becomes `work_kind`, `Gate-Kind` becomes `gate_kind`, and `Blocks-Release`
   becomes `blocks_release`. The same Set updates the `aw` options and the documents that name `Kind`
@@ -556,11 +568,20 @@ spec owns it.
 
 ### 4.2a Legacy import without invented precision (taken from `2vev8j` 4.7)
 
-The migration keeps each legacy history line unchanged, as a `legacy` event. The event has the
-observed day, the line's original position in the file, and an `ordering_confidence` value (`known`,
+The migration keeps each legacy history line unchanged, as a `legacy` event. The event has
+`observed_day`, the line's original position in the file, and an `ordering_confidence` value (`known`,
 `inferred-from-git` or `unknown`). The validated chain of events starts at the `seq` 0 checkpoint,
-which accepts the migrated state as correct. The loader does NOT validate transitions across the
-unordered legacy events before the checkpoint. Some legacy history went back and forth across several
+which accepts the migrated state as correct.
+
+LAYOUT OF A MIGRATED LOG (maintainer decision 2026-10-25, round 9, finding SR-807): `seq` 0 is the
+checkpoint. The `legacy` events follow it, first the inline history lines in their original file
+order, then the sidecar records in sidecar file order, then the `review` events of the record's
+review files (4.1a). The first event written after the cutover takes the next `seq`. The `seq` of a
+`legacy` event is IMPORT order, not time order; `ordering_confidence` states how much that order
+means. A `legacy` event and a `note` event change NO field during replay, so the state after the
+legacy events is the checkpoint state. A migrated `review` event changes no status either; it sets
+only the review values of 4.5a. The loader does NOT validate transitions across the legacy events,
+because they carry no transition. Some legacy history went back and forth across several
 days, and no reader can order it. With this rule, that history no longer causes false failures, and
 the migration does not invent an order. The same rule applies to every other legacy value that has no
 exact match in the new vocabulary, for example the off-vocabulary review verdicts in 4.1a. Keep the
@@ -583,7 +604,9 @@ value unchanged, mark it as legacy, and do not map it.
   LOCAL clock, next to the filename date, which has the same day. When these values move into the log,
   they must not become UTC values. Otherwise, a 4.6 rule "filename date must equal the day of
   `create.at`" would report drift for every artifact created in the evening. So the log stores the
-  creation day in a separate LOCAL-clock field, `date` (on `create` and `checkpoint` events). The
+  creation day in a separate LOCAL-clock field, `date` (on `create` and `checkpoint` events). `date`
+  exists only as the mirror of the filename date (C10); the creation TIME is the `at` of the `create`
+  event, or, for a migrated artifact, unknown. The
   drift rule compares the filename date with `date`, never with `at`. Every reader of `- Date:` changes
   to read that field, and keeps its clock. These readers are: `plans_archive._age_days`,
   `research_archive._age_days`, the dependency-schema and carrier grandfathering in `check_engine`
@@ -606,15 +629,16 @@ registry must also include:
 
 | Field | Used by | Source | Required disposition |
 |---|---|---|---|
-| `coverage`, `coverage-fingerprint`, `coverage-checked` | orchestrator plans (34) | spec `25kzda` 2.5e, `coverage_record.py` | Attestation. Only an `op: coverage` event writes these fields (4.4). |
+| `coverage`, `coverage-fingerprint`, `coverage-checked` | orchestrator plans (34; r9: 39) | spec `25kzda` 2.5e, `coverage_record.py` | Attestation. Only an `op: coverage` event writes these fields (4.4). `coverage-checked` is kept for migrated values only (4.2). |
 | `review-depth` | plans | approved spec `k3yx72` (its section 12 maps itself onto this spec) | A field that the gate `review` event sets, per `k3yx72` section 12. |
-| `pipeline` (`standard` or `quick`) | plans | reviewed spec `4iyd78` | A field with a closed set of values. The writer refuses any other value. |
+| `pipeline` (`standard` or `quick`) | plans | approved spec `4iyd78` | A field with a closed set of values. The writer refuses any other value. |
 | `scope-exceeded` | plans (40) | finalize, `ipd_lifecycle` | A field that the finalize event writes. |
 | `attended` | plans (2) | runner | Field. |
 | `close-evidence` | backlog (55) | backlog setter | A field that the `done` transition writes. |
 | `release-exempt-kind`, `release-exempt-ref` | backlog | `backlog/README.md` (`ghna7l`) | Fields. |
 | `scope-paths`, `item-dependencies`, `from-plan`, `supersedes`, `canonical`, `target-id` | several types | existing | Fields. |
-| `reviewer`, `reviewed-at`, `findings`, `verdict` | review records | `review_findings.render_review`, `/plan-review` | Review-event fields (4.1a point K6). |
+| `reviewer`, `reviewed-at`, `findings`, `verdict` | review records | `review_findings.render_review`, `/plan-review` | Review-event fields (4.1a point K6). `reviewed-at` becomes `observed_day`. |
+| `kind` (research YAML), `Kind` (prompt `aw-prompt` comment) | research (161), prompts (25) | `research_contract`, `prompts` | Renamed to `research_kind` and `prompt_kind` (4.2, 4.5c). |
 
 Specs that are still at `draft` add more fields. Spec `18hh1u` adds `Prior-Id`, `Slot`, `ACE`,
 `Requested-Model`, `Resolved-Model`, `Variant`, `Iteration`, `Contributors`, `Matrix-Ref` and
@@ -704,9 +728,15 @@ registry now. Whichever spec is implemented second must agree with the other (se
 
 - Gate `IPD-S405`, and every gate that reads history, calls `artifact_meta.history`. None reads
   Markdown.
-- `attention_contract.last_history_at` becomes the `at` of the event with the highest `seq`. (At
-  round 2: `attention_contract.newest_history_record` already fixed the file-order defect that
-  `2vev8j` evidence E3 described. So this is now a port, not a bug fix.)
+- `attention_contract.last_history_at` becomes the `at` of the newest event written after the
+  cutover. If the artifact has none, it is the checkpoint field `last_history_day`, which the
+  migration computes with today's `attention_contract.newest_history_record` rule. Without this rule,
+  every migrated artifact would look touched on the cutover day, because every migrated event has the
+  migration's `at` (4.2; finding SR-808). The published `last_history_at` key of
+  `aw attention --format json` keeps its name; its value is a UTC RFC 3339 time when it comes from an
+  event and a day (`YYYY-MM-DD`) when it comes from `last_history_day`, and the output states which
+  (for example a `last_history_precision` key with `time` or `day`). (At round 2: `newest_history_record` already fixed the
+  file-order defect that `2vev8j` evidence E3 described. So this is a port, not a bug fix.)
 - READS OF A STAGED OR COMMITTED REVISION ALSO USE THE CACHE (C5a). A gate that compares a staged or
   committed revision calls `artifact_meta.read_at(id6, rev)`. The function:
   1. finds the git blob sha of `meta/<id6>.jsonl` and of the artifact `.md` file at that revision
@@ -781,7 +811,7 @@ registry now. Whichever spec is implemented second must agree with the other (se
   2026-10-06) records the orchestrator coverage verdict as the bullets `- Coverage:`,
   `- Coverage-Fingerprint:` and `- Coverage-Checked:`, a required history line (`IPD-M112`), and a
   `## Coverage findings` body section. `coverage_record.py` writes all of them. Under this spec:
-  - Only an `op: coverage` event writes the three fields.
+  - Only an `op: coverage` event writes the coverage fields.
   - The `IPD-M112` rule "attested in workflow history" becomes "the last event that wrote these fields
     is a `coverage` event".
   - The `## Coverage findings` section stays as body text (N3).
@@ -899,7 +929,8 @@ DESIGN RULES. Each rule decides a case that the first version of this spec left 
    are fast. Status changes are `events` rows with `op = 'transition'`. Field changes are
    `field_changes` rows with the old value and the new value.
 5. TIMESTAMPS FOLLOW 4.2b. Columns whose names end in `_at` hold UTC RFC 3339 text. Columns named
-   `date` hold the LOCAL-clock creation day (`YYYY-MM-DD`). No column holds both kinds of value.
+   `date` hold the LOCAL-clock creation day (`YYYY-MM-DD`). Columns whose names end in `_day` hold a
+   day-only value as written (`observed_day`, `last_history_day`). No column holds two of these kinds.
 
 TABLES. "PK" means primary key. The columns shown are the minimum. Each per-type table also has one
 column for each registry field of that type, generated from the registry.
@@ -908,8 +939,8 @@ column for each registry field of that type, generated from the registry.
 |---|---|---|
 | `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at` and `tool_version`. A mismatch in `schema_hash` or `records_root` causes a rebuild. |
 | `directories` | `path` PK, `mtime_ns` | Shows whether a directory changed (4.3 check 1). |
-| `files` | `path` PK, `file_role` (`log`, `artifact` or `review`), `id6`, `size`, `mtime_ns`, `blob_sha`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
-| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `date`, `created_at`, `updated_at`, `last_seq`, `valid`, `defect` | One row for each artifact, with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the event with the highest `seq` (`attention_contract.last_history_at`). A row with `valid = 0` is never returned as state, and `defect` states why. |
+| `files` | `path` PK, `file_role` (`log`, `artifact`, `walkthrough` or `review`), `id6`, `size`, `mtime_ns`, `blob_sha`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
+| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `date`, `created_at`, `updated_at`, `last_history_day`, `last_seq`, `valid`, `defect` | One row for each artifact, and one for each walkthrough (with `status` NULL, 4.1), with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the newest post-cutover event, or NULL if there is none; `last_history_day` is the checkpoint value. `attention_contract.last_history_at` (4.4) reads `updated_at`, else `last_history_day`. Rule 5 holds: no column holds both a time and a day. `created_at` is the `at` of the `create` event, or NULL for a migrated artifact. A row with `valid = 0` is never returned as state, and `defect` states why. |
 | `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `readiness`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_exceeded`, `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the filename type facet (4.5c). |
 | `scope_paths` | (`id6`, `ordinal`) PK, `path` | The values of the multi-value field `scope-paths`. |
 | `dependencies` | (`dependent_id6`, `ordinal`) PK, `condition` (`executed`, `exists` or `state`), `target_type`, `required_status`, `target_raw`, `target_id6` | The parsed `Item-Dependencies` (4.2). An index on `target_id6` answers "which artifacts wait for X" with one lookup. |
@@ -968,14 +999,14 @@ item in each `state.json`. With this index, a query can join an artifact to the 
 ### 4.5c Naming rule: `type`, `kind`, `role`, `status`, `disposition`, `op`
 
 Today the corpus uses these words for different things. Measured: `Kind` is the plan role on 1,596
-plans, `Work-Kind` is the nature of the work, `Gate-Kind` is what blocks an item, and
+plans (r9: 1,603), research `kind` is the report type, prompt `Kind` is the prompt's use, `Work-Kind` is the nature of the work, `Gate-Kind` is what blocks an item, and
 `Subject-Type: ipd|spec` is the class of artifact. From the cutover, logs, cache columns, interface
 fields and JSON output use this rule:
 
 | Word | Meaning | Can it change? | Examples |
 |---|---|---|---|
 | `type` | The CLASS of a record. It decides which schema and which table apply. Each record has exactly one type, and the values are the filename type facets. | Never | `ipd`, `spec`, `backlog`, `review` |
-| `<thing>_kind` | A variant WITHIN a type that changes behavior. The name always states what it classifies. A column or field named only `kind` is not permitted, because one record can have several kinds. | Rarely | `work_kind`, `review_kind`, `gate_kind`, `release_exempt_kind` |
+| `<thing>_kind` | A variant WITHIN a type that changes behavior. The name always states what it classifies. A column or field named only `kind` is not permitted, because one record can have several kinds. | Rarely | `work_kind`, `review_kind`, `gate_kind`, `release_exempt_kind`, `research_kind`, `prompt_kind` |
 | `<thing>_role` | The position of a record in a structure of related records. | Rarely | `plan_role` (`child`, `orchestrator`), `file_role` |
 | `status` | The position in the lifecycle. Only a `transition` event changes it. | Yes | `approved`, `executed` |
 | `disposition` | The lifecycle DIRECTORY for a status (N1). | When the status changes | `pending`, `executed` |
@@ -996,7 +1027,7 @@ and `aw meta repair --apply` can repair each one.
 | Front-matter `status` | People can see the status (F2). | Must equal the replayed status. A walkthrough has no `status` line and no status, so this rule does not apply to it (4.1). |
 | Front-matter `id` | Connects the file to its log. | Must equal the filename `id6` and the log's identity. |
 | Filename Set id, `NN`, `id6` and date | C10 | Must equal the replayed `set`, `order` and `id`. The date must equal the LOCAL-clock creation `date` field, never the UTC `at` (4.2b). |
-| Research filename facets (order, model, kind) | C10 | Must equal the replayed fields. This replaces today's mirror checks in the research index (`okw4ke`, and the rename-time rewrite `ax8eg1`). |
+| Research filename facets (order, model, kind) | C10 | Must equal the replayed `order`, `model` and `research_kind`. This replaces today's mirror checks in the research index (`okw4ke`, and the rename-time rewrite `ax8eg1`). |
 | Disposition directory | N1 | Must agree with the replayed status, by the rules of the artifact's type. |
 | Orphans | (none stated) | A log with no record, or an artifact or walkthrough with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). The migration creates no log for a sidecar `id6` that has no tracked record (5.2 step 2), so the rule never fires on the migrated corpus for that reason. |
 | Review rounds | 4.1a | The number of `## Round <n>` headings in a review file must equal the number of `review` events in the subject's log that belong to that file (4.1a point K4). |
@@ -1073,8 +1104,9 @@ erDiagram
         text set_id
         int order_nn
         text date "LOCAL creation day, compared with filename date"
-        text created_at "UTC, at of first event"
-        text updated_at "UTC, at of highest-seq event"
+        text created_at "UTC, at of create event; NULL if migrated"
+        text updated_at "UTC, newest post-cutover at; NULL if none"
+        text last_history_day "migrated newest history day"
         int last_seq
         int valid "0 means log failed validation"
         text defect "why invalid"
@@ -1240,7 +1272,7 @@ erDiagram
     }
     FILES["FILES: file size, mtime and blob sha, to find edited files"] {
         text path PK
-        text file_role "log artifact review"
+        text file_role "log artifact walkthrough review"
         text id6
         int size
         int mtime_ns
@@ -1385,9 +1417,9 @@ flowchart TD
     PL --> PS{"2: history sidecar present? report its record count"}
     PS -- "absent, without --force" --> R
     PS -- "present, or --force given and reported" --> W["run steps 2 to 6 in a SCRATCH COPY"]
-    W --> S2["2: import each sidecar record as a legacy event, source sidecar; id6 with no record goes to the gitignored export, no log"]
+    W --> S2["2: read the sidecar; id6 with no record goes to the gitignored export, no log; the others become legacy events in step 4"]
     S2 --> S3["3: mint id6 for non-review records with none; comms messages and .data files excluded"]
-    S3 --> S4["4: per artifact: checkpoint seq 0 with local date and mapped field names, parsed dependencies, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
+    S3 --> S4["4: per artifact: checkpoint seq 0 with local date, last_history_day and mapped field names, parsed dependencies; then legacy events seq 1..n: inline lines, then sidecar records; prose fields to body, front matter and banner"]
     S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review_kind, legacy verdict verbatim, review_ref"]
     S4r --> S4a["4a: terminal directories migrated too, under a journaled marker the executed-plan hook accepts"]
     S4a --> S5["5: delete STATUS.md and INDEX files and their ignore lines"]
@@ -1492,9 +1524,10 @@ flowchart TD
    meets the step 2 sidecar refusal, which `--force-worktree` does not override.
 
    For these reasons, a person must attend the migration. The runner cannot run it unattended.
-2. SIDECAR FIRST. Export the gitignored `.aw/records/history.jsonl` sidecar and add its records to
-   the logs before any other step. At round 5, it held the only copy of 413 records for 296 `id6`
-   values (backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1). It exists only on
+2. SIDECAR FIRST. Read the gitignored `.aw/records/history.jsonl` sidecar before any other step,
+   so that no later step can lose it. Its records are WRITTEN into the logs in step 4, after each
+   checkpoint (4.2a). At r9, it held 462 records for 319 `id6` values, about 87 of which exist
+   nowhere else (section 1). It exists only on
    the machine that runs the migration. A migration on a machine WITHOUT that sidecar loses those
    records. So the preflight must report whether the sidecar exists and how many records it holds.
    It must refuse, unless `--force` is given, when a sidecar is expected but not present. A sidecar
@@ -1506,7 +1539,8 @@ flowchart TD
    HOW EACH SIDECAR RECORD IS IMPORTED (maintainer decisions 2026-10-25, round 9, findings SR-802
    to SR-804):
    - Every record whose `id6` has a tracked record becomes one `legacy` event with
-     `source: sidecar` in that record's log, with the JSON object unchanged. The migration does NOT
+     `source: sidecar` in that record's log (in step 4), with the JSON object unchanged, and with
+     `observed_day` taken from its `date` key. The migration does NOT
      remove a sidecar record that repeats an inline history line. Both are kept, each with its
      `source`, because a text match cannot prove that two lines record the same event. A display,
      for example `aw show --history`, may hide exact duplicates. The log keeps both.
@@ -1540,16 +1574,18 @@ flowchart TD
    - Parse it with the legacy loader (the phase-B `artifact_meta` legacy loader, moved into the
      migration, 4.3).
    - Write a `checkpoint` event (`seq` 0) that holds every field, including the LOCAL creation
-     `date` (4.2b). Use the field names of 4.2 and 4.5c (`Kind` becomes `plan_role`). Parse
+     `date` (4.2b) and `last_history_day` (4.4). Use the field names of 4.2 and 4.5c (`Kind` becomes `plan_role`). Parse
      `Item-Dependencies` into structured conditions. A value that cannot be parsed is a census
      refusal. The migration never stores it as an unparsed string.
-   - Write a `legacy` event for each raw history line (4.2a). The migration can add
+   - Write a `legacy` event (`source: history`) for each raw history line, then one for each
+     sidecar record of the artifact (step 2), in the layout of 4.2a. The migration can add
      `inferred-from-git` ordering from `git log -p`.
    - Move prose fields into body sections.
    - Write the new two-key front matter and the banner.
    - Delete the bullet block and the `## Workflow history` section.
 
-   For a review record, write one `review` event for each round into the SUBJECT's log instead. Each
+   For a review record, write one `review` event for each round into the SUBJECT's log instead,
+   after the subject's legacy events (4.2a). Each
    event has `review_kind`, the legacy verdict unchanged, and the record's own `id6` as `review_ref`
    when the record has one (4.1a).
 
@@ -1607,7 +1643,8 @@ exits with a nonzero code and the message "run `aw migrate metadata`" (AC-11).
   type-specific command. A document must not describe a command that does not exist.)
 - The YAML front matter of research records (`research_contract`) changes to the same two-key format.
 - The cutover commit updates every `aw` option, help text and document that names the legacy `Kind`
-  field (the plan role) to `plan_role` (4.2, finding SR-703). From the cutover, JSON output keys follow
+  field (the plan role) to `plan_role`, the research `kind` to `research_kind`, and the prompt `Kind`
+  to `prompt_kind` (4.2, findings SR-703 and SR-809). From the cutover, JSON output keys follow
   4.5c.
 
 ## 6. Size of the change and cost
@@ -1754,15 +1791,23 @@ for concurrency.
   `legacy` (4.2, 5.2 step 2); (c) sidecar records for an `id6` with no tracked record get no log and
   go to a gitignored export; sidecar records that repeat an inline line are kept, tagged
   `source: sidecar` (5.2 step 2). (b) cannot be reversed after the cutover. No reason was given.
+- OQ-14 `[RESOLVED 2026-10-25 by the maintainer]` Three log-format questions found in round 10
+  (findings SR-807 to SR-809), answered by the user via the question tool: (a) legacy events follow
+  the checkpoint as `seq` 1..n and change no field (4.2a); (b) migrated events have the migration's
+  `at` and keep the original day in `observed_day`; `last_history_at` uses the checkpoint's
+  `last_history_day` until a post-cutover event exists (4.2, 4.4). The maintainer added: a day-only
+  value was meant for filenames only, not for history or other metadata, and must not be written
+  that way going forward (4.2 `at`); (c) research `kind` and prompt `Kind` become `research_kind` and
+  `prompt_kind` (4.2, 4.5c). All three cannot be reversed after the cutover.
 
 ## 9. Compatibility with specs written after round 1
 
-| Spec | Status at round 5 | Relation |
+| Spec | Status at r9 | Relation |
 |---|---|---|
 | `2vev8j` artifact metadata storage | approved | This spec SUPERSEDES it (OQ-4). |
 | `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its section 12 maps itself onto this spec: `review-depth` becomes a field that the gate `review` event sets, each invocation writes one `review` event with a verdict, and its structural check compares replayed state. Whichever spec is implemented second must agree with the other. Its plans must state which format they target. |
-| `4iyd78` quick pipeline | reviewed, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its section 6.1 row "Plan `## Workflow history`: Kept" means that the AUDIT TRAIL is kept. Under this spec, the log holds that trail. If `4iyd78` is implemented first, its history writes go through `status_set` and are migrated like all others. |
-| `wy9aru` canonical set dispatch | approved | Its setter engine is where the writers change to use `artifact_meta` (4.8). The cutover retires the sidecar that it keeps, as its section 3a leaves to this spec. |
+| `4iyd78` quick pipeline | approved, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its section 6.1 row "Plan `## Workflow history`: Kept" means that the AUDIT TRAIL is kept. Under this spec, the log holds that trail. If `4iyd78` is implemented first, its history writes go through `status_set` and are migrated like all others. |
+| `wy9aru` canonical set dispatch | implemented | Its setter engine is where the writers change to use `artifact_meta` (4.8). The cutover retires the sidecar that it keeps, as its section 3a leaves to this spec. |
 | `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4). |
 | `18hh1u` spec and research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not added to the registry now (4.2c). Its review records already exist on disk (18 at round 5), and the migration converts them under 4.1a, whatever the status of `18hh1u` is. |
 | `yfz5u9` multi-participant synthesis | draft | Whichever spec is implemented second must make the research YAML keys and the `.<ace>.` filename facet of `yfz5u9` agree with the two-key front matter and C10. Its own `events.jsonl` is a RUN log (N4), not artifact metadata. The two are different by design and must stay different. |
@@ -1771,6 +1816,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-26 note (aw specs): /spec-review round 10 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; internal-consistency pass; SR-807..SR-815 FIXED (maintainer decisions: legacy events after the checkpoint, migrated events timed at migration with observed_day and last_history_day and no day-only values outside filenames going forward, research_kind/prompt_kind); AC-32, OQ-14 added; all 10 mermaid blocks render; no Readiness written
 - 2026-10-26 note (aw specs): /spec-review round 9 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-801..SR-806 FIXED (maintainer decisions via question tool: walkthroughs id-only no status, new op rename, sidecar orphan id6s to gitignored export, sidecar duplicates kept tagged source); AC-30, AC-31, OQ-13 added; no Readiness written
 - 2026-10-25 note (aw specs): maintainer follow-up via /askme: --force no longer overrides the linked-worktree refusal, new --force-worktree does (5.2 step 1, 3c, AC-22); aw install --migrate says yes without a terminal and -y/--yes never starts a migration (5.1, OQ-3); 3c limit for --force past a live integration lock; new AC-27 (preflight overrides), AC-28 (install prompt, --migrate, -y), AC-29 (record types without logs); diagram 4.9.6 redrawn for the new preflight order; every ER entity carries a short description; all 10 mermaid blocks render with mermaid-cli 12.0.0 and ER columns were checked against 4.5a/4.5b; no reason was given
 - 2026-10-25 note (aw specs): OQ-1, OQ-2, OQ-3 resolved by the maintainer via /askme: OQ-1 plan step 1 decides the registry from the AC-20 census; OQ-2 walkthroughs only get id6, front matter and a log (comms and .data files unchanged and excluded from aw check meta; 4.1, 4.6 and 5.2 step 3 updated); OQ-3 aw install asks before running a pending migration, reports only without a terminal, and -y does not count as yes (5.1 updated); no reason was given
