@@ -6,4 +6,5 @@
 - Summary: Build the clean-delta and tracking-modes phases specified in spec 20260726-or061f-01: the Phase 0 per-host conformance harness gates Phases 2-4, so no delivery tier can be adopted until that harness reproduces it, and no phase has a carrier today
 
 ## Workflow history
+- 2026-10-26 note (aw backlog): 2026-10-25 spec audit: spec or061f is parked; this item carries its remaining build (user-scope skill delivery, per-host Phase 0 results, global ownership manifest). See the or061f history note of the same date for what is already built.
 - 2026-09-18 created (aw backlog): Created by IPD diof9n (E-03) as the durable gate carrier for deferred spec 20260726-or061f-01-or061f-clean-delta-and-tracking-modes, whose Gate-Ref pointed at the retired TODO.md work surface

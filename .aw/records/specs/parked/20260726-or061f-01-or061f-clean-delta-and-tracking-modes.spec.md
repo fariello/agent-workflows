@@ -132,6 +132,8 @@ This spec builds nothing. The build is a sequence of separate IPDs, each with it
 - Sibling-companion read/write/commit under each host's default sandbox.
 
 ## Workflow history
+
+- 2026-10-26 note (aw specs): 2026-10-25 spec audit: stays parked (parked->deferred is not a legal transition); the remaining build is tracked by backlog m15n3k (its former deferral gate). NOT superseded by isolated worktrees, which solve concurrent-run isolation, not clean-delta contribution. BUILT: --delivery-mode {tracked,clean-delta}, --preset completely-clean-target, --records-backend {home,companion,repository,repository-untracked}, aw storage attach/detach/move/reattach/preflight, aw context resolver, clean_delta.py merge-base/index/filesystem proof, and the zero-write cleantgt Set (ucr3h8, 3m8aix, xoy5yg, nwporz). REMAINING: user-scope skill delivery (~/.claude/skills, ~/.config/opencode/skills; Phase 2, declined by three cleantgt plans naming this spec as owner), recorded per-host Phase 0 conformance results, and the global ownership manifest for user-level files. Absorbs lz6bem (superseded 2026-10-25).
 - 2026-10-15 parked (aw set): status set to parked
 
 - 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`)

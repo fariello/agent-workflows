@@ -1,5 +1,5 @@
 - Id: fcnz1r
-- Status: graduated
+- Status: done
 - Graduated-To: setdispfork
 - Set: fcnz1r
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Unify the two aw backlog set dispatch paths so a behavior wired into one spelling cannot be missing from the other
 
 ## Workflow history
+- 2026-10-26 done (aw set): 2026-10-25 spec audit: every carrier is executed (setdisp 63zo2f..7zb4ny and setdispfork 19fch9); both spellings of aw backlog set and aw specs set enter through one adapter into status_set. Spec wy9aru flagged implemented 2026-10-25.
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 19fch9
 - 2026-10-06 open (aw set): 63zo2f returned to authoring: uncovered obligation: The bare suite pytest after the final child compared by name against baseline; re-run graduation to complete the handoff
 - 2026-10-01 graduated (aw backlog): graduated: 63zo2f, afdmn6, c6f6sj, m1jlwm, m94eht, vhiqo6
