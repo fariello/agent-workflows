@@ -147,6 +147,7 @@ This derivation is computed from the manifest (set membership, kind, and non-whi
 
 ## Workflow history
 
+- 2026-10-26 note (aw specs): 2026-10-25 spec audit: AC-5 back-fill of outcome/consumed-by (and dead-end archive proposal outside run sets) not built; maintainer chose via /askme to build it, tracked by backlog n4a06q. All other criteria verified at HEAD 5db4791c1.
 - 2026-09-25 note (aw specs): Amended via IPD 5e3nj2: two-axis research state (shelf status for answer docs, derived pipeline position unrun/partial/synthesized for prompt sets) and body-aware unrun derivation.
 - 2026-08-28 approved (aw set, --by-human): status set to approved
 
