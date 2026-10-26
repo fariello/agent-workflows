@@ -32,7 +32,7 @@ from tests import support
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
-PLAN_REVIEW_FILE = WORKFLOWS_DIR / "plan-review" / "plan-review.md"
+R2_EXECUTABILITY_FILE = WORKFLOWS_DIR / "plan-review" / "steps" / "r2-executability.md"
 REVIEW_RUBRIC_FILE = WORKFLOWS_DIR / "plan-review-long" / "review-rubric.md"
 
 # Distinctive semantic anchors covering the three load-bearing elements of the reachability rule:
@@ -51,15 +51,15 @@ REACHABILITY_ANCHOR_PHRASES = [
 
 class TestVItemDemonstrationReachability(unittest.TestCase):
     def test_single_file_plan_review_reachability_rule(self) -> None:
-        """Assert single-file plan-review.md carries the reachability rule in rubric G."""
-        content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        """Assert r2-executability.md carries the reachability rule in rubric G."""
+        content = R2_EXECUTABILITY_FILE.read_text(encoding="utf-8")
         section_g = support.section(content, "### G. Plan executability", "## ")
 
         for phrase in REACHABILITY_ANCHOR_PHRASES:
             self.assertIn(
                 phrase,
                 section_g,
-                f"Anchor phrase '{phrase}' not found in section G of {PLAN_REVIEW_FILE}",
+                f"Anchor phrase '{phrase}' not found in section G of {R2_EXECUTABILITY_FILE}",
             )
 
     def test_long_form_review_rubric_reachability_rule_parity(self) -> None:

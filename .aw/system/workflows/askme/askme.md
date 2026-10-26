@@ -121,8 +121,8 @@ Include these facts inside the question interface:
    it would change. Include relevant costs, limitations, dependencies, and
    effects on existing behavior. Do not invent numbers or strawman options.
 5. **Recommendation:** Identify the option you favor and give the factual
-   reason. Use `(Strong Recommend)`, `(Recommend)`, or `(Weak Recommend)`
-   on that option. If evidence does not support a recommendation, say so.
+   reason. State the strength as one of `very weak`, `weak`, `medium`, `strong`,
+   `very strong`, on that option. If evidence does not support a recommendation, say so.
 6. **Uncertainty:** Identify unknowns that could change the answer.
 
 A gate or question must not assert the verdict it precedes. State what was

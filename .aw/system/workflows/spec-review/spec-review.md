@@ -25,10 +25,10 @@ drifts:
 
 | Shared thing | The one authority | Where it is written down |
 |---|---|---|
-| Severity (`BLOCKER|HIGH|MEDIUM|LOW`) and Scope (`IN-SCOPE|OVER-SCOPE|UNDER-SCOPE`) | `review_findings.SEVERITIES` | `../plan-review/plan-review.md`, "Severity and scope" |
-| Remediation Risk and the Fix Bar | `../release-review/fix-decision-policy.md` | `../plan-review/plan-review.md`, 2.3 |
-| Decision (`FIXED|DEFERRED|OPEN|REPLAN`) | `review_findings.DECISIONS` | `../plan-review/plan-review.md`, 2.2 |
-| The four verdicts | `plan_readiness.VERDICTS` | `../plan-review/plan-review.md`, "Verdict and readiness" |
+| Severity (`BLOCKER|HIGH|MEDIUM|LOW`) and Scope (`IN-SCOPE|OVER-SCOPE|UNDER-SCOPE`) | `review_findings.SEVERITIES` | `../plan-review/steps/_findings.md`, "Severity and scope" |
+| Remediation Risk and the Fix Bar | `../release-review/fix-decision-policy.md` | `../plan-review/steps/_findings.md`, "2.3 Remediation Risk and Fix Bar" |
+| Decision (`FIXED|DEFERRED|OPEN|REPLAN`) | `review_findings.DECISIONS` | `../plan-review/steps/_findings.md`, "2.2 Record findings" |
+| The four verdicts | `plan_readiness.VERDICTS` | `../plan-review/steps/s7-finalize.md`, "Verdict and readiness" |
 | The typed review record's shape | `review_findings.render_review` | `.aw/records/reviews/` |
 | Whether a finding gates | `review_findings.is_gating` | the repo's `review_findings_gate.block_at` |
 
@@ -59,7 +59,7 @@ reviewer at a spec, which is why this workflow exists as its own body.
 
 ### (a) Do NOT write `- Readiness:` onto a spec
 
-`plan-review.md:377-398` REQUIRES writing that field, and its own text warns that "a consumer that
+`../plan-review/steps/s7-finalize.md`, "Write the structured Readiness field" REQUIRES writing that field, and its own text warns that "a consumer that
 finds no field FAILS CLOSED". A spec has no such field in its schema, and spec `25kzda` Section 3.3
 stops a `reviewed` spec at an unconditional human approval gate EVEN UNDER `--full-auto`. So there is
 no automated readiness signal for a spec to record, and inventing one would create a machine signal
@@ -70,7 +70,7 @@ record's verdict. It does not go into the spec's front matter.
 
 ### (b) Do NOT hand-edit `- Status:` or the workflow history
 
-`plan-review.md:371-372` hand-edits `Status`. For a spec that is forbidden: `.aw/records/specs/README.md`
+`../plan-review/steps/s7-finalize.md`, "Step 4: Finalize state and commit" hand-edits `Status`. For a spec that is forbidden: `.aw/records/specs/README.md`
 says the status and history are tool-owned, and a `hooks/status_untooled_gate.py` hook exists to catch
 exactly this bypass. Use the verbs:
 
@@ -89,7 +89,7 @@ refuses at exit 1 from the validation gate in both human and agent modes, which 
 
 ### (c) Do NOT run `aw ipd lint` against a spec
 
-`plan-review.md:113-133` runs `aw ipd lint --phase author` as a preflight GATE, and that linter is
+`../plan-review/plan-review.md`, "Structural preflight (before semantic review)" runs `aw ipd lint --phase author` as a preflight GATE, and that linter is
 IPD-only. The subtle hazard is not that it would error: the preflight is GUARDED by "For each eligible
 plan that is an agent-executable IPD", so handed a spec it would SKIP, and the gate would PASS BY NOT
 RUNNING. A skipped gate that looks like a passed one is worse than an absent gate.
@@ -233,12 +233,12 @@ instruction conflicts, and any decision needed to repair or replan. Resolve from
 first and cite the source; do not ask the human what the repository already answers. Mark which
 questions block correctness, security, scope, or approval.
 
-For any question resolved by choosing a mechanism, follow `../plan-review/plan-review.md` section 3.1 ("Resolving HOW questions: demonstrate, do not describe"). That rule is shared and is deliberately not restated here: an unproven fix may not be marked resolved.
+For any question resolved by choosing a mechanism, follow `../plan-review/steps/s5-questions.md` ("Resolving HOW questions: demonstrate, do not describe"). That rule is shared and is deliberately not restated here: an unproven fix may not be marked resolved.
 
 A question you resolve yourself is a RECORDED DECISION, not a vanished one. For EVERY question you
 resolve from evidence instead of asking, add one row to the `### Decisions` section of the current
 `## Round <n>` in the typed review record, with the columns and the `Reversible` judgement rule defined
-in `../plan-review/plan-review.md`, 3.1. That rule is shared and is deliberately not restated here.
+in `../plan-review/steps/s5-questions.md`, "3.1 Build the question set". That rule is shared and is deliberately not restated here.
 
 A `Reversible: no` decision MUST NOT rest on your authority alone: record the row AND either raise it
 in the spec as an open question that blocks approval, or tell the maintainer directly and note that on
@@ -386,7 +386,7 @@ a plan must answer. For each item, verify the spec addresses it or justifies `No
 ## Verdict
 
 Use the SHARED four-value vocabulary (`plan_readiness.VERDICTS`), defined in
-`../plan-review/plan-review.md`, "Verdict and readiness":
+`../plan-review/steps/s7-finalize.md`, "Verdict and readiness":
 
 - `APPROVE`, `APPROVE WITH REVISIONS APPLIED`, `REVIEWED - OPEN QUESTIONS`, `REJECT - NEEDS REPLAN`.
 
