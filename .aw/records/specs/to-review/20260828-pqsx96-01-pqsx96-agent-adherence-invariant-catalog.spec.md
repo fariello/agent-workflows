@@ -1,7 +1,7 @@
 # Spec: Agent process adherence: threat model, assurance classes, and invariant catalog (Phase 0)
 
 - Date: 2026-08-28
-- Status: draft
+- Status: to-review
 - Id: pqsx96
 - Author: aw specs new
 - Scope: Phase-0 foundation for the agentadhere layered defense: threat model, three assurance classes, and an invariant catalog with observable-evidence tags.
@@ -249,6 +249,7 @@ Additional worked traces, to show the catalog covers the existing engine:
   later external-authority set (findings section 8).
 
 ## Workflow history
+- 2026-10-26 to-review (aw set): Maintainer ruling 2026-10-25 (spec audit, /askme): move to to-review so the catalog enters spec review; the aw check rules are built against it (plan gfokao). Known drift for the review: check_engine.py:100 comment says I-01..I-15, the catalog now has I-01..I-17.
 
 - 2026-09-28 note (aw specs): Recorded check.spec-criteria-uncovered claiming invariant "" rather than an existing I-* row (IPD 3dexf1). Nearest rows (I-05 finalize validation, I-07 release-gate preservation) do not fit; criterion coverage is a guidance-class concern whose only deterministic observable is that a criterion id is named somewhere in the linked plans, with the honest limit that naming is not validating.
 - 2026-09-10 note (aw specs): Added catalog invariant I-16 (setid SEMANTICS: a setid is a SHARED cross-type TOPIC label, not a unique identity) and recorded a misfiling correction in Section 4. check.setid-collision is registered under I-09, but I-09 is filename-grammar conformance and this catalog did not mention setid at all; the rule traced to an invariant that does not describe it. The misfiling was masked because a setid IS part of the filename grammar, so I-09 looked plausible: I-09 governs a name's SHAPE, while this rule governs whether one token may be REUSED across types, which the grammar is silent on. I-16 also corrects the invariant's CONTENT, not just its number: the repository was heading toward cross-type uniqueness (spec 4w7d6s, now superseded) and the maintainer reversed it on 2026-09-10, so the cataloged invariant is now the OPPOSITE of what the registered error-severity rule enforces, which is why it reports 78 findings for correct behavior. The two id6 rules under I-09 are deliberately NOT repointed, since the identity-slot rule genuinely concerns the filename slot. Left the code unchanged on purpose: the RuleSpec invariant must change from I-09 to I-16 in the same commit that re-scopes the rule, and Section 4 records that the two disagree until then.
