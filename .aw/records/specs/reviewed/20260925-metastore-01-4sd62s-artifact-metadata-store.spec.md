@@ -18,7 +18,7 @@ for the same concept.
 | Term | Meaning |
 |---|---|
 | record | Any tracked Markdown (`.md`) file under `.aw/records/`, except README files. |
-| artifact | A record that has a lifecycle status and an `id6` (plans, specs, backlog items, research, releases, prompts). Review records are records but not artifacts (4.1a). Some artifacts do not have an `id6` yet; the migration gives them one (5.2 step 3). |
+| artifact | A record that has a lifecycle status and an `id6` (plans, specs, backlog items, research, releases, prompts). Review records are records but not artifacts (4.1a). Walkthroughs are records with an `id6` and an event log but no status, so they are not artifacts either (4.1). Some artifacts do not have an `id6` yet; the migration gives them one (5.2 step 3). |
 | corpus | All tracked records in this repository. |
 | terminal directory | A lifecycle directory for a final status: `executed/`, `done/`, `superseded/`, `implemented/` or `not-executed/`. |
 | Set | A group of related plans that share a Set id in their filenames. The orchestrator plan has order `00`, and the child plans have order `01` and higher. |
@@ -46,7 +46,7 @@ for the same concept.
 | setter | An `aw` command that changes metadata, for example `aw specs set`. |
 | attestation | A field that records that a step happened, for example `readiness` or `coverage`. |
 | worktree, lane | A git worktree is an extra checkout of the same repository. The runner gives each plan it executes its own worktree, which it calls a lane. |
-| sidecar | The gitignored file `.aw/records/history.jsonl`, which holds history records that exist only on the maintainer's machine. |
+| sidecar | The gitignored file `.aw/records/history.jsonl`, which holds history and rename records on the maintainer's machine only. Some of them exist nowhere else (section 1). |
 | cutover | The one-time migration run (`aw migrate metadata`, 5.2) that converts the repository from the bullet-block format to the log format. The cutover commit is the one commit that this run makes. |
 | facade-first | The build order in section 7: first build the `artifact_meta` interface over the old format, then move every caller onto it, and only then change the storage format. |
 | phase A, B, C | The three build phases of section 7. Phase B moves every consumer onto `artifact_meta` while the legacy format is still on disk. |
@@ -71,6 +71,7 @@ The table below shows measured values. The values were measured at these points:
 | (no label) | Review round 5, 2026-10-24 (full re-measurement) | `e12f81ac1` |
 | r6 | Review round 6 (spot check) | `61fce3bfd` |
 | r7 | Review round 7 (spot check) | `2edf1f3ac` |
+| r9 | Review round 9 (spot check of the sidecar, review and id-less counts) | `34f785e4d` |
 
 Values without a label are round-5 values. Values in square brackets are round-1 values, shown only
 where they differ from round 5. The values
@@ -85,11 +86,11 @@ round 1 and round 5. This growth is the strongest reason to do this work before 
 | Modules that refer to `## Workflow history` | 27 [23]. They use four incompatible orderings (see `2vev8j` section 1) |
 | Readers that give different results for the same records | `selectors` and `plans_index` disagree on 24 plans (see the PARITY CONSTRAINT note in `selectors.py`, which is still present) |
 | Different field names used before the first `##` heading | 68 [57]. New since round 1: `Coverage`, `Coverage-Fingerprint`, `Coverage-Checked`, `Scope-Exceeded`, `Close-Evidence`, `Attended`, `Findings` (reviews), and, from specs, `Review-Depth` and `Pipeline` (see 4.2c) |
-| Tracked `.md` records under `.aw/records/` | 4,382 (r6: 4,383; r7: 4,391) [1,969]: plans 1,696, reviews 1,275, backlog 1,113, research 171, specs 45, prompts 36, walkthroughs 27, other 19. 2,922 [1,411] have a `## Workflow history` section. 1,535 [549] have no `- Id:` bullet, and 1,275 of these are reviews. 39 non-review records have no `id6` in any form. This count excludes 24 READMEs, 4 prompt-library templates and 2 research templates |
+| Tracked `.md` records under `.aw/records/` | 4,382 (r6: 4,383; r7: 4,391) [1,969]: plans 1,696, reviews 1,275, backlog 1,113, research 171, specs 45, prompts 36, walkthroughs 27, other 19. 2,922 [1,411] have a `## Workflow history` section. 1,535 [549] have no `- Id:` bullet, and 1,275 of these are reviews. 39 non-review records have no `id6` in any form. This count excludes 24 READMEs, 4 prompt-library templates and 2 research templates (r9: 39 INCLUDING those 6 templates, so 33 without them; see 5.2 step 3) |
 | Review records | 1,275 `.review.md` files (r6: 1,276; r7: 1,278) [338]. In 1,257 files, the `id6` in the filename is the same as the `Subject-Id`, by design. In 18 files (r6: 19; r7: 21), it is not. All of these are `specflow` refinement records for spec `18hh1u`, and each refinement iteration adds one. 5 subjects have more than one review file: `18hh1u` has 18 (r6: 19; r7: 21), and `rtvdak`, `e25iy9`, `l4vw9o` and `urv602` have 2 each. Rounds per file: 1,151 files have one round, 109 have two, 12 have three, 2 have four, and 1 has six. 29 files (r6: 30; r7: 32) have a verdict that is not in `plan_readiness.VERDICTS`: 14 (r6: 15; r7: 17) `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, and 1 `REVIEWED - CONVERGED WITH REVISIONS` (see 4.1a) |
 | Records in terminal directories | 2,828 [1,055]: `executed/` 1,650, `done/` 1,086, `superseded/` 59, `implemented/` 17, `not-executed/` 16 |
 | Generated index files | 6 gitignored `INDEX.{json,md}` files [4], for plans, research and prompts (`prompts_index.py` is new since round 1). Also the committed file `plans/STATUS.md`, which has not been updated since 2026-08-17 |
-| History sidecar `.aw/records/history.jsonl` (gitignored) | 413 (r7: 414) records for 296 `id6` values [306 records]: backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1 |
+| History sidecar `.aw/records/history.jsonl` (gitignored) | 413 (r7: 414; r9: 462 for 319 `id6` values) records for 296 `id6` values [306 records]: backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1 (r9: backlog 331, specs 109, others unchanged). r9 detail: 425 are status/history records and 37 are rename or regroup records (`verb`, `from_name`, `to_name`) written by `aw rename` and `aw group`. 8 records (7 `id6` values) belong to no tracked record, for example backlog `3srje9`, which commit `ed82ce52f` purged on purpose. About 367 records repeat a line that is also in the record's own `## Workflow history` section, because the spec and backlog setters write both (a text-prefix match, not exact); about 87 exist only in the sidecar |
 | Commits that only repaired index files, before the index files became gitignored | 14 of 328 commits in 14 days (backlog `ila6vl`) |
 
 Problems that result:
@@ -240,7 +241,9 @@ into the plan's validation evidence.
 | AC-26 | 4.3 | The next read shows a new, deleted or moved record, with no `aw index rebuild`. | Pasted tests that add a log and an artifact, delete one, and `git mv` one into another disposition directory without `artifact_meta` (as a pull or checkout does). After each change, `aw find` shows the change. |
 | AC-27 | 5.2 | Each preflight refusal in 5.2 step 1 refuses without `--force`, `--force` overrides each one, and the migration reports every override. `--force` never overrides the worktree refusal; `--force-worktree` overrides only that refusal. | Pasted tests, each in a test repository and each with no files written on a refusal: (1) for each of the three step-1 conditions (uncommitted change under `.aw/records/`, integration lock held by another process, a lane worktree with an unmerged plan change), the dry run refuses and names the condition, and the same run with `--force` continues and its output names the overridden condition; (2) in a linked worktree, the run refuses with `--force` and names `--force-worktree`; (3) in a linked worktree with `--force-worktree` and no sidecar, the run still refuses on the sidecar condition (step 2); (4) `--force-worktree` in the main checkout with an uncommitted record change still refuses on that condition. |
 | AC-28 | 5.1 | `aw install` starts a pending migration only after a yes answer at a terminal, or with `--migrate`. `-y`/`--yes` never starts one. | Pasted tests on a test repository with a pending migration: (1) at a terminal, answering no leaves every record byte-identical and prints the command that runs the migration; answering yes runs it; (2) with no terminal and no `--migrate`, the install only reports, and every record is byte-identical; (3) `aw install --yes` and `aw install all --yes` leave every record byte-identical and report the pending migration; (4) `aw install --migrate` runs it, and when a step-1 condition is true it still refuses, because `--migrate` adds neither `--force` nor `--force-worktree`. |
-| AC-29 | 4.1, 4.6 | Only the record types that 4.1 names get an event log. Comms messages and research companion data files keep no `id6`, front matter or log, and `aw check meta` does not report them. | Pasted: (1) after a migration of a test corpus with one walkthrough without an id, one comms message and one `<doc-stem>.data/` file, the walkthrough has an `id6`, front matter and a log, and the comms message and the data file are byte-identical; (2) `aw check meta` on that corpus reports no orphan for the comms message or the data file, and does report an orphan for a walkthrough whose log was deleted. |
+| AC-29 | 4.1, 4.6 | Only the record types that 4.1 names get an event log. Comms messages and research companion data files keep no `id6`, front matter or log, and `aw check meta` does not report them. | Pasted: (1) after a migration of a test corpus with one walkthrough without an id, one comms message and one `<doc-stem>.data/` file, the walkthrough has an `id6`, the one-key front matter (`id` only, no `status`) and a log with no `transition` event, and the comms message and the data file are byte-identical; a walkthrough setter call that requests a status is refused; (2) `aw check meta` on that corpus reports no orphan for the comms message or the data file, and does report an orphan for a walkthrough whose log was deleted. |
+| AC-30 | 5.2 | Every sidecar record is kept: in the log of its record, or, for an `id6` with no tracked record, in the gitignored export. Nothing purged is committed, and the sidecar cannot be committed by accident after the cutover. | Pasted: (1) a migration test on a test corpus whose sidecar has a status record, a record that repeats an inline history line, a rename record and a record for an `id6` with no tracked record. It asserts one `legacy` event with `source: sidecar` and the JSON object unchanged for each of the first three (the repeated line also stays as its `source: history` event), no log for the fourth, and the fourth in the export; (2) after the apply, `git status --porcelain --ignored` shows no `records/history.jsonl` in the working tree, and an `rg` search finds no `history.jsonl` ignore line in `.aw/.gitignore`, the `engine.py` template or `placement_switch.py`; (3) the real cutover's census lines for the `id6` values with no tracked record. |
+| AC-31 | 4.2 | After the cutover, `aw rename` and `aw group` record each rename as one `rename` event, and nothing writes the sidecar. | Pasted: (1) a test that renames an artifact and regroups another, and asserts one `rename` event each, with `verb`, `from_name` and `to_name` as basenames, and a `set` event in the same append when `set` or `order` changed; (2) a test that runs a spec setter, a backlog setter, a rename and a group, and asserts that no `history.jsonl` file is created. |
 
 ## 3c. Honest limits
 
@@ -276,7 +279,7 @@ into the plan's validation evidence.
   testable rule is the same rule applied to the artifact `.md` files: only the legacy loader parses
   metadata from them (AC-1, and the phase-B form of AC-1a).
 - The cutover depends on data that exists only on one machine. The gitignored history sidecar holds
-  the only copy of 413 records, and it exists only in the maintainer's main checkout. So the cutover
+  the only copy of some of its 462 records (r9; about 87, see section 1), and it exists only in the maintainer's main checkout. So the cutover
   must run there. It must not run in a runner lane worktree, which has no sidecar (AC-22). For this
   reason, a person must attend the cutover, and the runner cannot do it unattended. A person who
   passes `--force-worktree` and `--force` together can still run it in a lane; the migration then
@@ -315,6 +318,7 @@ status: approved
 
 - The front matter uses YAML delimiters (`---`). An artifact has exactly two keys, `id` and
   `status`, in that order. A review record has `subject`, `subject_type` and an optional `ref` (4.1a).
+  A walkthrough has exactly one key, `id` (see the walkthrough bullet below).
   `artifact_meta` parses the front matter with a strict line grammar, not with a YAML library. This
   avoids a new dependency (C8) and removes ambiguity.
 - The banner is ONE HTML comment. The proposed `# START README FIRST` H1 block was rejected for three
@@ -331,8 +335,14 @@ status: approved
   today.
 - Records have no `## Workflow history` section. `aw show <id6> --history` shows the history.
 - Records that are not artifacts (maintainer decision 2026-10-25, OQ-2):
-  - Walkthroughs get an `id6`, the two-key front matter and an event log. A walkthrough with no
-    `id6` in any form gets one at migration (5.2 step 3).
+  - Walkthroughs get an `id6`, a ONE-key front matter (`id` only) and an event log. A walkthrough
+    with no `id6` in any form gets one at migration (5.2 step 3). Walkthroughs have NO status
+    (maintainer decision 2026-10-25, round 9, finding SR-801): their log has `create`, `set`,
+    `unset`, `note`, `rename`, `checkpoint` and `legacy` events, and never a `transition` event. So
+    this spec adds no status vocabulary for them (N2), and `attention_contract.TREE_POLICY` keeps
+    walkthroughs untracked. Measured at r9: 24 of 27 tracked walkthroughs have no `- Status:` line,
+    and the other 3 hold free prose (for example `IN PROGRESS - Stage 1 ...`). The migration moves
+    such a prose line into the body unchanged; it does not map it to a status.
   - Comms messages do NOT change: no `id6`, no front matter and no event log (N4). `aw check meta`
     does not report them as orphans.
   - Research companion data files (the files in a `<doc-stem>.data/` directory) do NOT change, and
@@ -488,7 +498,7 @@ spec owns it.
     the corpus is migrated. The cache, in contrast, can be rebuilt at any time. So a query must be
     able to answer "which model changed what in which run" without parsing free text (P1).
   - `op`: the event type. One of `create`, `set`, `unset`, `transition`, `note`, `checkpoint`,
-    `legacy`, `review` (4.1a) and `coverage` (4.4).
+    `legacy`, `review` (4.1a), `coverage` (4.4) and `rename`.
   - `fields`: for `create`, `set` and `checkpoint`, an object that maps each field to its new value.
     For `unset`, a list of field names.
   - `from` and `to`: for `transition` (a status change). The writer validates them against the
@@ -503,7 +513,15 @@ spec owns it.
   - `by_human`: a boolean. It is present only on events that a setter records with `--by-human`.
   - `message`: optional free text.
   - `legacy`: for `op: legacy`, the original line unchanged, the observed day, the original position
-    in the file, and `ordering_confidence` (`known`, `inferred-from-git` or `unknown`), per 4.2a.
+    in the file, `ordering_confidence` (`known`, `inferred-from-git` or `unknown`), per 4.2a, and
+    `source`: `history` for a line from the record's `## Workflow history` section, or `sidecar` for
+    a record from the history sidecar. For `source: sidecar`, the original line is the sidecar's JSON
+    object unchanged, including the rename keys (5.2 step 2).
+  - For `op: rename` (round 9, finding SR-802): `verb` (`rename` or `group`), `from_name` and
+    `to_name` (file basenames, never paths). `aw rename` and `aw group` append it, in the same
+    append as the `set` of any changed `set` or `order` field. It replaces the rename ledger that
+    `record_history.append_rename` writes into the sidecar today. Maintainer decision 2026-10-25.
+    This op name cannot be reversed after the cutover, like every other part of the log format.
   - For `op: review` (4.1a): `round` (integer), `verdict` (string), `review_kind` (`gate` or `refinement`),
     `reviewer` (string), and the optional strings `review_ref`, `findings_summary`, `legacy_verdict`
     and `readiness` (plans only).
@@ -975,12 +993,12 @@ and `aw meta repair --apply` can repair each one.
 
 | Mirror | Why it exists | Drift rule |
 |---|---|---|
-| Front-matter `status` | People can see the status (F2). | Must equal the replayed status. |
+| Front-matter `status` | People can see the status (F2). | Must equal the replayed status. A walkthrough has no `status` line and no status, so this rule does not apply to it (4.1). |
 | Front-matter `id` | Connects the file to its log. | Must equal the filename `id6` and the log's identity. |
 | Filename Set id, `NN`, `id6` and date | C10 | Must equal the replayed `set`, `order` and `id`. The date must equal the LOCAL-clock creation `date` field, never the UTC `at` (4.2b). |
 | Research filename facets (order, model, kind) | C10 | Must equal the replayed fields. This replaces today's mirror checks in the research index (`okw4ke`, and the rename-time rewrite `ax8eg1`). |
 | Disposition directory | N1 | Must agree with the replayed status, by the rules of the artifact's type. |
-| Orphans | (none stated) | A log with no artifact, or an artifact with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). |
+| Orphans | (none stated) | A log with no record, or an artifact or walkthrough with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). The migration creates no log for a sidecar `id6` that has no tracked record (5.2 step 2), so the rule never fires on the migrated corpus for that reason. |
 | Review rounds | 4.1a | The number of `## Round <n>` headings in a review file must equal the number of `review` events in the subject's log that belong to that file (4.1a point K4). |
 
 ### 4.7 Concurrency and merges
@@ -1002,7 +1020,9 @@ and `aw meta repair --apply` can repair each one.
   `aw ipd ...`, `aw group`, `aw rename`, finalize, retirement, and the coverage recorder. These already
   exist, and they change to use `artifact_meta`. After round 1, approved spec `wy9aru` made `status_set`
   the single setter engine. So this change happens once, inside that engine. The cutover retires the
-  `history.jsonl` sidecar writer, which `wy9aru` 4.3 keeps for backlog items and specs (5.2 step 2).
+  `history.jsonl` sidecar writer, which `wy9aru` 4.3 keeps for backlog items and specs, and the
+  rename ledger that `aw rename` and `aw group` write into it; a `rename` event replaces that ledger
+  (4.2, 5.2 step 2).
   This agrees with `wy9aru` 3a, which leaves storage to this spec.
 - ADD `--history` and `--format json` to the existing `aw show` command. (Today, `aw show <action_ref>`
   prints the full content of a record and has no `--history` option.) Add `aw meta repair` and
@@ -1072,7 +1092,7 @@ erDiagram
     EVENTS["EVENTS: the cached event log, one row per log line"] {
         text id6 PK, FK
         int seq PK "contiguous, 0 is migration checkpoint"
-        text op "create set unset transition note checkpoint legacy review coverage"
+        text op "create set unset transition note checkpoint legacy review coverage rename"
         text at "UTC RFC 3339"
         text actor_id FK
         int by_human "attested human approval"
@@ -1365,7 +1385,7 @@ flowchart TD
     PL --> PS{"2: history sidecar present? report its record count"}
     PS -- "absent, without --force" --> R
     PS -- "present, or --force given and reported" --> W["run steps 2 to 6 in a SCRATCH COPY"]
-    W --> S2["2: export the history.jsonl sidecar and add its records to the logs"]
+    W --> S2["2: import each sidecar record as a legacy event, source sidecar; id6 with no record goes to the gitignored export, no log"]
     S2 --> S3["3: mint id6 for non-review records with none; comms messages and .data files excluded"]
     S3 --> S4["4: per artifact: checkpoint seq 0 with local date and mapped field names, parsed dependencies, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
     S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review_kind, legacy verdict verbatim, review_ref"]
@@ -1477,16 +1497,43 @@ flowchart TD
    values (backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1). It exists only on
    the machine that runs the migration. A migration on a machine WITHOUT that sidecar loses those
    records. So the preflight must report whether the sidecar exists and how many records it holds.
-   It must refuse, unless `--force` is given, when a sidecar is expected but not present. (This is
-   the only refusal outside step 1 that `--force` overrides.) After this
-   step, the migration retires the sidecar writer (4.8) and deletes the sidecar's `.gitignore` line.
+   It must refuse, unless `--force` is given, when a sidecar is expected but not present. A sidecar
+   is EXPECTED when the records tree has at least one spec or backlog item with an `id6`, because
+   every setter of those two types appends to it (`specs._sidecar_append`, `backlog.run_new`, and
+   `status_set.apply_status_change`).
+   (This is the only refusal outside step 1 that `--force` overrides.)
+
+   HOW EACH SIDECAR RECORD IS IMPORTED (maintainer decisions 2026-10-25, round 9, findings SR-802
+   to SR-804):
+   - Every record whose `id6` has a tracked record becomes one `legacy` event with
+     `source: sidecar` in that record's log, with the JSON object unchanged. The migration does NOT
+     remove a sidecar record that repeats an inline history line. Both are kept, each with its
+     `source`, because a text match cannot prove that two lines record the same event. A display,
+     for example `aw show --history`, may hide exact duplicates. The log keeps both.
+   - A record whose `id6` has NO tracked record (8 records for 7 `id6` values at r9, including
+     purged items) gets NO log. The census lists each such `id6` and its record count, and the
+     records are written to a gitignored export next to the migration journal. So nothing is lost,
+     and history that the maintainer purged from git is not committed again.
+   - Rename and regroup records are imported as `legacy` events like all others. They are not
+     converted to `rename` events, because their order relative to the inline history is not known
+     (4.2a).
+
+   After this step, the migration retires the sidecar writer (4.8; `record_history.append`,
+   `append_advisory` and `append_rename`), moves the sidecar file into the same gitignored export,
+   and deletes every place that ignores or re-adds the sidecar: the `.aw/.gitignore` line, the
+   `engine.py` `.aw/.gitignore` template, the `engine.py` code that adds a missing
+   `records/history.jsonl` line on install, and the `placement_switch.py` list. The sidecar file
+   must not remain in the working tree once its ignore line is gone, because a later broad
+   `git add` would then commit it, including the purged records.
 3. NEW IDS. Give an `id6` to each non-review record that has none in any form (the same population
-   as the "39 non-review records" count in section 1). At round 5 there were 39
-   such records, not counting 24 READMEs, 4 prompt-library templates and 2 research templates. These
-   include 14 legacy specs in `implemented/` and `superseded/`, 8 walkthroughs, 7 comms messages, 3
+   as the "39 non-review records" count in section 1). Re-measured at r9: the 39 records INCLUDE the
+   4 prompt-library templates and the 2 research templates (24 READMEs are not counted). The other 33
+   are 14 legacy specs in `implemented/` and `superseded/`, 8 walkthroughs, 7 comms messages, 3
    companion data files (`s1..s3.md`), and `plans/STATUS.md`, which step 5 deletes instead. Review
    records are EXCLUDED (4.1a). Comms messages and companion data files are also EXCLUDED, and keep
-   no `id6` (4.1, OQ-2), so step 3 gives an `id6` to the other records in this list. `aw rename ... --to-id6` handles ONLY legacy timestamp names
+   no `id6` (4.1, OQ-2). So step 3 gives an `id6` to 22 records at r9: the 14 specs and the 8
+   walkthroughs. The 6 templates follow the decision that 4.1 leaves to the plan for
+   `prompt-library/`; the plan names the decision for the 2 research templates too. `aw rename ... --to-id6` handles ONLY legacy timestamp names
    (`YYYYMMDD-HHMM-NN-<slug>`). For records with names in other forms, the plan must name a method
    that gives them an `id6`. It must not assume that the existing command handles them.
 4. CONVERSION. For each artifact:
@@ -1701,6 +1748,12 @@ for concurrency.
   via /askme: `--force` overrides all three preflight conditions (uncommitted changes in
   `.aw/records/`, a live run holding the integration lock, and a lane with unmerged plan changes).
   5.2 step 1 now states this and the consequence of each override. No reason was given.
+- OQ-13 `[RESOLVED 2026-10-25 by the maintainer]` Three cutover questions found in round 9
+  (findings SR-801 to SR-804), answered by the user via /askme: (a) walkthroughs carry `id` only and
+  no status (4.1); (b) renames are a new `rename` event, and imported sidecar rename records stay
+  `legacy` (4.2, 5.2 step 2); (c) sidecar records for an `id6` with no tracked record get no log and
+  go to a gitignored export; sidecar records that repeat an inline line are kept, tagged
+  `source: sidecar` (5.2 step 2). (b) cannot be reversed after the cutover. No reason was given.
 
 ## 9. Compatibility with specs written after round 1
 
@@ -1718,6 +1771,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-26 note (aw specs): /spec-review round 9 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-801..SR-806 FIXED (maintainer decisions via question tool: walkthroughs id-only no status, new op rename, sidecar orphan id6s to gitignored export, sidecar duplicates kept tagged source); AC-30, AC-31, OQ-13 added; no Readiness written
 - 2026-10-25 note (aw specs): maintainer follow-up via /askme: --force no longer overrides the linked-worktree refusal, new --force-worktree does (5.2 step 1, 3c, AC-22); aw install --migrate says yes without a terminal and -y/--yes never starts a migration (5.1, OQ-3); 3c limit for --force past a live integration lock; new AC-27 (preflight overrides), AC-28 (install prompt, --migrate, -y), AC-29 (record types without logs); diagram 4.9.6 redrawn for the new preflight order; every ER entity carries a short description; all 10 mermaid blocks render with mermaid-cli 12.0.0 and ER columns were checked against 4.5a/4.5b; no reason was given
 - 2026-10-25 note (aw specs): OQ-1, OQ-2, OQ-3 resolved by the maintainer via /askme: OQ-1 plan step 1 decides the registry from the AC-20 census; OQ-2 walkthroughs only get id6, front matter and a log (comms and .data files unchanged and excluded from aw check meta; 4.1, 4.6 and 5.2 step 3 updated); OQ-3 aw install asks before running a pending migration, reports only without a terminal, and -y does not count as yes (5.1 updated); no reason was given
 - 2026-10-25 note (aw specs): OQ-12 resolved by the maintainer via /askme: `--force` overrides all three 5.2 step 1 preflight conditions; step 1 and diagram 4.9.6 updated to state this and the consequence of each override; no reason was given
