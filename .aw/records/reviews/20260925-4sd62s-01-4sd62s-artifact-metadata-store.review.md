@@ -2,8 +2,8 @@
 
 - Subject-Id: 4sd62s
 - Subject-Type: spec
-- Reviewed-At: 2026-10-25
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-10-26
+- Reviewer: Codex/unknown
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -272,3 +272,183 @@ Re-review pass requested by the maintainer on 2026-10-26 (HEAD `b5697af54`). Cor
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 | --- | -------- | ------ | ----------------------- | ----- | ---------- |
 | D-33 | How does candidate spec `1tx9t8` relate to `4sd62s`? | Subject to standard two-key front matter and C10 naming rules; adds no registry fields at draft. | Add new registry fields now. | Consistent with Section 9 treatment of draft candidates `18hh1u` and `yfz5u9`. | yes |
+
+## Round 12
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-818 | high | IN-SCOPE | D/F: graduation relationships | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1003; .aw/records/specs/README.md:56; agent_workflows/check_engine.py:5566 graduation_cluster | Reversing artifact lineage cannot recover a declared Graduated-To Set, especially with no linked child. The proposed table discards a distinct declaration. | C:Medium; U:Medium; S:Low; F:High; Overall:Medium-High | open | Await maintainer choice in OQ-15. Strong recommendation: retain explicit Set declarations and combine them with reverse lineage without inventing child links. |
+| SR-819 | high | IN-SCOPE | D/F: dates | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:613; agent_workflows/research_cmd.py:299 plan_new; agent_workflows/research_contract.py:290 ResearchName | One date cannot mean both filename date and creation day: research uses the Set date in filenames. 28 tracked research records have different filename and creation days. | C:Medium; U:Medium; S:Low; F:High; Overall:Medium-High | open | Await maintainer choice in OQ-16. Strong recommendation: preserve filename date and creation day separately; retain unknown creation timestamps as unknown. |
+| SR-820 | high | IN-SCOPE | D/F: run entities | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1026; agent_workflows/runner_shared.py:41891 attempt_no; agent_workflows/run_analytics_cache.py:343 source_fingerprint | Attempt identity used artifact id instead of queue position. Repeated queue items collide. Deleted runs, changed roots and partial actor joins also lacked explicit handling. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Key attempts by run, item position and attempt number; retain artifact lookup; report ambiguous actor joins and incomplete run data; invalidate deleted runs and root changes. AC-25 and ER/run flow aligned. SQLite probe retained both attempt-1 rows. |
+| SR-821 | high | IN-SCOPE | B/F: cache correctness | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:677; baseline 4.3/4.5 | Matching timestamps can hide changed bytes or directory members. Target-only changes leave resolved references stale. Invalid logs and in-memory fallback could look like clean empty results. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Verify working bytes and membership, refresh target resolution, evict invalid state and report incomplete aggregates. In-memory SQLite follows the same validation; genuine source/resource failures still fail. AC-1a/AC-26 extended. Same-size/mtime and target-only probes reproduced the problems. |
+| SR-822 | high | IN-SCOPE | B/F: write recovery | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:717 | A committed create event cannot reconstruct an unwritten Markdown body. Rename recovery and retry rules were unstated despite the promise of deterministic repair. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Retain durable local creation/move recovery data, distinguish the log commit point, refuse new appends while repair is pending, and repair mirrors without duplicating events. AC-5 covers creation, transition and rename failures. Scratch recovery preserved the exact body and log. |
+| SR-823 | high | IN-SCOPE | D/F: review identity | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:428; baseline R3 and K4 | The sole-file NULL reference changes meaning when another file is added; stems can change on rename. Equal round counts do not establish matching identities. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Make file references permanent and unique within subject; retain the default NULL binding; check a bijection of file/round identities. Missing subjects/files remain diagnosable. AC-14 and review ER aligned; SQLite demonstrated adding a second file. |
+| SR-824 | high | IN-SCOPE | B/F: replay and revision reads | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:572; .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:787 | Legal transition edges alone do not prove continuity with the prior state. Initial shape, identity mutation and revision-path lookup were underspecified. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Require valid initial event, immutable identity, supported versions and matching transition from-state; keep attestation ownership. Resolve historical paths inside the requested revision and distinguish absence from invalid revision. Added AC-33. |
+| SR-825 | medium | IN-SCOPE | B/D: review event schema | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:541; .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:461; .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md:574 | The schema required verdict/reviewer strings for all review events, contrary to legacy round import; R1 omitted refinement verdicts, and review_depth lacked its event slot. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Separate new gate/refinement fields from migration-only legacy nulls and unknown reviewers; include review_depth; preserve unknown historical values without inventing them. |
+| SR-826 | medium | IN-SCOPE | D/F: logical types and vocabulary | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1067; agent_workflows/research_contract.py:290 ResearchName | Calling type the filename facet contradicts the research table: research facets classify report kind. The glossary also restricted Sets to plans and implied every sequence starts at zero. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Use logical record type, keep research_kind distinct, define cross-type Sets, and distinguish migrated seq 0 from new seq 1. Align ER labels. No filename or lifecycle contract changed. |
+| SR-827 | medium | IN-SCOPE | D/security: generated SQL | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:922; baseline 4.5 and 4.5a | Banning all SQL construction conflicts with registry-generated table/column names: SQL value parameters cannot name identifiers. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Bind all values; generate identifiers only from validated registry/internal names and quote them. SQLite probe confirms identifier placeholders fail and SQL-looking values remain data. |
+| SR-828 | medium | IN-SCOPE | B: prose/diagram consistency | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1138 | Diagrams admitted invalid reads to the successful answer path, required events for invalid rows and items for empty runs, made missing review subjects impossible, bypassed the common revision loader, and omitted directed phase ordering. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Align cardinalities, failure paths, run item ownership, loader routing, both-input revision join and phase C edge. Checked all ten Mermaid blocks against prose and tables; all ten rendered with the locally installed Mermaid CLI after a sequence-label syntax correction. |
+| SR-829 | medium | IN-SCOPE | B/F: same-artifact merges | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1103; baseline AC-17 and 3c | The spec promised a git conflict for every same-artifact change and every status mirror. Identical appends can merge cleanly; notes do not change status. Repair could rewrite a committed prefix. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Require valid merged replay regardless of git conflict; retain the winning committed prefix and explicitly confirm divergent-tail changes. AC-17 covers identical and differing appends. git merge-file demonstrated both outcomes. |
+| SR-830 | medium | IN-SCOPE | F/security: provenance limits | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:258; GUIDING_PRINCIPLES.md P15 | Claims that hooks detect events no tool wrote and valid manual review edits contradict the self-asserted actor model. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | State the actual limit: validators check shape and append rules; they do not authenticate a valid event or prose edit. Preserve the existing honest actor limitation. |
+| SR-831 | medium | IN-SCOPE | C/F: acceptance evidence | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:215; AGENTS.md Test outcomes, not code structure | AC-1a asserted caller ownership and open-call counts, contrary to the repository rule against code-pinning tests. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Use behavioral cache/source tests and keep ownership as a manual architecture audit. Extended acceptance cases for the repaired failure paths without adding production tests. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-1 | How should SR-820 be resolved? | Key attempts by run, item position and attempt number; retain artifact lookup; report ambiguous actor joins and incomplete run data; invalidate deleted runs and root changes. AC-25 and ER/run flow aligned. SQLite probe retained both attempt-1 rows. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1026; agent_workflows/runner_shared.py:41891 attempt_no; agent_workflows/run_analytics_cache.py:343 source_fingerprint; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-2 | How should SR-821 be resolved? | Verify working bytes and membership, refresh target resolution, evict invalid state and report incomplete aggregates. In-memory SQLite follows the same validation; genuine source/resource failures still fail. AC-1a/AC-26 extended. Same-size/mtime and target-only probes reproduced the problems. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:677; baseline 4.3/4.5; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-3 | How should SR-822 be resolved? | Retain durable local creation/move recovery data, distinguish the log commit point, refuse new appends while repair is pending, and repair mirrors without duplicating events. AC-5 covers creation, transition and rename failures. Scratch recovery preserved the exact body and log. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:717; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-4 | How should SR-823 be resolved? | Make file references permanent and unique within subject; retain the default NULL binding; check a bijection of file/round identities. Missing subjects/files remain diagnosable. AC-14 and review ER aligned; SQLite demonstrated adding a second file. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:428; baseline R3 and K4; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-5 | How should SR-824 be resolved? | Require valid initial event, immutable identity, supported versions and matching transition from-state; keep attestation ownership. Resolve historical paths inside the requested revision and distinguish absence from invalid revision. Added AC-33. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:572; .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:787; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-6 | How should SR-825 be resolved? | Separate new gate/refinement fields from migration-only legacy nulls and unknown reviewers; include review_depth; preserve unknown historical values without inventing them. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:541; .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:461; .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md:574; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-7 | How should SR-826 be resolved? | Use logical record type, keep research_kind distinct, define cross-type Sets, and distinguish migrated seq 0 from new seq 1. Align ER labels. No filename or lifecycle contract changed. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1067; agent_workflows/research_contract.py:290 ResearchName; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-8 | How should SR-827 be resolved? | Bind all values; generate identifiers only from validated registry/internal names and quote them. SQLite probe confirms identifier placeholders fail and SQL-looking values remain data. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:922; baseline 4.5 and 4.5a; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-9 | How should SR-828 be resolved? | Align cardinalities, failure paths, run item ownership, loader routing, both-input revision join and phase C edge. Checked all ten Mermaid blocks against prose and tables; all ten rendered with the locally installed Mermaid CLI after a sequence-label syntax correction. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1138; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-10 | How should SR-829 be resolved? | Require valid merged replay regardless of git conflict; retain the winning committed prefix and explicitly confirm divergent-tail changes. AC-17 covers identical and differing appends. git merge-file demonstrated both outcomes. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1103; baseline AC-17 and 3c; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-11 | How should SR-830 be resolved? | State the actual limit: validators check shape and append rules; they do not authenticate a valid event or prose edit. Preserve the existing honest actor limitation. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:258; GUIDING_PRINCIPLES.md P15; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-12 | How should SR-831 be resolved? | Use behavioral cache/source tests and keep ownership as a manual architecture audit. Extended acceptance cases for the repaired failure paths without adding production tests. | Retain the contradictory or underspecified contract. | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:215; AGENTS.md Test outcomes, not code structure; reviewer correction preserves the chosen architecture; mechanism evidence below where applicable. | yes |
+| D-13 | Should the cache use a generic entity/attribute/value or generic links model instead? | Retain typed per-type state, typed child tables, raw declarations plus resolved targets, and immutable source events. Strong recommendation for the stated closed-registry, rebuildable-cache contract. | Generic name/value or link tables; a tracked database; a separate log-reading path. | Spec 2 option O5, C5a, 4.5a rules 1-4 and maintainer decisions OQ-7/OQ-10; these fit required queries. Future performance remains an AC-13 measurement, not a claim of universal optimality. | yes |
+
+### Scope and evidence
+
+Explicit re-review of spec `4sd62s`, already `reviewed`, at baseline commit
+`3c4b5cc22c8c92a6215dc243a9bdc8d3f2e7fc82`. All rubric views and the security lens were applied
+serially. No other spec was a review candidate. Earlier rounds and spec history are preserved.
+The four requested checks covered prose/diagrams, required repository compatibility, the eleven
+technical writing requirements, and entity/data-structure fitness for stated and foreseeable use.
+No runtime implementation, test suite change, or implementation plan was authored.
+
+Current measurement: 4,405 tracked Markdown records excluding READMEs, including 1,706 plans,
+1,287 reviews, 1,129 backlog records, 168 research records, 46 specs, 30 prompts and 26 walkthroughs.
+There are 466 sidecar entries. The definition differs from historic inventories that counted templates;
+old measurements remain explicitly historical. Of the research records, 28 have a filename day that
+differs from their recorded creation day. Examples (id, filename day, creation day):
+`cxe3dw, 20260903, 20260923`; `auwidn, 20261014, 20261018`; `kdg4uz, 20261016, 20261017`.
+
+Compatibility checks included research naming/creation, explicit graduation declarations and reverse
+links, runner item-local attempts, gate-ref types, review event ownership (`k3yx72` section 12),
+quick-plan metadata/release gates (`4iyd78` section 6), and canonical setter behavior (`wy9aru`).
+The facade-first build, human approval gate, force/worktree decisions, review ownership and terminal
+migration exception remain intact. The current task does not adopt the writing standard into AGENTS.md.
+
+The following output came from isolated SQLite, filesystem and git merge-file probes. These prove
+specific mechanisms and counterexamples, not the unimplemented metadata subsystem or a full test suite.
+
+```text
+Original attempt key: second queue item for same artifact collides.
+Revised attempt key: two item-local attempt 1 rows retained.
+Stable review references: original NULL/default remains matched after adding a second file.
+Review round check: equal counts do not imply matching round identities.
+Freshness: unchanged size/mtime can hide changed working bytes; content digest detects it.
+Reference freshness: resolving next against refreshed targets follows target-only changes.
+SQL value binding: SQL-looking text remains data; the table survives.
+Creation recovery: retained journal restores exact prose without appending another event.
+Identical concurrent appends: git merge-file succeeds and retains one sequence 2 event.
+Different concurrent appends: git merge-file reports a conflict.
+SQL identifiers: value placeholders cannot name generated tables.
+```
+
+Preliminary validation before the two pending maintainer decisions:
+
+```text
+Review parse diagnostics: ()
+Round 12 findings: 14
+aw specs check: outcome=clean, exit=0, checked=1, findings=0
+aw check all baseline: findings=69, exit=1
+aw check all after review edits: findings=67, exit=1
+New diagnostics: []
+aw sanitize: outcome=clean, findings=0, exit=0
+```
+
+The repository-wide check is not clean; its remaining findings predate this review. No product test
+suite was run because this change edits only a specification and its review record. The isolated
+probes above are not implementation acceptance evidence.
+
+## Round 13
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-818 | high | IN-SCOPE | D/F: graduation relationships | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1014 (\| `graduation_targets` \|); round 12 records original repository evidence | Reversing artifact lineage cannot recover a declared Graduated-To Set, especially with no linked child. The proposed table discards a distinct declaration. | C:Medium; U:Medium; S:Low; F:High; Overall:Medium-High | fixed | Maintainer accepted preservation through /askme on 2026-10-26 (OQ-15). Added graduation_targets for explicit Set declarations alongside lineage, preserved raw and unresolved references, and aligned navigation, ER diagram and AC-24. No reason was given. |
+| SR-819 | high | IN-SCOPE | D/F: dates | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:613 (### 4.2b); round 12 records original repository evidence | One date cannot mean both filename date and creation day: research uses the Set date in filenames. 28 tracked research records have different filename and creation days. | C:Medium; U:Medium; S:Low; F:High; Overall:Medium-High | fixed | Maintainer accepted separate facts through /askme on 2026-10-26 (OQ-16). Separate filename_date, known legacy created_day and full created_at; unknown times stay unknown. Aligned migration, reader clocks, ER diagram and AC-19/AC-32. No reason was given. |
+| SR-820 | high | IN-SCOPE | D/F: run entities | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1046 (### 4.5b); round 12 records original repository evidence | Attempt identity used artifact id instead of queue position. Repeated queue items collide. Deleted runs, changed roots and partial actor joins also lacked explicit handling. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Key attempts by run, item position and attempt number; retain artifact lookup; report ambiguous actor joins and incomplete run data; invalidate deleted runs and root changes. AC-25 and ER/run flow aligned. SQLite probe retained both attempt-1 rows. |
+| SR-821 | high | IN-SCOPE | B/F: cache correctness | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:687 (- THE CACHE ANSWERS EVERY READ); round 12 records original repository evidence | Matching timestamps can hide changed bytes or directory members. Target-only changes leave resolved references stale. Invalid logs and in-memory fallback could look like clean empty results. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Verify working bytes and membership, refresh target resolution, evict invalid state and report incomplete aggregates. In-memory SQLite follows the same validation; genuine source/resource failures still fail. AC-1a/AC-26 extended. Same-size/mtime and target-only probes reproduced the problems. |
+| SR-822 | high | IN-SCOPE | B/F: write recovery | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:727 (- WRITES); round 12 records original repository evidence | A committed create event cannot reconstruct an unwritten Markdown body. Rename recovery and retry rules were unstated despite the promise of deterministic repair. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Retain durable local creation/move recovery data, distinguish the log commit point, refuse new appends while repair is pending, and repair mirrors without duplicating events. AC-5 covers creation, transition and rename failures. Scratch recovery preserved the exact body and log. |
+| SR-823 | high | IN-SCOPE | D/F: review identity | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:428 (K4. How each event); round 12 records original repository evidence | The sole-file NULL reference changes meaning when another file is added; stems can change on rename. Equal round counts do not establish matching identities. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Make file references permanent and unique within subject; retain the default NULL binding; check a bijection of file/round identities. Missing subjects/files remain diagnosable. AC-14 and review ER aligned; SQLite demonstrated adding a second file. |
+| SR-824 | high | IN-SCOPE | B/F: replay and revision reads | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:572 (- Every `create`); round 12 records original repository evidence | Legal transition edges alone do not prove continuity with the prior state. Initial shape, identity mutation and revision-path lookup were underspecified. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Require valid initial event, immutable identity, supported versions and matching transition from-state; keep attestation ownership. Resolve historical paths inside the requested revision and distinguish absence from invalid revision. Added AC-33. |
+| SR-825 | medium | IN-SCOPE | B/D: review event schema | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:541 (For a new `op: review`); round 12 records original repository evidence | The schema required verdict/reviewer strings for all review events, contrary to legacy round import; R1 omitted refinement verdicts, and review_depth lacked its event slot. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Separate new gate/refinement fields from migration-only legacy nulls and unknown reviewers; include review_depth; preserve unknown historical values without inventing them. |
+| SR-826 | medium | IN-SCOPE | D/F: logical types and vocabulary | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1087 (### 4.5c); round 12 records original repository evidence | Calling type the filename facet contradicts the research table: research facets classify report kind. The glossary also restricted Sets to plans and implied every sequence starts at zero. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Use logical record type, keep research_kind distinct, define cross-type Sets, and distinguish migrated seq 0 from new seq 1. Align ER labels. No filename or lifecycle contract changed. |
+| SR-827 | medium | IN-SCOPE | D/security: generated SQL | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:932 (- ROLE. The cache); round 12 records original repository evidence | Banning all SQL construction conflicts with registry-generated table/column names: SQL value parameters cannot name identifiers. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Bind all values; generate identifiers only from validated registry/internal names and quote them. SQLite probe confirms identifier placeholders fail and SQL-looking values remain data. |
+| SR-828 | medium | IN-SCOPE | B: prose/diagram consistency | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1158 (### 4.9); round 12 records original repository evidence | Diagrams admitted invalid reads to the successful answer path, required events for invalid rows and items for empty runs, made missing review subjects impossible, bypassed the common revision loader, and omitted directed phase ordering. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Align cardinalities, failure paths, run item ownership, loader routing, both-input revision join and phase C edge. Checked all ten Mermaid blocks against prose and tables; all ten rendered with the locally installed Mermaid CLI after a sequence-label syntax correction. |
+| SR-829 | medium | IN-SCOPE | B/F: same-artifact merges | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:1123 (### 4.7); round 12 records original repository evidence | The spec promised a git conflict for every same-artifact change and every status mirror. Identical appends can merge cleanly; notes do not change status. Repair could rewrite a committed prefix. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Require valid merged replay regardless of git conflict; retain the winning committed prefix and explicitly confirm divergent-tail changes. AC-17 covers identical and differing appends. git merge-file demonstrated both outcomes. |
+| SR-830 | medium | IN-SCOPE | F/security: provenance limits | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:258 (- Tool-written events); round 12 records original repository evidence | Claims that hooks detect events no tool wrote and valid manual review edits contradict the self-asserted actor model. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | State the actual limit: validators check shape and append rules; they do not authenticate a valid event or prose edit. Preserve the existing honest actor limitation. |
+| SR-831 | medium | IN-SCOPE | C/F: acceptance evidence | .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:215 (\| AC-1a \|); round 12 records original repository evidence | AC-1a asserted caller ownership and open-call counts, contrary to the repository rule against code-pinning tests. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Use behavioral cache/source tests and keep ownership as a manual architecture audit. Extended acceptance cases for the repaired failure paths without adding production tests. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-1 | Which graduation relationship contract should replace the lossy proposal? | Preserve explicit plan-Set declarations and individual origin links. | Infer every output solely from individual origin links. | User accepted the recommendation via /askme on 2026-10-26; spec OQ-15. No reason was given. Source schema becomes hard to reverse after migration. | no |
+| D-2 | Should filename dates and creation information remain separate? | Preserve filename date, known legacy creation day, and full timestamps for new creations; never invent missing times. | Keep only filename date for migrated records. | User chose separate facts via /askme on 2026-10-26; spec OQ-16. No reason was given. Source schema becomes hard to reverse after migration. | no |
+
+### Final assessment
+
+This round closes the two decisions left open in round 12 and carries forward the twelve reviewed
+fixes so the current round contains the complete disposition. Round 12 and all earlier rounds remain
+unchanged. Both answers are recorded in the spec before finalization. The review remains a spec
+review; no human approval has been recorded.
+
+The chosen model fits the stated objectives after these corrections. Per-record logs retain history;
+typed state and relationship tables support the required queries; the disposable database can evolve
+with the registry. Explicit group declarations, individual origins, creation information and queue-item
+identity must remain distinct. A generic name/value or generic relationship table would not resolve
+those semantic distinctions. No claim is made that this model is optimal for every future workload;
+AC-13 still requires real end-to-end measurements before implementation performance can be claimed.
+
+The writing check covered all eleven supplied requirements, including consistent terms, explicit
+exceptions, actionable acceptance evidence and preservation of previous decisions. New question ids
+are OQ-15/OQ-16 because OQ-13/OQ-14 were already used by historical decisions. The separate request to
+make /askme mandatory was recorded and committed as backlog n2lr3g; it is not part of the spec's scope.
+
+### Final validation
+
+Structural and review-record checks:
+
+```text
+{"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}
+Review parse diagnostics: ()
+Current round: 13 findings: 14 unresolved: 0
+aw check all: 67 findings; exit 1
+New diagnostics: []
+aw sanitize: clean findings 0 exit 0
+```
+
+`aw check all` was compared with the pre-review baseline of 69 findings, not represented as a clean
+repository. The current 67 diagnostics are all in that baseline. `git diff --check` exited 0 with
+no output. All ten diagrams rendered with the installed Mermaid CLI; actual renderer output:
+
+```text
+Found 10 mermaid charts in Markdown input
+ ✅ ./metastore-final-rendered-5.svg
+ ✅ ./metastore-final-rendered-2.svg
+ ✅ ./metastore-final-rendered-1.svg
+ ✅ ./metastore-final-rendered-6.svg
+ ✅ ./metastore-final-rendered-4.svg
+ ✅ ./metastore-final-rendered-3.svg
+ ✅ ./metastore-final-rendered-7.svg
+ ✅ ./metastore-final-rendered-8.svg
+ ✅ ./metastore-final-rendered-10.svg
+ ✅ ./metastore-final-rendered-9.svg
+ ✅ /tmp/metastore-final-rendered.md
+```
+
+The diagram check required running the installed Chromium renderer outside the filesystem sandbox;
+only temporary render files were produced. The first new sequence label contained a semicolon that
+Mermaid treated as syntax; it was corrected before the successful run. This rendering check establishes
+syntax, not semantic correctness; the prose/schema comparison supplies the separate semantic review.
+No product suite was run for these document changes. The review record includes the isolated mechanism
+probe output in round 12 and does not claim that unimplemented acceptance criteria have passed.

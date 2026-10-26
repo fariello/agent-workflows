@@ -21,7 +21,7 @@ for the same concept.
 | artifact | A record that has a lifecycle status and an `id6` (plans, specs, backlog items, research, releases, prompts). Review records are records but not artifacts (4.1a). Walkthroughs are records with an `id6` and an event log but no status, so they are not artifacts either (4.1). Some artifacts do not have an `id6` yet; the migration gives them one (5.2 step 3). |
 | corpus | All tracked records in this repository. |
 | terminal directory | A lifecycle directory for a final status: `executed/`, `done/`, `superseded/`, `implemented/` or `not-executed/`. |
-| Set | A group of related plans that share a Set id in their filenames. The orchestrator plan has order `00`, and the child plans have order `01` and higher. |
+| Set | A named group of related records, which can span record types. In a plan Set, the orchestrator has order `00`, and child plans have order `01` and higher. A Set id is a grouping key, not an artifact id6. |
 | subject | The artifact that a review record reviews. |
 | aw-owned field | A metadata field that `aw` commands write and read, as opposed to body prose. |
 | `id6` | The stable six-character identifier of an artifact (lowercase letters and digits). |
@@ -31,7 +31,7 @@ for the same concept.
 | front matter | The block between two `---` lines at the start of a record. (Some legacy function names, such as `_front_matter_bullets`, use the name for the bullet block.) |
 | event | One immutable entry that records one change to an artifact. Its `op` value states the type of change (4.2). |
 | event log, log | The tracked file `.aw/records/meta/<id6>.jsonl`, which holds every event of one artifact or walkthrough, one JSON object per line (JSON Lines, JSONL). |
-| `seq` | The sequence number of an event in its log: 0, 1, 2, and so on, with no gaps. |
+| `seq` | The sequence number of an event in its log. A migrated log starts with checkpoint 0. A newly created log starts with create 1. Later numbers are consecutive (4.2). |
 | replay | Calculate the current state of an artifact: start with no values, apply each event in `seq` order, and let each event overwrite the values that it changes. The values that remain after the last event are the current state. Example: events `create status=draft`, `transition draft->to-review`, `set blocks_release=next` replay to `status=to-review, blocks_release=next`. |
 | current state | The result of a replay. |
 | cache | The gitignored SQLite database `.aw/state/index.db`. It holds a copy of the replayed state and a read-only index of the run records (4.5b). The toolkit can delete and rebuild it at any time. In this spec, "cache" always means this database, never the operating-system file cache. |
@@ -212,12 +212,12 @@ into the plan's validation evidence.
 | ID | Covers | Criterion | Evidence that satisfies it |
 |---|---|---|---|
 | AC-1 | C1, C5 | No module outside `artifact_meta` reads or writes front matter, bullet metadata, `## Workflow history` or `meta/*.jsonl`. | (1) A pasted `rg` search of `agent_workflows/` for the legacy bullet and heading patterns and for `records/meta`. It finds matches ONLY in `artifact_meta.py` and `migrations/m0001_metadata_v2.py`. Body-prose bullets that N3 keeps in Markdown (for example the `Carrier`, `Carrier-Evidence` and `Carrier-Declined` bullets in plan open-question rows) are not counted: the `rg` command excludes them with an explicit pattern that the evidence lists, never silently. (2) A behavioral test that creates a test repository and shows that the result of a metadata command changes only through `artifact_meta`. The test must not read source code (the repository's no-code-pinning rule). |
-| AC-1a | C5a | The cache serves every metadata read, and only the loader opens a log. | From the cutover commit: (1) A test builds the cache. It then counts every open of a `meta/*.jsonl` file during `aw find`, `aw attention --format json`, `aw show <id6> --history`, a status setter, `aw check meta` and one pre-commit gate (for example with an `open` audit hook in a subprocess). It asserts that the output does not change and that the loader made every open. (2) A test edits a log without `artifact_meta`, as a `git pull` does, and asserts that the next read shows the edited log. Both pasted. In phase B, the same tests run against the legacy loader and the artifact `.md` files (3c). |
+| AC-1a | C5a | The cache serves every metadata read, and only the loader opens a log. | Pasted behavioral tests compare `aw find`, `aw attention --format json`, `aw show <id6> --history`, a setter, `aw check meta` and a pre-commit gate with cold, warm, deleted and corrupt caches. Each gives the same result for the same valid sources. An external log edit appears on the next read; an invalid replacement is reported rather than returning stale state. The AC-1 manual audit checks ownership of reads; automated tests do not assert caller identities or call counts. In phase B, run the same cases against the legacy loader and `.md` sources (3c). |
 | AC-1b | C10a | `main` uses one format and passes its tests at every commit of the Set. | For each merge of a child plan, the pasted core-tier summary line. For the end of each phase and for the cutover commit, the pasted thorough-tier summary line. For the cutover commit, a pasted check that no migrated record still has a bullet block, and that no `meta/` directory existed before that commit. |
 | AC-2 | C2 | A `git clone --depth 1` contains the full state and history. | Clone into a temporary directory. Run `aw show <id6> --history` on a migrated plan that has several events. Paste the output. |
 | AC-3 | C3 | Two branches that change the status of different artifacts merge without conflict. | A pasted two-branch merge test. |
 | AC-4 | C4 | The order of a replay does not depend on the order of lines in the file. | A test that shuffles the lines of a log and asserts that the `seq`-ordered replay gives the same result. A test that refuses a log with a gap in `seq` or a duplicate `seq`. |
-| AC-5 | C6, 4.3 | (1) A refused transition and a dry-run transition leave the log byte-identical. (2) A forced failure of the log write leaves every file unchanged. (3) After a forced failure after the log write (in the mirror step or the move step), the setter reports a failure that names `aw meta repair`. `aw check meta` detects it, and `aw meta repair --apply` restores every file. | Pasted tests for each case, with a forced failure at each of the 4.3 write steps. |
+| AC-5 | C6, 4.3 | Refused and dry-run writes change no authoritative file. Failure before the log commit leaves every authoritative file unchanged. Failure after it reports the committed change and required repair. Repair restores mirrors and moves without a second event. | Pasted failure-injection tests at each write step for a transition, creation and rename. The creation test recovers the exact body, or refuses if recovery data is absent. A repair replay is idempotent; a second mutation refuses while repair is pending. |
 | AC-6 | C7 | The diff of a status transition shows the front-matter `status` line and one added log line. | A pasted `git diff` of a real transition. |
 | AC-7 | 4.6 | `aw check meta` compares every mirror (front-matter `status`, filename `set`/`order`/`id`, disposition directory) with the log. | Pasted `aw check meta` output that detects each type of drift in a test repository. Pasted output that shows zero findings on the migrated corpus. |
 | AC-8 | 4.5 | The cache is disposable: deleting it changes no command output. | Run `aw find` and `aw attention --format json` with and without `.aw/state/index.db`. Paste the diff, which must be empty. |
@@ -226,37 +226,39 @@ into the plan's validation evidence.
 | AC-11 | C9 | Every metadata-reading command refuses an unmigrated repository with a message that names `aw migrate metadata`. | A pasted test. |
 | AC-12 | C8 | The `dependencies` list in `pyproject.toml` does not change. | Pasted. |
 | AC-13 | C11 | Before and after values are measured for: the bytes that an agent reads for one plan, and the end-to-end time of `aw find` and `aw attention`, with a warm and with a cold operating-system file cache, as the AGENTS.md end-to-end rule defines them. | The pasted values, measured by the end-to-end rule in AGENTS.md. This spec sets no target value. |
-| AC-14 | 4.1a | A review record has no log of its own. Each review round is ONE `op: review` event in the SUBJECT's log. The number of rounds in a review file equals the number of `review` events that the subject's log attributes to that file. | (1) An `rg` search that shows no `meta/*.jsonl` file is created for a review. (2) A test that records a review and asserts that exactly one `review` event is added to the subject's log. (3) `aw check meta` output that detects a round-count mismatch in a test repository. All pasted. |
+| AC-14 | 4.1a | Review records have no own log. Each round matches exactly one subject-log review event by stable file reference and round number. | Pasted tests: recording a round adds one subject event and no review log; equal counts with different round numbers fail; duplicate bindings and missing files fail; adding or renaming a second review file leaves the first file's events correctly attributed. |
 | AC-14a | 4.1a | Review kinds are typed. A `gate` event accepts only `plan_readiness.VERDICTS`. A `refinement` event accepts only the refinement vocabulary and never has `readiness`. The migration keeps each legacy verdict unchanged. | Pasted tests: (1) a `gate` event with a refinement verdict is refused; (2) a `refinement` event that has `readiness` is refused; (3) any number of `refinement` rounds are added in `seq` order; (4) both setter spellings refuse `->reviewed` for a spec whose log has only `refinement` review events, and `check.spec-review-unattested` reports it, while one `gate` event (migrated or new) satisfies the rule (4.4, finding SR-601); (5) after the migration of a test corpus that contains each DIFFERENT off-vocabulary verdict string found in the corpus at implementation time, every original verdict string can be recovered byte for byte. (At round 5 there were 4 different strings in 29 records; 30 records at round 6, 32 at round 7, and 35 at round 11.) |
 | AC-15 | 4.4 | For a plan, the setter refuses a `readiness` value unless the same append adds an `op: review` event with `review_kind: gate` for that plan, in the same transaction. The coverage fields have the parallel rule: only an `op: coverage` event writes them (4.4). | Pasted tests: (1) a `set readiness=go` without a review event is refused; (2) the same write with a gate review event succeeds; (3) a `set coverage=...` is refused, and an `op: coverage` event that carries the value succeeds. |
 | AC-16 | 5.2 | Only the migration may rewrite artifacts in terminal directories. The migration makes exactly one commit, and that commit passes every installed gate. | Pasted output that shows: (1) the migration commit passes the executed-plan hook, `backlog_blocking_close_gate` and the pre-push gate `aw attention --check --agent`, without `--no-verify`; (2) after the cutover, the hook still refuses a separate raw edit to an executed plan. |
-| AC-17 | C3, 4.7 | Two lanes that change the SAME artifact cause a conflict that the toolkit reports. No merge can produce a log with a duplicate `seq` that `aw check meta` accepts. | A pasted two-branch test on one artifact. It asserts that the merge does not produce a valid log with a duplicate `seq`: either git reports a conflict, or `aw check meta` fails. |
+| AC-17 | C3, 4.7 | Incompatible changes to the same artifact are reported, even when git merges without a text conflict. A duplicate `seq` never passes `aw check meta`. | Pasted two-branch tests cover different events at the same sequence and identical appends. Invalid replay refuses; identical valid appends need no repair. A confirmed divergent-tail repair leaves the winning committed prefix unchanged and validates every resulting field and transition. |
 | AC-18 | 4.5 | With a `companion` or `home` records backend, the logs are next to the records that they describe, and the cache still works. | A pasted test with a companion backend that shows `meta/<id6>.jsonl` under the resolved records root, and a working `aw find`. |
-| AC-19 | 4.2b | The check compares the creation date in the log on the same clock that wrote the filename date. | A test artifact created at 23:30 local time on a host whose local time is behind UTC: `aw check meta` reports no filename-date drift. `tests/test_date_reader_clock_parity.py` (or the test that replaces it) passes after the date readers are changed to use `artifact_meta`. Both pasted. |
+| AC-19 | 4.2b | Filename dates and creation values retain their distinct meanings and clocks. | Pasted tests migrate research with a Set filename date different from its creation day and retain both without drift. A record with no known creation day stays unknown. Age and grandfathering results match before and after migration. A new record created at 23:30 local time behind UTC has a full UTC creation timestamp, no day-only creation field, and no false filename drift. `tests/test_date_reader_clock_parity.py` or its behavioral replacement passes. |
 | AC-20 | 4.2c | The registry contains every field that the corpus or an approved spec uses, and the migration drops no field unless the census records the drop as deliberate. | The migration dry-run's field census for this repository, pasted. It lists every different field name used before the first `##` heading, with its destination (log field, body section, or a recorded deliberate drop), and it shows zero `unknown-field` refusals. |
 | AC-21 | 4.4a | This spec meets the obligations that executed plans gave to it. | For each row of 4.4a, the pasted evidence that the row names. |
 | AC-22 | 5.2 | The cutover refuses to run when the history sidecar is not present. When it runs correctly, it does not lose the sidecar records. | (1) A test that runs the migration preflight with `--force-worktree` in a lane-style worktree that has no sidecar, and asserts a refusal that names the sidecar. (The same run without `--force-worktree` refuses earlier, on the worktree condition; AC-27 tests that.) (2) The real cutover's preflight line that reports the sidecar record count. Both pasted. |
 | AC-23 | 4.5, 4.5a | The cache schema is the schema in 4.5a, and the toolkit generates it from the registry. | Pasted: (1) a test that compares the table set and the columns of each table with 4.5a; (2) a test that adds a field to the registry, with no other change, and shows that the next read rebuilds the cache and has the new column; (3) `EXPLAIN QUERY PLAN` output that shows an index is used for: `aw find` by status and Set, "which artifacts depend on X", and "the latest gate review of X". |
-| AC-24 | 4.2, 4.5a | Dependencies, lineage and actors keep their structure through a migration and a replay. | Pasted: (1) a migration test with each form of `Item-Dependencies` (`executed:`, `exists:`, `state:`, `none`, `unresolved`, and no field). It asserts the parsed conditions and the `dependency_declaration`, and that `none` and "no field" stay different. (2) A test in which the writer refuses an event whose `actor` contains a session id, a path or a user name, and the leak sanitizer reports it. (3) `aw graduation` gives the same result in both directions, using only the `lineage` table. |
-| AC-25 | 4.5b | The cache indexes run records read-only. The toolkit never presents "no run data" as "never ran". | Pasted: (1) a test that indexes a test runs tree into `runs`, `run_items` and `attempts`, with rows that match the output of the runner's own readers; (2) a byte-for-byte check that indexing changed no file under the runs tree; (3) on a fresh clone, a query for the attempts of an artifact reports `runs_indexed: 0` (unknown) and not an empty success. |
-| AC-26 | 4.3 | The next read shows a new, deleted or moved record, with no `aw index rebuild`. | Pasted tests that add a log and an artifact, delete one, and `git mv` one into another disposition directory without `artifact_meta` (as a pull or checkout does). After each change, `aw find` shows the change. |
+| AC-24 | 4.2, 4.5a | Dependencies, lineage and actors keep their structure through a migration and a replay. | Pasted: (1) a migration test with each form of `Item-Dependencies` (`executed:`, `exists:`, `state:`, `none`, `unresolved`, and no field). It asserts the parsed conditions and the `dependency_declaration`, and that `none` and "no field" stay different. (2) A test in which the writer refuses an event whose `actor` contains a session id, a path or a user name, and the leak sanitizer reports it. (3) a migration retains declared plan Sets, individual origin links and unresolved declarations separately. A declared Set with no individual origin link remains visible, and reverse links with no declaration remain visible. `aw graduation` combines both sources without inventing child links; malformed, duplicate and dangling declarations remain diagnosable. |
+| AC-25 | 4.5b | The cache indexes run records read-only. The toolkit never presents "no run data" as "never ran". | Pasted: (1) a test that indexes a test runs tree into `runs`, `run_items` and `attempts`, with rows that match the output of the runner's own readers; (2) a byte-for-byte check that indexing changed no file under the runs tree; (3) two queue items for one artifact both retain attempt 1; an ambiguous actor join reports all matches; (4) deleting a run removes its rows, switching roots cannot retain old runs, and an unreadable run produces an incomplete result; (5) on a fresh clone, a query for the attempts of an artifact reports `runs_indexed: 0` (unknown) and not an empty success. |
+| AC-26 | 4.3 | The next read shows a new, deleted or moved record, with no `aw index rebuild`. | Pasted tests that add a log and an artifact, delete one, and `git mv` one into another disposition directory without `artifact_meta` (as a pull or checkout does). Also replace bytes while preserving size and mtime, add a previously dangling target, and change only the target of a `next` reference. After each change, the next query shows current content and resolution. Include a new nested directory and a directory membership change with restored mtime. |
 | AC-27 | 5.2 | Each preflight refusal in 5.2 step 1 refuses without `--force`, `--force` overrides each one, and the migration reports every override. `--force` never overrides the worktree refusal; `--force-worktree` overrides only that refusal. | Pasted tests, each in a test repository and each with no files written on a refusal: (1) for each of the three step-1 conditions (uncommitted change under `.aw/records/`, integration lock held by another process, a lane worktree with an unmerged plan change), the dry run refuses and names the condition, and the same run with `--force` continues and its output names the overridden condition; (2) in a linked worktree, the run refuses with `--force` and names `--force-worktree`; (3) in a linked worktree with `--force-worktree` and no sidecar, the run still refuses on the sidecar condition (step 2); (4) `--force-worktree` in the main checkout with an uncommitted record change still refuses on that condition. |
 | AC-28 | 5.1 | `aw install` starts a pending migration only after a yes answer at a terminal, or with `--migrate`. `-y`/`--yes` never starts one. | Pasted tests on a test repository with a pending migration: (1) at a terminal, answering no leaves every record byte-identical and prints the command that runs the migration; answering yes runs it; (2) with no terminal and no `--migrate`, the install only reports, and every record is byte-identical; (3) `aw install --yes` and `aw install all --yes` leave every record byte-identical and report the pending migration; (4) `aw install --migrate` runs it, and when a step-1 condition is true it still refuses, because `--migrate` adds neither `--force` nor `--force-worktree`. |
 | AC-29 | 4.1, 4.6 | Only the record types that 4.1 names get an event log. Comms messages and research companion data files keep no `id6`, front matter or log, and `aw check meta` does not report them. | Pasted: (1) after a migration of a test corpus with one walkthrough without an id, one comms message and one `<doc-stem>.data/` file, the walkthrough has an `id6`, the one-key front matter (`id` only, no `status`) and a log with no `transition` event, and the comms message and the data file are byte-identical; a walkthrough setter call that requests a status is refused; (2) `aw check meta` on that corpus reports no orphan for the comms message or the data file, and does report an orphan for a walkthrough whose log was deleted. |
 | AC-30 | 5.2 | Every sidecar record is kept: in the log of its record, or, for an `id6` with no tracked record, in the gitignored export. Nothing purged is committed, and the sidecar cannot be committed by accident after the cutover. | Pasted: (1) a migration test on a test corpus whose sidecar has a status record, a record that repeats an inline history line, a rename record and a record for an `id6` with no tracked record. It asserts one `legacy` event with `source: sidecar` and the JSON object unchanged for each of the first three (the repeated line also stays as its `source: history` event), no log for the fourth, and the fourth in the export; (2) after the apply, `git status --porcelain --ignored` shows no `records/history.jsonl` in the working tree, and an `rg` search finds no `history.jsonl` ignore line in `.aw/.gitignore`, the `engine.py` template or `placement_switch.py`; (3) the real cutover's census lines for the `id6` values with no tracked record. |
 | AC-31 | 4.2 | After the cutover, `aw rename` and `aw group` record each rename as one `rename` event, and nothing writes the sidecar. | Pasted: (1) a test that renames an artifact and regroups another, and asserts one `rename` event each, with `verb`, `from_name` and `to_name` as basenames, and a `set` event in the same append when `set` or `order` changed; (2) a test that runs a spec setter, a backlog setter, a rename and a group, and asserts that no `history.jsonl` file is created. |
-| AC-32 | 4.2, 4.2a, 4.4 | A migrated log has the 4.2a layout, every event time is the time it was written, and migration does not change how old an artifact looks. | Pasted: (1) a migration test on an artifact with two inline history lines, one sidecar record and a review file with two rounds: the log is `seq` 0 checkpoint, two `source: history` legacy events, one `source: sidecar` legacy event, two `review` events, in that order, and the replayed state equals the checkpoint state plus the review values; (2) every migrated event has `at` with a time of day equal to the migration time, and each legacy and review event carries the original day in `observed_day`; (3) `aw attention --format json` gives the same `last_history_at` for that artifact before and after the migration; (4) after one post-cutover setter call, `last_history_at` is that event's `at`; (5) after the cutover, an `rg` over the new logs written by a test run finds no day-only value outside `date` and `observed_day`. |
+| AC-32 | 4.2, 4.2a, 4.4 | A migrated log has the 4.2a layout, every event time is the time it was written, and migration does not change how old an artifact looks. | Pasted: (1) a migration test on an artifact with two inline history lines, one sidecar record and a review file with two rounds: the log is `seq` 0 checkpoint, two `source: history` legacy events, one `source: sidecar` legacy event, two `review` events, in that order, and the replayed state equals the checkpoint state plus the review values; (2) every migrated event has `at` with a time of day equal to the migration time, and each legacy and review event carries the original day in `observed_day`; (3) `aw attention --format json` gives the same `last_history_at` for that artifact before and after the migration; (4) after one post-cutover setter call, `last_history_at` is that event's `at`; (5) after the cutover, an `rg` over the new logs written by a test run finds no day-only value outside `filename_date`, imported `created_day`, `observed_day` and checkpoint `last_history_day`; new `create` events omit `created_day`. |
+| AC-33 | 4.2, 4.3 | Replay rejects invalid initial events, changed identity, unsupported versions and transitions whose `from` is not the prior status. Revision reads use that revision's paths and both source blobs. | Pasted tests refuse each invalid log, preserve every source byte, and never return its old cached state as valid. A historical read after a rename returns the old revision's metadata; an absent record and an invalid revision give distinct results. |
 
 ## 3c. Honest limits
 
 - The size counts in sections 1 and 6 come from one inventory pass. The implementing plan must measure
   them again.
-- Two lanes that change the SAME artifact still conflict at the end of its log. This is expected to
-  be rare, because each lane owns different plans. The toolkit reports the conflict and does not
-  resolve it automatically (4.7).
-- Tool-written events make forged attestations HARDER, but not impossible. Anyone with write
-  access, a person or an agent, can still add a line by hand. Hooks and `aw check` detect malformed events and events that
-  no tool wrote. Neither is an enforcement boundary. (The integration lock has the same limit.)
+- Two lanes can append incompatible events for the same artifact. This is expected to
+  be rare, because each lane owns different plans. The toolkit reports conflicting histories and does not
+  resolve them automatically (4.7). Git may merge identical changes without a textual conflict.
+- Tool-written events reduce accidental attestation edits. Anyone with write access can still add
+  a schema-valid event by hand. Hooks and `aw check` detect invalid event shapes and violations of
+  write rules. They cannot determine who actually wrote a valid event. Neither is an authentication
+  boundary; this follows guiding principle P15.
 - The front-matter `status` line is a mirror that can drift after a hand edit. The toolkit detects the
   drift. It does not prevent it.
 - The token savings (C11) are an expectation until AC-13 measures them.
@@ -265,8 +267,9 @@ into the plan's validation evidence.
   in worktrees. A fresh clone has none of this data, before and after this spec. C2 does not mean that a
   clone shows everything that one machine shows.
 - The review verdict becomes tool-written (4.1a), but the findings and decisions TABLES stay as text
-  in the review file. A person can still change a severity or a decision by hand. Only the existing
-  `review_findings` parse rules and gating rules detect this. The log does not.
+  in the review file. A person can still change a severity or a decision by hand. The existing
+  `review_findings` rules reject malformed tables and evaluate their current content. They cannot
+  distinguish a valid manual edit from a tool-written edit. The log does not authenticate that text.
 - The migration rewrites every terminal artifact one time (5.2 step 4a). This one commit is a
   deliberate exception to the rule that no commit changes an executed plan. After it, `git blame` on
   those files shows the migration commit. The logs keep the history. Line-level blame of the old
@@ -294,8 +297,9 @@ into the plan's validation evidence.
   override, but nothing prevents these results once a person passes `--force`.
 - A tooled write is NOT atomic across files (4.3, finding SR-705). The log write is atomic. The
   front-matter update and the directory move come after it. A crash between these steps leaves drift
-  that the toolkit can detect and repair deterministically. It never leaves lost or contradictory history. But for a
-  short time, a reader can see a `status:` line or a directory that is behind the log.
+  that the toolkit can detect and repair deterministically. The committed log retains the metadata change. Recovery of a new record also requires the
+  staged body described in 4.3; a log cannot reconstruct prose that was never stored. Until repair,
+  a reader can see a `status:` line or a directory that is behind the log.
 - The run index (4.5b) is local to one machine and is incomplete by design. It shows only the runs
   whose records exist on this machine. A count of zero means "unknown", not "never ran".
 - The writing tool supplies the `actor` object, and nothing verifies it (comms senders have the same
@@ -376,16 +380,16 @@ SUBJECT's log. A review is metadata about its subject. Also, 4.4 lets only a rev
 RESULTS (points R1 to R4):
 
 R1. A new event type `op: review` (added to the `op` list in 4.2). It has `round` (an integer that
-   matches the file's `## Round <n>` heading), `verdict` (one of `plan_readiness.VERDICTS`),
-   `reviewer`, and, for a plan, `readiness`. A tool writes the verdict. Today the verdict is a
+   matches the file's `## Round <n>` heading), `verdict` (typed by `review_kind`, as amended in K1 to K5),
+   `reviewer`, and, for a gate review of a plan, `readiness`. A tool writes the verdict. Today the verdict is a
    hand-editable `- Verdict:` line.
 R2. The review FILE keeps its findings and decisions TABLES as readable text (N3). Their shape does
    not change, and `review_findings` still parses them. The file's front matter is `subject: <id6>`
    and `subject_type: <ipd|spec>`, NOT `id:`. So no tool can mistake the file for an artifact with
    its own log.
-R3. `aw check meta` (4.6) treats a review file as a DEPENDENT of its subject, not as an orphan. It
-   adds one drift rule: the number of rounds in the file must equal the number of `review` events
-   in the subject's log.
+R3. `aw check meta` (4.6) treats a review file as a dependent of its subject. It checks a
+   one-to-one match between the file's round numbers and its subject-log review events (K4).
+   Equal counts alone are insufficient: rounds 1 and 3 do not match events for rounds 1 and 2.
 R4. `review_findings.subject_gating_blocks` still reads the findings of the current round from the
    FILE. Only the verdict and `readiness` move to the log.
 
@@ -420,7 +424,7 @@ K3. An iterative refinement pipeline writes `refinement` events. The `verdict` o
    event comes from a separate closed vocabulary that the registry owns. That vocabulary contains at
    least the two `18hh1u` values. A `refinement` event NEVER has `readiness`. A `refinement` event
    alone never satisfies the transition authority for `->reviewed` (4.4). A subject can have any
-   number of refinement rounds. The round number orders the rounds, and `seq` orders all events.
+   number of refinement rounds. The round number orders rounds within one review file, and `seq` orders all events for the subject.
 K4. How each event is matched to its review file (`review_ref`):
    - A review record whose filename `id6` differs from its subject keeps its own `id6` as a reference.
      The writer records the reference as `review_ref` in the subject's events and as `ref: <own-id6>` in its
@@ -431,15 +435,20 @@ K4. How each event is matched to its review file (`review_ref`):
      `review_ref`, in its front matter (`ref: <stem>`) and in its events. This case applies to the 4
      historical pairs of gate re-reviews for `rtvdak`, `e25iy9`, `l4vw9o` and `urv602`, from
      2026-09-30 and 2026-10-07.
-   - A review file that is the only file for its subject, and that uses the subject's `id6`, has no
-     `review_ref`.
+   - A sole review file that uses the subject's `id6` has no `review_ref` when migrated, or when
+     first created after cutover. This absence becomes the permanent default reference for that file. Adding another review file does not change existing events or that default binding.
+     Every additional file gets a nonempty reference unique within its subject. References remain
+     stable on file renames; a date or stem is an initial reference value, not a value recomputed
+     from the current filename.
    - No record is renamed.
 
    A subject can have SEVERAL review files (5 subjects have more than one at round 5, and `18hh1u`
-   has 18). So the round-count rule in 4.6 counts events for each pair of subject and review file. It
+   has 18). So the round-identity rule in 4.6 compares events for each pair of subject and review file. It
    compares each file's rounds with the subject's `review` events that have that file's `review_ref`.
-   For a subject that has only one file, it uses the events that have no `review_ref`. It never
-   compares one file with all of the subject's events.
+   For the permanently designated default file, it uses events with no `review_ref`, even after
+   another file is added. It never compares one file with all of the subject's events. The loader
+   rejects duplicate bindings and duplicate round numbers within a file binding. Missing files or
+   unresolved bindings remain visible as defects; the loader never assigns them to another file.
 K5. The migration keeps every legacy verdict string UNCHANGED in the event field `legacy_verdict`. The
    vocabulary checks apply only to events written after the cutover. So the migration keeps the 29
    off-vocabulary verdicts measured at round 5, and it does not map them to new values (the
@@ -484,9 +493,10 @@ spec owns it.
     clock (4.2b). It never sets the order (from
     `2vev8j` 4.4). It is the time the event was WRITTEN, so every event that the migration writes has the
     migration's time. A day-only value is never an event time (maintainer decision 2026-10-25, round 9,
-    finding SR-808): after the cutover, no writer stores a day without a time in a log, except the two
-    fields that exist only to mirror or keep a day-only value: `date` (the filename date mirror, 4.2b)
-    and `observed_day` (an imported legacy day, 4.2a).
+    finding SR-808): after the cutover, no writer stores a day without a time in a log, except fields that mirror a filename or preserve an imported day-only value:
+    `filename_date` (4.2b), `created_day` (known legacy creation day, 4.2b) and `observed_day`
+    (an imported legacy history day, 4.2a), plus checkpoint `last_history_day` (4.4).
+    New creations use a full timestamp, not `created_day`.
   - `actor`: an OBJECT, not a string (round 8, finding SR-702). Keys:
     - `tool`: the `aw` command or workflow that wrote the event, for example `aw specs set` or
       `/spec-review`. Always present.
@@ -529,9 +539,12 @@ spec owns it.
     append as the `set` of any changed `set` or `order` field. It replaces the rename ledger that
     `record_history.append_rename` writes into the sidecar today. Maintainer decision 2026-10-25.
     This op name cannot be reversed after the cutover, like every other part of the log format.
-  - For `op: review` (4.1a): `round` (integer), `verdict` (string), `review_kind` (`gate` or `refinement`),
-    `reviewer` (string), and the optional strings `review_ref`, `findings_summary`, `legacy_verdict`
-    and `readiness` (plans only).
+  - For a new `op: review` (4.1a): `round` (positive integer), `verdict` (string),
+    `review_kind` (`gate` or `refinement`), `reviewer` (string), and optional `review_ref`,
+    `findings_summary`, `review_depth` and `readiness` (gate reviews of plans only). Migrated review
+    events instead carry `legacy_verdict`, which is the original string on the last round or JSON
+    null on earlier rounds (K5a). They omit `verdict` and omit unknown reviewer values rather than
+    inventing them. A new writer cannot use this migration exception.
   - For `op: coverage` (4.4): `coverage` and `coverage_fingerprint` (strings). The event's `at` and
     `actor` record when and by whom the coverage was checked. `coverage_checked` (string) is kept only
     on migrated values, because today it is a day plus a model name (`2026-10-06 by <model>`, 39
@@ -557,6 +570,16 @@ spec owns it.
   times, `exists:<type>:<id6>` 5 times, and `state:<type>:<status>:<id6>` 5 times. `none` is a
   POSITIVE statement, and `ipd_dependency_statement_gate` treats it differently from a missing
   field. So the store must always keep `none` and "no field" separate.
+- Every `create` or initial `checkpoint` declares the record's `id` and `type`. They must agree
+  with the log filename and the record owner. Later events cannot change either value. A new log
+  starts with exactly one `create` at seq 1; a migrated log starts with exactly one `checkpoint` at
+  seq 0. No other initial shape or later create/checkpoint is valid. Event version 1 is explicit;
+  unsupported versions refuse without altering the source.
+- Replay validates each operation against its prior state. A transition's `from` must equal that
+  state, as well as form a legal edge to `to`. Generic `set`/`unset` cannot write status or identity. A review-owned field requires its
+  gate review in the same append; coverage-owned fields require an `op: coverage` event (4.4). An approved transition cannot be manufactured by
+  a legal-looking edge with the wrong starting status. The loader and writer enforce the same
+  rules; migration-only checkpoint and legacy exceptions remain explicit.
 - The current state is the replay of the events in `seq` order (section 0). The log holds EVERY
   aw-owned field (4.2c). Review records have no log (4.1a). The registry in `artifact_meta` lists the
   exact fields for each type, and the writer and the loader refuse unknown fields.
@@ -601,20 +624,30 @@ value unchanged, mark it as legacy, and do not map it.
 
   Readers do NOT use UTC by default. Reason, from a measurement: plan `840y6i` finding F-01 found ten
   artifacts whose staleness result changed with the reader's time zone.
-- RESULT FOR THIS SPEC (finding SR-105). Today, `- Date:` and research `created` are written on the
-  LOCAL clock, next to the filename date, which has the same day. When these values move into the log,
-  they must not become UTC values. Otherwise, a 4.6 rule "filename date must equal the day of
-  `create.at`" would report drift for every artifact created in the evening. So the log stores the
-  creation day in a separate LOCAL-clock field, `date` (on `create` and `checkpoint` events). `date`
-  exists only as the mirror of the filename date (C10); the creation TIME is the `at` of the `create`
-  event, or, for a migrated artifact, unknown. The
-  drift rule compares the filename date with `date`, never with `at`. Every reader of `- Date:` changes
-  to read that field, and keeps its clock. These readers are: `plans_archive._age_days`,
-  `research_archive._age_days`, the dependency-schema and carrier grandfathering in `check_engine`
-  (`_DATE_LINE_RE`), the citation plan-date rule in `ipd_lint`, `plans_refs`, `artifact_rename`, and
-  `config.applies_to_artifact_date`. Every per-repository cutover in the `cutovers` list of
-  `.aw/config/project.json` (8 entries at round 2) uses `config.applies_to_artifact_date` to exempt
-  older artifacts by date.
+- FILENAME DATE AND CREATION ARE DISTINCT (maintainer decision 2026-10-26, OQ-16).
+  `filename_date` is the LOCAL-clock day represented by the filename prefix. It can be a group's
+  date: research filenames use the Set date, while their `created` field records the individual
+  report's creation day. For example, research `cxe3dw` has filename date 2026-09-03 and creation
+  day 2026-09-23. Neither value is drift. The migration must preserve both facts.
+- Initial `create` and `checkpoint` events carry `filename_date`. A migrated checkpoint also
+  carries `created_day` when legacy creation information exists, preserving the day on its
+  original LOCAL clock. If that information is absent, the value remains unknown. Migration
+  never substitutes the filename date or its own execution time for an unknown creation value.
+  The cache's `created_at` is NULL for migrated records, since a day alone supplies no time of day.
+  New records instead use their `create.at` UTC timestamp as `created_at`; they do not write a
+  day-only `created_day`. No conversion invents midnight for a legacy day.
+- The filename drift check compares the filename prefix with `filename_date`, never with
+  `created_day` or `created_at`. Existing filenames and grouping rules do not change. Commands
+  that calculate age from legacy creation metadata continue using that preserved day and its
+  LOCAL clock. For new creations they use the full timestamp and UTC. Filename-based rules
+  continue using the filename day. The registry census records each legacy date field's meaning
+  and destination so readers cannot silently swap one date concept for the other.
+- Date consumers include `plans_archive._age_days`, `research_archive._age_days`, the dependency
+  and carrier grandfathering rules in `check_engine` (`_DATE_LINE_RE`), the citation plan-date
+  rule in `ipd_lint`, `plans_refs`, `artifact_rename`, and `config.applies_to_artifact_date`.
+  Preserve each consumer's existing source-date meaning and reader clock for migrated records.
+  Every per-repository cutover in `.aw/config/project.json` continues to exempt the same existing
+  artifacts; migrating or regrouping a record does not make it newly created.
 - `tests/test_date_reader_clock_parity.py` (or the test that replaces it) checks this rule (AC-19).
 
 ### 4.2c Field registry obligations (round 2, finding SR-106)
@@ -657,13 +690,22 @@ registry now. Whichever spec is implemented second must agree with the other (se
   checks below is sufficient alone, so the function does both (round 8, finding SR-704):
   1. MEMBERSHIP. For each directory in scope (`meta/`, and every record-type and disposition
      directory), compare the directory's `mtime_ns` with its row in the `directories` table (4.5a).
-     If it changed, list the directory again. This is the only way to find a file that is NEW,
-     DELETED or MOVED: a `stat` of the known files cannot find a new file.
+     If it changed, list the directory again. A directory timestamp alone is only a hint: if
+     membership can change without a distinguishable timestamp, verify its entry names again.
+     A `stat` of known files cannot find a new file. Recursively discover new subdirectories and
+     remove vanished members from the cached inventory.
   2. CONTENT. For each known file, compare `(size, mtime_ns)` with its row in the `files` table.
-     Use the git blob sha as the tiebreak for two edits in the same clock tick. (Backlog `8mkt5l`
-     measured two file changes with the same `mtime_ns`. The plan decides when the tiebreak runs,
-     and AC-13 measures its cost.)
+     A matching size and timestamp is not proof that the bytes are unchanged. If no trusted
+     change notification proves identity, the loader compares a digest of the CURRENT working
+     bytes, including unstaged bytes. A HEAD or index blob sha cannot substitute for this digest.
+     The implementation may use an optimization only with evidence that it detects same-size,
+     same-timestamp replacements. AC-13 measures the cost.
      This finds an edit inside a file, which does not change the directory's mtime.
+
+  Changes to target records also invalidate resolved reference values, even if the source log
+  did not change. This includes a formerly missing id6, a renamed Set, and `Blocks-Release: next`
+  resolving to a different release. Resolve these values against the refreshed target inventory
+  before answering; preserve raw declarations unchanged.
 
   The function gives each changed or new file to the LOADER. The loader is the ONLY code that opens
   and parses a `meta/*.jsonl` log. It validates the log, replays it, and writes the rows. The loader
@@ -691,17 +733,29 @@ registry now. Whichever spec is implemented second must agree with the other (se
   cannot replace three separate files in one atomic step.)
   1. LOG. Write the whole log to a temporary file, call `fsync`, and replace the log in one atomic
      step (logs are small). This step is the COMMIT POINT. If it fails, nothing changed, and the write
-     fails (C6).
-  2. FRONT-MATTER MIRROR. Rewrite the `status` line, with the same atomic-replace method.
+     fails (C6). The implementation must distinguish failure before replacement from failure
+     after the commit point; a later durability or mirror error must not be reported as no change.
+  2. FRONT-MATTER MIRROR. Materialize the required front matter with the same atomic-replace
+     method. Walkthroughs have only `id`; they never acquire a status line.
   3. DISPOSITION. If the new status belongs in a different lifecycle directory, move the artifact
      file.
   4. CACHE. Update the rows. If this fails, the write still succeeds, and the next read loads the log
      again.
 
+  Before step 1 for `create`, retain the new record's body and intended contained destination in
+  a durable, gitignored local operation journal. For rename/group, retain the source and destination
+  mapping, including companion paths, before committing the log. The journal is recovery data, not metadata authority. A
+  successful repair consumes the journal only after verifying every required file. If its body
+  payload is absent, refuse with the missing recovery source; never invent an empty body.
+  Subsequent metadata appends refuse pending mirror/move recovery rather than overwriting its
+  evidence. `aw meta repair` that only restores mirrors adds no duplicate metadata event and
+  leaves the authoritative log byte-identical. Apply `expect_seq` to the current authoritative
+  state under the lock; repairs cannot repeat a transition merely to retry its file move.
+
   After step 1 succeeds, the change has happened, because the log is the authority. If a crash or a failure stops steps 2 or 3,
-  only DERIVED copies are wrong. `aw check meta` already detects this drift (4.6, the
-  front-matter `status` and disposition rows), and `aw meta repair` restores the copies DETERMINISTICALLY from the log
-  with no human decision. The setter reports this partial result as a failure that names the repair
+  the required files may be missing or behind the log. `aw check meta` detects this drift (4.6).
+  `aw meta repair` restores mirrors from the log and any pending creation or move from the
+  retained recovery data with no human decision. The setter reports this partial result as a failure that names the repair
   command. It never reports it as a success.
 - THE LOG IS CORRECT WHEN THE LOG AND THE CACHE DISAGREE. A gitignored cache cannot be the durable
   record (option O2). Git delivers changes from a pull, a merge, a checkout or another worktree as
@@ -714,8 +768,11 @@ registry now. Whichever spec is implemented second must agree with the other (se
   - an id that differs from the artifact's id;
   - a status transition that is not in the lifecycle table.
 
-  The loader does not cache a refused log as valid. A read of that artifact fails, and the error
-  names the problem.
+  The loader removes any previously valid state projection before recording a refusal. A read
+  of that artifact fails and names the problem. A cross-artifact query reports invalid or missing
+  records and an incomplete result; it cannot silently omit them and return a clean empty result.
+  The in-memory fallback uses the same SQLite schema and validation rules, not a separate Python
+  interpretation of the data. It does not turn unreadable sources into valid state.
 - BEFORE THE CUTOVER (section 7, phase B), a legacy loader serves the same interface. It parses
   today's bullet block and history section into the same rows. So every caller already reads from the
   cache through `artifact_meta` before the format changes. At the cutover commit, that loader moves,
@@ -741,7 +798,10 @@ registry now. Whichever spec is implemented second must agree with the other (se
 - READS OF A STAGED OR COMMITTED REVISION ALSO USE THE CACHE (C5a). A gate that compares a staged or
   committed revision calls `artifact_meta.read_at(id6, rev)`. The function:
   1. finds the git blob sha of `meta/<id6>.jsonl` and of the artifact `.md` file at that revision
-     (`git ls-files -s` for the index, `git rev-parse <rev>:<path>` for a commit);
+     (`git ls-files -s` for the index, `git rev-parse <rev>:<path>` for a commit). Resolve the
+     record's path within THAT index or commit, not from its current working-tree location.
+     An absent record and an invalid revision have distinct results; neither uses working-tree
+     metadata as a fallback;
   2. looks up each blob sha in the cache tables that use blob shas as keys (4.5a: `rev_log_states` and
      `rev_mirrors`);
   3. for a blob sha that is not in the cache, reads the content with `git cat-file` and gives it to the
@@ -750,7 +810,8 @@ registry now. Whichever spec is implemented second must agree with the other (se
   Gates never parse git content themselves. The returned `State` contains the replayed log state and
   the front-matter `status` at that revision. Gate rules change as follows:
   - "The status changed with no matching history line" becomes "the front-matter `status` differs
-    from the replayed state" (drift), or "the log has an event that no tool wrote" (untooled).
+    from the replayed state" (drift), or "the staged log violates the allowed event-append rules" (untooled). A valid event
+    does not prove which tool or person wrote it (3c).
   - "An executed transition" becomes "the staged status is terminal and the HEAD status is not".
 - LIST OF CODE THAT READS HEAD, STAGED OR BRANCH CONTENT. This list was measured again at round 2
   (finding SR-107). It is a MINIMUM. The implementing plan must search again for `git show`,
@@ -837,7 +898,7 @@ of these obligations, and AC-21 checks it.
 | `me227c` (researchsel) | Research readers use `artifact_meta`. | Covered by AC-1. |
 | `wja06w` (faov03) | After the `aw find` rewrite, `tests/test_find_filters.py` still passes. | A pasted run of that test module. |
 | `zyj8io` (selquiet) | An `aw find` selector that matches nothing still exits with code 2. | The pasted exit code. |
-| `pw2ln3` (gradtravers) | `graduated-to`, `from-backlog` and `from-spec` come from one store, so `aw graduation` gives the same result in both directions. | A test with a link written in each direction. |
+| `pw2ln3` (gradtravers) | `graduated-to`, `from-backlog` and `from-spec` come from one store. `aw graduation` preserves explicit Set declarations and reverse origin links as distinct facts. | A test with declarations alone, origin links alone, and both; queries preserve each source of the relationship. |
 | `fhinri` (rdyreq) | `IPD-M107` is replaced by the event rule (4.4). | Covered by AC-15. |
 | `l56tyz` (rdyclosed) | Auto-approve still refuses a missing readiness. | A pasted test. |
 | `63zo2f` (setdisp) | Its row `Carrier: 4sd62s` is closed when the setters change to use `artifact_meta` (4.8). | A reference to the closing evidence. |
@@ -871,11 +932,14 @@ of these obligations, and AC-21 checks it.
   (round 5) is deleted. Lane teardown deletes a per-worktree cache together with its worktree.
 - ROLE. The cache is the ONLY READ PATH for metadata (C5a). It is never the durable record. Only the
   `artifact_meta` loader fills it (4.3). Every SQL query in `artifact_meta` MUST use parameter
-  bindings (`?`). `artifact_meta` MUST NEVER build a SQL query with string formatting.
-- Tables: see 4.5a. Updates are incremental (4.3). The toolkit lists a directory again only when its
-  mtime changes. It reads a log or an artifact again only when its size or `mtime_ns` changes, or when
-  the blob sha differs. (The blob sha is the tiebreak for two edits in the same clock tick, a
-  problem measured in backlog `8mkt5l`.)
+  bindings (`?`) for values. Values must never be interpolated into SQL. Generated table and column identifiers come
+  only from validated registry entries and fixed internal vocabulary, with SQLite identifier
+  quoting. SQL value placeholders cannot stand for table or column names. User-provided filter
+  names must resolve through that registry before a statement is built.
+- Tables: see 4.5a. Updates are incremental (4.3). The loader verifies directory membership and current working bytes as required by 4.3.
+  Size and timestamp checks are hints, not a freshness guarantee. It replays only changed content,
+  but may read unchanged bytes to prove their identity. The cache removes repeated parsing and
+  replay; it does not promise to eliminate every file read.
   When a file is removed or moved (for example by a lifecycle transition), the toolkit deletes or
   updates its rows. The `rev_*` tables use git blob shas as keys. A blob sha always identifies the
   same content, so these rows never become out of date and need no freshness check.
@@ -884,10 +948,12 @@ of these obligations, and AC-21 checks it.
   registry and the cache layout version. Any registry change (a field is added, renamed, or gets a new
   type) causes a rebuild on the next read. No person has to remember to change a version number.
 - FAILURES. If the cache cannot be opened or is damaged, the toolkit deletes and rebuilds it. A
-  command must never fail because the cache is missing or damaged (AC-8). SQLite's own locking (in WAL
+  missing or damaged cache alone must not make a command fail (AC-8). If the persistent
+  cache cannot be rebuilt, the loader uses an in-memory SQLite database. A source error, exhausted memory,
+  or inability to build either database still fails with its real cause; it is not a cache hit. SQLite's own locking (in WAL
   mode) and a busy timeout make concurrent processes wait for each other (for example parallel lanes,
   or a hook that runs during a command). If the cache stays busy after the timeout, the command builds
-  the data in memory and answers. It does not fail.
+  the data in memory and answers. A source-validation failure still fails; cache contention alone does not.
 - Similar code in this repository: `run_analytics_cache.py` is already a disposable, rebuildable cache
   of the runs tree that uses fingerprints (the model for 4.5b). `run_ledger_store.py` is an
   append-only JSONL store that uses `platform_lock`.
@@ -912,13 +978,13 @@ DESIGN RULES. Each rule decides a case that the first version of this spec left 
 
 1. ONE TYPED COLUMN FOR EACH FIELD. NO TABLE OF NAME/VALUE ROWS. The usual reasons for a general
    name/value table (an "entity-attribute-value" design) do not apply here. The registry is closed (4.2: unknown fields are refused). The
-   cache is disposable, so a schema change costs one rebuild and no data migration. A name/value
-   table would still have its costs: every value is text, a query on two fields must first rebuild a
-   row from several rows, and indexes are weak. So each field is a typed column in the table of its
+   cache is disposable, so a schema change costs one rebuild and no source-data migration. A generic name/value
+   table needs extra joins to combine fields and separate machinery to preserve their types.
+   Typed columns directly support the filters and indexes required here. So each field is a typed column in the table of its
    artifact type. A field that can hold several values gets its own CHILD TABLE. It is never stored
    as one string with separators.
 2. EACH RELATIONSHIP TABLE HAS A NAME THAT STATES ITS MEANING. Relationships with different meanings
-   are in different tables (`dependencies`, `lineage`, `release_gates`, `gates`). There is no general
+   are in different tables (`dependencies`, `lineage`, `graduation_targets`, `release_gates`, `gates`). There is no general
    `links` table.
 3. EACH REFERENCE STORES ITS RAW TEXT AND ITS RESOLVED TARGET. A reference is a pair of columns:
    `<x>_raw` (the text as written) and `<x>_id6` (the `id6` that the text resolves to, or NULL if it
@@ -929,36 +995,46 @@ DESIGN RULES. Each rule decides a case that the first version of this spec left 
    Every other artifact table holds the replayed state of `events`, stored as rows so that queries
    are fast. Status changes are `events` rows with `op = 'transition'`. Field changes are
    `field_changes` rows with the old value and the new value.
-5. TIMESTAMPS FOLLOW 4.2b. Columns whose names end in `_at` hold UTC RFC 3339 text. Columns named
-   `date` hold the LOCAL-clock creation day (`YYYY-MM-DD`). Columns whose names end in `_day` hold a
-   day-only value as written (`observed_day`, `last_history_day`). No column holds two of these kinds.
+5. TIMESTAMPS FOLLOW 4.2b. Columns whose names end in `_at` hold UTC RFC 3339 text. `filename_date` holds the LOCAL-clock filename day (`YYYY-MM-DD`).
+   `created_day` holds a known legacy creation day, or NULL. Other columns ending in `_day` hold
+   imported day-only values (`observed_day`, `last_history_day`). No column holds two of these kinds.
 
 TABLES. "PK" means primary key. The columns shown are the minimum. Each per-type table also has one
 column for each registry field of that type, generated from the registry.
 
 | Table | Columns | Purpose |
 |---|---|---|
-| `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at` and `tool_version`. A mismatch in `schema_hash` or `records_root` causes a rebuild. |
-| `directories` | `path` PK, `mtime_ns` | Shows whether a directory changed (4.3 check 1). |
-| `files` | `path` PK, `file_role` (`log`, `artifact`, `walkthrough` or `review`), `id6`, `size`, `mtime_ns`, `blob_sha`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
-| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `date`, `created_at`, `updated_at`, `last_history_day`, `last_seq`, `valid`, `defect` | One row for each artifact, and one for each walkthrough (with `status` NULL, 4.1), with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the newest post-cutover event, or NULL if there is none; `last_history_day` is the checkpoint value. `attention_contract.last_history_at` (4.4) reads `updated_at`, else `last_history_day`. Rule 5 holds: no column holds both a time and a day. `created_at` is the `at` of the `create` event, or NULL for a migrated artifact. A row with `valid = 0` is never returned as state, and `defect` states why. |
-| `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `readiness`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_exceeded`, `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the filename type facet (4.5c). |
+| `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at`, `tool_version`, `runs_root` and `run_reader_version` (4.5b). A mismatch in `schema_hash` or `records_root` causes a rebuild. |
+| `directories` | `path` PK, `mtime_ns` | Caches a directory timestamp hint; membership is verified under 4.3 check 1. |
+| `files` | `path` PK, `file_role` (`log`, `artifact`, `walkthrough` or `review`), `id6`, `size`, `mtime_ns`, `content_digest`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
+| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `filename_date`, `created_day`, `created_at`, `updated_at`, `last_history_day`, `last_seq`, `valid`, `defect` | One row for each artifact, and one for each walkthrough (with `status` NULL, 4.1), with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the newest post-cutover event, or NULL if there is none; `last_history_day` is the checkpoint value. `attention_contract.last_history_at` (4.4) reads `updated_at`, else `last_history_day`. Rule 5 holds: no column holds both a time and a day. `created_at` is the `at` of the `create` event, or NULL for a migrated artifact. A row with `valid = 0` is never returned as state, and `defect` states why. |
+| `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `readiness`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_exceeded`, `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the logical record type (4.5c). |
 | `scope_paths` | (`id6`, `ordinal`) PK, `path` | The values of the multi-value field `scope-paths`. |
 | `dependencies` | (`dependent_id6`, `ordinal`) PK, `condition` (`executed`, `exists` or `state`), `target_type`, `required_status`, `target_raw`, `target_id6` | The parsed `Item-Dependencies` (4.2). An index on `target_id6` answers "which artifacts wait for X" with one lookup. |
-| `lineage` | (`child_id6`, `relation`, `parent_raw`) PK, `parent_id6` | `relation` is `from_backlog`, `from_spec`, `from_plan` or `supersedes`. The table does NOT store `graduated-to`. A query reads this table in the reverse direction instead. So `aw graduation` always gives the same result in both directions (obligation `pw2ln3`). |
-| `release_gates` | (`id6`, `release_raw`) PK, `release_id6` | `Blocks-Release`. `release_raw` keeps `next` as written. `release_id6` holds the release that `release_raw` resolved to when the loader read the log. |
+| `lineage` | (`child_id6`, `relation`, `parent_raw`) PK, `parent_id6` | `relation` is `from_backlog`, `from_spec`, `from_plan` or `supersedes`. These are individual artifact-origin links. Explicit `graduated-to` Set declarations remain separate in `graduation_targets`; reversing lineage does not replace them (OQ-15). |
+| `graduation_targets` | (`source_id6`, `ordinal`) PK, `target_raw`, `target_set_id` | Each explicitly declared `Graduated-To` plan Set. The source log preserves the declaration as a multi-value field. `target_raw` retains the declaration; `target_set_id` is its resolved Set id, or NULL if no plan Set resolves. This is a group reference, not an artifact id6 and not an artifact foreign key. Preserve declaration order and duplicates so existing checks can diagnose them. |
+| `release_gates` | (`id6`, `release_raw`) PK, `release_id6` | `Blocks-Release`. `release_raw` keeps `next` as written. `release_id6` holds the current resolution after target refresh, even when the source log is unchanged (4.3). |
 | `gates` | `id6` PK, `gate_kind`, `gate_ref`, `gate_summary` | The typed blocked-by gate of a blocked item. `gate_ref` can name an issue, a date or an external item, so the toolkit never resolves it as an `id6`. |
 | `actors` | `actor_id` PK (a hash of the actor object in canonical JSON), `tool`, `ace`, `host`, `model`, `variant`, `run_id`, `attempt` | Who did the action (4.2). The same actor gets the same key after every rebuild. |
 | `events` | (`id6`, `seq`) PK, `op`, `at`, `actor_id` FK, `by_human`, `from_status`, `to_status`, `message`, `raw` | The cached log, one row for each line. `raw` holds the JSON line unchanged, so the cache loses nothing from the log. The status history is the rows with `op = 'transition'`. |
 | `field_changes` | (`id6`, `seq`, `field`) PK, `old_value`, `new_value`, `unset` | The change history of each field, which the loader writes during the replay. For example: who changed `blocks_release`, from which value, and when. Values are JSON text, so one table holds every field type. |
-| `review_files` | `path` PK, `subject_id6`, `review_ref`, `round_count`, `parse_ok` | One row for each review record file, for the round-count rule in 4.6. |
+| `review_files` | `path` PK, `subject_id6`, `review_ref`, `round_count`, `parse_ok` | One row for each review record file, for the round-identity rule in 4.6. |
 | `reviews` | (`subject_id6`, `seq`) PK, `review_ref`, `round`, `review_kind` (`gate` or `refinement`), `verdict`, `legacy_verdict`, `readiness`, `findings_summary`, `reviewer` | The `op = 'review'` events, with one typed column for each value (4.1a). "The latest gate review of X" is one indexed query. The findings themselves stay as text in the review file (N3). |
 | `rev_log_states` | `log_blob_sha` PK, `id6`, `status`, `last_seq`, `state_json` | The replayed state of a log AT ONE REVISION, for `read_at` (4.4). |
 | `rev_mirrors` | `md_blob_sha` PK, `id6`, `status` | The front-matter `status` AT ONE REVISION. `read_at` joins this table with `rev_log_states`. One hash cannot be the key for both, because the state at a revision depends on two files. |
 
 Minimum indexes: `artifacts(status)`, `artifacts(type, status)`, `artifacts(set_id, order_nn)`,
-`dependencies(target_id6)`, `lineage(parent_id6)`, `release_gates(release_id6)`,
+`dependencies(target_id6)`, `lineage(parent_id6)`, `graduation_targets(target_set_id)`,
+`release_gates(release_id6)`,
 `events(id6, op)`, `reviews(subject_id6, review_kind, seq)` and `attempts(id6)` (4.5b).
+
+Graduation navigation combines declared Set targets with reverse origin links. It keeps the
+source of each relationship visible, as `check_engine.graduation_cluster` does today. A declared
+Set can resolve through any plan in that Set, including terminal plans; it does not assert that
+every member independently names the same source. Queries must not manufacture those links.
+Existing malformed, duplicate and dangling declaration checks remain. Refresh Set resolution and
+membership when targets change, even when the source log does not. This preserves both recorded
+handoff intent and individual provenance (maintainer decision 2026-10-26, OQ-15).
 
 Rejected alternatives:
 - a general `fields(id6, name, value)` table (rule 1);
@@ -978,14 +1054,26 @@ item in each `state.json`. With this index, a query can join an artifact to the 
   readers that `run_analytics_cache` already uses). It never uses a new parser, because a second
   parser of run state would bring back P1. Freshness uses the fingerprint rule that
   `run_analytics_cache.source_fingerprint` already defines. The cache reads an unfinished run again at every
-  refresh, because an unfinished run can still change.
+  refresh, because an unfinished run can still change. Refresh includes membership: remove rows
+  for deleted runs and report unreadable or malformed runs as incomplete data. Store the resolved
+  runs root and its reader/fingerprint version in cache metadata. A root change discards the old
+  run projection before reading the new root, even if run ids coincide. One cache indexes one
+  runs root at a time; this does not add a multi-machine run store.
 - READ-ONLY. Indexing writes nothing under the runs tree (AC-25). The storage, format and retention
   of run records do not change (N4).
 - Tables:
   - `runs(run_id PK, host, driver, started_at, updated_at, outcome, terminal)`
   - `run_items(run_id, position, id6, action, item_status, plan_role, PK(run_id, position))`
-  - `attempts(run_id, id6, attempt_no, lane_id, branch, requested_model, model, variant, ace,
-    started_at, ended_at, outcome, exit_code, PK(run_id, id6, attempt_no))`
+  - `attempts(run_id, item_position, id6, attempt_no, lane_id, branch, requested_model, model,
+    variant, ace, started_at, ended_at, outcome, exit_code,
+    PK(run_id, item_position, attempt_no))`
+
+  `item_position` references `run_items.position` within the same run. Attempt numbering belongs
+  to a queue item, as `runner_shared` defines it, not to an artifact. Two positions can name the
+  same `id6`; both may have attempt 1. Keep `id6` for artifact queries, but enforce that it agrees
+  with the owning queue item. An actor run/attempt reference is only a partial join key when it
+  does not identify a queue item. Return all matches and report ambiguity; never select one by
+  row order or invent an item position in a migrated event.
 
   The cache does NOT copy session ids, command lines or paths. The cache is gitignored, but people
   often paste `aw find --format json` output.
@@ -994,8 +1082,8 @@ item in each `state.json`. With this index, a query can join an artifact to the 
   never present "no attempts" as "never run". Every answer that uses these tables states how many runs
   the cache indexed and from which runs root. Zero means UNKNOWN (AC-25).
 - The `actor.run_id` and `actor.attempt` values of an event (4.2) connect events to runs. A tracked
-  event can name the run that wrote it. The join works on every machine where that run's records
-  exist.
+  event can name the run that wrote it. The join is available where the run records exist. Missing run data and ambiguous item
+  matches are explicit; neither proves that an event was not produced by that run.
 
 ### 4.5c Naming rule: `type`, `kind`, `role`, `status`, `disposition`, `op`
 
@@ -1006,7 +1094,7 @@ fields and JSON output use this rule:
 
 | Word | Meaning | Can it change? | Examples |
 |---|---|---|---|
-| `type` | The CLASS of a record. It decides which schema and which table apply. Each record has exactly one type, and the values are the filename type facets. | Never | `ipd`, `spec`, `backlog`, `review` |
+| `type` | The CLASS of a record. It decides which schema and which table apply. Each record has exactly one logical type. Most types use the same filename facet; research uses `research` as its logical type and its `research_kind` as its filename facet, for example `findings`. | Never | `ipd`, `spec`, `backlog`, `review` |
 | `<thing>_kind` | A variant WITHIN a type that changes behavior. The name always states what it classifies. A column or field named only `kind` is not permitted, because one record can have several kinds. | Rarely | `work_kind`, `review_kind`, `gate_kind`, `release_exempt_kind`, `research_kind`, `prompt_kind` |
 | `<thing>_role` | The position of a record in a structure of related records. | Rarely | `plan_role` (`child`, `orchestrator`), `file_role` |
 | `status` | The position in the lifecycle. Only a `transition` event changes it. | Yes | `approved`, `executed` |
@@ -1027,24 +1115,30 @@ and `aw meta repair --apply` can repair each one.
 |---|---|---|
 | Front-matter `status` | People can see the status (F2). | Must equal the replayed status. A walkthrough has no `status` line and no status, so this rule does not apply to it (4.1). |
 | Front-matter `id` | Connects the file to its log. | Must equal the filename `id6` and the log's identity. |
-| Filename Set id, `NN`, `id6` and date | C10 | Must equal the replayed `set`, `order` and `id`. The date must equal the LOCAL-clock creation `date` field, never the UTC `at` (4.2b). |
+| Filename Set id, `NN`, `id6` and date | C10 | Must equal the replayed `set`, `order` and `id`. The filename day must equal `filename_date`, never `created_day` or the UTC `at` (4.2b). |
 | Research filename facets (order, model, kind) | C10 | Must equal the replayed `order`, `model` and `research_kind`. This replaces today's mirror checks in the research index (`okw4ke`, and the rename-time rewrite `ax8eg1`). |
 | Disposition directory | N1 | Must agree with the replayed status, by the rules of the artifact's type. |
 | Orphans | (none stated) | A log with no record, or an artifact or walkthrough with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). The migration creates no log for a sidecar `id6` that has no tracked record (5.2 step 2), so the rule never fires on the migrated corpus for that reason. |
-| Review rounds | 4.1a | The number of `## Round <n>` headings in a review file must equal the number of `review` events in the subject's log that belong to that file (4.1a point K4). |
+| Review rounds | 4.1a | Every `## Round <n>` has exactly one matching `review` event for the stable file binding, and every such event has a matching round. Missing, duplicate or different round numbers fail even when the counts match (4.1a K4). |
 
 ### 4.7 Concurrency and merges
 
-- Different artifacts: the files are different, so merges have no conflict (C3).
-- The same artifact on two branches: both branches add events after the same `seq`. Git reports a
-  conflict at the end of the log (AC-17). Both branches also rewrite the front-matter `status` line, so
-  that line also conflicts.
+- Different artifacts: their metadata logs differ, so metadata appends do not conflict (C3).
+  This does not promise that edits to shared prose or configuration cannot conflict.
+- The same artifact on two branches: both branches add events after the same `seq`. Different appended events may cause a
+  conflict at the end of the log (AC-17). Status changes may also conflict in the mirror. Notes and
+  other metadata changes need not change the status line; identical changes may merge cleanly.
+  The post-merge validator still checks event sequence and replay, whether or not git conflicted.
   - Do NOT use `merge=union` to resolve it, because it would create duplicate `seq` values without
     any warning.
   - The runner's existing conflict handling keeps the lane.
   - `aw meta repair <id6>` can renumber the events of the losing branch so that they come after the
     events of the winning branch. It validates the result against the transition table again, and a person
-    must confirm it.
+    must confirm it. The winning branch's committed prefix stays byte-identical. Only the
+    divergent, not-yet-integrated tail is resequenced. The repair preview shows every resulting
+    field change, not only status transitions. If the branches cannot be reconciled without
+    changing that prefix, repair refuses and preserves both histories. This explicit repair is
+    distinct from the deterministic mirror repair in 4.3.
 
 ### 4.8 Tooled writes only
 
@@ -1097,14 +1191,15 @@ Diagram 1. Artifact state and history:
 erDiagram
     ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
         text id6 PK "full match artifact_core.ID6_RE"
-        text type "filename type facet, never changes"
+        text type "logical record type, never changes"
         text path "current file, follows moves"
         text disposition "lifecycle directory"
         text status "result of replaying transition events"
         text title "the first-level heading"
         text set_id
         int order_nn
-        text date "LOCAL creation day, compared with filename date"
+        text filename_date "LOCAL filename or grouping day"
+        text created_day "known legacy creation day, otherwise NULL"
         text created_at "UTC, at of create event; NULL if migrated"
         text updated_at "UTC, newest post-cutover at; NULL if none"
         text last_history_day "migrated newest history day"
@@ -1153,7 +1248,7 @@ erDiagram
         int attempt
     }
     ARTIFACTS ||--o| IPD : "type-specific state"
-    ARTIFACTS ||--|{ EVENTS : "state is replayed from"
+    ARTIFACTS ||--o{ EVENTS : "validated state is replayed from"
     EVENTS ||--o{ FIELD_CHANGES : "changed"
     ACTORS ||--o{ EVENTS : "performed"
 ```
@@ -1178,12 +1273,18 @@ erDiagram
         text child_id6 PK, FK
         text relation PK "from_backlog from_spec from_plan supersedes"
         text parent_raw PK
-        text parent_id6 "resolved; graduated-to is this read in reverse"
+        text parent_id6 "resolved individual origin"
+    }
+    GRADUATION_TARGETS["GRADUATION_TARGETS: plan Sets a source explicitly produced"] {
+        text source_id6 PK, FK
+        int ordinal PK
+        text target_raw "declared Set, as written"
+        text target_set_id "resolved grouping key, not artifact id6"
     }
     RELEASE_GATES["RELEASE_GATES: the releases each artifact must ship before"] {
         text id6 PK, FK
         text release_raw PK "release id6 or next"
-        text release_id6 "resolved at load"
+        text release_id6 "resolved against refreshed targets"
     }
     GATES["GATES: what blocks a blocked item"] {
         text id6 PK, FK
@@ -1200,6 +1301,7 @@ erDiagram
     ARTIFACTS |o--o{ DEPENDENCIES : "is the target of"
     ARTIFACTS ||--o{ LINEAGE : "came from"
     ARTIFACTS |o--o{ LINEAGE : "is the parent of"
+    ARTIFACTS ||--o{ GRADUATION_TARGETS : "declares output Sets"
     ARTIFACTS ||--o{ RELEASE_GATES : "must ship before"
     ARTIFACTS ||--o| GATES : "is blocked by"
     ARTIFACTS ||--o{ SCOPE_PATHS : "declares"
@@ -1214,9 +1316,9 @@ erDiagram
     }
     REVIEW_FILES["REVIEW_FILES: one row per review record file"] {
         text path PK
-        text subject_id6 FK
-        text review_ref "own id6 or date stem, NULL if sole file"
-        int round_count "must equal its review events"
+        text subject_id6 "reference; no foreign-key constraint"
+        text review_ref "stable file reference; NULL is permanent default"
+        int round_count "counts support the round-identity check"
         int parse_ok
     }
     REVIEWS["REVIEWS: one row per review event in a subject's log"] {
@@ -1250,7 +1352,8 @@ erDiagram
     }
     ATTEMPTS["ATTEMPTS: each try at one item in one run"] {
         text run_id PK, FK
-        text id6 PK
+        int item_position PK, FK
+        text id6 "agrees with owning run item"
         int attempt_no PK
         text lane_id
         text branch
@@ -1264,20 +1367,20 @@ erDiagram
         int exit_code
     }
     META["META: cache settings; a change forces a rebuild"] {
-        text key PK "schema_hash records_root built_at tool_version"
+        text key PK "schema_hash records_root runs_root run_reader_version built_at tool_version"
         text value
     }
-    DIRECTORIES["DIRECTORIES: directory mtimes, to find new, deleted and moved files"] {
+    DIRECTORIES["DIRECTORIES: directory membership hints"] {
         text path PK
-        int mtime_ns "membership freshness"
+        int mtime_ns "hint, not proof of unchanged membership"
     }
-    FILES["FILES: file size, mtime and blob sha, to find edited files"] {
+    FILES["FILES: fingerprints of current working bytes"] {
         text path PK
         text file_role "log artifact walkthrough review"
         text id6
         int size
         int mtime_ns
-        text blob_sha "same-tick tiebreak"
+        text content_digest "current working bytes, including unstaged edits"
         text loaded_at
         text load_error
     }
@@ -1293,10 +1396,10 @@ erDiagram
         text id6
         text status "front matter at that revision"
     }
-    ARTIFACTS ||--o{ REVIEW_FILES : "is reviewed in"
+    ARTIFACTS |o--o{ REVIEW_FILES : "is reviewed in; missing subjects remain diagnosable"
     ARTIFACTS ||--o{ REVIEWS : "has review rounds"
-    REVIEW_FILES ||--o{ REVIEWS : "attributes, by review_ref"
-    RUNS ||--|{ RUN_ITEMS : "queued"
+    REVIEW_FILES |o--o{ REVIEWS : "resolves stable file reference"
+    RUNS ||--o{ RUN_ITEMS : "queued"
     RUN_ITEMS ||--o{ ATTEMPTS : "tried"
     ARTIFACTS |o--o{ RUN_ITEMS : "was queued as"
     DIRECTORIES ||--o{ FILES : "lists"
@@ -1312,13 +1415,13 @@ own.
 flowchart TD
     A["Any metadata read: aw find, attention, board, a gate, a hook, a runner"] --> B["artifact_meta read / history / query"]
     B --> C{"index.db opens, and meta.schema_hash and meta.records_root match?"}
-    C -- "no, or corrupt" --> D["drop and rebuild"]
+    C -- "no, or corrupt" --> D["rebuild persistent cache, or use in-memory SQLite"]
     D --> E
-    C -- yes --> E["MEMBERSHIP: stat each directory in scope, compare mtime_ns with DIRECTORIES"]
-    E --> E2{"directory changed?"}
+    C -- yes --> E["MEMBERSHIP: verify directory entries; timestamps are hints"]
+    E --> E2{"membership changed?"}
     E2 -- yes --> E3["re-list it: find new, deleted and moved files"]
     E2 -- no --> E4
-    E3 --> E4["CONTENT: stat each known file, compare size and mtime_ns with FILES, blob sha as tiebreak"]
+    E3 --> E4["CONTENT: verify current working bytes; matching size and mtime alone are insufficient"]
     E4 --> F{"per file: changed, new, removed, or unchanged?"}
     F -- removed --> G["delete its rows, or re-point them if the file moved"]
     F -- "changed or new" --> H["LOADER, the only code that opens a meta log: parse, validate, replay"]
@@ -1327,9 +1430,10 @@ flowchart TD
     I -- yes --> K["one transaction: replace that artifact's rows in every table"]
     F -- unchanged --> L
     G --> L
-    J --> L
-    K --> L["answer with a parameterized SQL query"]
-    C -. "busy past the timeout" .-> M["rebuild in memory and answer; never fail the command"]
+    J --> J2["report invalid records; affected reads fail and aggregate results are incomplete"]
+    K --> L["refresh resolved references; answer with a value-bound SQL query"]
+    C -. "busy past the timeout" .-> M["build in-memory SQLite with identical validation; source errors still fail"]
+    M --> E
 ```
 
 Before the cutover (phase B), the LOADER box is the legacy loader. It reads the bullet blocks and
@@ -1355,17 +1459,18 @@ sequenceDiagram
         alt seq is not expect_seq, transition or field invalid, or actor carries a forbidden value
             M-->>S: refuse, nothing written
         else
+            M->>M: retain local recovery data for create, rename or group
             M->>G: 1 LOG: temp file, fsync, atomic replace (the COMMIT POINT)
-            alt log write fails
-                M-->>S: fail, nothing changed
+            alt failure before log replacement
+                M-->>S: fail, authoritative files unchanged
             else
-                M->>G: 2 MIRROR: rewrite front-matter status line
+                M->>G: 2 MIRROR: materialize the required front matter
                 M->>G: 3 DISPOSITION: move the file if its directory changes
                 M->>C: 4 CACHE: update rows (best effort)
                 alt step 2 or 3 failed
                     M-->>S: fail, change IS recorded, run aw meta repair (drift is detected by aw check meta)
                 else
-                    M-->>S: ok, diff shows one status line and one appended log line (AC-6)
+                    M-->>S: ok, a status transition shows the status mirror and event (AC-6)
                 end
             end
         end
@@ -1382,11 +1487,11 @@ flowchart LR
     C --> D1{"log sha in REV_LOG_STATES?"}
     C --> D2{"md sha in REV_MIRRORS?"}
     D1 -- no --> E1["git cat-file bytes to the SAME loader, store row"]
-    D2 -- no --> E2["git cat-file bytes, read the two-key front matter, store row"]
+    D2 -- no --> E2["git cat-file bytes to the SAME loader; parse the type-specific mirror and store row"]
     D1 -- yes --> F
     E1 --> F
     D2 -- yes --> F
-    E2 --> F["State at rev: replayed log state joined with mirror status"]
+    E2 --> F["after BOTH inputs resolve: State at rev from log state and type-specific mirror"]
     F --> G["gate compares HEAD and staged State, e.g. terminal now and not before"]
 ```
 
@@ -1395,9 +1500,11 @@ flowchart LR
 ```mermaid
 flowchart TD
     A["lanes 1 and 2 both append after seq N to the same log"] --> B["merge"]
-    B --> C["git conflict at the log tail and on the front-matter status line"]
+    B --> V{"merged log has unique seq and valid replay?"}
+    V -- yes --> OK["valid merged log; identical appends need no repair"]
+    V -- no --> C["report textual conflict or invalid merged history"]
     C --> D["runner's existing conflict path preserves the lane"]
-    D --> E["aw meta repair id6: re-sequence the losing side's events onto the winner"]
+    D --> E["preview repair of divergent tail; keep winning committed prefix unchanged"]
     E --> F{"re-validated against the transition table, and a human confirms?"}
     F -- yes --> G["one valid contiguous log"]
     F -- no --> H["left conflicted; aw check meta fails; never a silent duplicate seq"]
@@ -1420,7 +1527,7 @@ flowchart TD
     PS -- "present, or --force given and reported" --> W["run steps 2 to 6 in a SCRATCH COPY"]
     W --> S2["2: read the sidecar; id6 with no record goes to the gitignored export, no log; the others become legacy events in step 4"]
     S2 --> S3["3: mint id6 for non-review records with none; comms messages and .data files excluded"]
-    S3 --> S4["4: per artifact: checkpoint seq 0 with local date, last_history_day and mapped field names, parsed dependencies; then legacy events seq 1..n: inline lines, then sidecar records; prose fields to body, front matter and banner"]
+    S3 --> S4["4: per artifact: checkpoint seq 0 with separate filename_date and known created_day, last_history_day and mapped field names, parsed dependencies; then legacy events seq 1..n: inline lines, then sidecar records; prose fields to body, front matter and banner"]
     S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review_kind, legacy verdict verbatim, review_ref"]
     S4r --> S4a["4a: terminal directories migrated too, under a journaled marker the executed-plan hook accepts"]
     S4a --> S5["5: delete STATUS.md and INDEX files and their ignore lines"]
@@ -1443,7 +1550,7 @@ flowchart LR
         B4["4: writers via artifact_meta"] --> B5["5: readers via artifact_meta and read_at"] --> B6["6: fixtures on one shared builder"] --> B7["7: delete INDEX, STATUS and legacy parsers; AC-1 test"]
     end
     subgraph C["Phase C, ONE attended commit in the sidecar-holding checkout"]
-        C8["8: docs, managed block, templates"] --- C9["9: loader and writer switch to logs, legacy loader into m0001, migrate, stamp; measure AC-13"]
+        C8["8: docs, managed block, templates"] --> C9["9: loader and writer switch to logs, legacy loader into m0001, migrate, stamp; measure AC-13"]
     end
     A3 --> B4
     B7 --> C8
@@ -1453,10 +1560,10 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A["a read that joins artifacts to runs, or aw index rebuild"] --> B["list run directories under the runs root resolved by runner_shared"]
+    A["a read that joins artifacts to runs, or aw index rebuild"] --> B["resolve runs root; reset run rows if root changed; list runs and remove deleted rows"]
     B --> C{"per run: fingerprint as in run_analytics_cache.source_fingerprint unchanged, and run terminal?"}
     C -- yes --> F
-    C -- "no, or run still in progress" --> D["read via runner_shared.load_state and the existing event readers; nothing is written under the runs tree"]
+    C -- "no, or run still in progress" --> D["read via existing runner readers; report unreadable runs as incomplete; write nothing to runs tree"]
     D --> E["replace that run's RUNS, RUN_ITEMS, ATTEMPTS rows; drop session ids, command lines, paths"]
     E --> F["answer, reporting runs indexed and runs root; zero indexed means UNKNOWN, never 'never ran'"]
 ```
@@ -1575,7 +1682,7 @@ flowchart TD
    - Parse it with the legacy loader (the phase-B `artifact_meta` legacy loader, moved into the
      migration, 4.3).
    - Write a `checkpoint` event (`seq` 0) that holds every field, including the LOCAL creation
-     `date` (4.2b) and `last_history_day` (4.4). Use the field names of 4.2 and 4.5c (`Kind` becomes `plan_role`). Parse
+     `filename_date` and any known legacy `created_day` (4.2b), plus `last_history_day` (4.4). Use the field names of 4.2 and 4.5c (`Kind` becomes `plan_role`). Parse
      `Item-Dependencies` into structured conditions. A value that cannot be parsed is a census
      refusal. The migration never stores it as an unparsed string.
    - Write a `legacy` event (`source: history`) for each raw history line, then one for each
@@ -1801,6 +1908,33 @@ for concurrency.
   that way going forward (4.2 `at`); (c) research `kind` and prompt `Kind` become `research_kind` and
   `prompt_kind` (4.2, 4.5c). All three cannot be reversed after the cutover.
 
+### OQ-15: Preserve declared graduation targets (SR-818)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Finding: SR-818
+- Question: Must the model preserve explicit `Graduated-To` Set declarations as well as artifact lineage?
+- Evidence: `.aw/records/specs/README.md` permits Set targets. `check_engine.graduation_cluster` distinguishes declared forward targets from reverse links. A declared Set without a linked child cannot be reconstructed from `lineage`.
+- Recommendation: Preserve declared targets in the log and a typed graduation-target table. Derive navigation from both sources without inventing child links. Strength: strong.
+- Alternative: Remove explicit declarations and use reverse child links only. This changes the public contract and loses information.
+- Closes when: The maintainer chooses the preservation or breaking-change contract and the choice is reflected in 4.5a, diagrams and AC-24. The accepted preservation contract is now reflected there.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: Preserve explicit graduation Set declarations and individual artifact-origin links. Queries combine the two relationships without inventing child links, and checks report inconsistencies. No reason was given.
+
+### OQ-16: Separate filename date from creation day (SR-819)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Finding: SR-819
+- Question: Must the log retain filename date and actual creation day as separate fields?
+- Evidence: `research_cmd.plan_new` uses a Set date for the filename and today's date for `created`. In this review, 28 research records have different values.
+- Recommendation: Retain both day values separately. Use a creation timestamp only when known; do not invent one for migrated records. Strength: strong.
+- Alternative: Retain one date and discard creation day. This changes research metadata and contradicts lossless migration.
+- Closes when: The maintainer decides and 4.2b, 4.5a, diagrams and AC-19/AC-32 use the chosen meaning. The accepted separation is now reflected there.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: Preserve filename dates and creation information as separate facts. Retain known legacy creation days without inventing times, and use full creation timestamps for new records. No reason was given.
+
+
 ## 9. Compatibility with specs written after round 1
 
 | Spec | Status at r11 | Relation |
@@ -1818,6 +1952,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-26 note (aw specs): APPROVE WITH REVISIONS APPLIED; /spec-review rounds 12 and 13 (Codex/unknown): SR-818 through SR-831 fixed; maintainer resolved OQ-15 and OQ-16 via /askme, preserving explicit graduation Set declarations alongside individual origin links and separating filename dates from creation information. Re-review keeps reviewed status; no human approval recorded.
 - 2026-10-26 note (aw specs): /spec-review round 11 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-816..SR-817 FIXED (census and Section 9 compatibility alignment)
 - 2026-10-26 note (aw specs): /spec-review round 10 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; internal-consistency pass; SR-807..SR-815 FIXED (maintainer decisions: legacy events after the checkpoint, migrated events timed at migration with observed_day and last_history_day and no day-only values outside filenames going forward, research_kind/prompt_kind); AC-32, OQ-14 added; all 10 mermaid blocks render; no Readiness written
 - 2026-10-26 note (aw specs): /spec-review round 9 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-801..SR-806 FIXED (maintainer decisions via question tool: walkthroughs id-only no status, new op rename, sidecar orphan id6s to gitignored export, sidecar duplicates kept tagged source); AC-30, AC-31, OQ-13 added; no Readiness written
