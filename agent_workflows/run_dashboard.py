@@ -1006,6 +1006,8 @@ def phase_of(action: str, role: str, recovery: bool) -> str:
 
     if role in _VERIFIER_ROLES:
         return "verifier"
+    if role.startswith("review-step-"):
+        return "review"
     if (
         recovery
         or role in _RECOVERY_ROLES
@@ -1510,6 +1512,8 @@ def collect_rows(
                     "verification": str(verification or ""),
                     "readiness": att_readiness,
                     "review_tier": att_review_tier,
+                    "review_step": "",
+                    "review_checks": "",
                     "item_status": str(item.get("status") or ""),
                     "item_end": item_end_state(item.get("status")),
                     "host": host,
@@ -1577,6 +1581,11 @@ def collect_rows(
                 if m and m.group("vpre")
                 else ((m.group("role") if m else None) or "main")
             )
+            m_step = re.match(
+                r"^review-step-(?P<step>\d+)-(?P<label>[a-z0-9-]+)$", role
+            )
+            review_step = str(int(m_step.group("step"))) if m_step else ""
+            review_checks: Any = m_step.group("label").split("-") if m_step else ""
             base = by_item_attempt.get((id6, number))
             if base is None:
                 # Genuinely synthesized base (no attempt record was found);
@@ -1596,6 +1605,8 @@ def collect_rows(
                     "verification": "",
                     "readiness": "",
                     "review_tier": "",
+                    "review_step": review_step,
+                    "review_checks": review_checks,
                     "item_status": "",
                     "item_end": "not-completed",
                     "host": host,
@@ -1608,6 +1619,8 @@ def collect_rows(
                 }
             else:
                 base = dict(base)
+                base["review_step"] = review_step
+                base["review_checks"] = review_checks
                 # When an attempt record exists, resolve per row using that attempt
                 # and its filename-derived role (which may be "verify").
                 att = by_item_attempt_att.get((id6, number))
@@ -1684,6 +1697,8 @@ COLUMNS: tuple[str, ...] = (
         "verification",
         "readiness",
         "review_tier",
+        "review_step",
+        "review_checks",
         "item_status",
         "item_end",
         "host",
@@ -1831,6 +1846,8 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "verification",
     "readiness",
     "review_tier",
+    "review_step",
+    "review_checks",
     "item_status",
     "item_end",
     "host",
@@ -1885,7 +1902,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
 )
 ATTEMPT_FACT_MAPS: tuple[str, ...] = ("tools", "tool_bytes", "families", "read_counts")
 ATTEMPT_FACTS_FILENAME = "attempts.jsonl"
-ATTEMPT_FACTS_SCHEMA_VERSION = 4
+ATTEMPT_FACTS_SCHEMA_VERSION = 5
 
 
 def attempt_facts_jsonl(

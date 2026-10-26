@@ -75,6 +75,8 @@ ATTEMPT_FILTER_FIELDS: tuple[str, ...] = (
     "disposition",
     "readiness",
     "review_tier",
+    "review_step",
+    "review_checks",
     "date",
     "cost_split",
     "token_source",
@@ -99,6 +101,8 @@ ATTEMPT_GROUP_FIELDS: tuple[str, ...] = (
     "disposition",
     "readiness",
     "review_tier",
+    "review_step",
+    "review_checks",
     "set",
     "id6",
     "attempt",
@@ -290,11 +294,23 @@ def _value(row: Mapping[str, Any], metric: str) -> float | None:
 
 def _label(row: Mapping[str, Any], field: str) -> str:
     v = row.get(field)
+    if isinstance(v, (list, tuple)):
+        return ",".join(str(x) for x in v) if v else "(not recorded)"
     return "(not recorded)" if v in (None, "") else str(v)
 
 
 def _matches(row: Mapping[str, Any], filters: Mapping[str, str]) -> bool:
     for name, want in filters.items():
+        v = row.get(name)
+        if isinstance(v, (list, tuple)):
+            if (
+                want in v
+                or want.upper() in [str(x).upper() for x in v]
+                or want == ",".join(str(x) for x in v)
+                or want.upper() == ",".join(str(x).upper() for x in v)
+            ):
+                continue
+            return False
         if _label(row, name) != want and str(row.get(name) or "") != want:
             return False
     return True
@@ -332,7 +348,11 @@ def _group(
 
 
 def _select(
-    rows: Sequence[Mapping[str, Any]], filters: Mapping[str, str], role: str | None
+    rows: Sequence[Mapping[str, Any]],
+    filters: Mapping[str, str],
+    role: str | None,
+    *,
+    group_by: Sequence[str] = (),
 ) -> list[Mapping[str, Any]]:
     """Rows matching ``filters``; by default only MAIN sessions (one per queue attempt).
 
@@ -340,12 +360,35 @@ def _select(
     verifier sessions.
     """
 
-    keep_all = "role" in filters or "phase" in filters or role == "*"
-    return [
-        r
-        for r in rows
-        if _matches(r, filters) and (keep_all or str(r.get("role") or "") == MAIN_ROLE)
-    ]
+    keep_all = (
+        "role" in filters
+        or "phase" in filters
+        or role == "*"
+        or "review_step" in filters
+        or "review_checks" in filters
+        or "review_step" in group_by
+        or "review_checks" in group_by
+    )
+    selected: list[Mapping[str, Any]] = []
+    for r in rows:
+        if not _matches(r, filters):
+            continue
+        if not (keep_all or str(r.get("role") or "") == MAIN_ROLE):
+            continue
+        if (
+            "review_step" in group_by
+            and "review_step" not in filters
+            and r.get("review_step") in (None, "")
+        ):
+            continue
+        if (
+            "review_checks" in group_by
+            and "review_checks" not in filters
+            and r.get("review_checks") in (None, "", [])
+        ):
+            continue
+        selected.append(r)
+    return selected
 
 
 def summarize_group(
@@ -407,7 +450,7 @@ def view_attempts(
     metrics: Sequence[str],
     stat: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    selected = _select(rows, filters, None)
+    selected = _select(rows, filters, None, group_by=group_by)
     if not group_by:
         body = summarize_group(selected, metrics, stat)
         return [dict({"group": "all"}, **body)], {"selected": len(selected)}

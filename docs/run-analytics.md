@@ -174,6 +174,7 @@ By default the views count only each queue attempt's MAIN session. Add `--filter
 | Experiment comparison: review outcome (disposition and Readiness) per plan, variant and model | `aw runs query experiment --filter label=<label>` |
 | Attempts by Readiness | `aw runs query attempts --filter action=review --group-by readiness --metric cost,steps` |
 | Attempts by review tier | `aw runs query attempts --filter action=review --group-by review_tier --metric cost,steps` |
+| Attempts by review step | `aw runs query attempts --filter action=review --group-by review_step --metric cost,steps` |
 
 What the fields mean:
 
@@ -206,7 +207,6 @@ percentiles are withheld and the row says so.
 
 ### What is not recorded yet
 
-- **Review steps** (question Q9): requires recording which prompt of a multi-prompt review ran and the pass number for each prompt, specified in spec `k3yx72` Section 9.3 and built by its Section 15 Order 04.
 - **Antigravity cost**: tokens are reported; no dollar price table is applied.
 - **Readiness on older runs**: runs started before this change do not carry `review_readiness` on their review attempts, so they report `(not recorded)`.
 
