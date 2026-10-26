@@ -6,7 +6,7 @@ order: 06
 topic: [plan-review, pilot, analytics]
 model: 
 kind: findings
-status: active
+status: reference
 outcome: informational
 summary: k3yx72 pilot: proposed vs current plan-review, per-tier cost and quality, MD-20 gate decision
 consumed-by: [kk62qt]

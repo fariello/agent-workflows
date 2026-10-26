@@ -6,7 +6,7 @@ order: 05
 topic: [plan-review, runner]
 model: reconciliation
 kind: reconciliation-report
-status: active
+status: reference
 outcome: informational
 summary: Multi-model design review of the runner-enforced, depth-scaled plan review redesign (Synthesis of the model reports)
 consumed-by: [k3yx72]

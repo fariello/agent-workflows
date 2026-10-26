@@ -6,7 +6,8 @@ order: 00
 topic: [plan-review, runner]
 model: 
 kind: research-prompt
-outcome: none-yet
+status: reference
+outcome: informational
 summary: Multi-model design review of the runner-enforced, depth-scaled plan review redesign (Originating prompt for the comparison set)
 consumed-by: []
 ---
