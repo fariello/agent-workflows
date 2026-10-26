@@ -509,3 +509,49 @@ aw specs check <spec>: all specs conform. 1 specs checked.
 git diff --check <spec>: exit 0
 aw check all (before and after): errors 13, warnings 0, info 54 (unchanged; no new diagnostic)
 ```
+
+## Round 15
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-905 | high | UNDER-SCOPE | F: details view | `attention._extract_detail` reads `- Summary:`, `Scope`, `Concern`, `Question`, `Title`, then H1; spec 4.2 moved those bullets to body prose; 4.5a `artifacts` had only `title` | `aw attention --details` would lose its source at the cutover; no short description was stored anywhere. | C:Low; U:Medium; S:Low; F:Medium; Overall:Low | fixed | Maintainer decision OQ-19: tracked `short_description` field plus `artifacts.short_description`; migration fills it in today's order and refuses (does not truncate) a too-long source. AC-36. |
+| SR-906 | high | UNDER-SCOPE | D/F: path history | spec 4.2 `rename` stored "basenames, never paths"; moving transitions recorded no path; `artifacts.path` current only | Path history was unrecoverable except via `git log --follow`, which squash merges and shallow clones lose. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Maintainer decision OQ-17: every path-bearing event carries the NEW records-root-relative `path` only (the previous path is the prior event's); who moved it is `actor`/`by_human`; new `artifact_paths` table. AC-34. |
+| SR-907 | high | UNDER-SCOPE | F: execution record | `outcomes/*.json` `files_changed` (gitignored); plan body E/V items (N3); `state.json` attempt `verify_verdict_state`, `verify_has_evidence` | Actual changed files, E/V item state, V-item evidence and the agreed verification decision existed only in prose or in local run state; nothing could be queried or survived a clone. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Maintainer decision OQ-18: tracked `finalize` event (merged-diff `changed_paths`, `scope_result`, per-item `verification` with evidence digest, not text); `plan_items` and `changed_paths` tables; drift rule `evidence-changed-after-finalize`. AC-35. |
+| SR-908 | high | UNDER-SCOPE | F: tokens, time, cost | `state.json` attempt `tokens`/`verify_tokens`/`cost` (3,291 / 981 / 2,220 of 3,752 attempts); session `step_finish` tokens and cost; `run_analytics_pricing` `currency: str = "USD"` | Tokens and cost were not in the schema at any level; amounts carried no currency; no question about cost per E-item or V-item could be answered. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Maintainer decision OQ-20: tracked `turn` events with per-turn totals; cache-only `turn_steps`; `AW-ITEM` marker with self-reported per-item totals (`turn_items`); amounts as exact decimal strings with ISO 4217 codes, converted only on display with a named dated rate. N4 amended for totals only. AC-37, 3c limits. |
+| SR-909 | medium | UNDER-SCOPE | F: run index | 4.5b indexed about 14 of about 60 attempt fields and no other run file; measured 598 runs, about 2.3 GB | `aw runs analyze` and attention queries could not use the cache, so run analytics kept a second reader of run state (P1). | C:Low; U:Low; S:Medium; F:Low; Overall:Low | fixed | Maintainer decision OQ-21: index every structured field (state, events, outcomes, questions, telemetry, step usage) with `extra_json` for unnamed fields; never copy text bodies (path and digest in `run_files`). AC-38. |
+| SR-910 | medium | IN-SCOPE | B: diagram detail | 4.9.1 notes were short or absent for most attributes; maintainer asked for full notes on every entity and attribute | Readers could not tell meaning, source, allowed values or NULL rules from the diagrams. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | 4.9.1 rewritten as five diagrams with a full note on every entity and column; a script cross-check confirmed all 31 tables in 4.5a/4.5b match their diagram columns (0 mismatches); all 12 mermaid blocks render. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-1 | Where does the short description live (OQ-19)? | Tracked log field plus `artifacts` column. | Third front-matter key; body-only. | Maintainer via /askme 2026-10-26. | no |
+| D-2 | How are path changes recorded (OQ-17)? | New path only on each path-bearing event; actor and time on the event. | from and to on each event; current path only. | Maintainer via /askme 2026-10-26, with the reason that the previous path is the previous entry. | no |
+| D-3 | How is execution recorded (OQ-18)? | Tracked `finalize` event plus indexed tables. | Cache-only from run data; no E/V. | Maintainer via /askme 2026-10-26. | no |
+| D-4 | Token, cost, time granularity and currency (OQ-20)? | Turn tracked, step cached, item self-reported; exact amounts with currency, convert on display. | Cache only; every step tracked; stored conversions; USD only. | Maintainer via /askme 2026-10-26. | no |
+| D-5 | How much run data is indexed (OQ-21)? | All structured data, no text bodies. | Including text; minimum only. | Maintainer via /askme 2026-10-26. | yes |
+
+### Scope and evidence
+
+Explicit re-review of spec `4sd62s`, already `reviewed`, at baseline `d88fef004` (decisions OQ-17 to
+OQ-21 recorded and committed before editing; earlier baseline `45ba268c1`). Reviewer:
+opencode/its_direct/pt3-claude-opus-5.5-1m-us. Triggered by maintainer questions on the entity
+diagrams. Earlier rounds are preserved unchanged. No code, test or plan was written.
+
+Measurements (2026-10-26, this machine): 598 run directories, about 2.3 GB (sessions 1.9 GB,
+`manifest.json` 225 MB, `state.json` 58 MB, `events.jsonl` 31 MB, prompts 25 MB, telemetry 9 MB,
+outcomes 8 MB); 3,752 recorded attempts, tokens on 3,291, cost on 2,220, verify tokens on 981; one
+Antigravity execute session had 2,164 steps, 679 with usage; OpenCode `step_finish` records
+per-step tokens and cost; no step records an E-* or V-* id.
+
+### Final validation
+
+```text
+aw specs check <spec>: all specs conform. 1 specs checked.
+git diff --check <spec>: exit 0
+Diagram/prose column cross-check: tables 31 mismatches 0
+mermaid-cli 12.0.0: Found 12 mermaid charts in Markdown input; 12 rendered (one sequence-note
+semicolon was corrected before the successful run)
+```

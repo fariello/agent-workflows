@@ -201,7 +201,9 @@ Each criterion has a label:
 - N4 This spec does NOT change comms envelopes. It does NOT change how the toolkit stores or writes
   run records (`.aw/records/runs/`) and run analytics. The cache indexes run records, read-only (4.5b;
   maintainer decision 2026-10-25, finding SR-701). The cache never writes to them, and they stay
-  gitignored and local to one machine.
+  gitignored and local to one machine. ONE AMENDMENT (round 15, OQ-18 and OQ-20): the per-turn and
+  per-item TOTALS (`turn` events) and the finalize summary (`finalize` event) are also written to
+  the artifact's tracked log, so they survive a clone. The detailed per-step data stays local.
 - N5 This spec does NOT include a period in which both formats are in use (C9).
 
 ## 3b. Acceptance criteria
@@ -247,6 +249,11 @@ into the plan's validation evidence.
 | AC-31 | 4.2 | After the cutover, `aw rename` and `aw group` record each rename as one `rename` event, and nothing writes the sidecar. | Pasted: (1) a test that renames an artifact and regroups another, and asserts one `rename` event each, with `verb`, `from_name` and `to_name` as basenames, and a `set` event in the same append when `set` or `order` changed; (2) a test that runs a spec setter, a backlog setter, a rename and a group, and asserts that no `history.jsonl` file is created. |
 | AC-32 | 4.2, 4.2a, 4.4 | A migrated log has the 4.2a layout, every event time is the time it was written, and migration does not change how old an artifact looks. | Pasted: (1) a migration test on an artifact with two inline history lines, one sidecar record and a review file with two rounds: the log is `seq` 0 checkpoint, two `source: history` legacy events, one `source: sidecar` legacy event, two `review` events, in that order, and the replayed state equals the checkpoint state plus the review values; (2) every migrated event has `at` with a time of day equal to the migration time, and each legacy and review event carries the original day in `observed_day`; (3) `aw attention --format json` gives the same `last_history_at` for that artifact before and after the migration; (4) after one post-cutover setter call, `last_history_at` is that event's `at`; (5) after the cutover, an `rg` over the new logs written by a test run finds no day-only value outside `filename_date`, imported `created_day`, `observed_day` and checkpoint `last_history_day`; new `create` events omit `created_day`. |
 | AC-33 | 4.2, 4.3 | Replay rejects invalid initial events, changed identity, unsupported versions and transitions whose `from` is not the prior status. Revision reads use that revision's paths and both source blobs. | Pasted tests refuse each invalid log, preserve every source byte, and never return its old cached state as valid. A historical read after a rename returns the old revision's metadata; an absent record and an invalid revision give distinct results. |
+| AC-34 | 4.2, 4.5a (OQ-17) | Every path change is recorded once, with who did it, and path history can be queried. | Pasted tests: (1) `create`, `aw rename`, `aw group` and a transition that moves the file to another disposition directory each append an event with `path` relative to the records root and no `from_path`; (2) `artifact_paths` lists every path in `seq` order and its previous path is the prior row; (3) each row resolves the actor: `by_human` for a human, otherwise `tool`, `model` and `run_id`; (4) an absolute path, a `..` path and a path outside the records root are refused and the sanitizer reports a planted absolute path; (5) a migrated artifact's first row comes from its checkpoint. |
+| AC-35 | 4.2, 4.5a (OQ-18) | Finalize records what the plan actually changed and how each V-item was verified, and the record survives a clone. | Pasted tests: (1) finalizing a test plan appends one `finalize` event whose `changed_paths` equals the merged diff (not the agent's report), with the correct `scope_result` and `out_of_scope_paths`; (2) `items` has one entry per E-* and V-* item with `evidence_present`, `evidence_digest`, `verifier_verdict`, `decided_by` and `decision`; (3) on a `git clone --depth 1`, `aw find` answers "which plans changed file X" and "which V-items were refused" from `changed_paths` and `plan_items`; (4) editing a V-item's `Observed evidence` after finalize makes `aw check meta` report `evidence-changed-after-finalize`; (5) the log contains no evidence text. |
+| AC-36 | 4.2, 4.5a (OQ-19) | Every artifact has a validated short description that `aw attention --details` reads. | Pasted tests: (1) `--summary` on each `new` command writes `short_description`; a value over `MAX_DESCRIPTIVE_LEN`, with a newline or a control character is refused; (2) `aw attention --details` and `aw find` show it after deleting the cache; (3) the migration fills it in the `_extract_detail` order for a fixture with each source (Summary, Scope, Concern, Question, Title, H1), and a too-long source is a census refusal, not a truncation; (4) the census of this repository shows the count of artifacts by source. |
+| AC-37 | 4.2, 4.5a, 4.5b (OQ-20) | Tokens, time and cost are recorded per turn (tracked), per step (cache) and per item (self-reported), with exact amounts and currencies. | Pasted tests: (1) each execute, verify, fix-it, review and produce turn appends one `turn` event with the token components the host reported, omitted ones absent (not 0); (2) amounts are decimal strings with an ISO 4217 code, a bare host number is stored as `USD` with `cost_source: host-recorded`, and a priced value names its rate set; (3) a session fixture with `AW-ITEM` markers yields `turn_items` whose sums equal the turn totals, with pre-marker steps in `unattributed` and an unknown id counted in `attribution_errors`; (4) `aw runs analyze` output for a fixture run is unchanged when it reads through `artifact_meta`; (5) a display converted to EUR names the rate, source and date, and labels the figure converted; mixed-currency totals are refused without a conversion; (6) a query answers "median tokens and cost per V-item" and labels it self-reported. |
+| AC-38 | 4.5b (OQ-21) | The cache indexes every structured run field and no text body. | Pasted: (1) for a fixture runs tree, every field that `runner_shared.load_state` exposes for a run, item and attempt appears in a column or in `extra_json`; (2) every `events.jsonl` line has a `run_events` row; (3) a scan of `index.db` finds no prompt text, session text, tool output, `argv` value, session id, absolute path, user name or host name from the fixture; (4) each skipped text body has a `run_files` row with its digest; (5) AC-13 also measures the cold build time of the full run index on this machine. |
 
 ## 3c. Honest limits
 
@@ -304,6 +311,18 @@ into the plan's validation evidence.
   whose records exist on this machine. A count of zero means "unknown", not "never ran".
 - The writing tool supplies the `actor` object, and nothing verifies it (comms senders have the same
   limit). It records who CLAIMED to act. It does not authenticate the agent or the model.
+- PER-ITEM COST IS SELF-REPORTED (OQ-20). The split of a turn's tokens, cost and time by E-* or V-*
+  item depends on the agent writing `AW-ITEM` markers. An agent can forget, mislabel or interleave
+  items, and work done before the first marker is `unattributed`. The split is therefore an
+  estimate. The turn TOTALS are host-recorded and are not affected. How reliably agents emit the
+  marker is unmeasured until a pilot runs; the implementing plan measures the `unattributed` share.
+- COST IS ONLY AS GOOD AS THE HOST'S RECORD. Antigravity records no cost today, so its turns have
+  tokens but no `cost_amount`. A priced value depends on the price table in force (`price_rate_set`).
+  No stored amount is converted; a converted display is only as accurate as its stated rate.
+- THE FINALIZE RECORD SUMMARIZES, IT DOES NOT AUTHENTICATE. `changed_paths` comes from the merged
+  diff, so it is reliable. The V-item `decision` and `verifier_verdict` record what the driver and
+  verifier concluded; the `evidence_digest` proves only that the evidence text has not changed
+  since finalize, not that it is true (25kzda 6.1 states the same limit).
 - C10a depends on the test suite finding each regression. In phase B, a behavior that no test
   exercises can change without anyone noticing. For this reason, each phase-B plan must name the
   behavior that its moved consumers had and the test that checks it (section 7).
@@ -515,7 +534,7 @@ spec owns it.
     the corpus is migrated. The cache, in contrast, can be rebuilt at any time. So a query must be
     able to answer "which model changed what in which run" without parsing free text (P1).
   - `op`: the event type. One of `create`, `set`, `unset`, `transition`, `note`, `checkpoint`,
-    `legacy`, `review` (4.1a), `coverage` (4.4) and `rename`.
+    `legacy`, `review` (4.1a), `coverage` (4.4), `rename`, `finalize` and `turn` (round 15, below).
   - `fields`: for `create`, `set` and `checkpoint`, an object that maps each field to its new value.
     For `unset`, a list of field names.
   - `from` and `to`: for `transition` (a status change). The writer validates them against the
@@ -534,11 +553,24 @@ spec owns it.
     `source`: `history` for a line from the record's `## Workflow history` section, or `sidecar` for
     a record from the history sidecar. For `source: sidecar`, the original line is the sidecar's JSON
     object unchanged, including the rename keys (5.2 step 2).
-  - For `op: rename` (round 9, finding SR-802): `verb` (`rename` or `group`), `from_name` and
-    `to_name` (file basenames, never paths). `aw rename` and `aw group` append it, in the same
-    append as the `set` of any changed `set` or `order` field. It replaces the rename ledger that
-    `record_history.append_rename` writes into the sidecar today. Maintainer decision 2026-10-25.
-    This op name cannot be reversed after the cutover, like every other part of the log format.
+  - For `op: rename` (round 9, finding SR-802): `verb` (`rename` or `group`). `aw rename` and
+    `aw group` append it, in the same append as the `set` of any changed `set` or `order` field. It
+    replaces the rename ledger that `record_history.append_rename` writes into the sidecar today.
+    Maintainer decision 2026-10-25. This op name cannot be reversed after the cutover, like every
+    other part of the log format.
+  - PATH HISTORY (round 15, maintainer decision OQ-17). Every event that changes where the
+    artifact's file lives carries `path`: the NEW path, relative to the resolved records root (for
+    example `plans/executed/20261024-revsteps-01-3bwrfx-....ipd.md`). This applies to `create`, the
+    migration `checkpoint`, `rename` (both verbs), and every `transition` that moves the file to a
+    different disposition directory. An event never carries the old path: the previous path is the
+    `path` of the previous path-bearing event in `seq` order, and the `create` or `checkpoint` event
+    always carries the first one. The writer refuses an absolute path, a path containing `..`, and a
+    path outside the records root; the leak sanitizer scans the value like every other log string.
+    WHO MOVED IT is the event's `actor` object and `by_human` flag: `by_human` true for a human,
+    otherwise `actor.tool` (for example `oc_runipd`), `actor.model` (for example
+    `gpt-6-astra-medium`), `actor.host`, and `actor.run_id` with `actor.attempt` when a runner did
+    it. The event `at` is the time. The legacy `from_name`/`to_name` sidecar keys survive unchanged
+    inside imported `legacy` events (5.2 step 2).
   - For a new `op: review` (4.1a): `round` (positive integer), `verdict` (string),
     `review_kind` (`gate` or `refinement`), `reviewer` (string), and optional `review_ref`,
     `findings_summary`, `review_depth` and `readiness` (gate reviews of plans only). Migrated review
@@ -549,6 +581,56 @@ spec owns it.
     `actor` record when and by whom the coverage was checked. `coverage_checked` (string) is kept only
     on migrated values, because today it is a day plus a model name (`2026-10-06 by <model>`, 39
     plans at r9).
+  - For `op: finalize` (round 15, maintainer decision OQ-18): written once per successful plan
+    finalize, in the same append as the terminal `transition`. Fields:
+    - `changed_paths`: the sorted list of repository-relative paths that the merged change added,
+      modified, deleted or renamed, each `{path, change}` with `change` one of `added`, `modified`,
+      `deleted`, `renamed` (a rename also carries `from_path`). Taken from the merged diff, not from
+      the agent's own report.
+    - `scope_result`: `within`, `widened` (accepted additive widening, 25kzda 5.5a) or `exceeded`,
+      with `out_of_scope_paths` listing every path outside `Scope-Paths`. This replaces the legacy
+      `scope-exceeded` bullet.
+    - `items`: one object per E-* and V-* item of the plan, in body order: `item_id` (for example
+      `E-03`), `item_kind` (`execution` or `validation`), `validates` (for a V-item, the E-item ids
+      it validates), `execution_state` (E-items) or `result` (V-items) exactly as the body states at
+      finalize, and for each V-item a `verification` object:
+      `evidence_present` (boolean: the body's `Observed evidence` is non-empty),
+      `evidence_digest` (SHA-256 of the normalized `Observed evidence` text, so a later edit of the
+      evidence is detectable without copying it into the log),
+      `verifier_verdict` (`agrees`, `disagrees`, `not-checked` or `unrecognized`, from the fresh
+      verifier turn), `decided_by` (`driver`, `verifier` or `human`) and `decision`
+      (`verified`, `refused` or `accepted-with-override`).
+      The E/V TEXT stays in the plan body (N3); the log records only these structured facts.
+    - `turns`: the list of `turn` event `seq` numbers that this finalize summarizes.
+  - For `op: turn` (round 15, maintainer decision OQ-20): one event per completed agent turn that
+    acted on this artifact (an execute turn, a verify turn, each fix-it turn, each review turn, and
+    a production turn), appended by the driver when the turn ends, whether it succeeded or not.
+    Fields: `turn_role` (`execute`, `verify`, `fix-it`, `review`, `produce`), `attempt` (the
+    queue-item attempt number), `host`, `model` (the model that ran), `requested_model`,
+    `variant`, `started_at` and `ended_at` (UTC), `wall_seconds`, `step_count`,
+    `tokens` `{input, output, cache_read, cache_write, reasoning, total}` (integers; a component
+    the host did not report is omitted, never written as 0), `cost` (see AMOUNTS below, omitted
+    when the host recorded none), `outcome` (the turn's disposition) and `items` (per-item
+    totals, below). The `actor.run_id` names the run, so the local cache can join a turn to its
+    detailed per-step rows when that run's records exist.
+  - PER-ITEM ATTRIBUTION (OQ-20). The turn prompt tells the agent to write `AW-ITEM: <id>` on its
+    own line whenever it starts work on an E-* or V-* item. The driver charges every model step
+    that follows the marker to that item, until the next marker or the end of the turn. Steps
+    before the first marker are charged to `unattributed`. The `turn` event's `items` list holds
+    `{item_id, step_count, tokens, cost, wall_seconds}` per item, plus one `unattributed` entry, and
+    the event carries `attribution: self-reported`. The sum of the item entries equals the turn
+    totals. A marker naming an id that is not an item of the plan is charged to `unattributed` and
+    counted in `attribution_errors`. No output may present a per-item figure as exact: every
+    per-item figure is labelled self-reported.
+  - AMOUNTS AND CURRENCIES (OQ-20). Every money value is an object `{amount, currency}`: `amount`
+    is an exact decimal STRING (never a binary float), `currency` an ISO 4217 code. It stores the
+    value exactly as the host recorded it or as `run_analytics_pricing` produced it; when the host
+    records a bare number, the currency is `USD` (today's convention) and `cost_source` is
+    `host-recorded`; a value computed from the price table has `cost_source: priced` and
+    `price_rate_set` naming the rate set. A value is NEVER converted when stored. A display may
+    convert to one or more currencies configured in `.aw/config/`; a converted figure names the
+    exchange rate, its source and its date, and is labelled converted. Totals across currencies are
+    never summed without a stated conversion.
 - FIELD NAMES in the log are lowercase snake_case and follow the naming rule in 4.5c. The migration
   renames the legacy field `Kind` (the plan role: `child`, `orchestrator` and so on) to `plan_role`
   (maintainer decision 2026-10-25, finding SR-703). It also renames the research YAML key `kind`
@@ -583,6 +665,16 @@ spec owns it.
 - The current state is the replay of the events in `seq` order (section 0). The log holds EVERY
   aw-owned field (4.2c). Review records have no log (4.1a). The registry in `artifact_meta` lists the
   exact fields for each type, and the writer and the loader refuse unknown fields.
+- SHORT DESCRIPTION (round 15, maintainer decision OQ-19). Every artifact and walkthrough has a
+  logged field `short_description`: one line of at most `attention_contract.MAX_DESCRIPTIVE_LEN`
+  (300) characters, refused by the same `refuse_unsafe_descriptive` check as today's backlog
+  `--summary`. Tools write it: `--summary` on every `new` command, and a setter
+  (`aw set <id6> --summary ...`, named by the implementing plan). The cache copies it into
+  `artifacts.short_description`, and `aw attention --details` and `aw find` read that column instead
+  of parsing body prose. The migration fills it once, in today's `attention._extract_detail` order
+  (`Summary`, `Scope`, `Concern`, `Question`, `Title`, then the H1), truncating nothing: a source
+  longer than the limit is recorded in the census and refused for `--apply` until a person shortens
+  it or the census records a deliberate drop. The longer prose of those bullets still moves to the body.
 - Prose fields (`Summary`, `Scope`, `Concern`, `Motivation`, `Relation to prior work`) move into BODY
   sections during the migration. They do not go into the log (N3). `title` stays the H1 heading. Today,
   every write path refuses unsafe descriptive values in these fields (specs and releases `uz05bl`,
@@ -674,7 +766,8 @@ registry must also include:
 | `coverage`, `coverage-fingerprint`, `coverage-checked` | orchestrator plans (34; r9: 39) | spec `25kzda` 2.5e, `coverage_record.py` | Attestation. Only an `op: coverage` event writes these fields (4.4). `coverage-checked` is kept for migrated values only (4.2). |
 | `review-depth` | plans | approved spec `k3yx72` (its section 12 maps itself onto this spec) | A field that the gate `review` event sets, per `k3yx72` section 12. |
 | `pipeline` (`standard` or `quick`) | plans | approved spec `4iyd78` | A field with a closed set of values. The writer refuses any other value. |
-| `scope-exceeded` | plans (40) | finalize, `ipd_lifecycle` | A field that the finalize event writes. |
+| `scope-exceeded` | plans (40) | finalize, `ipd_lifecycle` | Migrated to `scope_result: exceeded` (or `within` when false); after the cutover only the `finalize` event writes `scope_result` (4.2, OQ-18). |
+| `summary`, `scope`, `concern`, `question`, `title` (as the details source) | all types | `attention._extract_detail` | One-time source of `short_description` (4.2, OQ-19); the prose itself moves to the body. |
 | `attended` | plans (2) | runner | Field. |
 | `close-evidence` | backlog (55) | backlog setter | A field that the `done` transition writes. |
 | `release-exempt-kind`, `release-exempt-ref` | backlog | `backlog/README.md` (`ghna7l`) | Fields. |
@@ -1029,26 +1122,33 @@ column for each registry field of that type, generated from the registry.
 | `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at`, `tool_version`, `runs_root` and `run_reader_version` (4.5b). A mismatch in `schema_hash` or `records_root` causes a rebuild. |
 | `directories` | `path` PK, `mtime_ns` | Caches a directory timestamp hint; membership is verified under 4.3 check 1. |
 | `files` | `path` PK, `file_role` (`log`, `artifact`, `walkthrough` or `review`), `id6`, `size`, `mtime_ns`, `content_digest`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
-| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `set_id`, `order_nn`, `filename_date`, `created_day`, `created_at`, `updated_at`, `last_history_day`, `last_seq`, `valid`, `defect` | One row for each artifact, and one for each walkthrough (with `status` NULL, 4.1), with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the newest post-cutover event, or NULL if there is none; `last_history_day` is the checkpoint value. `attention_contract.last_history_at` (4.4) reads `updated_at`, else `last_history_day`. Rule 5 holds: no column holds both a time and a day. `created_at` is the `at` of the `create` event, or NULL for a migrated artifact. A row with `valid = 0` is never returned as state, and `defect` states why. |
-| `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `readiness`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_exceeded`, `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the logical record type (4.5c). |
-| `scope_paths` | (`id6`, `ordinal`) PK, `path` | The values of the multi-value field `scope-paths`. |
+| `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `short_description`, `set_id`, `order_nn`, `filename_date`, `created_day`, `created_at`, `updated_at`, `last_history_day`, `last_seq`, `valid`, `defect` | One row for each artifact, and one for each walkthrough (with `status` NULL, 4.1), with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the newest post-cutover event, or NULL if there is none; `last_history_day` is the checkpoint value. `attention_contract.last_history_at` (4.4) reads `updated_at`, else `last_history_day`. Rule 5 holds: no column holds both a time and a day. `created_at` is the `at` of the `create` event, or NULL for a migrated artifact. A row with `valid = 0` is never returned as state, and `defect` states why. |
+| `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `priority`, `readiness`, `approval`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_result` (from the latest `finalize` event; it replaces the legacy `scope-exceeded` bullet), `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the logical record type (4.5c). |
+| `scope_paths` | (`id6`, `ordinal`) PK, `path` | The values of the multi-value field `scope-paths`: what a plan DECLARES it will change. |
+| `artifact_paths` | (`id6`, `seq`) PK, `path`, `at`, `actor_id`, `by_human`, `cause` | Every path an artifact has had, one row per path-bearing event (4.2 PATH HISTORY; OQ-17). `cause` is the event `op` (`create`, `checkpoint`, `rename`, `transition`). The previous path is the row with the next-lower `seq`. Answers "where did this file live on date X" and resolves old links. |
+| `changed_paths` | (`id6`, `finalize_seq`, `path`) PK, `change`, `from_path`, `in_scope` | What executing a plan ACTUALLY changed, from its `finalize` event (OQ-18). `in_scope` compares each path with `scope_paths`. An index on `path` answers "which plans touched file X". |
+| `plan_items` | (`id6`, `item_id`) PK, `item_kind`, `ordinal`, `validates`, `execution_state`, `result`, `evidence_present`, `evidence_digest`, `verifier_verdict`, `decided_by`, `decision`, `source`, `finalize_seq` | One row per E-* or V-* item (OQ-18). Before finalize, the loader fills it from the plan BODY (`source: body`). After finalize, the tracked `finalize` event is authoritative (`source: finalize`), and a body whose evidence digest no longer matches is reported by `aw check meta` as `evidence-changed-after-finalize`. |
+| `turns` | (`id6`, `seq`) PK, `run_id`, `attempt`, `turn_role`, `host`, `model`, `requested_model`, `variant`, `started_at`, `ended_at`, `wall_seconds`, `step_count`, `tokens_input`, `tokens_output`, `tokens_cache_read`, `tokens_cache_write`, `tokens_reasoning`, `tokens_total`, `cost_amount`, `cost_currency`, `cost_source`, `outcome`, `attribution_errors` | One row per tracked `turn` event (OQ-20). Survives a clone. Token columns are NULL, never 0, when the host did not report them. |
+| `turn_items` | (`id6`, `turn_seq`, `item_id`) PK, `step_count`, `tokens_input`, `tokens_output`, `tokens_cache_read`, `tokens_cache_write`, `tokens_reasoning`, `tokens_total`, `cost_amount`, `cost_currency`, `wall_seconds` | The self-reported per-item split of one turn (OQ-20). `item_id` is an E-* or V-* id or `unattributed`. Answers "what does a typical V-* check cost" and "tokens and time per E-* item"; every figure is labelled self-reported. |
 | `dependencies` | (`dependent_id6`, `ordinal`) PK, `condition` (`executed`, `exists` or `state`), `target_type`, `required_status`, `target_raw`, `target_id6` | The parsed `Item-Dependencies` (4.2). An index on `target_id6` answers "which artifacts wait for X" with one lookup. |
 | `lineage` | (`child_id6`, `relation`, `parent_raw`) PK, `parent_id6` | `relation` is `from_backlog`, `from_spec`, `from_plan` or `supersedes`. These are individual artifact-origin links. Explicit `graduated-to` Set declarations remain separate in `graduation_targets`; reversing lineage does not replace them (OQ-15). |
 | `graduation_targets` | (`source_id6`, `ordinal`) PK, `target_raw`, `target_set_id` | Each explicitly declared `Graduated-To` plan Set. The source log preserves the declaration as a multi-value field. `target_raw` retains the declaration; `target_set_id` is its resolved Set id, or NULL if no plan Set resolves. This is a group reference, not an artifact id6 and not an artifact foreign key. Preserve declaration order and duplicates so existing checks can diagnose them. |
 | `release_gates` | (`id6`, `release_raw`) PK, `release_id6` | `Blocks-Release`. `release_raw` keeps `next` as written. `release_id6` holds the current resolution after target refresh, even when the source log is unchanged (4.3). |
 | `gates` | `id6` PK, `gate_kind`, `gate_ref`, `gate_summary` | The typed blocked-by gate of a blocked item. `gate_ref` can name an issue, a date or an external item, so the toolkit never resolves it as an `id6`. |
 | `actors` | `actor_id` PK (a hash of the actor object in canonical JSON), `tool`, `ace`, `host`, `model`, `variant`, `run_id`, `attempt` | Who did the action (4.2). The same actor gets the same key after every rebuild. |
-| `events` | (`id6`, `seq`) PK, `op`, `at`, `actor_id` FK, `by_human`, `from_status`, `to_status`, `message`, `raw` | The cached log, one row for each line. `raw` holds the JSON line unchanged, so the cache loses nothing from the log. The status history is the rows with `op = 'transition'`. |
+| `events` | (`id6`, `seq`) PK, `op`, `at`, `actor_id` FK, `by_human`, `from_status`, `to_status`, `path`, `message`, `raw` | The cached log, one row for each line. `raw` holds the JSON line unchanged, so the cache loses nothing from the log. The status history is the rows with `op = 'transition'`. |
 | `field_changes` | (`id6`, `seq`, `field`) PK, `old_value`, `new_value`, `unset` | The change history of each field, which the loader writes during the replay. For example: who changed `blocks_release`, from which value, and when. Values are JSON text, so one table holds every field type. |
 | `review_files` | `path` PK, `subject_id6`, `review_ref`, `round_count`, `parse_ok` | One row for each review record file, for the round-identity rule in 4.6. |
-| `reviews` | (`subject_id6`, `seq`) PK, `review_ref`, `round`, `review_kind` (`gate` or `refinement`), `verdict`, `legacy_verdict`, `readiness`, `findings_summary`, `reviewer` | The `op = 'review'` events, with one typed column for each value (4.1a). "The latest gate review of X" is one indexed query. The findings themselves stay as text in the review file (N3). |
+| `reviews` | (`subject_id6`, `seq`) PK, `review_ref`, `round`, `review_kind` (`gate` or `refinement`), `verdict`, `legacy_verdict`, `readiness`, `review_depth`, `findings_summary`, `reviewer` | The `op = 'review'` events, with one typed column for each value (4.1a). "The latest gate review of X" is one indexed query. The findings themselves stay as text in the review file (N3). |
 | `rev_log_states` | `log_blob_sha` PK, `id6`, `status`, `last_seq`, `state_json` | The replayed state of a log AT ONE REVISION, for `read_at` (4.4). |
 | `rev_mirrors` | `md_blob_sha` PK, `id6`, `status` | The front-matter `status` AT ONE REVISION. `read_at` joins this table with `rev_log_states`. One hash cannot be the key for both, because the state at a revision depends on two files. |
 
 Minimum indexes: `artifacts(status)`, `artifacts(type, status)`, `artifacts(set_id, order_nn)`,
 `dependencies(target_id6)`, `lineage(parent_id6)`, `graduation_targets(target_set_id)`,
 `release_gates(release_id6)`,
-`events(id6, op)`, `reviews(subject_id6, review_kind, seq)` and `attempts(id6)` (4.5b).
+`events(id6, op)`, `reviews(subject_id6, review_kind, seq)`, `artifact_paths(path)`,
+`changed_paths(path)`, `plan_items(item_kind, decision)`, `turns(model, turn_role)`,
+`turn_items(item_id)` and `attempts(id6)` (4.5b).
 
 Graduation navigation combines declared Set targets with reverse origin links. It keeps the
 source of each relationship visible, as `check_engine.graduation_cluster` does today. A declared
@@ -1083,12 +1183,53 @@ item in each `state.json`. With this index, a query can join an artifact to the 
   runs root at a time; this does not add a multi-machine run store.
 - READ-ONLY. Indexing writes nothing under the runs tree (AC-25). The storage, format and retention
   of run records do not change (N4).
-- Tables:
-  - `runs(run_id PK, host, driver, started_at, updated_at, outcome, terminal)`
-  - `run_items(run_id, position, id6, action, item_status, plan_role, PK(run_id, position))`
-  - `attempts(run_id, item_position, id6, attempt_no, lane_id, branch, requested_model, model,
-    variant, ace, started_at, ended_at, outcome, exit_code,
-    PK(run_id, item_position, attempt_no))`
+- SCOPE: ALL STRUCTURED RUN DATA (round 15, maintainer decision OQ-21). Measured 2026-10-26: 598
+  run directories, about 2.3 GB: session logs 1.9 GB, `manifest.json` 225 MB, `state.json` 58 MB,
+  `events.jsonl` 31 MB (26 event types), prompts 25 MB, telemetry 9 MB, outcomes 8 MB, lane
+  collections 6 MB, lane reports 6 MB. The cache indexes every STRUCTURED field of `state.json`
+  (the run, each queue item, and every attempt field, about 60 per attempt), every `events.jsonl`
+  event, the item outcome and verification outcome files, lane collections, questions and answers,
+  telemetry, and per-step usage from session logs. It does NOT store text bodies: prompts, session
+  message text, tool input and output, command lines (`argv`) and markdown reports. For each such
+  file it stores the path relative to the runs root and a content digest only, so `aw runs` can
+  open the file. The runner's own readers define each field; where a reader exposes a field this
+  table list does not name, the registry-generated `extra_json` column of that table keeps it, so
+  no structured field is dropped.
+- Tables (the columns shown are the minimum; see diagram 4 in 4.9.1 for every column and its meaning):
+  - `runs(run_id PK, host, driver, schema_version, created_at, updated_at, outcome, terminal,
+    selectors_json, options_json, run_order, driver_restarts, git_base_head, git_base_branch,
+    manifest_sha256, runbook_sha256, host_capabilities_json, extra_json)`
+  - `run_items(run_id, position, id6, artifact_type, action, initial_status, item_status, plan_role,
+    set_id, order_nn, from_backlog, needs_input, run_state_status, dependencies_json, extra_json,
+    PK(run_id, position))`
+  - `attempts(run_id, item_position, id6, attempt_no, action, lane_id, worktree_branch, worktree_base,
+    worktree_disposition, starting_head, ending_head, starting_status, ending_status,
+    requested_model, model, model_source, variant, ace, host_posture, prompt_digest, started_at,
+    ended_at, exit_code, disposition, outcome, finalized, integrated, integration_signal,
+    integration_detail, corrections_made, corroboration_verdict, verify_model, verify_exit_code,
+    verify_has_evidence, verify_verdict_state, verify_verdict_recognized, verification_status,
+    questions_verdict, tests_run_json, extra_json, PK(run_id, item_position, attempt_no))`
+  - `run_events(run_id, ordinal, at, event, id6, position, payload_json, PK(run_id, ordinal))`:
+    every line of `events.jsonl`. `payload_json` is the event with text bodies removed.
+  - `run_outcomes(run_id, item_position, attempt_no, outcome_role, disposition, summary_digest,
+    files_changed_json, tests_json, commits_json, starting_head, ending_head, pushed, verdict,
+    corrections_made, PK(run_id, item_position, attempt_no, outcome_role))`: the item outcome
+    (`outcome_role: execute`) and verification outcome (`outcome_role: verify`) files.
+  - `run_questions(run_id, question_id, item_position, id6, asked_at, answered_at, blocking,
+    status, PK(run_id, question_id))`: the question and answer records. Question and answer TEXT
+    is not copied.
+  - `run_telemetry(run_id, execution_id, event_kind, phase, item_position, attempt_no, at,
+    duration_seconds, cpu_seconds, rss_bytes, load_1m, memory_available_bytes, probe_error_count,
+    PK(run_id, execution_id, event_kind))`
+  - `turn_steps(run_id, item_position, attempt_no, turn_role, step_index, at, step_type, tool_name,
+    duration_seconds, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write,
+    tokens_reasoning, tokens_total, cost_amount, cost_currency, item_id,
+    PK(run_id, item_position, attempt_no, turn_role, step_index))`: one row per model step from the
+    host session log (OQ-20). `item_id` is the E-* or V-* id that the `AW-ITEM` marker attributed
+    the step to, or `unattributed`. Tool input and output are not copied.
+  - `run_files(run_id, rel_path, file_role, size, content_digest, PK(run_id, rel_path))`: every
+    text body the cache deliberately does not copy (prompts, session logs, reports), so a command
+    can find and open it.
 
   `item_position` references `run_items.position` within the same run. Attempt numbering belongs
   to a queue item, as `runner_shared` defines it, not to an artifact. Two positions can name the
@@ -1097,8 +1238,12 @@ item in each `state.json`. With this index, a query can join an artifact to the 
   does not identify a queue item. Return all matches and report ambiguity; never select one by
   row order or invent an item position in a migrated event.
 
-  The cache does NOT copy session ids, command lines or paths. The cache is gitignored, but people
-  often paste `aw find --format json` output.
+  The cache does NOT copy session ids, command lines (`argv`), absolute paths, user names or host
+  names: these columns are omitted, and paths are stored relative to the runs root or the
+  repository. The cache is gitignored, but people often paste `aw find --format json` output.
+  `aw runs analyze` reads these tables through `artifact_meta` instead of its own parsers, which
+  removes its second reader of run state (P1); `run_analytics_cache` entries become derivable from
+  the cache, and the implementing plan decides whether that module is deleted or kept as a view.
 - LIMIT, SHOWN IN THE OUTPUT. Run data exists only on the machine that ran it. A fresh clone has
   none. The cache of a lane worktree does not see the runs of the main checkout. So the toolkit must
   never present "no attempts" as "never run". Every answer that uses these tables states how many runs
@@ -1142,6 +1287,8 @@ and `aw meta repair --apply` can repair each one.
 | Disposition directory | N1 | Must agree with the replayed status, by the rules of the artifact's type. |
 | Orphans | (none stated) | A log with no record, or an artifact or walkthrough with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). The migration creates no log for a sidecar `id6` that has no tracked record (5.2 step 2), so the rule never fires on the migrated corpus for that reason. |
 | Review rounds | 4.1a | Every `## Round <n>` has exactly one matching `review` event for the stable file binding, and every such event has a matching round. Missing, duplicate or different round numbers fail even when the counts match (4.1a K4). |
+| Finalized E/V items | 4.2 `finalize` (OQ-18) | After a plan's `finalize` event, each body E-* and V-* item must still exist, and each V-item's normalized `Observed evidence` must match the logged `evidence_digest`. A mismatch is `evidence-changed-after-finalize`. The body is never rewritten from the log. |
+| Short description | 4.2 (OQ-19) | Not a mirror: the body prose may differ. No drift rule. |
 
 ### 4.7 Concurrency and merges
 
@@ -1180,7 +1327,7 @@ and `aw meta repair --apply` can repair each one.
 
 ### 4.9 Diagrams (informative)
 
-These diagrams show 4.1a, 4.3, 4.4, 4.5, 4.5a, 4.5b, 4.7, 5.1, 5.2 and section 7. They are INFORMATIVE.
+These diagrams show 4.1a, 4.2, 4.3, 4.4, 4.5, 4.5a, 4.5b, 4.7, 5.1, 5.2 and section 7. They are INFORMATIVE.
 The text sections are the requirements. If a diagram and its section disagree, the section is correct
 and the diagram has the defect. The diagrams add no requirement.
 
@@ -1188,136 +1335,170 @@ and the diagram has the defect. The diagrams add no requirement.
 
 The toolkit calculates every row from other files, so deleting the cache file loses nothing (AC-8).
 The tracked logs under `meta/` are the durable record of artifact metadata. The runs tree is the
-durable record of runs.
+durable record of runs. These diagrams are informative: 4.5a and 4.5b are the requirements, and a
+note here never adds a rule.
 
 How to read these diagrams:
-- Each box is a table (an entity). The box title gives the table name and a short description of
-  what one row holds. Each line in a box is a column (an attribute). A column line shows
-  the data type, the name, and a short note. `PK` marks part of the primary key. `FK` marks a column
-  that refers to a row of another table.
+- Each box is a table (an entity). The box title gives the table name and what ONE ROW holds. Each
+  line in a box is a column (an attribute): its data type, its name, and a note. The note states
+  what the value means, where it comes from (which event, file or rule fills it), its allowed values
+  or format, when it is NULL, and which section defines it.
+- `PK` marks part of the primary key. `FK` marks a column that refers to a row of another table.
 - A line between two boxes shows a relationship. The symbols at each end show how many rows can be
-  on that side:
-  - `||` means exactly one;
-  - `o|` means zero or one;
-  - `|{` means one or more;
-  - `o{` means zero or more.
-  - The left end of a line shows the same symbols mirrored: `|o` means zero or one.
-- Reference columns have NO foreign-key constraint (4.5a rule 3). A relationship line shows what a
-  reference RESOLVES to. A reference that resolves to nothing is an `aw check` finding.
-- The `IPD` box is an example of a per-type table. The `spec`, `backlog` and other per-type tables
-  have the same shape, with the columns that the registry generates for that type.
+  on that side: `||` exactly one; `o|` zero or one; `|{` one or more; `o{` zero or more. The left
+  end shows the same symbols mirrored (`|o` is zero or one).
+- Reference columns (`*_id6`, `*_set_id`, `release_id6`) have NO foreign-key constraint (4.5a rule
+  3). A relationship line shows what a reference RESOLVES to. A reference that resolves to nothing
+  is an `aw check` finding, not a load error.
+- Times: a column ending in `_at` is UTC RFC 3339 text with a time of day. `filename_date` and
+  `created_day` are day-only values on the LOCAL clock that wrote them; other `_day` columns are
+  imported day-only values (4.2b, 4.5a rule 5).
+- Tokens: a token column is NULL when the host did not report that component. It is never 0 for
+  "unknown". Money: `cost_amount` is an exact decimal string, and `cost_currency` is its ISO 4217
+  code (4.2 AMOUNTS AND CURRENCIES). Amounts in different currencies are never added together.
+- The `IPD` box is an example of a per-type table. The `spec`, `backlog`, `research`, `release`,
+  `prompt` and `walkthrough` tables have the same shape, with the columns that the registry
+  generates for that type.
 
 Diagram 1. Artifact state and history:
 
 ```mermaid
 erDiagram
-    ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
-        text id6 PK "full match artifact_core.ID6_RE"
-        text type "logical record type, never changes"
-        text path "current file, follows moves"
-        text disposition "lifecycle directory"
-        text status "result of replaying transition events"
-        text title "the first-level heading"
-        text set_id
-        int order_nn
-        text filename_date "LOCAL filename or grouping day"
-        text created_day "known legacy creation day, otherwise NULL"
-        text created_at "UTC, at of create event; NULL if migrated"
-        text updated_at "UTC, newest post-cutover at; NULL if none"
-        text last_history_day "migrated newest history day"
-        int last_seq
-        int valid "0 means log failed validation"
-        text defect "why invalid"
+    ARTIFACTS["ARTIFACTS: one row per artifact or walkthrough, holding the current state that every type shares. Rebuilt by replaying the tracked log."] {
+        text id6 PK "Stable 6-character id. Full match of artifact_core.ID6_RE. Equals the log filename meta/id6.jsonl, the front-matter id and the filename id6. Never changes."
+        text type "Logical record type from the create or checkpoint event: ipd, spec, backlog, research, release, prompt or walkthrough. Never changes. Selects the per-type table (4.5c)."
+        text path "Current file path relative to the records root. Equals the path of the newest artifact_paths row. Updated on rename, group and disposition moves."
+        text disposition "Lifecycle directory that holds the file now, for example pending, executed, done. A mirror checked against status by aw check meta (4.6)."
+        text status "Current lifecycle status: the to value of the newest transition event, else the checkpoint or create value. NULL for walkthroughs, which have no status."
+        text title "Text of the first H1 heading of the body. Body prose, not a logged field. Used for display only."
+        text short_description "One line, at most 300 characters (MAX_DESCRIPTIVE_LEN). Logged field written only by tools (--summary on new, or a setter). Read by aw attention --details and aw find. Migration fills it from Summary, Scope, Concern, Question, Title, then H1 (OQ-19)."
+        text set_id "Set id (a grouping key, not an id6). From the logged set field. A checked mirror of the filename Set segment (C10)."
+        int order_nn "Two-digit order in the Set from the logged order field: 0 for an orchestrator, 1 or higher for a child. A checked mirror of the filename NN segment."
+        text filename_date "LOCAL-clock day YYYY-MM-DD that the filename prefix states. Can be a Set date rather than the creation day (research). Compared only with the filename (4.2b, OQ-16)."
+        text created_day "Known legacy creation day YYYY-MM-DD on its original LOCAL clock, from the migration checkpoint. NULL when unknown and for every record created after the cutover."
+        text created_at "UTC time of the create event. NULL for a migrated record, because a legacy day has no time of day and none is invented."
+        text updated_at "UTC at of the newest event written after the cutover. NULL if there is none yet; then last_history_day applies (4.4)."
+        text last_history_day "Day of the newest legacy history record, computed by the migration with attention_contract.newest_history_record. Used for age only until a post-cutover event exists."
+        int last_seq "Highest seq in the log. Writers pass it as expect_seq for optimistic concurrency (4.3)."
+        int valid "1 when the log passed every loader check. 0 when it failed; a row with 0 is never returned as state."
+        text defect "Why valid is 0, naming the failed check, for example seq-gap or illegal-transition. NULL when valid."
     }
-    IPD["IPD: per-type current state, one table per type; plans shown"] {
-        text id6 PK, FK
-        text plan_role "child or orchestrator"
-        text work_kind
-        text readiness "written only with a gate review event"
-        text coverage "written only by a coverage event"
-        text review_depth
-        text pipeline
-        text dependency_declaration "listed none unresolved, or NULL if absent"
+    IPD["IPD: per-type current state, one row per plan. Every per-type table has this shape; its columns come from the field registry."] {
+        text id6 PK, FK "The plan's id6. One-to-one with ARTIFACTS."
+        text plan_role "Position in a Set: child or orchestrator. Renamed from the legacy Kind field (4.2, OQ-11)."
+        text work_kind "Nature of the work: bug, feature, chore, security or followup. A bug must carry a release gate while live."
+        text priority "high, medium or low, from the logged priority field."
+        text readiness "go, go-pending-approval or no-go. Writable only in the same append as a gate review event (4.4, AC-15). Unset by a backward move to draft or to-review."
+        text approval "Approval attestation text. Written only by the transition to approved and unset when the plan leaves approved (4.4, SR-901)."
+        text coverage "Orchestrator coverage verdict. Written only by an op coverage event (4.4)."
+        text coverage_fingerprint "Digest of the text the coverage answer depends on, so a changed passage triggers a new check (25kzda 2.5e)."
+        text coverage_checked "Legacy day plus model text, kept only for migrated values. NULL for new coverage events."
+        text review_depth "simple, standard, complex or orchestrator. Set by the gate review event (k3yx72 section 12)."
+        text pipeline "standard or quick (4iyd78). Any other value is refused."
+        text attended "Whether a person must attend execution, for example required."
+        text dependency_declaration "listed, none or unresolved. NULL means the field was absent, which is different from none (4.2)."
+        text scope_result "within, widened or exceeded, from the latest finalize event. Replaces the legacy Scope-Exceeded bullet (OQ-18)."
     }
-    EVENTS["EVENTS: the cached event log, one row per log line"] {
-        text id6 PK, FK
-        int seq PK "contiguous, 0 is migration checkpoint"
-        text op "create set unset transition note checkpoint legacy review coverage rename"
-        text at "UTC RFC 3339"
-        text actor_id FK
-        int by_human "attested human approval"
-        text from_status "transition only"
-        text to_status "transition only"
-        text message
-        text raw "verbatim JSON line"
+    EVENTS["EVENTS: the cached event log. One row per line of meta/id6.jsonl, in seq order."] {
+        text id6 PK, FK "The artifact whose log holds this line."
+        int seq PK "Sequence number. Contiguous with no gaps. 0 is a migration checkpoint, 1 is the create of a new record. Sets the order; at never does (C4)."
+        text op "Event type: create, set, unset, transition, note, checkpoint, legacy, review, coverage, rename, finalize or turn (4.2)."
+        text at "UTC time the event was WRITTEN. For migrated events, the migration time; the original day is in observed_day inside raw."
+        text actor_id FK "Who wrote the event: key of the ACTORS row."
+        int by_human "1 only when a setter recorded --by-human, attesting that a human made or approved the change. NULL otherwise."
+        text from_status "Status before a transition. Must equal the replayed status at that point. NULL for other ops."
+        text to_status "Status after a transition, validated against the type's lifecycle table where one exists. NULL for other ops."
+        text path "New records-root-relative path for create, checkpoint, rename and moving transitions. NULL otherwise (OQ-17)."
+        text message "Optional free text from --message. Refused if unsafe (4.2)."
+        text raw "The JSON line exactly as stored, so the cache loses nothing from the log."
     }
-    FIELD_CHANGES["FIELD_CHANGES: old and new value of each field an event changed"] {
-        text id6 PK, FK
-        int seq PK, FK
-        text field PK
-        text old_value "JSON"
-        text new_value "JSON"
-        int unset
+    FIELD_CHANGES["FIELD_CHANGES: one row per field that one event changed, with the value before and after. Written by the loader during replay."] {
+        text id6 PK, FK "The artifact."
+        int seq PK, FK "The event that made the change."
+        text field PK "Registry field name, snake_case, for example blocks_release."
+        text old_value "JSON text of the value before the event. NULL if the field was not set."
+        text new_value "JSON text of the value after the event. NULL when unset."
+        int unset "1 when the event removed the field, 0 when it set a value."
     }
-    ACTORS["ACTORS: who wrote an event, one row per distinct actor"] {
-        text actor_id PK "hash of canonical actor JSON"
-        text tool "aw command or workflow"
-        text ace "agent environment"
-        text host "runner host"
-        text model "model that actually ran"
-        text variant
-        text run_id
-        int attempt
+    ARTIFACT_PATHS["ARTIFACT_PATHS: every path an artifact has had, one row per path-bearing event (OQ-17)."] {
+        text id6 PK, FK "The artifact."
+        int seq PK, FK "The event that set this path. The previous path is the row with the next-lower seq."
+        text path "Path relative to the records root. Never absolute, never contains .., never outside the root."
+        text at "UTC time of the move."
+        text actor_id FK "Who moved it: tool, model, host and run in ACTORS."
+        int by_human "1 when a human made the move with --by-human."
+        text cause "The op that moved it: create, checkpoint, rename or transition."
+    }
+    ACTORS["ACTORS: one row per distinct actor object. The same object always gets the same key."] {
+        text actor_id PK "SHA-256 of the actor object in canonical JSON."
+        text tool "The aw command, module or workflow that wrote the event, for example aw specs set, oc_runipd or /spec-review. Always present."
+        text ace "Agent environment, for example opencode or antigravity. NULL when unknown."
+        text host "Runner host id: oc or agy. NULL outside a runner."
+        text model "Model that actually ran, as resolved by the host, for example gpt-6-astra-medium. NULL when no model was involved."
+        text variant "Effort level or variant of that model. NULL when none."
+        text run_id "Run that wrote the event. Joins to RUNS when the run records exist on this machine."
+        int attempt "Queue-item attempt number within that run."
     }
     ARTIFACTS ||--o| IPD : "type-specific state"
-    ARTIFACTS ||--o{ EVENTS : "validated state is replayed from"
+    ARTIFACTS ||--o{ EVENTS : "state is replayed from"
     EVENTS ||--o{ FIELD_CHANGES : "changed"
-    ACTORS ||--o{ EVENTS : "performed"
+    ARTIFACTS ||--|{ ARTIFACT_PATHS : "has lived at"
+    EVENTS ||--o| ARTIFACT_PATHS : "set path"
+    ACTORS ||--o{ EVENTS : "wrote"
+    ACTORS ||--o{ ARTIFACT_PATHS : "moved"
 ```
 
 Diagram 2. Relationships between artifacts. Each table has a name that states the meaning of its rows (4.5a rule 2):
 
 ```mermaid
 erDiagram
-    ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
-        text id6 PK
+    ARTIFACTS["ARTIFACTS: one row per artifact, see diagram 1."] {
+        text id6 PK "Stable artifact id."
     }
-    DEPENDENCIES["DEPENDENCIES: what each artifact waits on, from Item-Dependencies"] {
-        text dependent_id6 PK, FK
-        int ordinal PK
-        text condition "executed exists state"
-        text target_type
-        text required_status "state condition only"
-        text target_raw "as written"
-        text target_id6 "resolved, NULL if dangling"
+    DEPENDENCIES["DEPENDENCIES: one row per condition an artifact waits on, parsed from Item-Dependencies (4.2)."] {
+        text dependent_id6 PK, FK "The artifact that waits."
+        int ordinal PK "Position of the condition in the declaration, from 1."
+        text condition "executed (target must be executed), exists (target must exist) or state (target must have required_status)."
+        text target_type "Record type of the target: ipd, spec, backlog and so on."
+        text required_status "Status the target must have. Only for condition state; NULL otherwise."
+        text target_raw "The condition exactly as written, for diagnostics."
+        text target_id6 "id6 the condition resolves to now. NULL when it resolves to nothing: a dangling dependency finding."
     }
-    LINEAGE["LINEAGE: where each artifact came from: backlog, spec, plan, superseded"] {
-        text child_id6 PK, FK
-        text relation PK "from_backlog from_spec from_plan supersedes"
-        text parent_raw PK
-        text parent_id6 "resolved individual origin"
+    LINEAGE["LINEAGE: one row per individual origin link of an artifact."] {
+        text child_id6 PK, FK "The artifact that names its origin."
+        text relation PK "from_backlog, from_spec, from_plan or supersedes."
+        text parent_raw PK "The reference exactly as written."
+        text parent_id6 "id6 the reference resolves to. NULL when dangling."
     }
-    GRADUATION_TARGETS["GRADUATION_TARGETS: plan Sets a source explicitly produced"] {
-        text source_id6 PK, FK
-        int ordinal PK
-        text target_raw "declared Set, as written"
-        text target_set_id "resolved grouping key, not artifact id6"
+    GRADUATION_TARGETS["GRADUATION_TARGETS: one row per plan Set that a backlog item or spec explicitly declares it graduated into (OQ-15)."] {
+        text source_id6 PK, FK "The backlog item or spec that declares Graduated-To."
+        int ordinal PK "Position in the declaration. Order and duplicates are kept so checks can report them."
+        text target_raw "The declared Set exactly as written."
+        text target_set_id "Resolved Set id: a grouping key, not an artifact id6. NULL when no plan Set matches."
     }
-    RELEASE_GATES["RELEASE_GATES: the releases each artifact must ship before"] {
-        text id6 PK, FK
-        text release_raw PK "release id6 or next"
-        text release_id6 "resolved against refreshed targets"
+    RELEASE_GATES["RELEASE_GATES: one row per release an artifact must be done before."] {
+        text id6 PK, FK "The gating artifact."
+        text release_raw PK "As written: a release id6 or next."
+        text release_id6 "Release the value resolves to now. next resolves to the single planned release and is refreshed when releases change, even if this log did not."
     }
-    GATES["GATES: what blocks a blocked item"] {
-        text id6 PK, FK
-        text gate_kind "artifact decision todo issue date external"
-        text gate_ref "never resolved as an id6"
-        text gate_summary
+    GATES["GATES: the typed blocked-by gate of a blocked item. At most one per artifact."] {
+        text id6 PK, FK "The blocked artifact."
+        text gate_kind "What it waits on: artifact, decision, todo, issue, date or external."
+        text gate_ref "Reference for that kind. Never resolved as an id6, because it can name an issue, a date or an outside item."
+        text gate_summary "Optional human context for the gate."
     }
-    SCOPE_PATHS["SCOPE_PATHS: the paths each plan declares"] {
-        text id6 PK, FK
-        int ordinal PK
-        text path
+    SCOPE_PATHS["SCOPE_PATHS: one row per path a plan DECLARES it will change (Scope-Paths)."] {
+        text id6 PK, FK "The plan."
+        int ordinal PK "Position in the declaration, from 1."
+        text path "Repository-relative path or glob as declared."
+    }
+    CHANGED_PATHS["CHANGED_PATHS: one row per path the plan's merged change ACTUALLY touched, from its finalize event (OQ-18)."] {
+        text id6 PK, FK "The plan."
+        int finalize_seq PK, FK "The finalize event that recorded the change."
+        text path PK "Repository-relative path after the change."
+        text change "added, modified, deleted or renamed, from the merged diff."
+        text from_path "Previous path for a renamed file. NULL otherwise."
+        int in_scope "1 when a SCOPE_PATHS entry covers the path, 0 when it is outside the declared scope."
     }
     ARTIFACTS ||--o{ DEPENDENCIES : "waits on"
     ARTIFACTS |o--o{ DEPENDENCIES : "is the target of"
@@ -1326,110 +1507,313 @@ erDiagram
     ARTIFACTS ||--o{ GRADUATION_TARGETS : "declares output Sets"
     ARTIFACTS ||--o{ RELEASE_GATES : "must ship before"
     ARTIFACTS ||--o| GATES : "is blocked by"
-    ARTIFACTS ||--o{ SCOPE_PATHS : "declares"
+    ARTIFACTS ||--o{ SCOPE_PATHS : "declares it will change"
+    ARTIFACTS ||--o{ CHANGED_PATHS : "actually changed"
 ```
 
-Diagram 3. Reviews, runs, freshness checks and revisions:
+Diagram 3. Execution record: E-* and V-* items, verification, turns, tokens and cost (OQ-18, OQ-20). All rows in this diagram come from TRACKED events, so they survive a clone:
 
 ```mermaid
 erDiagram
-    ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
-        text id6 PK
+    ARTIFACTS["ARTIFACTS: one row per artifact, see diagram 1."] {
+        text id6 PK "Stable artifact id."
     }
-    REVIEW_FILES["REVIEW_FILES: one row per review record file"] {
-        text path PK
-        text subject_id6 "reference; no foreign-key constraint"
-        text review_ref "stable file reference; NULL is permanent default"
-        int round_count "counts support the round-identity check"
-        int parse_ok
+    PLAN_ITEMS["PLAN_ITEMS: one row per E-* or V-* checklist item of a plan."] {
+        text id6 PK, FK "The plan."
+        text item_id PK "Item id as written, for example E-03 or V-03."
+        text item_kind "execution for E-items, validation for V-items."
+        int ordinal "Position of the item in the plan body."
+        text validates "For a V-item, a JSON list of the E-item ids it validates. NULL for E-items."
+        text execution_state "E-items only: pending, performed or another state the body states."
+        text result "V-items only: pending, pass or fail, as the body states."
+        int evidence_present "V-items only: 1 when Observed evidence is non-empty."
+        text evidence_digest "V-items only: SHA-256 of the normalized Observed evidence text. The log never holds the text itself."
+        text verifier_verdict "V-items only: agrees, disagrees, not-checked or unrecognized, from the fresh verifier turn."
+        text decided_by "Who made the decision: driver, verifier or human."
+        text decision "verified, refused or accepted-with-override."
+        text source "body before finalize, finalize after it. After finalize the logged values are authoritative."
+        int finalize_seq "seq of the finalize event that recorded this item. NULL before finalize."
     }
-    REVIEWS["REVIEWS: one row per review event in a subject's log"] {
-        text subject_id6 PK, FK
-        int seq PK "the review event"
-        text review_ref
-        int round
-        text review_kind "gate or refinement"
-        text verdict
-        text legacy_verdict "verbatim, never an approval signal"
-        text readiness "gate only"
-        text reviewer
-        text findings_summary
+    TURNS["TURNS: one row per completed agent turn on this artifact, from a tracked turn event."] {
+        text id6 PK, FK "The artifact the turn acted on."
+        int seq PK, FK "The turn event."
+        text run_id "Run the turn belonged to. Joins to RUNS where that run is on this machine."
+        int attempt "Queue-item attempt number."
+        text turn_role "execute, verify, fix-it, review or produce."
+        text host "oc or agy."
+        text model "Model that actually ran."
+        text requested_model "Model that was asked for. Differs from model on a fallback."
+        text variant "Effort level or variant."
+        text started_at "UTC start of the turn."
+        text ended_at "UTC end of the turn."
+        real wall_seconds "Elapsed wall time."
+        int step_count "Number of model steps in the turn."
+        int tokens_input "Uncached input tokens. NULL if not reported."
+        int tokens_output "Output tokens excluding reasoning. NULL if not reported."
+        int tokens_cache_read "Tokens read from the prompt cache. NULL if not reported."
+        int tokens_cache_write "Tokens written to the prompt cache. NULL if not reported."
+        int tokens_reasoning "Reasoning or thinking tokens. NULL if not reported."
+        int tokens_total "Total as the host reported it."
+        text cost_amount "Exact decimal string, as recorded or priced. NULL when no cost exists, for example Antigravity today."
+        text cost_currency "ISO 4217 code, for example USD. NULL when cost_amount is NULL."
+        text cost_source "host-recorded or priced. A priced value also names its rate set in the event."
+        text outcome "The turn's disposition, for example succeeded, failed-safely or stalled."
+        int attribution_errors "Count of AW-ITEM markers that named no item of the plan."
     }
-    RUNS["RUNS: one row per indexed run, read-only"] {
-        text run_id PK
-        text host
-        text driver
-        text started_at
-        text updated_at
-        text outcome
-        int terminal
+    TURN_ITEMS["TURN_ITEMS: the self-reported split of one turn by item, from AW-ITEM markers. Every figure is labelled self-reported."] {
+        text id6 PK, FK "The artifact."
+        int turn_seq PK, FK "The turn event."
+        text item_id PK "An E-* or V-* id, or unattributed for steps before the first marker or after an unknown marker."
+        int step_count "Model steps charged to the item."
+        int tokens_input "Input tokens charged to the item."
+        int tokens_output "Output tokens charged to the item."
+        int tokens_cache_read "Cache-read tokens charged to the item."
+        int tokens_cache_write "Cache-write tokens charged to the item."
+        int tokens_reasoning "Reasoning tokens charged to the item."
+        int tokens_total "Total tokens charged to the item. The sum over all items equals the turn total."
+        text cost_amount "Exact decimal cost charged to the item, in the turn's currency."
+        text cost_currency "Same code as the turn."
+        real wall_seconds "Wall time charged to the item."
     }
-    RUN_ITEMS["RUN_ITEMS: the queue of one run, one row per item"] {
-        text run_id PK, FK
-        int position PK
-        text id6
-        text action
-        text item_status
-        text plan_role
-    }
-    ATTEMPTS["ATTEMPTS: each try at one item in one run"] {
-        text run_id PK, FK
-        int item_position PK, FK
-        text id6 "agrees with owning run item"
-        int attempt_no PK
-        text lane_id
-        text branch
-        text requested_model
-        text model "resolved"
-        text variant
-        text ace
-        text started_at
-        text ended_at
-        text outcome
-        int exit_code
-    }
-    META["META: cache settings; a change forces a rebuild"] {
-        text key PK "schema_hash records_root runs_root run_reader_version built_at tool_version"
-        text value
-    }
-    DIRECTORIES["DIRECTORIES: directory membership hints"] {
-        text path PK
-        int mtime_ns "hint, not proof of unchanged membership"
-    }
-    FILES["FILES: fingerprints of current working bytes"] {
-        text path PK
-        text file_role "log artifact walkthrough review"
-        text id6
-        int size
-        int mtime_ns
-        text content_digest "current working bytes, including unstaged edits"
-        text loaded_at
-        text load_error
-    }
-    REV_LOG_STATES["REV_LOG_STATES: replayed log state at one git revision"] {
-        text log_blob_sha PK
-        text id6
-        text status
-        int last_seq
-        text state_json
-    }
-    REV_MIRRORS["REV_MIRRORS: front-matter status at one git revision"] {
-        text md_blob_sha PK
-        text id6
-        text status "front matter at that revision"
-    }
-    ARTIFACTS |o--o{ REVIEW_FILES : "is reviewed in; missing subjects remain diagnosable"
-    ARTIFACTS ||--o{ REVIEWS : "has review rounds"
-    REVIEW_FILES |o--o{ REVIEWS : "resolves stable file reference"
-    RUNS ||--o{ RUN_ITEMS : "queued"
-    RUN_ITEMS ||--o{ ATTEMPTS : "tried"
-    ARTIFACTS |o--o{ RUN_ITEMS : "was queued as"
-    DIRECTORIES ||--o{ FILES : "lists"
+    ARTIFACTS ||--o{ PLAN_ITEMS : "has checklist items"
+    ARTIFACTS ||--o{ TURNS : "was worked on in"
+    TURNS ||--|{ TURN_ITEMS : "split by item"
+    PLAN_ITEMS |o--o{ TURN_ITEMS : "was charged"
 ```
 
-`META`, `DIRECTORIES`, `FILES` and the two `REV_*` tables are for internal use. They record how up
-to date the cache is, and what a file contained at a git revision. They hold no metadata of their
-own.
+Diagram 4. Reviews and runs. RUNS and its child tables are LOCAL: they exist only where the run records exist (4.5b):
+
+```mermaid
+erDiagram
+    ARTIFACTS["ARTIFACTS: one row per artifact, see diagram 1."] {
+        text id6 PK "Stable artifact id."
+    }
+    REVIEW_FILES["REVIEW_FILES: one row per review record file under records/reviews."] {
+        text path PK "File path relative to the records root."
+        text subject_id6 "The reviewed artifact, from the front matter subject key. A reference with no foreign-key constraint, so a missing subject stays diagnosable."
+        text review_ref "Stable file reference unique within the subject. NULL is the permanent default binding of a sole file (4.1a K4)."
+        int round_count "Number of Round n headings. Used by the round-identity check, never as proof alone."
+        int parse_ok "1 when review_findings parses the file cleanly. A parse failure blocks the subject's approval."
+    }
+    REVIEWS["REVIEWS: one row per review event in a subject's log."] {
+        text subject_id6 PK, FK "The reviewed artifact."
+        int seq PK "The review event."
+        text review_ref "Which review file this round belongs to. NULL means the default file."
+        int round "Round number. Must match a Round n heading of that file."
+        text review_kind "gate (can set readiness and satisfy reviewed) or refinement (never does)."
+        text verdict "For new events: one of plan_readiness.VERDICTS for gate, the refinement vocabulary for refinement."
+        text legacy_verdict "Migrated events only: the original string unchanged, or NULL on earlier rounds. Never an approval signal."
+        text readiness "Gate reviews of plans only."
+        text review_depth "simple, standard, complex or orchestrator."
+        text reviewer "Agent and model that reviewed. Omitted for migrated rounds where it is unknown."
+        text findings_summary "Summary bullet. Checked against the findings table, never trusted."
+    }
+    RUNS["RUNS: one row per run directory under the runs root. Read-only index of state.json."] {
+        text run_id PK "Run directory name, for example run-20261025T224352Z-3331747."
+        text host "oc or agy."
+        text driver "Driver identity recorded in state.json."
+        int schema_version "state.json schema version."
+        text created_at "UTC time the run was created."
+        text updated_at "UTC time state.json was last written."
+        text outcome "Run-level result as the runner's reader reports it."
+        int terminal "1 when the run can no longer change. Unfinished runs are re-read at every refresh."
+        text selectors_json "The selectors the run was started with."
+        text options_json "The run options (flags), with no command line."
+        text run_order "Ordering mode of the queue."
+        int driver_restarts "How many times the driver restarted."
+        text git_base_head "Commit the run started from."
+        text git_base_branch "Branch the run started from."
+        text manifest_sha256 "Digest of manifest.json."
+        text runbook_sha256 "Digest of the frozen runbook."
+        text host_capabilities_json "Host capability probe results for the run."
+        text extra_json "Every other structured field the runner's reader exposes, so none is dropped."
+    }
+    RUN_ITEMS["RUN_ITEMS: one row per item in a run's queue."] {
+        text run_id PK, FK "The run."
+        int position PK "Queue position. Two positions can name the same artifact."
+        text id6 "The artifact queued. Reference, no constraint."
+        text artifact_type "ipd, spec or backlog."
+        text action "review, plan, execute, orchestrate or produce."
+        text initial_status "Artifact status when queued."
+        text item_status "Item status in the run, for example executed or dependency-blocked."
+        text plan_role "child or orchestrator."
+        text set_id "Set of the artifact."
+        int order_nn "Order in the Set."
+        text from_backlog "Backlog id6 the item graduated from, if any."
+        int needs_input "1 when the item waits for a human answer."
+        text run_state_status "Status the runner's run-state check derived for the item."
+        text dependencies_json "Dependency conditions as the runner evaluated them."
+        text extra_json "Every other structured queue-item field."
+    }
+    ATTEMPTS["ATTEMPTS: one row per attempt at one queue item."] {
+        text run_id PK, FK "The run."
+        int item_position PK, FK "Owning queue item."
+        int attempt_no PK "Attempt number within the queue item, from 1."
+        text id6 "Must agree with the owning queue item."
+        text action "Action of this attempt."
+        text lane_id "Isolated worktree lane id."
+        text worktree_branch "Lane branch name."
+        text worktree_base "Commit the lane worktree was created from."
+        text worktree_disposition "What happened to the lane: merged, kept, discarded."
+        text starting_head "Commit the attempt started from."
+        text ending_head "Commit the attempt ended at."
+        text starting_status "Artifact status at start."
+        text ending_status "Artifact status at end."
+        text requested_model "Model asked for."
+        text model "Model that ran."
+        text model_source "Where the model choice came from: flag, profile or default."
+        text variant "Effort level or variant."
+        text ace "Agent environment that ran the attempt, for example opencode or antigravity."
+        text host_posture "Permission posture applied to the host for this attempt (7ckptx R4.1)."
+        text prompt_digest "SHA-256 of the prompt. The prompt text is not copied."
+        text started_at "UTC start."
+        text ended_at "UTC end."
+        int exit_code "Agent process exit code."
+        text disposition "Item disposition, for example executed or failed-safely."
+        text outcome "Attempt outcome as the runner's reader reports it."
+        int finalized "1 when finalize completed."
+        int integrated "1 when the lane merged back."
+        text integration_signal "The merge-and-revalidate gate's signal, for example merged or merge-needs-human."
+        text integration_detail "Why integration succeeded or was refused."
+        int corrections_made "Corrections the verifier made."
+        text corroboration_verdict "Whether the driver's own evidence corroborated the agent's claim."
+        text verify_model "Model of the verifier turn."
+        int verify_exit_code "Verifier process exit code."
+        int verify_has_evidence "1 when the verifier cited evidence."
+        text verify_verdict_state "Verifier verdict as recognized by the driver."
+        int verify_verdict_recognized "1 when the verifier's verdict line matched a known verdict."
+        text verification_status "Overall verification result."
+        text questions_verdict "Result of checking the attempt's emergent questions (6kwd2e)."
+        text tests_run_json "Test commands the attempt ran."
+        text extra_json "Every other structured attempt field."
+    }
+    TURN_STEPS["TURN_STEPS: one row per model step of one turn, from the host session log. Local only (OQ-20)."] {
+        text run_id PK, FK "The run."
+        int item_position PK, FK "The queue item."
+        int attempt_no PK, FK "The attempt."
+        text turn_role PK "execute, verify, fix-it, review or produce."
+        int step_index PK "Step number within the session, from the host."
+        text at "UTC time of the step."
+        text step_type "Host step type, for example tool or agent_response."
+        text tool_name "Tool the step called, for example bash. Tool input and output are not copied."
+        real duration_seconds "Step duration as the host reported it."
+        int tokens_input "Input tokens of the step."
+        int tokens_output "Output tokens of the step."
+        int tokens_cache_read "Cache-read tokens of the step."
+        int tokens_cache_write "Cache-write tokens of the step."
+        int tokens_reasoning "Reasoning tokens of the step."
+        int tokens_total "Total tokens of the step."
+        text cost_amount "Exact decimal cost of the step, when the host recorded one."
+        text cost_currency "ISO 4217 code of that cost."
+        text item_id "E-* or V-* id from the most recent AW-ITEM marker, or unattributed."
+    }
+    RUN_EVENTS["RUN_EVENTS: one row per line of a run's events.jsonl."] {
+        text run_id PK, FK "The run."
+        int ordinal PK "Line number in events.jsonl."
+        text at "UTC time of the event."
+        text event "Event name, for example worktree-allocated or ipd-finalized."
+        text id6 "Artifact the event concerns, if any."
+        int position "Queue position the event concerns, if any."
+        text payload_json "The event with text bodies removed."
+    }
+    RUN_OUTCOMES["RUN_OUTCOMES: one row per item outcome or verification outcome file."] {
+        text run_id PK, FK "The run."
+        int item_position PK, FK "The queue item."
+        int attempt_no PK, FK "The attempt."
+        text outcome_role PK "execute for the item outcome, verify for the verification outcome."
+        text disposition "Disposition the agent reported."
+        text summary_digest "Digest of the summary text, which is not copied."
+        text files_changed_json "Files the AGENT reported changing. The tracked finalize event records the merged diff instead."
+        text tests_json "Tests the agent reported."
+        text commits_json "Commits the agent reported."
+        text starting_head "Commit the agent reported starting from."
+        text ending_head "Commit the agent reported ending at."
+        int pushed "1 when the agent reported a push. The runner forbids pushes, so 1 is a defect signal."
+        text verdict "Verifier verdict, verify role only."
+        int corrections_made "Corrections reported."
+    }
+    RUN_QUESTIONS["RUN_QUESTIONS: one row per question a run asked the maintainer."] {
+        text run_id PK, FK "The run."
+        text question_id PK "Question id."
+        int item_position "Queue item that asked."
+        text id6 "Artifact the question concerns."
+        text asked_at "UTC time asked."
+        text answered_at "UTC time answered. NULL while open."
+        int blocking "1 when the item cannot continue without the answer."
+        text status "open, answered or expired."
+    }
+    RUN_TELEMETRY["RUN_TELEMETRY: one row per start or end telemetry record of one execution phase."] {
+        text run_id PK, FK "The run."
+        text execution_id PK "Execution id from the telemetry file."
+        text event_kind PK "start or end."
+        text phase "execute or validate."
+        int item_position "The queue item."
+        int attempt_no "The attempt."
+        text at "UTC time of the record."
+        real duration_seconds "Phase duration, end records only."
+        real cpu_seconds "Process CPU seconds."
+        int rss_bytes "Process resident memory."
+        real load_1m "One-minute load average."
+        int memory_available_bytes "Available memory."
+        int probe_error_count "Resource probes that failed."
+    }
+    RUN_FILES["RUN_FILES: one row per text file the cache deliberately does not copy."] {
+        text run_id PK, FK "The run."
+        text rel_path PK "Path relative to the run directory."
+        text file_role "prompt, session, report, lane-report or other."
+        int size "File size in bytes."
+        text content_digest "SHA-256 of the file, so a change is detectable."
+    }
+    ARTIFACTS |o--o{ REVIEW_FILES : "is reviewed in"
+    ARTIFACTS ||--o{ REVIEWS : "has review rounds"
+    REVIEW_FILES |o--o{ REVIEWS : "holds rounds"
+    RUNS ||--o{ RUN_ITEMS : "queued"
+    RUN_ITEMS ||--o{ ATTEMPTS : "tried"
+    ATTEMPTS ||--o{ TURN_STEPS : "took steps"
+    ATTEMPTS ||--o{ RUN_OUTCOMES : "reported"
+    RUNS ||--o{ RUN_EVENTS : "logged"
+    RUNS ||--o{ RUN_QUESTIONS : "asked"
+    RUNS ||--o{ RUN_TELEMETRY : "measured"
+    RUNS ||--o{ RUN_FILES : "kept text in"
+    ARTIFACTS |o--o{ RUN_ITEMS : "was queued as"
+```
+
+Diagram 5. Cache bookkeeping. These tables hold no metadata of their own. They record how up to date the cache is, and what a file contained at a git revision:
+
+```mermaid
+erDiagram
+    META["META: cache settings. A change in schema_hash, records_root or runs_root forces a rebuild."] {
+        text key PK "One of schema_hash, records_root, runs_root, run_reader_version, built_at, tool_version."
+        text value "schema_hash: hash of the registry plus layout version. records_root and runs_root: resolved roots. built_at: UTC time of the last full build."
+    }
+    DIRECTORIES["DIRECTORIES: one row per directory in scope, as a hint for finding new or removed files."] {
+        text path PK "Directory path relative to the records root."
+        int mtime_ns "Last seen modification time. A hint only: membership is verified by listing (4.3 check 1)."
+    }
+    FILES["FILES: one row per known source file, proving whether its bytes changed."] {
+        text path PK "File path relative to the records root."
+        text file_role "log, artifact, walkthrough or review."
+        text id6 "Artifact the file belongs to."
+        int size "Last seen size in bytes. A hint."
+        int mtime_ns "Last seen modification time. A hint."
+        text content_digest "Digest of the current working bytes, including unstaged edits. The proof of identity (4.3 check 2)."
+        text loaded_at "UTC time the loader last read the file."
+        text load_error "Why the last load failed. NULL when it succeeded."
+    }
+    REV_LOG_STATES["REV_LOG_STATES: replayed log state of one log blob at a git revision, for read_at (4.4)."] {
+        text log_blob_sha PK "git blob sha of meta/id6.jsonl at that revision. Content-addressed, so the row never goes stale."
+        text id6 "The artifact."
+        text status "Replayed status at that revision."
+        int last_seq "Highest seq at that revision."
+        text state_json "Full replayed state at that revision."
+    }
+    REV_MIRRORS["REV_MIRRORS: front-matter status of one artifact blob at a git revision."] {
+        text md_blob_sha PK "git blob sha of the artifact .md file at that revision."
+        text id6 "The artifact."
+        text status "Front-matter status line at that revision. read_at joins it with REV_LOG_STATES."
+    }
+    DIRECTORIES ||--o{ FILES : "lists"
+```
 
 #### 4.9.2 A metadata read (4.3, 4.5; C5a)
 
@@ -1478,10 +1862,11 @@ sequenceDiagram
     else
         M->>L: acquire
         M->>C: read current state (refreshed as in 4.9.2)
-        alt seq is not expect_seq, transition or field invalid, or actor carries a forbidden value
+        alt seq is not expect_seq, transition or field invalid, path absolute or outside the root, or actor carries a forbidden value
             M-->>S: refuse, nothing written
         else
             M->>M: retain local recovery data for create, rename or group
+            Note over M: a move adds path to its event. Finalize adds the finalize event and its turn events in the same append
             M->>G: 1 LOG: temp file, fsync, atomic replace (the COMMIT POINT)
             alt failure before log replacement
                 M-->>S: fail, authoritative files unchanged
@@ -1830,6 +2215,11 @@ PHASE A: build the single interface on today's format. Phase A is additive: it a
 3. The migration chain framework and `m0001_metadata_v2`, with the dry run, the census (AC-20) and
    the round-trip check. Run it only on a COPY of this repository.
 
+Phase A step 1 also covers the round-15 additions: the `short_description`, path-history,
+`finalize` and `turn` event fields (4.2) and their cache tables (4.5a), and the full run index
+(4.5b). The `AW-ITEM` marker is a prompt change plus a driver change; the plan that adds it names
+the prompt files it edits and measures the `unattributed` share on a pilot run (3c).
+
 PHASE B: move every consumer to the interface, still on today's format. Each plan has one merge, and
 the tests pass after each merge.
 
@@ -2035,6 +2425,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-26 note (aw specs): /spec-review round 15 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-905..SR-910 FIXED on maintainer decisions OQ-17..OQ-21 via /askme: short_description tracked field and artifacts column; path history (new path only, actor and time on the event); tracked finalize event with changed paths, scope result and per-V-item verification; tracked per-turn tokens/time/cost with exact amounts and ISO 4217 currency, cache-only per-step rows, self-reported per-item split via AW-ITEM; full structured run index with no text bodies; 4.9.1 rewritten as five diagrams with full notes, 31 tables cross-checked, 12 mermaid blocks render; AC-34..AC-38 added; no Readiness written
 - 2026-10-26 note (aw specs): /spec-review round 14 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-901 (approval attestation owned by the approved transition; same-append unset of approval/readiness), SR-902 (new repository stamped at install), SR-903 (lossless import exempt from the output-safety length refusal; 34 lines measured), SR-904 (k3yx72 compatibility row) all FIXED; no maintainer question needed; re-review keeps reviewed status; no Readiness written
 - 2026-10-26 note (aw specs): APPROVE WITH REVISIONS APPLIED; /spec-review rounds 12 and 13 (Codex/unknown): SR-818 through SR-831 fixed; maintainer resolved OQ-15 and OQ-16 via /askme, preserving explicit graduation Set declarations alongside individual origin links and separating filename dates from creation information. Re-review keeps reviewed status; no human approval recorded.
 - 2026-10-26 note (aw specs): /spec-review round 11 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-816..SR-817 FIXED (census and Section 9 compatibility alignment)
