@@ -233,11 +233,14 @@ into the plan's validation evidence.
 | AC-19 | 4.2b | The check compares the creation date in the log on the same clock that wrote the filename date. | A test artifact created at 23:30 local time on a host whose local time is behind UTC: `aw check meta` reports no filename-date drift. `tests/test_date_reader_clock_parity.py` (or the test that replaces it) passes after the date readers are changed to use `artifact_meta`. Both pasted. |
 | AC-20 | 4.2c | The registry contains every field that the corpus or an approved spec uses, and the migration drops no field unless the census records the drop as deliberate. | The migration dry-run's field census for this repository, pasted. It lists every different field name used before the first `##` heading, with its destination (log field, body section, or a recorded deliberate drop), and it shows zero `unknown-field` refusals. |
 | AC-21 | 4.4a | This spec meets the obligations that executed plans gave to it. | For each row of 4.4a, the pasted evidence that the row names. |
-| AC-22 | 5.2 | The cutover refuses to run when the history sidecar is not present. When it runs correctly, it does not lose the sidecar records. | (1) A test that runs the migration preflight in a lane-style worktree that has no sidecar, and asserts a refusal that names the sidecar. (2) The real cutover's preflight line that reports the sidecar record count. Both pasted. |
+| AC-22 | 5.2 | The cutover refuses to run when the history sidecar is not present. When it runs correctly, it does not lose the sidecar records. | (1) A test that runs the migration preflight with `--force-worktree` in a lane-style worktree that has no sidecar, and asserts a refusal that names the sidecar. (The same run without `--force-worktree` refuses earlier, on the worktree condition; AC-27 tests that.) (2) The real cutover's preflight line that reports the sidecar record count. Both pasted. |
 | AC-23 | 4.5, 4.5a | The cache schema is the schema in 4.5a, and the toolkit generates it from the registry. | Pasted: (1) a test that compares the table set and the columns of each table with 4.5a; (2) a test that adds a field to the registry, with no other change, and shows that the next read rebuilds the cache and has the new column; (3) `EXPLAIN QUERY PLAN` output that shows an index is used for: `aw find` by status and Set, "which artifacts depend on X", and "the latest gate review of X". |
 | AC-24 | 4.2, 4.5a | Dependencies, lineage and actors keep their structure through a migration and a replay. | Pasted: (1) a migration test with each form of `Item-Dependencies` (`executed:`, `exists:`, `state:`, `none`, `unresolved`, and no field). It asserts the parsed conditions and the `dependency_declaration`, and that `none` and "no field" stay different. (2) A test in which the writer refuses an event whose `actor` contains a session id, a path or a user name, and the leak sanitizer reports it. (3) `aw graduation` gives the same result in both directions, using only the `lineage` table. |
 | AC-25 | 4.5b | The cache indexes run records read-only. The toolkit never presents "no run data" as "never ran". | Pasted: (1) a test that indexes a test runs tree into `runs`, `run_items` and `attempts`, with rows that match the output of the runner's own readers; (2) a byte-for-byte check that indexing changed no file under the runs tree; (3) on a fresh clone, a query for the attempts of an artifact reports `runs_indexed: 0` (unknown) and not an empty success. |
 | AC-26 | 4.3 | The next read shows a new, deleted or moved record, with no `aw index rebuild`. | Pasted tests that add a log and an artifact, delete one, and `git mv` one into another disposition directory without `artifact_meta` (as a pull or checkout does). After each change, `aw find` shows the change. |
+| AC-27 | 5.2 | Each preflight refusal in 5.2 step 1 refuses without `--force`, `--force` overrides each one, and the migration reports every override. `--force` never overrides the worktree refusal; `--force-worktree` overrides only that refusal. | Pasted tests, each in a test repository and each with no files written on a refusal: (1) for each of the three step-1 conditions (uncommitted change under `.aw/records/`, integration lock held by another process, a lane worktree with an unmerged plan change), the dry run refuses and names the condition, and the same run with `--force` continues and its output names the overridden condition; (2) in a linked worktree, the run refuses with `--force` and names `--force-worktree`; (3) in a linked worktree with `--force-worktree` and no sidecar, the run still refuses on the sidecar condition (step 2); (4) `--force-worktree` in the main checkout with an uncommitted record change still refuses on that condition. |
+| AC-28 | 5.1 | `aw install` starts a pending migration only after a yes answer at a terminal, or with `--migrate`. `-y`/`--yes` never starts one. | Pasted tests on a test repository with a pending migration: (1) at a terminal, answering no leaves every record byte-identical and prints the command that runs the migration; answering yes runs it; (2) with no terminal and no `--migrate`, the install only reports, and every record is byte-identical; (3) `aw install --yes` and `aw install all --yes` leave every record byte-identical and report the pending migration; (4) `aw install --migrate` runs it, and when a step-1 condition is true it still refuses, because `--migrate` adds neither `--force` nor `--force-worktree`. |
+| AC-29 | 4.1, 4.6 | Only the record types that 4.1 names get an event log. Comms messages and research companion data files keep no `id6`, front matter or log, and `aw check meta` does not report them. | Pasted: (1) after a migration of a test corpus with one walkthrough without an id, one comms message and one `<doc-stem>.data/` file, the walkthrough has an `id6`, front matter and a log, and the comms message and the data file are byte-identical; (2) `aw check meta` on that corpus reports no orphan for the comms message or the data file, and does report an orphan for a walkthrough whose log was deleted. |
 
 ## 3c. Honest limits
 
@@ -275,7 +278,15 @@ into the plan's validation evidence.
 - The cutover depends on data that exists only on one machine. The gitignored history sidecar holds
   the only copy of 413 records, and it exists only in the maintainer's main checkout. So the cutover
   must run there. It must not run in a runner lane worktree, which has no sidecar (AC-22). For this
-  reason, a person must attend the cutover, and the runner cannot do it unattended.
+  reason, a person must attend the cutover, and the runner cannot do it unattended. A person who
+  passes `--force-worktree` and `--force` together can still run it in a lane; the migration then
+  loses the sidecar records, and it reports both overrides.
+- `--force` can override every preflight refusal in 5.2 step 1 (maintainer decision 2026-10-25,
+  OQ-12). With `--force`, the migration can therefore run while a live run holds the integration
+  lock. It then commits without the lock and can race a driver that publishes to `main`, which is
+  the failure the integration lock exists to prevent (measured 2026-09-22). `--force` can also mix
+  uncommitted record edits into the migration commit or lose them. The migration reports each
+  override, but nothing prevents these results once a person passes `--force`.
 - A tooled write is NOT atomic across files (4.3, finding SR-705). The log write is atomic. The
   front-matter update and the directory move come after it. A crash between these steps leaves drift
   that the toolkit can detect and repair deterministically. It never leaves lost or contradictory history. But for a
@@ -1001,7 +1012,7 @@ and `aw meta repair --apply` can repair each one.
 
 ### 4.9 Diagrams (informative)
 
-These diagrams show 4.1a, 4.3, 4.4, 4.5, 4.5a, 4.5b, 4.7, 5.2 and section 7. They are INFORMATIVE.
+These diagrams show 4.1a, 4.3, 4.4, 4.5, 4.5a, 4.5b, 4.7, 5.1, 5.2 and section 7. They are INFORMATIVE.
 The text sections are the requirements. If a diagram and its section disagree, the section is correct
 and the diagram has the defect. The diagrams add no requirement.
 
@@ -1012,7 +1023,8 @@ The tracked logs under `meta/` are the durable record of artifact metadata. The 
 durable record of runs.
 
 How to read these diagrams:
-- Each box is a table (an entity). Each line in a box is a column (an attribute). A column line shows
+- Each box is a table (an entity). The box title gives the table name and a short description of
+  what one row holds. Each line in a box is a column (an attribute). A column line shows
   the data type, the name, and a short note. `PK` marks part of the primary key. `FK` marks a column
   that refers to a row of another table.
 - A line between two boxes shows a relationship. The symbols at each end show how many rows can be
@@ -1031,7 +1043,7 @@ Diagram 1. Artifact state and history:
 
 ```mermaid
 erDiagram
-    ARTIFACTS {
+    ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
         text id6 PK "full match artifact_core.ID6_RE"
         text type "filename type facet, never changes"
         text path "current file, follows moves"
@@ -1047,7 +1059,7 @@ erDiagram
         int valid "0 means log failed validation"
         text defect "why invalid"
     }
-    IPD {
+    IPD["IPD: per-type current state, one table per type; plans shown"] {
         text id6 PK, FK
         text plan_role "child or orchestrator"
         text work_kind
@@ -1057,7 +1069,7 @@ erDiagram
         text pipeline
         text dependency_declaration "listed none unresolved, or NULL if absent"
     }
-    EVENTS {
+    EVENTS["EVENTS: the cached event log, one row per log line"] {
         text id6 PK, FK
         int seq PK "contiguous, 0 is migration checkpoint"
         text op "create set unset transition note checkpoint legacy review coverage"
@@ -1069,7 +1081,7 @@ erDiagram
         text message
         text raw "verbatim JSON line"
     }
-    FIELD_CHANGES {
+    FIELD_CHANGES["FIELD_CHANGES: old and new value of each field an event changed"] {
         text id6 PK, FK
         int seq PK, FK
         text field PK
@@ -1077,7 +1089,7 @@ erDiagram
         text new_value "JSON"
         int unset
     }
-    ACTORS {
+    ACTORS["ACTORS: who wrote an event, one row per distinct actor"] {
         text actor_id PK "hash of canonical actor JSON"
         text tool "aw command or workflow"
         text ace "agent environment"
@@ -1097,10 +1109,10 @@ Diagram 2. Relationships between artifacts. Each table has a name that states th
 
 ```mermaid
 erDiagram
-    ARTIFACTS {
+    ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
         text id6 PK
     }
-    DEPENDENCIES {
+    DEPENDENCIES["DEPENDENCIES: what each artifact waits on, from Item-Dependencies"] {
         text dependent_id6 PK, FK
         int ordinal PK
         text condition "executed exists state"
@@ -1109,24 +1121,24 @@ erDiagram
         text target_raw "as written"
         text target_id6 "resolved, NULL if dangling"
     }
-    LINEAGE {
+    LINEAGE["LINEAGE: where each artifact came from: backlog, spec, plan, superseded"] {
         text child_id6 PK, FK
         text relation PK "from_backlog from_spec from_plan supersedes"
         text parent_raw PK
         text parent_id6 "resolved; graduated-to is this read in reverse"
     }
-    RELEASE_GATES {
+    RELEASE_GATES["RELEASE_GATES: the releases each artifact must ship before"] {
         text id6 PK, FK
         text release_raw PK "release id6 or next"
         text release_id6 "resolved at load"
     }
-    GATES {
+    GATES["GATES: what blocks a blocked item"] {
         text id6 PK, FK
         text gate_kind "artifact decision todo issue date external"
         text gate_ref "never resolved as an id6"
         text gate_summary
     }
-    SCOPE_PATHS {
+    SCOPE_PATHS["SCOPE_PATHS: the paths each plan declares"] {
         text id6 PK, FK
         int ordinal PK
         text path
@@ -1144,17 +1156,17 @@ Diagram 3. Reviews, runs, freshness checks and revisions:
 
 ```mermaid
 erDiagram
-    ARTIFACTS {
+    ARTIFACTS["ARTIFACTS: one row per artifact: shared current state"] {
         text id6 PK
     }
-    REVIEW_FILES {
+    REVIEW_FILES["REVIEW_FILES: one row per review record file"] {
         text path PK
         text subject_id6 FK
         text review_ref "own id6 or date stem, NULL if sole file"
         int round_count "must equal its review events"
         int parse_ok
     }
-    REVIEWS {
+    REVIEWS["REVIEWS: one row per review event in a subject's log"] {
         text subject_id6 PK, FK
         int seq PK "the review event"
         text review_ref
@@ -1166,7 +1178,7 @@ erDiagram
         text reviewer
         text findings_summary
     }
-    RUNS {
+    RUNS["RUNS: one row per indexed run, read-only"] {
         text run_id PK
         text host
         text driver
@@ -1175,7 +1187,7 @@ erDiagram
         text outcome
         int terminal
     }
-    RUN_ITEMS {
+    RUN_ITEMS["RUN_ITEMS: the queue of one run, one row per item"] {
         text run_id PK, FK
         int position PK
         text id6
@@ -1183,7 +1195,7 @@ erDiagram
         text item_status
         text plan_role
     }
-    ATTEMPTS {
+    ATTEMPTS["ATTEMPTS: each try at one item in one run"] {
         text run_id PK, FK
         text id6 PK
         int attempt_no PK
@@ -1198,15 +1210,15 @@ erDiagram
         text outcome
         int exit_code
     }
-    META {
+    META["META: cache settings; a change forces a rebuild"] {
         text key PK "schema_hash records_root built_at tool_version"
         text value
     }
-    DIRECTORIES {
+    DIRECTORIES["DIRECTORIES: directory mtimes, to find new, deleted and moved files"] {
         text path PK
         int mtime_ns "membership freshness"
     }
-    FILES {
+    FILES["FILES: file size, mtime and blob sha, to find edited files"] {
         text path PK
         text file_role "log artifact review"
         text id6
@@ -1216,14 +1228,14 @@ erDiagram
         text loaded_at
         text load_error
     }
-    REV_LOG_STATES {
+    REV_LOG_STATES["REV_LOG_STATES: replayed log state at one git revision"] {
         text log_blob_sha PK
         text id6
         text status
         int last_seq
         text state_json
     }
-    REV_MIRRORS {
+    REV_MIRRORS["REV_MIRRORS: front-matter status at one git revision"] {
         text md_blob_sha PK
         text id6
         text status "front matter at that revision"
@@ -1338,18 +1350,23 @@ flowchart TD
     F -- no --> H["left conflicted; aw check meta fails; never a silent duplicate seq"]
 ```
 
-#### 4.9.6 Cutover migration `m0001` (5.2)
+#### 4.9.6 Cutover migration `m0001` (5.1, 5.2)
 
 ```mermaid
 flowchart TD
+    I["aw install: yes at the prompt, or --migrate (never -y alone, 5.1)"] --> Z
     Z["aw migrate metadata"] --> Z1{"journal shows an interrupted apply?"}
     Z1 -- yes --> Z2["resume or roll back from the MigrationManager journal; never restart half-applied"]
-    Z1 -- no --> P["1: Preflight: clean records tree, integration lock free and then held, no lane with unmerged plan changes, NOT a lane worktree, sidecar present with its count reported"]
-    P --> Q{"all pass?"}
-    Q -- "no, without --force (--force overrides the three preflight conditions and a missing sidecar)" --> R["refuse, write nothing"]
-    Q -- yes --> W["run steps 2 to 6 in a SCRATCH COPY"]
+    Z1 -- no --> PW{"1: running in a linked git worktree, such as a runner lane?"}
+    PW -- "yes, without --force-worktree (--force does not override this)" --> R["refuse, name the condition, write nothing"]
+    PW -- "no, or --force-worktree given and reported" --> P{"1: preflight conditions: uncommitted change under .aw/records, a live run holds the integration lock, a lane has unmerged plan changes"}
+    P -- "one or more true, without --force" --> R
+    P -- "none true, or --force given and each override reported" --> PL["acquire and hold the integration lock if no live run holds it; with --force past a held lock, run without it"]
+    PL --> PS{"2: history sidecar present? report its record count"}
+    PS -- "absent, without --force" --> R
+    PS -- "present, or --force given and reported" --> W["run steps 2 to 6 in a SCRATCH COPY"]
     W --> S2["2: export the history.jsonl sidecar and add its records to the logs"]
-    S2 --> S3["3: mint id6 for non-review records with none"]
+    S2 --> S3["3: mint id6 for non-review records with none; comms messages and .data files excluded"]
     S3 --> S4["4: per artifact: checkpoint seq 0 with local date and mapped field names, parsed dependencies, legacy event per raw history line, prose fields to body, two-key front matter and banner"]
     S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review_kind, legacy verdict verbatim, review_ref"]
     S4r --> S4a["4a: terminal directories migrated too, under a journaled marker the executed-plan hook accepts"]
@@ -1406,10 +1423,12 @@ flowchart TD
 - After `aw install` installs the bundle, it lists the pending migrations and asks, for each one,
   whether to run it now (maintainer decision 2026-10-25, OQ-3). It runs a migration only when the
   person answers yes. With no terminal, it only reports the pending migrations and the command that
-  runs each one. `-y` (today: "skip preflight confirmations") does NOT answer yes to this question,
-  so a script that passes `-y` never starts a migration. If a way to say yes without a terminal is
-  needed, the implementing plan names a separate option for it; this spec does not name one.
-  `aw migrate metadata` runs this migration directly.
+  runs each one. `-y`/`--yes` (today: "skip preflight confirmations") does NOT answer yes to this
+  question, so a script that passes `-y`, including `aw install all --yes`, never starts a
+  migration. The new option `--migrate` answers yes without a terminal: `aw install --migrate` runs
+  every pending migration after the bundle install (maintainer decision 2026-10-25). `--migrate`
+  does not add `--force` or `--force-worktree`, so the migration's own preflight refusals (5.2 step
+  1) still stop it. `aw migrate metadata` runs this migration directly.
 - `aw migrate` does NOT exist today. The existing `aw migrate-layout` is a separate top-level command,
   with the actions `inventory`, `plan`, `apply`, `status`, `resume`, `rollback`, `cleanup` and
   `wizard`. Plan step 3 decides whether `migrate-layout` becomes `aw migrate layout`, next to
@@ -1443,15 +1462,23 @@ flowchart TD
      file that the migration also rewrote, and a person must resolve it.
 
    The migration runs in the checkout that holds the history sidecar. When no live run holds the
-   integration lock, the migration acquires it and holds it while it runs. It refuses to run in a
-   lane worktree (3c, AC-22). So a person must attend the
-   migration. The runner cannot run it unattended.
+   integration lock, the migration acquires it and holds it while it runs.
+
+   WORKTREE REFUSAL. The migration also refuses to run in a linked git worktree, that is, any
+   checkout whose git directory differs from the repository's common git directory. Every runner
+   lane is such a worktree (3c, AC-22). `--force` does NOT override this refusal. Only the separate
+   option `--force-worktree` overrides it (maintainer decision 2026-10-25), and the migration
+   reports that it was overridden. A runner lane has no history sidecar, so a run in a lane also
+   meets the step 2 sidecar refusal, which `--force-worktree` does not override.
+
+   For these reasons, a person must attend the migration. The runner cannot run it unattended.
 2. SIDECAR FIRST. Export the gitignored `.aw/records/history.jsonl` sidecar and add its records to
    the logs before any other step. At round 5, it held the only copy of 413 records for 296 `id6`
    values (backlog 309, specs 82, research 11, plans 8, walkthroughs 2, roadmaps 1). It exists only on
    the machine that runs the migration. A migration on a machine WITHOUT that sidecar loses those
    records. So the preflight must report whether the sidecar exists and how many records it holds.
-   It must refuse, unless `--force` is given, when a sidecar is expected but not present. After this
+   It must refuse, unless `--force` is given, when a sidecar is expected but not present. (This is
+   the only refusal outside step 1 that `--force` overrides.) After this
    step, the migration retires the sidecar writer (4.8) and deletes the sidecar's `.gitignore` line.
 3. NEW IDS. Give an `id6` to each non-review record that has none in any form (the same population
    as the "39 non-review records" count in section 1). At round 5 there were 39
@@ -1645,6 +1672,8 @@ for concurrency.
   explicit command. Owner: the maintainer. RESOLVED 2026-10-25 by the user via /askme: `aw install`
   asks for confirmation and runs a pending migration only when the person answers yes; with no
   terminal it only reports; `-y` does not count as yes. 5.1 now states this. No reason was given.
+  FOLLOW-UP 2026-10-25 by the user via /askme: a separate `--migrate` option says yes without a
+  terminal; `-y`/`--yes` keeps its current meaning only. No reason was given.
 - OQ-4 `[RESOLVED 2026-10-24 by the maintainer]` `2vev8j` is SUPERSEDED, and its remaining rules are
   in this spec (4.2, 4.2a, 4.2b, 4.5; finding SR-102). The first plan of the implementing Set changes
   `2vev8j` to `superseded`, with a reference to this spec. It changes the 16 code and test files that
@@ -1689,6 +1718,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): maintainer follow-up via /askme: --force no longer overrides the linked-worktree refusal, new --force-worktree does (5.2 step 1, 3c, AC-22); aw install --migrate says yes without a terminal and -y/--yes never starts a migration (5.1, OQ-3); 3c limit for --force past a live integration lock; new AC-27 (preflight overrides), AC-28 (install prompt, --migrate, -y), AC-29 (record types without logs); diagram 4.9.6 redrawn for the new preflight order; every ER entity carries a short description; all 10 mermaid blocks render with mermaid-cli 12.0.0 and ER columns were checked against 4.5a/4.5b; no reason was given
 - 2026-10-25 note (aw specs): OQ-1, OQ-2, OQ-3 resolved by the maintainer via /askme: OQ-1 plan step 1 decides the registry from the AC-20 census; OQ-2 walkthroughs only get id6, front matter and a log (comms and .data files unchanged and excluded from aw check meta; 4.1, 4.6 and 5.2 step 3 updated); OQ-3 aw install asks before running a pending migration, reports only without a terminal, and -y does not count as yes (5.1 updated); no reason was given
 - 2026-10-25 note (aw specs): OQ-12 resolved by the maintainer via /askme: `--force` overrides all three 5.2 step 1 preflight conditions; step 1 and diagram 4.9.6 updated to state this and the consequence of each override; no reason was given
 - 2026-10-25 note (aw specs): proofread pass 3 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request, against the pre-proofread text and the technical-artifact writing requirements: AC-1 fragment repaired (body-prose exclusion "never silently" restored); round-2 commit-count reference made explicit; P5 closure states (backlog done, plan executed); 3c inventory limit covers sections 1 and 6; K4 example sentence de-duplicated; 5.2 step 4a quotes both the 2026-09-25 and the current AGENTS.md wording of the executed-plan rule; "lifecycle record" replaced by the section 0 terms (artifact; non-review record in step 3 and diagram 4.9.6); no requirement, decision, identifier or measured value changed
