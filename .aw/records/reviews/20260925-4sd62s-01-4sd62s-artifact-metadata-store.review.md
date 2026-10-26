@@ -452,3 +452,60 @@ Mermaid treated as syntax; it was corrected before the successful run. This rend
 syntax, not semantic correctness; the prose/schema comparison supplies the separate semantic review.
 No product suite was run for these document changes. The review record includes the isolated mechanism
 probe output in round 12 and does not claim that unimplemented acceptance criteria have passed.
+
+## Round 14
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-901 | high | UNDER-SCOPE | B/D: attestation ownership | agent_workflows/status_set.py:1689-1725 (the `rec.record_type == "plans"` branches matching `^- Approval:` and `^- Readiness:`); spec section 1 P2 names `Approval`; 62 plans carry `- Approval:` | The spec gives `readiness` and `coverage` owning events, but `approval` (named as forgeable in P2) had no owner, so it would become a generic `set` field that anyone could write. The setter's existing side effects (write `Approval` on entering `approved`, strip it on leaving, strip `Readiness` on a backward move to `draft`/`to-review`) were not carried into the event model, so a replay could keep a stale attestation. | C:Low; U:Low; S:Medium; F:Medium; Overall:Low | fixed | 4.4 adds a transition-owned `approval` rule and same-append `unset` rules for leaving `approved` and moving backward, refused on replay; AC-15 extended with cases (4) and (5). Port of current behavior; no new rule. |
+| SR-902 | medium | UNDER-SCOPE | F/G: new repositories | spec 5.3 and AC-11; `aw install --help`; `aw setup --help` | 5.3 refuses every command when `metadata_schema` is below 2, and only the migration writes the stamp. A brand-new repository has no stamp, so every command on a fresh install would refuse and tell the user to migrate records that do not exist. | C:Low; U:Medium; S:Low; F:Medium; Overall:Low | fixed | 5.3 now stamps `metadata_schema: 2` at install or setup when no legacy record exists; absent stamp with legacy records still means unmigrated; only the migration and this install case write it. AC-11 gains cases (2) and (3). |
+| SR-903 | medium | IN-SCOPE | D/F: lossless import vs output safety | spec 4.2 prose-field bullet; agent_workflows/attention_contract.py:752 `refuse_unsafe_descriptive`, :668 `MAX_PROSE_DESCRIPTIVE_LEN = 4300`; measured 34 of 82,506 inline history lines fail `is_safe_prose_descriptive` (33 too long, max 5,736; 1 control character) | 4.2 required the unsafe-value refusal on EVERY string `artifact_meta` writes into a log, while 4.2a and AC-10 require every legacy line byte-for-byte. The two rules contradict on 34 real lines, so the migration would refuse or truncate history. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | 4.2 exempts only the migration's imported values (`legacy.line`, sidecar object, `legacy_verdict`), keeps the refusal for every other writer, and requires display through the output-safety rules; AC-10 adds the long-line and control-character round-trip cases and a refusal case for a post-cutover setter. |
+| SR-904 | low | IN-SCOPE | A: compatibility table | spec section 9 `k3yx72` row; `.aw/records/plans/executed/` holds all six `revsteps` plans (tiwj2o, 3bwrfx, gv3smb, uiyoax, is2xiv, kk62qt); `ipd_schema.META_REVIEW_DEPTH` | The row listed four Stage 1 plans as executed; the orchestrator `tiwj2o` and pilot `kk62qt` are also executed, and Stage 2 is unauthored. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Row updated with all six plans and the schema symbol. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-1 | How is the plan `approval` attestation owned in the event model (SR-901)? | Owned by the `approved` transition; unset in the same append when leaving `approved`; `readiness` unset on backward moves to `draft`/`to-review`. | Generic field; a separate `op: approval` event. | Ports `status_set.py:1689-1725` exactly; P2 and the existing readiness/coverage ownership pattern in 4.4; adds no new rule, so it does not change what the spec decides. | yes |
+| D-2 | How does a new repository get a stamp (SR-902)? | Install or setup stamps `metadata_schema: 2` only when no legacy record exists. | Treat an absent stamp as new (would let an unmigrated repository bypass 5.3); require `aw migrate metadata` on empty repositories (useless step). | 5.3 intent (refuse only unmigrated data); C9 (one format). Implementation detail inside the spec's own decision. | yes |
+| D-3 | Which rule wins when lossless import meets the output-safety refusal (SR-903)? | Lossless import wins for migration-imported values only; every other writer keeps the refusal; display uses output-safety rendering. | Truncate or refuse long legacy lines (loses history, contradicts AC-10); drop the refusal everywhere (weakens `uz05bl`/`dtg7dz`). | 4.2a and AC-10 (no legacy text lost) and the maintainer's lossless-migration rulings (OQ-13, OQ-14, OQ-16); measured 34 affected lines. | yes |
+
+### Scope and evidence
+
+Explicit re-review of spec `4sd62s`, already `reviewed`, at baseline commit
+`45a1b3e33695426c5e9fb2081673faa59ec6bc71` (round 13 head). Reviewer:
+opencode/its_direct/pt3-claude-opus-5.5-1m-us. All rubric views A to G, the eight personas and the
+security lens were applied to the full text. Earlier rounds are preserved unchanged. No code, test or
+plan was written.
+
+Re-verified anchors (all resolve): `specs._sidecar_append` (specs.py:234),
+`specs._review_attestation_refusal` (:1240), `review_findings.review_attestation_missing` (:1022),
+`review_findings.subject_gating_blocks` (:848), `check_engine.graduation_cluster` (:5566),
+`check_engine._status_meta` (:3266), `check_engine._blob_text` (:3251),
+`check_engine.check_spec_review_attestation` (:8236), `plan_readiness.review_staleness_index` (:1372),
+`ipd_lifecycle._LEGAL_BACKWARD_EDGES` (:1172), `ipd_lifecycle._release_own_plan_edit_before_landing`
+(:3773), `runner_shared.integrate_lane_branch` (:8081), `runner_shared.read_merge_stage` (:5324),
+`runner_shared._body_change_is_history_insert_only` (:4920), `record_history.append_rename` (:199),
+`record_history.append_advisory` (:80), `research_cmd.plan_new` (:212), `research_contract.ResearchName`
+(:303), `run_analytics_cache.source_fingerprint` (:343), `project_context.resolve_project_context`
+(:1635), `layout_migration.MigrationManager` (:274), `layout.TRAVERSAL_EXCLUSIONS` (:110),
+`artifact_audit._INDEX_CACHE` (:1085), `config.applies_to_artifact_date` (:2313),
+`artifact_core.ID6_RE` = `\A[0-9a-z]{6}\Z`, `pyproject.toml` dependencies `["filelock>=3"]`,
+`.aw/.gitignore` `records/history.jsonl` (line 11) and `/state/` (line 65). `agent_workflows/migrations/`
+and `aw migrate` do not exist yet, as 5.1 states. `aw show --help` has no `--history`, as 4.8 states.
+
+Path-collision probe for 4.2 (one log per id6): 3,044 distinct id6 values in front-matter `- Id:` or
+YAML `id:` across non-review, non-comms records; 0 shared by two records; 0 shared across record types.
+
+Current measurements (r14): 468 sidecar lines; 82,506 inline history lines, 34 failing
+`is_safe_prose_descriptive`; 62 plans with `- Approval:`.
+
+### Final validation
+
+```text
+aw specs check <spec>: all specs conform. 1 specs checked.
+git diff --check <spec>: exit 0
+aw check all (before and after): errors 13, warnings 0, info 54 (unchanged; no new diagnostic)
+```

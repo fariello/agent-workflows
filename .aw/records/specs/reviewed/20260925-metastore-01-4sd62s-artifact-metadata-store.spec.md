@@ -222,13 +222,13 @@ into the plan's validation evidence.
 | AC-7 | 4.6 | `aw check meta` compares every mirror (front-matter `status`, filename `set`/`order`/`id`, disposition directory) with the log. | Pasted `aw check meta` output that detects each type of drift in a test repository. Pasted output that shows zero findings on the migrated corpus. |
 | AC-8 | 4.5 | The cache is disposable: deleting it changes no command output. | Run `aw find` and `aw attention --format json` with and without `.aw/state/index.db`. Paste the diff, which must be empty. |
 | AC-9 | 4.5, C11 | The `INDEX.*` files and `STATUS.md` are deleted, and nothing creates them again. | Pasted `git ls-files` output and file-system check. An `rg` search for `INDEX.json` and `STATUS.md` in `agent_workflows/` finds only the migration's cleanup code. |
-| AC-10 | 5 | A second run of the migration changes nothing. The migration keeps a journal, is a dry run by default, and loses no information. | On a copy of this repository: the dry-run report; an apply; a second apply that changes nothing; and an automated round-trip check that finds every legacy field value and every raw legacy history line in the logs. All pasted. |
-| AC-11 | C9 | Every metadata-reading command refuses an unmigrated repository with a message that names `aw migrate metadata`. | A pasted test. |
+| AC-10 | 5, 4.2 | A second run of the migration changes nothing. The migration keeps a journal, is a dry run by default, and loses no information. | On a copy of this repository: the dry-run report; an apply; a second apply that changes nothing; and an automated round-trip check that finds every legacy field value and every raw legacy history line in the logs. The round-trip test corpus includes a history line longer than `MAX_PROSE_DESCRIPTIVE_LEN` and one with a control character, and both are recovered byte-for-byte; a post-cutover setter given the same long value is refused (SR-903). All pasted. |
+| AC-11 | C9, 5.3 | Every metadata-reading command refuses an unmigrated repository with a message that names `aw migrate metadata`. A new repository with no legacy records is stamped at install and is never refused. | Pasted tests: (1) a test repository with legacy records and no stamp is refused with that message; (2) `aw install` in an empty repository writes `metadata_schema: 2`, and a following `aw backlog new --apply` plus `aw find` succeed without `aw migrate metadata`; (3) `aw install` in a repository with legacy records does not write the stamp. |
 | AC-12 | C8 | The `dependencies` list in `pyproject.toml` does not change. | Pasted. |
 | AC-13 | C11 | Before and after values are measured for: the bytes that an agent reads for one plan, and the end-to-end time of `aw find` and `aw attention`, with a warm and with a cold operating-system file cache, as the AGENTS.md end-to-end rule defines them. | The pasted values, measured by the end-to-end rule in AGENTS.md. This spec sets no target value. |
 | AC-14 | 4.1a | Review records have no own log. Each round matches exactly one subject-log review event by stable file reference and round number. | Pasted tests: recording a round adds one subject event and no review log; equal counts with different round numbers fail; duplicate bindings and missing files fail; adding or renaming a second review file leaves the first file's events correctly attributed. |
 | AC-14a | 4.1a | Review kinds are typed. A `gate` event accepts only `plan_readiness.VERDICTS`. A `refinement` event accepts only the refinement vocabulary and never has `readiness`. The migration keeps each legacy verdict unchanged. | Pasted tests: (1) a `gate` event with a refinement verdict is refused; (2) a `refinement` event that has `readiness` is refused; (3) any number of `refinement` rounds are added in `seq` order; (4) both setter spellings refuse `->reviewed` for a spec whose log has only `refinement` review events, and `check.spec-review-unattested` reports it, while one `gate` event (migrated or new) satisfies the rule (4.4, finding SR-601); (5) after the migration of a test corpus that contains each DIFFERENT off-vocabulary verdict string found in the corpus at implementation time, every original verdict string can be recovered byte for byte. (At round 5 there were 4 different strings in 29 records; 30 records at round 6, 32 at round 7, and 35 at round 11.) |
-| AC-15 | 4.4 | For a plan, the setter refuses a `readiness` value unless the same append adds an `op: review` event with `review_kind: gate` for that plan, in the same transaction. The coverage fields have the parallel rule: only an `op: coverage` event writes them (4.4). | Pasted tests: (1) a `set readiness=go` without a review event is refused; (2) the same write with a gate review event succeeds; (3) a `set coverage=...` is refused, and an `op: coverage` event that carries the value succeeds. |
+| AC-15 | 4.4 | For a plan, the setter refuses a `readiness` value unless the same append adds an `op: review` event with `review_kind: gate` for that plan, in the same transaction. The coverage fields have the parallel rule: only an `op: coverage` event writes them (4.4). The `approval` field is owned by the `approved` transition, and leaving `approved` or moving backward clears the owned attestations (4.4, SR-901). | Pasted tests: (1) a `set readiness=go` without a review event is refused; (2) the same write with a gate review event succeeds; (3) a `set coverage=...` is refused, and an `op: coverage` event that carries the value succeeds; (4) a generic `set approval=...` is refused, a `transition` to `approved` writes `approval` in the same append, and a `transition` away from `approved` unsets it in the same append; (5) a backward `transition` of a plan to `draft` or `to-review` unsets `readiness` in the same append, and replay refuses a hand-written log in which `approval` or `readiness` survives such a transition. |
 | AC-16 | 5.2 | Only the migration may rewrite artifacts in terminal directories. The migration makes exactly one commit, and that commit passes every installed gate. | Pasted output that shows: (1) the migration commit passes the executed-plan hook, `backlog_blocking_close_gate` and the pre-push gate `aw attention --check --agent`, without `--no-verify`; (2) after the cutover, the hook still refuses a separate raw edit to an executed plan. |
 | AC-17 | C3, 4.7 | Incompatible changes to the same artifact are reported, even when git merges without a text conflict. A duplicate `seq` never passes `aw check meta`. | Pasted two-branch tests cover different events at the same sequence and identical appends. Invalid replay refuses; identical valid appends need no repair. A confirmed divergent-tail repair leaves the winning committed prefix unchanged and validates every resulting field and transition. |
 | AC-18 | 4.5 | With a `companion` or `home` records backend, the logs are next to the records that they describe, and the cache still works. | A pasted test with a companion backend that shows `meta/<id6>.jsonl` under the resolved records root, and a working `aw find`. |
@@ -588,7 +588,15 @@ spec owns it.
   every write path refuses unsafe descriptive values in these fields (specs and releases `uz05bl`,
   research `deftzy`, backlog Summary `dtg7dz`, research checker `xnogdl`). These refusals MUST stay.
   They move with the field to the body-section writer. They also apply to every string value that
-  `artifact_meta` writes into a log or into the two-key front matter.
+  `artifact_meta` writes into a log or into the two-key front matter, with ONE exception (round 14,
+  finding SR-903): the migration's imported values (`legacy.line`, the unchanged sidecar JSON
+  object, and `legacy_verdict`) are stored byte-for-byte without the length or control-character
+  refusal, because 4.2a and AC-10 require that no legacy text is changed or lost. Measured at r14:
+  34 of 82,506 inline history lines fail `attention_contract.is_safe_prose_descriptive` (33 exceed
+  `MAX_PROSE_DESCRIPTIVE_LEN` of 4,300 characters, the longest is 5,736; 1 contains a control
+  character). JSON encoding escapes any control character, so the one-line JSONL rule (4.2) still
+  holds. Every writer other than the migration keeps the refusal, and display paths (`aw show
+  --history`) render imported text through the existing output-safety rules rather than raw.
 
 ### 4.2a Legacy import without invented precision (taken from `2vev8j` 4.7)
 
@@ -853,6 +861,20 @@ registry now. Whichever spec is implemented second must agree with the other (se
     plan names that command.
   - `aw ipd recheck-readiness` (`readiness_recheck.py`, which today replaces the field with a
     regular expression) also appends a gate `review` event. It no longer edits a field.
+- THE PLAN `approval` FIELD IS A TRANSITION-OWNED ATTESTATION (round 14, finding SR-901). Today the
+  status setter writes `- Approval: <day>, <attestation>: <message>` when a plan enters `approved`,
+  removes it when a plan leaves `approved`, and removes `- Readiness:` when a plan moves backward to
+  `draft` or `to-review` (`status_set.py`, the `rec.record_type == "plans"` branches that match
+  `^- Approval:` and `^- Readiness:`). P2 names `Approval` as a forgeable attestation, so it must
+  not become a generic field. Under this spec:
+  - Only the append that contains the `transition` to `approved` may set `approval`. Its value
+    keeps today's two attestation forms (human, with `by_human: true` on the transition, or
+    "recorded via aw ipd set"). A generic `set` of `approval` is refused by the writer and by replay.
+  - The append that contains a `transition` away from `approved` also contains an `unset` of
+    `approval`. The append that contains a backward `transition` to `draft` or `to-review` also
+    contains an `unset` of `readiness`. Replay refuses a log in which these fields survive such a
+    transition.
+  - This is a port of the current behavior into the event model. It adds no new rule.
 - THE `->reviewed` ATTESTATION FOR SPECS USES THE LOG AND BECOMES STRICTER (round 7, finding SR-601).
   Today, ONE predicate, `review_findings.review_attestation_missing`, enforces
   `attention_contract.TRANSITION_AUTHORITY["->reviewed"]` (`review_record: True`). Both spec setters
@@ -1732,6 +1754,12 @@ not change. A later change deletes them when no supported version needs to migra
 Every command that reads metadata checks `metadata_schema`. If the value is less than 2, the command
 exits with a nonzero code and the message "run `aw migrate metadata`" (AC-11).
 
+A repository with NO legacy records needs no migration (round 14, finding SR-902). When `aw install`
+(or `aw setup`, which installs into several repositories) sets up a repository whose records tree contains no record with a bullet block or a
+`## Workflow history` section, it writes `metadata_schema: 2` directly and starts in the log format.
+An absent stamp on a repository that has legacy records means "unmigrated", never "new". Only the
+migration (5.2 step 6) and this install case write the stamp.
+
 ### 5.4 Managed block, templates and documents
 
 - Rewrite these to describe commands instead of field syntax:
@@ -1940,7 +1968,7 @@ for concurrency.
 | Spec | Status at r11 | Relation |
 |---|---|---|
 | `2vev8j` artifact metadata storage | approved | This spec SUPERSEDES it (OQ-4). |
-| `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its section 12 maps itself onto this spec: `review-depth` becomes a field that the gate `review` event sets, each invocation writes one `review` event with a verdict, and its structural check compares replayed state. Stage 1 plans (`3bwrfx`, `gv3smb`, `uiyoax`, `is2xiv`) executed and landed on `main`, adding `Review-Depth` to the legacy schema ahead of Phase B. Whichever spec is implemented second must agree with the other. Its plans must state which format they target. |
+| `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its section 12 maps itself onto this spec: `review-depth` becomes a field that the gate `review` event sets, each invocation writes one `review` event with a verdict, and its structural check compares replayed state. All six Stage 1 plans (orchestrator `tiwj2o`, children `3bwrfx`, `gv3smb`, `uiyoax`, `is2xiv`, and pilot `kk62qt`) are executed (r14), so `Review-Depth` is in the legacy schema (`ipd_schema.META_REVIEW_DEPTH`) ahead of Phase B and the migration must carry it. Stage 2 plans are not yet authored. Whichever spec is implemented second must agree with the other. Its plans must state which format they target. |
 | `4iyd78` quick pipeline | approved, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its section 6.1 row "Plan `## Workflow history`: Kept" means that the AUDIT TRAIL is kept. Under this spec, the log holds that trail. If `4iyd78` is implemented first, its history writes go through `status_set` and are migrated like all others. |
 | `wy9aru` canonical set dispatch | implemented | Its setter engine is where the writers change to use `artifact_meta` (4.8). The cutover retires the sidecar that it keeps, as its section 3a leaves to this spec. |
 | `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4). |
@@ -1952,6 +1980,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-26 note (aw specs): /spec-review round 14 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-901 (approval attestation owned by the approved transition; same-append unset of approval/readiness), SR-902 (new repository stamped at install), SR-903 (lossless import exempt from the output-safety length refusal; 34 lines measured), SR-904 (k3yx72 compatibility row) all FIXED; no maintainer question needed; re-review keeps reviewed status; no Readiness written
 - 2026-10-26 note (aw specs): APPROVE WITH REVISIONS APPLIED; /spec-review rounds 12 and 13 (Codex/unknown): SR-818 through SR-831 fixed; maintainer resolved OQ-15 and OQ-16 via /askme, preserving explicit graduation Set declarations alongside individual origin links and separating filename dates from creation information. Re-review keeps reviewed status; no human approval recorded.
 - 2026-10-26 note (aw specs): /spec-review round 11 (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; SR-816..SR-817 FIXED (census and Section 9 compatibility alignment)
 - 2026-10-26 note (aw specs): /spec-review round 10 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; internal-consistency pass; SR-807..SR-815 FIXED (maintainer decisions: legacy events after the checkpoint, migrated events timed at migration with observed_day and last_history_day and no day-only values outside filenames going forward, research_kind/prompt_kind); AC-32, OQ-14 added; all 10 mermaid blocks render; no Readiness written
