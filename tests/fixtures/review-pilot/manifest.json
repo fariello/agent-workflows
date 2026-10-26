@@ -1,0 +1,74 @@
+[
+  {
+    "fixture_id6": "h4nu1j",
+    "source_id6": "9vttho",
+    "source_path": ".aw/records/plans/executed/20261023-askmeplain-03-9vttho-stop-bare-askme-from-scanning-the-repository-for-other-autho.ipd.md",
+    "filename": "20261023-askmeplain-03-h4nu1j-stop-bare-askme-from-scanning-the-repository-for-other-autho.ipd.md",
+    "expected_tier": "simple",
+    "reason": "4 E-items, no spec in scope, no tier question 2 module"
+  },
+  {
+    "fixture_id6": "3glhpc",
+    "source_id6": "pkz19w",
+    "source_path": ".aw/records/plans/executed/20261023-askmeplain-07-pkz19w-make-askme-write-each-answer-to-the-record-before-asking-the.ipd.md",
+    "filename": "20261023-askmeplain-07-3glhpc-make-askme-write-each-answer-to-the-record-before-asking-the.ipd.md",
+    "expected_tier": "simple",
+    "reason": "3 E-items, no spec in scope, no tier question 2 module"
+  },
+  {
+    "fixture_id6": "ea7gsh",
+    "source_id6": "ge4qh3",
+    "source_path": ".aw/records/plans/executed/20261023-mqsitd-01-ge4qh3-record-oq-answer-appends-the-pre-flight-answer-to-existing-o.ipd.md",
+    "filename": "20261023-mqsitd-01-ea7gsh-record-oq-answer-appends-the-pre-flight-answer-to-existing-o.ipd.md",
+    "expected_tier": "simple",
+    "reason": "3 E-items, no spec in scope, no tier question 2 module"
+  },
+  {
+    "fixture_id6": "dn21zx",
+    "source_id6": "mrlblc",
+    "source_path": ".aw/records/plans/executed/20261017-qchan-11-mrlblc-add-aw-notify-setup-test-status-and-listen.ipd.md",
+    "filename": "20261017-qchan-11-dn21zx-add-aw-notify-setup-test-status-and-listen.ipd.md",
+    "expected_tier": "standard",
+    "reason": "6 E-items, no spec in scope, no tier question 2 module"
+  },
+  {
+    "fixture_id6": "3jv5f4",
+    "source_id6": "wfy9ii",
+    "source_path": ".aw/records/plans/executed/20261023-askmeplain-05-wfy9ii-make-askme-refuse-to-treat-a-code-comment-or-code-default-as.ipd.md",
+    "filename": "20261023-askmeplain-05-3jv5f4-make-askme-refuse-to-treat-a-code-comment-or-code-default-as.ipd.md",
+    "expected_tier": "standard",
+    "reason": "6 E-items, no spec in scope, no tier question 2 module"
+  },
+  {
+    "fixture_id6": "g0oj9k",
+    "source_id6": "l5f2hg",
+    "source_path": ".aw/records/plans/executed/20261023-askmeplain-06-l5f2hg-make-a-plain-text-use-askme-reply-rewrite-the-outstanding-qu.ipd.md",
+    "filename": "20261023-askmeplain-06-g0oj9k-make-a-plain-text-use-askme-reply-rewrite-the-outstanding-qu.ipd.md",
+    "expected_tier": "standard",
+    "reason": "6 E-items, no spec in scope, no tier question 2 module"
+  },
+  {
+    "fixture_id6": "z2rygb",
+    "source_id6": "oehkmh",
+    "source_path": ".aw/records/plans/executed/20261011-6bolin-01-oehkmh-verify-grandfatheringandcheckertests-passes-on-the-89xjll-sp.ipd.md",
+    "filename": "20261011-6bolin-01-z2rygb-verify-grandfatheringandcheckertests-passes-on-the-89xjll-sp.ipd.md",
+    "expected_tier": "complex",
+    "reason": "names approved spec 20260906-grandfather-01-89xjll-grandfather-legacy-releases-from-the-blocks-release-gate.spec.md in scope"
+  },
+  {
+    "fixture_id6": "mp6g57",
+    "source_id6": "k6clui",
+    "source_path": ".aw/records/plans/executed/20261011-md2o3y-01-k6clui-verify-specs-validate-spec-accepts-spec-89xjll-and-close-the.ipd.md",
+    "filename": "20261011-md2o3y-01-mp6g57-verify-specs-validate-spec-accepts-spec-89xjll-and-close-the.ipd.md",
+    "expected_tier": "complex",
+    "reason": "names approved spec 20260906-grandfather-01-89xjll-grandfather-legacy-releases-from-the-blocks-release-gate.spec.md in scope"
+  },
+  {
+    "fixture_id6": "utcqct",
+    "source_id6": "9wqjac",
+    "source_path": ".aw/records/plans/executed/20261014-x6trbp-01-9wqjac-restore-behavioral-coverage-of-evaluate-clean-base-identical.ipd.md",
+    "filename": "20261014-x6trbp-01-utcqct-restore-behavioral-coverage-of-evaluate-clean-base-identical.ipd.md",
+    "expected_tier": "complex",
+    "reason": "touches tier question 2 module agent_workflows/commit_lock.py"
+  }
+]
