@@ -319,9 +319,16 @@ status: approved
 - The installer creates `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md`. These files do not exist
   today.
 - Records have no `## Workflow history` section. `aw show <id6> --history` shows the history.
-- Records that are not artifacts (walkthroughs, research reference packages, comms messages)
-  get front matter only if they have an id today. The plan decides this for each type. The plan must
-  also decide, by name, how to handle:
+- Records that are not artifacts (maintainer decision 2026-10-25, OQ-2):
+  - Walkthroughs get an `id6`, the two-key front matter and an event log. A walkthrough with no
+    `id6` in any form gets one at migration (5.2 step 3).
+  - Comms messages do NOT change: no `id6`, no front matter and no event log (N4). `aw check meta`
+    does not report them as orphans.
+  - Research companion data files (the files in a `<doc-stem>.data/` directory) do NOT change, and
+    `aw check meta` does not report them as orphans.
+  - For research reference packages, the plan decides.
+
+  The plan must also decide, by name, how to handle:
   - `roadmaps/` (1 record, metadata in bold prose, excluded from attention by decision `uxb0tz`);
   - `prompt-library/` (4 files, no id);
   - research companion directories `<doc-stem>.data/` (backlog `mtdxiu`);
@@ -962,7 +969,7 @@ and `aw meta repair --apply` can repair each one.
 | Filename Set id, `NN`, `id6` and date | C10 | Must equal the replayed `set`, `order` and `id`. The date must equal the LOCAL-clock creation `date` field, never the UTC `at` (4.2b). |
 | Research filename facets (order, model, kind) | C10 | Must equal the replayed fields. This replaces today's mirror checks in the research index (`okw4ke`, and the rename-time rewrite `ax8eg1`). |
 | Disposition directory | N1 | Must agree with the replayed status, by the rules of the artifact's type. |
-| Orphans | (none stated) | A log with no artifact, or an artifact with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). |
+| Orphans | (none stated) | A log with no artifact, or an artifact with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). |
 | Review rounds | 4.1a | The number of `## Round <n>` headings in a review file must equal the number of `review` events in the subject's log that belong to that file (4.1a point K4). |
 
 ### 4.7 Concurrency and merges
@@ -1396,8 +1403,13 @@ flowchart TD
   stamp must use a different key.
 - Add `agent_workflows/migrations/`, with ordered, numbered migrations, and a `metadata_schema` stamp
   in `.aw/config/project.json`.
-- `aw install` runs pending migrations after it installs the bundle. Without `--apply` or `-y`, it
-  only reports what it would do (a dry run). `aw migrate metadata` runs this migration directly.
+- After `aw install` installs the bundle, it lists the pending migrations and asks, for each one,
+  whether to run it now (maintainer decision 2026-10-25, OQ-3). It runs a migration only when the
+  person answers yes. With no terminal, it only reports the pending migrations and the command that
+  runs each one. `-y` (today: "skip preflight confirmations") does NOT answer yes to this question,
+  so a script that passes `-y` never starts a migration. If a way to say yes without a terminal is
+  needed, the implementing plan names a separate option for it; this spec does not name one.
+  `aw migrate metadata` runs this migration directly.
 - `aw migrate` does NOT exist today. The existing `aw migrate-layout` is a separate top-level command,
   with the actions `inventory`, `plan`, `apply`, `status`, `resume`, `rollback`, `cleanup` and
   `wizard`. Plan step 3 decides whether `migrate-layout` becomes `aw migrate layout`, next to
@@ -1446,7 +1458,8 @@ flowchart TD
    such records, not counting 24 READMEs, 4 prompt-library templates and 2 research templates. These
    include 14 legacy specs in `implemented/` and `superseded/`, 8 walkthroughs, 7 comms messages, 3
    companion data files (`s1..s3.md`), and `plans/STATUS.md`, which step 5 deletes instead. Review
-   records are EXCLUDED (4.1a). `aw rename ... --to-id6` handles ONLY legacy timestamp names
+   records are EXCLUDED (4.1a). Comms messages and companion data files are also EXCLUDED, and keep
+   no `id6` (4.1, OQ-2), so step 3 gives an `id6` to the other records in this list. `aw rename ... --to-id6` handles ONLY legacy timestamp names
    (`YYYYMMDD-HHMM-NN-<slug>`). For records with names in other forms, the plan must name a method
    that gives them an `id6`. It must not assume that the existing command handles them.
 4. CONVERSION. For each artifact:
@@ -1612,14 +1625,26 @@ for concurrency.
 
 ## 8. Open questions
 
-- OQ-1 `[Non-blocking]` What is the exact field registry for each type? This applies especially to
+- OQ-1 `[RESOLVED 2026-10-25 by the maintainer]` What is the exact field registry for each type? This applies especially to
   prompts (whose id is in an HTML comment today) and research (YAML today). 4.1a settles reviews. Owner:
-  plan step 1, which decides it.
-- OQ-2 `[Non-blocking]` Which record types have front matter at all (walkthroughs, comms, research
-  reference packages)? Owner: plan step 1, which decides it.
-- OQ-3 `[Non-blocking]` Does `aw install` run migrations automatically after a confirmation, or does
+  plan step 1, which decides it. RESOLVED 2026-10-25 by the user via /askme: plan step 1 decides the
+  full registry from the AC-20 field census of the real repository, under normal plan review and
+  approval. Measured 2026-10-25: 25 of 55 prompt files carry a one-line `<!-- aw-prompt: ... -->`
+  metadata comment and 30 carry none; 161 of 166 research files carry YAML front matter. No reason
+  was given.
+- OQ-2 `[RESOLVED 2026-10-25 by the maintainer]` Which record types have front matter at all
+  (walkthroughs, comms, research reference packages)? Owner: plan step 1, which decides it.
+  RESOLVED 2026-10-25 by the user via /askme: walkthroughs only. Walkthroughs get an `id6`, front
+  matter and an event log; comms messages and research companion data files stay unchanged and are
+  excluded from `aw check meta`; 5.2 step 3 no longer gives them an `id6`. Research reference
+  packages were not part of the question and stay with the plan. Measured 2026-10-25: 26
+  walkthroughs (14 with a `- Id:` bullet), 11 tracked comms files (none with an id), 1 `.data/`
+  directory with 3 files. No reason was given.
+- OQ-3 `[RESOLVED 2026-10-25 by the maintainer]` Does `aw install` run migrations automatically after a confirmation, or does
   it only report them and require `aw migrate metadata`? Recommendation: report them, and require the
-  explicit command. Owner: the maintainer.
+  explicit command. Owner: the maintainer. RESOLVED 2026-10-25 by the user via /askme: `aw install`
+  asks for confirmation and runs a pending migration only when the person answers yes; with no
+  terminal it only reports; `-y` does not count as yes. 5.1 now states this. No reason was given.
 - OQ-4 `[RESOLVED 2026-10-24 by the maintainer]` `2vev8j` is SUPERSEDED, and its remaining rules are
   in this spec (4.2, 4.2a, 4.2b, 4.5; finding SR-102). The first plan of the implementing Set changes
   `2vev8j` to `superseded`, with a reference to this spec. It changes the 16 code and test files that
@@ -1664,6 +1689,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): OQ-1, OQ-2, OQ-3 resolved by the maintainer via /askme: OQ-1 plan step 1 decides the registry from the AC-20 census; OQ-2 walkthroughs only get id6, front matter and a log (comms and .data files unchanged and excluded from aw check meta; 4.1, 4.6 and 5.2 step 3 updated); OQ-3 aw install asks before running a pending migration, reports only without a terminal, and -y does not count as yes (5.1 updated); no reason was given
 - 2026-10-25 note (aw specs): OQ-12 resolved by the maintainer via /askme: `--force` overrides all three 5.2 step 1 preflight conditions; step 1 and diagram 4.9.6 updated to state this and the consequence of each override; no reason was given
 - 2026-10-25 note (aw specs): proofread pass 3 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request, against the pre-proofread text and the technical-artifact writing requirements: AC-1 fragment repaired (body-prose exclusion "never silently" restored); round-2 commit-count reference made explicit; P5 closure states (backlog done, plan executed); 3c inventory limit covers sections 1 and 6; K4 example sentence de-duplicated; 5.2 step 4a quotes both the 2026-09-25 and the current AGENTS.md wording of the executed-plan rule; "lifecycle record" replaced by the section 0 terms (artifact; non-review record in step 3 and diagram 4.9.6); no requirement, decision, identifier or measured value changed
 - 2026-10-25 note (aw specs): proofread pass 2 (opencode/its_direct/pt3-claude-opus-5.5-1m-us) at maintainer request: full section-by-section comparison against the pre-proofread text (commit ad4e1cd98) and against the technical-artifact writing requirements; restored lost qualifiers (deterministic repair, crash case, isolated worktree, key/value parsers, round-1 bracket rule, cold-lane cost); reverted meaning drift (commit-count column, AC-13 cold OS cache, AC-17/AC-20 wording, P4, 5.2 --force scope, all writes lock, release_id6, hooks pure-append, yfz5u9 row, phase A additive); labelled 4.1a lists R1-R4 and K1-K6; one term per concept (artifact, blob sha, interface, mirror, review_kind); new section 0 terms; new OQ-12 (--force scope, non-blocking); diagram columns plan_role/branch/loaded_at added
