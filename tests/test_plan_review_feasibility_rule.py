@@ -35,6 +35,8 @@ ANCHOR_PHRASES = [
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
 PLAN_REVIEW_FILE = WORKFLOWS_DIR / "plan-review" / "plan-review.md"
+S5_QUESTIONS_FILE = WORKFLOWS_DIR / "plan-review" / "steps" / "s5-questions.md"
+R2_EXECUTABILITY_FILE = WORKFLOWS_DIR / "plan-review" / "steps" / "r2-executability.md"
 PLAN_REVIEW_LONG_FILE = (
     WORKFLOWS_DIR / "plan-review-long" / "03-resolve-and-finalize.md"
 )
@@ -54,15 +56,15 @@ NO_ERROR_ADDED_ANCHOR_PHRASES = [
 
 class TestPlanReviewFeasibilityRule(unittest.TestCase):
     def test_single_file_plan_review_feasibility_rule(self) -> None:
-        """Assert single-file plan-review.md carries the 5-point feasibility rule in 3.1."""
-        content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        """Assert s5-questions.md carries the 5-point feasibility rule in 3.1."""
+        content = S5_QUESTIONS_FILE.read_text(encoding="utf-8")
 
         # Locate section 3.1 by heading boundaries
         start_heading = "### 3.1 "
         next_heading = "### 3.2 "
         start_idx = content.find(start_heading)
         self.assertNotEqual(
-            start_idx, -1, f"Missing heading '{start_heading}' in {PLAN_REVIEW_FILE}"
+            start_idx, -1, f"Missing heading '{start_heading}' in {S5_QUESTIONS_FILE}"
         )
         end_idx = content.find(next_heading, start_idx)
         self.assertNotEqual(
@@ -76,7 +78,7 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
         self.assertIn(
             subheading,
             section_31,
-            f"Subsection heading '{subheading}' not found inside section 3.1 of {PLAN_REVIEW_FILE}",
+            f"Subsection heading '{subheading}' not found inside section 3.1 of {S5_QUESTIONS_FILE}",
         )
 
         # Assert each of the five points is present via its anchor phrase
@@ -84,7 +86,7 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
             self.assertIn(
                 phrase,
                 section_31,
-                f"Anchor phrase '{phrase}' not found in section 3.1 of {PLAN_REVIEW_FILE}",
+                f"Anchor phrase '{phrase}' not found in section 3.1 of {S5_QUESTIONS_FILE}",
             )
 
     def test_long_form_plan_review_feasibility_rule(self) -> None:
@@ -127,11 +129,14 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
         """Assert spec-review.md references plan-review's rule without copying the five points."""
         content = SPEC_REVIEW_FILE.read_text(encoding="utf-8")
 
-        # Must reference plan-review.md and the subsection heading
-        self.assertIn(
-            "../plan-review/plan-review.md",
-            content,
-            f"Reference to '../plan-review/plan-review.md' not found in {SPEC_REVIEW_FILE}",
+        # Must reference s5-questions.md (or plan-review.md) and the subsection heading
+        has_ref = (
+            "../plan-review/steps/s5-questions.md" in content
+            or "../plan-review/plan-review.md" in content
+        )
+        self.assertTrue(
+            has_ref,
+            f"Reference to '../plan-review/steps/s5-questions.md' not found in {SPEC_REVIEW_FILE}",
         )
         self.assertIn(
             "Resolving HOW questions: demonstrate, do not describe",
@@ -149,16 +154,16 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
         )
 
     def test_no_error_added_proof_shape_in_rubrics(self) -> None:
-        """Assert both single-file and long-form rubrics carry the canonical no-error-added proof shape.
+        """Assert both step-file and long-form rubrics carry the canonical no-error-added proof shape.
 
         Exemption from source-text-pin prohibition (GUIDING_PRINCIPLES P16):
         This test is explicitly within P16's narrow exception ('only where the text or file
-        itself is the artifact under test') because the workflow bodies (plan-review.md and
+        itself is the artifact under test') because the workflow bodies (r2-executability.md and
         review-rubric.md) are the exact artifacts under change by IPD k6t24p. The test reads
         no code under agent_workflows/*.
         """
-        # 1. Single-file rubric: check section G (Plan executability)
-        single_content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        # 1. Step-file rubric: check section G (Plan executability) in r2-executability.md
+        single_content = R2_EXECUTABILITY_FILE.read_text(encoding="utf-8")
         single_section = support.section(
             single_content, "### G. Plan executability", "## "
         )
@@ -166,7 +171,7 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
             self.assertIn(
                 phrase,
                 single_section,
-                f"Anchor phrase '{phrase}' not found in section G of {PLAN_REVIEW_FILE}",
+                f"Anchor phrase '{phrase}' not found in section G of {R2_EXECUTABILITY_FILE}",
             )
 
         # 2. Long-form rubric: check section A (Plan completeness)

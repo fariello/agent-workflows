@@ -26,7 +26,7 @@ from tests import support
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
-PLAN_REVIEW_FILE = WORKFLOWS_DIR / "plan-review" / "plan-review.md"
+R2_EXECUTABILITY_FILE = WORKFLOWS_DIR / "plan-review" / "steps" / "r2-executability.md"
 REVIEW_RUBRIC_FILE = WORKFLOWS_DIR / "plan-review-long" / "review-rubric.md"
 SPEC_FILE = (
     REPO_ROOT
@@ -37,7 +37,7 @@ SPEC_FILE = (
     / "20260802-1904-01-ipd-structure-and-linting.spec.md"
 )
 
-PLAN_REVIEW_REL = ".aw/system/workflows/plan-review/plan-review.md"
+R2_EXECUTABILITY_REL = ".aw/system/workflows/plan-review/steps/r2-executability.md"
 REVIEW_RUBRIC_REL = ".aw/system/workflows/plan-review-long/review-rubric.md"
 SPEC_REL = (
     ".aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md"
@@ -70,8 +70,8 @@ SINGLE_FILE_ANCHORS = [
 
 class TestVItemEvidenceDurability(unittest.TestCase):
     def test_single_file_plan_review_evidence_durability(self) -> None:
-        """Assert single-file plan-review.md narrows the exemption and requires behaviour plus mechanism."""
-        content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        """Assert r2-executability.md narrows the exemption and requires behaviour plus mechanism."""
+        content = R2_EXECUTABILITY_FILE.read_text(encoding="utf-8")
         section_g = support.section(content, "### G. Plan executability", "## ")
 
         # Locate the re-derivation convention bullet
@@ -85,34 +85,34 @@ class TestVItemEvidenceDurability(unittest.TestCase):
             self.assertIn(
                 anchor,
                 bullet_text,
-                f"Anchor '{anchor}' not found in re-derivation bullet of {PLAN_REVIEW_REL}",
+                f"Anchor '{anchor}' not found in re-derivation bullet of {R2_EXECUTABILITY_REL}",
             )
 
         # 2. Assert narrowing: test assertions is no longer exempt
         self.assertNotIn(
             "test assertions",
             bullet_text,
-            f"'test assertions' must not appear in re-derivation bullet of {PLAN_REVIEW_REL}",
+            f"'test assertions' must not appear in re-derivation bullet of {R2_EXECUTABILITY_REL}",
         )
 
         # 3. Assert narrowing: a collected test count is not exempt
         self.assertNotIn(
             "collected test count is exempt",
             bullet_text.lower(),
-            f"Exemption re-widened in {PLAN_REVIEW_REL}: a collected test count must not be exempt",
+            f"Exemption re-widened in {R2_EXECUTABILITY_REL}: a collected test count must not be exempt",
         )
         self.assertNotIn(
             "collected test count are exempt",
             bullet_text.lower(),
-            f"Exemption re-widened in {PLAN_REVIEW_REL}: collected test counts must not be exempt",
+            f"Exemption re-widened in {R2_EXECUTABILITY_REL}: collected test counts must not be exempt",
         )
 
     def test_long_form_plan_review_evidence_durability_parity(self) -> None:
-        """Assert review-rubric.md carries a byte-identical verbatim copy of the plan-review.md bullet."""
+        """Assert review-rubric.md carries a byte-identical verbatim copy of the r2-executability.md bullet."""
         content_long = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
         section_a = support.section(content_long, "## A. Plan completeness", "## ")
 
-        content_single = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        content_single = R2_EXECUTABILITY_FILE.read_text(encoding="utf-8")
         section_g = support.section(content_single, "### G. Plan executability", "## ")
 
         bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
@@ -123,11 +123,11 @@ class TestVItemEvidenceDurability(unittest.TestCase):
             section_g, bullet_prefix, "\n- **", anchored=False
         )
 
-        # 1. Assert byte-identical verbatim copy between long-form and single-file
+        # 1. Assert byte-identical verbatim copy between long-form and step-file
         self.assertEqual(
             bullet_long,
             bullet_single,
-            f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {PLAN_REVIEW_REL}",
+            f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {R2_EXECUTABILITY_REL}",
         )
 
         # 2. Assert semantic anchors are present in the long-form copy

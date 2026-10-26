@@ -84,7 +84,7 @@ REVIEW_RECORD_CLASS = "reviews"
 
 # The findings-table columns, in order. These are exactly the columns `/plan-review` already emits in
 # its required final report, so a reviewer transcribes rather than re-classifies. `Evidence` is
-# included because the shipped workflow table has it (plan-review.md:461); dropping it would lose the
+# included because the shipped workflow table has it (steps/s7-finalize.md, "Required final report"); dropping it would lose the
 # `path:line` citation that makes a finding checkable.
 FINDING_COLUMNS: Tuple[str, ...] = (
     "ID",
@@ -975,7 +975,7 @@ def subject_gating_blocks(
 # WHY A RECORD AND NOT A HISTORY RECEIPT (spec `6m4kow` R-11, plan OQ-02). A history line is written
 # by the same agent making the transition, in the same file, in the same breath, so it attests only
 # that the agent CLAIMED a review. The repository already learned this distinction on the plan side:
-# `plan-review.md:394-398` says the history prose "IS NOT THE MACHINE SIGNAL" and a consumer finding
+# `steps/s7-finalize.md`, "Write the structured Readiness field" says the history prose "IS NOT THE MACHINE SIGNAL" and a consumer finding
 # no structured field FAILS CLOSED. A separate record with a verdict and findings is at least an
 # artifact whose absence is DETECTABLE.
 #

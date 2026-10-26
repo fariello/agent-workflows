@@ -23,11 +23,11 @@ optional prose, and there are three of them in a 601-line body:
 
 | Site | Obligation | Why it cannot apply to a spec |
 |---|---|---|
-| `plan-review/plan-review.md:113-133` | The `aw ipd lint --phase author` structural preflight, run as a GATE | `aw ipd lint` is IPD-only. Worse, the preflight is GUARDED ("For each eligible plan that is an agent-executable IPD"), so handed a spec it would SKIP rather than fail, and a gate that passes by not running is worse than no gate. |
-| `plan-review/plan-review.md:377-398` | The REQUIRED `- Readiness:` front-matter write | `Readiness` is a plan field. Spec `25kzda` Section 3.3 stops a reviewed spec at an unconditional human approval gate even under `--full-auto`, so a spec has no automated readiness to record. The section's own text warns that "a consumer that finds no field FAILS CLOSED", so writing the field onto a spec would manufacture a machine signal no consumer may act on. |
-| `plan-review/plan-review.md:487-496` | The E/V-bijection and per-E-item right-sizing rubric | A spec has no `E-*`/`V-*` checklists at all. Applying the rubric to a spec produces findings about a structure the artifact does not have. |
+| `plan-review/plan-review.md`, "Structural preflight (before semantic review)" | The `aw ipd lint --phase author` structural preflight, run as a GATE | `aw ipd lint` is IPD-only. Worse, the preflight is GUARDED ("For each eligible plan that is an agent-executable IPD"), so handed a spec it would SKIP rather than fail, and a gate that passes by not running is worse than no gate. |
+| `plan-review/steps/s7-finalize.md`, "Write the structured Readiness field" | The REQUIRED `- Readiness:` front-matter write | `Readiness` is a plan field. Spec `25kzda` Section 3.3 stops a reviewed spec at an unconditional human approval gate even under `--full-auto`, so a spec has no automated readiness to record. The section's own text warns that "a consumer that finds no field FAILS CLOSED", so writing the field onto a spec would manufacture a machine signal no consumer may act on. |
+| `plan-review/steps/r2-executability.md`, "G. Plan executability" and `steps/r4-engineering.md`, "Executability: Right-sizing and conceptual density" | The E/V-bijection and per-E-item right-sizing rubric | A spec has no `E-*`/`V-*` checklists at all. Applying the rubric to a spec produces findings about a structure the artifact does not have. |
 
-`plan-review` and `plan-review-long` are held in DELIBERATE PARITY (`plan-review.md:17`), so three
+`plan-review` and `plan-review-long` are held in DELIBERATE PARITY (`plan-review.md`), so three
 conditionals would have become SIX sites, in two long bodies, each read by an agent under load. A
 mis-taken branch there does not merely produce a bad report: it writes a wrong lifecycle value onto
 a real artifact. That is the cost that decided the ruling.

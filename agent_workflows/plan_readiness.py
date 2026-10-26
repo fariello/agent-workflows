@@ -122,7 +122,7 @@ NEUTRAL = "neutral"
 NEGATIVE = "negative"
 
 # The VERDICT vocabulary, verbatim from the plan-review workflow's verdict list
-# (`.aw/system/workflows/plan-review/plan-review.md`, "Verdict and readiness"). Exactly four values.
+# (`.aw/system/workflows/plan-review/steps/s7-finalize.md`, "Verdict and readiness"). Exactly four values.
 VERDICTS: Dict[str, str] = {
     "APPROVE": POSITIVE,
     "APPROVE WITH REVISIONS APPLIED": POSITIVE,

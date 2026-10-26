@@ -47,22 +47,30 @@ Look the plan up by its id6 when you need that.
 
 ## Rounds
 
-Plans are re-reviewed routinely, so one file holds MULTIPLE rounds as repeated `## Round <N>`
-sections, appended in order. The LAST round in the file is the CURRENT one.
+Plans are re-reviewed routinely. Exactly one `## Round <n>` is written per review invocation,
+appended in order. Re-review passes within the same invocation are `### Pass <k>` subsections
+inside that round, not new rounds. The LAST round in the file is the CURRENT one.
 
 Only the current round's findings are live. A gate must read current findings only, or a High raised
 in round 1 and fixed in round 2 would block forever.
 
 ## Sections
 
-Each `## Round <N>` contains:
+Each `## Round <n>` contains:
 
-- `### Findings` (required), whose columns are exactly the ones the plan-review workflow already
-  emits: `ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution`
+- `### Proofreading` (two tables):
+  - Changes: `Location | Old text summary | New text summary | Reason`
+  - Issues: `ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength`
+- `### Step <check>`: one subsection per check that ran (for example `### Step R4`), with the check's
+  notes and evidence. No finding rows belong here; the subsection begins with one `- Checked: <what was examined>` line.
+- `### Pass <k>`: one subsection per re-review pass, listing which checks were re-run.
+- `### Findings` (required): the round's single findings table carrying every finding raised in any pass
+  of the round, whose columns are exactly the ones the plan-review workflow already emits:
+  `ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution`
 - `### Decisions` (optional), recording the reviewer's self-resolved judgement calls:
   `ID | Question | Chosen | Alternatives considered | Basis | Reversible`
 
-A review with no autonomous decisions is valid and simply omits the `Decisions` section.
+`review_findings.parse_review_text` reads finding rows only under a heading starting with `Findings`, so the new subsections do not change gating. A review with no autonomous decisions is valid and simply omits the `Decisions` section.
 
 ## Decisions: the audit trail for resolving instead of asking
 

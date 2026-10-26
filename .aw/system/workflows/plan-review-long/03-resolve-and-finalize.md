@@ -24,7 +24,7 @@ Resolve questions already answered by authoritative evidence and cite it.
 4. A resolution containing its own "confirm empirically / if no form works, stop" clause is by definition undemonstrated and falls under (3).
 5. `- Owner: maintainer` on a resolved question means the maintainer answered; a reviewer's own choice records the reviewer (or `plan author`) as owner and gets a `### Decisions` row as 3.1 already requires. Write this so a human applies it: no gate checks it. The linter only verifies the `Owner` field is non-empty and not `none` (`ipd_lint`'s `has_owner`, passed to `ipd_schema.open_question_error` as a bare boolean that never sees the value), so a false `Owner: maintainer` passes every mechanical check. Measured example: plan `vtkfq8` OQ-03 resolved a carrier requirement with an inert placeholder and labelled it `Owner: maintainer`, which passed mechanical checks but failed execution because `- Status: open` was what enforced the obligation.
 
-This rule is kept identical to the single-file `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`.
+This rule is kept identical to the single-file `../plan-review/plan-review.md` and its step file `../plan-review/steps/s5-questions.md` per the parity note in `plan-review-long.md`.
 
 Deduplicate overlapping questions. Mark which block correctness, security,
 scope, architecture, or GO readiness.
