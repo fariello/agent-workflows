@@ -6,7 +6,7 @@
 - Scope: Implement, in shared runner code so both hosts get it: the per-tier prompt lists and the `review_variant` grouping setting; the pre-pass; the prompt loop over one session using the existing same-session follow-up primitive `runner_shared.resume_via_launcher`; per-prompt postconditions with one re-ask; the verdict-output guard; the structural preservation check; the four outcomes; per-prompt run-state recording and resume; the children-before-orchestrator review ordering; and the Section 17.1 amendments to runner spec `25kzda`. The multi-prompt review is OPT-IN for this Stage (`--review-mode steps`; the default stays the current single `/plan-review` turn) so the pilot can compare the two on the same code (spec MD-19, MD-20). EXCLUDES the `AW-REVIEW` re-review loop (Order 05; until it lands, the sequence runs S6 once and treats its marker per Order 05's contract only when Order 05 is present, see E-06), the citation resolver (Order 03), the split step (Order 06), and the no-go clearing path (Order 05 Stage 2).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/review_sequence.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/run_dashboard.py, agent_workflows/run_dashboard_assets/dashboard.js, agent_workflows/run_analytics_attempts.py, docs/run-analytics.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_review_sequence.py, tests/test_review_sequence_runner.py, tests/test_run_analytics_review_cost.py, CHANGELOG.md
 - Item-Dependencies: executed:3bwrfx, executed:gv3smb
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: uiyoax
-- Approval: 2026-10-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uiyoax verified (set revsteps, attempt 1). [Scope reconciliation - widened-scope tests/test_run_analytics_review_cost.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-25 approved (aw set): status set to approved
 - 2026-10-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED
 - 2026-10-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261024-revsteps-04-uiyoax-drive-a-plan-review-as-a-tiered-sequence-of-prompts-in-one-s.review.md
