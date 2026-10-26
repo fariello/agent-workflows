@@ -1962,6 +1962,61 @@ for concurrency.
 - Closes when: The maintainer decides and 4.2b, 4.5a, diagrams and AC-19/AC-32 use the chosen meaning. The accepted separation is now reflected there.
 - Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: Preserve filename dates and creation information as separate facts. Retain known legacy creation days without inventing times, and use full creation timestamps for new records. No reason was given.
 
+### OQ-17: Record every path change of an artifact (round 15)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: Must the log record every change to an artifact's file path, including moves between lifecycle directories?
+- Evidence: `artifacts.path` held only the current path; `rename` events stored basenames only (4.2); a transition that moves the file to another disposition directory recorded no path. Path history otherwise depends on `git log --follow`, which squash merges and shallow clones lose.
+- Recommendation: Record every move with a records-root-relative path; index path history in the cache.
+- Closes when: The maintainer decides, and 4.2, 4.5a, the diagrams and an acceptance criterion use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: record every move. Store only the NEW path on each event, because the previous path is the path of the previous path-bearing event in `seq` order (the `create` or `checkpoint` event carries the first path). Record who moved it: whether a human did, and otherwise the tool (for example `oc_runipd`) and the model (for example `gpt-6-astra-medium`), plus the timestamp. Reason given: "If it's tied to an Artifact, don't we only need the 'to' since the from is whatever the previous entry is?"
+
+### OQ-18: Record what executing a plan actually did (round 15)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: How are the files a plan actually changed, its E-* and V-* items, each V-item's evidence, and the agreed verification decision recorded?
+- Evidence: `scope_paths` held only declared paths. Actual changed files exist only in the gitignored `outcomes/*.json` (`files_changed`); only `scope_exceeded` was kept. E/V items and evidence are body prose (N3); the verifier's verdict (`verify_verdict_state`, `verify_has_evidence`) exists only in local run state.
+- Recommendation: Tracked and indexed.
+- Closes when: The maintainer decides, and 4.2, 4.4, 4.5a, the diagrams and an acceptance criterion use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: tracked and indexed. Finalize appends one tracked event to the plan's log holding the changed paths (from the merged diff, repository-relative), the scope-check result, and for each V-item the verification decision (required evidence present, verifier agrees or disagrees, who decided, and a digest of the evidence text). E/V text stays in the body (N3). The loader indexes the E/V items and the changed paths into cache tables. No reason was given.
+
+### OQ-19: Where the short description is stored (round 15)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: Where is the one-line short description that `aw attention --details` shows stored, given that 4.2 moves `Summary`, `Scope` and `Concern` into body prose?
+- Evidence: `attention._extract_detail` reads the first of `Summary`, `Scope`, `Concern`, `Question`, `Title`, then the H1. The cache `artifacts` table had only `title`, so the details view would lose its source at the cutover.
+- Recommendation: A tracked log field with a cache column.
+- Closes when: The maintainer decides, and 4.2, 4.5a, the diagrams and an acceptance criterion use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: `short_description` is a tracked log field (one line, at most `MAX_DESCRIPTIVE_LEN` characters, written only by tools) and a column of the `artifacts` table, which `aw attention --details` and `aw find` read. The migration fills it once with today's fallback order. The maintainer asked why a lasting attribute is not stored in the `artifacts` table; the answer recorded here is that it IS an `artifacts` column, but that table is the disposable cache, so the tracked log holds the one durable copy. No further reason was given.
+
+### OQ-20: Token, cost and time granularity, and currencies (round 15)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: At what granularity are tokens, cost and time recorded, which part is tracked, and how are currencies stored?
+- Evidence: run state splits tokens and cost by turn (execute, verify) per attempt (tokens on 3,291 of 3,752 recorded attempts, cost on 2,220); host session logs record each model step (OpenCode: tokens and cost; Antigravity: tokens and duration, no cost); one execute attempt had 2,164 steps; no step names the E-item or V-item it served; hosts record cost as a bare number, treated as USD by `run_analytics_pricing`.
+- Recommendation: Track per-turn totals, cache per-step rows, add a self-reported item marker; store amounts as recorded with a currency code and convert only on display.
+- Closes when: The maintainer decides, and 4.2, 4.5a, 4.5b, the diagrams and acceptance criteria use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: (a) every amount is stored as an exact decimal string with its ISO 4217 currency code, exactly as recorded or as the price table produced it; it is never converted at storage time; displays may convert to configured currencies with a dated, named exchange rate and label the result as converted. (b) Per-turn totals are TRACKED; per-model-step rows are CACHE ONLY, indexed from local session logs; agents emit `AW-ITEM: <E-nn|V-nn>` when they change item, the runner charges following steps to that item, steps before the first marker are `unattributed`, and per-item totals are tracked with `attribution: self-reported`. The maintainer required this to support `aw runs analyze` and questions such as "how expensive is it to validate a typical V-* entry?" and "how many tokens and how much time are models spending per E-* item". This amends non-goal N4 for totals only.
+
+### OQ-21: How much of the runs tree the cache indexes (round 15)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: Which run data under `.aw/records/runs/` does the cache index?
+- Evidence: measured 2026-10-26: 598 run directories, about 2.3 GB (session logs 1.9 GB, `manifest.json` 225 MB, `state.json` 58 MB, `events.jsonl` 31 MB with 26 event types per run, prompts 25 MB, telemetry 9 MB, outcomes 8 MB, collections 6 MB, lane reports 6 MB). Each attempt in `state.json` has about 60 fields; 4.5b indexed about 14.
+- Recommendation: Index all structured data; never copy text bodies.
+- Closes when: The maintainer decides, and 4.5b, the diagrams and AC-25 use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: index every structured field of `state.json`, `events.jsonl`, outcomes, verification outcomes, lane collections, questions and answers, telemetry, and per-step usage from session logs. Do not store prompts, session text, tool output, command lines or reports in the cache; store their path and content digest only. No reason was given.
+
 
 ## 9. Compatibility with specs written after round 1
 
