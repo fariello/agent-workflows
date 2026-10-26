@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: Plans may record an optional - Review-Depth: field (simple, standard, complex, or orchestrator). Review attempts can record their tier in run state, queryable in attempt analytics via --group-by review_tier.
 - Fixed: a backlog or spec planning turn that stalls, crashes or fails to start is now handed back to the same agent session to finish, and the run report no longer lists a removed lane as preserved.
 - Fixed: /askme now writes each answer to its record before asking the next question.
 - Fixed: /askme no longer closes a blocking decision on the strength of a code comment or default; it asks you.

@@ -1494,6 +1494,8 @@ def collect_rows(
                     )
                 else:
                     att_readiness = ""
+                raw_rt = att.get("review_tier")
+                att_review_tier = raw_rt if (isinstance(raw_rt, str) and raw_rt) else ""
                 base = {
                     "run": run_id,
                     "set": str(item.get("setid") or ""),
@@ -1507,6 +1509,7 @@ def collect_rows(
                     "disposition": str(disposition or "(none)"),
                     "verification": str(verification or ""),
                     "readiness": att_readiness,
+                    "review_tier": att_review_tier,
                     "item_status": str(item.get("status") or ""),
                     "item_end": item_end_state(item.get("status")),
                     "host": host,
@@ -1592,6 +1595,7 @@ def collect_rows(
                     "disposition": "(none)",
                     "verification": "",
                     "readiness": "",
+                    "review_tier": "",
                     "item_status": "",
                     "item_end": "not-completed",
                     "host": host,
@@ -1679,6 +1683,7 @@ COLUMNS: tuple[str, ...] = (
         "outcome",
         "verification",
         "readiness",
+        "review_tier",
         "item_status",
         "item_end",
         "host",
@@ -1825,6 +1830,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "outcome",
     "verification",
     "readiness",
+    "review_tier",
     "item_status",
     "item_end",
     "host",
@@ -1879,7 +1885,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
 )
 ATTEMPT_FACT_MAPS: tuple[str, ...] = ("tools", "tool_bytes", "families", "read_counts")
 ATTEMPT_FACTS_FILENAME = "attempts.jsonl"
-ATTEMPT_FACTS_SCHEMA_VERSION = 3
+ATTEMPT_FACTS_SCHEMA_VERSION = 4
 
 
 def attempt_facts_jsonl(

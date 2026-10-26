@@ -109,6 +109,7 @@ def _oc_review_session(
 
 
 _NO_READINESS = object()
+_NO_REVIEW_TIER = object()
 
 
 def _review_run(
@@ -119,6 +120,7 @@ def _review_run(
     variant: str = "",
     model: str = "uri/m-a",
     readiness: object = _NO_READINESS,
+    review_tier: object = _NO_REVIEW_TIER,
 ) -> Path:
     """A two-item review run: item A in a NEW session, item B REUSING A's session, plus a verifier."""
 
@@ -162,6 +164,8 @@ def _review_run(
         }
         if readiness is not _NO_READINESS:
             a["review_readiness"] = readiness
+        if review_tier is not _NO_REVIEW_TIER:
+            a["review_tier"] = review_tier
         if verify:
             a["verify_log"] = str(sess / "01-aaaaaa-attempt-1-verify.jsonl")
             a["verification"] = "verified"
@@ -557,15 +561,16 @@ class AttemptQueryTests(unittest.TestCase):
         self.assertEqual(res.rows[0]["cost"], 24)
 
     def test_attempts_jsonl_schema_version_and_readiness_key(self) -> None:
-        """(d) published attempts.jsonl header line reports schema: 3 and rows carry readiness."""
+        """(d) published attempts.jsonl header line reports schema: 4 and rows carry readiness and review_tier."""
         latest = self.repo / ".aw" / "records" / "runs" / "analytics" / "latest"
         lines = (latest / dash.ATTEMPT_FACTS_FILENAME).read_text().splitlines()
         header = json.loads(lines[0])
         self.assertEqual(header["record"], "header")
-        self.assertEqual(header["schema"], 3)
+        self.assertEqual(header["schema"], 4)
         row = json.loads(lines[1])
         self.assertEqual(row["record"], "row")
         self.assertIn("readiness", row)
+        self.assertIn("review_tier", row)
 
     def test_schema_view_lists_readiness(self) -> None:
         """(e) schema view attempt_grain lists readiness in filter_fields and group_by_fields."""

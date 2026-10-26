@@ -45,7 +45,7 @@
     r.week = weekOf(r.date);
     r.month = r.date ? r.date.slice(0, 7) : '';
     r.sessions = 1;
-    ['set', 'id6', 'kind', 'model', 'host', 'agent', 'phase', 'label', 'review_variant', 'code_commit', 'repo_commit', 'session_origin', 'step_bucket', 'model_source', 'disposition', 'verification', 'readiness', 'item_status', 'action', 'role'].forEach((k) => {
+    ['set', 'id6', 'kind', 'model', 'host', 'agent', 'phase', 'label', 'review_variant', 'code_commit', 'repo_commit', 'session_origin', 'step_bucket', 'model_source', 'disposition', 'verification', 'readiness', 'review_tier', 'item_status', 'action', 'role'].forEach((k) => {
       if (r[k] === null || r[k] === undefined || r[k] === '') r[k] = '(none)';
     });
     ROWS.push(r);
@@ -69,6 +69,7 @@
     restart: { label: 'Attempt type', help: 'first attempt, a retry (attempt 2+), or a recovery turn' },
     disposition: { label: 'Disposition' },
     readiness: { label: 'Readiness', help: 'go / go-pending-approval / no-go, absent when the review wrote no valid value, recorded for plan reviews only' },
+    review_tier: { label: 'Review tier', help: 'simple / standard / complex / orchestrator, recorded for plan reviews run with --review-mode steps only' },
     action: { label: 'Queue action' },
     role: { label: 'Session role' },
     set: { label: 'Set' },
@@ -81,8 +82,8 @@
     date: { label: 'Day' },
     run: { label: 'Run' },
   };
-  const FACETS = ['phase', 'stage', 'agent', 'label', 'review_variant', 'session_origin', 'host', 'model', 'outcome', 'restart', 'disposition', 'readiness', 'set', 'token_source'];
-  const GROUPABLE = ['agent', 'phase', 'session_origin', 'step_bucket', 'label', 'review_variant', 'code_commit', 'repo_commit', 'model_source', 'model', 'host', 'stage', 'outcome', 'restart', 'disposition', 'readiness', 'action', 'role', 'set', 'kind', 'verification', 'token_source', 'month', 'week', 'id6', 'run'];
+  const FACETS = ['phase', 'stage', 'agent', 'label', 'review_variant', 'session_origin', 'host', 'model', 'outcome', 'restart', 'disposition', 'readiness', 'review_tier', 'set', 'token_source'];
+  const GROUPABLE = ['agent', 'phase', 'session_origin', 'step_bucket', 'label', 'review_variant', 'code_commit', 'repo_commit', 'model_source', 'model', 'host', 'stage', 'outcome', 'restart', 'disposition', 'readiness', 'review_tier', 'action', 'role', 'set', 'kind', 'verification', 'token_source', 'month', 'week', 'id6', 'run'];
 
   // ---------------------------------------------------------------- metrics
   const HAS_TOK = (r) => r.token_source !== 'none';

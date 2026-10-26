@@ -353,6 +353,13 @@ META_SCOPE_EXCEEDED = "Scope-Exceeded"
 # absent means the plan may run unattended. Any value other than `required` is refused by lint.
 META_ATTENDED = "Attended"
 ATTENDED_REQUIRED = "required"
+# `- Review-Depth: <simple | standard | complex | orchestrator>` (spec k3yx72 Section 7.2;
+# Set revsteps, IPD gv3smb). Written once per review by the review's finalize step (S7).
+# Recognized but OPTIONAL; absent means no tier has been recorded.
+META_REVIEW_DEPTH = "Review-Depth"
+REVIEW_DEPTH_VALUES: FrozenSet[str] = frozenset(
+    ("simple", "standard", "complex", "orchestrator")
+)
 
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
@@ -376,6 +383,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_COVERAGE_CHECKED,
         META_SCOPE_EXCEEDED,
         META_ATTENDED,
+        META_REVIEW_DEPTH,
     )
 )
 
@@ -493,6 +501,20 @@ def validate_metadata(
         errors.append(
             MetaError(
                 META_ATTENDED, f"invalid value (only '{ATTENDED_REQUIRED}' is accepted)"
+            )
+        )
+
+    # Review-Depth (revsteps gv3smb E-01; spec k3yx72 Section 7.2): OPTIONAL, so absence is silent;
+    # but a PRESENT value outside the closed enum is an error, reported by `ipd_lint.check_metadata`
+    # as IPD-M104.
+    review_depth = fields.get(META_REVIEW_DEPTH)
+    if review_depth is not None and review_depth.strip() not in REVIEW_DEPTH_VALUES:
+        errors.append(
+            MetaError(
+                META_REVIEW_DEPTH,
+                "unrecognized review-depth value (expected one of "
+                + ", ".join(sorted(REVIEW_DEPTH_VALUES))
+                + ")",
             )
         )
 

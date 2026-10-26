@@ -173,6 +173,7 @@ By default the views count only each queue attempt's MAIN session. Add `--filter
 | Redo counts per model | `aw runs query attempts --group-by model --metric redo_total,turn_retries,refusals,reasks --stat sum` |
 | Experiment comparison: review outcome (disposition and Readiness) per plan, variant and model | `aw runs query experiment --filter label=<label>` |
 | Attempts by Readiness | `aw runs query attempts --filter action=review --group-by readiness --metric cost,steps` |
+| Attempts by review tier | `aw runs query attempts --filter action=review --group-by review_tier --metric cost,steps` |
 
 What the fields mean:
 

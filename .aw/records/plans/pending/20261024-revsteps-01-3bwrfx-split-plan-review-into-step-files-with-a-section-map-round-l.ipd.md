@@ -166,7 +166,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Runner pre-pass, multi-prompt sending, postconditions: Orders 02 and 04 of this Set.
-  - Carrier: gv3smb, uiyoax
+  - Carrier: uiyoax
 - The citation resolver: Order 03, Stage 2 (spec MD-20). `kk62qt` E-09 files the Stage 2 backlog item when the pilot gate says build.
   - Carrier: kk62qt
 - Retiring `/plan-review-long`: Order 07, Stage 2. Until then E-13 keeps its parity references working.

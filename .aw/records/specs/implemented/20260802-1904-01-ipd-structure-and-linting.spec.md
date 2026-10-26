@@ -151,6 +151,8 @@ Recognized-but-optional fields (all IPDs): `Scope-Paths` (Section 4.5), `Priorit
 
 Optional field: `Attended` (amended 2026-10-17, direct fix, no plan). `- Attended: required` declares that the plan needs a human present while it runs (for example it asks the maintainer live questions). It is the only accepted value; any other value is a metadata error (`IPD-M104`) and absence means the plan may run unattended. `aw oc run` / `aw agy run` never dispatch such a plan as a HEADLESS turn. At a terminal (and not `--unattended`) the entry stays queued, marked `attended`, and at its turn the runner opens an interactive agent session for it in the item's worktree and continues the queue when that session exits; otherwise the entry is frozen `not-run` with `needs_input` and refusal code `attended-session-required`, re-checked at dispatch. `aw work begin <id6>` opens the same interactive session at a terminal (amended 2026-10-18, backlog `rfofos`, DECISIONS D176; interim until runner turns can ask questions, Set `qchan`). A runner turn that discovers the need records a `proposal` of kind `needs-attended`, and the runner adds the field to the plan instead of filing a new record. Validated as a recognized metadata field (`META_RECOGNIZED`).
 
+Optional field: `Review-Depth` (amended 2026-10-25, plan `gv3smb`, Set `revsteps`, Order 02; source spec `k3yx72` Section 7.2). Closed enum `simple`, `standard`, `complex`, or `orchestrator`. Written once per review by the review's finalize step; not part of the reviewed contract. Validated as a recognized metadata field (`META_RECOGNIZED`), where any value outside the closed enum is a metadata error (`IPD-M104`). Absence is silent.
+
 Optional post-execution field: `Scope-Exceeded` (amended 2026-10-09, plan `psgyzw`, Set `fixfirst`, Order 06). Recorded automatically by `aw ipd finalize` when out-of-scope changed paths are reconciled with scope reasons. Syntax: `- Scope-Exceeded: <path> (<reason>); ...`. Multiple entries are separated by semicolons. Validated as a recognized metadata field (`META_RECOGNIZED`).
 
 Conditional fields:
@@ -837,6 +839,7 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
+- 2026-10-25 note (aw specs): Section 4.4 amended (revsteps gv3smb E-02): document optional field - Review-Depth: with closed enum simple/standard/complex/orchestrator, written by review finalize step (source spec k3yx72 Section 7.2).
 - 2026-10-18 note (aw specs): Section 4.4 amended (backlog rfofos, D176): at a terminal the runners open an interactive session for an Attended: required plan and continue; aw work begin opens it too; unattended runs still hold it. Interim until Set qchan.
 - 2026-10-17 note (aw specs): Section 4.4 amended (direct fix, no plan): optional field Attended: required, held at queue build by both runners; proposal kind needs-attended marks it.
 - 2026-10-15 note (aw specs): Section 4.5 amended (scoperewrite yrq57q E-04): recommend optional status-agnostic glob spelling for .aw/records/ Scope-Paths entries (D170)
