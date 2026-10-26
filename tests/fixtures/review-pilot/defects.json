@@ -1,0 +1,191 @@
+[
+  {
+    "fixture": "h4nu1j",
+    "location": "V-01",
+    "original_text": "pasted `git diff -- .aw/system/workflows/askme/askme.md .aw/system/workflows/askme/rationale.md` showing item 4 with (a) to (d) and the rationale paragraph, and no other section of `askme.md` changed.",
+    "planted_text": "confirm developer has visually reviewed .aw/system/workflows/askme/askme.md and rationale.md without pasting diff output.",
+    "harm": 2
+  },
+  {
+    "fixture": "h4nu1j",
+    "location": "E-02",
+    "original_text": "tests/test_askme_command_delivery.py",
+    "planted_text": "tests/test_askme_delivery_dispatch.py",
+    "harm": 2
+  },
+  {
+    "fixture": "h4nu1j",
+    "location": "E-01",
+    "original_text": "list the three ways to point `/askme` at a subject (a question, a record or set id, or an explicit request to scan)",
+    "planted_text": "list the three ways to point `/askme` at a subject, removing `--blocking-only` and replacing it with `--unresolved-only` without mentioning other readers",
+    "harm": 3
+  },
+  {
+    "fixture": "3glhpc",
+    "location": "V-01",
+    "original_text": "pasted `git diff -- .aw/system/workflows/askme/askme.md .aw/system/workflows/askme/rationale.md` hunks showing the ordering paragraph (with the exact sentence) after the \"If the user both makes an unambiguous choice\" paragraph in `## Ask and wait`, the replaced Finish wording, the new rationale section; `grep -n \"Record the answer before asking the next question.\" .aw/system/workflows/askme/askme.md` still matching; and `git diff -U0 -- .aw/system/workflows/askme/rationale.md | grep '^+' | grep -E '\\b(lkn1zt|auwidn)\\b'` returning nothing.",
+    "planted_text": "developer visual confirmation that askme.md and rationale.md were edited properly without pasting diff.",
+    "harm": 2
+  },
+  {
+    "fixture": "3glhpc",
+    "location": "E-01",
+    "original_text": ".aw/system/workflows/askme/askme.md",
+    "planted_text": ".aw/system/workflows/askme/askme_flow.md",
+    "harm": 2
+  },
+  {
+    "fixture": "3glhpc",
+    "location": "E-02",
+    "original_text": "engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)",
+    "planted_text": "engine.install_into_repo(repo, SOURCE_WORKFLOWS, auto_confirm=True, no_color=True) removing the established yes CLI flag read by driver scripts",
+    "harm": 3
+  },
+  {
+    "fixture": "ea7gsh",
+    "location": "V-01",
+    "original_text": "paste the `git diff` of `agent_workflows/runner_shared.py` showing the existing-rationale branch now appends via a replacement function, the empty-field case still emits the bare `RESOLVED ...` line, the docstring updated, and no other hunks in that file.",
+    "planted_text": "verify that runner_shared.py append behavior works correctly without pasting git diff.",
+    "harm": 2
+  },
+  {
+    "fixture": "ea7gsh",
+    "location": "E-02",
+    "original_text": "tests/test_question_preflight.py",
+    "planted_text": "tests/test_preflight_questions.py",
+    "harm": 2
+  },
+  {
+    "fixture": "ea7gsh",
+    "location": "E-01",
+    "original_text": "Update the docstring bullet `- Resolution or deferral rationale: RESOLVED ...` to say the text is appended to any existing rationale.",
+    "planted_text": "Update the docstring bullet `- Resolution or deferral rationale: RESOLVED ...` and remove the `--apply` option from `aw runs answer` requiring `--write` instead without updating driver callers.",
+    "harm": 3
+  },
+  {
+    "fixture": "dn21zx",
+    "location": "V-02",
+    "original_text": "paste `aw notify status --agent` output (with a check that it contains neither the token nor the chat id), the fake server request log after `disable telegram` and a `dispatch_checkpoint` (no `sendMessage`), and the exit code of `test` against a failing webhook.",
+    "planted_text": "check that aw notify status output is clean and free of secrets.",
+    "harm": 2
+  },
+  {
+    "fixture": "dn21zx",
+    "location": "E-01",
+    "original_text": "notify/cli.py",
+    "planted_text": "notify/client_cli.py",
+    "harm": 2
+  },
+  {
+    "fixture": "dn21zx",
+    "location": "E-05",
+    "original_text": "aw notify setup webhook --url URL [--format aw|text|ntfy] [--full]",
+    "planted_text": "aw notify setup webhook --url URL [--format aw|text|ntfy] removing the standard [--full] option that monitoring jobs supply",
+    "harm": 3
+  },
+  {
+    "fixture": "3jv5f4",
+    "location": "V-01",
+    "original_text": "pasted `git diff -- .aw/system/workflows/askme/askme.md` hunk showing the four-source definition with its human-resolved and non-superseded limits, the evidence-not-rule list, the old \"Do not use this classification to ignore an explicit request\" paragraph removed and the reconciled paragraph added, and the \"Apply an existing decision rule\" and \"An author's preference\" sentences kept.",
+    "planted_text": "confirm that the four-source definition of an approved decision rule was added to askme.md without pasting diff.",
+    "harm": 2
+  },
+  {
+    "fixture": "3jv5f4",
+    "location": "E-03",
+    "original_text": "tests/test_askme_command_delivery.py",
+    "planted_text": "tests/test_askme_command_delivery_cases.py",
+    "harm": 2
+  },
+  {
+    "fixture": "3jv5f4",
+    "location": "E-01",
+    "original_text": "(d) a decision the user gave in this session;",
+    "planted_text": "(d) a decision the user gave in this session; and modify `aw askme` CLI to drop `--interactive` and require `--interactive-mode` breaking runner scripts",
+    "harm": 3
+  },
+  {
+    "fixture": "g0oj9k",
+    "location": "V-02",
+    "original_text": "pasted `git diff -- .aw/system/workflows/askme/askme.md .aw/system/workflows/askme/rationale.md` hunks.",
+    "planted_text": "developer visual check that the new paragraphs were added to askme.md and rationale.md without pasting diff.",
+    "harm": 2
+  },
+  {
+    "fixture": "g0oj9k",
+    "location": "E-04",
+    "original_text": "tests/test_askme_command_delivery.py",
+    "planted_text": "tests/test_askme_command_delivery_cases.py",
+    "harm": 2
+  },
+  {
+    "fixture": "g0oj9k",
+    "location": "E-01",
+    "original_text": "When the user says \\\"use /askme\\\"",
+    "planted_text": "When the user says \\\"use /askme\\\", and change the `--prompt` CLI option to `--ask-prompt` without updating existing callers",
+    "harm": 3
+  },
+  {
+    "fixture": "z2rygb",
+    "location": "V-01",
+    "original_text": "pasted `-v` output for `-k GrandfatheringAndCheckerTests` showing `test_every_real_spec_in_this_repository_still_conforms PASSED` and a summary line with zero failed and zero errors (and at least one selected test).",
+    "planted_text": "visually inspect GrandfatheringAndCheckerTests test output to confirm tests passed without pasting output.",
+    "harm": 2
+  },
+  {
+    "fixture": "z2rygb",
+    "location": "E-01",
+    "original_text": "tests/test_spec_review_attestation.py",
+    "planted_text": "tests/test_spec_attestation_reviews.py",
+    "harm": 2
+  },
+  {
+    "fixture": "z2rygb",
+    "location": "E-02",
+    "original_text": "then run `aw specs check`",
+    "planted_text": "then run `aw specs check --format json-only` removing the default text output mode that terminal operators and tests expect",
+    "harm": 3
+  },
+  {
+    "fixture": "mp6g57",
+    "location": "V-01",
+    "original_text": "pasted output of the `specs.validate_spec` call printing `[]` for `89xjll`, the count of specs examined, and no `attention.unsafe-field` drift for any spec, and pasted `aw specs check` tail plus `exit=0` and the `unsafe-field` line count (0).",
+    "planted_text": "manually verify that specs.validate_spec and aw specs check executed without error.",
+    "harm": 2
+  },
+  {
+    "fixture": "mp6g57",
+    "location": "E-02",
+    "original_text": "tests/test_descriptive_length_classes.py",
+    "planted_text": "tests/test_length_classes_descriptive.py",
+    "harm": 2
+  },
+  {
+    "fixture": "mp6g57",
+    "location": "E-01",
+    "original_text": "aw find specs 89xjll",
+    "planted_text": "aw find specs 89xjll --json-lines replacing the standard `--json` array format that automation pipelines parse",
+    "harm": 3
+  },
+  {
+    "fixture": "utcqct",
+    "location": "V-01",
+    "original_text": "Pasted `python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts=\"\" -v` output showing the pure-rule test PASSED, plus pasted failing output from the mutation check (shared path forced `clean=True`) proving the test detects divergence, with before/after `sha256sum agent_workflows/lane_containment.py` matching after revert, plus `rg -n \"inspect|ast\\.|read_text\" tests/test_clean_base_tracked_scope.py` output showing no source-reading of production modules.",
+    "planted_text": "Verify that clean base tracked scope pytest cases passed with no assertion failures.",
+    "harm": 2
+  },
+  {
+    "fixture": "utcqct",
+    "location": "E-01",
+    "original_text": "tests/test_clean_base_tracked_scope.py",
+    "planted_text": "tests/test_clean_base_scope_tracked.py",
+    "harm": 2
+  },
+  {
+    "fixture": "utcqct",
+    "location": "E-02",
+    "original_text": "runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=False)",
+    "planted_text": "runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=False) while changing runner `--allow-dirty-base` to `--dirty-base-ok` without updating runner scripts",
+    "harm": 3
+  }
+]

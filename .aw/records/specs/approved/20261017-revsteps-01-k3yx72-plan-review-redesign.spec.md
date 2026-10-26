@@ -873,6 +873,8 @@ The recommendation labels in `.aw/system/workflows/askme/askme.md` change from t
 five of MD-9.
 
 ## Workflow history
+
+- 2026-10-26 note (aw specs): MD-20 gate: OTHERWISE; maintainer decision via /askme: BUILD THE REST; complex default: single-12; report: .aw/records/research/20261017-revsteps-06-2m4i0o-review-pilot-results.findings.md
 - 2026-10-25 approved (aw set): status set to approved
 - 2026-10-24 approved (aw specs): Blocks release 2.0.0 (f33nrj, the planned release) per maintainer 2026-10-24
 
