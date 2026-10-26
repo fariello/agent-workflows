@@ -255,3 +255,20 @@ Internal-consistency pass requested by the maintainer on 2026-10-25 (HEAD `933b9
 | D-30 | How are migrated events timed? | Migration `at`; original day in `observed_day`; checkpoint `last_history_day`. | Day at 00:00Z. | Maintainer answer 2026-10-25, plus the rule that day-only values are for filenames only; 4.2a forbids invented precision. | no (maintainer decided) |
 | D-31 | Names for research and prompt `kind`? | `research_kind`, `prompt_kind`. | Leave to plan step 1. | Maintainer answer 2026-10-25; direct application of 4.5c. | no (maintainer decided) |
 | D-32 | `last_history_at` output when only a day is known? | Keep the key name; value is a day; output states the precision. | Synthesize a time. | It is a published `aw attention --format json` key (`attention_contract.last_history_at` docstring); inventing a time breaks D-30. | yes |
+
+## Round 11
+
+Re-review pass requested by the maintainer on 2026-10-26 (HEAD `b5697af54`). Corpus measurements, review records census, history sidecar records, and cross-spec dependencies were re-measured at current HEAD after merges of `specflow` research, candidate spec `1tx9t8`, and `revsteps` plans (`3bwrfx`, `gv3smb`, `uiyoax`, `is2xiv`). Structural preflight `aw specs check` was clean before and after. Two consistency findings were recorded and fixed from repository evidence.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-816 | low | IN-SCOPE | A (current) | spec 1, 3c, 4.1a, 5.2 step 2, AC-14a | Measured counts drifted since r9/r10: tracked records 4,416 (plans 1,705, reviews 1,287, backlog 1,128, research 171, specs 46, prompts 34, walkthroughs 26); terminal records 2,829; review records with differing id6 vs Subject-Id 24 (all specflow 18hh1u refinement reviews); off-vocabulary review verdicts 35 in 4 strings; history sidecar 466 records for 320 id6 values (331 backlog, 113 specs, 8 plans, 11 research, 2 walkthroughs, 1 roadmap; 427 status/history, 39 rename/regroup). | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | r11 measurement checkpoints added to Section 1 fact table, 3c, 4.1a/AC-14a, and 5.2 step 2. |
+| SR-817 | low | IN-SCOPE | G (specs) | Section 9 table | Section 9 compatibility matrix omitted candidate spec `1tx9t8` (draft candidate 02 in `specflow`), and did not note that `k3yx72` Stage 1 plans (`3bwrfx`, `gv3smb`, `uiyoax`, `is2xiv`) have executed and merged to `main`, landing `Review-Depth` in the legacy schema ahead of Phase B. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Added `1tx9t8` row to Section 9 compatibility table and updated `k3yx72` row noting Stage 1 execution status. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-33 | How does candidate spec `1tx9t8` relate to `4sd62s`? | Subject to standard two-key front matter and C10 naming rules; adds no registry fields at draft. | Add new registry fields now. | Consistent with Section 9 treatment of draft candidates `18hh1u` and `yfz5u9`. | yes |
