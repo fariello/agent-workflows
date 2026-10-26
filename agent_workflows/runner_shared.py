@@ -25365,11 +25365,14 @@ def check_runaway_escalation(
         stream = sys.stderr if stderr is None else stderr
         ratio_str = f"{ratio:.2f}"
         msg = (
-            f"\033[31mRunaway escalation detected: {parked_count} of {dispatched_count} "
+            f"Runaway escalation detected: {parked_count} of {dispatched_count} "
             f"dispatched items parked (ratio {ratio_str}). A runaway escalation rate is "
             "more likely a defect in the prompt or the worker's classification than a "
-            "genuine backlog of human decisions. Do NOT start answering.\033[0m"
+            "genuine backlog of human decisions. Do NOT start answering."
         )
+        # Red only when the stream supports color (NO_COLOR, --no-color, non-TTY honored).
+        if should_color(stream):
+            msg = f"\033[31m{msg}\033[0m"
         try:
             print(msg, file=stream, flush=True)
         except Exception:

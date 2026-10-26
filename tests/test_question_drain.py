@@ -680,6 +680,88 @@ def test_a25_floor_guard_no_breach(tmp_path: Path) -> None:
     assert "runaway_escalation" not in state
 
 
+def _breaching_state(repo: Path, run_id: str) -> dict:
+    queue = [
+        {
+            "id6": f"nc{i:04d}",
+            "status": "awaiting-human",
+            "emergent_parked": True,
+            "attempts": [1],
+        }
+        for i in range(5)
+    ]
+    return {
+        "repo": str(repo),
+        "run_id": run_id,
+        "queue": queue,
+        "options": {"max_park_percent": 50, "runaway_min_parked": 5},
+    }
+
+
+class _TtyBuffer:
+    """A text sink that reports itself as a terminal, so color detection would say yes."""
+
+    def __init__(self) -> None:
+        self.parts: list[str] = []
+
+    def write(self, s: str) -> int:
+        self.parts.append(s)
+        return len(s)
+
+    def flush(self) -> None:
+        pass
+
+    def isatty(self) -> bool:
+        return True
+
+    def text(self) -> str:
+        return "".join(self.parts)
+
+
+def test_runaway_warning_honors_no_color(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The runaway stderr warning carries no ANSI escape under NO_COLOR, even on a terminal."""
+    repo = _create_test_repo(tmp_path)
+    run_dir = repo / ".aw" / "records" / "runs" / "run-nocolor"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    sink = _TtyBuffer()
+
+    breached = runner_shared.check_runaway_escalation(
+        run_dir,
+        _breaching_state(repo, "run-nocolor"),
+        stderr=sink,
+        save_state_fn=lambda *a, **k: None,
+    )
+
+    assert breached is True
+    assert "Runaway escalation detected" in sink.text()
+    assert "\033[" not in sink.text()
+
+
+def test_runaway_warning_is_red_on_a_color_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without NO_COLOR, a terminal stream still gets the red warning."""
+    repo = _create_test_repo(tmp_path)
+    run_dir = repo / ".aw" / "records" / "runs" / "run-color"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    sink = _TtyBuffer()
+
+    runner_shared.check_runaway_escalation(
+        run_dir,
+        _breaching_state(repo, "run-color"),
+        stderr=sink,
+        save_state_fn=lambda *a, **k: None,
+    )
+
+    assert "\033[31mRunaway escalation detected" in sink.text()
+
+
 def test_a22_a23_a24_runaway_escalation_breach_and_distinguishable_exit(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
