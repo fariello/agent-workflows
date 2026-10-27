@@ -555,3 +555,56 @@ Diagram/prose column cross-check: tables 31 mismatches 0
 mermaid-cli 12.0.0: Found 12 mermaid charts in Markdown input; 12 rendered (one sequence-note
 semicolon was corrected before the successful run)
 ```
+
+## Round 16
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-911 | high | IN-SCOPE | B/D: finalize source | 4.2 `op: finalize` "Taken from the merged diff"; `runner_shared` merge-conflict prompt "the plan was already finalized on the lane" | Finalize runs in the lane before integration, so no merged diff exists when the event is written; a hand finalize has no merge. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | `changed_paths` is the git diff from the begin-receipt base to the finalize tip, excluding the plan file and its log; integration never rewrites it. AC-35, diagram 2 and OQ-18 (dated correction) aligned. |
+| SR-912 | high | IN-SCOPE | D/F: turn event placement | 4.2 "appended by the driver when the turn ends" vs 4.9.3 "Finalize adds the finalize event and its turn events" | Contradictory writers; a main-checkout append would conflict with the lane on every run. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | Maintainer decision OQ-23 plus crash import: lane copy as each turn ends, main checkout for an attempt that does not merge, idempotent importer, one-copy rule, post-finalize turns accepted by the executed-plan hook. |
+| SR-913 | high | UNDER-SCOPE | B: same-append rules unverifiable | 4.2 replay, 4.4 readiness/approval rules, finalize | The log carried no write grouping, so no "same append" rule could be checked by the loader. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Maintainer decision OQ-24: `append` key on every event; LOADER VALIDATION and AC-39. |
+| SR-914 | high | IN-SCOPE | D: short-description migration | `_extract_detail` cascade measured: 1,402 sources over 300 characters, mostly terminal records | Round 15's refuse-until-shortened rule would block the cutover permanently. | C:Low; U:Medium; S:Low; F:High; Overall:Medium | fixed | Maintainer decision OQ-22: a cheap model writes every description through a reusable gitignored description journal (dry run generates; reuse by source digest; resume). C8, 5.2 step 0, 3c, AC-36, diagram 4.9.6 aligned. |
+| SR-915 | high | IN-SCOPE | B/D: event-owned fields | 4.2 replay "Generic set/unset cannot write ... any EVENT-OWNED field" vs 4.4/AC-15 requiring `set approval` and `unset readiness` in owning appends | The replay rule forbade writes that 4.4 and the ACs require; `readiness` had two encodings. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | One rule: an event-owned `set`/`unset` is valid only inside its owner's append; `readiness`/`review_depth` only from the gate review payload. 4.4, AC-15, AC-39 aligned. |
+| SR-916 | high | IN-SCOPE | F: run-index exclusions | AC-38(1) "every field ... appears" vs AC-38(3) no session id/argv/absolute path; `state.json` carries `session_id`, `argv`, absolute `repo`, `worktree`, `log` | Self-contradicting criteria. | C:Low; U:Low; S:Medium; F:Low; Overall:Low | fixed | 4.5b EXCLUDED CLASSES named; AC-38(1) excepts them; `payload_json` and `extra_json` follow the same rule. |
+| SR-917 | high | IN-SCOPE | A: run tables vs real data | `state.json` has no top-level host/outcome/terminal; `driver` is `{id, path, sha256, loaded_code}`; `git` is `{aw_version, commit, dirty}`; attempts have no `ace`/`outcome`/`variant`/`requested_model`; outcome files carry no attempt number; question status vocabulary is `open`, `answered` or `stale` | `runs`, `attempts`, `run_outcomes`, `run_questions` and diagram notes named columns and values with no source. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Columns and notes re-derived from measured data and `question_inbox.VALID_QUESTION_STATUSES`; source-key renames stated; derived columns (`host`, `terminal`) named. |
+| SR-918 | medium | IN-SCOPE | D: turn identity | `turn_steps` PK and `turns` lacked a turn ordinal and item position; session `log_suffix` values include hook-refusal, audit, set-correction-N, review-step-NN | Two correction turns collided; turns could not be joined to steps; the role list omitted real turn kinds. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | `turn_index` and `item_position` added; `turn_role` vocabulary derived from `log_suffix`. |
+| SR-919 | medium | IN-SCOPE | D: path history coverage and drift | archive moves (`plans_archive.apply_shard_moves`), research moves; AC-26 hand `git mv` | Path-bearing list missed archive moves; no drift rule between discovered and logged path; `by_human: false` contradicted the `by_human` rule. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | `archive` verb; research shelf moves are path-bearing transitions; 4.6 `path-drift` row; repair completes journaled moves with no event or appends a confirmed rename. |
+| SR-920 | medium | IN-SCOPE | D: scope_result migration | `ipd_lifecycle._format_scope_exceeded_value` writes `path (reason)` only for accepted out-of-scope paths | "within when false" had no source; reasons were dropped; widened paths are unrecoverable. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Absent bullet means unknown; reasons kept; `scope_exceeded_raw` for the round trip; `legacy_scope_exceptions` table. |
+| SR-921 | medium | IN-SCOPE | B: stale prose across sections | section 0 terms, C7/AC-6, O5, N2, N4, 3c C2 limit, 4.5a rule 4, META rebuild rule, AC-7, AC-13, AC-23, AC-24, AC-25, AC-31, AC-32, 4.4, 4.8, 5.4, 6, 7, 9 | Many statements predated round 15 (one added event line, basenames, no tracked run data, AC table lists, missing writers and docs, phase B could not hold new events). | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Each location rewritten; phase B/C rule added for which writers start at the cutover; module-direction note; 4.9.3, 4.9.6, 4.9.8 and ER notes aligned. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-1 | Where are turn events written (OQ-23)? | Lane; main only for an unmerged attempt; idempotent crash import. | Finalize only; main always. | Maintainer via /askme 2026-10-26, with the crash-import addition. | no |
+| D-2 | How is a write grouped (OQ-24)? | `append` key. | Infer from at+actor; writer-only. | Maintainer via /askme 2026-10-26. | no |
+| D-3 | How are short descriptions filled (OQ-22)? | Model-generated for every record through a reusable description journal; dry run generates. | Cascade fallback; truncate; generate at apply only. | Maintainer via /askme 2026-10-26 (design of the journal is the maintainer's). | yes |
+| D-4 | How does `changed_paths` get its diff (SR-911)? | Begin-receipt base to finalize tip. | Merged diff (unavailable); agent report. | 4.2 finalize runs in the lane (`runner_shared`); preserves OQ-18's decision. | yes |
+| D-5 | Per-V-item verifier verdict source (SR-917)? | Copy the attempt verdict to each V-item until the verifier reports per item; plan decides the change. | Require per-item verifier output now. | Today's verifier writes one verdict per attempt (`*-verification.json`). | yes |
+
+### Scope and evidence
+
+Internal-consistency review requested by the maintainer after round 15, at baseline `d1c411677`
+(decisions OQ-22 to OQ-24 recorded in `8b7b85244` and `a321957d8` before editing). Reviewer:
+opencode/its_direct/pt3-claude-opus-5.5-1m-us, with two independent full-text consistency passes.
+Measurements (2026-10-26): 596 run directories; 96 distinct `events.jsonl` event types (median 15,
+max 34 per run); queue actions execute, review, plan, orchestrate, skip; attempt
+`worktree_disposition` created, attempt-scoped, adopted; `model_source` options or absent;
+`integration_signal` verifier, driver-run-suite, suite-failed, verifier-declined; verification
+verdicts VERIFIED, BLOCKED, CORRECTION_REQUIRED; session `log_suffix` values from `runner_shared`;
+`ipd_schema.EXEC_STATES` and `VALIDATION_RESULTS`; `question_inbox.VALID_QUESTION_STATUSES`;
+`_extract_detail` sources Scope 1,726, Summary 1,305, title 76, Concern 1, none 7, 1,402 over 300.
+
+### Final validation
+
+```text
+aw specs check <spec>: all specs conform. 1 specs checked.
+git diff --check <spec>: exit 0
+Diagram/prose column cross-check: tables 32 mismatches 0
+Op list (4.2): checkpoint, coverage, create, finalize, legacy, note, rename, review, set, transition, turn, unset
+mermaid-cli 12.0.0: Found 12 mermaid charts in Markdown input; 12 rendered
+aw check all: errors 13, warnings 0, info 54 (unchanged)
+aw sanitize --agent: clean
+```
