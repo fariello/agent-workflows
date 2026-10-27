@@ -2408,6 +2408,39 @@ for concurrency.
 - Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: index every structured field of `state.json`, `events.jsonl`, outcomes, verification outcomes, lane collections, questions and answers, telemetry, and per-step usage from session logs. Do not store prompts, session text, tool output, command lines or reports in the cache; store their path and content digest only. No reason was given.
 
 
+### OQ-22: How the migration fills `short_description` (round 16)
+
+- Status: open
+- Owner: maintainer
+- Blocking: yes
+- Question: How does the migration fill `short_description` when today's detail source is missing or longer than 300 characters?
+- Evidence: the `attention._extract_detail` cascade over tracked non-review records gives Scope 1,726, Summary 1,305, Title 76, Concern 1, none 7; 1,402 sources exceed 300 characters (1,399 Scope, 3 Summary). Round 15 refused `--apply` on these, which would block the cutover permanently because most are terminal records.
+- Recommendation: Fall back to the next source that fits.
+- Closes when: The maintainer decides the generation mechanism and its constraints (OQ-22a below), and 4.2, 5.2 and AC-36 use the chosen rule.
+- Resolution or deferral rationale: PARTLY ANSWERED 2026-10-26 by the user via /askme: a cheap model generates a short description of at most 300 characters for EVERY record at migration, because most existing descriptions are poor. A prompt must require clear, concise, accurate, ASD-STE100-style text (without the vocabulary limit) that states what the record does, addresses or defines, with no superfluous information; for example a plan's description must not say that it is a plan. Reason given: "Most of the descriptions suck as they are anyways." The mechanism details are open in OQ-22a.
+
+### OQ-23: Where `turn` events are written (round 16)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: Which copy of the log receives `turn` events, given lane isolation?
+- Evidence: round 15 said both that the driver appends at turn end and that finalize appends them; a driver append in the main checkout while the lane appends `finalize` would conflict on every run (4.7) and dirty `.aw/records/`.
+- Recommendation: Lane; main only if the attempt does not merge.
+- Closes when: 4.2, 4.9.3 and an acceptance criterion use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: the driver writes `turn` events into the LANE's copy of the log as each turn ends, so finalize and integration carry them to `main`; when an attempt ends without merging, the driver appends that attempt's turn events in the main checkout under the integration lock and commits them with `aw commit --no-plan`. ADDITION by the maintainer: a mechanism must import turn data after a runner crash; it imports each turn exactly once and handles resumes. No further reason was given.
+
+### OQ-24: How the log shows which events were written together (round 16)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: How can the loader verify the rules that require events in the same append?
+- Evidence: `readiness`, `approval` and `finalize` rules require a same-append partner, but an event did not record its write.
+- Recommendation: Add an append key.
+- Closes when: 4.2, 4.3 loader validation and an acceptance criterion use it.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: every event carries `append`, the `seq` of the first event of its write. No reason was given. Irreversible after the cutover (log format).
+
 ## 9. Compatibility with specs written after round 1
 
 | Spec | Status at r11 | Relation |
