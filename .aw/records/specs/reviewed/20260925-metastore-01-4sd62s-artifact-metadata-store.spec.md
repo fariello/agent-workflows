@@ -2410,14 +2410,14 @@ for concurrency.
 
 ### OQ-22: How the migration fills `short_description` (round 16)
 
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Blocking: yes
 - Question: How does the migration fill `short_description` when today's detail source is missing or longer than 300 characters?
 - Evidence: the `attention._extract_detail` cascade over tracked non-review records gives Scope 1,726, Summary 1,305, Title 76, Concern 1, none 7; 1,402 sources exceed 300 characters (1,399 Scope, 3 Summary). Round 15 refused `--apply` on these, which would block the cutover permanently because most are terminal records.
 - Recommendation: Fall back to the next source that fits.
-- Closes when: The maintainer decides the generation mechanism and its constraints (OQ-22a below), and 4.2, 5.2 and AC-36 use the chosen rule.
-- Resolution or deferral rationale: PARTLY ANSWERED 2026-10-26 by the user via /askme: a cheap model generates a short description of at most 300 characters for EVERY record at migration, because most existing descriptions are poor. A prompt must require clear, concise, accurate, ASD-STE100-style text (without the vocabulary limit) that states what the record does, addresses or defines, with no superfluous information; for example a plan's description must not say that it is a plan. Reason given: "Most of the descriptions suck as they are anyways." The mechanism details are open in OQ-22a.
+- Closes when: The maintainer decides the generation mechanism, and 4.2, 5.2 and AC-36 use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: a cheap model generates a short description of at most 300 characters for EVERY record at migration, because most existing descriptions are poor. A prompt must require clear, concise, accurate, ASD-STE100-style text (without the vocabulary limit) that states what the record does, addresses or defines, with no superfluous information; for example a plan's description must not say that it is a plan. Reason given: "Most of the descriptions suck as they are anyways." FOLLOW-UP the same day via /askme, after the maintainer asked where a "deterministic" requirement came from (the reviewer had used the word loosely; the real rules are AC-10, a second run changes nothing, and 5.2 step 0, dry run by default): the migration keeps a gitignored DESCRIPTION JOURNAL with one entry per record id6 (text, model, prompt version, source digest); every run reuses each entry whose source digest still matches and calls the model only for missing or changed records, saving each result immediately, so a crash resumes without paying twice; the dry run also generates, so the maintainer reviews the real text before `--apply`, and `--apply` then makes no new call for unchanged records. The design of the journal is the maintainer's. No further reason was given.
 
 ### OQ-23: Where `turn` events are written (round 16)
 
