@@ -45,7 +45,7 @@ for the same concept.
 | cache | The gitignored SQLite database `.aw/state/index.db`. It holds a copy of the replayed state, the projections of `review`, `coverage`, `finalize` and `turn` events, checklist items parsed from plan bodies, and a read-only index of the structured run records, including per-step usage from local session logs (4.5a, 4.5b). The toolkit can delete and rebuild it at any time. In this spec, "cache" always means this database, never the operating-system file cache. |
 | SQL | Structured Query Language, the query language of SQLite. |
 | loader | The one component inside `artifact_meta` that fills the cache. After the cutover, it reads the log files, the plan bodies (for checklist items), the review files, and the runs tree through the runner's own readers. Before the cutover, the legacy loader has this role and reads the bullet blocks and history sections of the `.md` files (4.3). |
-| mirror | A copy of a logged value outside the log, kept for people or for the filename grammar, for example the front-matter `status` line. |
+| mirror | A copy of a logged value outside the log, kept for people or for the filename grammar, for example the front-matter `status` line (or, on a staged prompt, the `id` and `status` in its leading HTML comment, 4.1, OQ-25). |
 | drift | A difference between a mirror and the current state. |
 | disposition | The lifecycle directory that holds an artifact, for example `pending/` or `executed/`. |
 | registry | The table in `artifact_meta` that lists every allowed field for each record type that has a log (artifacts and walkthroughs), with its value type. |
@@ -81,6 +81,7 @@ The table below shows measured values. The values were measured at these points:
 | r7 | Review round 7 (spot check) | `2edf1f3ac` |
 | r9 | Review rounds 9 and 10 (spot checks of the sidecar, id-less, walkthrough, `Kind` and coverage counts) | `34f785e4d` |
 | r11 | Review round 11 (spot checks of records, reviews, sidecar, and specs compatibility) | `b5697af54` |
+| r17 | Review round 17 (spot checks of legacy timestamp filenames, id-less records, staged prompts, and D177 filenames) | `ea6b18773` |
 
 Values without a label are round-5 values. Values in square brackets are round-1 values, shown only
 where they differ from round 5. The values
@@ -95,7 +96,7 @@ round 1 and round 5. This growth is the strongest reason to do this work before 
 | Modules that refer to `## Workflow history` | 27 [23]. They use four incompatible orderings (see `2vev8j` section 1) |
 | Readers that give different results for the same records | `selectors` and `plans_index` disagree on 24 plans (see the PARITY CONSTRAINT note in `selectors.py`, which is still present) |
 | Different field names used before the first `##` heading | 68 [57]. New since round 1: `Coverage`, `Coverage-Fingerprint`, `Coverage-Checked`, `Scope-Exceeded`, `Close-Evidence`, `Attended`, `Findings` (reviews), and, from specs, `Review-Depth` and `Pipeline` (see 4.2c) |
-| Tracked `.md` records under `.aw/records/` | 4,382 (r6: 4,383; r7: 4,391; r11: 4,416) [1,969]: plans 1,696 (r11: 1,705), reviews 1,275 (r11: 1,287), backlog 1,113 (r11: 1,128), research 171, specs 45 (r11: 46), prompts 36 (r11: 34), walkthroughs 27 (r11: 26), other 19. 2,922 [1,411] have a `## Workflow history` section (r11: 2,952). 1,535 [549] have no `- Id:` bullet (r11: 1,524), and 1,275 (r11: 1,287) of these are reviews. 39 non-review records have no `id6` in any form. This count excludes 24 READMEs, 4 prompt-library templates and 2 research templates (r9: 39 INCLUDING those 6 templates, so 33 without them; see 5.2 step 3) |
+| Tracked `.md` records under `.aw/records/` | 4,382 (r6: 4,383; r7: 4,391; r11: 4,416; r17: 4,435) [1,969]: plans 1,696 (r11: 1,705), reviews 1,275 (r11: 1,287), backlog 1,113 (r11: 1,128), research 171, specs 45 (r11: 46), prompts 36 (r11: 34), walkthroughs 27 (r11: 26), other 19. 2,922 [1,411] have a `## Workflow history` section (r11: 2,952). 1,535 [549] have no `- Id:` bullet (r11: 1,524), and 1,275 (r11: 1,287) of these are reviews. 39 non-review records have no `id6` in any form. This count excludes 24 READMEs, 4 prompt-library templates and 2 research templates (r9: 39 INCLUDING those 6 templates, so 33 without them; r17 corrected count excluding 26 READMEs: 45 INCLUDING those 6 templates, or 39 without them — 17 legacy specs, 11 walkthroughs, 7 comms, 3 `.data/` companion files, and `plans/STATUS.md` — because 6 legacy `YYYYMMDD-HHMM-NN` filenames start their slug with a 6-letter English word that `parse_clustered` misread as `id6`; 6 additional terminal `YYYYMMDD-HHMM-NN` records already carry `- Id:` in-file; see 5.2 step 3 and OQ-26) |
 | Review records | 1,275 `.review.md` files (r6: 1,276; r7: 1,278; r11: 1,287) [338]. In 1,257 files, the `id6` in the filename is the same as the `Subject-Id`, by design. In 18 files (r6: 19; r7: 21; r11: 24), it is not. All of these are `specflow` refinement records for spec `18hh1u`, and each refinement iteration adds one. 5 subjects have more than one review file: `18hh1u` has 18 (r6: 19; r7: 21; r11: 24), and `rtvdak`, `e25iy9`, `l4vw9o` and `urv602` have 2 each. Rounds per file: 1,151 files have one round, 109 have two, 12 have three, 2 have four, and 1 has six. 29 files (r6: 30; r7: 32; r11: 35) have a verdict that is not in `plan_readiness.VERDICTS`: 14 (r6: 15; r7: 17; r11: 20) `REVIEWED - MATERIAL CHANGES APPLIED`, 11 `REVIEWED`, 3 `REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION`, and 1 `REVIEWED - CONVERGED WITH REVISIONS` (see 4.1a) |
 | Records in terminal directories | 2,828 (r11: 2,829) [1,055]: `executed/` 1,650, `done/` 1,086 (r11: 1,089), `superseded/` 59 (r11: 56), `implemented/` 17 (r11: 22), `not-executed/` 16 (r11: 12) |
 | Generated index files | 6 gitignored `INDEX.{json,md}` files [4], for plans, research and prompts (`prompts_index.py` is new since round 1). Also the committed file `plans/STATUS.md`, which has not been updated since 2026-08-17 |
@@ -147,7 +148,7 @@ Front-matter options:
 | Option | Decision | Reason |
 |---|---|---|
 | F1 `id` only | Rejected | People could no longer see the status on GitHub, in raw file views or in `.md` diffs. |
-| F2 `id` and `status` | Chosen (maintainer, 2026-09-25) | Status is the one field that people look for. The cost is one mirrored field, which a drift check keeps correct. |
+| F2 `id` and `status` | Chosen (maintainer, 2026-09-25; staged prompts use a single leading HTML comment instead of visible `---` front matter, OQ-25) | Status is the one field that people look for. The cost is one mirrored field, which a drift check keeps correct. |
 | F3 All current fields, as YAML | Rejected | It is not compact, and it brings back P1 and P2. |
 
 ## 3. Criteria
@@ -236,7 +237,7 @@ into the plan's validation evidence.
 | AC-4 | C4 | The order of a replay does not depend on the order of lines in the file. | A test that shuffles the lines of a log and asserts that the `seq`-ordered replay gives the same result. A test that refuses a log with a gap in `seq` or a duplicate `seq`. |
 | AC-5 | C6, 4.3 | Refused and dry-run writes change no authoritative file. Failure before the log commit leaves every authoritative file unchanged. Failure after it reports the committed change and required repair. Repair restores mirrors and moves without a second event. | Pasted failure-injection tests at each write step for a transition, creation and rename. The creation test recovers the exact body, or refuses if recovery data is absent. A repair replay is idempotent; a second mutation refuses while repair is pending. |
 | AC-6 | C7 | The diff of a status transition shows the front-matter `status` line and the appended events, with exactly one `transition`. | A pasted `git diff` of a real transition, and of a finalize transition with its `unset` and `finalize` events. |
-| AC-7 | 4.6, 4.1a, 4.2 | `aw check meta` checks every row of the 4.6 table (front-matter `status` and `id`, filename Set, `NN`, `id6` and date, research filename facets, disposition directory, logged path, orphans, review rounds, finalized E/V items) against the log. | Pasted `aw check meta` output that detects each type of drift in a test repository. Pasted output that shows zero findings on the migrated corpus. |
+| AC-7 | C10, 4.6, 4.1a, 4.2 | `aw check meta` checks every row of the 4.6 table (in-file `status` and `id` mirrors, filename Set, `NN`, `id6` and date, research filename facets, disposition directory, logged path, orphans, review rounds, finalized E/V items) against the log. | Pasted `aw check meta` output that detects each type of drift in a test repository. Pasted output that shows zero findings on the migrated corpus. |
 | AC-8 | 4.5 | The cache is disposable: deleting it changes no command output. | Run `aw find` and `aw attention --format json` with and without `.aw/state/index.db`. Paste the diff, which must be empty. |
 | AC-9 | 4.5, C11 | The `INDEX.*` files and `STATUS.md` are deleted, and nothing creates them again. | Pasted `git ls-files` output and file-system check. An `rg` search for `INDEX.json` and `STATUS.md` in `agent_workflows/` finds only the migration's cleanup code. |
 | AC-10 | 5, 4.2 | A second run of the migration changes nothing. The migration keeps a journal, is a dry run by default, and loses no information. | On a copy of this repository: the dry-run report; an apply; a second apply that changes nothing; and an automated round-trip check that finds every legacy field value and every raw legacy history line in the logs. The round-trip test corpus includes a history line longer than `MAX_PROSE_DESCRIPTIVE_LEN` and one with a control character, and both are recovered byte-for-byte; a post-cutover setter given the same long value is refused (SR-903). All pasted. |
@@ -246,7 +247,7 @@ into the plan's validation evidence.
 | AC-14 | 4.1a | Review records have no own log. Each round matches exactly one subject-log review event by stable file reference and round number. | Pasted tests: recording a round adds one subject event and no review log; equal counts with different round numbers fail; duplicate bindings and missing files fail; adding or renaming a second review file leaves the first file's events correctly attributed. |
 | AC-14a | 4.1a | Review kinds are typed. A `gate` event accepts only `plan_readiness.VERDICTS`. A `refinement` event accepts only the refinement vocabulary and never has `readiness`. The migration keeps each legacy verdict unchanged. | Pasted tests: (1) a `gate` event with a refinement verdict is refused; (2) a `refinement` event that has `readiness` is refused; (3) any number of `refinement` rounds are added in `seq` order; (4) both setter spellings refuse `->reviewed` for a spec whose log has only `refinement` review events, and `check.spec-review-unattested` reports it, while one `gate` event (migrated or new) satisfies the rule (4.4, finding SR-601); (5) after the migration of a test corpus that contains each DIFFERENT off-vocabulary verdict string found in the corpus at implementation time, every original verdict string can be recovered byte for byte. (At round 5 there were 4 different strings in 29 records; 30 records at round 6, 32 at round 7, and 35 at round 11.) |
 | AC-15 | 4.4 | For a plan, `readiness` is written only by the payload of a gate `review` event; a `set readiness` is refused. The coverage fields have the parallel rule: only an `op: coverage` event writes them (4.4). The `approval` field is owned by the `approved` transition, and leaving `approved` or moving backward clears the owned attestations (4.4, SR-901). | Pasted tests: (1) a `set readiness=go` event is refused, alone or together with a review event; (2) a gate `review` event whose payload carries `readiness: go` sets `readiness` on replay; (3) a `set coverage=...` is refused, and an `op: coverage` event that carries the value succeeds; (4) a generic `set approval=...` is refused, a `transition` to `approved` writes `approval` in the same append, and a `transition` away from `approved` unsets it in the same append; (5) a backward `transition` of a plan to `draft` or `to-review` unsets `readiness` in the same append, and replay refuses a hand-written log in which `approval` or `readiness` survives such a transition. |
-| AC-16 | 5.2 | Only the migration may rewrite artifacts in terminal directories. The migration makes exactly one commit, and that commit passes every installed gate. | Pasted output that shows: (1) the migration commit passes the executed-plan hook, `backlog_blocking_close_gate` and the pre-push gate `aw attention --check --agent`, without `--no-verify`; (2) after the cutover, the hook still refuses a separate raw edit to an executed plan. |
+| AC-16 | 5.2 | Only the migration may rewrite artifacts in terminal directories in bulk. The migration makes exactly one commit, and that commit passes every installed gate. | Pasted output that shows: (1) the migration commit passes `executed_transition_gate`, `backlog_blocking_close_gate` and the pre-push gate `aw attention --check --agent`, without `--no-verify`; (2) after the cutover, `executed_transition_gate` still refuses a raw non-finalize transition into `executed` (including replacing an executed file's `id`), the 4.8 `meta/*.jsonl` hook refuses any non-append or rule-violating change to an executed plan's log while accepting valid post-finalize appends (`turn`, `rename` with verb `archive`, `note`, `review`), and `aw check meta` flags `evidence-changed-after-finalize` on a post-finalize E/V body edit. |
 | AC-17 | C3, 4.7 | Incompatible changes to the same artifact are reported, even when git merges without a text conflict. A duplicate `seq` never passes `aw check meta`. | Pasted two-branch tests cover different events at the same sequence and identical appends. Invalid replay refuses; identical valid appends need no repair. A confirmed divergent-tail repair leaves the winning committed prefix unchanged and validates every resulting field and transition. |
 | AC-18 | 4.5 | With a `companion` or `home` records backend, the logs are next to the records that they describe, and the cache still works. | A pasted test with a companion backend that shows `meta/<id6>.jsonl` under the resolved records root, and a working `aw find`. |
 | AC-19 | 4.2b | Filename dates and creation values retain their distinct meanings and clocks. | Pasted tests migrate research with a Set filename date different from its creation day and retain both without drift. A record with no known creation day stays unknown. Age and grandfathering results match before and after migration. A new record created at 23:30 local time behind UTC has a full UTC creation timestamp, no day-only creation field, and no false filename drift. `tests/test_date_reader_clock_parity.py` or its behavioral replacement passes. |
@@ -346,8 +347,8 @@ into the plan's validation evidence.
 - COST IS ONLY AS GOOD AS THE HOST'S RECORD. Antigravity records no cost today, so its turns have
   tokens but no `cost_amount`. A priced value depends on the price table in force (`price_rate_set`).
   No stored amount is converted; a converted display is only as accurate as its stated rate.
-- THE FINALIZE RECORD SUMMARIZES, IT DOES NOT AUTHENTICATE. `changed_paths` comes from the merged
-  diff, so it is reliable. The V-item `decision` and `verifier_verdict` record what the driver and
+- THE FINALIZE RECORD SUMMARIZES, IT DOES NOT AUTHENTICATE. `changed_paths` comes from the git diff
+  between the plan's begin-receipt base commit and the finalize tip (4.2, SR-911), so it is reliable. The V-item `decision` and `verifier_verdict` record what the driver and
   verifier concluded; the `evidence_digest` proves only that the evidence text has not changed
   since finalize, not that it is true (25kzda 6.1 states the same limit).
 - C10a depends on the test suite finding each regression. In phase B, a behavior that no test
@@ -368,10 +369,11 @@ status: approved
 ...body...
 ```
 
-- The front matter uses YAML delimiters (`---`). An artifact has exactly two keys, `id` and
+- The front matter uses YAML delimiters (`---`), except on staged prompts (`.aw/records/prompts/`, OQ-25). An artifact other than a staged prompt has exactly two keys, `id` and
   `status`, in that order. A review record has `subject`, `subject_type` and an optional `ref` (4.1a).
   A walkthrough has exactly one key, `id` (see the walkthrough bullet below).
-  `artifact_meta` parses the front matter with a strict line grammar, not with a YAML library. This
+  A staged prompt under `.aw/records/prompts/` stays upload-ready with zero visible non-prompt lines (`AGENTS.md`, "Writing prompts for another AI"): it has NO `---` front matter, and instead carries its `id` and `status` mirror plus pointer notice in a single leading HTML comment on line 1 (`<!-- aw-managed-prompt: id: <id> | status: <status>; metadata lives in .aw/records/meta/<id>.jsonl; use aw show <id>; agents read .aw/AGENT_QUICKSTART.md -->`), while `prompt_kind`, `set`, `order` and history live in `meta/<id>.jsonl` (maintainer decision 2026-10-31, OQ-25).
+  `artifact_meta` parses both the `---` front matter and the staged-prompt HTML-comment mirror with a strict line grammar, not with a YAML library. This
   avoids a new dependency (C8) and removes ambiguity.
 - The banner is ONE HTML comment. The proposed `# START README FIRST` H1 block was rejected for three
   reasons:
@@ -380,8 +382,8 @@ status: approved
   - About 80 tokens in each of about 2,000 files is a real cost that repeats on every read.
 
   GitHub does not show the comment, and agents still read it. `artifact_meta` owns the exact text as
-  a template, and a check confirms that the comment is present. For artifacts, the comment
-  points to `meta/<id>.jsonl` and `aw show <id>`. For review records (4.1a), the text is:
+  a template, and a check confirms that the comment is present. For artifacts with `---` front matter, the comment
+  points to `meta/<id>.jsonl` and `aw show <id>`. For staged prompts, the single leading `aw-managed-prompt` HTML comment combines the `id`/`status` mirror and that pointer so only one comment precedes the prompt body (OQ-25). For review records (4.1a), the text is:
   `<!-- aw-managed: review metadata lives in .aw/records/meta/<subject>.jsonl; use aw show <subject>; agents read .aw/AGENT_QUICKSTART.md -->`.
 - The installer creates `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md`. These files do not exist
   today.
@@ -429,15 +431,15 @@ R1. A new event type `op: review` (added to the `op` list in 4.2). It has `round
    matches the file's `## Round <n>` heading), `verdict` (typed by `review_kind`, as amended in K1 to K5),
    `reviewer`, and, for a gate review of a plan, `readiness`. A tool writes the verdict. Today the verdict is a
    hand-editable `- Verdict:` line.
-R2. The review FILE keeps its findings and decisions TABLES as readable text (N3). Their shape does
-   not change, and `review_findings` still parses them. The file's front matter is `subject: <id6>`
-   and `subject_type: <ipd|spec>`, NOT `id:`. So no tool can mistake the file for an artifact with
+R2. The review FILE keeps its `## Round <n>`, `### Findings` and `### Decisions` TABLES as readable text (N3). Their shape does
+   not change, and `review_findings` still parses those body sections, while reading the file's front matter (`subject`, `subject_type` and optional `ref`) and the subject's replayed review verdicts through `artifact_meta` (deleting `review_findings._META_RE`, AC-1). The file's front matter is `subject: <id6>`
+   and `subject_type: <ipd|spec>` (plus optional `ref`), NOT `id:`. So no tool can mistake the file for an artifact with
    its own log.
 R3. `aw check meta` (4.6) treats a review file as a dependent of its subject. It checks a
    one-to-one match between the file's round numbers and its subject-log review events (K4).
    Equal counts alone are insufficient: rounds 1 and 3 do not match events for rounds 1 and 2.
 R4. `review_findings.subject_gating_blocks` still reads the findings of the current round from the
-   FILE. Only the verdict and `readiness` move to the log.
+   FILE (identifying the subject via `artifact_meta`), while the verdict and `readiness` come from the subject's log.
 
 REJECTED ALTERNATIVES:
 - (a) Reviews get no log, and their fields stay in the file. Rejected because the verdict stays
@@ -630,8 +632,8 @@ spec owns it.
     on migrated values, because today it is a day plus a model name (`2026-10-06 by <model>`, 39
     plans at r9).
   - For `op: finalize` (round 15, maintainer decision OQ-18): written once per successful plan
-    finalize, only on an artifact of type `ipd`, and only in the append that contains the
-    `transition` to `executed`. It is written where finalize runs: in the lane worktree for a
+    finalize (`aw ipd finalize`), only on a `plan_role: child` artifact of type `ipd`, and only in the append that contains the
+    `transition` to `executed`. Rollup retirement of an Order-0 `plan_role: orchestrator` plan (`ipd_lifecycle.retire_orchestrator`, spec `77tr3o`) has no begin receipt, makes no code edits, and runs no E/V checkpoint or verifier, so it writes the `transition` to `executed` (with `path` and any `unset` of `approval`) WITHOUT an `op: finalize` event (leaving `scope_result` NULL, `changed_paths` empty, and `plan_items` with `source: body`). For a child plan, `op: finalize` is written where finalize runs: in the lane worktree for a
     runner execution (the lane's log then reaches `main` through integration), or in the
     checkout for a hand-run `aw ipd finalize`. Fields:
     - `changed_paths`: the sorted list of repository-relative paths that changed between the plan's
@@ -678,12 +680,10 @@ spec owns it.
       `gate-answer`, `merge-conflict`, `defect-reask`, `combined-red`, `spec-anchor`,
       `hook-refusal`, `audit`, `review`, `review-step` and `produce`. Each value is derived from the
       session file's `log_suffix` (`attempt-N-<suffix>.jsonl`, written by `runner_shared`) and the
-      queue item's action. An unsuffixed session is `execute`, `review` or `produce` according to
-      the item's action. `review-orchestrator-correction-N` and `set-correction-N` are `correction`
-      with `turn_index` N; `review-step-NN-<label>` (spec `k3yx72`) is `review-step` with
-      `turn_index` NN. The registry maps every suffix; a new suffix is added there.
-    - `turn_index`: the ordinal of this turn among turns of the same role in the same attempt,
-      from 1, so two correction turns of one attempt stay distinct.
+      queue item's action. An unsuffixed session is `execute`, `review` (a single-turn review) or `produce` according to
+      the item's action; in a multi-step review (`k3yx72`), `runner_shared` writes Prompt 1 to `attempt-N.jsonl` and copies it to `attempt-N-review-step-01-<label>.jsonl`, and the driver, crash importer and `turn_steps` indexer treat that pair as one `review-step` turn rather than double-counting Prompt 1. `review-orchestrator-correction-N` and `set-correction-N` map to `correction`, and `review-step-NN-<label>` (including `-reask` retries and S6 re-review passes `p02+`) maps to `review-step`; in all cases `turn_index` is the 1-based dispatch ordinal among turns of that `turn_role` in the attempt, never the per-pass prompt number `NN` (which repeats on `-reask`, S6 pass 2+, and session restart). The registry maps every suffix; a new suffix is added there.
+    - `turn_index`: the 1-based dispatch ordinal of this turn among turns of the same `turn_role` in the same `(run_id, item_position, attempt)`,
+      so multiple `correction` or `review-step` turns of one attempt stay distinct.
     - `run_id` (the run), `item_position` (the queue position) and `attempt` (the queue-item attempt
       number): together with `turn_role` and `turn_index` these are the key that joins the turn to
       its detailed per-step rows (`turn_steps`, 4.5b) where that run's records exist.
@@ -702,25 +702,22 @@ spec owns it.
   - TURN EVENTS: WHERE THEY ARE WRITTEN (round 16, maintainer decision OQ-23). The driver writes
     each turn event into the LANE worktree's copy of the plan's log as the turn ends, so finalize
     and integration carry it to `main`; the driver commits it on the lane branch with the lane's
-    other changes. When an attempt ends WITHOUT merging (it failed, was refused, discarded or
-    abandoned), the driver appends that attempt's turn events in the main checkout instead, under
+    other changes. While an unmerged lane remains adoptable by the next attempt (`runner_shared.try_adopt_fix_it_lane` or `6kwd2e` `answer_resume`), its turn events stay on that lane branch so the adopting attempt appends after them without a `seq` collision and integration carries all turns to `main` together. When an attempt ends WITHOUT merging and its lane will NOT be merged or adopted (a terminal unmerged attempt, a lane displaced before cutting a fresh attempt-scoped lane from `main`, an abandoned or discarded lane, or a non-merging `aw <host> audit` run), the driver appends that lane's turn events in the main checkout instead, under
     the integration lock, and commits them with `aw commit --no-plan`. This avoids a same-artifact
-    conflict (4.7) on the normal path and loses no turn. CRASH IMPORT: after a driver crash, `aw
+    conflict (4.7) on the normal and adopted-lane paths and loses no turn. CRASH IMPORT: after a driver crash, `aw
     <host> run resume` and a separate `aw runs import-turns <run-id>` (the plan names the final
     spelling) read the run's local records, find every ended or cut-off turn of that run, and
     append each one that no log yet holds. A turn is identified by
     `(run_id, item_position, attempt, turn_role, turn_index)`; the importer skips a turn whose
     identity is already in the target log, so it imports each turn exactly once and a resumed run
     never duplicates one.
-    ONE COPY. An attempt's turn events live in exactly one copy of the log. When the driver writes
-    them to the main checkout, that attempt's lane can no longer be merged or adopted, and the
-    driver removes those turns from the lane copy before a later attempt adopts the lane. The
-    importer writes to the lane copy when the attempt's lane still exists and can still merge,
+    ONE COPY. An attempt's turn events live in exactly one active copy of the log. Once the driver writes an unmerged lane's turn events to the main checkout, that lane is never merged or adopted, and committed turn events are never removed from a lane log. The
+    importer writes to the lane copy when the attempt's lane still exists and can still be merged or adopted,
     otherwise to the main checkout, and checks the turn identity against both copies.
     AFTER FINALIZE. A turn that runs after finalize (for example `merge-conflict` during
-    integration) is appended to the plan's log after the `finalize` event and is not listed in its
-    `turns`. The executed-plan hook accepts a staged change to an executed plan's log that only
-    appends valid `turn` events (5.2 step 4a, AC-16).
+    integration, or `audit` on an already-executed plan) is appended to the plan's log after the `finalize` event and is not listed in its
+    `turns`. The `meta/*.jsonl` append-only hook and `executed_transition_gate` accept a staged change to an executed plan's log that only
+    appends valid post-finalize events (5.2 step 4a, AC-16).
   - PER-ITEM ATTRIBUTION (OQ-20). The turn prompt tells the agent to write `AW-ITEM: <id>` on its
     own line whenever it starts work on an E-* or V-* item. The driver charges every model step
     that follows the marker to that item, until the next marker or the end of the turn. Steps
@@ -831,7 +828,7 @@ spec owns it.
   every write path refuses unsafe descriptive values in these fields (specs and releases `uz05bl`,
   research `deftzy`, backlog Summary `dtg7dz`, research checker `xnogdl`). These refusals MUST stay.
   They move with the field to the body-section writer. They also apply to every string value that
-  `artifact_meta` writes into a log or into the two-key front matter, with ONE exception (round 14,
+  `artifact_meta` writes into a log or into the in-file mirror (front matter or staged-prompt HTML comment, 4.1), with ONE exception (round 14,
   finding SR-903): the migration's imported values (`legacy.line`, the unchanged sidecar JSON
   object, and `legacy_verdict`) are stored byte-for-byte without the length or control-character
   refusal, because 4.2a and AC-10 require that no legacy text is changed or lost. Measured at r14:
@@ -1024,8 +1021,8 @@ registry now. Whichever spec is implemented second must agree with the other (se
   - an `append` value that is not the `seq` of the first event of a contiguous run with the same
     `append`, `at` and `actor`, or a "same append" rule (4.2 replay paragraph) that the `append`
     values do not satisfy;
-  - a `finalize` event on a type other than `ipd`, more than one `finalize` per `executed`
-    transition, or a `finalize` outside the append of the transition to `executed`;
+  - a `finalize` event on a type other than `ipd` or on a `plan_role: orchestrator` plan, more than one `finalize` per `executed`
+    transition, a `finalize` outside the append of the transition to `executed`, or a post-cutover `transition` to `executed` of a `plan_role: child` `ipd` without a `finalize` event in the same append;
   - a `turn` event whose `actor.tool` is not a runner driver or the crash importer, or a duplicate
     turn identity `(run_id, item_position, attempt, turn_role, turn_index)`;
   - a `turn` event whose `items` totals do not sum to its turn totals;
@@ -1066,7 +1063,7 @@ registry now. Whichever spec is implemented second must agree with the other (se
   file-order defect that `2vev8j` evidence E3 described. So this is a port, not a bug fix.)
 - READS OF A STAGED OR COMMITTED REVISION ALSO USE THE CACHE (C5a). A gate that compares a staged or
   committed revision calls `artifact_meta.read_at(id6, rev)`. The function:
-  1. finds the git blob sha of `meta/<id6>.jsonl` and of the artifact `.md` file at that revision
+  1. runs git against the repository that owns the resolved `records_root` (`companion` records live in their own git repository, not the product repository; unversioned `home` and `repository-untracked` placements have no git history for records and return a distinct unversioned result), and finds the git blob sha of `meta/<id6>.jsonl` and of the artifact `.md` file at that revision
      (`git ls-files -s` for the index, `git rev-parse <rev>:<path>` for a commit). Resolve the
      record's path within THAT index or commit, not from its current working-tree location.
      An absent record and an invalid revision have distinct results; neither uses working-tree
@@ -1074,11 +1071,11 @@ registry now. Whichever spec is implemented second must agree with the other (se
   2. looks up each blob sha in the cache tables that use blob shas as keys (4.5a: `rev_log_states` and
      `rev_mirrors`);
   3. for a blob sha that is not in the cache, reads the content with `git cat-file` and gives it to the
-     SAME loader.
+     SAME loader; if either blob fails loader or mirror validation, `read_at` fails closed with the validation error and caches no valid row in `rev_log_states` or `rev_mirrors` (AC-33).
 
   Gates never parse git content themselves. The returned `State` contains the replayed log state and
-  the front-matter `status` at that revision. Gate rules change as follows:
-  - "The status changed with no matching history line" becomes "the front-matter `status` differs
+  the mirrored `status` from the `.md` file at that revision (`---` front matter, or the leading `aw-managed-prompt` HTML comment on a staged prompt, 4.1, OQ-25). Gate rules change as follows:
+  - "The status changed with no matching history line" becomes "the mirrored `status` differs
     from the replayed state" (drift), or "the staged log violates the allowed event-append rules" (untooled). A valid event
     does not prove which tool or person wrote it (3c).
   - "An executed transition" becomes "the staged status is terminal and the HEAD status is not".
@@ -1314,7 +1311,7 @@ column for each registry field of that type, generated from the registry.
 | `review_files` | `path` PK, `subject_id6`, `review_ref`, `round_count`, `parse_ok` | One row for each review record file, for the round-identity rule in 4.6. |
 | `reviews` | (`subject_id6`, `seq`) PK, `review_ref`, `round`, `review_kind` (`gate` or `refinement`), `verdict`, `legacy_verdict`, `observed_day`, `readiness`, `review_depth`, `findings_summary`, `reviewer` | The `op = 'review'` events, with one typed column for each value (4.1a). "The latest gate review of X" is one indexed query. The findings themselves stay as text in the review file (N3). |
 | `rev_log_states` | `log_blob_sha` PK, `id6`, `status`, `last_seq`, `state_json` | The replayed state of a log AT ONE REVISION, for `read_at` (4.4). |
-| `rev_mirrors` | `md_blob_sha` PK, `id6`, `status` | The front-matter `status` AT ONE REVISION. `read_at` joins this table with `rev_log_states`. One hash cannot be the key for both, because the state at a revision depends on two files. |
+| `rev_mirrors` | `md_blob_sha` PK, `id6`, `status` | The mirrored `id` and `status` in the `.md` file AT ONE REVISION (`---` front matter, or the leading HTML comment on a staged prompt, 4.1, OQ-25). `read_at` joins this table with `rev_log_states`. One hash cannot be the key for both, because the state at a revision depends on two files. |
 
 Minimum indexes: `artifacts(status)`, `artifacts(type, status)`, `artifacts(set_id, order_nn)`,
 `dependencies(target_id6)`, `lineage(parent_id6)`, `graduation_targets(target_set_id)`,
@@ -1470,8 +1467,7 @@ fields and JSON output use this rule:
 | `relation`, `condition` | The meaning of one row in a relationship table. | No | `from_spec`, `executed` |
 
 Exceptions: names that are a published contract of another part of the toolkit keep their current
-form. These are the filename grammar (C10) and `Subject-Type` inside review FILES, which
-`review_findings` parses (N3).
+form. That exception is the filename grammar (C10, including attributed `[.<ace>][.<model>].<type>.md` facets per `DECISIONS.md` D177). Review files move their `Subject-Id` and `Subject-Type` bullets to `subject` and `subject_type` in `---` front matter parsed by `artifact_meta`, while keeping their Markdown `## Round <n>`, `### Findings` and `### Decisions` tables unchanged (4.1a R2, N3).
 
 ### 4.6 Mirrors and drift (`aw check meta`)
 
@@ -1480,9 +1476,9 @@ and `aw meta repair --apply` can repair each one.
 
 | Mirror | Why it exists | Drift rule |
 |---|---|---|
-| Front-matter `status` | People can see the status (F2). | Must equal the replayed status. A walkthrough has no `status` line and no status, so this rule does not apply to it (4.1). |
-| Front-matter `id` | Connects the file to its log. | Must equal the filename `id6` and the log's identity. |
-| Filename Set id, `NN`, `id6` and date | C10 | Must equal the replayed `set`, `order` and `id`. The filename day must equal `filename_date`, never `created_day` or the UTC `at` (4.2b). |
+| In-file `status` mirror | People can see the status (F2, 4.1, OQ-25). | Front-matter `status` (or the staged-prompt HTML-comment `status`) must equal the replayed status. A walkthrough has no `status` line and no status, so this rule does not apply to it (4.1). |
+| In-file `id` mirror | Connects the file to its log (4.1, OQ-25). | Front-matter `id` (or the staged-prompt HTML-comment `id`) must equal the filename `id6` and the log's identity. |
+| Filename Set id, `NN`, `id6` and date | C10, D177, OQ-26 | Must equal the replayed `set`, `order` and `id`, parsed from the canonical clustered `YYYYMMDD-<set>-<NN>-<id6>-<slug>` prefix ahead of any optional D177 `[.<ace>][.<model>]` attribution facets, and testing `\A\d{8}-\d{4}-\d{2}-` first so a 6-letter slug word on a legacy timestamp filename is never misread as `id6`. Because 5.2 step 3 renames all 34 legacy `YYYYMMDD-HHMM-NN-<slug>` records at cutover, zero legacy-timestamp filenames remain and no pre-cutover `check.identity-absent-from-name` grandfathering exception survives (OQ-26). The filename day must equal `filename_date`, never `created_day` or the UTC `at` (4.2b). |
 | Research filename facets (order, model, kind) | C10 | Must equal the replayed `order`, `model` and `research_kind`. This replaces today's mirror checks in the research index (`okw4ke`, and the rename-time rewrite `ax8eg1`). |
 | Disposition directory | N1 | Must agree with the replayed status, by the rules of the artifact's type. |
 | Logged path | 4.2 PATH HISTORY (OQ-17) | The `path` of the newest path-bearing event must equal the discovered location. A difference is `path-drift`. `aw meta repair` completes a journaled pending move (4.3) with no event, or else appends a confirmed `rename` event (4.2). |
@@ -1514,7 +1510,7 @@ and `aw meta repair --apply` can repair each one.
 
 - Every metadata change goes through one of these: `aw set`, `aw specs set`, `aw backlog set`,
   `aw ipd ...`, `aw group`, `aw rename`, `aw archive plans` (`rename` events with verb
-  `archive`, 4.2), the research shelf moves (`transition` events that carry `path`), finalize (including its `finalize` event), retirement, the
+  `archive`, 4.2), the research shelf moves (`transition` events that carry `path`), finalize (including its `finalize` event on child plans), orchestrator rollup retirement (`transition` to `executed` with `path` and no `finalize` event, 4.2, spec `77tr3o`), the
   coverage recorder, the short-description setter, the runner drivers (`turn` events, 4.2 TURN
   EVENTS) and the crash importer (`aw runs import-turns`, name to be fixed by the plan). Hand
   execution without a runner produces no `turn` events. These already
@@ -1755,7 +1751,7 @@ erDiagram
         text run_id "Run the turn belonged to. Joins to RUNS where that run is on this machine."
         int item_position "Queue position of the item in that run."
         int attempt "Queue-item attempt number."
-        text turn_role "execute, verify, correction, carrier-verification, gate-answer, merge-conflict, defect-reask, combined-red, spec-anchor, review or produce (4.2)."
+        text turn_role "execute, verify, correction, carrier-verification, gate-answer, merge-conflict, defect-reask, combined-red, spec-anchor, hook-refusal, audit, review, review-step or produce (4.2)."
         int turn_index "Ordinal among turns of the same role in the same attempt, from 1. With run_id, item_position, attempt and turn_role it joins to TURN_STEPS."
         text host "oc or agy."
         text model "Model that actually ran."
@@ -2032,10 +2028,10 @@ erDiagram
         int last_seq "Highest seq at that revision."
         text state_json "Full replayed state at that revision."
     }
-    REV_MIRRORS["REV_MIRRORS: front-matter status of one artifact blob at a git revision."] {
+    REV_MIRRORS["REV_MIRRORS: in-file id and status mirror of one artifact blob at a git revision (front matter, or staged-prompt HTML comment, OQ-25)."] {
         text md_blob_sha PK "git blob sha of the artifact .md file at that revision."
         text id6 "The artifact."
-        text status "Front-matter status line at that revision. read_at joins it with REV_LOG_STATES."
+        text status "Mirrored status in the .md file at that revision. read_at joins it with REV_LOG_STATES."
     }
     DIRECTORIES ||--o{ FILES : "lists"
 ```
@@ -2115,15 +2111,19 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     A["hook or check_engine gate"] --> B["artifact_meta.read_at id6, rev"]
-    B --> C["blob shas of the meta log and the md file at rev: git ls-files -s for the index, git rev-parse rev:path for a commit"]
+    B --> C["in the git repo owning records_root: blob shas of the meta log and the md file at rev (unversioned placement returns unversioned)"]
     C --> D1{"log sha in REV_LOG_STATES?"}
     C --> D2{"md sha in REV_MIRRORS?"}
-    D1 -- no --> E1["git cat-file bytes to the SAME loader, store row"]
-    D2 -- no --> E2["git cat-file bytes to the SAME loader; parse the type-specific mirror and store row"]
+    D1 -- no --> E1{"git cat-file bytes pass loader validation?"}
+    D2 -- no --> E2{"git cat-file bytes pass type-specific mirror parse?"}
+    E1 -- yes --> S1["store REV_LOG_STATES row"]
+    E2 -- yes --> S2["store REV_MIRRORS row"]
+    E1 -- no --> X["fail closed with validation error; store no valid row"]
+    E2 -- no --> X
     D1 -- yes --> F
-    E1 --> F
+    S1 --> F
     D2 -- yes --> F
-    E2 --> F["after BOTH inputs resolve: State at rev from log state and type-specific mirror"]
+    S2 --> F["after BOTH inputs resolve: State at rev from log state and type-specific mirror"]
     F --> G["gate compares HEAD and staged State, e.g. terminal now and not before"]
 ```
 
@@ -2158,7 +2158,7 @@ flowchart TD
     PS -- "absent, without --force" --> R
     PS -- "present, or --force given and reported" --> W["run steps 2 to 6 in a SCRATCH COPY"]
     W --> S2["2: read the sidecar; id6 with no record goes to the gitignored export, no log; the others become legacy events in step 4"]
-    S2 --> S3["3: mint id6 for non-review records with none; comms messages and .data files excluded"]
+    S2 --> S3["3: rename all 34 legacy YYYYMMDD-HHMM-NN records to clustered form and rewrite citations: mint id6 for 28 id-less specs/walkthroughs, preserve existing Id/Set/NN on 6 already-id'd terminal records; comms and .data excluded"]
     S3 --> S3d["generate missing or stale short descriptions with the model into the gitignored description journal, also in a dry run"]
     S3d --> S4["4: per artifact: checkpoint seq 0, append 0, with path, filename_date and known created_day, last_history_day, short_description from the journal, scope_result for Scope-Exceeded, mapped field names, parsed dependencies; then legacy events seq 1..n in the same append: inline lines, then sidecar records; no finalize or turn events; prose fields to body, front matter and banner"]
     S4 --> S4r["4, review files: one review event per round into the SUBJECT's log, review_kind, legacy verdict verbatim, review_ref"]
@@ -2209,10 +2209,10 @@ flowchart TD
   suites, and they were added again on 2026-10-16 and 2026-10-17. The four `migration_*` and
   `compat_migration` modules migrate workflow bodies and command shims, not records, and they are not
   a chain.)
-- `.aw/config/project.json` already has `schema_version: 2` for its CONFIGURATION schema. So the new
+- The project configuration file `project.json` (at the `project_context`-resolved `config_project` path: `.aw/config/project.json` in a standard checkout, or the external project config under `clean-delta` / `companion` placement) already has `schema_version: 2` for its CONFIGURATION schema. So the new
   stamp must use a different key.
 - Add `agent_workflows/migrations/`, with ordered, numbered migrations, and a `metadata_schema` stamp
-  in `.aw/config/project.json`.
+  in that resolved `project.json`.
 - After `aw install` installs the bundle, it lists the pending migrations and asks, for each one,
   whether to run it now (maintainer decision 2026-10-25, OQ-3). It runs a migration only when the
   person answers yes. With no terminal, it only reports the pending migrations and the command that
@@ -2304,17 +2304,38 @@ flowchart TD
    `records/history.jsonl` line on install, and the `placement_switch.py` list. The sidecar file
    must not remain in the working tree once its ignore line is gone, because a later broad
    `git add` would then commit it, including the purged records.
-3. NEW IDS. Give an `id6` to each non-review record that has none in any form (the same population
-   as the "39 non-review records" count in section 1). Re-measured at r9: the 39 records INCLUDE the
-   4 prompt-library templates and the 2 research templates (24 READMEs are not counted). The other 33
-   are 14 legacy specs in `implemented/` and `superseded/`, 8 walkthroughs, 7 comms messages, 3
-   companion data files (`s1..s3.md`), and `plans/STATUS.md`, which step 5 deletes instead. Review
-   records are EXCLUDED (4.1a). Comms messages and companion data files are also EXCLUDED, and keep
-   no `id6` (4.1, OQ-2). So step 3 gives an `id6` to 22 records at r9: the 14 specs and the 8
-   walkthroughs. The 6 templates follow the decision that 4.1 leaves to the plan for
-   `prompt-library/`; the plan names the decision for the 2 research templates too. `aw rename ... --to-id6` handles ONLY legacy timestamp names
-   (`YYYYMMDD-HHMM-NN-<slug>`). For records with names in other forms, the plan must name a method
-   that gives them an `id6`. It must not assume that the existing command handles them.
+3. NEW IDS AND LEGACY-TIMESTAMP FILENAMES (maintainer decision 2026-10-31, OQ-26, SR-925). Test
+   `_LEGACY_TIMESTAMP_RE` (`\A\d{8}-\d{4}-\d{2}-`) BEFORE `artifact_naming.parse_clustered` whenever
+   inspecting filenames: 6 legacy `YYYYMMDD-HHMM-NN-<slug>` records start their slug with a 6-letter
+   English word (`agents` twice, `assess`, `honest`, `prompt`, `mirror`) that `parse_clustered`
+   otherwise misreads as `set=HHMM` and `id6=<word>` (which caused the r9 count of 22 id-less
+   specs/walkthroughs instead of 28).
+   - Re-measured at r17 (`ea6b18773`), excluding 26 READMEs and 1,287 review records (4.1a): 45
+     tracked non-review records have no `id6` in any form, or 39 excluding the 4 `prompt-library/`
+     templates and 2 `research/` templates: 17 legacy specs in `implemented/` and `superseded/`, 11
+     walkthroughs, 7 comms messages, 3 `.data/` companion files (`s1..s3.md`), and `plans/STATUS.md`
+     (deleted in step 5). Comms messages and `.data/` companion files remain EXCLUDED and keep no
+     `id6` (4.1, OQ-2); the 6 templates follow the plan's template decision (4.1). Step 3 therefore
+     mints a fresh repository-unique `id6` for 28 id-less records (the 17 legacy specs and 11
+     walkthroughs) and renames each `YYYYMMDD-HHMM-NN-<slug>.<type>.md` file to canonical clustered
+     form `YYYYMMDD-<set>-<NN>-<id6>-<slug>.<type>.md` (with `set=<id6>` when `- Set:` is absent and
+     preserving `NN`).
+   - Step 3 ALSO renames the 6 legacy `YYYYMMDD-HHMM-NN-<slug>` terminal records that already carry a
+     valid `- Id:` bullet inside the file (`5` executed plans: `lus9ou`, `7qx7ys` and `8q6yr9` in
+     `Set: plans-adopter` with orders `00`, `06` and `07`; `4o5lt9` with no `Set` and order `01`;
+     `wvlk84` in `Set: awphysical` with order `01`; and `1` superseded spec: `4w7d6s` with no `Set`
+     and order `01`), preserving each record's existing `Id`, existing `Set` (defaulting to `Id` only
+     when `Set` is absent, as on `4o5lt9` and `4w7d6s`), and existing `NN` order (`00`, `06`, `07`,
+     `01`). Note: `agent_workflows/artifact_rename.py:124-132` (`--to-id6`) currently hardcodes
+     `set_id=mint_id6, order=1`, so the migration (or an updated `--to-id6` helper) MUST preserve
+     existing `Set` and `NN` rather than overwriting `plans-adopter` / `awphysical` or `00`/`06`/`07`.
+   - Rewrite inbound filename citations across the repository for all 34 renamed legacy-timestamp
+     records via `artifact_refs.plan_reference_rewrites_with_warnings` (measured at r17 for the 6
+     already-id'd terminal records: 46 citing files, 89 citation hits, 0 ambiguity warnings), so zero
+     legacy `YYYYMMDD-HHMM-NN-<slug>` artifact or walkthrough filenames remain after cutover and
+     4.6's filename mirror check holds with no grandfathering exception (OQ-26). For any record with a
+     non-timestamp, non-clustered name (such as templates if included by the plan), the plan must name
+     the method that gives it an `id6` rather than assuming `--to-id6` handles it.
 4. CONVERSION. For each artifact:
    - Parse it with the legacy loader (the phase-B `artifact_meta` legacy loader, moved into the
      migration, 4.3).
@@ -2333,8 +2354,8 @@ flowchart TD
      run records: before the cutover, `plan_items` comes from the plan body only, and there is no
      tracked turn data (3c).
    - Move prose fields into body sections.
-   - Write the new two-key front matter and the banner.
-   - Delete the bullet block and the `## Workflow history` section.
+   - Write the new in-file mirror and banner (two-key `---` front matter plus `aw-managed` comment on artifacts, one-key `---` front matter plus `aw-managed` comment on walkthroughs, or the single leading `aw-managed-prompt` HTML comment with no `---` front matter on staged prompts, 4.1, OQ-25).
+   - Delete the legacy bullet block (or legacy `aw-prompt` comment) and the `## Workflow history` section.
 
    For a review record, write one `review` event for each round into the SUBJECT's log instead,
    after the subject's legacy events (4.2a). Each
@@ -2343,22 +2364,19 @@ flowchart TD
 
    4a. TERMINAL ARTIFACTS ARE ALSO MIGRATED, AS A NAMED ONE-TIME EXCEPTION. MAINTAINER DECISION,
    2026-09-25, during spec review (finding SR-002).
-   - The repository forbids new commits to an executed plan (AGENTS.md: "Do NOT add commits to a plan
+   - The repository forbids rewriting what an executed plan records (AGENTS.md: "Do NOT add commits to a plan
      already in `.aw/records/plans/executed/`", the wording on 2026-09-25; the current AGENTS.md
-     states the rule as "Never change what a plan already in `.aw/records/plans/executed/` RECORDS").
-     The `ipd-executed-gate` pre-commit hook enforces the
-     terminal-state part of this rule. The hook is in `agent_workflows/hooks/executed_transition_gate.py`.
+     states the rule as "Never change what a plan already in `.aw/records/plans/executed/` RECORDS", while permitting an appended dated note that points at later work).
+     The `ipd-executed-gate` pre-commit hook (`agent_workflows/hooks/executed_transition_gate.py`) gates raw transitions INTO `executed` (exempting ordinary edits to an already-executed plan under the same `id`, `i4c0c3`). At the cutover commit, `HEAD` is in the legacy bullet-block format while `read_at(id6, "HEAD")` reads only the v2 log format (C9), so `HEAD` yields no v2 terminal state and both `executed_transition_gate` and `backlog_blocking_close_gate` treat every migrated terminal plan and release-blocking `done` backlog item as newly transitioned.
    - C9 (one format, no readers for two formats) does not permit terminal artifacts to stay in the old
      format. So this migration commit is the one deliberate exception. It rewrites every artifact in
      `executed/`, `superseded/`, `not-executed/`, `implemented/` and `done/` (2,828 files at round 2,
      1,055 at round 1), and it does not change their meaning.
    - The same commit must also pass `backlog_blocking_close_gate` and the pre-push gate
      `aw attention --check --agent`, which fails closed (refuses the push) on metadata drift (AC-16).
-   - The hook must accept the migration commit because of a positive marker that the migration writes
-     in its journal (the same type of evidence that finalize leaves). The hook must NOT accept it
-     because of `--no-verify`. After the cutover, the hook must still refuse every other edit to a
-     terminal artifact (AC-16), except a change to an executed plan's log that only appends valid
-     `turn` events (4.2 TURN EVENTS, AFTER FINALIZE).
+   - Both commit hooks must accept the migration commit because of a positive marker that the migration writes
+     in its journal (the same type of evidence that finalize leaves). They must NOT accept it
+     because of `--no-verify`. After the cutover: `executed_transition_gate` still refuses every raw (non-finalize, non-rollup-retirement) transition into `executed` (including replacing an executed file's `id`); `backlog_blocking_close_gate` still refuses an ungated `->done` transition; the 4.8 `meta/*.jsonl` append-only hook refuses any edit that rewrites or deletes existing events on a terminal log or appends an invalid transition, while accepting valid post-finalize appends (`turn` events per 4.2 TURN EVENTS, AFTER FINALIZE; `rename` events with verb `archive` from `aw archive plans`; `note` events permitted by AGENTS.md; and `review` events); and `aw check meta` flags `evidence-changed-after-finalize` (4.6) if finalized E/V items or `Observed evidence` change (AC-16).
    - The cutover commit amends the AGENTS.md rule to name this exception.
    - Rejected alternative: keep terminal artifacts in the old format. Rejected because it breaks C9
      and keeps two formats in the tree permanently.
@@ -2711,6 +2729,30 @@ for concurrency.
 - Closes when: 4.2, 4.3 loader validation and an acceptance criterion use it.
 - Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: every event carries `append`, the `seq` of the first event of its write. No reason was given. Irreversible after the cutover (log format).
 
+### OQ-25: Staged prompt file mirror vs upload-ready prompt purity (round 17, SR-924)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Finding: SR-924
+- Question: How do staged prompt files under `.aw/records/prompts/` carry their `id` and `status` mirror on disk without adding visible non-prompt lines?
+- Evidence: Section 4.1 required visible four-line `---` YAML front matter on every artifact (defined in Section 0 to include prompts), while Diagram 4.9.4 named a "type-specific mirror". `AGENTS.md` ("Writing prompts for another AI"), `.aw/records/prompts/README.md:17-27`, and `agent_workflows/prompts.py:27-35` forbid YAML front matter on staged prompts because chat interfaces render it as visible text inside the prompt; across the 30 tracked staged prompts today, 24 carry `<!-- aw-prompt: ... -->`, 6 start directly with prompt text, and 0 carry YAML front matter.
+- Recommendation: Mirror `id` and `status` inside a single leading HTML comment owned and parsed only by `artifact_meta`, with no visible `---` front matter. Strength: strong.
+- Closes when: 4.1, 4.4, 4.5a, 4.6 and 5.2 step 4 state the HTML-comment mirror rule for staged prompts.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: keep staged prompts upload-ready by mirroring `id` and `status` (plus the pointer to `meta/<id6>.jsonl` and `aw show <id6>`) inside a single leading HTML comment owned and parsed only by `artifact_meta`, with no visible `---` front matter, while `prompt_kind`, `set`, `order` and history live in `meta/<id6>.jsonl`. No reason was given. Irreversible after the cutover (tracked prompt file format).
+
+### OQ-26: Legacy `YYYYMMDD-HHMM-NN-<slug>` filenames at cutover (round 17, SR-925)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Finding: SR-925
+- Question: How do the one-time cutover migration (5.2 step 3) and `aw check meta` (4.6) handle the 34 legacy `YYYYMMDD-HHMM-NN-<slug>` records (28 id-less specs and walkthroughs, plus 6 terminal plans and spec that already carry `- Id:` in-file)?
+- Evidence: Six legacy `YYYYMMDD-HHMM-NN-<slug>` filenames start their slug with a 6-letter English word (`agents` twice, `assess`, `honest`, `prompt`, `mirror`) that `artifact_naming.parse_clustered` misreads as `set=HHMM, id6=<word>` unless `_LEGACY_TIMESTAMP_RE` (`\A\d{8}-\d{4}-\d{2}-`) is tested first, causing the spec's r9 count of 22 id-less records (14 specs, 8 walkthroughs) to undercount the actual 28 (17 specs, 11 walkthroughs). Six additional terminal records (`lus9ou`, `7qx7ys`, `8q6yr9` in `Set: plans-adopter` orders `00`, `06`, `07`; `4o5lt9`; `wvlk84` in `Set: awphysical`; and superseded spec `4w7d6s`) already carry `- Id:` in-file under legacy `YYYYMMDD-HHMM-NN-<slug>` filenames; 5.2 step 4a already rewrites all 6 files in the cutover commit, and `artifact_refs.plan_reference_rewrites_with_warnings` measures 46 citing files, 89 citation hits, and 0 ambiguity warnings across the repository.
+- Recommendation: Rename all 34 legacy `YYYYMMDD-HHMM-NN-<slug>` records to canonical `YYYYMMDD-<set>-<NN>-<id6>-<slug>.<type>.md` filenames in 5.2 step 3 (minting new `id6` values for the 28 id-less specs/walkthroughs, preserving existing `Id`, `Set` [or `Id` when `Set` is absent], and `NN` for the 6 already-id'd terminal records, and rewriting inbound filename citations via `artifact_refs`), leaving zero legacy-timestamp filenames and zero grandfathering exceptions in 4.6. Strength: strong.
+- Closes when: 1, 4.6, 4.9.6 and 5.2 step 3 state the corrected 28 + 6 = 34 counts, the `_LEGACY_TIMESTAMP_RE`-first rule, `Set`/`NN` preservation, and inbound citation rewrites.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: rename all 34 legacy `YYYYMMDD-HHMM-NN-<slug>` records to canonical `YYYYMMDD-<set>-<NN>-<id6>-<slug>.<type>.md` filenames during Step 3 of the one-time cutover commit (minting new `id6` values for the 28 id-less specs and walkthroughs, preserving existing `Id`, `Set` [or `Id` when `Set` is absent, as on `4o5lt9` and `4w7d6s`], and `NN` [including `00`, `06`, `07` on `plans-adopter`] for the 6 already-id'd terminal records, and rewriting inbound filename citations via `artifact_refs`), so zero legacy-timestamp filenames remain and Section 4.6's filename mirror check holds universally with no grandfathering exceptions. No reason was given. Irreversible after the cutover (tracked filenames and cross-record citations).
+
 ## 9. Compatibility with specs written after round 1
 
 | Spec | Status at r11 | Relation |
@@ -2720,15 +2762,17 @@ for concurrency.
 | `4iyd78` quick pipeline | approved, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its section 6.1 row "Plan `## Workflow history`: Kept" means that the AUDIT TRAIL is kept. Under this spec, the log holds that trail. If `4iyd78` is implemented first, its history writes go through `status_set` and are migrated like all others. |
 | `wy9aru` canonical set dispatch | implemented | Its setter engine is where the writers change to use `artifact_meta` (4.8). The cutover retires the sidecar that it keeps, as its section 3a leaves to this spec. |
 | `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4). The `finalize` event replaces the `Scope-Exceeded` bullet and keeps the 5.5a widening reasons; finalize copies the attempt-level verifier verdict to each V-item until the verifier reports per item; the drivers write `turn` events (4.2 TURN EVENTS); the run-state fields it records are indexed read-only (4.5b). |
-| `6kwd2e` mid-run questions | implemented | `run_questions` indexes its `questions/<qid>.json` and `answers/<qid>.json` files read-only, with its status vocabulary `open`, `answered`, `stale` (4.5b). |
-| `18hh1u` spec and research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not added to the registry now (4.2c). Its review records already exist on disk (18 at round 5, 24 at round 11), and the migration converts them under 4.1a, whatever the status of `18hh1u` is. |
-| `yfz5u9` multi-participant synthesis | draft | Whichever spec is implemented second must make the research YAML keys and the `.<ace>.` filename facet of `yfz5u9` agree with the two-key front matter and C10. Its own `events.jsonl` is a RUN log (N4), not artifact metadata. The two are different by design and must stay different. |
-| `1tx9t8` synthesis independent candidate | draft | Candidate 02 for `specflow`. Proposed `aw synth` syntax and candidate outputs are subject to the same two-key front matter and C10 naming rules; adds no new registry fields at draft. |
+| `77tr3o` orchestrator rollup retirement | approved | `ipd_lifecycle.retire_orchestrator` retires an Order-0 `plan_role: orchestrator` plan to `executed` with no begin receipt, no code diff, and no E/V checkpoint or verifier turn, so it writes the `transition` to `executed` (with `path` and any `unset` of `approval`) without an `op: finalize` event (4.2, 4.3, 4.8). |
+| `6kwd2e` mid-run questions | implemented | `run_questions` indexes its `questions/<qid>.json` and `answers/<qid>.json` files read-only, with its status vocabulary `open`, `answered`, `stale` (4.5b); an unmerged lane paused for `answer_resume` keeps its `turn` events on the lane branch until adopted or abandoned (4.2 TURN EVENTS). |
+| `18hh1u` spec and research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not added to the registry now (4.2c). Its review records already exist on disk (18 at round 5, 24 at round 11, 25 at round 17) with `DECISIONS.md` D177 `[.<ace>][.<model>].review.md` filenames, and the migration and `artifact_meta` parse their clustered `(date, set, nn, id6)` prefix and convert them under 4.1a, whatever the status of `18hh1u` is. |
+| `yfz5u9` multi-participant synthesis | draft | `DECISIONS.md` D177 fixes the attributed filename facet order `[.<ace>][.<model>].<type>.md` across all record types (matching research's existing `[.<model>].<kind>.md`), so filename mirror parsing extracts `(date, set, nn, id6)` before optional D177 attribution facets (4.6). Whichever spec is implemented second must make the research YAML keys of `yfz5u9` agree with the two-key front matter and C10. Its own `events.jsonl` is a RUN log (N4), not artifact metadata. The two are different by design and must stay different. |
+| `1tx9t8` synthesis independent candidate | draft | Candidate 02 for `specflow`, already tracked on disk with a D177 `.codex.gpt-6-astra-medium.spec.md` filename (alongside 6 D177 `specflow` staged prompts). Proposed `aw synth` syntax and candidate outputs follow the two-key front matter (or staged-prompt HTML-comment mirror, OQ-25) and C10/D177 naming rules; adds no new registry fields at draft. |
 | `89xjll` requirement IDs | implemented | No conflict. It exempts the C, P and F ids of this spec. |
 | `tg80ht` spec-to-plan bridge | open (backlog) | Connects approved specs to runner dispatch and to IPD Set authoring. It automates the graduation of this spec into the implementing IPD Set and does not change the metadata schema. |
 
 ## Workflow history
 
+- 2026-10-31 note (aw specs): APPROVE WITH REVISIONS APPLIED; /spec-review round 17 (antigravity/unknown): SR-922..SR-930 FIXED on maintainer decisions OQ-25 (staged prompts keep upload-ready purity via single leading aw-managed-prompt HTML comment, no YAML front matter) and OQ-26 (rename all 34 legacy YYYYMMDD-HHMM-NN records to clustered form at cutover, testing _LEGACY_TIMESTAMP_RE before parse_clustered, preserving existing Set/NN on 6 already-id'd terminal records, and rewriting inbound citations via artifact_refs); turn events stay on adoptable lanes under try_adopt_fix_it_lane/answer_resume and flush on non-merging audit runs; turn_index as 1-based dispatch ordinal with Prompt-1 copy dedup and Diagram 3 turn_role alignment; post-cutover executed_transition_gate and terminal append rules; retire_orchestrator ->executed without finalize (77tr3o); 4.5c Subject-Type exception removed; D177 attributed filenames, read_at git-root/invalid-blob handling, and resolved project.json path; AC-7 C10 and 3c diff range aligned; 33 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-27 note (aw specs): /spec-review round 16 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): internal-consistency pass at maintainer request; APPROVE WITH REVISIONS APPLIED; SR-911..SR-921 FIXED on maintainer decisions OQ-22 (model-generated short descriptions via reusable description journal), OQ-23 (turn events in the lane, main for unmerged attempts, idempotent crash import), OQ-24 (append key); finalize diff from begin base to finalize tip; event-owned field rule unified; run tables re-derived from measured runs data with excluded classes; turn_index and log_suffix-derived turn_role; archive path verb and path-drift; legacy scope exceptions; stale prose in 0, C7, C8, N2, N4, 3c, 4.4, 4.8, 5.2, 5.4, 6, 7, 9 and ACs aligned; AC-39 added; 32 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-26 note (aw specs): /spec-review round 15 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-905..SR-910 FIXED on maintainer decisions OQ-17..OQ-21 via /askme: short_description tracked field and artifacts column; path history (new path only, actor and time on the event); tracked finalize event with changed paths, scope result and per-V-item verification; tracked per-turn tokens/time/cost with exact amounts and ISO 4217 currency, cache-only per-step rows, self-reported per-item split via AW-ITEM; full structured run index with no text bodies; 4.9.1 rewritten as five diagrams with full notes, 31 tables cross-checked, 12 mermaid blocks render; AC-34..AC-38 added; no Readiness written
 - 2026-10-26 note (aw specs): /spec-review round 14 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-901 (approval attestation owned by the approved transition; same-append unset of approval/readiness), SR-902 (new repository stamped at install), SR-903 (lossless import exempt from the output-safety length refusal; 34 lines measured), SR-904 (k3yx72 compatibility row) all FIXED; no maintainer question needed; re-review keeps reviewed status; no Readiness written
