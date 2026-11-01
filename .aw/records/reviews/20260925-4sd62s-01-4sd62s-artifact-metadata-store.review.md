@@ -666,3 +666,56 @@ mermaid-cli 12.0.0: Found 12 mermaid charts in Markdown input; 12 rendered
 aw check all: errors 13, info 54, warnings 0 on main (1 in fresh linked worktree: gitignored .aw/system/layout.json); 0 on 4sd62s
 aw sanitize --agent: clean
 ```
+
+## Round 18
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| SR-931 | high | IN-SCOPE | A/D: wrong order for plan wvlk84 | `plans/executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md` has `- Set: awphysical`, `- Order: 17`; `awphysical-01` is plan `cwjnj0` | 5.2 step 3 and OQ-26 kept filename NN `01`, a legacy per-minute sequence, which collides with `cwjnj0` and fails the 4.6 order mirror. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Maintainer correction to OQ-26: renamed records use the logged `- Order:` when present; `wvlk84` becomes `awphysical-17`. 5.2 step 3 and AC-41 aligned. |
+| SR-932 | high | IN-SCOPE | D/F: citation rewrite vs byte-for-byte import | `artifact_refs.plan_reference_rewrites_with_warnings`: 1,940 hits in 419 files, 402 in history lines of 217 records; scan roots omit `agent_workflows/`, `docs/`, `.aw/system/`, `CHANGELOG.md` | The rewrite ran before the import, so imported history would not match its original bytes (AC-10), and 37 non-record citing files were outside the scan. | C:Low; U:Low; S:Low; F:High; Overall:Medium | fixed | Maintainer decision OQ-27: rewrite everywhere with widened scan roots; import history from pre-rewrite bytes; display resolves old names; deliberate legacy examples listed. 5.2 steps 3 and 4, AC-41. |
+| SR-933 | high | UNDER-SCOPE | D: old path of renamed records lost | 4.2 PATH HISTORY; 5.2 steps 3 and 4 | The cutover rename preceded the checkpoint, so path history never held the old name. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Maintainer decision OQ-28 (the maintainer's own design): checkpoint at the old path, then a `rename` event by `aw migrate metadata` in the same append. 4.2, 5.2, AC-34. |
+| SR-934 | high | IN-SCOPE | B/D: finalize scope | 4.2 `op: finalize` "only on a `plan_role: child`"; 97 executed orchestrators (65 rollup, about 14 hand-finalized); 102 plans without `Kind`; `ipd_lifecycle.retire_orchestrator` orchestrator rule | Hand-finalized orchestrators and role-less plans had no rule; AC-16 would refuse rollup retirement. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Maintainer decision OQ-29: finalize event for every finalized plan; only rollup retirement omits it, identified by `actor.tool`; orchestrator rule stated. 4.2, 4.3, 4.8, AC-16, AC-35, section 9. |
+| SR-935 | high | UNDER-SCOPE | Security: model-generated descriptions | `agy_runipd` default `--dangerously-skip-permissions`; record bodies include adopted outside-LLM output; output checked only by `refuse_unsafe_descriptive` | A prompt injected into a record body could drive an agent with tools in the main checkout during the cutover, and leaked content could become a tracked public field. | C:Low; U:Low; S:High; F:Low; Overall:Medium | fixed | Maintainer decision OQ-31: tool-less call, quoted-data prompt, `refuse_unsafe_descriptive` and leak sanitizer before journaling; 3c residual risk and provider exposure; AC-36(7). Cutover sanitizer gate added to 5.2 step 6 and AC-16. |
+| SR-936 | medium | IN-SCOPE | D: terminal-log appends | 5.2 step 4a four-kind list; `aw group plans` regroups any status; short-description setter | Existing regroup and description workflows would be refused on terminal records. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Maintainer decision OQ-30: add `rename`/`group` verbs and `short_description`; attestations, status, `scope_result`, `blocks_release`, checklist results frozen. 5.2 step 4a, AC-16. |
+| SR-937 | medium | UNDER-SCOPE | D: D177 facets | C1; `artifact_naming.parse_clustered` returns no match on D177 names (measured) | `ace` and `model` facets had no field, so nothing logged or checked them; section 6 claimed filename readers do not change. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Maintainer decision OQ-32: logged fields with a filename mirror; `artifact_naming` gains facet parsing. 4.2c, 4.6, section 6, irreversible list. |
+| SR-938 | medium | UNDER-SCOPE | C: no AC for OQ-25 and OQ-26 | 3b | Two irreversible round-17 decisions had no acceptance criterion. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | AC-40 (staged-prompt mirror, no agent instruction in the comment) and AC-41 (renames, Set/order, citations, exact history). |
+| SR-939 | medium | IN-SCOPE | D/F: staged prompts and review files at migration | 4.1 OQ-25 comment text "agents read .aw/AGENT_QUICKSTART.md"; `prompts._METADATA_TRAILER`; 6 prompts without a comment; prompt comment keys beyond `Kind`; 5.2 step 4 review paragraph | The prompt comment addressed agents inside an upload-ready prompt; prompts with no comment had no status source; other comment keys had no disposition; review files were not converted to their new front matter. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | Comment text made metadata-only; status from disposition for comment-less prompts; 4.2c row for every comment key; step 4 rewrites review files. |
+| SR-940 | medium | IN-SCOPE | D: turn placement gaps | `runner_shared` review parking (`aw/parked/<run_id>/<id6>` then `git reset --hard`); `turn_correction_packet`; displaced-lane ordering | Parked-review turns could be lost; fix-it turns were labelled `execute`; a fresh lane could be cut before displaced turns reached `main`; `turn_index` source unstated. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | 4.2 TURN EVENTS and `turn_role` updated; AC-37 and diagram 3 aligned with the adoptable-lane rule. |
+| SR-941 | low | IN-SCOPE | A/B: stale wording and counts | C10, 4.2b, 4.3 step 2, 4.9.3, diagram 1 `readiness`, section 0, 4.2c, 4.4, section 6, section 9, AC-1, AC-12, AC-33 | Contradictions with OQ-26 (C10, 4.2b), front-matter-only mirror wording, a stale `readiness` note, missing terms, 25 vs 24 counts, 6 vs 7 misparsed names, 4,374 records, `answer_resume` cited as a function, no test of C8's no-network rule or of `read_at` backend cases. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Each location corrected; irreversible-commitments bullet added to 4.2. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| D-1 | Order of renamed records (SR-931)? | Logged `Order`, else filename NN. | Keep 01; own Set. | Maintainer via /askme 2026-10-31 (OQ-26 correction). | no |
+| D-2 | Citation rewrite scope (SR-932)? | Everywhere, widened scan; history imported exact. | Live text only; rewrite stored history; none. | Maintainer via /askme 2026-10-31 (OQ-27). | no |
+| D-3 | Old path of renamed records (SR-933)? | Checkpoint old path, then rename event. | `legacy_path` field; not kept. | Maintainer's own design via /askme 2026-10-31 (OQ-28). | no |
+| D-4 | Hand finalize of orchestrators (SR-934)? | Finalize event for every finalized plan. | Refuse; transition only. | Maintainer via /askme 2026-10-31 (OQ-29). | no |
+| D-5 | Terminal-log appends (SR-936)? | Add rename/group and short_description. | Four kinds only. | Maintainer via /askme 2026-10-31 (OQ-30). | yes |
+| D-6 | Description-generation safeguards (SR-935)? | Tool-less call plus sanitizer. | Less text; skip terminal records. | Maintainer via /askme 2026-10-31 (OQ-31). | yes |
+| D-7 | D177 facets (SR-937)? | Logged fields with mirror. | Filename-only exception to C1. | Maintainer via /askme 2026-10-31 (OQ-32). | no |
+| D-8 | How the loader recognizes rollup retirement (SR-934)? | `actor.tool: ipd_lifecycle.retire_orchestrator`, refused from any other writer by the 4.8 hook. | A separate op. | Evidence: `ipd_lifecycle.retire_orchestrator` is the only rollup path; preserves OQ-29. | yes |
+
+### Scope and evidence
+
+Explicit re-review requested by the maintainer on 2026-10-31, with emphasis on internal consistency, at
+baseline `f405b481d` (round 17 by antigravity/unknown) and `ae4eafa16`. Reviewer:
+opencode/its_direct/pt3-claude-opus-5.5-1m-us, with two independent full-text passes (consistency;
+evidence, rubric and security). Decisions were recorded and committed before editing
+(`8e88c65e3`, `4a1fcd357`, `2712db508`, `0ab6dd56b`). Measurements at HEAD: 34 legacy-timestamp
+artifacts and walkthroughs (28 id-less, 6 with ids), 7 of them with a 6-letter slug word; citation
+rewrite 1,940 hits in 419 files, 0 warnings, 402 in history lines of 217 records; 24 of 30 staged
+prompts carry an `aw-prompt` comment; `parse_clustered` returns no match on D177 names; 97
+executed orchestrators; 102 plans without `Kind`; `_extract_detail` source over 300 characters 1,402.
+
+### Final validation
+
+```text
+aw specs check <spec>: all specs conform. 1 specs checked.
+git diff --check <spec>: exit 0
+Diagram/prose column cross-check: tables 32 mismatches 0
+OQ ids unique (OQ-1..OQ-32), none open; AC ids unique (44 rows)
+mermaid-cli 12.0.0: Found 12 mermaid charts in Markdown input; 12 rendered
+```

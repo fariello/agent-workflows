@@ -626,7 +626,8 @@ spec owns it.
     and `aw research set-assign` writes verb `group`. A research shelf move (`research_archive`,
     `aw research promote`) changes status, so it is a `transition` that carries `path`. An event never carries the old path: the previous path is the
     `path` of the previous path-bearing event in `seq` order, and the `create` or `checkpoint` event
-    always carries the first one. The writer refuses an absolute path, a path containing `..`, and a
+    always carries the first one (for a record that the cutover renamed, the checkpoint carries the
+    OLD path and a `rename` event in the same append carries the new one, OQ-28). The writer refuses an absolute path, a path containing `..`, and a
     path outside the records root; the leak sanitizer scans the value like every other log string.
     WHO MOVED IT is the event's `actor` object and `by_human` flag: `by_human` true for a human,
     otherwise `actor.tool` (for example `oc_runipd`), `actor.model` (for example
@@ -1079,8 +1080,9 @@ registry now. Whichever spec is implemented second must agree with the other (se
   - a `finalize` event on a type other than `ipd`, more than one `finalize` per `executed`
     transition, a `finalize` outside the append of the transition to `executed`, or a post-cutover
     `transition` to `executed` of an `ipd` without a `finalize` event in the same append, unless the
-    append is an orchestrator rollup retirement (`actor.tool` is the runner's retirement step and
-    the plan is an orchestrator by the 4.2 rule);
+    append is an orchestrator rollup retirement (`actor.tool` is `ipd_lifecycle.retire_orchestrator`
+    and the plan is an orchestrator by the 4.2 rule); only the runner's retirement step writes that
+    `actor.tool` value, and the 4.8 hook refuses it from any other writer;
   - a `turn` event whose `actor.tool` is not a runner driver or the crash importer, or a duplicate
     turn identity `(run_id, item_position, attempt, turn_role, turn_index)`;
   - a `turn` event whose `items` totals do not sum to its turn totals;
@@ -2930,6 +2932,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-11-01 note (aw specs): /spec-review round 18 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-931..SR-941 FIXED on maintainer decisions OQ-26 correction (logged Order; wvlk84 -> awphysical-17), OQ-27 (rewrite citations everywhere; history imported exact), OQ-28 (checkpoint at old path then rename event), OQ-29 (finalize event for every finalized plan; only rollup retirement omits it), OQ-30 (terminal-log appends), OQ-31 (tool-less, sanitized description generation), OQ-32 (D177 ace/model logged fields); AC-40, AC-41 added; 32 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-31 note (aw specs): APPROVE WITH REVISIONS APPLIED; /spec-review round 17 (antigravity/unknown): SR-922..SR-930 FIXED on maintainer decisions OQ-25 (staged prompts keep upload-ready purity via single leading aw-managed-prompt HTML comment, no YAML front matter) and OQ-26 (rename all 34 legacy YYYYMMDD-HHMM-NN records to clustered form at cutover, testing _LEGACY_TIMESTAMP_RE before parse_clustered, preserving existing Set/NN on 6 already-id'd terminal records, and rewriting inbound citations via artifact_refs); turn events stay on adoptable lanes under try_adopt_fix_it_lane/answer_resume and flush on non-merging audit runs; turn_index as 1-based dispatch ordinal with Prompt-1 copy dedup and Diagram 3 turn_role alignment; post-cutover executed_transition_gate and terminal append rules; retire_orchestrator ->executed without finalize (77tr3o); 4.5c Subject-Type exception removed; D177 attributed filenames, read_at git-root/invalid-blob handling, and resolved project.json path; AC-7 C10 and 3c diff range aligned; 33 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-27 note (aw specs): /spec-review round 16 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): internal-consistency pass at maintainer request; APPROVE WITH REVISIONS APPLIED; SR-911..SR-921 FIXED on maintainer decisions OQ-22 (model-generated short descriptions via reusable description journal), OQ-23 (turn events in the lane, main for unmerged attempts, idempotent crash import), OQ-24 (append key); finalize diff from begin base to finalize tip; event-owned field rule unified; run tables re-derived from measured runs data with excluded classes; turn_index and log_suffix-derived turn_role; archive path verb and path-drift; legacy scope exceptions; stale prose in 0, C7, C8, N2, N4, 3c, 4.4, 4.8, 5.2, 5.4, 6, 7, 9 and ACs aligned; AC-39 added; 32 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-26 note (aw specs): /spec-review round 15 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-905..SR-910 FIXED on maintainer decisions OQ-17..OQ-21 via /askme: short_description tracked field and artifacts column; path history (new path only, actor and time on the event); tracked finalize event with changed paths, scope result and per-V-item verification; tracked per-turn tokens/time/cost with exact amounts and ISO 4217 currency, cache-only per-step rows, self-reported per-item split via AW-ITEM; full structured run index with no text bodies; 4.9.1 rewritten as five diagrams with full notes, 31 tables cross-checked, 12 mermaid blocks render; AC-34..AC-38 added; no Readiness written
