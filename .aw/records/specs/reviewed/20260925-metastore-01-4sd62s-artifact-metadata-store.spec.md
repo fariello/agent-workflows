@@ -31,26 +31,20 @@ for the same concept.
 | front matter | The block between two `---` lines at the start of a record. (Some legacy function names, such as `_front_matter_bullets`, use the name for the bullet block.) Staged prompts have none; they carry the staged-prompt comment instead (4.1, OQ-25). |
 | staged-prompt comment, in-file mirror | The single leading `<!-- aw-managed-prompt: ... -->` comment that holds `id` and `status` on a staged prompt (4.1, OQ-25). "In-file mirror" means front matter or this comment. |
 | records root | The resolved directory that holds the records and their `meta/` logs; outside the repository for the `companion` and `home` backends (4.5). |
-| begin receipt | The gitignored record that `aw ipd begin` writes; its base commit starts the finalize diff (4.2 `op: finalize`). |
+| begin receipt | The gitignored record that `aw ipd begin` writes; its base commit starts the finalize diff (spec `37am1y`). |
 | description journal, migration journal, operation journal | The gitignored recovery files of 4.2 SHORT DESCRIPTION, 5.2 and 4.3: generated descriptions, migration progress and rename maps, and pending writes. |
-| crash importer | The command (`aw runs import-turns`; the plan fixes the name) that appends missing `turn` events from local run records after a driver crash (4.2 TURN EVENTS). |
-| adoptable lane | An unmerged lane that a later attempt can take over (`runner_shared.try_adopt_fix_it_lane`, answer-resume) (4.2 TURN EVENTS). |
 | rollup retirement | `ipd_lifecycle.retire_orchestrator`: the runner moves an orchestrator to `executed` without finalize once every child is terminal (spec `77tr3o`). |
 | D177 facets | The optional `[.<ace>][.<model>]` filename segments of `DECISIONS.md` D177, which name the agent environment and model that wrote a record (OQ-32). |
 | event | One immutable entry that records one change to, or one fact about, an artifact. Its `op` value states the type (4.2). |
 | append | One write by one tool: the events it adds together. Every event carries `append`, the `seq` of the first event of its write, so the loader can check rules that require events in the same append (4.2, OQ-24). |
 | path-bearing event | An event that sets where the artifact's file lives: `create`, `checkpoint`, `rename`, or a `transition` that moves the file to another disposition directory. It carries the NEW `path` only (4.2, OQ-17). |
 | short description | The one-line `short_description` field (at most 300 characters) that `aw attention --details` and `aw find` show (4.2, OQ-19, OQ-22). |
-| finalize event | The tracked `op: finalize` event that records what executing a plan changed and how each V-item was verified (4.2, OQ-18). |
-| turn, turn event | One agent session that acted on a queue item (an execute, verify, correction, review or production session), and the tracked `op: turn` event that records its tokens, time and cost (4.2, OQ-20, OQ-23). |
-| `AW-ITEM` marker | A line `AW-ITEM: <E-nn or V-nn>` that an agent writes when it starts work on a checklist item. The driver charges the following model steps to that item. Steps before the first marker are `unattributed`. Per-item figures are SELF-REPORTED (4.2, 3c). |
-| amount | A money value stored as `{amount, currency}`: an exact decimal string and an ISO 4217 code, never converted when stored (4.2). |
-| runs root | The gitignored directory that holds run records, normally `.aw/records/runs/`, resolved by `runner_shared` (4.5b). |
+| finalize event, turn event | Tracked event types whose payloads are specified in spec `37am1y` (execution record); this spec reserves their op names (4.2). |
 | event log, log | The tracked file `.aw/records/meta/<id6>.jsonl`, which holds every event of one artifact or walkthrough, one JSON object per line (JSON Lines, JSONL). |
 | `seq` | The sequence number of an event in its log. A migrated log starts with checkpoint 0. A newly created log starts with create 1. Later numbers are consecutive (4.2). |
 | replay | Calculate the current state of an artifact: start with no values, apply each event in `seq` order, and let each event overwrite the values that it changes. The values that remain after the last event are the current state. Example: events `create status=draft`, `transition draft->to-review`, `set blocks_release=next` replay to `status=to-review, blocks_release=next`. |
 | current state | The result of a replay. |
-| cache | The gitignored SQLite database `.aw/state/index.db`. It holds a copy of the replayed state, the projections of `review`, `coverage`, `finalize` and `turn` events, checklist items parsed from plan bodies, and a read-only index of the structured run records, including per-step usage from local session logs (4.5a, 4.5b). The toolkit can delete and rebuild it at any time. In this spec, "cache" always means this database, never the operating-system file cache. |
+| cache | The gitignored SQLite database `.aw/state/index.db`. It holds a copy of the replayed state and the projections of `review` and `coverage` events (4.5a). Specs `37am1y` and `bfuzs6` add their own tables to it (execution record; run index). The toolkit can delete and rebuild it at any time. In this spec, "cache" always means this database, never the operating-system file cache. |
 | SQL | Structured Query Language, the query language of SQLite. |
 | loader | The one component inside `artifact_meta` that fills the cache. After the cutover, it reads the log files, the plan bodies (for checklist items), the review files, and the runs tree through the runner's own readers. Before the cutover, the legacy loader has this role and reads the bullet blocks and history sections of the `.md` files (4.3). |
 | mirror | A copy of a logged value outside the log, kept for people or for the filename grammar, for example the front-matter `status` line (or, on a staged prompt, the `id` and `status` in its leading HTML comment, 4.1, OQ-25). |
@@ -186,7 +180,7 @@ Each criterion has a label:
   change fails (from `2vev8j` C5).
 - C7 `[Must]` A review diff shows each status change: the front-matter `status` line and the
   appended events of that change, which contain exactly one `transition` event (an append can also
-  hold, for example, an `unset` of `approval` and a `finalize` event).
+  hold, for example, an `unset` of `approval` and the finalize scope fields).
 - C8 `[Constraint]` The change adds no runtime dependency. `sqlite3` and `json` are in the Python
   standard library, and `filelock` is already a dependency. The only model or network use that the
   change adds is the migration's short-description generation (OQ-22). It invokes a model through
@@ -226,12 +220,10 @@ Each criterion has a label:
 - N3 This spec does NOT move prose. Body sections (execution and validation checklists, open
   questions, execution and validation (E/V) items) stay in Markdown. Only aw-owned metadata fields and history move.
 - N4 This spec does NOT change comms envelopes. It does NOT change how the toolkit stores or writes
-  run records (`.aw/records/runs/`) and run analytics. The cache indexes run records, read-only (4.5b;
-  maintainer decision 2026-10-25, finding SR-701). The cache never writes to them, and they stay
-  gitignored and local to one machine. The exception is `run_analytics_cache`, which the plan may
-  delete or keep as a view over the cache (4.5b). ONE AMENDMENT (round 15, OQ-18 and OQ-20): the per-turn and
-  per-item TOTALS (`turn` events) and the finalize summary (`finalize` event) are also written to
-  the artifact's tracked log, so they survive a clone. The detailed per-step data stays local.
+  run records (`.aw/records/runs/`) and run analytics. A read-only index of run records is specified
+  in spec `bfuzs6` (maintainer decision 2026-10-25, finding SR-701). The cache never writes to them, and they stay
+  gitignored and local to one machine. Spec `bfuzs6` may replace `run_analytics_cache` with a view
+  over the cache. Spec `37am1y` amends this non-goal for its tracked `turn` and `finalize` totals.
 - N5 This spec does NOT include a period in which both formats are in use (C9).
 
 ## 3b. Acceptance criteria
@@ -248,14 +240,14 @@ into the plan's validation evidence.
 | AC-3 | C3 | Two branches that change the status of different artifacts merge without conflict. | A pasted two-branch merge test. |
 | AC-4 | C4 | The order of a replay does not depend on the order of lines in the file. | A test that shuffles the lines of a log and asserts that the `seq`-ordered replay gives the same result. A test that refuses a log with a gap in `seq` or a duplicate `seq`. |
 | AC-5 | C6, 4.3 | Refused and dry-run writes change no authoritative file. Failure before the log commit leaves every authoritative file unchanged. Failure after it reports the committed change and required repair. Repair restores mirrors and moves without a second event. | Pasted failure-injection tests at each write step for a transition, creation and rename. The creation test recovers the exact body, or refuses if recovery data is absent. A repair replay is idempotent; a second mutation refuses while repair is pending. |
-| AC-6 | C7 | The diff of a status transition shows the front-matter `status` line and the appended events, with exactly one `transition`. | A pasted `git diff` of a real transition, and of a finalize transition with its `unset` and `finalize` events. |
+| AC-6 | C7 | The diff of a status transition shows the front-matter `status` line and the appended events, with exactly one `transition`. | A pasted `git diff` of a real transition, and of a finalize transition with its `unset` and scope fields. |
 | AC-7 | C10, 4.6, 4.1a, 4.2 | `aw check meta` checks every row of the 4.6 table (in-file `status` and `id` mirrors, filename Set, `NN`, `id6` and date, research filename facets, disposition directory, logged path, orphans, review rounds, finalized E/V items) against the log. | Pasted `aw check meta` output that detects each type of drift in a test repository. Pasted output that shows zero findings on the migrated corpus. |
 | AC-8 | 4.5 | The cache is disposable: deleting it changes no command output. | Run `aw find` and `aw attention --format json` with and without `.aw/state/index.db`. Paste the diff, which must be empty. |
 | AC-9 | 4.5, C11 | The `INDEX.*` files and `STATUS.md` are deleted, and nothing creates them again. | Pasted `git ls-files` output and file-system check. An `rg` search for `INDEX.json` and `STATUS.md` in `agent_workflows/` finds only the migration's cleanup code. |
 | AC-10 | 5, 4.2 | A second run of the migration changes nothing. The migration keeps a journal, is a dry run by default, and loses no information. | On a copy of this repository: the dry-run report; an apply; a second apply that changes nothing; and an automated round-trip check that finds every legacy field value and every raw legacy history line in the logs. The round-trip test corpus includes a history line longer than `MAX_PROSE_DESCRIPTIVE_LEN` and one with a control character, and both are recovered byte-for-byte; a post-cutover setter given the same long value is refused (SR-903). All pasted. |
 | AC-11 | C9, 5.3 | Every metadata-reading command refuses an unmigrated repository with a message that names `aw migrate metadata`. A new repository with no legacy records is stamped at install and is never refused. | Pasted tests: (1) a test repository with legacy records and no stamp is refused with that message; (2) `aw install` in an empty repository writes `metadata_schema: 2`, and a following `aw backlog new --apply` plus `aw find` succeed without `aw migrate metadata`; (3) `aw install` in a repository with legacy records does not write the stamp. |
 | AC-12 | C8 | The `dependencies` list in `pyproject.toml` does not change, and no command other than `aw migrate metadata` calls a model or the network. | Pasted: the unchanged `dependencies` list; and a test that a setter, `aw find` and `aw attention` succeed with the model launcher and the network unavailable. |
-| AC-13 | C11 | Before and after values are measured for: the bytes that an agent reads for one plan, and the end-to-end time of `aw find` and `aw attention`, with a warm and with a cold operating-system file cache, as the AGENTS.md end-to-end rule defines them. Also measured: the cold build time of the full run index (4.5b), the size of a typical executed plan's log after the cutover (with its `turn` and `finalize` events), the time of one append to such a log, and the cost of the short-description generation (OQ-22). | The pasted values, measured by the end-to-end rule in AGENTS.md. This spec sets no target value. |
+| AC-13 | C11 | Before and after values are measured for: the bytes that an agent reads for one plan, and the end-to-end time of `aw find` and `aw attention`, with a warm and with a cold operating-system file cache, as the AGENTS.md end-to-end rule defines them. Also measured: the size of a typical executed plan's log after the cutover, the time of one append to such a log, and the cost of the short-description generation (OQ-22). | The pasted values, measured by the end-to-end rule in AGENTS.md. This spec sets no target value. |
 | AC-14 | 4.1a | Review records have no own log. Each round matches exactly one subject-log review event by stable file reference and round number. | Pasted tests: recording a round adds one subject event and no review log; equal counts with different round numbers fail; duplicate bindings and missing files fail; adding or renaming a second review file leaves the first file's events correctly attributed. |
 | AC-14a | 4.1a | Review kinds are typed. A `gate` event accepts only `plan_readiness.VERDICTS`. A `refinement` event accepts only the refinement vocabulary and never has `readiness`. The migration keeps each legacy verdict unchanged. | Pasted tests: (1) a `gate` event with a refinement verdict is refused; (2) a `refinement` event that has `readiness` is refused; (3) any number of `refinement` rounds are added in `seq` order; (4) both setter spellings refuse `->reviewed` for a spec whose log has only `refinement` review events, and `check.spec-review-unattested` reports it, while one `gate` event (migrated or new) satisfies the rule (4.4, finding SR-601); (5) after the migration of a test corpus that contains each DIFFERENT off-vocabulary verdict string found in the corpus at implementation time, every original verdict string can be recovered byte for byte. (At round 5 there were 4 different strings in 29 records; 30 records at round 6, 32 at round 7, and 35 at round 11.) |
 | AC-15 | 4.4 | For a plan, `readiness` is written only by the payload of a gate `review` event; a `set readiness` is refused. The coverage fields have the parallel rule: only an `op: coverage` event writes them (4.4). The `approval` field is owned by the `approved` transition, and leaving `approved` or moving backward clears the owned attestations (4.4, SR-901). | Pasted tests: (1) a `set readiness=go` event is refused, alone or together with a review event; (2) a gate `review` event whose payload carries `readiness: go` sets `readiness` on replay; (3) a `set coverage=...` is refused, and an `op: coverage` event that carries the value succeeds; (4) a generic `set approval=...` is refused, a `transition` to `approved` writes `approval` in the same append, and a `transition` away from `approved` unsets it in the same append; (5) a backward `transition` of a plan to `draft` or `to-review` unsets `readiness` in the same append, and replay refuses a hand-written log in which `approval` or `readiness` survives such a transition. |
@@ -266,9 +258,8 @@ into the plan's validation evidence.
 | AC-20 | 4.2c | The registry contains every field that the corpus or an approved spec uses, and the migration drops no field unless the census records the drop as deliberate. | The migration dry-run's field census for this repository, pasted. It lists every different field name used before the first `##` heading, with its destination (log field, body section, or a recorded deliberate drop), and it shows zero `unknown-field` refusals. |
 | AC-21 | 4.4a | This spec meets the obligations that executed plans gave to it. | For each row of 4.4a, the pasted evidence that the row names. |
 | AC-22 | 5.2 | The cutover refuses to run when the history sidecar is not present. When it runs correctly, it does not lose the sidecar records. | (1) A test that runs the migration preflight with `--force-worktree` in a lane-style worktree that has no sidecar, and asserts a refusal that names the sidecar. (The same run without `--force-worktree` refuses earlier, on the worktree condition; AC-27 tests that.) (2) The real cutover's preflight line that reports the sidecar record count. Both pasted. |
-| AC-23 | 4.5, 4.5a, 4.5b | The cache schema is the schema in 4.5a and 4.5b, and the toolkit generates it from the registry. | Pasted: (1) a test that compares the table set and the columns of each table with 4.5a and 4.5b; (2) a test that adds a field to the registry, with no other change, and shows that the next read rebuilds the cache and has the new column; (3) `EXPLAIN QUERY PLAN` output that shows an index is used for: `aw find` by status and Set, "which artifacts depend on X", "the latest gate review of X", "which plans changed file X" (`changed_paths(path)`), "where did this file live" (`artifact_paths(path)`), and "tokens per V-item" (`turn_items(item_id)`). |
+| AC-23 | 4.5, 4.5a | The cache schema is the schema in 4.5a, and the toolkit generates it from the registry. | Pasted: (1) a test that compares the table set and the columns of each table with 4.5a; (2) a test that adds a field to the registry, with no other change, and shows that the next read rebuilds the cache and has the new column; (3) `EXPLAIN QUERY PLAN` output that shows an index is used for: `aw find` by status and Set, "which artifacts depend on X", "the latest gate review of X", and "where did this file live" (`artifact_paths(path)`). |
 | AC-24 | 4.2, 4.5a | Dependencies, lineage and actors keep their structure through a migration and a replay. | Pasted: (1) a migration test with each form of `Item-Dependencies` (`executed:`, `exists:`, `state:`, `none`, `unresolved`, and no field). It asserts the parsed conditions and the `dependency_declaration`, and that `none` and "no field" stay different. (2) A test in which the writer refuses an event whose `actor` or `message` contains a session id, an absolute path or a user name, and the leak sanitizer reports it; a relative `path` payload is accepted. (3) a migration retains declared plan Sets, individual origin links and unresolved declarations separately. A declared Set with no individual origin link remains visible, and reverse links with no declaration remain visible. `aw graduation` combines both sources without inventing child links; malformed, duplicate and dangling declarations remain diagnosable. |
-| AC-25 | 4.5b | The cache indexes run records read-only. The toolkit never presents "no run data" as "never ran". | Pasted: (1) a test that indexes a test runs tree into `runs`, `run_items` and `attempts`, with rows that match the output of the runner's own readers; (2) a byte-for-byte check that indexing changed no file under the runs tree; (3) two queue items for one artifact both retain attempt 1; an ambiguous actor join reports all matches; (4) deleting a run removes its rows, switching roots cannot retain old runs, and an unreadable run produces an incomplete result; (5) on a fresh clone, a query for the attempts of an artifact reports `runs_indexed: 0` (unknown) and not an empty success, while a query of that artifact's tracked `turns` returns its post-cutover turns labelled as tracked. |
 | AC-26 | 4.3 | The next read shows a new, deleted or moved record, with no `aw index rebuild`. | Pasted tests that add a log and an artifact, delete one, and `git mv` one into another disposition directory without `artifact_meta` (as a pull or checkout does). Also replace bytes while preserving size and mtime, add a previously dangling target, and change only the target of a `next` reference. After each change, the next query shows current content and resolution. Include a new nested directory and a directory membership change with restored mtime. |
 | AC-27 | 5.2 | Each preflight refusal in 5.2 step 1 refuses without `--force`, `--force` overrides each one, and the migration reports every override. `--force` never overrides the worktree refusal; `--force-worktree` overrides only that refusal. | Pasted tests, each in a test repository and each with no files written on a refusal: (1) for each of the three step-1 conditions (uncommitted change under `.aw/records/`, integration lock held by another process, a lane worktree with an unmerged plan change), the dry run refuses and names the condition, and the same run with `--force` continues and its output names the overridden condition; (2) in a linked worktree, the run refuses with `--force` and names `--force-worktree`; (3) in a linked worktree with `--force-worktree` and no sidecar, the run still refuses on the sidecar condition (step 2); (4) `--force-worktree` in the main checkout with an uncommitted record change still refuses on that condition. |
 | AC-28 | 5.1 | `aw install` starts a pending migration only after a yes answer at a terminal, or with `--migrate`. `-y`/`--yes` never starts one. | Pasted tests on a test repository with a pending migration: (1) at a terminal, answering no leaves every record byte-identical and prints the command that runs the migration; answering yes runs it; (2) with no terminal and no `--migrate`, the install only reports, and every record is byte-identical; (3) `aw install --yes` and `aw install all --yes` leave every record byte-identical and report the pending migration; (4) `aw install --migrate` runs it, and when a step-1 condition is true it still refuses, because `--migrate` adds neither `--force` nor `--force-worktree`. |
@@ -278,11 +269,8 @@ into the plan's validation evidence.
 | AC-32 | 4.2, 4.2a, 4.4 | A migrated log has the 4.2a layout, every event time is the time it was written, and migration does not change how old an artifact looks. | Pasted: (1) a migration test on an artifact with two inline history lines, one sidecar record and a review file with two rounds: the log is `seq` 0 checkpoint, two `source: history` legacy events, one `source: sidecar` legacy event, two `review` events, in that order, and the replayed state equals the checkpoint state plus the review values; (2) every migrated event has `at` with a time of day equal to the migration time; each legacy event, and the last-round review event of each review file, carries the original day in `observed_day` (earlier rounds carry none, K5a); (3) `aw attention --format json` gives the same `last_history_at` for that artifact before and after the migration; (4) after one post-cutover setter call, `last_history_at` is that event's `at`; (5) after the cutover, an `rg` over the new logs written by a test run finds no day-only value outside `filename_date`, imported `created_day`, `observed_day` and checkpoint `last_history_day`; new `create` events omit `created_day`. |
 | AC-33 | 4.2, 4.3 | Replay rejects invalid initial events, changed identity, unsupported versions and transitions whose `from` is not the prior status. Revision reads use that revision's paths and both source blobs. | Pasted tests refuse each invalid log, preserve every source byte, and never return its old cached state as valid. A historical read after a rename returns the old revision's metadata; an absent record and an invalid revision give distinct results; a companion-backend fixture reads blobs from the records repository, and an unversioned placement (`home`, `repository-untracked`) returns the distinct unversioned result. |
 | AC-34 | 4.2, 4.5a (OQ-17) | Every path change is recorded once, with who did it, and path history can be queried. | Pasted tests: (1) `create`, `aw rename`, `aw group` and a transition that moves the file to another disposition directory each append an event with `path` relative to the records root and no `from_path`; (2) `artifact_paths` lists every path in `seq` order and its previous path is the prior row; (3) each row resolves the actor: `by_human` for a human, otherwise `tool`, `model` and `run_id`; (4) an absolute path, a `..` path and a path outside the records root are refused and the sanitizer reports a planted absolute path; (5) a migrated artifact's first row comes from its checkpoint; for a record that the cutover renamed (OQ-28), the first row is the OLD path and the second is the `rename` event's new path (`actor.tool: aw migrate metadata`), and an old filename resolves to the record. |
-| AC-35 | 4.2, 4.3, 4.5a (OQ-18, OQ-29) | Finalize records what the plan actually changed and how each V-item was verified, and the record survives a clone. | Pasted tests: (1) finalizing a test plan appends one `finalize` event, with the same `append` as its `transition` to `executed`, whose `changed_paths` equals the git diff from the begin-receipt base to the finalize tip excluding the plan file and its log (not the agent's report), with the correct `scope_result` and `out_of_scope_paths` with reasons; a `finalize` on a non-plan or outside that append is refused by the writer and by replay; (2) `items` has one entry per E-* and V-* item, and each V-item entry has a `verification` object with `evidence_present`, `evidence_digest`, `verifier_verdict`, `decided_by` and `decision`; an attempt verdict `VERIFIED` maps to `agrees` on every V-item, and a hand-run finalize records `not-checked` and `decided_by: human`; (3) on a `git clone --depth 1`, a command (the plan names it, for example an `aw find` filter) answers "which plans changed file X" and "which V-items were refused" from `changed_paths` and `plan_items`; (4) editing a V-item's `Observed evidence` after finalize makes `aw check meta` report `evidence-changed-after-finalize`; (5) the log contains no evidence text. (6) a hand `aw ipd finalize` of an orchestrator writes a `finalize` event; `ipd_lifecycle.retire_orchestrator` appends a `transition` to `executed` with `path` and no `finalize`; a plan with no `plan_role` and `order` 0 is treated as an orchestrator, and a non-orchestrator `transition` to `executed` without `finalize` is refused. |
 | AC-36 | 4.2, 4.5a (OQ-19, OQ-22) | Every migrated record has a validated short description unless the census lists its absence, and a new record has one when a creating command or setter supplies it; `aw attention --details` reads it, and the migration writes it with a model through a reusable description journal. | Pasted tests: (1) the creating commands of each type (4.2 SHORT DESCRIPTION) write `short_description`; a value over `MAX_DESCRIPTIVE_LEN`, with a newline or a control character is refused; (2) `aw attention --details` and `aw find` show it after deleting the cache; (3) with a fake model, a migration dry run fills the description journal, a second dry run and `--apply` make no new model call for unchanged records, a changed source triggers exactly one new call, and an interrupted run resumes without repeating finished calls; (4) a generated value over the limit is regenerated once and otherwise left absent and listed in the census, never truncated; (5) the generated text for a fixture plan does not say that it is a plan; (6) the census of this repository shows the count of records with and without a description. (7) with a fake model, a fixture record whose body contains an injected instruction and a home-directory path produces no tool call, and a generated value that contains the path is refused by the leak sanitizer and counted as a failed generation. |
-| AC-37 | 4.2, 4.5a, 4.5b (OQ-20) | Tokens, time and cost are recorded per turn (tracked), per step (cache) and per item (self-reported), with exact amounts and currencies. | Pasted tests: (1) each turn role in 4.2 appends one `turn` event with the token components the host reported, omitted ones absent (not 0), and two correction turns of one attempt get distinct `turn_index` values; a lane turn reaches `main` through integration, a turn of an attempt whose lane will not be merged or adopted is committed in the main checkout, a turn of an adoptable unmerged lane stays on the lane and after adoption and integration reaches `main` exactly once, a parked review's turns survive the sweep-lane reset, and after a simulated driver crash the importer adds each missing turn exactly once, including after a second run of the importer and after `resume`; (2) amounts are decimal strings with an ISO 4217 code, a bare host number is stored as `USD` with `cost_source: host-recorded`, and a priced value names its rate set; (3) a session fixture with `AW-ITEM` markers yields `turn_items` whose sums equal the turn totals, with pre-marker steps in `unattributed` and an unknown id counted in `attribution_errors`; (4) `aw runs analyze` output for a fixture run is unchanged when it reads through `artifact_meta`; (5) a display converted to EUR names the rate, source and date, and labels the figure converted; mixed-currency totals are refused without a conversion; (6) a query answers "median tokens and cost per V-item" and labels it self-reported; (7) a pilot run reports the share of steps that were `unattributed`. |
-| AC-38 | 4.5b (OQ-21) | The cache indexes every structured run field and no text body. | Pasted: (1) for a fixture runs tree, every field that `runner_shared.load_state` exposes for a run, item and attempt appears in a column or in `extra_json`, and every lane collection field, except fields in the excluded classes of 4.5b, which are dropped, and absolute paths, which are stored relative or dropped; (2) every `events.jsonl` line has a `run_events` row; (3) a scan of `index.db` finds no prompt text, session text, tool output, `argv` value, session id, absolute path, user name or host name from the fixture; (4) each skipped text body has a `run_files` row with its digest; (5) AC-13 measures the cold build time of the full run index on this machine. |
-| AC-39 | 4.2, 4.3 (OQ-24) | The `append` key makes every same-append rule checkable. | Pasted tests: (1) every multi-event write gives its events consecutive `seq`, the same `append`, `at` and `actor`; (2) the loader refuses a hand-edited log in which a `set approval`, an `unset approval`, an `unset readiness` or a `finalize` event appears outside the append of its owning transition; (3) a migrated log's checkpoint and imported events share `append` 0. |
+| AC-39 | 4.2, 4.3 (OQ-24) | The `append` key makes every same-append rule checkable. | Pasted tests: (1) every multi-event write gives its events consecutive `seq`, the same `append`, `at` and `actor`; (2) the loader refuses a hand-edited log in which a `set approval`, an `unset approval`, an `unset readiness` or a `set scope_result` appears outside the append of its owning transition; (3) a migrated log's checkpoint and imported events share `append` 0. |
 | AC-40 | 4.1, 4.6, 5.2 (OQ-25) | A migrated staged prompt is upload-ready and its in-file mirror is checked. | Pasted: (1) after migrating a fixture with an `aw-prompt` prompt and a prompt with no comment, line 1 of each is the single `aw-managed-prompt` comment, no `---` line exists, the old comment is gone, and `prompt_kind`, `set` and `order` are in the log; (2) the comment contains no instruction addressed to an agent; (3) a setter transition rewrites only the comment's `status`; (4) `aw check meta` reports drift on a hand-edited comment `status` or `id`. |
 | AC-41 | C10, 4.6, 5.2 step 3 (OQ-26, OQ-27, OQ-28) | The cutover leaves no legacy-timestamp artifact or walkthrough filename, keeps every Set and order consistent, and keeps imported history exact. | Pasted: (1) the dry-run rename map for all 34 records, with minted `id6` values for 28 and the preserved `Id`, `Set` and logged `Order` for 6 (`wvlk84` becomes `awphysical-17`); (2) in a fixture, a legacy name whose slug starts with a 6-letter word is classified as legacy; (3) after apply, no tracked artifact or walkthrough matches `_LEGACY_TIMESTAMP_RE` and no two plans share a Set and order; (4) every raw history line that cited an old name is recovered byte for byte (AC-10), and `aw show --history` displays it with the current name; (5) the citation-rewrite report per location, with 0 ambiguity warnings and the list of deliberately unchanged citations. |
 
@@ -339,15 +327,6 @@ into the plan's validation evidence.
   that the toolkit can detect and repair deterministically. The committed log retains the metadata change. Recovery of a new record also requires the
   staged body described in 4.3; a log cannot reconstruct prose that was never stored. Until repair,
   a reader can see a `status:` line or a directory that is behind the log.
-- The run index (4.5b) is local to one machine and is incomplete by design. It shows only the runs
-  whose records exist on this machine. A count of zero means "unknown", not "never ran". The tracked
-  `turn` and `finalize` events cover only work done after the cutover: the migration invents none
-  for earlier runs and does not backfill them from local run records (5.2 step 4).
-- TRACKED LOG GROWTH. Each executed plan's log gains one `turn` event per agent turn (with its
-  `items` list) and one `finalize` event (with its `changed_paths` and `items` lists). The current
-  runs tree holds about 3,750 attempts and about 1,040 verify sessions, so logs are larger than the
-  "logs are small" assumption of 4.3 step 1 made at round 8. AC-13 measures the bytes that an agent
-  reads for one plan and the write cost; the plan re-measures typical log sizes.
 - The writing tool supplies the `actor` object, and nothing verifies it (comms senders have the same
   limit). It records who CLAIMED to act. It does not authenticate the agent or the model.
 - GENERATED SHORT DESCRIPTIONS ARE MODEL OUTPUT (OQ-22, OQ-31). They can be inaccurate. A record
@@ -357,18 +336,6 @@ into the plan's validation evidence.
   configured model provider. The plan names the host and model, and the maintainer reviews the
   dry-run text before `--apply`. A model outage blocks `--apply` until the description journal is
   complete or the census records the absence.
-- PER-ITEM COST IS SELF-REPORTED (OQ-20). The split of a turn's tokens, cost and time by E-* or V-*
-  item depends on the agent writing `AW-ITEM` markers. An agent can forget, mislabel or interleave
-  items, and work done before the first marker is `unattributed`. The split is therefore an
-  estimate. The turn TOTALS are host-recorded and are not affected. How reliably agents emit the
-  marker is unmeasured until a pilot runs; the implementing plan measures the `unattributed` share.
-- COST IS ONLY AS GOOD AS THE HOST'S RECORD. Antigravity records no cost today, so its turns have
-  tokens but no `cost_amount`. A priced value depends on the price table in force (`price_rate_set`).
-  No stored amount is converted; a converted display is only as accurate as its stated rate.
-- THE FINALIZE RECORD SUMMARIZES, IT DOES NOT AUTHENTICATE. `changed_paths` comes from the git diff
-  between the plan's begin-receipt base commit and the finalize tip (4.2, SR-911), so it is reliable. The V-item `decision` and `verifier_verdict` record what the driver and
-  verifier concluded; the `evidence_digest` proves only that the evidence text has not changed
-  since finalize, not that it is true (25kzda 6.1 states the same limit).
 - C10a depends on the test suite finding each regression. In phase B, a behavior that no test
   exercises can change without anyone noticing. For this reason, each phase-B plan must name the
   behavior that its moved consumers had and the test that checks it (section 7).
@@ -584,10 +551,8 @@ spec owns it.
     user names and host names. These values stay in the gitignored run records. Relative paths in
     the payload keys `path`, `changed_paths`, `from_path`, `out_of_scope_paths` and
     `widened_paths` are allowed and are checked by the path rules (PATH HISTORY below). The
-    REQUESTED model is not part of the actor; a `turn` event carries it as the payload key
-    `requested_model`. For a `turn` event, `actor.tool` is the driver (`oc_runipd` or
-    `agy_runipd`) or the crash importer, and `actor.model` is absent: the model that ran the turn is the payload key
-    `model`, because the driver, not the model, writes the event.
+    REQUESTED model is not part of the actor; spec `37am1y`'s `turn` event carries it as the payload key
+    `requested_model`. The actor of a `turn` event is specified in spec `37am1y`.
     The actor is an object now because the log is tracked, and its schema cannot be reversed after
     the corpus is migrated. The cache, in contrast, can be rebuilt at any time. So a query must be
     able to answer "which model changed what in which run" without parsing free text (P1).
@@ -650,137 +615,12 @@ spec owns it.
     `actor` record when and by whom the coverage was checked. `coverage_checked` (string) is kept only
     on migrated values, because today it is a day plus a model name (`2026-10-06 by <model>`, 39
     plans at r9).
-  - For `op: finalize` (round 15, maintainer decision OQ-18): written once per successful plan
-    finalize (`aw ipd finalize`) of ANY plan (an artifact of type `ipd`), orchestrators included,
-    and only in the append that contains the `transition` to `executed` (maintainer decision
-    OQ-29). An orchestrator's checklist holds its orchestration items, so `items` and
-    `changed_paths` are still meaningful. The ONE path to `executed` without a `finalize` event is
-    runner rollup retirement (`ipd_lifecycle.retire_orchestrator`, spec `77tr3o`), which has no
-    begin receipt, makes no code edits, and runs no E/V checkpoint or verifier: it writes the
-    `transition` to `executed` (with `path` and any `unset` of `approval`) and leaves `scope_result`
-    NULL, `changed_paths` empty and `plan_items` with `source: body`. A plan is an ORCHESTRATOR when
-    its `plan_role` is `orchestrator`, or when it has no `plan_role` and its `order` is 0 (the rule
-    `retire_orchestrator` applies; 102 plans have no `plan_role` at r18). `op: finalize` is written
-    where finalize runs: in the lane worktree for a
-    runner execution (the lane's log then reaches `main` through integration), or in the
-    checkout for a hand-run `aw ipd finalize`. Fields:
-    - `changed_paths`: the sorted list of repository-relative paths that changed between the plan's
-      begin-receipt base commit and the finalize tip (the lane or checkout `HEAD` before the
-      lifecycle commit), each `{path, change}` with `change` one of `added`, `modified`, `deleted`
-      or `renamed` (a rename also carries `from_path`). Finalize computes it from git, never from
-      the agent's report. The plan's own `.md` file and `meta/<id6>.jsonl` are excluded.
-      Integration never rewrites the event: a difference that appears only at merge time is
-      reported by the integration gate, not recorded here.
-    - `scope_result`: `within`, `widened` (an accepted additive widening, 25kzda 5.5a) or
-      `exceeded`. `out_of_scope_paths` and `widened_paths` are lists of `{path, reason}` with the
-      reason that 25kzda 5.5a requires today (prose-safety checked). This replaces the legacy
-      `Scope-Exceeded` bullet. Replay sets the `scope_result` field from this event; a generic
-      `set` or `unset` of `scope_result` is refused.
-    - `items`: one object per E-* and V-* item of the plan, in body order: `item_id` (for example
-      `E-03`), `item_kind` (`execution` or `validation`), `validates` (for a V-item, the E-item ids
-      it validates), and `execution_state` (E-items, one of `ipd_schema.EXEC_STATES`: `pending`,
-      `performed`, `blocked`, `failed`) or `result` (V-items, one of
-      `ipd_schema.VALIDATION_RESULTS`: `pending`, `pass`, `blocked`, `failed`) exactly as the body
-      states at finalize. For each V-item a `verification` object:
-      `evidence_present` (boolean, by the same predicate `ipd_lint --phase pre-transition` uses
-      for a non-empty `Observed evidence`, so skeleton text does not count),
-      `evidence_digest` (SHA-256 of the `Observed evidence` text normalized to LF line endings with
-      trailing whitespace removed from each line, so a later edit is detectable without copying the
-      text into the log),
-      `verifier_verdict` (`agrees`, `disagrees`, `not-checked` or `unrecognized`),
-      `decided_by` (`driver`, `verifier` or `human`) and `decision` (`verified`, `refused` or
-      `accepted-with-override`). Today's verifier returns ONE verdict per attempt (`VERIFIED`,
-      `BLOCKED` or `CORRECTION_REQUIRED` in `*-verification.json`). Until the verifier reports per
-      item, finalize copies that attempt verdict to every V-item (`VERIFIED` is `agrees`,
-      `BLOCKED` and `CORRECTION_REQUIRED` are `disagrees`, no verifier turn is `not-checked`). A
-      hand-run finalize records `not-checked` and `decided_by: human`. The implementing plan
-      states whether the verifier output changes to per-item verdicts (section 7).
-      The E/V TEXT stays in the plan body (N3); the log records only these structured facts.
-    - `turns`: the `seq` numbers of the `turn` events of this plan that the lane's log already
-      holds when finalize runs (see TURN EVENTS below).
-  - For `op: turn` (round 15, maintainer decision OQ-20): one event per agent turn that acted on a
-    queue item, appended when the turn ends, whether it succeeded or not. A turn that a crash or an
-    interruption cut off is recorded by the crash import (TURN EVENTS below) with
-    `outcome: interrupted`. The event goes to the log of the queue item's `id6`: for a production
-    turn, that is the backlog item or spec being graduated; an artifact the turn produced gets no
-    turn event. Fields:
-    - `turn_role`: one of `execute`, `verify`, `correction` (a fix-it turn), `carrier-verification`,
-      `gate-answer`, `merge-conflict`, `defect-reask`, `combined-red`, `spec-anchor`,
-      `hook-refusal`, `audit`, `review`, `review-step` and `produce`. Each value is derived from the
-      session file's `log_suffix` (`attempt-N-<suffix>.jsonl`, written by `runner_shared`) and the
-      queue item's action. An unsuffixed session is `execute`, `review` (a single-turn review) or `produce` according to
-      the item's action, except that an unsuffixed session of an attempt that carries
-      `turn_correction` (`runner_shared.turn_correction_packet`, a fix-it attempt, often on a lane
-      adopted by `try_adopt_fix_it_lane`) is `correction`; in a multi-step review (`k3yx72`), `runner_shared` writes Prompt 1 to `attempt-N.jsonl` and copies it to `attempt-N-review-step-01-<label>.jsonl`, and the driver, crash importer and `turn_steps` indexer treat that pair as one `review-step` turn rather than double-counting Prompt 1. `review-orchestrator-correction-N` and `set-correction-N` map to `correction`, and `review-step-NN-<label>` (including `-reask` retries and S6 re-review passes `p02+`) maps to `review-step`; in all cases `turn_index` is the 1-based dispatch ordinal among turns of that `turn_role` in the attempt, never the per-pass prompt number `NN` (which repeats on `-reask`, S6 pass 2+, and session restart). The registry maps every suffix; a new suffix is added there.
-    - `turn_index`: the 1-based dispatch ordinal of this turn among turns of the same `turn_role` in the same `(run_id, item_position, attempt)`,
-      so multiple `correction` or `review-step` turns of one attempt stay distinct.
-    - `run_id` (the run), `item_position` (the queue position) and `attempt` (the queue-item attempt
-      number): together with `turn_role` and `turn_index` these are the key that joins the turn to
-      its detailed per-step rows (`turn_steps`, 4.5b) where that run's records exist.
-    - `host`, `model` (the model that ran), `requested_model`, `variant`, `started_at` and
-      `ended_at` (UTC), `wall_seconds`, `step_count`.
-    - `tokens` `{input, output, cache_read, cache_write, reasoning, total}` (integers). A component
-      that the host did not report is omitted, never written as 0. Mapping from today's records: an
-      attempt's single `cache` count and Antigravity's `cache_read_tokens` become `cache_read`;
-      OpenCode's `cache.read` and `cache.write` map one to one; Antigravity's `thinking_tokens`
-      become `reasoning`. Whether `output` includes reasoning is host-specific; the event records
-      the host's values unchanged and `docs/run-analytics.md` states the per-host rule.
-    - `cost` (see AMOUNTS below), omitted when the host recorded none, with `cost_source` and, for a
-      priced value, `price_rate_set`.
-    - `outcome`: one of `succeeded`, `failed`, `refused`, `stalled`, `interrupted`.
-    - `items`, `attribution`, `attribution_errors` (PER-ITEM ATTRIBUTION below).
-  - TURN EVENTS: WHERE THEY ARE WRITTEN (round 16, maintainer decision OQ-23). The driver writes
-    each turn event into the LANE worktree's copy of the plan's log as the turn ends, so finalize
-    and integration carry it to `main`; the driver commits it on the lane branch with the lane's
-    other changes. While an unmerged lane remains adoptable by the next attempt (`runner_shared.try_adopt_fix_it_lane` or the `6kwd2e` answer-resume path (the attempt field `answer_resume` with the item flag `resume_with_answers` and `runner_shared.resolve_prior_lane`)), its turn events stay on that lane branch so the adopting attempt appends after them without a `seq` collision and integration carries all turns to `main` together. When an attempt ends WITHOUT merging and its lane will NOT be merged or adopted (a terminal unmerged attempt, a lane displaced before cutting a fresh attempt-scoped lane from `main`, an abandoned or discarded lane, or a non-merging `aw <host> audit` run), the driver appends that lane's turn events in the main checkout instead, under
-    the integration lock, and commits them with `aw commit --no-plan`. This avoids a same-artifact
-    conflict (4.7) on the normal and adopted-lane paths and loses no turn. CRASH IMPORT: after a driver crash, `aw
-    <host> run resume` and a separate `aw runs import-turns <run-id>` (the plan names the final
-    spelling) read the run's local records, find every ended or cut-off turn of that run, and
-    append each one that no log yet holds. A turn is identified by
-    `(run_id, item_position, attempt, turn_role, turn_index)`; the importer skips a turn whose
-    identity is already in the target log, so it imports each turn exactly once and a resumed run
-    never duplicates one.
-    ONE COPY. An attempt's turn events live in exactly one active copy of the log. Once the driver writes an unmerged lane's turn events to the main checkout, that lane is never merged or adopted, and committed turn events are never removed from a lane log. The
-    importer writes to the lane copy when the attempt's lane still exists and can still be merged or adopted,
-    otherwise to the main checkout, and checks the turn identity against both copies. A displaced
-    lane's turn events are committed on `main` BEFORE the driver cuts a fresh lane from `main`, so the
-    fresh lane's log already holds them. For a review parked on the shared review sweep lane, the
-    driver commits the turn events on the lane before it creates the `aw/parked/<run_id>/<id6>`
-    branch and resets the lane (`runner_shared`, review parking); the parked branch is then the
-    active copy, and the importer checks it. The driver and the importer take the dispatch order for
-    `turn_index` from the run's own durable records (the attempt's ordered session list in
-    `state.json`, or `events.jsonl`; the plan names which), never from file names or timestamps.
-    AFTER FINALIZE. A turn that runs after finalize (for example `merge-conflict` during
-    integration, or `audit` on an already-executed plan) is appended to the plan's log after the `finalize` event and is not listed in its
-    `turns`. The `meta/*.jsonl` append-only hook and `executed_transition_gate` accept a staged change to an executed plan's log that only
-    appends valid post-finalize events (5.2 step 4a, AC-16).
-  - PER-ITEM ATTRIBUTION (OQ-20). The turn prompt tells the agent to write `AW-ITEM: <id>` on its
-    own line whenever it starts work on an E-* or V-* item. The driver charges every model step
-    that follows the marker to that item, until the next marker or the end of the turn. Steps
-    before the first marker are charged to `unattributed`. The `turn` event's `items` list holds
-    `{item_id, step_count, tokens, cost, wall_seconds}` per item, plus one `unattributed` entry, and
-    the event carries `attribution: self-reported`. A turn of an artifact that has no checklist
-    (a spec or backlog production turn) has one `unattributed` entry. The marker must not collide
-    with other final-line markers such as `AW-REVIEW: AGAIN|DONE` and `AW-TIER:` (spec `k3yx72`):
-    the driver reads `AW-ITEM` lines anywhere in the turn and those markers only on the last line.
-    The driver computes each item entry from the session steps and puts any difference between the
-    step sums and the host-recorded turn totals into the `unattributed` entry, so the item entries
-    always sum to the turn totals. A marker naming an id that is not an item of the plan is charged to `unattributed` and
-    counted in `attribution_errors`. No output may present a per-item figure as exact: every
-    per-item figure is labelled self-reported.
-  - AMOUNTS AND CURRENCIES (OQ-20). Every money value is an object `{amount, currency}`: `amount`
-    is an exact decimal STRING (never a binary float), `currency` an ISO 4217 code. A host value
-    recorded as a JSON number (today's `attempt.cost`, for example `2.8295`) is converted with the
-    shortest round-trip representation (Python `repr`) and never rounded. It stores the
-    value exactly as the host recorded it or as `run_analytics_pricing` produced it; when the host
-    records a bare number, the currency is `USD` (today's convention) and `cost_source` is
-    `host-recorded`; a value computed from the price table has `cost_source: priced` and
-    `price_rate_set` naming the rate set. A value is NEVER converted when stored. A display may
-    convert to one or more currencies configured in `.aw/config/` (the plan names the key);
-    exchange rates come from that configuration only, never from a network call (C8: only the migration's description generation uses the network); a converted
-    figure names the exchange rate, its source and its date, and is labelled converted. Totals across currencies are
-    never summed without a stated conversion.
+  - `op: finalize` and `op: turn`, per-item attribution (`AW-ITEM`) and money amounts are
+    specified in spec `37am1y` (execution record, split from this spec 2026-11-01). This spec
+    reserves the two op names in the op list and the registry; their payload schemas, writers and
+    cache tables are owned there. Until `37am1y` is implemented, finalize writes the plan's
+    `scope_result` and `out_of_scope_paths` (with reasons) as fields in the append that contains
+    the `transition` to `executed` (4.2c, 4.4).
 - IRREVERSIBLE AFTER THE CUTOVER. These become part of the tracked format that every later writer
   and reader depends on, so changing them later means rewriting every log: the event envelope
   (`v`, `seq`, `append`, `at`, `actor`); every op name and op payload schema (including `finalize`,
@@ -821,10 +661,9 @@ spec owns it.
   always refused); `readiness` is cleared by an `unset` in the append of a backward `transition`
   to `draft` or `to-review`. `coverage` and `coverage_fingerprint`: an `op: coverage` event (4.4).
   `approval`: a `set` in the append that contains the `transition` to `approved`, and an `unset` in
-  the append that contains a `transition` away from `approved` (4.4). `scope_result`: the
-  `finalize` event. `path`: path-bearing events. "Same append" is checked with the `append` key. An approved transition cannot be
-  manufactured by a legal-looking edge with the wrong starting status. A `turn` event and a `note`
-  event change no field; a `finalize` event changes only `scope_result`. Op payload keys (for
+  the append that contains a `transition` away from `approved` (4.4). `scope_result`: finalize
+  (the append that contains the `transition` to `executed`). `path`: path-bearing events. "Same append" is checked with the `append` key. An approved transition cannot be
+  manufactured by a legal-looking edge with the wrong starting status. A `note` event changes no field. Op payload keys (for
   example `changed_paths`, `items`, `tokens`) are validated by a per-op schema in the registry,
   separate from the field list. The loader and writer enforce the same rules; migration-only
   checkpoint and legacy exceptions remain explicit.
@@ -968,7 +807,7 @@ registry must also include:
 | `pipeline` (`standard` or `quick`) | plans | approved spec `4iyd78` | A field with a closed set of values. The writer refuses any other value. |
 | `scope-exceeded` | plans (41 at r16) | finalize, `ipd_lifecycle._format_scope_exceeded_value` | The bullet is a list of `path (reason)` entries and exists only when finalize accepted out-of-scope paths. Migration: a plan WITH the bullet gets checkpoint `scope_result: exceeded` and `out_of_scope_paths` parsed to `{path, reason}`, and the raw bullet text is kept for the AC-10 round trip; a plan WITHOUT it gets no `scope_result` (unknown, never `within`), because most executed plans predate the scope gate and accepted widenings were never recorded. After the cutover only the `finalize` event writes `scope_result` (4.2, OQ-18). |
 | `short_description` (new) | all artifacts and walkthroughs | creating commands, a setter, the migration | Tool-written logged field, at most `MAX_DESCRIPTIVE_LEN` (4.2 SHORT DESCRIPTION, OQ-19, OQ-22). The migration checkpoint also carries the migration-only fields `description_source` (`generated`), `description_model` and `description_prompt_version`. |
-| `scope_result`, `out_of_scope_paths`, `widened_paths` (new) | plans | `finalize` event | `scope_result` is event-owned (the `finalize` event; the migration checkpoint for legacy plans). `out_of_scope_paths` and `widened_paths` are `finalize` payload keys projected into `changed_paths`, except that a migrated checkpoint carries `out_of_scope_paths` and the raw bullet text `scope_exceeded_raw` as migration-only fields, projected into `legacy_scope_exceptions` (4.5a). |
+| `scope_result`, `out_of_scope_paths`, `widened_paths` (new) | plans | finalize | Event-owned fields written by finalize in the append that contains the `transition` to `executed`; a generic `set` is refused. A migrated checkpoint carries `scope_result: exceeded`, `out_of_scope_paths` and the raw bullet text `scope_exceeded_raw`, projected into `legacy_scope_exceptions` (4.5a). Spec `37am1y` later moves these into its `finalize` event. |
 | `summary`, `scope`, `concern`, `question`, `title` (as the details source) | all types | `attention._extract_detail` | Input to the model that writes `short_description` at migration (4.2, OQ-22); the prose itself moves to the body. |
 | `attended` | plans (2) | runner | Field. |
 | `close-evidence` | backlog (55) | backlog setter | A field that the `done` transition writes. |
@@ -1077,15 +916,8 @@ registry now. Whichever spec is implemented second must agree with the other (se
   - an `append` value that is not the `seq` of the first event of a contiguous run with the same
     `append`, `at` and `actor`, or a "same append" rule (4.2 replay paragraph) that the `append`
     values do not satisfy;
-  - a `finalize` event on a type other than `ipd`, more than one `finalize` per `executed`
-    transition, a `finalize` outside the append of the transition to `executed`, or a post-cutover
-    `transition` to `executed` of an `ipd` without a `finalize` event in the same append, unless the
-    append is an orchestrator rollup retirement (`actor.tool` is `ipd_lifecycle.retire_orchestrator`
-    and the plan is an orchestrator by the 4.2 rule); only the runner's retirement step writes that
-    `actor.tool` value, and the 4.8 hook refuses it from any other writer;
-  - a `turn` event whose `actor.tool` is not a runner driver or the crash importer, or a duplicate
-    turn identity `(run_id, item_position, attempt, turn_role, turn_index)`;
-  - a `turn` event whose `items` totals do not sum to its turn totals;
+  - a `set` of `scope_result` outside the append that contains a plan's `transition` to
+    `executed`; the rules for the `finalize` and `turn` event types are in spec `37am1y`;
   - a `path` value that is absolute, contains `..` or lies outside the records root, or a
     path-bearing op without `path`;
   - an amount whose `amount` is not a decimal string or whose `currency` is not an ISO 4217 code.
@@ -1108,8 +940,9 @@ registry now. Whichever spec is implemented second must agree with the other (se
 
 - `attention._extract_detail` is replaced by `artifacts.short_description`, so the details text
   changes to the generated value (4.2 SHORT DESCRIPTION).
-- Finalize writes a `finalize` event instead of the `Scope-Exceeded` bullet
-  (`ipd_lifecycle._format_scope_exceeded_value`, 4.2).
+- Finalize writes `scope_result` and `out_of_scope_paths` as fields instead of the
+  `Scope-Exceeded` bullet (`ipd_lifecycle._format_scope_exceeded_value`, 4.2); spec `37am1y` later
+  moves them into its `finalize` event.
 - Gate `IPD-S405`, and every gate that reads history, calls `artifact_meta.history`. None reads
   Markdown.
 - `attention_contract.last_history_at` becomes the `at` of the newest event written after the
@@ -1334,11 +1167,10 @@ DESIGN RULES. Each rule decides a case that the first version of this spec left 
 4. HISTORY IS EVENTS. CURRENT STATE COMES FROM THE EVENTS. The `events` table is the cached log.
    Every other artifact table holds the replayed state of `events`, stored as rows so that queries
    are fast. Status changes are `events` rows with `op = 'transition'`. Field changes are
-   `field_changes` rows with the old value and the new value. Op payloads (`review`, `coverage`,
-   `finalize`, `turn`) are projected into their own tables (`reviews`, `changed_paths`,
-   `plan_items`, `turns`, `turn_items`) and produce no `field_changes` rows, except for the
-   event-owned fields they set (4.2 replay paragraph). Two kinds of column come from the BODY, not
-   from events: `artifacts.title` (the H1) and `plan_items` rows with `source = body`.
+   `field_changes` rows with the old value and the new value. Op payloads (`review`, `coverage`, and
+   the event types of spec `37am1y`) are projected into their own tables and produce no
+   `field_changes` rows, except for the event-owned fields they set (4.2 replay paragraph).
+   `artifacts.title` (the H1) comes from the BODY, not from events.
 5. TIMESTAMPS FOLLOW 4.2b. Columns whose names end in `_at` hold UTC RFC 3339 text. `filename_date` holds the LOCAL-clock filename day (`YYYY-MM-DD`).
    `created_day` holds a known legacy creation day, or NULL. Other columns ending in `_day` hold
    imported day-only values (`observed_day`, `last_history_day`). No column holds two of these kinds.
@@ -1348,18 +1180,15 @@ column for each registry field of that type, generated from the registry.
 
 | Table | Columns | Purpose |
 |---|---|---|
-| `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at`, `tool_version`, `runs_root` and `run_reader_version` (4.5b). A mismatch in `schema_hash` or `records_root` causes a full rebuild. A mismatch in `runs_root` or `run_reader_version` discards and rebuilds only the run tables (4.5b). |
+| `meta` | `key` PK, `value` | Holds `schema_hash`, `records_root`, `built_at`, `tool_version`, `runs_root` and `run_reader_version` (the last two reserved for spec `bfuzs6`, 4.5b). A mismatch in `schema_hash` or `records_root` causes a full rebuild. A mismatch in `runs_root` or `run_reader_version` discards and rebuilds only the run tables (4.5b). |
 | `directories` | `path` PK, `mtime_ns` | Caches a directory timestamp hint; membership is verified under 4.3 check 1. |
-| `files` | `path` PK, `file_role` (`log`, `artifact`, `walkthrough` or `review`; run files are tracked in `run_files`, 4.5b), `id6`, `size`, `mtime_ns`, `content_digest`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
+| `files` | `path` PK, `file_role` (`log`, `artifact`, `walkthrough` or `review`; run files are tracked by spec `bfuzs6`), `id6`, `size`, `mtime_ns`, `content_digest`, `loaded_at`, `load_error` | Shows whether a file changed (4.3 check 2). For a log that failed validation, `load_error` holds the reason. |
 | `artifacts` | `id6` PK, `type`, `path`, `disposition`, `status`, `title`, `short_description`, `set_id`, `order_nn`, `filename_date`, `created_day`, `created_at`, `updated_at`, `last_history_day`, `last_seq`, `valid`, `defect` | One row for each artifact, and one for each walkthrough (with `status` NULL, 4.1), with the columns that all types share and that most queries filter on. `updated_at` is the `at` of the newest post-cutover event, or NULL if there is none; `last_history_day` is the checkpoint value. `attention_contract.last_history_at` (4.4) reads `updated_at`, else `last_history_day`. Rule 5 holds: no column holds both a time and a day. `created_at` is the `at` of the `create` event, or NULL for a migrated artifact. A row with `valid = 0` is never returned as state, and `defect` states why. |
 | `ipd`, `spec`, `backlog`, `research`, `release`, `prompt`, and so on | `id6` PK and FK (foreign key) to `artifacts`, and the registry fields of that type. Examples: `ipd` has `plan_role`, `work_kind`, `priority`, `readiness`, `approval`, `coverage`, `coverage_fingerprint`, `coverage_checked`, `review_depth`, `pipeline`, `scope_result` (from the newest `finalize` event, otherwise the migration checkpoint; NULL means unknown; it replaces the legacy `scope-exceeded` bullet), `attended` and `dependency_declaration`. `backlog` has `priority`, `work_kind`, `close_evidence`, `release_exempt_kind` and `release_exempt_ref`. | The current state that is specific to one type. Each table name is the logical record type (4.5c). |
 | `scope_paths` | (`id6`, `ordinal`) PK, `path` | The values of the multi-value field `scope-paths`: what a plan DECLARES it will change. |
 | `artifact_paths` | (`id6`, `seq`) PK, `path`, `at`, `actor_id`, `by_human`, `op`, `verb` | Every path an artifact has had, one row per path-bearing event (4.2 PATH HISTORY; OQ-17). `op` is the event `op` (`create`, `checkpoint`, `rename`, `transition`); `verb` is `rename`, `group` or `archive` for a `rename` event and NULL otherwise. `path` is relative to the records root. The previous path is the row with the next-lower `seq`. Answers "where did this file live on date X" and resolves old links. |
-| `legacy_scope_exceptions` | (`id6`, `ordinal`) PK, `path`, `reason` | The parsed legacy `Scope-Exceeded` entries of a migrated checkpoint (4.2c). A plan finalized after the cutover uses `changed_paths` instead. |
-| `changed_paths` | (`id6`, `finalize_seq`, `path`) PK, `change`, `from_path`, `in_scope`, `scope_reason` | What executing a plan ACTUALLY changed, from its `finalize` event (OQ-18). `path` is repository-relative (unlike `artifact_paths.path`, which is records-root-relative; a query that joins the two converts through the resolved records root). `in_scope` is 0 when the path is in the event's `out_of_scope_paths`, and 1 otherwise; it is NOT recomputed from the current `scope_paths`, which may have changed since. `scope_reason` is the recorded reason for an out-of-scope or widened path. An index on `path` answers "which plans touched file X". |
-| `plan_items` | (`id6`, `item_id`) PK, `item_kind`, `ordinal`, `validates`, `execution_state`, `result`, `evidence_present`, `evidence_digest`, `verifier_verdict`, `decided_by`, `decision`, `source`, `finalize_seq` | One row per E-* or V-* item (OQ-18). Before finalize, the loader fills it from the plan BODY (`source: body`). After finalize, the tracked `finalize` event is authoritative (`source: finalize`), and a body whose evidence digest no longer matches is reported by `aw check meta` as `evidence-changed-after-finalize`. |
-| `turns` | (`id6`, `seq`) PK, `run_id`, `item_position`, `attempt`, `turn_role`, `turn_index`, `host`, `model`, `requested_model`, `variant`, `started_at`, `ended_at`, `wall_seconds`, `step_count`, `tokens_input`, `tokens_output`, `tokens_cache_read`, `tokens_cache_write`, `tokens_reasoning`, `tokens_total`, `cost_amount`, `cost_currency`, `cost_source`, `price_rate_set`, `outcome`, `attribution_errors` | One row per tracked `turn` event (OQ-20). Survives a clone. Token columns are NULL, never 0, when the host did not report them. (`run_id`, `item_position`, `attempt`, `turn_role`, `turn_index`) is unique and joins to `turn_steps` (4.5b). |
-| `turn_items` | (`id6`, `turn_seq`, `item_id`) PK, `step_count`, `tokens_input`, `tokens_output`, `tokens_cache_read`, `tokens_cache_write`, `tokens_reasoning`, `tokens_total`, `cost_amount`, `cost_currency`, `wall_seconds` | The self-reported per-item split of one turn (OQ-20). `item_id` is an E-* or V-* id or `unattributed`. Answers "what does a typical V-* check cost" and "tokens and time per E-* item"; every figure is labelled self-reported. |
+| (execution record) | see spec `37am1y` | The tables `changed_paths`, `plan_items`, `turns` and `turn_items` are specified in spec `37am1y`. |
+| `legacy_scope_exceptions` | (`id6`, `ordinal`) PK, `path`, `reason` | The parsed legacy `Scope-Exceeded` entries of a migrated checkpoint (4.2c). A plan finalized after the cutover records its out-of-scope paths in `out_of_scope_paths` (4.2c). |
 | `dependencies` | (`dependent_id6`, `ordinal`) PK, `condition` (`executed`, `exists` or `state`), `target_type`, `required_status`, `target_raw`, `target_id6` | The parsed `Item-Dependencies` (4.2). An index on `target_id6` answers "which artifacts wait for X" with one lookup. |
 | `lineage` | (`child_id6`, `relation`, `parent_raw`) PK, `parent_id6` | `relation` is `from_backlog`, `from_spec`, `from_plan` or `supersedes`. These are individual artifact-origin links. Explicit `graduated-to` Set declarations remain separate in `graduation_targets`; reversing lineage does not replace them (OQ-15). |
 | `graduation_targets` | (`source_id6`, `ordinal`) PK, `target_raw`, `target_set_id` | Each explicitly declared `Graduated-To` plan Set. The source log preserves the declaration as a multi-value field. `target_raw` retains the declaration; `target_set_id` is its resolved Set id, or NULL if no plan Set resolves. This is a group reference, not an artifact id6 and not an artifact foreign key. Preserve declaration order and duplicates so existing checks can diagnose them. |
@@ -1377,8 +1206,7 @@ Minimum indexes: `artifacts(status)`, `artifacts(type, status)`, `artifacts(set_
 `dependencies(target_id6)`, `lineage(parent_id6)`, `graduation_targets(target_set_id)`,
 `release_gates(release_id6)`,
 `events(id6, op)`, `reviews(subject_id6, review_kind, seq)`, `artifact_paths(path)`,
-`changed_paths(path)`, `plan_items(item_kind, decision)`, `turns(model, turn_role)`,
-`turn_items(item_id)` and `attempts(id6)` (4.5b).
+and the indexes that specs `37am1y` and `bfuzs6` define for their tables.
 
 Graduation navigation combines declared Set targets with reverse origin links. It keeps the
 source of each relationship visible, as `check_engine.graduation_cluster` does today. A declared
@@ -1396,118 +1224,12 @@ Rejected alternatives:
   again is fast);
 - a `worktree` column (finding SR-706).
 
-### 4.5b The cache indexes run records and never writes them (maintainer decision 2026-10-25, finding SR-701)
+### 4.5b Run records (moved)
 
-The cache also indexes the gitignored runs tree (`.aw/records/runs/`, found through `runner_shared`).
-With this index, a query can join an artifact to the runs that acted on it. (The current size of the
-runs tree is in the SCOPE bullet below.)
-
-- The cache READS RUN DATA WITH THE RUNNER'S OWN READERS (`runner_shared.load_state`, and the event
-  readers that `run_analytics_cache` already uses). It never uses a new parser, because a second
-  parser of run state would bring back P1. Freshness uses the fingerprint rule that
-  `run_analytics_cache.source_fingerprint` already defines. The cache reads an unfinished run again at every
-  refresh, because an unfinished run can still change. Refresh includes membership: remove rows
-  for deleted runs and report unreadable or malformed runs as incomplete data. Store the resolved
-  runs root and its reader/fingerprint version in cache metadata. A root change discards the old
-  run projection before reading the new root, even if run ids coincide. One cache indexes one
-  runs root at a time; this does not add a multi-machine run store.
-- READ-ONLY. Indexing writes nothing under the runs tree (AC-25). The storage, format and retention
-  of run records do not change (N4). The tracked `turn` and `finalize` events (4.2) are written by
-  the driver and finalize, not by the cache; the cache only reads them, like every other log.
-- SCOPE: ALL STRUCTURED RUN DATA (round 15, maintainer decision OQ-21). Measured 2026-10-26: 596
-  run directories, about 2.3 GB: session logs 1.9 GB, `manifest.json` 225 MB, `state.json` 58 MB,
-  `events.jsonl` 31 MB (96 distinct event types; median 15 and at most 34 per run), prompts 25 MB,
-  telemetry 9 MB, outcomes 8 MB, lane collections 6 MB, lane reports 6 MB. The cache indexes every
-  STRUCTURED field of `state.json` (the run, each queue item, and every attempt field: about 60 per
-  attempt, about 150 distinct keys across all attempts), every `events.jsonl`
-  event, the item outcome and verification outcome files, lane collections, questions and answers,
-  telemetry, and per-step usage from session logs. It does NOT store text bodies: prompts, session
-  message text, tool input and output, command lines (`argv`) and markdown reports. For each such
-  file it stores the path relative to the run directory and a content digest only, so `aw runs`
-  can open the file. The runner's own readers define each field; where a reader exposes a field
-  this table list does not name, the `extra_json` column of that table keeps it, so no structured
-  field is dropped. Every run table has an `extra_json` column. EXCLUDED CLASSES: a field in one of
-  these classes is never copied, whether into a column or into `extra_json` or `payload_json`:
-  session ids (`session_id`, `verify_session_id`), command lines (`argv`), text bodies (prompt
-  text, for example `carrier_verification_prompt` and `defect_reask_prompt`), user names and host
-  names. A field that holds an absolute path (for example `repo`, `worktree`, `log`, `prompt`,
-  `verify_log`, `lane_plan_path`, `driver.path`) is stored relative to the runs root or the
-  repository, or dropped when it lies outside both.
-- Tables (the columns shown are the minimum; see diagram 4 in 4.9.1 for every column, its meaning and
-  its source key). Source-key renames follow 4.5c: `kind` becomes `plan_role`, `setid` `set_id`,
-  `order` `order_nn`, `worktree_lane_id` `lane_id`, `prompt_sha256` `prompt_digest`.
-  - `runs(run_id PK, host, driver, driver_sha256, schema_version, created_at, updated_at, terminal,
-    selectors_json, options_json, run_order, driver_restarts, git_commit, aw_version, git_dirty,
-    manifest_sha256, runbook_sha256, host_capabilities_json, extra_json)`. `state.json` has no
-    top-level host or outcome: `driver` is `driver.id` (`oc_runipd` or `agy_runipd`), `host` is
-    derived from it (`oc` or `agy`), `terminal` is `run_analytics_cache.run_is_terminal`, and
-    `git_commit`, `aw_version` and `git_dirty` come from the `git` object, which only newer runs
-    record. A run's overall result is derived from its items, not stored.
-  - `run_items(run_id, position, id6, artifact_type, action, initial_status, item_status, plan_role,
-    set_id, order_nn, from_backlog, needs_input, run_state_status, dependencies_json, extra_json,
-    PK(run_id, position))`
-  - `attempts(run_id, item_position, id6, attempt_no, action, lane_id, worktree_branch, worktree_base,
-    worktree_disposition, starting_head, ending_head, starting_status, ending_status, model,
-    model_source, host_posture, prompt_digest, started_at, ended_at, exit_code, disposition,
-    finalized, integrated, integration_signal, integration_detail, corrections_made,
-    corroboration_verdict, verify_model, verify_exit_code, verify_has_evidence,
-    verify_verdict_state, verify_verdict_recognized, verification_status, questions_verdict,
-    tests_run_json, extra_json, PK(run_id, item_position, attempt_no))`. Today's attempt records
-    have no `ace`, `variant`, `requested_model` or `outcome` key; those values belong to the `turn`
-    events (4.2) and appear here only when a future runner records them (in `extra_json` until then).
-  - `run_events(run_id, ordinal, at, event, id6, position, payload_json, PK(run_id, ordinal))`:
-    every line of `events.jsonl`. `payload_json` is the event without the excluded classes above.
-  - `run_outcomes(run_id, item_position, attempt_no, outcome_role, disposition, summary_digest,
-    files_changed_json, tests_json, commits_json, starting_head, ending_head, pushed, verdict,
-    corrections_made, extra_json, PK(run_id, item_position, attempt_no, outcome_role))`: the item
-    outcome (`outcome_role: execute`, file `NN-<id6>.json`) and verification outcome
-    (`outcome_role: verify`, file `NN-<id6>-verification.json`). The files carry no attempt number
-    and a later attempt overwrites them, so `attempt_no` is the item's last attempt at index time;
-    earlier attempts' outcome files are not recoverable.
-  - `run_questions(run_id, question_id, item_position, id6, oq_id, action, created_at, answered_at,
-    status, gates_verdict, fingerprint, artifact_hash, extra_json, PK(run_id, question_id))`: the
-    question files (`questions/<qid>.json`) and answer files (`answers/<qid>.json`) of
-    `question_inbox`. `status` is one of `question_inbox.VALID_QUESTION_STATUSES` (`open`,
-    `answered`, `stale`); `answered_at` comes from the answer file. Question and answer TEXT and the
-    question's `artifact_path` (stored relative) are not copied as text.
-  - `run_telemetry(run_id, execution_id, event_kind, phase, item_position, attempt_no, at,
-    duration_seconds, cpu_seconds, rss_bytes, load_1m, memory_available_bytes, probe_error_count,
-    extra_json, PK(run_id, execution_id, event_kind))`. `phase` is `execute` or `validate`.
-  - `turn_steps(run_id, item_position, attempt_no, turn_role, turn_index, step_index, at,
-    step_type, tool_name, duration_seconds, tokens_input, tokens_output, tokens_cache_read,
-    tokens_cache_write, tokens_reasoning, tokens_total, cost_amount, cost_currency, item_id,
-    extra_json, PK(run_id, item_position, attempt_no, turn_role, turn_index, step_index))`: one row
-    per model step from the host session log (OQ-20). `turn_role` and `turn_index` match the
-    tracked `turn` event (4.2). `item_id` is the E-* or V-* id that the `AW-ITEM` marker attributed
-    the step to, or `unattributed`. Tool input and output are not copied.
-  - `run_files(run_id, rel_path, file_role, size, content_digest, PK(run_id, rel_path))`: every
-    text file the cache deliberately does not copy (prompts, session logs, reports), with its path
-    relative to the run directory, so a command can find and open it.
-  - Lane collection files (`collections/NN-<id6>-attempt-N.json`) are stored in the owning
-    `attempts` row's `extra_json` under the key `collection`, with `lane_root` and
-    `lane_submission_root` stored relative or dropped.
-
-  `item_position` references `run_items.position` within the same run. Attempt numbering belongs
-  to a queue item, as `runner_shared` defines it, not to an artifact. Two positions can name the
-  same `id6`; both may have attempt 1. Keep `id6` for artifact queries, but enforce that it agrees
-  with the owning queue item. An actor run/attempt reference is only a partial join key when it
-  does not identify a queue item. Return all matches and report ambiguity; never select one by
-  row order or invent an item position in a migrated event.
-
-  The cache never copies the excluded classes listed in the SCOPE bullet. The cache is gitignored,
-  but people often paste `aw find --format json` output.
-  `aw runs analyze` reads these tables through `artifact_meta` instead of its own parsers, which
-  removes its second reader of run state (P1); `run_analytics_cache` entries become derivable from
-  the cache, and the implementing plan decides whether that module is deleted or kept as a view.
-- LIMIT, SHOWN IN THE OUTPUT. Run data exists only on the machine that ran it. A fresh clone has
-  none. The cache of a lane worktree does not see the runs of the main checkout. So the toolkit must
-  never present "no attempts" as "never run". Every answer that uses the run tables states how many
-  runs the cache indexed and from which runs root. Zero means UNKNOWN (AC-25). Answers from the
-  TRACKED `turns`, `turn_items`, `changed_paths` and `plan_items` tables are labelled as tracked:
-  they exist on every clone, but they cover only turns written after the cutover.
-- The `actor.run_id` and `actor.attempt` values of an event (4.2) connect events to runs. A tracked
-  event can name the run that wrote it. The join is available where the run records exist. Missing run data and ambiguous item
-  matches are explicit; neither proves that an event was not produced by that run.
+The read-only index of the local runs tree (`.aw/records/runs/`) is specified in spec `bfuzs6`
+(run index, split from this spec 2026-11-01). This spec only reserves the cache keys `runs_root`
+and `run_reader_version` in the `meta` table and requires that a change in either rebuilds only
+the run tables. Non-goal N4 still holds: this spec does not change how run records are stored.
 
 ### 4.5c Naming rule: `type`, `kind`, `role`, `status`, `disposition`, `op`
 
@@ -1544,7 +1266,6 @@ and `aw meta repair --apply` can repair each one.
 | Logged path | 4.2 PATH HISTORY (OQ-17) | The `path` of the newest path-bearing event must equal the discovered location. A difference is `path-drift`. `aw meta repair` completes a journaled pending move (4.3) with no event, or else appends a confirmed `rename` event (4.2). |
 | Orphans | (none stated) | A log with no record, or an artifact or walkthrough with no log, is an error. A review file is a DEPENDENT of its subject, never an orphan (4.1a). Comms messages and research companion data files are not checked (4.1, OQ-2). The migration creates no log for a sidecar `id6` that has no tracked record (5.2 step 2), so the rule never fires on the migrated corpus for that reason. |
 | Review rounds | 4.1a | Every `## Round <n>` has exactly one matching `review` event for the stable file binding, and every such event has a matching round. Missing, duplicate or different round numbers fail even when the counts match (4.1a K4). |
-| Finalized E/V items | 4.2 `finalize` (OQ-18) | After a plan's `finalize` event, each body E-* and V-* item must still exist, and each V-item's normalized `Observed evidence` must match the logged `evidence_digest`. A mismatch is `evidence-changed-after-finalize`. The body is never rewritten from the log. |
 | Short description | 4.2 (OQ-19) | Not a mirror: the body prose may differ. No drift rule. |
 
 ### 4.7 Concurrency and merges
@@ -1571,10 +1292,9 @@ and `aw meta repair --apply` can repair each one.
 - Every metadata change goes through one of these: `aw set`, `aw specs set`, `aw backlog set`,
   `aw prompts new`, `aw prompts set`, the walkthrough-creating command (4.2 SHORT DESCRIPTION),
   `aw ipd ...`, `aw group`, `aw rename`, `aw archive plans` (`rename` events with verb
-  `archive`, 4.2), the research shelf moves (`transition` events that carry `path`), finalize (including its `finalize` event on every plan it finalizes, OQ-29), orchestrator rollup retirement (`transition` to `executed` with `path` and no `finalize` event, 4.2, spec `77tr3o`), the
-  coverage recorder, the short-description setter, the runner drivers (`turn` events, 4.2 TURN
-  EVENTS) and the crash importer (`aw runs import-turns`, name to be fixed by the plan). Hand
-  execution without a runner produces no `turn` events. These already
+  `archive`, 4.2), the research shelf moves (`transition` events that carry `path`), finalize (including its scope fields; spec `37am1y` adds its `finalize` event, OQ-29), orchestrator rollup retirement (`transition` to `executed` with `path`, spec `77tr3o`), the
+  coverage recorder, the short-description setter, and the writers that spec `37am1y` adds (runner
+  drivers and its crash importer). These already
   exist, and they change to use `artifact_meta`. After round 1, approved spec `wy9aru` made `status_set`
   the single setter engine. So this change happens once, inside that engine. The cutover retires the
   `history.jsonl` sidecar writer, which `wy9aru` 4.3 keeps for backlog items and specs, and the
@@ -1589,15 +1309,15 @@ and `aw meta repair --apply` can repair each one.
 
 ### 4.9 Diagrams (informative)
 
-These diagrams show 4.1a, 4.2, 4.3, 4.4, 4.5, 4.5a, 4.5b, 4.7, 5.1, 5.2 and section 7. They are INFORMATIVE.
+These diagrams show 4.1a, 4.2, 4.3, 4.4, 4.5, 4.5a, 4.7, 5.1, 5.2 and section 7. They are INFORMATIVE.
 The text sections are the requirements. If a diagram and its section disagree, the section is correct
 and the diagram has the defect. The diagrams add no requirement.
 
-#### 4.9.1 SQLite cache entities (`.aw/state/index.db`, 4.5a, 4.5b)
+#### 4.9.1 SQLite cache entities (`.aw/state/index.db`, 4.5a)
 
 The toolkit calculates every row from other files, so deleting the cache file loses nothing (AC-8).
 The tracked logs under `meta/` are the durable record of artifact metadata. The runs tree is the
-durable record of runs. These diagrams are informative: 4.5a and 4.5b are the requirements, and a
+durable record of runs. These diagrams are informative: 4.5a is the requirement, and a
 note here never adds a rule.
 
 How to read these diagrams:
@@ -1615,9 +1335,6 @@ How to read these diagrams:
 - Times: a column ending in `_at` is UTC RFC 3339 text with a time of day. `filename_date` and
   `created_day` are day-only values on the LOCAL clock that wrote them; other `_day` columns are
   imported day-only values (4.2b, 4.5a rule 5).
-- Tokens: a token column is NULL when the host did not report that component. It is never 0 for
-  "unknown". Money: `cost_amount` is an exact decimal string, and `cost_currency` is its ISO 4217
-  code (4.2 AMOUNTS AND CURRENCIES). Amounts in different currencies are never added together.
 - The `IPD` box is an example of a per-type table. The `spec`, `backlog`, `research`, `release`,
   `prompt` and `walkthrough` tables have the same shape, with the columns that the registry
   generates for that type.
@@ -1659,7 +1376,7 @@ erDiagram
         text pipeline "standard or quick (4iyd78). Any other value is refused."
         text attended "Whether a person must attend execution, for example required."
         text dependency_declaration "listed, none or unresolved. NULL means the field was absent, which is different from none (4.2)."
-        text scope_result "within, widened or exceeded. From the newest finalize event, otherwise the migration checkpoint (exceeded when a Scope-Exceeded bullet existed). NULL means unknown (OQ-18)."
+        text scope_result "within, widened or exceeded. Written by finalize, otherwise the migration checkpoint (exceeded when a Scope-Exceeded bullet existed). NULL means unknown."
     }
     EVENTS["EVENTS: the cached event log. One row per line of meta/id6.jsonl, in seq order."] {
         text id6 PK, FK "The artifact whose log holds this line."
@@ -1756,15 +1473,6 @@ erDiagram
         int ordinal PK "Position in the declaration, from 1."
         text path "Repository-relative path or glob as declared."
     }
-    CHANGED_PATHS["CHANGED_PATHS: one row per path the plan ACTUALLY changed between its begin base and its finalize tip, from its finalize event (OQ-18)."] {
-        text id6 PK, FK "The plan."
-        int finalize_seq PK, FK "The finalize event that recorded the change."
-        text path PK "Repository-relative path after the change (ARTIFACT_PATHS uses records-root-relative paths)."
-        text change "added, modified, deleted or renamed, from the git diff between the begin base and the finalize tip."
-        text from_path "Previous path for a renamed file. NULL otherwise."
-        int in_scope "0 when the finalize event lists the path in out_of_scope_paths, 1 otherwise. Taken from the event, never recomputed from the current SCOPE_PATHS."
-        text scope_reason "Recorded reason for an out-of-scope or widened path (25kzda 5.5a). NULL otherwise."
-    }
     LEGACY_SCOPE_EXCEPTIONS["LEGACY_SCOPE_EXCEPTIONS: one row per entry of a migrated plan's legacy Scope-Exceeded bullet (4.2c)."] {
         text id6 PK, FK "The migrated plan."
         int ordinal PK "Position of the entry in the bullet, from 1."
@@ -1779,84 +1487,12 @@ erDiagram
     ARTIFACTS ||--o{ RELEASE_GATES : "must ship before"
     ARTIFACTS ||--o| GATES : "is blocked by"
     ARTIFACTS ||--o{ SCOPE_PATHS : "declares it will change"
-    ARTIFACTS ||--o{ CHANGED_PATHS : "actually changed"
     ARTIFACTS ||--o{ LEGACY_SCOPE_EXCEPTIONS : "accepted out of scope before the cutover"
 ```
 
-Diagram 3. Execution record: E-* and V-* items, verification, turns, tokens and cost (OQ-18, OQ-20). The rows come from TRACKED events, so they survive a clone, except PLAN_ITEMS rows with source body, which come from the plan body before finalize:
+Diagram 3 (execution record: `PLAN_ITEMS`, `TURNS`, `TURN_ITEMS`) is in spec `37am1y`.
 
-```mermaid
-erDiagram
-    ARTIFACTS["ARTIFACTS: one row per artifact, see diagram 1."] {
-        text id6 PK "Stable artifact id."
-    }
-    PLAN_ITEMS["PLAN_ITEMS: one row per E-* or V-* checklist item of a plan."] {
-        text id6 PK, FK "The plan."
-        text item_id PK "Item id as written, for example E-03 or V-03."
-        text item_kind "execution for E-items, validation for V-items."
-        int ordinal "Position of the item in the plan body."
-        text validates "For a V-item, a JSON list of the E-item ids it validates. NULL for E-items."
-        text execution_state "E-items only: one of ipd_schema.EXEC_STATES: pending, performed, blocked, failed."
-        text result "V-items only: one of ipd_schema.VALIDATION_RESULTS: pending, pass, blocked, failed."
-        int evidence_present "V-items only: 1 when Observed evidence is non-empty by the ipd_lint pre-transition predicate."
-        text evidence_digest "V-items only: SHA-256 of the Observed evidence text with LF endings and no trailing whitespace. The log never holds the text itself."
-        text verifier_verdict "V-items only: agrees, disagrees, not-checked or unrecognized. Copied from the attempt-level verifier verdict until the verifier reports per item."
-        text decided_by "Who made the decision: driver, verifier or human."
-        text decision "verified, refused or accepted-with-override."
-        text source "body before finalize, finalize after it. After finalize the logged values are authoritative."
-        int finalize_seq "seq of the finalize event that recorded this item. NULL before finalize."
-    }
-    TURNS["TURNS: one row per agent turn on this queue item, from a tracked turn event written in the lane, in main when the lane will never be merged or adopted, or by the crash importer."] {
-        text id6 PK, FK "The artifact the turn acted on."
-        int seq PK, FK "The turn event."
-        text run_id "Run the turn belonged to. Joins to RUNS where that run is on this machine."
-        int item_position "Queue position of the item in that run."
-        int attempt "Queue-item attempt number."
-        text turn_role "execute, verify, correction, carrier-verification, gate-answer, merge-conflict, defect-reask, combined-red, spec-anchor, hook-refusal, audit, review, review-step or produce (4.2)."
-        int turn_index "Ordinal among turns of the same role in the same attempt, from 1. With run_id, item_position, attempt and turn_role it joins to TURN_STEPS."
-        text host "oc or agy."
-        text model "Model that actually ran."
-        text requested_model "Model that was asked for. Differs from model on a fallback."
-        text variant "Effort level or variant."
-        text started_at "UTC start of the turn."
-        text ended_at "UTC end of the turn."
-        real wall_seconds "Elapsed wall time."
-        int step_count "Number of model steps in the turn."
-        int tokens_input "Input tokens as the host reported them. NULL if not reported."
-        int tokens_output "Output tokens as the host reported them; whether they include reasoning is host-specific (docs/run-analytics.md). NULL if not reported."
-        int tokens_cache_read "Tokens read from the prompt cache. NULL if not reported."
-        int tokens_cache_write "Tokens written to the prompt cache. NULL if not reported."
-        int tokens_reasoning "Reasoning or thinking tokens. NULL if not reported."
-        int tokens_total "Total as the host reported it."
-        text cost_amount "Exact decimal string, as recorded or priced. NULL when no cost exists, for example Antigravity today."
-        text cost_currency "ISO 4217 code, for example USD. NULL when cost_amount is NULL."
-        text cost_source "host-recorded or priced."
-        text price_rate_set "Rate set used for a priced value, for example era-a. NULL for host-recorded cost."
-        text outcome "succeeded, failed, refused, stalled or interrupted. A crash-imported cut-off turn is interrupted."
-        int attribution_errors "Count of AW-ITEM markers that named no item of the plan."
-    }
-    TURN_ITEMS["TURN_ITEMS: the self-reported split of one turn by item, from AW-ITEM markers. Every figure is labelled self-reported."] {
-        text id6 PK, FK "The artifact."
-        int turn_seq PK, FK "The turn event."
-        text item_id PK "An E-* or V-* id, or unattributed for steps before the first marker or after an unknown marker."
-        int step_count "Model steps charged to the item."
-        int tokens_input "Input tokens charged to the item."
-        int tokens_output "Output tokens charged to the item."
-        int tokens_cache_read "Cache-read tokens charged to the item."
-        int tokens_cache_write "Cache-write tokens charged to the item."
-        int tokens_reasoning "Reasoning tokens charged to the item."
-        int tokens_total "Total tokens charged to the item. The sum over all items equals the turn total."
-        text cost_amount "Exact decimal cost charged to the item, in the turn's currency."
-        text cost_currency "Same code as the turn."
-        real wall_seconds "Wall time charged to the item."
-    }
-    ARTIFACTS ||--o{ PLAN_ITEMS : "has checklist items"
-    ARTIFACTS ||--o{ TURNS : "was worked on in"
-    TURNS ||--|{ TURN_ITEMS : "split by item"
-    PLAN_ITEMS |o--o{ TURN_ITEMS : "was charged"
-```
-
-Diagram 4. Reviews and runs. RUNS and its child tables are LOCAL: they exist only where the run records exist (4.5b):
+Diagram 4. Reviews (the run tables are in spec `bfuzs6`):
 
 ```mermaid
 erDiagram
@@ -1884,180 +1520,9 @@ erDiagram
         text reviewer "Agent and model that reviewed. Omitted for migrated rounds where it is unknown."
         text findings_summary "Summary bullet. Checked against the findings table, never trusted."
     }
-    RUNS["RUNS: one row per run directory under the runs root. Read-only index of state.json."] {
-        text run_id PK "Run directory name, for example run-20261025T224352Z-3331747."
-        text host "oc or agy, derived from driver."
-        text driver "driver.id in state.json: oc_runipd or agy_runipd. NULL for older runs that did not record it."
-        text driver_sha256 "driver.sha256: digest of the driver code that ran. driver.path is absolute and is not copied."
-        int schema_version "state.json schema version."
-        text created_at "UTC time the run was created."
-        text updated_at "UTC time state.json was last written."
-        int terminal "1 when run_analytics_cache.run_is_terminal says the run can no longer change. Not stored in state.json."
-        text selectors_json "The selectors the run was started with."
-        text options_json "The run options (flags), with no command line."
-        text run_order "Ordering mode of the queue."
-        int driver_restarts "How many times the driver restarted."
-        text git_commit "git.commit: commit the run started from. Only newer runs record the git object."
-        text aw_version "git.aw_version: toolkit version that ran."
-        int git_dirty "git.dirty: 1 when the checkout had uncommitted changes."
-        text manifest_sha256 "Digest of manifest.json."
-        text runbook_sha256 "Digest of the frozen runbook."
-        text host_capabilities_json "Host capability probe results for the run."
-        text extra_json "Every other structured field, without the excluded classes of 4.5b."
-    }
-    RUN_ITEMS["RUN_ITEMS: one row per item in a run's queue."] {
-        text run_id PK, FK "The run."
-        int position PK "Queue position. Two positions can name the same artifact."
-        text id6 "The artifact queued. Reference, no constraint."
-        text artifact_type "ipd, spec or backlog."
-        text action "execute, review, plan, orchestrate or skip, as the queue records it."
-        text initial_status "Artifact status when queued."
-        text item_status "Item status in the run, for example queued, executed, reviewed, dependency-blocked, blocked, fail-gate, interrupted, fail-merge or failed-safely."
-        text plan_role "child or orchestrator (source key kind)."
-        text set_id "Set of the artifact (source key setid)."
-        int order_nn "Order in the Set (source key order)."
-        text from_backlog "Backlog id6 the item graduated from, if any."
-        int needs_input "1 when the item waits for a human answer."
-        text run_state_status "Status the runner's run-state check derived for the item."
-        text dependencies_json "Dependency conditions as the runner evaluated them."
-        text extra_json "Every other structured queue-item field."
-    }
-    ATTEMPTS["ATTEMPTS: one row per attempt at one queue item."] {
-        text run_id PK, FK "The run."
-        int item_position PK, FK "Owning queue item."
-        int attempt_no PK "Attempt number within the queue item, from 1."
-        text id6 "Must agree with the owning queue item."
-        text action "Action of this attempt."
-        text lane_id "Isolated worktree lane id (source key worktree_lane_id)."
-        text worktree_branch "Lane branch name."
-        text worktree_base "Commit the lane worktree was created from."
-        text worktree_disposition "How the lane was set up: created, attempt-scoped or adopted. NULL for a non-isolated attempt."
-        text starting_head "Commit the attempt started from."
-        text ending_head "Commit the attempt ended at."
-        text starting_status "Artifact status at start."
-        text ending_status "Artifact status at end."
-        text model "Model the attempt recorded."
-        text model_source "Where the model choice came from: options, or NULL when not recorded."
-        text host_posture "Permission posture applied to the host for this attempt (7ckptx R4.1)."
-        text prompt_digest "SHA-256 of the prompt (source key prompt_sha256). The prompt text is not copied."
-        text started_at "UTC start."
-        text ended_at "UTC end."
-        int exit_code "Agent process exit code."
-        text disposition "Attempt disposition, for example executed, reviewed, blocked, substantially-complete, fail-gate, fail-verify, partial or interrupted."
-        text finalized "Whether and how finalize completed, as recorded."
-        text integrated "Integration result text as recorded, for example a merge description. NULL when not integrated."
-        text integration_signal "What decided integration: verifier, driver-run-suite, suite-failed or verifier-declined."
-        text integration_detail "Why integration succeeded or was refused."
-        int corrections_made "Corrections the verifier made."
-        text corroboration_verdict "Whether the driver's own evidence corroborated the agent's claim."
-        text verify_model "Model of the verifier turn."
-        int verify_exit_code "Verifier process exit code."
-        int verify_has_evidence "1 when the verifier cited evidence."
-        text verify_verdict_state "Verifier verdict as recognized by the driver: verified, fail-verify, blocked or correction_required."
-        int verify_verdict_recognized "1 when the verifier's verdict line matched a known verdict."
-        text verification_status "Overall verification result: verified, unverified, blocked or pass."
-        text questions_verdict "Result of checking the attempt's emergent questions (6kwd2e)."
-        text tests_run_json "Test commands the attempt ran."
-        text extra_json "Every other structured attempt field."
-    }
-    TURN_STEPS["TURN_STEPS: one row per model step of one turn, from the host session log. Local only (OQ-20)."] {
-        text run_id PK, FK "The run."
-        int item_position PK, FK "The queue item."
-        int attempt_no PK, FK "The attempt."
-        text turn_role PK "Same vocabulary as TURNS.turn_role (4.2)."
-        int turn_index PK "Same as TURNS.turn_index."
-        int step_index PK "Step number within the session, from the host."
-        text at "UTC time of the step."
-        text step_type "Host step type, for example tool or agent_response."
-        text tool_name "Tool the step called, for example bash. Tool input and output are not copied."
-        real duration_seconds "Step duration as the host reported it."
-        int tokens_input "Input tokens of the step."
-        int tokens_output "Output tokens of the step."
-        int tokens_cache_read "Cache-read tokens of the step."
-        int tokens_cache_write "Cache-write tokens of the step."
-        int tokens_reasoning "Reasoning tokens of the step."
-        int tokens_total "Total tokens of the step."
-        text cost_amount "Exact decimal cost of the step, when the host recorded one."
-        text cost_currency "ISO 4217 code of that cost."
-        text item_id "E-* or V-* id from the most recent AW-ITEM marker, or unattributed."
-        text extra_json "Other structured step fields, without tool input or output."
-    }
-    RUN_EVENTS["RUN_EVENTS: one row per line of a run's events.jsonl (96 event types seen)."] {
-        text run_id PK, FK "The run."
-        int ordinal PK "Line number in events.jsonl."
-        text at "UTC time of the event."
-        text event "Event name, for example worktree-allocated or ipd-finalized."
-        text id6 "Artifact the event concerns, if any."
-        int position "Queue position the event concerns, if any."
-        text payload_json "The event without the excluded classes of 4.5b (session ids, argv, text bodies; paths made relative)."
-    }
-    RUN_OUTCOMES["RUN_OUTCOMES: one row per item outcome or verification outcome file."] {
-        text run_id PK, FK "The run."
-        int item_position PK, FK "The queue item."
-        int attempt_no PK, FK "The item's last attempt at index time: outcome files carry no attempt number and are overwritten."
-        text outcome_role PK "execute for NN-id6.json, verify for NN-id6-verification.json."
-        text disposition "Disposition the agent reported."
-        text summary_digest "Digest of the summary text, which is not copied."
-        text files_changed_json "Files the AGENT reported changing. The tracked finalize event records the git diff from begin base to finalize tip instead."
-        text tests_json "Tests the agent reported."
-        text commits_json "Commits the agent reported."
-        text starting_head "Commit the agent reported starting from."
-        text ending_head "Commit the agent reported ending at."
-        int pushed "1 when the agent reported a push. The runner forbids pushes, so 1 is a defect signal."
-        text verdict "Verify role: VERIFIED, BLOCKED or CORRECTION_REQUIRED."
-        int corrections_made "Corrections reported."
-        text extra_json "Other structured outcome fields."
-    }
-    RUN_QUESTIONS["RUN_QUESTIONS: one row per question a run asked the maintainer, from questions/qid.json and answers/qid.json (question_inbox)."] {
-        text run_id PK, FK "The run."
-        text question_id PK "Question id."
-        int item_position "Queue item that asked."
-        text id6 "Artifact the question concerns (source key artifact_id6)."
-        text oq_id "Open-question id in the artifact, when the question comes from one."
-        text action "Action the item was performing."
-        text created_at "UTC time the question was created."
-        text answered_at "UTC time of the answer file. NULL while open."
-        text status "open, answered or stale (question_inbox.VALID_QUESTION_STATUSES)."
-        text gates_verdict "Gate result recorded with the question."
-        text fingerprint "Fingerprint used to deduplicate the question."
-        text artifact_hash "Digest of the artifact when the question was asked."
-        text extra_json "Other structured fields. Question text, answer text and the artifact path as text are not copied."
-    }
-    RUN_TELEMETRY["RUN_TELEMETRY: one row per start or end telemetry record of one execution phase."] {
-        text run_id PK, FK "The run."
-        text execution_id PK "Execution id from the telemetry file."
-        text event_kind PK "start or end."
-        text phase "execute or validate."
-        int item_position "The queue item."
-        int attempt_no "The attempt."
-        text at "UTC time of the record."
-        real duration_seconds "Phase duration, end records only."
-        real cpu_seconds "Process CPU seconds."
-        int rss_bytes "Process resident memory."
-        real load_1m "One-minute load average."
-        int memory_available_bytes "Available memory."
-        int probe_error_count "Resource probes that failed."
-        text extra_json "Other structured telemetry fields, for example host and tool versions."
-    }
-    RUN_FILES["RUN_FILES: one row per text file the cache deliberately does not copy."] {
-        text run_id PK, FK "The run."
-        text rel_path PK "Path relative to the run directory."
-        text file_role "prompt, session, report, lane-report or other."
-        int size "File size in bytes."
-        text content_digest "SHA-256 of the file, so a change is detectable."
-    }
     ARTIFACTS |o--o{ REVIEW_FILES : "is reviewed in"
     ARTIFACTS ||--o{ REVIEWS : "has review rounds"
     REVIEW_FILES |o--o{ REVIEWS : "holds rounds"
-    RUNS ||--o{ RUN_ITEMS : "queued"
-    RUN_ITEMS ||--o{ ATTEMPTS : "tried"
-    ATTEMPTS ||--o{ TURN_STEPS : "took steps"
-    ATTEMPTS ||--o{ RUN_OUTCOMES : "reported"
-    RUNS ||--o{ RUN_EVENTS : "logged"
-    RUNS ||--o{ RUN_QUESTIONS : "asked"
-    RUNS ||--o{ RUN_TELEMETRY : "measured"
-    RUNS ||--o{ RUN_FILES : "kept text in"
-    ARTIFACTS |o--o{ RUN_ITEMS : "was queued as"
 ```
 
 Diagram 5. Cache bookkeeping. These tables hold no metadata of their own. They record how up to date the cache is, and what a file contained at a git revision:
@@ -2250,18 +1715,6 @@ flowchart LR
     B7 --> C8
 ```
 
-#### 4.9.8 Indexing run records (4.5b)
-
-```mermaid
-flowchart TD
-    A["a read that joins artifacts to runs, or aw index rebuild"] --> B["resolve runs root; reset run rows if root changed; list runs and remove deleted rows"]
-    B --> C{"per run: fingerprint as in run_analytics_cache.source_fingerprint unchanged, and run terminal?"}
-    C -- yes --> F
-    C -- "no, or run still in progress" --> D["read via existing runner readers; report unreadable runs as incomplete; write nothing to runs tree"]
-    D --> E["replace that run's rows in all nine run tables; drop the excluded classes; store paths relative or drop them"]
-    E --> F["answer, reporting runs indexed and runs root; zero indexed means UNKNOWN, never 'never ran'. Tracked turn rows are labelled tracked"]
-```
-
 ## 5. Installer and migration
 
 ### 5.1 Numbered migration chain (new)
@@ -2437,9 +1890,7 @@ flowchart TD
      (`Created`, `Author`, `Targets`, `Concerns`, `Results`, `Results-go-to`, `Grounding`, `Goal`,
      `Reviews-spec`, `Basis`, `Relation`) becomes a log field or a recorded drop (4.2c), never body
      text, because a staged prompt has no visible non-prompt line (OQ-25).
-   - Do NOT invent `finalize` or `turn` events for earlier work, and do not backfill them from local
-     run records: before the cutover, `plan_items` comes from the plan body only, and there is no
-     tracked turn data (3c).
+   - Do NOT invent events of the types that spec `37am1y` adds (`finalize`, `turn`) for earlier work.
    - Move prose fields into body sections.
    - Write the new in-file mirror and banner (two-key `---` front matter plus `aw-managed` comment on artifacts, one-key `---` front matter plus `aw-managed` comment on walkthroughs, or the single leading `aw-managed-prompt` HTML comment with no `---` front matter on staged prompts, 4.1, OQ-25).
    - Delete the legacy bullet block (or legacy `aw-prompt` comment) and the `## Workflow history` section.
@@ -2468,7 +1919,7 @@ flowchart TD
      `aw attention --check --agent`, which fails closed (refuses the push) on metadata drift (AC-16).
    - Both commit hooks must accept the migration commit because of a positive marker that the migration writes
      in its journal (the same type of evidence that finalize leaves). They must NOT accept it
-     because of `--no-verify`. After the cutover: `executed_transition_gate` still refuses every raw transition into `executed` that is neither a finalize append nor an orchestrator rollup-retirement append (4.2) (including replacing an executed file's `id`); `backlog_blocking_close_gate` still refuses an ungated `->done` transition; the 4.8 `meta/*.jsonl` append-only hook refuses any edit that rewrites or deletes existing events on a terminal log or appends an invalid transition, while accepting the appends that a terminal log allows (OQ-30): `turn` events (4.2 TURN EVENTS, AFTER FINALIZE); `rename` events with verb `archive`, `rename` or `group`, with the `set` of a changed `set` or `order` in the same append; `set` or `unset` of `short_description`; `note` events permitted by AGENTS.md; and `review` events. Status, attestations (`readiness`, `approval`, `coverage`), `scope_result`, `blocks_release` and checklist results stay frozen; and `aw check meta` flags `evidence-changed-after-finalize` (4.6) if finalized E/V items or `Observed evidence` change (AC-16).
+     because of `--no-verify`. After the cutover: `executed_transition_gate` still refuses every raw transition into `executed` that is neither a finalize append nor an orchestrator rollup-retirement append (4.2) (including replacing an executed file's `id`); `backlog_blocking_close_gate` still refuses an ungated `->done` transition; the 4.8 `meta/*.jsonl` append-only hook refuses any edit that rewrites or deletes existing events on a terminal log or appends an invalid transition, while accepting the appends that a terminal log allows (OQ-30): `turn` events (spec `37am1y`); `rename` events with verb `archive`, `rename` or `group`, with the `set` of a changed `set` or `order` in the same append; `set` or `unset` of `short_description`; `note` events permitted by AGENTS.md; and `review` events. Status, attestations (`readiness`, `approval`, `coverage`), `scope_result`, `blocks_release` and checklist results stay frozen; and `aw check meta` flags `evidence-changed-after-finalize` (4.6) if finalized E/V items or `Observed evidence` change (AC-16).
    - The cutover commit amends the AGENTS.md rule to name this exception.
    - Rejected alternative: keep terminal artifacts in the old format. Rejected because it breaks C9
      and keeps two formats in the tree permanently.
@@ -2508,10 +1959,6 @@ migration (5.2 step 6) and this install case write the stamp.
     `plan-review-long/03-resolve-and-finalize.md`);
   - 5 records READMEs, `docs/artifact-lifecycles.md`, the `ipd_schema.py` section schema, and the
     ipd-spec reference documents;
-  - the runner prompt templates for execute, verify and correction turns (the `AW-ITEM: <id>`
-    instruction, 4.2), the managed block text that explains `AW-ITEM` and that per-item figures
-    are self-reported, `docs/run-analytics.md` (per-host token mapping, currencies, per-item
-    figures), the help of `aw runs analyze`, and the help of every command that gains `--summary`;
   - the tracked prompt file that the migration uses to write short descriptions (OQ-22).
 
   (Found at round 2: `aw set` has no `--priority` option; only `aw backlog set` has one. Where a
@@ -2537,8 +1984,6 @@ Round-2 values, with round-1 values in square brackets. Measure them again when 
 | Documents and workflows | 44 documents that are not records, and 44 specs, mention the format | Rewrite the current documents. Leave historical specs unchanged as history. |
 | Corpus | 4,435 tracked `.md` files under `.aw/records/` at r17 (4,382 at round 5) [about 1,990] | One scripted migration commit, including 34 cutover renames and about 1,940 citation rewrites (OQ-26, OQ-27). |
 | Short descriptions | about 3,100 records | One cheap-model call per record, reused from the description journal on every later run (OQ-22). Cost per record is unmeasured; a small prompt trial comes first. |
-| New tracked events and tables | `finalize` and `turn` events; `artifact_paths`, `changed_paths`, `plan_items`, `turns`, `turn_items` | New writers in finalize and both drivers, a crash importer, a prompt change (`AW-ITEM`), and per-op payload schemas (4.2). |
-| Run index | 596 runs, about 2.3 GB, of which 1.9 GB session logs | Nine run tables (4.5b) built through the runner's readers; per-step usage parses every session log once. AC-13 measures the cold build. `aw runs analyze` moves onto these tables. |
 | Deleted | 6 INDEX files, `STATUS.md`, the drift checks in `plans_index`, `research_index` and `prompts_index`, and 11 or more parsers | |
 
 Benefits:
@@ -2550,8 +1995,7 @@ Benefits:
 - indexed queries for every reader;
 - path history, and a record of what each plan actually changed and how its V-items were verified,
   that a clone contains;
-- per-turn and per-item token, time and cost figures, so a question such as "what does a typical
-  V-item check cost" can be answered (per-item figures are self-reported).
+
 
 Costs:
 - People can no longer see metadata other than `status` in the `.md` file. `aw show` shows it.
@@ -2559,9 +2003,7 @@ Costs:
   (10,905), `status_set.py` (4,571) and `attention.py` (5,066).
 - A one-time migration of the full corpus, which has risk. The dry run, the round-trip check, the
   journal and one commit that can be reverted reduce this risk.
-- Larger tracked logs (`turn` and `finalize` events) and more lines that a same-artifact merge can
-  touch (4.7).
-- A prompt change and a driver change for `AW-ITEM`, and a model cost for the short descriptions.
+- A model cost for the short descriptions.
 
 ## 7. Suggested plan breakdown (for the IPD Set)
 
@@ -2574,32 +2016,18 @@ because the disk has exactly one format until the cutover commit, and no caller 
 PHASE A: build the single interface on today's format. Phase A is additive: it adds the new code and moves no caller to it.
 1. The `artifact_meta` interface; the event schema (structured actor and parsed dependencies, 4.2);
    the field registry (OQ-1, 4.2c); the cache schema generated from the registry (4.5a, 4.5c); the run
-   index (4.5b); the SQLite cache and the loader contract (4.3, 4.5); and the LEGACY loader, which
+   the SQLite cache and the loader contract (4.3, 4.5); and the LEGACY loader, which
    fills the cache from bullet blocks and history sections. Tests. No callers yet.
 2. `aw show --history`, `aw show --format json` and `aw index rebuild`, served through the interface.
 3. The migration chain framework and `m0001_metadata_v2`, with the dry run, the census (AC-20) and
    the round-trip check. Run it only on a COPY of this repository.
 
-Phase A step 1 also defines the round-15 and round-16 additions: the `short_description`,
-`path`, `append`, `finalize` and `turn` event schemas (4.2), their cache tables (4.5a), and the full
-run index (4.5b). The run index can be built and tested in phase A, because it reads only the runs
-tree; `aw runs analyze` moves onto it in phase B step 5.
-
-WHAT CAN AND CANNOT RUN BEFORE THE CUTOVER (C10a). The legacy bullet-block format has no place for
-an `append` key, a `finalize` event, a `turn` event or a path history. So in phase B the legacy
-loader projects only what the old format holds: `plan_items` from the plan body, `scope_result`
-from a `Scope-Exceeded` bullet, and the current path; it fills no `turns`, `turn_items`,
-`changed_paths` or earlier `artifact_paths` rows. The writers of `finalize` events, `turn`
-events, path-bearing events and the `AW-ITEM` attribution start at the cutover commit (step 9) or in
-a plan after it. The plan that adds `AW-ITEM` names the prompt files it edits, states whether the
-verifier output changes to per-item verdicts (4.2 `finalize`), and measures the `unattributed` share
-on a pilot run (3c). The description journal and the generation prompt are built and trialled in
-phase A step 3, on the copy of the repository.
-
-MODULE DIRECTION. `artifact_meta` reads run records through the runner's readers, and the runners
-write through `artifact_meta`. To avoid an import cycle with `runner_shared`, the plan moves the run
-readers it needs into a small module that both import, or has the run index call them lazily. The
-plan names the choice.
+Phase A step 1 also defines the `short_description`, `path` and `append` event fields (4.2) and
+their cache tables (4.5a). The writers of path-bearing events start at the cutover commit (step 9),
+because the legacy bullet-block format has no place for an `append` key or a path history; in phase B
+the legacy loader projects only the current path. The description journal and the generation
+prompt are built and trialled in phase A step 3, on the copy of the repository. Specs `37am1y` and
+`bfuzs6` are implemented after this spec's cutover, through the registry (4.2c).
 
 PHASE B: move every consumer to the interface, still on today's format. Each plan has one merge, and
 the tests pass after each merge.
@@ -2611,8 +2039,7 @@ the tests pass after each merge.
    retirement.
 5. Readers, a few modules in each plan: `selectors`, `check_engine`, the `attention` modules,
    `ipd_lint`, `runner_shared`, the runners, the `plans`, `research` and `prompts` modules,
-   `artifact_audit`, `review_findings`, the hooks, `run_analytics*` (`aw runs analyze` reads the run
-   tables; the plan decides whether `run_analytics_cache` is deleted or kept as a view, 4.5b), and
+   `artifact_audit`, `review_findings`, the hooks, and
    every reader of HEAD or staged content in 4.4, through `read_at`.
 6. Test data. Move it to ONE shared record builder that writes through `artifact_meta`.
 7. Delete the INDEX and STATUS code and every legacy parser outside `artifact_meta`. Add the AC-1
@@ -2749,13 +2176,7 @@ for concurrency.
 ### OQ-18: Record what executing a plan actually did (round 15)
 
 - Status: resolved
-- Owner: maintainer
-- Blocking: yes
-- Question: How are the files a plan actually changed, its E-* and V-* items, each V-item's evidence, and the agreed verification decision recorded?
-- Evidence: `scope_paths` held only declared paths. Actual changed files exist only in the gitignored `outcomes/*.json` (`files_changed`); only `scope_exceeded` was kept. E/V items and evidence are body prose (N3); the verifier's verdict (`verify_verdict_state`, `verify_has_evidence`) exists only in local run state.
-- Recommendation: Tracked and indexed.
-- Closes when: The maintainer decides, and 4.2, 4.4, 4.5a, the diagrams and an acceptance criterion use the chosen rule.
-- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: tracked and indexed. Finalize appends one tracked event to the plan's log holding the changed paths (from the merged diff, repository-relative), the scope-check result, and for each V-item the verification decision (required evidence present, verifier agrees or disagrees, who decided, and a digest of the evidence text). E/V text stays in the body (N3). The loader indexes the E/V items and the changed paths into cache tables. No reason was given. CORRECTION 2026-10-26 (round 16, internal-consistency review): "merged diff" is not available when finalize runs in a lane, so 4.2 defines `changed_paths` as the diff from the plan's begin-receipt base to the finalize tip; the decision itself is unchanged.
+- Moved 2026-11-01 to spec `37am1y`, which now holds the full decision record.
 
 ### OQ-19: Where the short description is stored (round 15)
 
@@ -2771,25 +2192,12 @@ for concurrency.
 ### OQ-20: Token, cost and time granularity, and currencies (round 15)
 
 - Status: resolved
-- Owner: maintainer
-- Blocking: yes
-- Question: At what granularity are tokens, cost and time recorded, which part is tracked, and how are currencies stored?
-- Evidence: run state splits tokens and cost by turn (execute, verify) per attempt (tokens on 3,291 of 3,752 recorded attempts, cost on 2,220); host session logs record each model step (OpenCode: tokens and cost; Antigravity: tokens and duration, no cost); one execute attempt had 2,164 steps; no step names the E-item or V-item it served; hosts record cost as a bare number, treated as USD by `run_analytics_pricing`.
-- Recommendation: Track per-turn totals, cache per-step rows, add a self-reported item marker; store amounts as recorded with a currency code and convert only on display.
-- Closes when: The maintainer decides, and 4.2, 4.5a, 4.5b, the diagrams and acceptance criteria use the chosen rule.
-- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: (a) every amount is stored as an exact decimal string with its ISO 4217 currency code, exactly as recorded or as the price table produced it; it is never converted at storage time; displays may convert to configured currencies with a dated, named exchange rate and label the result as converted. (b) Per-turn totals are TRACKED; per-model-step rows are CACHE ONLY, indexed from local session logs; agents emit `AW-ITEM: <E-nn|V-nn>` when they change item, the runner charges following steps to that item, steps before the first marker are `unattributed`, and per-item totals are tracked with `attribution: self-reported`. The maintainer required this to support `aw runs analyze` and questions such as "how expensive is it to validate a typical V-* entry?" and "how many tokens and how much time are models spending per E-* item". This amends non-goal N4 for totals only.
+- Moved 2026-11-01 to spec `37am1y`, which now holds the full decision record.
 
 ### OQ-21: How much of the runs tree the cache indexes (round 15)
 
 - Status: resolved
-- Owner: maintainer
-- Blocking: yes
-- Question: Which run data under `.aw/records/runs/` does the cache index?
-- Evidence: measured 2026-10-26: 598 run directories, about 2.3 GB (session logs 1.9 GB, `manifest.json` 225 MB, `state.json` 58 MB, `events.jsonl` 31 MB with 26 event types per run, prompts 25 MB, telemetry 9 MB, outcomes 8 MB, collections 6 MB, lane reports 6 MB). Each attempt in `state.json` has about 60 fields; 4.5b indexed about 14.
-- Recommendation: Index all structured data; never copy text bodies.
-- Closes when: The maintainer decides, and 4.5b, the diagrams and AC-25 use the chosen rule.
-- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: index every structured field of `state.json`, `events.jsonl`, outcomes, verification outcomes, lane collections, questions and answers, telemetry, and per-step usage from session logs. Do not store prompts, session text, tool output, command lines or reports in the cache; store their path and content digest only. No reason was given.
-- Correction 2026-10-26 (round 16): the evidence line's "598 run directories" and "26 event types per run" were mis-measured; re-measured: 596 run directories, 96 distinct event types, a median of 15 and at most 34 per run (4.5b). The decision is unchanged.
+- Moved 2026-11-01 to spec `bfuzs6`, which now holds the full decision record.
 
 ### OQ-22: How the migration fills `short_description` (round 16)
 
@@ -2805,13 +2213,7 @@ for concurrency.
 ### OQ-23: Where `turn` events are written (round 16)
 
 - Status: resolved
-- Owner: maintainer
-- Blocking: yes
-- Question: Which copy of the log receives `turn` events, given lane isolation?
-- Evidence: round 15 said both that the driver appends at turn end and that finalize appends them; a driver append in the main checkout while the lane appends `finalize` would conflict on every run (4.7) and dirty `.aw/records/`.
-- Recommendation: Lane; main only if the attempt does not merge.
-- Closes when: 4.2, 4.9.3 and an acceptance criterion use the chosen rule.
-- Resolution or deferral rationale: RESOLVED 2026-10-26 by the user via /askme: the driver writes `turn` events into the LANE's copy of the log as each turn ends, so finalize and integration carry them to `main`; when an attempt ends without merging, the driver appends that attempt's turn events in the main checkout under the integration lock and commits them with `aw commit --no-plan`. ADDITION by the maintainer: a mechanism must import turn data after a runner crash; it imports each turn exactly once and handles resumes. No further reason was given.
+- Moved 2026-11-01 to spec `37am1y`, which now holds the full decision record.
 
 ### OQ-24: How the log shows which events were written together (round 16)
 
@@ -2872,13 +2274,7 @@ for concurrency.
 ### OQ-29: What a hand `aw ipd finalize` of an orchestrator writes (round 18)
 
 - Status: resolved
-- Owner: maintainer
-- Blocking: yes
-- Question: After the cutover, does `aw ipd finalize` write a `finalize` event for an orchestrator plan?
-- Evidence: round 17 allowed `finalize` only on `plan_role: child`; of 97 executed orchestrators, 65 were retired by the runner (`ipd_lifecycle.retire_orchestrator`) and about 14 were hand-finalized; 102 plans carry no `Kind`, so "child only" excluded them; `retire_orchestrator` treats a plan as an orchestrator when its role is `orchestrator`, or its role is absent and its order is 0.
-- Recommendation: Write a finalize event for every finalized plan.
-- Closes when: 4.2, 4.3, AC-35 and section 9 use the rule.
-- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: `aw ipd finalize` writes a `finalize` event for every plan it finalizes, orchestrators included; only runner rollup retirement writes a `transition` to `executed` without one. "Orchestrator" uses the `retire_orchestrator` rule. No reason was given.
+- Moved 2026-11-01 to spec `37am1y`, which now holds the full decision record.
 
 ### OQ-30: Which events a terminal log still accepts (round 18)
 
@@ -2918,12 +2314,11 @@ for concurrency.
 | Spec | Status at r11 | Relation |
 |---|---|---|
 | `2vev8j` artifact metadata storage | approved | This spec SUPERSEDES it (OQ-4). |
-| `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its section 12 maps itself onto this spec: `review-depth` becomes a field that the gate `review` event sets, each invocation writes one `review` event with a verdict, and its structural check compares replayed state. All six Stage 1 plans (orchestrator `tiwj2o`, children `3bwrfx`, `gv3smb`, `uiyoax`, `is2xiv`, and pilot `kk62qt`) are executed (r14), so `Review-Depth` is in the legacy schema (`ipd_schema.META_REVIEW_DEPTH`) ahead of Phase B and the migration must carry it. Stage 2 plans are not yet authored. Whichever spec is implemented second must agree with the other. Its plans must state which format they target. A gate `review` event carries `review_depth`, and replaying it sets the plan's `review_depth` field (4.2). The `AW-ITEM` marker is read anywhere in a turn, while `AW-REVIEW:` and `AW-TIER:` are read only on the last line, so they do not collide. |
+| `k3yx72` plan-review redesign | approved, gates 2.0.0 | Its section 12 maps itself onto this spec: `review-depth` becomes a field that the gate `review` event sets, each invocation writes one `review` event with a verdict, and its structural check compares replayed state. All six Stage 1 plans (orchestrator `tiwj2o`, children `3bwrfx`, `gv3smb`, `uiyoax`, `is2xiv`, and pilot `kk62qt`) are executed (r14), so `Review-Depth` is in the legacy schema (`ipd_schema.META_REVIEW_DEPTH`) ahead of Phase B and the migration must carry it. Stage 2 plans are not yet authored. Whichever spec is implemented second must agree with the other. Its plans must state which format they target. A gate `review` event carries `review_depth`, and replaying it sets the plan's `review_depth` field (4.2). |
 | `4iyd78` quick pipeline | approved, gates 2.0.0 | Adds the `pipeline` field (4.2c). Its section 6.1 row "Plan `## Workflow history`: Kept" means that the AUDIT TRAIL is kept. Under this spec, the log holds that trail. If `4iyd78` is implemented first, its history writes go through `status_set` and are migrated like all others. |
 | `wy9aru` canonical set dispatch | implemented | Its setter engine is where the writers change to use `artifact_meta` (4.8). The cutover retires the sidecar that it keeps, as its section 3a leaves to this spec. |
-| `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4). The `finalize` event replaces the `Scope-Exceeded` bullet and keeps the 5.5a widening reasons; finalize copies the attempt-level verifier verdict to each V-item until the verifier reports per item; the drivers write `turn` events (4.2 TURN EVENTS); the run-state fields it records are indexed read-only (4.5b). |
-| `77tr3o` orchestrator rollup retirement | approved | `ipd_lifecycle.retire_orchestrator` retires an Order-0 `plan_role: orchestrator` plan to `executed` with no begin receipt, no code diff, and no E/V checkpoint or verifier turn, so it writes the `transition` to `executed` (with `path` and any `unset` of `approval`) without an `op: finalize` event (4.2, 4.3, 4.8). A hand-run `aw ipd finalize` of an orchestrator writes a `finalize` event like any other plan (OQ-29). |
-| `6kwd2e` mid-run questions | implemented | `run_questions` indexes its `questions/<qid>.json` and `answers/<qid>.json` files read-only, with its status vocabulary `open`, `answered`, `stale` (4.5b); an unmerged lane paused for the answer-resume path (`answer_resume` attempt field, `resume_with_answers`, `resolve_prior_lane`) keeps its `turn` events on the lane branch until adopted or abandoned (4.2 TURN EVENTS). |
+| `25kzda` runner (2.5e coverage record) | approved | The coverage record becomes an `op: coverage` attestation (4.4). The execution-record and run-index parts of this row moved to specs `37am1y` and `bfuzs6`. |
+| `77tr3o` orchestrator rollup retirement | approved | `ipd_lifecycle.retire_orchestrator` retires an orchestrator plan to `executed` with no begin receipt, no code diff, and no E/V checkpoint or verifier turn; it writes the `transition` to `executed` (with `path` and any `unset` of `approval`) and no scope fields. How retirement relates to the `finalize` event (OQ-29) is specified in spec `37am1y`. |
 | `18hh1u` spec and research synthesis | draft | Refinement reviews are typed (4.1a). Its new fields are not added to the registry now (4.2c). Its review records already exist on disk (18 at round 5, 24 at round 11 and at round 18) with `DECISIONS.md` D177 `[.<ace>][.<model>].review.md` filenames, and the migration and `artifact_meta` parse their clustered `(date, set, nn, id6)` prefix and convert them under 4.1a, whatever the status of `18hh1u` is. |
 | `yfz5u9` multi-participant synthesis | draft | `DECISIONS.md` D177 fixes the attributed filename facet order `[.<ace>][.<model>].<type>.md` across all record types (matching research's existing `[.<model>].<kind>.md`), so filename mirror parsing extracts `(date, set, nn, id6)` before optional D177 attribution facets (4.6). Whichever spec is implemented second must make the research YAML keys of `yfz5u9` agree with the two-key front matter and C10. Its own `events.jsonl` is a RUN log (N4), not artifact metadata. The two are different by design and must stay different. |
 | `1tx9t8` synthesis independent candidate | draft | Candidate 02 for `specflow`, already tracked on disk with a D177 `.codex.gpt-6-astra-medium.spec.md` filename (alongside 6 D177 `specflow` staged prompts). Proposed `aw synth` syntax and candidate outputs follow the two-key front matter (or staged-prompt HTML-comment mirror, OQ-25) and C10/D177 naming rules; adds no new registry fields at draft. |
@@ -2932,6 +2327,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-11-01 note (aw specs): Scope frozen and split by maintainer ruling 2026-10-31/11-01: execution record (finalize and turn event payloads, AW-ITEM per-item attribution, money amounts, tables changed_paths/plan_items/turns/turn_items, AC-35, AC-37, OQ-18/20/23/29, diagram 3) moved verbatim to spec 37am1y; run index (4.5b, nine run tables, AC-25, AC-38, OQ-21, diagram 4 run part, 4.9.8) moved verbatim to spec bfuzs6. This spec reserves the finalize and turn op names; until 37am1y ships, finalize writes scope_result and out_of_scope_paths as event-owned fields. Neither new spec gates 2.0.0.
 - 2026-11-01 note (aw specs): /spec-review round 18 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-931..SR-941 FIXED on maintainer decisions OQ-26 correction (logged Order; wvlk84 -> awphysical-17), OQ-27 (rewrite citations everywhere; history imported exact), OQ-28 (checkpoint at old path then rename event), OQ-29 (finalize event for every finalized plan; only rollup retirement omits it), OQ-30 (terminal-log appends), OQ-31 (tool-less, sanitized description generation), OQ-32 (D177 ace/model logged fields); AC-40, AC-41 added; 32 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-31 note (aw specs): APPROVE WITH REVISIONS APPLIED; /spec-review round 17 (antigravity/unknown): SR-922..SR-930 FIXED on maintainer decisions OQ-25 (staged prompts keep upload-ready purity via single leading aw-managed-prompt HTML comment, no YAML front matter) and OQ-26 (rename all 34 legacy YYYYMMDD-HHMM-NN records to clustered form at cutover, testing _LEGACY_TIMESTAMP_RE before parse_clustered, preserving existing Set/NN on 6 already-id'd terminal records, and rewriting inbound citations via artifact_refs); turn events stay on adoptable lanes under try_adopt_fix_it_lane/answer_resume and flush on non-merging audit runs; turn_index as 1-based dispatch ordinal with Prompt-1 copy dedup and Diagram 3 turn_role alignment; post-cutover executed_transition_gate and terminal append rules; retire_orchestrator ->executed without finalize (77tr3o); 4.5c Subject-Type exception removed; D177 attributed filenames, read_at git-root/invalid-blob handling, and resolved project.json path; AC-7 C10 and 3c diff range aligned; 33 tables cross-checked, 12 mermaid blocks render; no Readiness written
 - 2026-10-27 note (aw specs): /spec-review round 16 (opencode/its_direct/pt3-claude-opus-5.5-1m-us): internal-consistency pass at maintainer request; APPROVE WITH REVISIONS APPLIED; SR-911..SR-921 FIXED on maintainer decisions OQ-22 (model-generated short descriptions via reusable description journal), OQ-23 (turn events in the lane, main for unmerged attempts, idempotent crash import), OQ-24 (append key); finalize diff from begin base to finalize tip; event-owned field rule unified; run tables re-derived from measured runs data with excluded classes; turn_index and log_suffix-derived turn_role; archive path verb and path-drift; legacy scope exceptions; stale prose in 0, C7, C8, N2, N4, 3c, 4.4, 4.8, 5.2, 5.4, 6, 7, 9 and ACs aligned; AC-39 added; 32 tables cross-checked, 12 mermaid blocks render; no Readiness written
