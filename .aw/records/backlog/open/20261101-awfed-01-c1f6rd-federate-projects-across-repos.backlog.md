@@ -31,7 +31,7 @@ Selected: **separate repositories, each its own AW project, federated.** This ma
 
 ### R1. Portable project alias
 
-The project ID (`project_context._derive_project_id`, `project_registry.generate_project_id`) is a slug plus a hash of the local absolute path, so it differs between machines (for example a laptop and `nt.fariel.com`). A tracked dependency edge cannot use it.
+The project ID (`project_context._derive_project_id`, `project_registry.generate_project_id`) is a slug plus a hash of the local absolute path, so it differs between machines (for example two development machines). A tracked dependency edge cannot use it.
 
 - R1.1 Add an optional, portable `alias` to `.aw/config/project.json` (tracked): lowercase kebab, unique within a federation, for example `acelm`, `acelm-website`, `deck`, `dealer`. Default when absent: the repository directory name, slugified the same way as `_derive_project_id` without the hash.
 - R1.2 `aw install` and `aw config` can set it non-interactively (`--alias NAME`); the installer prompts for it only in interactive mode and shows the default.
