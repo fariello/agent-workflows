@@ -17,7 +17,7 @@ acceptance criteria. It depends on `4sd62s` (the event log, the `append` key, th
 the cache) and adds its op payloads through that registry. Direction: this spec depends on
 `4sd62s`; `4sd62s` does not depend on this spec. It does not gate release 2.0.0.
 
-Status: draft. The moved text below was reviewed in `4sd62s` rounds 15 to 18; it still needs its
+Review state: the moved text below was reviewed in `4sd62s` rounds 15 to 18; it still needs its
 own review as a standalone spec.
 
 ## Moved text (verbatim from spec 4sd62s at split, 2026-11-01)

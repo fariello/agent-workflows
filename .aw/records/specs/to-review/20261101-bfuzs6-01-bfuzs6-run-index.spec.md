@@ -17,7 +17,7 @@ freshness and exclusion rules, and their acceptance criteria. It uses the cache 
 spec depends on `4sd62s`. It does not gate release 2.0.0. The `turn_steps` table is shared with
 spec `37am1y`, which defines the `turn` identity it joins on.
 
-Status: draft. The moved text below was reviewed in `4sd62s` rounds 8 to 18; it still needs its
+Review state: the moved text below was reviewed in `4sd62s` rounds 8 to 18; it still needs its
 own review as a standalone spec.
 
 ## Moved text (verbatim from spec 4sd62s at split, 2026-11-01)
