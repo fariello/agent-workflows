@@ -2752,6 +2752,28 @@ for concurrency.
 - Recommendation: Rename all 34 legacy `YYYYMMDD-HHMM-NN-<slug>` records to canonical `YYYYMMDD-<set>-<NN>-<id6>-<slug>.<type>.md` filenames in 5.2 step 3 (minting new `id6` values for the 28 id-less specs/walkthroughs, preserving existing `Id`, `Set` [or `Id` when `Set` is absent], and `NN` for the 6 already-id'd terminal records, and rewriting inbound filename citations via `artifact_refs`), leaving zero legacy-timestamp filenames and zero grandfathering exceptions in 4.6. Strength: strong.
 - Closes when: 1, 4.6, 4.9.6 and 5.2 step 3 state the corrected 28 + 6 = 34 counts, the `_LEGACY_TIMESTAMP_RE`-first rule, `Set`/`NN` preservation, and inbound citation rewrites.
 - Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: rename all 34 legacy `YYYYMMDD-HHMM-NN-<slug>` records to canonical `YYYYMMDD-<set>-<NN>-<id6>-<slug>.<type>.md` filenames during Step 3 of the one-time cutover commit (minting new `id6` values for the 28 id-less specs and walkthroughs, preserving existing `Id`, `Set` [or `Id` when `Set` is absent, as on `4o5lt9` and `4w7d6s`], and `NN` [including `00`, `06`, `07` on `plans-adopter`] for the 6 already-id'd terminal records, and rewriting inbound filename citations via `artifact_refs`), so zero legacy-timestamp filenames remain and Section 4.6's filename mirror check holds universally with no grandfathering exceptions. No reason was given. Irreversible after the cutover (tracked filenames and cross-record citations). CORRECTION 2026-10-31 (round 18, by the user via /askme): the 'preserving NN' premise was wrong for plan `wvlk84`: its filename `01` is the legacy per-minute sequence, while its logged metadata is `- Set: awphysical`, `- Order: 17`, and `awphysical-01` already belongs to plan `cwjnj0`. The user chose the logged order: a renamed record that already carries `- Order:` uses that order; otherwise it keeps the filename NN. `wvlk84` becomes `20260817-awphysical-17-wvlk84-...`. No reason was given.
+### OQ-27: Citation rewrite scope for the cutover renames (round 18)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: Which citations of the 34 renamed legacy filenames does the cutover rewrite?
+- Evidence: measured 2026-10-31 with `artifact_refs.plan_reference_rewrites_with_warnings`: 1,940 hits in 419 files, 0 warnings; 402 of them in `## Workflow history` lines of 217 records, which 4.2a and AC-10 import byte for byte; the function's scan roots omit `agent_workflows/`, `docs/`, `.aw/system/` and `CHANGELOG.md` (37 further citing files); a few legacy names are deliberate examples (for example the fixture in `tests/test_plans_rename_selectors.py`).
+- Recommendation: Rewrite everywhere; keep imported history exact.
+- Closes when: 5.2 step 3, 4.2a and an acceptance criterion use the chosen scope.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: rewrite every citation in every scanned location, with the scan widened to `agent_workflows/`, `docs/`, `.aw/system/` and `CHANGELOG.md`; history lines and sidecar objects are imported in their original bytes, and `aw show --history` displays them with an old name resolved to the current one; deliberate examples of the old format are listed and left; the dry run reports counts per location. The user asked why the rewrite should not be everywhere: "It seems like having dirty references is worse than not."
+
+### OQ-28: How the pre-rename path of a renamed legacy record is recorded (round 18)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: How does path history keep the old name of a record that the cutover renames?
+- Evidence: the cutover rename ran before the checkpoint, so the first logged path was the new name and the old name was recorded nowhere.
+- Recommendation: Checkpoint at the old path, then a rename event.
+- Closes when: 4.2 PATH HISTORY, 5.2 steps 3 and 4 and AC-34 use the chosen rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme, proposing the design: the migration checkpoint carries the OLD path, followed in the same append by one `rename` event to the new path with `actor.tool: aw migrate metadata`. The reviewer's alternative, a migration-only `legacy_path` field, was withdrawn. The user asked why the rename should not simply be recorded and imported. No further reason was given.
+
 ## 9. Compatibility with specs written after round 1
 
 | Spec | Status at r11 | Relation |
