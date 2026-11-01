@@ -2774,6 +2774,39 @@ for concurrency.
 - Closes when: 4.2 PATH HISTORY, 5.2 steps 3 and 4 and AC-34 use the chosen rule.
 - Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme, proposing the design: the migration checkpoint carries the OLD path, followed in the same append by one `rename` event to the new path with `actor.tool: aw migrate metadata`. The reviewer's alternative, a migration-only `legacy_path` field, was withdrawn. The user asked why the rename should not simply be recorded and imported. No further reason was given.
 
+### OQ-29: What a hand `aw ipd finalize` of an orchestrator writes (round 18)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: After the cutover, does `aw ipd finalize` write a `finalize` event for an orchestrator plan?
+- Evidence: round 17 allowed `finalize` only on `plan_role: child`; of 97 executed orchestrators, 65 were retired by the runner (`ipd_lifecycle.retire_orchestrator`) and about 14 were hand-finalized; 102 plans carry no `Kind`, so "child only" excluded them; `retire_orchestrator` treats a plan as an orchestrator when its role is `orchestrator`, or its role is absent and its order is 0.
+- Recommendation: Write a finalize event for every finalized plan.
+- Closes when: 4.2, 4.3, AC-35 and section 9 use the rule.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: `aw ipd finalize` writes a `finalize` event for every plan it finalizes, orchestrators included; only runner rollup retirement writes a `transition` to `executed` without one. "Orchestrator" uses the `retire_orchestrator` rule. No reason was given.
+
+### OQ-30: Which events a terminal log still accepts (round 18)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: Is the round-17 list of events allowed on a terminal artifact's log complete?
+- Evidence: round 17 allowed `turn`, `rename` with verb `archive`, `note` and `review`; `aw group plans` regroups plans of any status, and the short-description setter can write any record.
+- Recommendation: Add regroup, rename and the short description.
+- Closes when: 5.2 step 4a, 4.2 TURN EVENTS, AC-16 use the list.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: a terminal log also accepts `rename` with verbs `rename` and `group` (with the `set` of a changed `set` or `order` in the same append), and a `set` or `unset` of `short_description`. Status, attestations (`readiness`, `approval`, `coverage`), `scope_result`, `blocks_release` and checklist results stay frozen. No reason was given.
+
+### OQ-31: Safeguards for model-generated short descriptions (round 18)
+
+- Status: resolved
+- Owner: maintainer
+- Blocking: yes
+- Question: What safeguards does the migration's model generation of `short_description` require?
+- Evidence: the model receives each record's full text, including adopted outside-LLM output; the Antigravity launcher runs with `--dangerously-skip-permissions` by default (`agy_runipd`), so injected text could make the agent use tools in the main checkout; the output was checked only for length and control characters before becoming a tracked public field; about 3,100 record texts go to the provider.
+- Recommendation: Tool-less call plus sanitizer.
+- Closes when: 4.2 SHORT DESCRIPTION, C8, 3c and AC-36 use the safeguards.
+- Resolution or deferral rationale: RESOLVED 2026-10-31 by the user via /askme: the call grants no tool, file-system or network permission beyond the model request; the prompt presents record text as quoted data, never as instructions; each result must pass `refuse_unsafe_descriptive` and the leak sanitizer before it is journaled, otherwise the generation counts as failed; 3c states the residual injection risk and that full record text goes to the provider; an acceptance test plants an injection and a home-directory path. No reason was given.
+
 ## 9. Compatibility with specs written after round 1
 
 | Spec | Status at r11 | Relation |
