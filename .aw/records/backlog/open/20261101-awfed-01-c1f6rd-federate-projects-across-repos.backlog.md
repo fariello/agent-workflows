@@ -6,6 +6,7 @@
 - Summary: Federate AW projects across sibling repositories: project-qualified Item-Dependencies, multi-project attention, and registry registration on install
 
 ## Workflow history
+- 2026-11-02 note (aw backlog): D7 prerequisite confirmed by maintainer (for now); D8 amended: first version supports repository-backed peers only, others refused as federation-unsupported-backend, companion support gated on m1wdj8; acceptance step 16 added.
 - 2026-11-01 note (aw backlog): Review findings 1-12 resolved as maintainer decisions D1-D12 (Decisions section); R-items amended to cite them; acceptance evidence 10-15 added. Open: D7 AceLM contractor visibility of acelm; D8 companion project.json location.
 - 2026-11-01 created (aw backlog): Filed at the maintainer's request (AceLM multi-repo layout decision 2026-11-01)
 
@@ -122,15 +123,18 @@ Decision: (a) routing rule: a plan may depend only on projects its executors can
 
 Why: a persistent waiver line in the plan is a hand-written attestation a gate would trust, the same forgery risk the `Readiness:` rule exists to stop. An exported status snapshot from `dealer` adds a sync mechanism that drifts and can leak confidential record names. Accepting a permanent block leaves the motivating case unsolved. Depending on a published contract rather than another team's internal plan is also the better engineering practice.
 
-OPEN PREREQUISITE (maintainer to confirm for AceLM): contractors can see `acelm`. If not, a different shared repository is needed for the routing rule.
+PREREQUISITE CONFIRMED (maintainer 2026-11-01, "for now"): AceLM contractors can see `acelm`, so `acelm` is the shared repository for the routing rule. If that changes, a different shared repository is needed.
 
 ### D8. Peer records root comes from `resolve_project_context`
 
-Decision: peer resolution is two steps: locate the checkout (local binding, registry, sibling directory), then call `resolve_project_context(peer_root)` to obtain its real records root. Never assume `<peer>/.aw/records`. D6's ref reader runs against whichever git repository owns that records root, which may be a companion repository. A context-resolution failure yields `unavailable` with that reason. The sibling-directory lookup applies only to peers whose `.aw/config/project.json` is inside the checkout; companion-backed peers resolve through the registry or a local binding.
+Decision (amended by maintainer 2026-11-01 after verification):
 
-Why: delegating to the project's own resolver inherits every current and future placement mode instead of maintaining a second, partial copy of placement logic.
+- (a) Peer resolution is two steps: locate the checkout (local binding, registry, sibling directory), then call `resolve_project_context(peer_root)`. Never assume `<peer>/.aw/records`. The federation name is read from wherever the resolver places `config_project`, never from a hard-coded path. A context-resolution failure yields `unavailable` with that reason.
+- (b) FIRST VERSION SUPPORTS `records_backend: repository` PEERS ONLY. For any other backend (`companion`, `home`, `repository-untracked`), `aw config`/`aw install` refuse to write a `federation` block and `aw check` reports an existing one as `federation-unsupported-backend:<backend>`; a peer reached with such a backend resolves `unavailable` with that reason. Lifting the restriction for companion-backed projects is gated on backlog `m1wdj8`.
 
-OPEN VERIFICATION (spec author): confirm where a companion-backed target keeps `project.json`. The sibling-lookup restriction above is the safe default until that is verified.
+Why (a): delegating to the project's own resolver inherits every placement mode instead of maintaining a second, partial copy of placement logic, so lifting (b) later needs no resolution change.
+
+Why (b), verified 2026-11-01 by a code read and a scratch install with `--preset public-target-private-companion`: (1) `project.json` was written to `<target>/.aw/config/` and left UNTRACKED there, although the preset table and layout spec `20260810-1447-01` declare `config_project` `companion-tracked`, and `project_config_dir` resolves the target location; so a `federation.name` there would reach no other machine, breaking D4. (2) The companion directory was not a git repository, so D6's ref read has nothing to read. (3) No `companion_identity.json` was written. (4) The `home` and `local-only` layouts keep config and records untracked under `AW_HOME` by design, invisible to any other machine. Alternatives rejected: trusting the resolved location as-is works only on the installing machine and fails silently elsewhere, the machine-dependent behavior D1 and D4 exist to prevent; carrying the name in `companion_identity.json` builds on a file install does not write and still leaves no ref to read; fixing companion placement inside this item couples federation to an independent placement decision (filed separately as `m1wdj8`). Refusal is honest, deterministic, and cheap to verify. No impact for AceLM if each repository keeps `.aw/records/` in-repo (not verified here).
 
 ### D9. A self-qualified edge is normalized, not refused
 
@@ -175,6 +179,7 @@ All evidence must be actual command output from real runs, pasted into the plans
 13. Verdicts (D1, D5, D9): an undeclared qualifier is an error with `alpha` present and absent alike; two distinct registered `alpha` repositories yield `ambiguous-peer`, and two worktrees of one `alpha` do not; a self-qualified edge is rewritten to its unqualified form with a lint warning.
 14. Override (D7): `aw oc run --allow-unavailable-peers '<why>'` releases the held item, and the justification appears in `aw runs`; the same run without a justification is refused.
 15. Both hosts (D12): the scenario of step 6 runs through `aw oc run` and `aw agy run` with identical outcomes.
+16. Unsupported backend (D8): `aw config`/`aw install` refuse to add a `federation` block in a project installed with `--preset public-target-private-companion` and in one with `--records-backend home`; `aw check` reports a hand-written block there as `federation-unsupported-backend:<backend>`; a qualified edge to such a peer resolves `unavailable` with that reason.
 
 ## Evidence (code locations, verified 2026-11-01)
 
