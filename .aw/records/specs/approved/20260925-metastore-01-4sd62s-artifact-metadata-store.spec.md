@@ -1,7 +1,7 @@
 # Spec: Artifact metadata store: id+status front matter, per-artifact event logs, SQLite cache
 
 - Date: 2026-09-25
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Id: 4sd62s
 - Author: aw specs new
@@ -2327,6 +2327,7 @@ for concurrency.
 | `tg80ht` spec-to-plan bridge | open (backlog) | Connects approved specs to runner dispatch and to IPD Set authoring. It automates the graduation of this spec into the implementing IPD Set and does not change the metadata schema. |
 
 ## Workflow history
+- 2026-11-02 approved (aw set, --by-human): Approved core store and migration after scope freeze and split
 
 - 2026-11-01 note (aw specs): Seam check after the split (stop rule: only LOW findings means done): 2 HIGH (dangling evidence-changed-after-finalize requirement; finalize-event wording for scope_result) and 6 MEDIUM fixed; interim finalize scope fields made complete (scope_result, out_of_scope_paths, widened_paths in the executed append) with table scope_exceptions and AC-39(4); reserved ops refused until 37am1y registers their schemas; money rule removed from loader validation. All three specs pass aw specs check; 10 mermaid blocks render; 4.5a tables match diagrams.
 - 2026-11-01 note (aw specs): Scope frozen and split by maintainer ruling 2026-10-31/11-01: execution record (finalize and turn event payloads, AW-ITEM per-item attribution, money amounts, tables changed_paths/plan_items/turns/turn_items, AC-35, AC-37, OQ-18/20/23/29, diagram 3) moved verbatim to spec 37am1y; run index (4.5b, nine run tables, AC-25, AC-38, OQ-21, diagram 4 run part, 4.9.8) moved verbatim to spec bfuzs6. This spec reserves the finalize and turn op names; until 37am1y ships, finalize writes scope_result and out_of_scope_paths as event-owned fields. Neither new spec gates 2.0.0.
