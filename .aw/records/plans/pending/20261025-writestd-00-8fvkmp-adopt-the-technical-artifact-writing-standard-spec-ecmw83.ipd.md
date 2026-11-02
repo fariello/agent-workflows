@@ -5,7 +5,7 @@
 - Concern: Spec `ecmw83` (from backlog `qph7c5`) requires one shipped writing standard for specs, backlog items, and plans, including rules for entity and flow diagrams; every authoring and review surface must apply it, and every live artifact must be proofread against it once. None of this exists.
 - Scope: Orchestration only: sequence the nine children below and confirm each reaches `executed`. No file, test, or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md
-- Item-Dependencies: state:spec:approved:ecmw83
+- Item-Dependencies: none
 - Status: to-review
 - Coverage: pass
 - Coverage-Fingerprint: 37d51202d269db14c22d4a12c2e6eec387d6ec096160170d40e43aa9f8a6d150
@@ -21,6 +21,7 @@
 - Id: 8fvkmp
 
 ## Workflow history
+- 2026-11-02 same-status (aw set): set Item-Dependencies to none
 - 2026-11-02 same-status (aw set): set Item-Dependencies to state:spec:approved:ecmw83
 - 2026-10-26 to-review (aw set): authored review-ready: orchestrates spec ecmw83 across 9 children; coverage pass
 
