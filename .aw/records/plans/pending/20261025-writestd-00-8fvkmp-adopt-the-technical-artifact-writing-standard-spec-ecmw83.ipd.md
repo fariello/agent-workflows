@@ -6,10 +6,12 @@
 - Scope: Orchestration only: sequence the nine children below and confirm each reaches `executed`. No file, test, or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: orchestrator
 - Coverage: pass
-- Coverage-Fingerprint: 37d51202d269db14c22d4a12c2e6eec387d6ec096160170d40e43aa9f8a6d150
-- Coverage-Checked: 2026-10-26 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: c21e5196b48f7471c28c4eeb46d27a8342e9b35a811f5cef0d5ed787471fc279
+- Coverage-Checked: 2026-11-02 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
 - From-Backlog: qph7c5
@@ -21,6 +23,9 @@
 - Id: 8fvkmp
 
 ## Workflow history
+- 2026-11-02 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
+- 2026-11-02 coverage pass (aw oc run): fingerprint c21e5196b48f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-11-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.review.md
 - 2026-11-02 same-status (aw set): set Item-Dependencies to none
 - 2026-11-02 same-status (aw set): set Item-Dependencies to state:spec:approved:ecmw83
 - 2026-10-26 to-review (aw set): authored review-ready: orchestrates spec ecmw83 across 9 children; coverage pass
@@ -119,18 +124,18 @@ Orders 01 and 03 have no prerequisite. Orders 02, 04, 05, and 06 need the standa
 
 ## Completion criteria (the whole Set is done only when)
 
-- The standard ships and installs, with requirements 1 to 12 and the proofreading procedure (AC-01, AC-02). Owner: `g4719s`.
-- Every agent's managed `AGENTS.md` names the standard and the widened dash rule (AC-03). Owner: `gzhw9c`.
-- Prose dashes are reported as `info` advisories with unchanged exit status (AC-05). Owner: `k2x0yl`.
-- New specs, backlog items, and plans name the standard (AC-04). Owner: `yz4jdm`.
-- Runner plan-production prompts name the standard. Owner: `jhdti8`.
+- The standard ships and installs, with requirements 1 to 12 and the proofreading procedure (`ecmw83` AC-01, AC-02). Owner: `g4719s`.
+- Every agent's managed `AGENTS.md` names the standard and the widened dash rule (`ecmw83` AC-03). Owner: `gzhw9c`.
+- Prose dashes are reported as `info` advisories with unchanged exit status (`ecmw83` AC-05). Owner: `k2x0yl`.
+- New specs, backlog items, and plans name the standard (`ecmw83` AC-04). Owner: `yz4jdm`.
+- Runner plan-production prompts name the standard; review turns reach it through the workflow bodies, because `runner_shared.build_review_prompt` is deliberately prose-free on the command line. Owner: `jhdti8` (with `e4n4p3`).
 - Authoring and review workflows apply the standard and requirement 12. Owner: `e4n4p3`.
-- Live specs, backlog items, and plans are swept, with metadata, approvals, and review freshness unchanged (AC-06 to AC-08). Owners: `sfez3e`, `uog8nc`, `381ml6`.
+- Live specs, backlog items, and plans are swept, with metadata, approvals, and review freshness unchanged (`ecmw83` AC-06 to AC-08). Owners: `sfez3e`, `uog8nc`, `381ml6`.
 
 ## Cross-IPD validation
 
-- The path every pointer names is the path Order 01 ships: `gzhw9c` V-04, `yz4jdm` V-04, and `e4n4p3` V-07 each assert the named path exists in an installed repository.
-- The sweeps use the advisory Order 03 builds: `sfez3e` V-05 and `uog8nc` V-02 paste its output.
+- The path every pointer names is the path Order 01 ships: the tests that `gzhw9c` V-04, `yz4jdm` V-04, and `e4n4p3` V-07 run (created by their E-04, E-04, and E-07) assert the named path; `gzhw9c` and `e4n4p3` also assert it exists in an installed repository.
+- The sweeps use the advisory Order 03 builds: `sfez3e` V-05 pastes the final `aw specs check --agent` advisory count and `uog8nc` V-02 pastes `aw backlog check`. Order 03 deliberately has no authoring-date cutover (`k2x0yl` round 1, D-1), so pre-existing artifacts are reported.
 - No sweep stales a review: `381ml6` V-04 compares frozen-region digests.
 - Post-merge revalidation is the runner's merge-and-revalidate gate on each child, not work of this plan.
 
@@ -206,4 +211,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`) of this plan and of each child. This plan performs no work of its own; each child carries its own scope fence, test evidence, and path-scoped `aw commit`. Each `V-*` item MUST paste the actual `aw find plans <id6>` output. Under `aw oc run` / `aw agy run` the runner retires this plan once every child is `executed` on disk. When executing by hand, run the children in dependency order, then run `aw ipd lint --phase pre-transition` and `aw ipd finalize` on this plan. Commit only through `aw commit 8fvkmp -- <paths>`; never push.
+Execute only after explicit human approval (`Status: approved`) of this plan and of each child, and only after spec `ecmw83` is approved (it is `to-review` at review time; the children implement its requirements, and the maintainer approves it with `aw specs set <path> --status approved --by-human`). Every open question in each child is resolved before that child runs; at review time `g4719s` carries blocking OQ-01 (where the tracked copy of the maintainer's draft lives), which gates Orders 02 and 04 to 09 through their `executed:g4719s` edges. This plan performs no work of its own; each child carries its own scope fence, test evidence, and path-scoped `aw commit`. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition. Each `V-*` item MUST paste the ACTUAL `aw find plans <id6>` output; never claim a child executed without it. Lifecycle: under `aw oc run` / `aw agy run` the runner retires this plan once every child is `executed` on disk, spending no agent turn. Only when executing by hand do you run the children in dependency order, then `aw ipd lint --phase pre-transition` and `aw ipd finalize 8fvkmp` on this plan; never a hand `git mv` to `executed/`. Commit only through `aw commit 8fvkmp -- <paths>`, never `git add -A`, never push.
