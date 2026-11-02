@@ -2016,7 +2016,7 @@ because the disk has exactly one format until the cutover commit, and no caller 
 
 PHASE A: build the single interface on today's format. Phase A is additive: it adds the new code and moves no caller to it.
 1. The `artifact_meta` interface; the event schema (structured actor and parsed dependencies, 4.2);
-   the field registry (OQ-1, 4.2c); the cache schema generated from the registry (4.5a, 4.5c); the run
+   the field registry (OQ-1, 4.2c); the cache schema generated from the registry (4.5a, 4.5c);
    the SQLite cache and the loader contract (4.3, 4.5); and the LEGACY loader, which
    fills the cache from bullet blocks and history sections. Tests. No callers yet.
 2. `aw show --history`, `aw show --format json` and `aw index rebuild`, served through the interface.
@@ -2327,6 +2327,8 @@ for concurrency.
 | `tg80ht` spec-to-plan bridge | open (backlog) | Connects approved specs to runner dispatch and to IPD Set authoring. It automates the graduation of this spec into the implementing IPD Set and does not change the metadata schema. |
 
 ## Workflow history
+
+- 2026-11-02 note (aw specs): Editorial fix after approval: removed a fragment ('the run') left in section 7 step 1 by the 2026-11-01 split; no requirement changed.
 - 2026-11-02 approved (aw set, --by-human): Approved core store and migration after scope freeze and split
 
 - 2026-11-01 note (aw specs): Seam check after the split (stop rule: only LOW findings means done): 2 HIGH (dangling evidence-changed-after-finalize requirement; finalize-event wording for scope_result) and 6 MEDIUM fixed; interim finalize scope fields made complete (scope_result, out_of_scope_paths, widened_paths in the executed append) with table scope_exceptions and AC-39(4); reserved ops refused until 37am1y registers their schemas; money rule removed from loader validation. All three specs pass aw specs check; 10 mermaid blocks render; 4.5a tables match diagrams.
