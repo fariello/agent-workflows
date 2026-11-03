@@ -27,6 +27,7 @@ Re-read before drafting and before the exit gate:
 2. **Leading HTML Comment Pipeline Metadata:** Pipeline metadata is a single leading HTML comment line (`<!-- aw-prompt: ... -->`), written by `aw prompts new`, not by hand. This comment is invisible when pasted into an LLM chat and preserves staging metadata without violating prompt purity.
 3. **Target Tracked Pending Lane:** `aw prompts new` writes to `.aw/records/prompts/pending/` with `Status: pending`. Never auto-stage or commit.
 4. **Leak Sanitizer Awareness:** Run `aw check-local-leaks` on the finished file before concluding.
+5. **Technical writing standard:** Write the prompt to `../technical-writing/technical-writing.md` and check it against all eleven numbered requirements before concluding.
 
 ## Inputs
 

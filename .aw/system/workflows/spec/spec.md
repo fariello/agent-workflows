@@ -8,6 +8,9 @@ Guided and interactive, like `setup-repo`: you ask questions, the user answers, 
 produce the spec document with per-step confirmation. It writes a planning artifact; it
 does not write code.
 
+Write the spec to the technical writing standard (`../technical-writing/technical-writing.md`): check the complete draft against
+all eleven numbered requirements before you present it.
+
 ## Division of labor with `/advise spec-editor`
 
 - **`spec` PRODUCES the artifact** (this workflow): it drafts the specification document.

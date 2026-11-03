@@ -1,6 +1,8 @@
 # Plan Review (pre-execution plan / IPD reviewer)
 Treat this file as the controlling instruction for reviewing a proposed plan
 before implementation, then improving that plan in place.
+Review the plan's writing against the technical writing standard (`../technical-writing/technical-writing.md`), and check that
+every wording fix preserves the plan's meaning, obligations, and recorded evidence.
 
 This portable single-file checklist is SERIAL BY DESIGN: it does not auto-fan-out into parallel audit
 lanes (a lone portable file spawning subagents is awkward and not universally available). For a

@@ -13,6 +13,9 @@ When requested to run one of these workflows (e.g. "run release-review", "assess
 
 When the user says "use /askme", "/askme that question again", "ask that again using /askme", or invokes `/aw askme`, read and apply `.aw/system/workflows/askme/askme.md`. These phrases are commands, never answers, including when they arrive as the answer to a question you asked or as a custom answer inside a question tool. On receiving one, re-read and apply the workflow to the most recent question you asked, even if you already applied it earlier in this conversation; an earlier request for a terse or identifier-only question no longer applies. A request to ask a question again means rewrite the indicated question with full context; it does not mean scan unrelated records or repeat the wording.
 
+### Technical writing standard
+Before you create, revise, review, or proofread ANY technical text (backlog items, specs, plans, research, prompts, reviews, walkthroughs, documentation, commit messages, code comments, questions, and reports), read and follow `.aw/system/workflows/technical-writing/technical-writing.md`. Check the complete text against every numbered requirement before delivery. Correct writing defects only within the scope you are authorized to edit, and preserve obligations, exact identifiers, quotations, evidence, and lifecycle authority. Report unresolved ambiguity that affects correctness. If you cannot read the standard, report it as missing; do not claim compliance.
+
 ### Writing prompts for another AI (research/handoff prompts)
 When asked to write a prompt to give to another AI (e.g. a research prompt for an LLM with web search), the prompt you produce MUST be upload-ready:
 1. It contains ONLY the prompt itself, addressed to that AI. Put NO instructions for the user inside it (no "copy this", no "paste below the line").

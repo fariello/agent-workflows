@@ -28,6 +28,7 @@ bars) so the documented prose can never claim more than the recorded evidence. S
 - [Run analytics](run-analytics.md): the local cache, the offline report, the query surface, and the privacy boundary with its named detector blind spots.
 - [CLI Output Mode Contract](cli-output-contract.md): dual-audience output modes, stream boundaries, and exit codes.
 - [Concise reporting contract](reporting-contract.md): the portable default for model-authored user-facing prose, its overrides, and per-host delivery.
+- [Technical writing standard](technical-artifact-writing.md): the installed standard for all technical text, how it is delivered, and how it relates to the reporting contract.
 - [Human TTY guide](cli-human-guide.md): reading the styled interactive `aw` output at a terminal.
 - [Agent protocol reference](cli-agent-protocol.md): parsing the `aw.agent/v1` machine format.
 - [CLI output migration guide](cli-migration.md): moving scrapers to --agent, with the retracted automatic cutover noted.

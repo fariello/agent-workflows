@@ -6,6 +6,9 @@ improving that spec in place and advancing it to `reviewed` through the setter.
 Review specification documents only. Do not change code, tests, runtime configuration,
 infrastructure, or production data. Do not author plans. Reviewing a spec is not implementing it.
 
+Review the writing against the technical writing standard (`../technical-writing/technical-writing.md`) as well as the substance, and
+check that every wording fix preserves the spec's meaning and obligations.
+
 THIS IS THE SPEC-TIME SIBLING OF `plan-review`, and it is deliberately a SEPARATE package rather than
 a conditional branch inside that one (maintainer ruling 2026-09-04; the evidence and the accepted
 cost are recorded in `README.md` beside this file, which you should read once before your first run).

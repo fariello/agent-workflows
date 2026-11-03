@@ -20,6 +20,7 @@ These rules apply in every step:
 7. Never push or include unrelated files in a commit.
 8. The reviewed/not-reviewed enumeration is the final output.
 9. A gate or interactive question MUST NOT assert or imply the verdict it precedes (readiness, approval, GO); it states what was found and asks what to do. The verdict is formed only from the reviewed work's evidence.
+10. Review the plan's writing against the technical writing standard (`../technical-writing/technical-writing.md`); every wording fix must preserve meaning, obligations, and recorded evidence.
 
 Use `../release-review/fix-decision-policy.md` for the Fix Bar and
 `../release-review/00-run-protocol.md` for the eight personas. Security is a
