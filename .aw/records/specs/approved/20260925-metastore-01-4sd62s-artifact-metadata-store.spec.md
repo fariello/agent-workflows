@@ -568,6 +568,11 @@ spec owns it.
     A type with no table validates only the value, as today. This spec does not add tables (N2). The
     implementation uses the tables that exist at implementation time, not this list.
   - `by_human`: a boolean. It is present only on events that a setter records with `--by-human`.
+  - `overrides`: a list of the override flags the setter was given (`allow-open-questions`,
+    `allow-terminal-reopen`, `allow-unresolvable-release-sentinel`), present only when at least one
+    was used, so every overridden transition can be found by query. `aw specs set --date` is refused
+    once `metadata_schema` is 2, because an event's `at` is always its write time; the original day
+    may still go in `message` (maintainer decision 2026-11-02, plan `cxxmyv` OQ-01).
   - `message`: optional free text.
   - `legacy`: for `op: legacy`, the original line unchanged, `observed_day` (the day the line states, as written, with no clock conversion), the original position
     in the file, `ordering_confidence` (`known`, `inferred-from-git` or `unknown`), per 4.2a, and
@@ -2328,6 +2333,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-11-05 note (aw specs): Amended 2026-11-02 on maintainer decision (plan cxxmyv OQ-01, via /askme): event key overrides (list of setter override flags) added to 4.2; aw specs set --date refused once metadata_schema is 2. Spec stays approved; the change is an additive event key decided by the maintainer.
 - 2026-11-02 note (aw specs): Editorial fix after approval: removed a fragment ('the run') left in section 7 step 1 by the 2026-11-01 split; no requirement changed.
 - 2026-11-02 approved (aw set, --by-human): Approved core store and migration after scope freeze and split
 
