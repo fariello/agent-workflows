@@ -620,7 +620,12 @@ class MetadataValidationTests(unittest.TestCase):
             "Id deleted",
             _meta(Id=None),
             "pending",
-            [("Id", "required field missing")],
+            [
+                (
+                    "Id",
+                    "required field missing (add it with `aw ipd sync <file> --apply`)",
+                )
+            ],
             "the id6 is the stable citation handle every cross-record link resolves through, so an "
             "id-less plan cannot be referenced by a backlog handoff or a dependency edge",
         ),

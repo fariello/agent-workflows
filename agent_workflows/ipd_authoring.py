@@ -815,20 +815,81 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
     return res
 
 
+# The metadata bullets a backfilled `- Id:` may follow, in preference order. `- Author:` is the
+# scaffold's own position; `- Status:` and `- Date:` cover legacy plans written before `Author` was
+# required, which are exactly the plans a layout migration brings in without an Id.
+_ID_ANCHOR_PREFIXES = ("- Author:", "- Status:", "- Date:")
+
+
+def insert_id_line(text: str, id6: str) -> Optional[str]:
+    """Return ``text`` with ``- Id: <id6>`` inserted into its metadata block, or None.
+
+    The line goes directly after the first anchor bullet (see ``_ID_ANCHOR_PREFIXES``) found
+    between the H1 and the first H2, so it always lands in the block the linter parses as metadata
+    and never in the document body. Returns None when the text already declares an Id or has no
+    anchor bullet in that block; the caller then leaves the file untouched.
+    """
+
+    if _ID_LINE_RE.search(text):
+        return None
+    lines = text.splitlines(keepends=True)
+    # The metadata block: everything before the first H2 (the H1 itself never matches an anchor).
+    block: List[int] = []
+    for i, line in enumerate(lines):
+        if line.startswith("## "):
+            break
+        block.append(i)
+    for prefix in _ID_ANCHOR_PREFIXES:
+        for i in block:
+            if lines[i].startswith(prefix):
+                if not lines[i].endswith("\n"):
+                    lines[i] = lines[i] + "\n"
+                lines.insert(i + 1, f"- Id: {id6}\n")
+                return "".join(lines)
+    return None
+
+
+def backfill_plan_ids(paths: List[Path], repo_root: Path) -> List[tuple]:
+    """Give every plan in ``paths`` that lacks one a fresh, repository-unique ``- Id:``.
+
+    Returns ``[(path, id6), ...]`` for the files actually written. A file that already declares an
+    Id, has no metadata anchor, or cannot be read is skipped (never raised on), so one odd file
+    cannot stop a bulk migration. Each minted id6 is added to the collision set before the next
+    mint, so a batch never reuses an id within itself.
+    """
+
+    existing = set(_core.global_id6s(repo_root))
+    written: List[tuple] = []
+    for p in paths:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if _ID_LINE_RE.search(text):
+            continue
+        new_id = _core.generate_id6(existing)
+        new_text = insert_id_line(text, new_id)
+        if new_text is None:
+            continue
+        _atomic_write(p, new_text)
+        existing.add(new_id)
+        written.append((p, new_id))
+    return written
+
+
 def _backfill_id(text: str, existing: set) -> tuple[str, Optional[str]]:
-    """Insert a `- Id:` line after `- Author:` if the block lacks one. Returns (new_text, id|None)."""
+    """Insert a `- Id:` line into the metadata block if it lacks one. Returns (new_text, id|None)."""
 
     if _ID_LINE_RE.search(text):
         return text, None
     new_id = _core.generate_id6(existing)
-    # Insert immediately after the `- Author:` metadata line.
-    lines = text.splitlines(keepends=True)
-    for i, line in enumerate(lines):
-        if line.startswith("- Author:"):
-            nl = "\n" if line.endswith("\n") else ""
-            lines.insert(i + 1, f"- Id: {new_id}{nl}")
-            return "".join(lines), new_id
-    return text, None  # no Author line; leave untouched (lint will flag the missing Id)
+    new_text = insert_id_line(text, new_id)
+    if new_text is None:
+        return (
+            text,
+            None,
+        )  # no anchor bullet; leave untouched (lint will flag the missing Id)
+    return new_text, new_id
 
 
 def run_sync(args: argparse.Namespace) -> int:
@@ -840,6 +901,7 @@ def run_sync(args: argparse.Namespace) -> int:
     if not path.is_file():
         print(f"error: not a file: {target}")
         return 2
+    id_only_notes: List[str] = []
     try:
         text = path.read_text(encoding="utf-8")
         # Backfill a missing stable `Id` first (plans-adopter Order 02), then sync E/V leaves.
@@ -850,6 +912,19 @@ def run_sync(args: argparse.Namespace) -> int:
             _existing_plan_ids(path) | _core.global_id6s(_core.repo_root_of(path)),
         )
         res = compute_sync(text_after_id, directory=LINT._dir_of(path))
+        # AN ID BACKFILL IS NOT A STRUCTURAL CHANGE. compute_sync refuses on an approved or
+        # in-flight plan because assigning E/V ids would rewrite the reviewed contract. A missing
+        # `- Id:` is different: it is the plan's identity handle, which every lifecycle verb
+        # (begin, finalize, set executed) needs, and a legacy plan brought in by
+        # `aw migrate-layout` never had one. Refusing it here left such a plan with NO tooled
+        # route to an Id at all. So when the only thing to do is the backfill, do the backfill
+        # and nothing else: no E/V assignment, no watermark change.
+        # The skipped E/V refusal is reported as a note, never swallowed.
+        if res.errors and backfilled_id is not None:
+            id_only_notes = [f"E/V sync skipped ({e})" for e in res.errors]
+            res = SyncResult()
+            res.new_text = text_after_id
+            res.changed = True
     except Exception as exc:
         print(f"error: sync failed to run: {exc}")
         return 2
@@ -906,6 +981,7 @@ def run_sync(args: argparse.Namespace) -> int:
             parts.append(f"Id {backfilled_id}")
         if res.assigned:
             parts.append(", ".join(res.assigned))
+        parts.extend(id_only_notes)
         if ctx.is_agent or ctx.is_json:
             res_cmd = CommandResult(
                 command="ipd sync",
@@ -948,6 +1024,7 @@ def run_sync(args: argparse.Namespace) -> int:
         done.append(f"backfilled Id {backfilled_id}")
     if res.assigned:
         done.append("assigned {0}; watermark advanced".format(", ".join(res.assigned)))
+    done.extend(id_only_notes)
 
     if ctx.is_agent or ctx.is_json:
         res_cmd = CommandResult(

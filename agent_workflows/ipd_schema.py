@@ -484,7 +484,15 @@ def validate_metadata(
     # Required fields present.
     for req in META_REQUIRED:
         if req not in fields:
-            errors.append(MetaError(req, "required field missing"))
+            errors.append(
+                MetaError(
+                    req,
+                    # Name the tooled fix for the one field a tool can supply.
+                    "required field missing (add it with `aw ipd sync <file> --apply`)"
+                    if req == "Id"
+                    else "required field missing",
+                )
+            )
 
     kind = fields.get("Kind")
     if kind is not None and kind not in KINDS:

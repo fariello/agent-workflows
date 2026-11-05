@@ -210,6 +210,117 @@ class MigrateLayoutCliTests(unittest.TestCase):
         )
         self.assertTrue((self.repo / ".agents/README.md").is_file())
 
+    # Task group 4: usable result, summary, self-commit, [Y/n] defaults (migusable)
+
+    def _git_out(self, *args: str) -> str:
+        return support.git(self.repo, *args, env=support.clean_git_env()).stdout
+
+    def test_enter_at_confirm_accepts_and_commits(self) -> None:
+        # Empty answers take every default: backend, leftovers, confirm [Y/n], commit [Y/n].
+        head_before = self._git_out("rev-parse", "HEAD").strip()
+        out = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO("\n\n\n\n")), mock.patch(
+            "sys.stdout", out
+        ):
+            code = cli.main(["migrate-layout"])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("[Y/n]", out.getvalue())
+        self.assertTrue((self.repo / ".aw/records/plans/pending/p.md").is_file())
+        self.assertNotEqual(self._git_out("rev-parse", "HEAD").strip(), head_before)
+        # Nothing the migration moved is left staged or modified.
+        status = self._git_out("status", "--porcelain")
+        self.assertNotIn(".aw/records", status)
+        self.assertNotIn(".agents/plans", status)
+        self.assertNotIn(".aw/state", status)
+
+    def test_summary_reports_what_moved(self) -> None:
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            code = cli.main(["migrate-layout", "--yes"])
+        self.assertEqual(code, 0)
+        text = out.getvalue()
+        self.assertIn("Migration Summary", text)
+        self.assertIn(".agents/plans -> .aw/records/plans", text)
+        self.assertRegex(text, r"Moved \d+ file\(s\)")
+
+    def test_yes_commits_and_leaves_clean_tree(self) -> None:
+        code = cli.main(["migrate-layout", "--yes"])
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "migrate legacy layout", self._git_out("log", "-1", "--format=%s")
+        )
+        tracked = self._git_out("ls-files")
+        self.assertIn(".aw/records/plans/pending/p.md", tracked)
+        self.assertIn(".aw/.gitignore", tracked)
+        self.assertNotIn(".agents/plans/pending/p.md", tracked)
+        # Per-machine state is never committed and is ignored, so it does not dirty the tree.
+        self.assertNotIn(".aw/state/", tracked)
+        self.assertNotIn(".aw/state", self._git_out("status", "--porcelain"))
+
+    def test_no_commit_leaves_moves_staged_and_head_unchanged(self) -> None:
+        head_before = self._git_out("rev-parse", "HEAD").strip()
+        code = cli.main(["migrate-layout", "--yes", "--no-commit"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self._git_out("rev-parse", "HEAD").strip(), head_before)
+        self.assertIn(
+            ".aw/records/plans/pending/p.md",
+            self._git_out("diff", "--cached", "--name-only"),
+        )
+
+    def test_migrated_plan_without_id_gets_one(self) -> None:
+        plan = self.repo / ".agents/plans/pending/20260926-2339-01-legacy.md"
+        plan.write_text(
+            "# IPD: legacy\n\n- Date: 2026-09-26\n- Status: approved\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+        support.git(self.repo, "add", ".", env=support.clean_git_env())
+        support.git(
+            self.repo, "commit", "-q", "-m", "legacy", env=support.clean_git_env()
+        )
+        code = cli.main(["migrate-layout", "--yes", "--rename-to-grammar"])
+        self.assertEqual(code, 0)
+        moved = self.repo / ".aw/records/plans/pending/20260926-2339-01-legacy.ipd.md"
+        text = moved.read_text(encoding="utf-8")
+        ids = [ln for ln in text.splitlines() if ln.startswith("- Id: ")]
+        self.assertEqual(len(ids), 1, text)
+        # The Id lands inside the metadata block (before the first H2), right after Status.
+        self.assertLess(text.index("- Id: "), text.index("## Goal"))
+        self.assertGreater(text.index("- Id: "), text.index("- Status: approved"))
+
+    def test_finalize_refusal_for_id_less_plan_names_the_fix(self) -> None:
+        plan = self.repo / "nolid.ipd.md"
+        plan.write_text("# IPD: x\n\n- Status: approved\n\n## Goal\n", encoding="utf-8")
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            code = cli.main(
+                [
+                    "ipd",
+                    "finalize",
+                    str(plan),
+                    "--actor",
+                    "t",
+                    "-m",
+                    "x",
+                    "--dir",
+                    str(self.repo),
+                ]
+            )
+        self.assertNotEqual(code, 0)
+        self.assertIn("aw ipd sync", out.getvalue())
+
+    def test_rollback_restores_original_plan_bytes(self) -> None:
+        plan = self.repo / ".agents/plans/pending/20260926-2339-01-legacy.md"
+        original = "# IPD: legacy\n\n- Status: approved\n\n## Goal\n"
+        plan.write_text(original, encoding="utf-8")
+        support.git(self.repo, "add", ".", env=support.clean_git_env())
+        support.git(
+            self.repo, "commit", "-q", "-m", "legacy", env=support.clean_git_env()
+        )
+        self.assertEqual(cli.main(["migrate-layout", "--yes", "--no-commit"]), 0)
+        self.assertEqual(cli.main(["migrate-layout", "rollback"]), 0)
+        self.assertEqual(plan.read_text(encoding="utf-8"), original)
+        self.assertFalse((self.repo / ".aw/.gitignore").exists())
+
     def test_plan_preview_writes_output_and_creates_no_aw(self) -> None:
         out_path = self.repo / "o.json"
         code = cli.main(["migrate-layout", "plan", "--output", str(out_path)])

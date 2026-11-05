@@ -2140,7 +2140,8 @@ def begin(
             EXIT_CANNOT_RUN,
             None,
             None,
-            f"plan {plan_path} has no valid 6-char '- Id:' handle; cannot bind a receipt.",
+            f"plan {plan_path} has no valid 6-char '- Id:' handle; cannot bind a receipt."
+            f" Add one with `aw ipd sync {plan_path} --apply` (it mints a repository-unique id6 and changes nothing else).",
         )
 
     rcpt_path = receipt_path_for(repo_root, plan_id)
@@ -2302,7 +2303,11 @@ def refreeze_receipt(
         return False, f"could not read plan {plan_path}: {exc}"
     plan_id = (_lint.parse(plan_text).meta_fields.get("Id") or "").strip()
     if not plan_id:
-        return False, f"plan {plan_path} has no '- Id:'; cannot locate its receipt"
+        return (
+            False,
+            f"plan {plan_path} has no '- Id:'; cannot locate its receipt."
+            f" Add one with `aw ipd sync {plan_path} --apply` (it mints a repository-unique id6 and changes nothing else).",
+        )
     rcpt_path = receipt_path_for(repo_root, plan_id)
     try:
         receipt = json.loads(rcpt_path.read_text(encoding="utf-8"))
@@ -3131,7 +3136,13 @@ def finalize_precheck(
     doc = _lint.parse(plan_text)
     plan_id = (doc.meta_fields.get("Id") or "").strip()
     if not plan_id:
-        return EXIT_CANNOT_RUN, f"plan {plan_path} has no '- Id:' handle.", evidence, ()
+        return (
+            EXIT_CANNOT_RUN,
+            f"plan {plan_path} has no '- Id:' handle."
+            f" Add one with `aw ipd sync {plan_path} --apply` (it mints a repository-unique id6 and changes nothing else).",
+            evidence,
+            (),
+        )
     evidence["plan_id"] = plan_id
 
     journal = read_finalize_journal(repo_root, plan_id)
@@ -4956,7 +4967,9 @@ def retire_orchestrator(
         return FinalizeResult(
             EXIT_CANNOT_RUN,
             None,
-            f"plan {plan_path} has no '- Id:' handle.",
+            f"plan {plan_path} has no '- Id:' handle. Add one with "
+            f"`aw ipd sync {plan_path} --apply` (it mints a repository-unique id6 and changes "
+            "nothing else).",
             evidence,
         )
     evidence["plan_id"] = plan_id

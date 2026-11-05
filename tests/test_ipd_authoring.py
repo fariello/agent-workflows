@@ -431,6 +431,23 @@ class SyncTests(unittest.TestCase):
         ids = _re.findall(r"(?m)^- Id: ([0-9a-z]{6})$", self.path.read_text())
         self.assertEqual(ids, [existing])
 
+    def test_sync_backfills_id_on_approved_plan_without_touching_structure(self):
+        # migusable: an approved legacy plan (e.g. migrated by `aw migrate-layout`) must still be
+        # able to get its identity handle; only the Id line may change.
+        import re as _re
+
+        t = self.path.read_text()
+        t = _re.sub(r"(?m)^- Id: [0-9a-z]{6}\n", "", t)
+        t = _re.sub(r"(?m)^- Status: \S+$", "- Status: approved", t)
+        self.path.write_text(t)
+        rc, out = _run(A.run_sync, _ns(path=str(self.path), apply=True))
+        self.assertEqual(rc, 0, out)
+        after = self.path.read_text()
+        m = _re.search(r"(?m)^- Id: ([0-9a-z]{6})\n", after)
+        self.assertIsNotNone(m)
+        self.assertEqual(after.replace(m.group(0), "", 1), t)
+        self.assertIn("E/V sync skipped", out)
+
     def test_dry_run_writes_nothing(self):
         self._add_unassigned(1)
         before = self.path.read_text()

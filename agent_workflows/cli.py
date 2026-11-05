@@ -1833,7 +1833,21 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw ipd board                         # the plan/IPD readiness board (also bare 'aw ipd')\n"
             "  aw ipd lint --phase author FILE      # structural lint of a freshly drafted plan\n"
             "  aw ipd scaffold --kind child ...     # create a new conformant IPD skeleton\n"
-            "  aw ipd sync FILE --apply             # assign step ids + validation skeletons\n"
+            "  aw ipd sync FILE --apply             # assign step ids + validation skeletons;\n"
+            "                                       # also adds a missing '- Id:' (any status)\n"
+            "\n"
+            "PLAN LIFECYCLE (which verb moves a plan where)\n"
+            "  author     aw ipd scaffold -> aw ipd sync -> aw ipd lint --phase author\n"
+            "  review     aw ipd set to-review|reviewed|approved <plan> (approved needs a human)\n"
+            "  execute    aw ipd begin <plan> --actor A    # BEFORE the work: freezes scope + base HEAD\n"
+            "             (do the work; aw test <id6> -- <cmd>; aw commit <plan> -- <paths>)\n"
+            "  finish     aw ipd finalize <plan> --actor A -m MSG --apply  # -> executed/ (authoritative)\n"
+            "             'aw ipd set executed' hands off to finalize; 'aw finish' never sets executed\n"
+            "  retire     aw ipd set superseded|not-executed <plan>\n"
+            "\n"
+            "  A refusal names its fix. 'has no - Id: handle' -> aw ipd sync <plan> --apply.\n"
+            "  'no begin receipt' -> the work was done without 'aw ipd begin'; finalize cannot\n"
+            "  attest a baseline that was never frozen, so that is a human decision, not a retry.\n"
         ),
     )
     ipd_sub = p_ipd.add_subparsers(dest="ipd_command")
@@ -1961,7 +1975,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_sync = ipd_sub.add_parser(
         "sync",
         parents=[common],
-        help="Assign ids to new E-NEW leaves + append V skeletons + advance the watermark (dry-run by default).",
+        help="Assign E/V ids + V skeletons, and add a missing '- Id:' handle (dry-run by default).",
+        description=(
+            "Assign ids to new E-NEW leaves, append their V skeletons and advance the watermark, "
+            "and add a missing '- Id:' handle (a fresh repository-unique id6). Dry-run by default; "
+            "pass --apply to write. E/V assignment refuses on an approved or in-flight plan, but "
+            "the Id backfill alone still runs there, so a legacy plan (for example one brought in "
+            "by 'aw migrate-layout') can always get the handle that 'aw ipd begin', 'aw ipd "
+            "finalize' and 'aw ipd set' require."
+        ),
     )
     p_ipd_sync.add_argument("path", help="IPD file to sync.")
     p_ipd_sync.add_argument(
@@ -5453,8 +5475,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "-y",
         "--yes",
         action="store_true",
-        help="Non-interactive; auto-confirm all prompts (leftovers defaults to defer).",
+        help="Non-interactive; auto-confirm all prompts, including the final commit "
+        "(leftovers defaults to defer).",
     )
+    # The migration commits its own path-scoped moves (never `add -A`, never push). `--no-commit`
+    # leaves them staged for a hand commit; `--commit` commits non-interactively without `--yes`.
+    _add_commit_flags(p_migrate)
 
     # worksequence i6015i E-01: `next` is the CANONICAL name and `attention`/`att`/`todo` are its
     # aliases (the relationship is inverted from the original, where `attention` was canonical). All
@@ -7965,8 +7991,13 @@ def _packaged_version() -> str:
     return __version__
 
 
-def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
-    """Ask a yes/no question; auto-yes when assume_yes; auto-no and warn when non-interactive."""
+def _confirm(term: Term, prompt: str, assume_yes: bool, default: bool = False) -> bool:
+    """Ask a yes/no question; auto-yes when assume_yes; auto-no and warn when non-interactive.
+
+    ``default`` is the answer an EMPTY reply (bare Enter) selects, and it decides the rendered hint
+    (``[Y/n]`` vs ``[y/N]``). An EOF is always NO, whatever the default, so a closed stdin never
+    accepts a mutation by accident.
+    """
 
     if assume_yes:
         return True
@@ -7976,10 +8007,13 @@ def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
             "warn", f"{prompt} (declining: non-interactive; pass --yes to proceed)"
         )
         return False
+    hint = "[Y/n]" if default else "[y/N]"
     try:
-        answer = input(f"{prompt} [y/N] ").strip().lower()
+        answer = input(f"{prompt} {hint} ").strip().lower()
     except EOFError:
         return False
+    if not answer:
+        return default
     return answer in ("y", "yes")
 
 
@@ -17207,6 +17241,147 @@ def _run_check(
     )
 
 
+def _report_and_commit_migration(
+    args: argparse.Namespace, term: Term, mgr: Any, json_out: bool
+) -> int:
+    """Print what a completed migration changed, then commit it (path-scoped) unless declined.
+
+    WHY THIS EXISTS. The verb used to end with one line, "Successfully executed layout migration.",
+    after moving hundreds of files, and left every one of those moves staged but uncommitted. An
+    operator could not tell anything had happened, and the repo was left dirty for a later commit to
+    sweep up. This reports the shape of the change and then commits exactly the paths the
+    transaction touched through the shared self-commit helper (never `add -A`, never push).
+
+    Commit policy: `--no-commit` skips it; `--commit` or `--yes` commits without asking; an
+    interactive run asks `[Y/n]` (Enter commits); a non-interactive run without either flag
+    commits nothing and says how to.
+    """
+
+    from agent_workflows import git_commit_helper as _gch
+
+    summary = mgr.summarize()
+    paths = mgr.commit_paths()
+    repo_root = Path(mgr.target_repo)
+
+    commit_result: Dict[str, Any] = {"status": "skipped", "commit": None}
+    no_commit = bool(getattr(args, "no_commit", False))
+    assume_yes = bool(getattr(args, "commit", False) or getattr(args, "yes", False))
+    message = (
+        "chore(aw): migrate legacy layout to .aw/ "
+        f"({summary['moved']} moved, {summary['ids_backfilled']} plan Ids backfilled)"
+    )
+    if paths and not no_commit and not assume_yes and not json_out:
+        # Ask compactly here rather than letting the helper list every path (a real migration
+        # names well over a thousand). Enter commits.
+        if _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO):
+            term.line()
+            try:
+                answer = (
+                    input(
+                        f"Commit the {len(paths)} migrated path(s) now "
+                        "(path-scoped, not pushed)? [Y/n] "
+                    )
+                    .strip()
+                    .lower()
+                )
+            except (EOFError, KeyboardInterrupt):
+                answer = "n"
+            if answer in ("", "y", "yes"):
+                assume_yes = True
+            else:
+                commit_result = {
+                    "status": _gch.STATUS_DECLINED,
+                    "commit": None,
+                    "message": "declined at prompt",
+                }
+    if paths and not no_commit and assume_yes:
+        # The moves were `git mv`-staged; unstage exactly these paths so the helper re-stages and
+        # re-detects them (the same dance `_offer_records_commit` does for rename/group).
+        _gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *paths])
+        outcome = _gch.offer_commit(
+            repo_root,
+            paths,
+            message=message,
+            assume_yes=True,
+            no_commit=False,
+        )
+        commit_result = {
+            "status": outcome.status,
+            "commit": outcome.commit,
+            "message": outcome.message,
+            "paths": len(paths),
+        }
+    elif paths and not no_commit and commit_result["status"] == "skipped":
+        commit_result["message"] = (
+            "non-interactive; pass --commit (or --yes) to commit the migration"
+        )
+    elif no_commit:
+        commit_result["message"] = "skipped: --no-commit requested"
+    else:
+        commit_result["message"] = "nothing tracked changed"
+
+    if json_out:
+        print(json.dumps({"summary": summary, "commit": commit_result}, indent=2))
+        return 0
+
+    term.heading("Migration Summary")
+    term.status(
+        "ok",
+        f"Moved {summary['moved']} file(s) into .aw/ "
+        f"(backend: {summary['target_backend']}).",
+    )
+    for group, count in list(summary["groups"].items())[:12]:
+        term.line(f"  {count:>5}  {group}")
+    if len(summary["groups"]) > 12:
+        term.line(f"  ... and {len(summary['groups']) - 12} more group(s)")
+    if summary["renamed"]:
+        term.status(
+            "info", f"Renamed {summary['renamed']} file(s) to the .type.md grammar."
+        )
+    if summary["dedup_removed"]:
+        term.status(
+            "info",
+            f"Removed {summary['dedup_removed']} identical duplicate(s) (kept one copy).",
+        )
+    if summary["ids_backfilled"]:
+        term.status(
+            "info",
+            f"Added a '- Id:' handle to {summary['ids_backfilled']} plan(s) that had none "
+            "(required by aw ipd begin/finalize/set).",
+        )
+    if summary["gitignore_written"]:
+        term.status(
+            "info", "Wrote .aw/.gitignore (keeps per-machine .aw/state/ out of git)."
+        )
+    lo = summary["leftovers"]
+    if lo["count"]:
+        term.status(
+            "info",
+            f"Leftover legacy files: {lo['count']} ({lo['disposition']}"
+            + (f", {lo['removed']} removed" if lo["removed"] else "")
+            + "). Review with 'aw migrate-layout status'.",
+        )
+
+    status = commit_result["status"]
+    if status == _gch.STATUS_COMMITTED:
+        term.status(
+            "ok",
+            f"Committed {len(paths)} path(s) as {str(commit_result['commit'])[:12]} "
+            "(not pushed).",
+        )
+    elif status == _gch.STATUS_ERROR:
+        term.status("warn", f"Commit failed: {commit_result['message']}")
+        term.line("  The migration itself succeeded; commit the moved paths by hand.")
+    elif paths:
+        term.status(
+            "warn",
+            f"Not committed ({commit_result['message']}). {len(paths)} path(s) are left "
+            "uncommitted; re-run with --commit next time, or commit them now.",
+        )
+    term.line("  Undo with: aw migrate-layout rollback")
+    return 0
+
+
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     import io
     import json
@@ -17327,12 +17502,14 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         selected_rename = True
     elif config_rename is not None:
         selected_rename = bool(config_rename)
-    elif _term_mod.is_interactive():
+    elif _term_mod.is_interactive() and action in (None, "wizard", "apply"):
+        # Default YES (maintainer ruling): the uniform grammar is where every record is headed, and
+        # asking only in the actions that move files keeps `status`/`plan`/`rollback` prompt-free.
         selected_rename = _confirm(
             term,
-            "Also rename migrated records to the uniform .type.md grammar? "
-            "(default: no, leave existing names; dual-read keeps them working)",
+            "Also rename migrated records to the uniform .type.md grammar?",
             assume_yes=False,
+            default=True,
         )
     else:
         selected_rename = False
@@ -17488,8 +17665,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             else:
                 term.status("fail", str(exc))
             return 1
-        term.status("ok", "Successfully executed layout migration.")
-        return 0
+        return _report_and_commit_migration(args, term, mgr, json_out)
 
     # 6. Default Wizard flow (action is None or action == "wizard")
     is_interactive = not resolved_confirm and (
@@ -17612,16 +17788,30 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             )
         term.status("info", f"Total Items to Move:   {total_items}")
         term.status("info", f"Total Bytes:           {total_bytes}")
+        term.status(
+            "info",
+            f"Rename to .type.md:    {'yes' if selected_rename else 'no'}",
+        )
+        term.status(
+            "info",
+            "Afterwards:            add missing plan '- Id:' handles, write .aw/.gitignore, "
+            + (
+                "skip the commit (--no-commit)"
+                if getattr(args, "no_commit", False)
+                else "then offer a path-scoped commit"
+            ),
+        )
         term.line()
 
         try:
             conf = (
-                input("Confirm and execute layout migration? [y/N]: ").strip().lower()
+                input("Confirm and execute layout migration? [Y/n]: ").strip().lower()
             )
         except (EOFError, KeyboardInterrupt):
             conf = "n"
 
-        if conf not in ("y", "yes"):
+        # Enter accepts (the preview above is the review); EOF/Ctrl-C still declines.
+        if conf not in ("", "y", "yes"):
             term.status("skip", "Migration cancelled; nothing changed.")
             return 1
 
@@ -17640,8 +17830,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             else:
                 term.status("fail", str(exc))
             return 1
-        term.status("ok", "Successfully executed layout migration.")
-        return 0
+        return _report_and_commit_migration(args, term, mgr, json_out)
 
     # Non-interactive execution: Fail-closed if confirmation is missing
     if not resolved_confirm:
@@ -17665,8 +17854,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         else:
             term.status("fail", str(exc))
         return 1
-    term.status("ok", "Successfully executed layout migration.")
-    return 0
+    return _report_and_commit_migration(args, term, mgr, json_out)
 
 
 def _rewrite_help_token(argv):

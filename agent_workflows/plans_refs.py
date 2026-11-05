@@ -385,7 +385,10 @@ def plan_set_assign(
         text = src.read_text(encoding="utf-8")
         id6 = _read_id(text)
         if not id6:
-            return None, f"plan '{src.name}' declares no '- Id:'"
+            return (
+                None,
+                f"plan '{src.name}' declares no '- Id:'; add one with `aw ipd sync {src} --apply`",
+            )
         order = (
             (start_order + i)
             if start_order is not None
@@ -978,7 +981,7 @@ def run_mv(
     text = src.read_text(encoding="utf-8")
     id6 = _read_id(text)
     if not id6:
-        msg = f"error: plan '{src.name}' declares no '- Id:'"
+        msg = f"error: plan '{src.name}' declares no '- Id:'; add one with `aw ipd sync {src} --apply`"
         if emit_human:
             print(msg)
         return MutationResult(

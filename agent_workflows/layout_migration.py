@@ -503,6 +503,178 @@ class MigrationManager:
         else:
             shutil.move(str(src_p), str(dst_p))
 
+    # ------------------------------------------------------------------
+    # Post-move usability pass: plan Ids, .aw/.gitignore, summary, commit set
+    # ------------------------------------------------------------------
+
+    def _moved_plan_files(self, tx_data: Dict[str, Any]) -> List[Path]:
+        """Every plan document this transaction MOVED, at its new location."""
+
+        records_root = self._records_root_for_backend(
+            tx_data.get("target_backend", "repository")
+        )
+        plans_root = records_root / "plans"
+        out: List[Path] = []
+        for e in tx_data.get("move_journal", []):
+            if e.get("action") != "move":
+                continue
+            dst = Path(e["destination"])
+            if (
+                dst.suffix == ".md"
+                and dst.name not in _NON_DURABLE_BASENAMES
+                and self._is_within(dst, plans_root)
+                and dst.is_file()
+                and not dst.is_symlink()
+            ):
+                out.append(dst)
+        return out
+
+    def _backfill_plan_ids(self, tx_data: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Mint a repository-unique `- Id:` into every moved plan that lacks one.
+
+        Every lifecycle verb (`aw ipd begin`, `aw ipd finalize`, `aw ipd set executed`) refuses a
+        plan without an Id, and plans written before the id6 scheme never had one, so without this
+        a migrated repo's plans can be listed but never transitioned. Delegates to the same writer
+        `aw ipd sync` uses, so both routes place the line identically. Journaled as
+        `{path, id6}` so rollback can remove exactly the line it added.
+        """
+
+        from agent_workflows import ipd_authoring as _authoring
+
+        written = _authoring.backfill_plan_ids(
+            self._moved_plan_files(tx_data), Path(self.target_repo)
+        )
+        return [{"path": str(p), "id6": id6} for p, id6 in written]
+
+    def _ensure_gitignore(self, target_backend: str) -> Dict[str, Any]:
+        """Create the framework-owned `.aw/.gitignore` when the repo has none.
+
+        Without it the per-machine `.aw/state/` tree this migration just wrote (transaction
+        journal, switch receipt) is offered to `git add`, and those files embed absolute home
+        paths. CREATE-ONLY: an existing `.aw/.gitignore` is left byte-identical (migration
+        preserves files already under `.aw/`; back-filling patterns into one is `aw install`'s
+        job). Writes the installer's own template so the two cannot drift. Returns
+        `{path, written, created}`; rollback removes a file this created.
+        """
+
+        from agent_workflows import engine as _engine
+
+        gi = self.aw_dir / ".gitignore"
+        if gi.exists() or gi.is_symlink():
+            return {"path": str(gi), "written": False, "created": False}
+        try:
+            gi.parent.mkdir(parents=True, exist_ok=True)
+            gi.write_text(_engine._AW_GITIGNORE_TEMPLATE, encoding="utf-8")
+        except OSError:
+            return {"path": str(gi), "written": False, "created": False}
+        return {"path": str(gi), "written": True, "created": True}
+
+    def summarize(self, tx_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """A human-sized account of what a completed transaction changed on disk.
+
+        Groups the moves by legacy root -> new root so the operator can see the shape of the
+        change (for example `.agents/plans -> .aw/records/plans: 120`) instead of a bare total.
+        """
+
+        tx = tx_data if tx_data is not None else (self._load_transaction() or {})
+        repo = Path(self.target_repo)
+
+        def _short(p: str) -> str:
+            path = Path(p)
+            try:
+                rel = path.resolve().relative_to(repo.resolve()).as_posix()
+            except (ValueError, OSError):
+                return str(path)
+            parts = rel.split("/")
+            # Keep the meaningful prefix: `.agents/plans`, `.aw/records/plans`, `workflow-artifacts`.
+            depth = (
+                3
+                if parts[:2]
+                in (
+                    [".aw", "records"],
+                    [".agents", "docs"],
+                )
+                else 2
+            )
+            return "/".join(parts[:depth])
+
+        groups: Dict[str, int] = {}
+        moved = renamed = dedup = 0
+        for e in tx.get("move_journal", []):
+            if e.get("action") == "dedup-remove":
+                dedup += 1
+                continue
+            moved += 1
+            key = f"{_short(e['source'])} -> {_short(e['destination'])}"
+            groups[key] = groups.get(key, 0) + 1
+            if Path(e["source"]).name != Path(e["destination"]).name:
+                renamed += 1
+        leftovers = tx.get("leftover_disposition", {}) or {}
+        return {
+            "transaction_id": tx.get("transaction_id"),
+            "status": tx.get("status"),
+            "target_backend": tx.get("target_backend"),
+            "moved": moved,
+            "renamed": renamed,
+            "dedup_removed": dedup,
+            "groups": dict(sorted(groups.items(), key=lambda kv: (-kv[1], kv[0]))),
+            "ids_backfilled": len(tx.get("id_backfill", []) or []),
+            "gitignore_written": bool(
+                (tx.get("gitignore_written") or {}).get("written")
+            ),
+            "leftovers": {
+                "disposition": leftovers.get("disposition"),
+                "count": len(leftovers.get("leftovers", []) or []),
+                "removed": len(leftovers.get("removed", []) or []),
+            },
+        }
+
+    def commit_paths(self, tx_data: Optional[Dict[str, Any]] = None) -> List[str]:
+        """The repo-relative FILE paths this transaction changed in the TARGET repository.
+
+        Only content git already tracked is offered: a moved file that was untracked before the
+        migration stays untracked, because committing it would publish something the operator had
+        chosen not to track. Destinations outside the target repo (home/companion backends) are
+        excluded; they live in a different index.
+        """
+
+        tx = tx_data if tx_data is not None else (self._load_transaction() or {})
+        repo = Path(self.target_repo).resolve()
+        out: List[str] = []
+
+        def _add(p: str) -> None:
+            try:
+                rel = Path(p).resolve().relative_to(repo).as_posix()
+            except (ValueError, OSError):
+                return
+            if rel not in out:
+                out.append(rel)
+
+        for e in tx.get("move_journal", []):
+            if not e.get("was_tracked"):
+                continue
+            _add(e["source"])
+            if e.get("action") == "move":
+                _add(e["destination"])
+        for rel in (tx.get("leftover_disposition", {}) or {}).get("removed", []) or []:
+            _add(str(repo / rel))
+        for entry in tx.get("id_backfill", []) or []:
+            _add(entry["path"])
+        gi = tx.get("gitignore_written") or {}
+        if gi.get("written"):
+            _add(gi["path"])
+        # The records-backend policy the switch wrote. Portable (`{"records_backend": ...}`), so it
+        # belongs in the repo; skipped if it somehow carries this machine's home directory.
+        cfg = self.config_dir / "config.json"
+        if cfg.is_file():
+            try:
+                home = os.path.expanduser("~")
+                if home in ("~", "/") or home not in cfg.read_text(encoding="utf-8"):
+                    _add(str(cfg))
+            except OSError:
+                pass
+        return out
+
     # Legacy roots whose remaining (unmoved) content the leftover step governs. Host adapters
     # (.claude/.opencode/AGENTS.md/...) are preserved in place and are NOT leftovers.
     _LEGACY_LEFTOVER_ROOTS = (".agents", "workflow-artifacts")
@@ -784,6 +956,7 @@ class MigrationManager:
         resume_tx: Optional[Dict[str, Any]] = None,
         leftover_disposition: str = "defer",
         rename_to_grammar: bool = False,
+        backfill_ids: bool = True,
     ) -> MigrationPlan:
         """Execute transactional move-verify-switch migration.
 
@@ -1176,6 +1349,16 @@ class MigrationManager:
         tx_data["leftover_disposition"] = leftover_result
         self._save_transaction(tx_data)
 
+        # USABILITY PASS. Moving the files is not enough for them to WORK: measured in a real
+        # downstream repo, every migrated plan lacked the `- Id:` handle that `aw ipd begin`,
+        # `aw ipd finalize` and `aw ipd set executed` all require, and the repo had no
+        # `.aw/.gitignore`, so the per-machine `.aw/state/` receipts (which embed absolute home
+        # paths) showed up as committable. Both are fixed here and journaled for rollback.
+        if backfill_ids:
+            tx_data["id_backfill"] = self._backfill_plan_ids(tx_data)
+        tx_data["gitignore_written"] = self._ensure_gitignore(target_backend)
+        self._save_transaction(tx_data)
+
         tx_data["status"] = "retained"
         tx_data["last_verified_checkpoint"] = "retained"
         tx_data["phase_journal"].append(
@@ -1336,6 +1519,25 @@ class MigrationManager:
         # Iterate in REVERSE so a dedup twin is restored FROM the surviving destination BEFORE
         # that destination is itself moved back. This is safe from a PARTIAL (mid-move,
         # resumed-or-not) state because it only reverses what the journal actually recorded.
+        # Undo the usability pass FIRST, while the files are still at their migrated paths: strip
+        # exactly the `- Id:` lines this transaction inserted (restoring the original bytes), and
+        # remove a `.aw/.gitignore` it created from nothing.
+        for entry in (tx or {}).get("id_backfill", []) or []:
+            p = Path(entry["path"])
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            line = f"- Id: {entry['id6']}\n"
+            if line in text:
+                p.write_text(text.replace(line, "", 1), encoding="utf-8")
+        gi = (tx or {}).get("gitignore_written") or {}
+        if gi.get("created"):
+            try:
+                Path(gi["path"]).unlink()
+            except OSError:
+                pass
+
         target_top = Path(self.target_repo).resolve()
         move_journal = (tx or {}).get("move_journal", [])
         for entry in reversed(move_journal):
