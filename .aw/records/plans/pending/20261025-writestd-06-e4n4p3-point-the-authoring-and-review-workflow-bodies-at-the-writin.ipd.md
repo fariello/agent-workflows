@@ -6,7 +6,7 @@
 - Scope: Add the missing pointers; add the diagram check (requirement 12) to every authoring and review body; replace the requirement count in `spec.md` and `research-prompt.md` with count-free wording; point `plan-review/steps/p-proofread.md` at the standard's "Proofreading procedure" section; amend spec `k3yx72` N5 and its two `wcisgc` rows; add an install test that every pointer resolves. EXCLUDES the generators (Order 04), runner prompts (Order 05), the standard's own text (Order 01), and splitting or restructuring any workflow.
 - Scope-Paths: .aw/system/workflows/spec/spec.md, .aw/system/workflows/spec-review/spec-review.md, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review/steps/p-proofread.md, .aw/system/workflows/plan-review/steps/_kernel.md, .aw/system/workflows/plan-review-long/plan-review-long.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/review-rubric.md, .aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md, .aw/system/workflows/advise/personas/spec-editor.md, .aw/system/workflows/research-prompt/research-prompt.md, .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md, tests/test_workflow_bodies_writing_standard.py, CHANGELOG.md
 - Item-Dependencies: executed:g4719s, executed:3bwrfx
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -20,6 +20,7 @@
 - Id: e4n4p3
 
 ## Workflow history
+- 2026-11-06 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 fixed
 - 2026-11-05 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261025-writestd-06-e4n4p3-point-the-authoring-and-review-workflow-bodies-at-the-writin.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
 
