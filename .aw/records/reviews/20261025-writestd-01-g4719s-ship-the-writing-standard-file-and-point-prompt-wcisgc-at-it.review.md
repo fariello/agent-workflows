@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-05
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
-- Verdict: REJECT - NEEDS REPLAN
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -234,3 +234,78 @@ Tier: standard.
 |----|----------|--------|-------------------------|-------|------------|
 | D-6 | Rewrite the E-items to target the shipped file in this round? | No; mark REPLAN and ask | Rewrite to the shipped path now | The choice reverses either spec `ecmw83` MD-2 or the ruling recorded in `0cbfcc706`; both are the maintainer's | yes |
 | D-7 | Carry rounds 1 and 2 forward | Cherry-pick `f3c647b16` and append round 3 | Re-review from scratch | Round 2 claims re-checked in this tree (Step R1) | yes |
+
+## Round 4
+
+Reviewed at HEAD `a4e2b293a` in runner review-sweep lane `run-20261106T024139Z-372975`, attempt 2. The maintainer answered the round-3 questions through the terminal channel: OQ-02 "Keep shipped file; amend spec; re-scope g4719s (recommended)" and OQ-01 "Moot under OQ-02 recommended answer". This round applies those answers and re-reviews the re-scoped plan.
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Concern, Scope, Scope-Paths, Goal | Create `standards/technical-artifact-writing.md`; new install test | Extend the shipped `technical-writing/technical-writing.md`; amend spec `ecmw83`; no new test | OQ-02 answer. |
+| E-01 to E-06, V-01 to V-06 | Copy draft, add req 12, procedure, pointer, install test, gate | Spec amendment, req 12, procedure, pointer, CHANGELOG, gate | OQ-02 answer; PR-010. |
+| Findings, Deferred, Spec sync | Spec needs no change | Spec amended in-plan; Orders 02 and 03 deferred to re-review under `8fvkmp` | OQ-02 answer. |
+| Open questions | OQ-01, OQ-02 open | Both resolved with the maintainer's quoted answers | S5 return path. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes: it amends spec `ecmw83` and changes the shipped standard that `AGENTS.md` points to.
+2. No.
+3. No: 6 E-items, 3 task groups.
+4. Yes: four Scope-Paths, including one `.spec.md`.
+5. Low: additive text in one shipped file, a spec edit, and a prompt rewrite, all reversible through git.
+
+Tier: standard.
+
+### Step R1
+
+- Checked: `technical-writing.md` has "eleven" at lines 45 and 58 only, has no em or en dash, and has no "diagram" or "Proofreading procedure" text. `engine.py:1501` says "every numbered requirement", so a twelfth requirement needs no managed-block change. Spec `ecmw83` locations R-01 (line 152), R-02 (153), MD-2 (70), AC-01 (168), AC-02 (169), Section 4 "Standard" row (98) all checked. `wcisgc` headings 1 to 7 (lines 18 to 103), its scope rule excludes user-facing prose (line 12), and its section 6 example paragraph quotes project phrases. `CHANGELOG.md` line 105 holds the existing standard entry under `## 2.0.0 (pending)`. `aw specs note` appends history without a status change.
+- `tests/test_technical_writing_delivery.py` compares installed and source bytes, so it covers the edited file with no change; its install case is `@pytest.mark.slow`, so E-06 runs it explicitly.
+
+### Step R2
+
+- Checked: E/V bijection 6/6. Each V-item demands pasted output that is reachable by construction (diffs, greps, test runs). Spec trace: R-01 to R-04, AC-01, AC-02 cited. `aw ipd lint --phase review-finalize` reports `clean`, with `info` notes only: `IPD-Z602` on E-01 (six edits to one spec file is one concern, so the item is not split, D-8) and `check.ipd-review-may-be-stale` (the change recorded by this round).
+
+### Step R3
+
+- Checked: no trust-boundary code. E-06 keeps the sanitizer run.
+
+### Step R4
+
+- Checked: the Goal "one source" now holds, because the plan extends the shipped file instead of adding a second one. P16: no text-pinning test was added (D-9). Spec sync: the amendment is declared in Scope-Paths and explained in the plan. The spec's remaining dash-dependent rows (R-05 dash clause, R-07) and non-goals N1 and N2 conflict with the shipped scope. They are deferred to the re-review of Orders 02 and 03 under carrier `8fvkmp`, because changing them here would decide those plans' scope without their review.
+
+### Step S5
+
+- Checked: OQ-01 and OQ-02 are resolved with the maintainer's quoted answers and `Owner: maintainer`. No new question.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | blocker | UNDER-SCOPE | G executability | OQ-01 answer 2026-11-05 | The draft source is no longer needed. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | OQ-01 resolved (moot); E-01 no longer copies from `tmp/`. |
+| PR-002 | medium | IN-SCOPE | G execution contract | plan gate | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-003 | medium | UNDER-SCOPE | D invariant | `wcisgc` section 6 em dash | That em dash sits in the example paragraph, which E-03 no longer copies. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Not imported. |
+| PR-004 | medium | UNDER-SCOPE | G spec trace | plan E/V citations | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | R-01 to R-04, AC-01, AC-02 cited. |
+| PR-005 | low | IN-SCOPE | E testing | V-01 | Carried; V-items rewritten for the new scope. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-006 | low | UNDER-SCOPE | B privacy | `pyproject.toml` force-include `.aw/system` | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Sanitizer kept in E-06/V-06. |
+| PR-007 | low | IN-SCOPE | R1 references | `CHANGELOG.md` "## 2.0.0 (pending)" | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-008 | low | UNDER-SCOPE | G execution contract | `8fvkmp` gate | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-009 | blocker | IN-SCOPE | D invariant; G spec sync | OQ-02 answer 2026-11-05; `0cbfcc706` | The plan would add a second standard and reverse the dash ruling. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Re-scoped to extend the shipped file and amend spec `ecmw83` (E-01 to E-04). |
+| PR-010 | medium | IN-SCOPE | R1 references; D invariant | `technical-writing.md:45`, `:58` "eleven"; `wcisgc` line 12 scope exclusion | Adding requirement 12 would leave "all eleven" stale. Importing the `wcisgc` scope rule would contradict the shipped scope, which covers documentation. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | E-02 changes both counts to "twelve"; E-03 omits the `wcisgc` scope rule and the example paragraph. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-8 | Split E-01 because of `IPD-Z602`? | No | One E-item per spec row | All six edits serve one concern (make one spec file match the shipped file) and are verified by one diff (V-01) | yes |
+| D-9 | Add a test that the standard contains requirement 12? | No; verify by V-items | Text-presence test | GUIDING_PRINCIPLES P16 and `AGENTS.md` forbid tests that pin document text; the shipped delivery test already covers installation | yes |
+| D-10 | Amend spec R-05, R-07, N1, N2 here too? | No; defer to Orders 02 and 03 re-review under `8fvkmp` | Amend all dash and scope rows now | The OQ-02 answer names R-01, R-02, MD-2, AC-01 and says to reconsider Orders 02 and 03, which own those rows | yes |
