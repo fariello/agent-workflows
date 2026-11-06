@@ -5,8 +5,9 @@
 - Concern: A plan migrated from a pre-receipt, pre-current-format repo (`aw migrate-layout`) can be listed but never finalized: `aw ipd finalize` refuses without a begin receipt that could not have existed, and the pre-execution/pre-transition lint refuses fields and headings the format did not have when the plan was written.
 - Scope: Two repo-stamped cutovers (`ipd_begin_receipt`, `ipd_plan_format`), a shared legacy predicate, a git-derived finalize baseline for pre-cutover plans, a reasoned `--without-receipt` bypass for post-cutover plans, a reduced lint for pre-cutover pending plans, a no-receipt warning in `aw commit`/`aw test`, cutover stamping in `aw migrate-layout`, and the spec amendment.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/work_cmd.py, agent_workflows/layout_migration.py, tests/test_legacy_finalize.py, tests/test_config.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+- Scope-Exceeded: tests/test_migrate_layout_cli.py (E-02 cutover stamping is exercised through the existing migrate-layout CLI test class)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: next
@@ -17,9 +18,9 @@
 - Review-Depth: standard
 - Author: opencode/claude-opus
 - Id: 18kg7o
-- Approval: 2026-11-06, human ("approved"): maintainer approved in chat 2026-11-05: 'Yes' to build the recommended design
 
 ## Workflow history
+- 2026-11-06 executed (opencode/claude-opus): executed: legacy plans finish through the normal finalize (git-derived baseline, NOTICE, history), --without-receipt REASON after the cutover, reduced legacy-format lint, migrate-layout stamps cutovers; core 1859 passed, non-slow 10469 passed [Scope reconciliation - out-of-scope tests/test_migrate_layout_cli.py: E-02 cutover stamping is exercised through the existing migrate-layout CLI test class; in-scope-unmodified tests/test_config.py: predicate tests live in tests/test_legacy_finalize.py]
 - 2026-11-06 approved (opencode/claude-opus, --by-human): maintainer approved in chat 2026-11-05: 'Yes' to build the recommended design
 - 2026-11-06 reviewed (opencode/claude-opus): plan-review: APPROVE WITH REVISIONS APPLIED
 
