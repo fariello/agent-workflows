@@ -6,10 +6,10 @@ order: 04
 topic: [plan-review, runner]
 model: gemini38flashhigh
 kind: research-report
-status: todo
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Response to y6vfto by gemini38flashhigh: design review of the runner-enforced, depth-scaled plan review (spec k3yx72)
-consumed-by: []
+consumed-by: [k3yx72]
 ---
 
 <!-- aw-adopt: provenance -->
