@@ -6,18 +6,24 @@
 - Scope: Two repo-stamped cutovers (`ipd_begin_receipt`, `ipd_plan_format`), a shared legacy predicate, a git-derived finalize baseline for pre-cutover plans, a reasoned `--without-receipt` bypass for post-cutover plans, a reduced lint for pre-cutover pending plans, a no-receipt warning in `aw commit`/`aw test`, cutover stamping in `aw migrate-layout`, and the spec amendment.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/work_cmd.py, agent_workflows/layout_migration.py, tests/test_legacy_finalize.py, tests/test_config.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: next
 - Set: legacyfin
 - Order: 1
 - Highest E allocated: 08
+- Readiness: go
+- Review-Depth: standard
 - Author: opencode/claude-opus
 - Id: 18kg7o
+- Approval: 2026-11-06, human ("approved"): maintainer approved in chat 2026-11-05: 'Yes' to build the recommended design
 
 ## Workflow history
+- 2026-11-06 approved (opencode/claude-opus, --by-human): maintainer approved in chat 2026-11-05: 'Yes' to build the recommended design
+- 2026-11-06 reviewed (opencode/claude-opus): plan-review: APPROVE WITH REVISIONS APPLIED
 
+- 2026-11-05 /plan-review (opencode/claude-opus): APPROVE WITH REVISIONS APPLIED; R-1, R-2 fixed in place (standard tier: references, executability, security, engineering).
 - 2026-11-05 to-review (opencode/claude-opus): authored to the design the maintainer accepted in chat on 2026-11-05.
 
 ## Goal
@@ -88,6 +94,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-2 | No cutover distinguishes legacy from current plans for the receipt or the format. | `KNOWN_FEATURE_CUTOVERS` has no such entry. |
 | F-3 | The terminal-directory legacy branch exempts executed plans but nothing exempts a legacy pending plan. | `lint_text`: `_is_terminal_dir(directory)` -> `DISPOSITION_LEGACY`. |
 | F-4 | Nothing warns at the moment begin is skipped. | `work_cmd.run_commit` / `run_test` read no receipt. |
+| R-1 | (review) The reduced check must keep `IPD-M104` for an invalid `Status` value; only the Approval-required clause is format-only. A legacy plan with a malformed Status still refuses, with the existing message. | `ipd_schema.validate_metadata`. |
+| R-2 | (review) A legacy plan with zero E/V leaves passes the reduced pre-transition check vacuously. Accepted and stated in the spec as a limit: the reduced check proves recorded state, not that work was itemized. | `check_checkpoint` iterates present leaves only. |
 
 ## Proposed changes (ordered, validatable)
 
