@@ -2605,6 +2605,43 @@ def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[st
     return _changed_path_sources(repo_root, base_head).union()
 
 
+#: The legacy roots `aw migrate-layout` moves into `.aw/` (`layout_migration._LEGACY_LEFTOVER_ROOTS`).
+_LAYOUT_LEGACY_ROOTS = (".agents/", "workflow-artifacts/")
+
+
+def _pure_layout_renames(repo_root: Path, base_head: str) -> FrozenSet[str]:
+    """Both endpoints of every PURE layout-migration rename in ``base..HEAD`` (legacyfin `9en4fy`).
+
+    A pure rename is one git reports at 100% similarity (`R100`, asked for with
+    `--find-renames=100%`) whose source is under a legacy root and whose destination is under `.aw/`.
+    That is the shape `aw migrate-layout` produces and nothing else is excused: a rename that also
+    changed content falls below 100% and is reported as a modification, so it is judged as usual.
+    Returns an empty set when git cannot answer (fail closed: nothing is excused).
+    """
+
+    rc, out, _err = _git(
+        repo_root,
+        [
+            "diff",
+            "--name-status",
+            "-M",
+            "--find-renames=100%",
+            f"{base_head}..HEAD",
+        ],
+    )
+    if rc != 0:
+        return frozenset()
+    found: set = set()
+    for ln in out.splitlines():
+        parts = ln.split("\t")
+        if len(parts) != 3 or parts[0] != "R100":
+            continue
+        src, dst = parts[1], parts[2]
+        if src.startswith(_LAYOUT_LEGACY_ROOTS) and dst.startswith(".aw/"):
+            found.update((src, dst))
+    return frozenset(found)
+
+
 def _intervening_commits_touching(
     repo_root: Path, base_head: str, scope_paths: List[str]
 ) -> List[str]:
@@ -3117,7 +3154,13 @@ RECEIPT_SOURCE_BEGIN = "begin-receipt"
 RECEIPT_SOURCE_LEGACY = "git-derived-legacy"
 RECEIPT_SOURCE_WITHOUT = "without-receipt"
 
-_STATUS_APPROVED_RE = re.compile(r"(?mi)^- Status:\s*(auto-)?approved\s*$")
+# The approval reading ACCEPTS AN IN-PLACE ANNOTATION (legacyfin `9en4fy` E-02): the old plan format
+# wrote `- Status: approved (2026-09-25; executing)`, and a version reading that WAS the approved
+# version. A word boundary after `approved` that is followed by end-of-line or an opening annotation
+# (` (`, ` -`, ` ;`, ` ,`) keeps `approved-ish` or `approvedx` out.
+_STATUS_APPROVED_RE = re.compile(
+    r"(?mi)^- Status:\s*(auto-)?approved(?:\s*$|\s*[(;,]|\s+-\s)"
+)
 
 
 class DerivedBaseline(NamedTuple):
@@ -3207,6 +3250,29 @@ def derive_baseline(
         if text is not None and _STATUS_APPROVED_RE.search(text):
             return DerivedBaseline(sha, _date(sha), text, path_at)
     return None
+
+
+def _no_cutover_hint(repo_root: Path, feature: str) -> str:
+    """A sentence naming a MISSING cutover, or "" when the repo has one (legacyfin `9en4fy` E-03).
+
+    The legacy predicate fails closed when the repository never stamped ``feature``, so every plan
+    reads as current and a pre-cutover plan gets the strict path. MEASURED in a migrated repository:
+    finalize ran before any cutover existed, refused 34 format findings and demanded a receipt, and
+    nothing said the remedy was one `aw install`. Naming it turns a silent fail-closed into a choice.
+    """
+
+    try:
+        from agent_workflows import config as _config
+
+        if _config.resolve_cutover_date(repo_root, feature):
+            return ""
+    except Exception:
+        return ""
+    return (
+        f" NOTE: this repository has no `{feature}` cutover in .aw/config/project.json, so no plan "
+        "is treated as legacy. If this repository predates agent-workflows, run `aw install` "
+        "(it stamps the cutovers) and re-run this command."
+    )
 
 
 def _synthetic_receipt(
@@ -3418,7 +3484,8 @@ def finalize_precheck(
                 "approved but was not run, so no baseline was frozen. For new work, run "
                 f"`aw ipd begin {plan_id} --actor <you>` BEFORE executing. To finalize this plan "
                 "anyway on a baseline derived from git, add "
-                '`--without-receipt "<why begin was skipped>"` (recorded in the plan\'s history).',
+                '`--without-receipt "<why begin was skipped>"` (recorded in the plan\'s history).'
+                + _no_cutover_hint(repo_root, "ipd_begin_receipt"),
                 evidence,
                 (
                     FINDING_RECEIPT_NEVER_ISSUED,
@@ -3569,6 +3636,14 @@ def finalize_precheck(
     out_of_scope: List[str] = []
     disregarded_unowned: List[str] = []
     trailered = TrailerAttribution(frozenset(), 0, 0, 0)
+    # PURE LAYOUT-MIGRATION RENAMES ARE NOBODY'S WORK (legacyfin `9en4fy` E-05). A legacy plan's
+    # baseline is its approval commit, which predates the `.agents/` -> `.aw/` move, so every moved
+    # file sat in `base..HEAD`: measured, 464 renames each demanding its own `--scope-reason`. Only a
+    # rename at 100% similarity, from a legacy root into `.aw/`, is excused; any content change since
+    # makes it a modification and it is judged as before. Counted in the audit, never silent.
+    layout_renamed = (
+        _pure_layout_renames(repo_root, base_head) if scope_paths else frozenset()
+    )
     if scope_paths:
         committed_set = set(sources.committed)
         # EXACT ATTRIBUTION FIRST, COHESION AS THE FALLBACK (`gys47u` E-02). The run record names this
@@ -3608,6 +3683,8 @@ def finalize_precheck(
             if _is_implicitly_allowed(p, plan_rel):
                 continue
             if any(_scope_match(p, pat) for pat in scope_paths):
+                continue
+            if p in layout_renamed:
                 continue
             if p in committed_set:
                 # COMMITTED half: trailer ownership comes first and is demand-only (E-04);
@@ -3666,7 +3743,11 @@ def finalize_precheck(
     #     base. Substrate for Order 06's authorship-aware collision enforcement; COMPUTED + surfaced
     #     here (not a blanket refusal, so the normal single-actor begin->commit->finalize flow works).
     collisions = _intervening_commits_touching(repo_root, base_head, scope_paths)
-    collisions = [c for c in collisions if not _is_implicitly_allowed(c, plan_rel)]
+    collisions = [
+        c
+        for c in collisions
+        if not _is_implicitly_allowed(c, plan_rel) and c not in layout_renamed
+    ]
 
     evidence["scope_audit"] = {
         "grandfathered": not scope_paths,
@@ -3696,6 +3777,11 @@ def finalize_precheck(
         # key to auto-reason the widening (`runner_shared.compute_scope_reconciliation`), because all
         # three incidents this fixes were finalized by the RUNNER and not by hand.
         "widened_paths": list(widened_paths),
+        # legacyfin `9en4fy` E-05: pure `.agents/`|`workflow-artifacts/` -> `.aw/` renames in range,
+        # excused from the out-of-scope set. A count, so a 688-path migration does not bloat the plan.
+        "layout_migration_renames_excused": len(
+            [p for p in layout_renamed if p.startswith(".aw/")]
+        ),
     }
 
     if not lint_res.passing:
@@ -3732,11 +3818,20 @@ def finalize_precheck(
     )
 
 
-def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
+def _refresh_plans_index_fail_loud(
+    repo_root: Path, plan_name: Optional[str] = None
+) -> List[str]:
     """Refresh the owned plans index FAIL-LOUD (never the status_set swallow).
 
     Regenerates the index, then verifies freshness via `--check`. Raises RuntimeError on any
     failure so finalize treats a stale/failed index as a TRANSACTION failure, not a silent success.
+
+    FINDINGS ABOUT OTHER PLANS ARE RETURNED, NOT RAISED (legacyfin `9en4fy` E-06). With
+    ``plan_name`` (the finalized plan's file name), a finding located on a DIFFERENT plan file (for
+    example a legacy pending plan with no `- Id:`) cannot be caused or fixed by this transition, so it
+    comes back as a warning line and the finalize completes. MEASURED: one unrelated id-less pending
+    plan left a successful move reported as COMMITTED-INCOMPLETE, and re-running could not help. A
+    finding on the manifests themselves or on THIS plan still raises.
     """
     import argparse
 
@@ -3762,6 +3857,27 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         resolved_repo_root, plans_dir, limit=_pidx.DEFAULT_INDEX_LIMIT
     )
     rc = _core.drift_exit_code(drift)
+    other_plan_warnings: List[str] = []
+    if rc != 0 and plan_name:
+        failing_all = [d for d in drift if getattr(d, "severity", "") != "info"]
+
+        # PER-PLAN metadata rules only: a missing/invalid Id or a name/metadata mismatch is a fact
+        # about ONE plan file. Stale/missing manifests and dangling citations are not, and still raise.
+        per_plan_rules = ("id-missing", "id-invalid", "name-metadata-mismatch")
+
+        def _about_other_plan(d: Any) -> bool:
+            if getattr(d, "rule", "") not in per_plan_rules:
+                return False
+            loc = str(getattr(d, "location", "")).replace("\\", "/")
+            return loc.rsplit("/", 1)[-1] != plan_name
+
+        others = [d for d in failing_all if _about_other_plan(d)]
+        if others and len(others) == len(failing_all):
+            return [
+                f"plans index: {d.location}: {d.rule}: {d.detail} (another plan; not caused by "
+                "this finalize; fix it separately)"
+                for d in others
+            ]
     if rc != 0:
         failing = [d for d in drift if getattr(d, "severity", "") != "info"]
         rendered = [f"{d.location}: {d.rule}: {d.detail}" for d in failing[:10]]
@@ -3774,6 +3890,7 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         if rendered:
             msg = f"{msg}\n" + "\n".join(rendered)
         raise RuntimeError(msg)
+    return other_plan_warnings
 
 
 def _pre_commit_phase_leaves_manifests_untouched() -> str:
@@ -6142,7 +6259,11 @@ def _finalize_transaction(
     # never reverted. The remedy is mechanical and local (`aw index plans`), because the manifests are
     # gitignored generated views that no `aw` verb commits.
     try:
-        _refresh_plans_index_fail_loud(repo_root)
+        index_warnings = _refresh_plans_index_fail_loud(
+            repo_root, plan_name=Path(dest_path).name
+        )
+        if index_warnings:
+            evidence["plans_index_warnings"] = index_warnings
         _fault("after_index")
     except Exception as exc:
         evidence["plans_index_refresh"] = {"error": str(exc)}
@@ -6216,7 +6337,8 @@ def _complete_after_commit(
         f"finalized {plan_id} -> executed at {commit_hash[:12]} (actor {actor})."
         + _disregarded_unowned_note(evidence),
         evidence,
-        (),
+        # legacyfin `9en4fy` E-06: index findings on OTHER plans, reported as warnings.
+        tuple(evidence.get("plans_index_warnings", ()) or ()),
     )
 
 

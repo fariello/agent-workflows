@@ -1457,6 +1457,32 @@ def _prepare_status_change(
                 else:
                     new_lines.append(line)
 
+        if not status_updated and not is_fenced_yaml and rec.record_type == "plans":
+            # AN ANNOTATED LEGACY STATUS (legacyfin `9en4fy` E-04). The old plan format wrote
+            # `- Status: approved (2026-09-25; executing)`, which the bare-token match above skips, so
+            # the fallback below used to INSERT a second `- Status:` line and post-transition lint
+            # refused the moved plan as a duplicate field (measured: COMMITTED-INCOMPLETE). Replace
+            # the front-matter line whose value LEADS with a recognized status, and keep the old
+            # annotated value verbatim as `- Prior-Status:` so the recorded text is not lost.
+            for i, line in enumerate(new_lines):
+                if line.startswith("## "):
+                    break
+                m_ann = re.match(r"^-\s*Status:\s*([A-Za-z][A-Za-z-]*)(\W.*)$", line)
+                if not m_ann:
+                    continue
+                if (
+                    _plans_mod.normalize_status(m_ann.group(1))
+                    not in _plans_mod.RECOGNIZED
+                ):
+                    continue
+                old_value = line.split(":", 1)[1].strip()
+                new_lines[i : i + 1] = [
+                    f"- Status: {norm_status}",
+                    f"- Prior-Status: {old_value}",
+                ]
+                status_updated = True
+                break
+
         if not status_updated:
             if is_fenced_yaml:
                 res_lines = []

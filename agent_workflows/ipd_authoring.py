@@ -57,7 +57,7 @@ _SECTION_BODY = {
         "- TODO: relevant conventions discovered during Step 0.\n"
         "- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number "
         "only appended to one of those and never alone: an offset expires before this plan executes "
-        "(spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`)."
+        "(advisory `IPD-C801`)."
     ),
     S.H_FINDINGS: "TODO: findings table or notes.",
     S.H_PROPOSED: "TODO: ordered, validatable proposed changes.",
@@ -840,8 +840,12 @@ def insert_id_line(text: str, id6: str) -> Optional[str]:
             break
         block.append(i)
     for prefix in _ID_ANCHOR_PREFIXES:
+        # The old format bolded its field names (`- **Status:** reviewed`); legacyfin `9en4fy` E-07
+        # accepts that spelling of the SAME anchors. The Id line itself is always written plain, the
+        # form every reader (`plans_index._meta`, `ipd_schema.parse_metadata_block`) parses.
+        bold = "- **" + prefix[2:] + "**"
         for i in block:
-            if lines[i].startswith(prefix):
+            if lines[i].startswith(prefix) or lines[i].startswith(bold):
                 if not lines[i].endswith("\n"):
                     lines[i] = lines[i] + "\n"
                 lines.insert(i + 1, f"- Id: {id6}\n")

@@ -20,6 +20,7 @@ error(s); exit 2 = invocation/parse/internal failure. Authoritative gates requir
 from __future__ import annotations
 
 import argparse
+import datetime
 import re
 from pathlib import Path
 from typing import (
@@ -1257,10 +1258,9 @@ def check_citation_anchors(
                         "citation '{0}' has no durable anchor: name the SYMBOL "
                         "(`module.function`) or quote a unique content string, and keep the line "
                         "number only as a trailing convenience. A bare offset expires before this "
-                        "plan executes and then misdirects the executor to unrelated valid code "
-                        "(spec ipd-structure-and-linting Section 10.2).".format(
-                            m.group(0)
-                        ),
+                        "plan executes and then misdirects the executor to unrelated valid code. "
+                        "Exempt: a line number that is itself the subject (a quoted diagnostic or "
+                        "grep output).".format(m.group(0)),
                     )
                 )
     return out
@@ -2561,6 +2561,105 @@ def _is_legacy_format_diag(d: Diagnostic) -> bool:
     return False
 
 
+#: The old format annotated header values in place: `- Status: approved (2026-09-25; executing)` and
+#: `- Date: 2026-09-14 20:10` (legacyfin `9en4fy` E-01). The leading token / leading date is what the
+#: field MEANT, so the reduced check judges that and leaves the annotation as written.
+_LEGACY_DATE_PREFIX_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[ T]\S.*)?$")
+
+
+def _legacy_leading_status(raw: Optional[str]) -> Optional[str]:
+    """The recognized status an annotated legacy value leads with, or None.
+
+    `approved (2026-09-25; executing)` -> `approved`; `reviewed (re-reviewed ...)` -> `reviewed`. The
+    token is case-folded, stripped of trailing punctuation and passed through the board's legacy map
+    (`plans.normalize_status`), so the reading matches what `aw ipd board` already shows.
+    """
+
+    if not raw:
+        return None
+    m = re.match(r"\s*([A-Za-z][A-Za-z-]*)", raw)
+    if not m:
+        return None
+    token = _plans.normalize_status(m.group(1))
+    return token if token in S.RECOGNIZED_STATUS else None
+
+
+def _is_legacy_annotation_diag(
+    d: Diagnostic, doc: ParsedDoc, leading_status: Optional[str]
+) -> bool:
+    """True for an `IPD-M104` that only objects to an in-place annotation (legacyfin `9en4fy` E-01).
+
+    Three cases, each judged on what the annotation leaves intact:
+    * `Status` unrecognized, when the value LEADS with a recognized status;
+    * `Date` not ISO, when the value LEADS with a valid ISO calendar date (`2026-09-14 20:10`);
+    * `Approval must be absent`, when the leading status is `approved`.
+    A value that leads with nothing recognizable still refuses with the existing message.
+    """
+
+    if d.code == C_CHECKPOINT:
+        # The coarse status rule judged the RAW annotated value; the caller re-judges the leading
+        # token and appends its own `IPD-S404` if THAT is incompatible.
+        raw = (doc.meta_fields.get("Status") or "").strip()
+        return (
+            leading_status is not None
+            and leading_status != raw
+            and f"status '{raw}' is incompatible" in d.message
+        )
+    if d.code != C_META_FIELD:
+        return False
+    field = d.message.split(":", 1)[0].strip()
+    if field == "Status":
+        return leading_status is not None
+    if field == "Date":
+        m = _LEGACY_DATE_PREFIX_RE.match((doc.meta_fields.get("Date") or "").strip())
+        if not m:
+            return False
+        try:
+            datetime.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return False
+        return True
+    if field == S.META_APPROVAL and "must be absent" in d.message:
+        return leading_status in S.READY_TO_EXECUTE
+    return False
+
+
+#: legacyfin `9en4fy` E-03: the advisory naming a MISSING plan-format cutover.
+C_LEGACY_NO_CUTOVER = "IPD-L002"
+
+
+def _with_no_cutover_advisory(repo_root: Path, result: LintResult) -> LintResult:
+    """Add `IPD-L002` when format-only findings fire in a repo with NO `ipd_plan_format` cutover.
+
+    Advisory only (the disposition is unchanged): the strict check is the correct fail-closed answer
+    when the boundary is unknown, but without this line an operator sees 34 format findings on a
+    plan written years before the format and no hint that one `aw install` would stamp the boundary.
+    """
+
+    if not any(_is_legacy_format_diag(d) for d in result.diagnostics):
+        return result
+    try:
+        from agent_workflows import config as _config
+
+        if _config.resolve_cutover_date(repo_root, "ipd_plan_format"):
+            return result
+    except Exception:
+        return result
+    advisory = Diagnostic(
+        0,
+        0,
+        C_LEGACY_NO_CUTOVER,
+        "this repository has no `ipd_plan_format` cutover in .aw/config/project.json, so no plan "
+        "is judged by the reduced legacy check. If this plan predates agent-workflows in this "
+        "repository, run `aw install` (it stamps the cutovers) and lint again.",
+    )
+    return LintResult(
+        result.disposition,
+        list(result.diagnostics),
+        list(result.advisories) + [advisory],
+    )
+
+
 def _apply_legacy_format(
     path: Path, result: LintResult, checkpoint: str, doc: ParsedDoc
 ) -> LintResult:
@@ -2596,8 +2695,29 @@ def _apply_legacy_format(
     except Exception:
         return result
     if not legacy:
-        return result
-    kept = [d for d in result.diagnostics if not _is_legacy_format_diag(d)]
+        return _with_no_cutover_advisory(repo_root, result)
+    leading_status = _legacy_leading_status(doc.meta_fields.get("Status"))
+    kept = [
+        d
+        for d in result.diagnostics
+        if not _is_legacy_format_diag(d)
+        and not _is_legacy_annotation_diag(d, doc, leading_status)
+    ]
+    # An ANNOTATED status (`approved (2026-09-25; executing)`) failed the checkpoint's coarse status
+    # rule on its raw value; judge the rule again on the leading token the old format meant.
+    if (
+        leading_status
+        and leading_status != (doc.meta_fields.get("Status") or "").strip()
+    ):
+        if not S.checkpoint_allows_status(checkpoint, leading_status, _dir_of(path)):
+            kept.append(
+                Diagnostic(
+                    0,
+                    0,
+                    C_CHECKPOINT,
+                    f"status '{leading_status}' is incompatible with checkpoint '{checkpoint}'",
+                )
+            )
     advisory = Diagnostic(
         0,
         0,

@@ -414,3 +414,238 @@ class BareSyncRefusalTests(_Repo):
         rec = json.loads(out.strip().splitlines()[-1])
         self.assertEqual(rec["cmd"], "ipd sync")
         self.assertEqual(rec["exit"], 2)
+
+
+# --------------------------------------------------------------------------------------------------
+# legacyfin `9en4fy`: finishing a legacy plan end to end (annotated header values, migration renames,
+# index findings on other plans, bold Id anchors, the migration commit subject, the cutover hint).
+# --------------------------------------------------------------------------------------------------
+
+# The old format annotated header values in place, exactly as a pre-cutover repository wrote them.
+ANNOTATED_PLAN = (
+    "# IPD: annotated\n\n- Date: 2026-07-01 14:00\n"
+    "- Status: approved (2026-07-02; executing)\n- Approval: approved by G\n"
+    "- Risk tier: **Tier 3**\n- Id: lg0003\n\n## Goal\n\nDo it.\n"
+)
+
+
+class AnnotatedLegacyHeaderTests(_Repo):
+    def setUp(self) -> None:
+        super().setUp()
+        self.stamp(ipd_begin_receipt="2026-12-31", ipd_plan_format="2026-12-31")
+        self.plan = self.write_plan(ANNOTATED_PLAN, "20260701-1400-01-annotated.ipd.md")
+        self.approval = self.commit("approve annotated")
+
+    def test_reduced_lint_accepts_annotated_status_and_timed_date(self) -> None:
+        res = L.lint_file(self.plan, checkpoint="pre-transition")
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING, res.diagnostics)
+        self.assertIn("IPD-L001", [a.code for a in res.advisories])
+
+    def test_annotation_on_an_unrecognized_status_still_refuses(self) -> None:
+        bad = ANNOTATED_PLAN.replace("approved (2026", "wobbly (2026")
+        plan = self.write_plan(bad, "20260701-1400-01-bad.ipd.md")
+        res = L.lint_file(plan, checkpoint="pre-transition")
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+        self.assertIn("IPD-M104", {d.code for d in res.diagnostics})
+
+    def test_annotated_draft_still_fails_the_execution_checkpoint(self) -> None:
+        draft = ANNOTATED_PLAN.replace("approved (2026", "draft (2026").replace(
+            "- Approval: approved by G\n", ""
+        )
+        plan = self.write_plan(draft, "20260701-1400-01-draft.ipd.md")
+        res = L.lint_file(plan, checkpoint="pre-execution")
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+        self.assertTrue(
+            any("incompatible with checkpoint" in d.message for d in res.diagnostics)
+        )
+
+    def test_derive_baseline_finds_an_annotated_approval(self) -> None:
+        got = LC.derive_baseline(self.root, self.plan)
+        self.assertIsNotNone(got)
+        assert got is not None
+        self.assertEqual(got.sha, self.approval)
+
+    def test_finalize_completes_and_keeps_the_annotation(self) -> None:
+        code, out, err = self.run_cli(
+            "ipd", "finalize", "lg0003", "--actor", "t", "-m", "done", "--apply"
+        )
+        self.assertEqual(code, 0, out + err)
+        moved = (
+            self.root / ".aw/records/plans/executed/20260701-1400-01-annotated.ipd.md"
+        )
+        text = moved.read_text(encoding="utf-8")
+        self.assertEqual(text.count("- Status:"), 1, text)
+        self.assertIn("- Status: executed", text)
+        self.assertIn("- Prior-Status: approved (2026-07-02; executing)", text)
+        self.assertIn(f"approval commit {self.approval[:12]}", text)
+
+
+class MigrationRenamesNotOutOfScopeTests(_Repo):
+    """A plan approved BEFORE `.agents/` -> `.aw/`, finished after it."""
+
+    PLAN = (
+        "# IPD: across migration\n\n- Date: 2026-07-01\n- Status: approved\n"
+        "- Scope-Paths: src/a.py\n- Id: lg0004\n\n## Goal\n\nDo it.\n"
+    )
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.stamp(ipd_begin_receipt="2026-12-31", ipd_plan_format="2026-12-31")
+        (self.root / ".agents/plans/pending").mkdir(parents=True)
+        (self.root / ".agents/docs").mkdir(parents=True)
+        for i in range(3):
+            (self.root / f".agents/docs/d{i}.md").write_text(
+                f"doc {i}\n", encoding="utf-8"
+            )
+        (self.root / ".agents/plans/pending/20260701-0001-01-x.ipd.md").write_text(
+            self.PLAN, encoding="utf-8"
+        )
+        self.commit("approve before migration")
+        (self.root / ".aw/records/plans").mkdir(parents=True)
+        (self.root / ".aw/docs").mkdir(parents=True)
+        _git(self.root, "mv", ".agents/plans/pending", ".aw/records/plans/pending")
+        for i in range(3):
+            _git(self.root, "mv", f".agents/docs/d{i}.md", f".aw/docs/d{i}.md")
+        (self.root / "src").mkdir()
+        (self.root / "src/a.py").write_text("x = 1\n", encoding="utf-8")
+
+    def test_pure_renames_need_no_scope_reason(self) -> None:
+        self.commit("migrate layout and do the work")
+        code, out, err = self.run_cli(
+            "ipd", "finalize", "lg0004", "--actor", "t", "-m", "done", "--apply"
+        )
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("--scope-reason", out + err)
+        self.assertTrue(
+            (
+                self.root / ".aw/records/plans/executed/20260701-0001-01-x.ipd.md"
+            ).is_file()
+        )
+
+    def test_a_renamed_file_with_changed_content_still_needs_a_reason(self) -> None:
+        (self.root / ".aw/docs/d1.md").write_text(
+            "rewritten entirely\n", encoding="utf-8"
+        )
+        self.commit("migrate layout, do the work, and edit a moved doc")
+        code, out, err = self.run_cli(
+            "ipd", "finalize", "lg0004", "--actor", "t", "-m", "done", "--apply"
+        )
+        self.assertEqual(code, 1, out + err)
+        self.assertIn(".aw/docs/d1.md", out + err)
+        self.assertNotIn(".aw/docs/d0.md", out + err)
+
+
+class IndexFindingOnAnotherPlanTests(_Repo):
+    def test_other_plans_missing_id_is_a_warning_not_committed_incomplete(self) -> None:
+        self.stamp(ipd_begin_receipt="2026-12-31", ipd_plan_format="2026-12-31")
+        self.write_plan(LEGACY_PLAN, "20260701-0001-01-legacy.ipd.md")
+        self.write_plan(
+            "# IPD: other\n\nno metadata at all\n\n## Goal\n",
+            "20260702-0001-01-other.ipd.md",
+        )
+        self.commit("approve, with an id-less neighbour")
+        code, out, err = self.run_cli(
+            "ipd", "finalize", "lg0001", "--actor", "t", "-m", "done", "--apply"
+        )
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("COMMITTED-INCOMPLETE", out + err)
+        self.assertIn("20260702-0001-01-other.ipd.md: id-missing", out + err)
+        self.assertIsNone(LC.read_finalize_journal(self.root, "lg0001"))
+
+
+class BoldHeaderIdBackfillTests(_Repo):
+    def test_bold_status_header_gets_an_id(self) -> None:
+        plan = self.write_plan(
+            "# IPD: bold\n\n- **Created:** 2026-07-10 14:00\n- **Status:** reviewed (x)\n\n"
+            "## 0. Body\n",
+            "20260710-1400-01-bold.ipd.md",
+        )
+        self.commit("seed bold")
+        code, out, _err = self.run_cli("ipd", "sync", "--all", "--apply")
+        self.assertEqual(code, 0, out)
+        lines = plan.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(lines[4][:6], "- Id: ", lines)
+        self.assertEqual(lines[3], "- **Status:** reviewed (x)")
+
+
+class NoCutoverHintTests(_Repo):
+    def test_lint_and_finalize_name_the_missing_cutover(self) -> None:
+        plan = self.write_plan(LEGACY_PLAN, "20260701-0001-01-legacy.ipd.md")
+        self.commit("approve with no cutovers stamped")
+        res = L.lint_file(plan, checkpoint="pre-transition")
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+        self.assertIn("IPD-L002", [a.code for a in res.advisories])
+        code, out, err = self.run_cli(
+            "ipd", "finalize", "lg0001", "--actor", "t", "-m", "done", "--apply"
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("no `ipd_begin_receipt` cutover", out + err)
+
+    def test_no_hint_once_cutovers_are_stamped(self) -> None:
+        self.stamp(ipd_begin_receipt="2026-01-01", ipd_plan_format="2026-01-01")
+        plan = self.write_plan(LEGACY_PLAN, "20260701-0001-01-legacy.ipd.md")
+        res = L.lint_file(plan, checkpoint="pre-transition")
+        self.assertNotIn("IPD-L002", [a.code for a in res.advisories])
+
+
+class MigrationCommitSubjectTests(_Repo):
+    def test_subject_counts_only_what_the_commit_moves(self) -> None:
+        (self.root / ".agents").mkdir()
+        for i in range(3):
+            (self.root / f".agents/n{i}.md").write_text(f"n{i}\n", encoding="utf-8")
+        self.commit("seed")
+        # Simulate a re-run: the moves are already committed and only a config file is new.
+        (self.root / ".aw").mkdir()
+        for i in range(3):
+            _git(self.root, "mv", f".agents/n{i}.md", f".aw/n{i}.md")
+        self.commit("first migration")
+        (self.root / ".aw/config.json").write_text("{}\n", encoding="utf-8")
+        paths = [f".agents/n{i}.md" for i in range(3)] + [
+            f".aw/n{i}.md" for i in range(3)
+        ]
+        paths.append(".aw/config.json")
+        msg = cli._migration_commit_message(
+            self.root, paths, {"moved": 145, "ids_backfilled": 0}
+        )
+        self.assertNotIn("145", msg)
+        self.assertIn("no files moved", msg)
+        self.assertIn("1 file(s)", msg)
+
+    def test_subject_counts_real_moves(self) -> None:
+        (self.root / ".agents").mkdir()
+        for i in range(2):
+            (self.root / f".agents/n{i}.md").write_text(f"n{i}\n", encoding="utf-8")
+        self.commit("seed")
+        (self.root / ".aw").mkdir()
+        for i in range(2):
+            _git(self.root, "mv", f".agents/n{i}.md", f".aw/n{i}.md")
+        paths = [f".agents/n{i}.md" for i in range(2)] + [
+            f".aw/n{i}.md" for i in range(2)
+        ]
+        msg = cli._migration_commit_message(
+            self.root, paths, {"moved": 2, "ids_backfilled": 0}
+        )
+        self.assertIn("(2 moved, 0 plan Ids backfilled, 0 other file(s))", msg)
+
+
+class CitationAdvisoryNamesNoUninstalledSpecTests(_Repo):
+    def test_c801_message_is_self_contained(self) -> None:
+        self.stamp(ipd_plan_format="2026-01-01")
+        plan = self.write_plan(
+            LEGACY_PLAN.replace(
+                "Do the thing.", "See agent_workflows/cli.py:120 for it."
+            ),
+            "20260701-0001-01-legacy.ipd.md",
+        )
+        res = L.lint_file(plan, checkpoint="author", citation_anchors=True)
+        c801 = [a.message for a in res.advisories if a.code == "IPD-C801"]
+        self.assertTrue(c801, res.advisories)
+        self.assertNotIn("ipd-structure-and-linting", c801[0])
+
+
+class AnnotatedApprovedPassesPreExecutionTests(_Repo):
+    def test_annotated_approved_is_ready_to_execute(self) -> None:
+        self.stamp(ipd_begin_receipt="2026-12-31", ipd_plan_format="2026-12-31")
+        plan = self.write_plan(ANNOTATED_PLAN, "20260701-1400-01-annotated.ipd.md")
+        res = L.lint_file(plan, checkpoint="pre-execution")
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING, res.diagnostics)

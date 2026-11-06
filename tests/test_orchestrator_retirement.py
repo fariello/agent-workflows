@@ -5043,9 +5043,9 @@ class TheIndexGateIsStillLiveUnderTheNewOrdering(RollupTransitionCase):
             order.append("reconcile")
             return real_land(repo_root, landed, expected_base=expected_base)
 
-        def spy_refresh(repo_root):
+        def spy_refresh(repo_root, **kwargs):
             order.append("refresh")
-            return real_refresh(repo_root)
+            return real_refresh(repo_root, **kwargs)
 
         with mock.patch.object(LC, "land_worktree_commit", spy_land):
             with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy_refresh):

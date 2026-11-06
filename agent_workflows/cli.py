@@ -17286,6 +17286,52 @@ def _run_check(
     )
 
 
+def _migration_commit_message(
+    repo_root: Path, paths: List[str], summary: Dict[str, Any]
+) -> str:
+    """The migration commit subject, counting what THIS COMMIT changes (legacyfin `9en4fy` E-08).
+
+    The transaction journal counts every move the migration has EVER made, so a re-run whose moves
+    were already committed produced `(145 moved, 0 plan Ids backfilled)` on a commit that changed one
+    config file (measured). The subject now counts the moved DESTINATIONS that still differ from
+    HEAD, and names other changed files separately, so a reader trusting it is not misled. Falls back
+    to the journal count when git cannot answer.
+    """
+
+    from agent_workflows import git_commit_helper as _gch
+
+    rc, out, _err = _gch._git(
+        repo_root, ["status", "--porcelain", "--untracked-files=all", "--", *paths]
+    )
+    if rc != 0:
+        return (
+            "chore(aw): migrate legacy layout to .aw/ "
+            f"({summary['moved']} moved, {summary['ids_backfilled']} plan Ids backfilled)"
+        )
+    changed: List[str] = []
+    for ln in out.splitlines():
+        body = ln[3:] if len(ln) > 3 else ""
+        # A staged `git mv` reads `R  old -> new`: both sides are changed by this commit.
+        for side in body.split(" -> "):
+            side = side.strip().strip('"')
+            if side and side not in changed:
+                changed.append(side)
+    # A move shows up as its legacy SOURCE gone plus its `.aw/` destination new; count the sources.
+    moved = sum(
+        1 for p in changed if not p.startswith(".aw/") and not (repo_root / p).exists()
+    )
+    other = max(len(changed) - 2 * moved, 0)
+    if moved == 0:
+        return (
+            "chore(aw): record agent-workflows layout policy "
+            f"({other} file(s); no files moved, the layout was already migrated)"
+        )
+    return (
+        f"chore(aw): migrate legacy layout to .aw/ ({moved} moved, "
+        f"{summary['ids_backfilled']} plan Ids backfilled, {other} other file(s))"
+    )
+
+
 def _report_and_commit_migration(
     args: argparse.Namespace, term: Term, mgr: Any, json_out: bool
 ) -> int:
@@ -17343,6 +17389,7 @@ def _report_and_commit_migration(
         # The moves were `git mv`-staged; unstage exactly these paths so the helper re-stages and
         # re-detects them (the same dance `_offer_records_commit` does for rename/group).
         _gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *paths])
+        message = _migration_commit_message(repo_root, paths, summary)
         outcome = _gch.offer_commit(
             repo_root,
             paths,
