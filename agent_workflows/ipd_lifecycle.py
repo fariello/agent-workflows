@@ -3109,8 +3109,182 @@ def _working_tree_path_is_owned(
     return any(_scope_match(path, pat) for pat in scope_paths)
 
 
+# --------------------------------------------------------------------------------------------------
+# Finalizing a plan that has no begin receipt (legacyfin `18kg7o` E-03/E-04)
+# --------------------------------------------------------------------------------------------------
+
+RECEIPT_SOURCE_BEGIN = "begin-receipt"
+RECEIPT_SOURCE_LEGACY = "git-derived-legacy"
+RECEIPT_SOURCE_WITHOUT = "without-receipt"
+
+_STATUS_APPROVED_RE = re.compile(r"(?mi)^- Status:\s*(auto-)?approved\s*$")
+
+
+class DerivedBaseline(NamedTuple):
+    """The commit a receiptless finalize measures from, and the plan as it stood there."""
+
+    sha: str
+    date: str  # committer date, ISO-8601
+    plan_text: str
+    path_at_sha: str
+
+
+def derive_baseline(
+    repo_root: Path, plan_path: Path, *, base: Optional[str] = None
+) -> Optional[DerivedBaseline]:
+    """Reconstruct the begin baseline from git: the commit that APPROVED the plan.
+
+    That is the oldest commit (following renames, so a `git mv` by `aw migrate-layout` does not hide
+    history) whose version of the plan carries `- Status: approved`; a plan born approved resolves to
+    its adding commit. With ``base`` the caller names the commit instead, and the plan text is read
+    there (falling back to the current text when the plan did not exist at that commit).
+
+    THE STATED LIMIT: the receipt froze the base at execution START, which follows approval. Work
+    committed between approval and the real start is therefore inside the measured window (it is
+    attributed to this plan's scope audit), and work done BEFORE approval escapes it. Callers record
+    the commit used so a reviewer can judge it. Returns None when git cannot answer.
+    """
+
+    try:
+        rel = plan_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return None
+
+    def _show(sha: str, path: str) -> Optional[str]:
+        rc, out, _e = _git(repo_root, ["show", f"{sha}:{path}"])
+        return out if rc == 0 else None
+
+    def _date(sha: str) -> str:
+        rc, out, _e = _git(repo_root, ["show", "-s", "--format=%cI", sha])
+        return out.strip() if rc == 0 else ""
+
+    if base:
+        rc, out, _e = _git(repo_root, ["rev-parse", "--verify", f"{base}^{{commit}}"])
+        if rc != 0 or not out.strip():
+            return None
+        sha = out.strip()
+        text = _show(sha, rel)
+        if text is None:
+            try:
+                text = plan_path.read_text(encoding="utf-8")
+            except OSError:
+                return None
+        return DerivedBaseline(sha, _date(sha), text, rel)
+
+    # The plan's own history, newest-first, tracing renames BACKWARDS by hand. `git log --follow` was
+    # measured missing the `aw migrate-layout` rename (a small plan that also gained an Id line), so
+    # walk every rename/add/modify of the current path in the whole log instead: when a commit renamed
+    # OLD -> CURRENT, keep following OLD in older commits.
+    rc, out, _e = _git(
+        repo_root,
+        ["log", "-M", "--format=%x01%H", "--name-status", "--diff-filter=AMR"],
+    )
+    if rc != 0:
+        return None
+    touching: List[
+        Tuple[str, str]
+    ] = []  # (sha, path the plan had in that commit), newest-first
+    current = rel
+    for chunk in out.split("\x01"):
+        lines = [ln for ln in chunk.splitlines() if ln.strip()]
+        if not lines:
+            continue
+        sha = lines[0].strip()
+        for ln in lines[1:]:
+            parts = ln.split("\t")
+            status = parts[0]
+            if status.startswith("R") and len(parts) == 3 and parts[2] == current:
+                touching.append((sha, current))
+                current = parts[1]
+                break
+            if status in ("A", "M") and len(parts) == 2 and parts[1] == current:
+                touching.append((sha, current))
+                break
+    for sha, path_at in reversed(
+        touching
+    ):  # oldest-first: the FIRST approved version wins
+        text = _show(sha, path_at)
+        if text is not None and _STATUS_APPROVED_RE.search(text):
+            return DerivedBaseline(sha, _date(sha), text, path_at)
+    return None
+
+
+def _synthetic_receipt(
+    plan_id: str, plan_rel: str, baseline: DerivedBaseline, source: str
+) -> Dict[str, Any]:
+    """An IN-MEMORY receipt equivalent to the one `begin` would have written at ``baseline``.
+
+    Built from the same pure helpers `begin` uses, so every downstream consumer (currency check,
+    widening, scope audit) treats it exactly like a real receipt. It is NEVER written to disk: a
+    receipt on disk is a claim that `begin` ran, and that claim would be false.
+    """
+
+    text = baseline.plan_text
+    return {
+        "schema_version": RECEIPT_SCHEMA_VERSION,
+        "kind": "ipd_begin_receipt",
+        "plan_id": plan_id,
+        "plan_path": plan_rel,
+        "plan_content_digest": plan_content_digest(text),
+        "frozen_region_digest": frozen_region_digest(text),
+        "scope_paths": _frozen_scope_paths(text),
+        "base_head": baseline.sha,
+        "actor": None,
+        "timestamp": baseline.date,
+        "pre_execution": {"disposition": "not-recorded", "advisories": []},
+        "source": source,
+    }
+
+
+def receiptless_history_note(evidence: Dict[str, Any]) -> str:
+    """The history note a receiptless finalize appends, or "" for a normal one."""
+
+    src = evidence.get("receipt_source")
+    base = str(evidence.get("receipt_base") or "")[:12]
+    if src == RECEIPT_SOURCE_LEGACY:
+        return (
+            f"no begin receipt (plan predates begin receipts in this repo); baseline derived from "
+            f"git: approval commit {base}"
+        )
+    if src == RECEIPT_SOURCE_WITHOUT:
+        return (
+            f"finalized WITHOUT a begin receipt (aw ipd begin was skipped); baseline {base}; "
+            f"reason: {evidence.get('without_receipt_reason')}"
+        )
+    return ""
+
+
+def receiptless_notice(evidence: Dict[str, Any]) -> str:
+    """The loud one-paragraph NOTICE a receiptless finalize prints, or "" for a normal one.
+
+    Addressed to whoever reads it next, human or agent: it says what was done instead of the normal
+    gate, from which commit, and what to do differently next time.
+    """
+
+    src = evidence.get("receipt_source")
+    base = str(evidence.get("receipt_base") or "")[:12]
+    if src == RECEIPT_SOURCE_LEGACY:
+        return (
+            f"NOTICE: no begin receipt. This plan was approved before begin receipts existed in this "
+            f"repo, so its baseline was derived from git (approval commit {base}) and the scope check "
+            "ran from there. This is recorded in the plan's history. New plans must run "
+            "`aw ipd begin <plan> --actor <you>` before work starts."
+        )
+    if src == RECEIPT_SOURCE_WITHOUT:
+        return (
+            f"NOTICE: finalized WITHOUT a begin receipt. `aw ipd begin` was skipped, so the baseline "
+            f"was derived from git (commit {base}) and the reason given is recorded in the plan's "
+            "history. Run `aw ipd begin <plan> --actor <you>` before executing next time."
+        )
+    return ""
+
+
 def finalize_precheck(
-    repo_root: Path, plan_path: Path
+    repo_root: Path,
+    plan_path: Path,
+    *,
+    without_receipt: Optional[str] = None,
+    base: Optional[str] = None,
 ) -> Tuple[int, str, Dict[str, Any], Tuple[str, ...]]:
     """E-01: validate the begin receipt + pre-transition lint + scope comparison. No mutation.
 
@@ -3195,16 +3369,64 @@ def finalize_precheck(
                 evidence,
                 (FINDING_RECEIPT_ALREADY_FINALIZED,),
             )
-        return (
-            EXIT_FINDINGS,
-            f"no begin receipt for {plan_id}: run `aw ipd begin` first (fail-closed: no receipt = "
-            "no execution authority).",
-            evidence,
-            (
-                FINDING_RECEIPT_NEVER_ISSUED,
-                f"missing begin receipt at {receipt_path_for(repo_root, plan_id)}",
-            ),
+        # NO RECEIPT, NOT FINALIZED (legacyfin `18kg7o` E-04). Two legitimate ways forward, and the
+        # line between them is whether `aw ipd begin` was AVAILABLE when the plan was approved:
+        #   * LEGACY: approved before this repo's `ipd_begin_receipt` cutover, so nobody skipped
+        #     anything. Proceed on a baseline derived from git, loudly, with no flag.
+        #   * SKIPPED: approved after it. Refuse unless the caller says why (`--without-receipt`).
+        # Either way the scope audit below still runs, from the derived commit.
+        reason = (
+            (without_receipt or "").strip() if without_receipt is not None else None
         )
+        if without_receipt is not None and not reason:
+            return (
+                EXIT_CANNOT_RUN,
+                "--without-receipt needs a non-empty reason (it is recorded in the plan's history).",
+                evidence,
+                (),
+            )
+        baseline = derive_baseline(repo_root, plan_path, base=base)
+        from agent_workflows import config as _config
+
+        approval_date = baseline.date if baseline else doc.meta_fields.get("Date")
+        legacy = _config.plan_predates_cutover(
+            repo_root, "ipd_begin_receipt", approval_date
+        )
+        if baseline is not None and (legacy or reason):
+            source = RECEIPT_SOURCE_WITHOUT if reason else RECEIPT_SOURCE_LEGACY
+            receipt = _synthetic_receipt(
+                plan_id, _repo_relative(repo_root, plan_path), baseline, source
+            )
+            evidence["receipt_source"] = source
+            evidence["receipt_base"] = baseline.sha
+            evidence["receipt_base_date"] = baseline.date
+            if reason:
+                evidence["without_receipt_reason"] = reason
+        elif legacy or reason:
+            return (
+                EXIT_FINDINGS,
+                f"no begin receipt for {plan_id}, and git cannot find the commit that approved it "
+                "(no version of the plan reads `- Status: approved`). Name the baseline yourself: "
+                f'`aw ipd finalize {plan_id} --without-receipt "<why>" --base <commit>`.',
+                evidence,
+                (FINDING_RECEIPT_NEVER_ISSUED,),
+            )
+        else:
+            return (
+                EXIT_FINDINGS,
+                f"no begin receipt for {plan_id}: `aw ipd begin` was available when this plan was "
+                "approved but was not run, so no baseline was frozen. For new work, run "
+                f"`aw ipd begin {plan_id} --actor <you>` BEFORE executing. To finalize this plan "
+                "anyway on a baseline derived from git, add "
+                '`--without-receipt "<why begin was skipped>"` (recorded in the plan\'s history).',
+                evidence,
+                (
+                    FINDING_RECEIPT_NEVER_ISSUED,
+                    f"missing begin receipt at {receipt_path_for(repo_root, plan_id)}",
+                ),
+            )
+    else:
+        evidence["receipt_source"] = RECEIPT_SOURCE_BEGIN
     widened_paths: List[str] = []
     if not receipt_is_current(receipt, plan_text):
         # THE ONE MISMATCH CLASS THAT IS A DECLARATION, NOT A CONTRACT REWRITE (rcptwiden `63425h`
@@ -5138,6 +5360,8 @@ def finalize(
     env: Optional[Mapping[str, str]] = None,
     run_id: Optional[str] = None,
     take_over: Optional[str] = None,
+    without_receipt: Optional[str] = None,
+    base: Optional[str] = None,
 ) -> FinalizeResult:
     """The atomic terminal transaction for one IPD (precheck + two-way reconciliation + transition).
 
@@ -5266,9 +5490,14 @@ def finalize(
     if early is not None:
         return early
 
-    exit_code, msg, evidence, findings = finalize_precheck(repo_root, plan_path)
+    exit_code, msg, evidence, findings = finalize_precheck(
+        repo_root, plan_path, without_receipt=without_receipt, base=base
+    )
     if exit_code != EXIT_OK:
         return FinalizeResult(exit_code, None, msg, evidence, findings)
+    # legacyfin `18kg7o` E-05: a receiptless finalize is announced on EVERY result (preview,
+    # refusal later in the flow, success), so neither a human nor an agent can miss it.
+    receiptless_note = receiptless_history_note(evidence)
 
     # --- Order 05: two-way scope reconciliation (surfaces + attributes both deltas) ---
     audit = evidence.get("scope_audit", {})
@@ -5386,6 +5615,8 @@ def finalize(
     )
     if empty_declared_note:
         message = f"{message} [{empty_declared_note}]"
+    if receiptless_note:
+        message = f"{message} [{receiptless_note}]"
 
     # --- E-02/E-03 forward transition, wrapped in the durable two-phase journal (Order 3xh53a) ---
     rec = _ss.read_artifact_record(plan_path, repo_root)
@@ -6377,7 +6608,13 @@ def run_finalize(args) -> int:
         plan_selector=selector,
         run_id=getattr(args, "run_id", None),
         take_over=getattr(args, "take_over", None),
+        without_receipt=getattr(args, "without_receipt", None),
+        base=getattr(args, "base", None),
     )
+
+    notice = receiptless_notice(result.evidence or {})
+    if notice and not (ctx.is_agent or ctx.is_json):
+        print(notice, file=sys.stderr)
 
     if result.exit_code == EXIT_OK:
         diags = [
@@ -6389,6 +6626,15 @@ def run_finalize(args) -> int:
             )
             for f in result.findings
         ]
+        if notice:
+            diags.append(
+                OutDiag(
+                    location=str(plan_path),
+                    rule="IPD-FINALIZE-NO-RECEIPT",
+                    detail=notice,
+                    severity="warning",
+                )
+            )
         return _emit(
             EXIT_OK,
             "clean",

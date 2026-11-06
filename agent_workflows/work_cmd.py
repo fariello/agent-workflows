@@ -223,6 +223,45 @@ def _plan_status(text: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+def _warn_if_begin_skipped(
+    verb: str, repo_root: Path, plan_path: Path, text: str
+) -> None:
+    """legacyfin `18kg7o` E-06: warn, at the moment it can still be fixed, that `begin` was skipped.
+
+    Fires only for an APPROVED plan that has an Id, has no begin receipt, and is NOT legacy for the
+    `ipd_begin_receipt` cutover (a legacy plan finalizes on a git-derived baseline, so nagging there
+    would teach nothing). Advisory: stderr only, never changes the exit code, never raises.
+    """
+
+    try:
+        if (_plan_status(text) or "").lower() not in ("approved", "auto-approved"):
+            return
+        plan_id = _plan_id6(text)
+        if not plan_id:
+            return
+        from agent_workflows import config as _config
+        from agent_workflows import ipd_lifecycle as _life
+
+        if _life.read_receipt(repo_root, plan_id) is not None:
+            return
+        baseline = _life.derive_baseline(repo_root, plan_path)
+        date = baseline.date if baseline else None
+        if date is None:
+            import re
+
+            m = re.search(r"(?m)^- Date:\s*(\S+)", text)
+            date = m.group(1) if m else None
+        if _config.plan_predates_cutover(repo_root, "ipd_begin_receipt", date):
+            return
+        sys.stderr.write(
+            f"{verb}: warning - no begin receipt for {plan_id}. Run "
+            f"`aw ipd begin {plan_id} --actor <you>` before executing; otherwise "
+            '`aw ipd finalize` will require --without-receipt "<why>".\n'
+        )
+    except Exception:
+        return
+
+
 def _plan_scope_paths(text: str) -> Tuple[List[str], bool]:
     """The plan's declared Scope-Paths (entries, is_grandfathered). Empty list when absent."""
     from agent_workflows import ipd_lint as _lint
@@ -482,6 +521,7 @@ def run_test(args: argparse.Namespace) -> int:
         print(f"error: cannot read plan: {exc}")
         return 2
     plan_id = _plan_id6(text) or plan_path.stem
+    _warn_if_begin_skipped("aw test", repo_root, plan_path, text)
 
     # Capture the git HEAD + tree the evidence is bound to (BEFORE running, the state under test).
     _rc, head_out, _e = _git(repo_root, ["rev-parse", "HEAD"])
@@ -840,6 +880,7 @@ def run_commit(args: argparse.Namespace) -> int:
             return 2
         scope_paths, is_grandfathered = _plan_scope_paths(text)
         plan_id = _plan_id6(text) or plan_path.stem
+        _warn_if_begin_skipped("aw commit", repo_root, plan_path, text)
         try:
             plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
         except ValueError:

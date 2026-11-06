@@ -308,6 +308,24 @@ class MigrateLayoutCliTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("aw ipd sync", out.getvalue())
 
+    def test_migration_stamps_legacy_cutovers_and_keeps_policy(self) -> None:
+        code = cli.main(["migrate-layout", "--yes"])
+        self.assertEqual(code, 0)
+        pj = json.loads(
+            (self.repo / ".aw/config/project.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("ipd_begin_receipt", pj["cutovers"])
+        self.assertIn("ipd_plan_format", pj["cutovers"])
+        # project.json shadows config.json once it exists, so it must carry the same backend.
+        self.assertEqual(pj.get("records_backend"), "repository")
+        self.assertIn(".aw/config/project.json", self._git_out("ls-files"))
+
+    def test_rollback_removes_created_project_json(self) -> None:
+        self.assertEqual(cli.main(["migrate-layout", "--yes", "--no-commit"]), 0)
+        self.assertTrue((self.repo / ".aw/config/project.json").is_file())
+        self.assertEqual(cli.main(["migrate-layout", "rollback"]), 0)
+        self.assertFalse((self.repo / ".aw/config/project.json").exists())
+
     def test_rollback_restores_original_plan_bytes(self) -> None:
         plan = self.repo / ".agents/plans/pending/20260926-2339-01-legacy.md"
         original = "# IPD: legacy\n\n- Status: approved\n\n## Goal\n"

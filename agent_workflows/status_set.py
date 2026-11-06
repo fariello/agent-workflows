@@ -2262,7 +2262,10 @@ def _delegate_plan_executed_to_finalize(
             plan_selector=selector,
             run_id=getattr(args, "run_id", None),
             take_over=getattr(args, "take_over", None),
+            without_receipt=getattr(args, "without_receipt", None),
+            base=getattr(args, "base", None),
         )
+        _notice = _life.receiptless_notice(result.evidence or {})
         if ctx.is_agent or ctx.is_json:
             status = {0: "clean", 1: "findings", 2: "cannot-run"}.get(
                 result.exit_code, "cannot-run"
@@ -2276,6 +2279,15 @@ def _delegate_plan_executed_to_finalize(
                 )
                 for f in result.findings
             ]
+            if _notice:
+                diags.append(
+                    Diagnostic(
+                        location=str(rec.path),
+                        rule="IPD-FINALIZE-NO-RECEIPT",
+                        detail=_notice,
+                        severity="warning",
+                    )
+                )
             get_renderer(ctx).emit(
                 CommandResult(
                     command="set",
@@ -2294,6 +2306,8 @@ def _delegate_plan_executed_to_finalize(
             term.line(f"aw set -> ipd finalize: {prefix}{result.message}")
             for f in result.findings:
                 term.line(f"  {f}")
+            if _notice:
+                term.line(_notice)
         if result.exit_code != 0:
             overall = result.exit_code if overall == 0 else overall
     return overall

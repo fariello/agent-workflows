@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import time
 from dataclasses import dataclass
@@ -1361,7 +1362,45 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     # would fail open to `None` forever in any repository without a stamped key or install history,
     # and `spec_plan_trace` would grandfather every spec forever (the decoration mode).
     "spec_requirement_ids": "2026-10-01",
+    # legacyfin `18kg7o` E-01. `aw ipd begin` and its receipt shipped 2026-08-24 (94f36a10b). A plan
+    # approved before this repo's boundary could not have been begun, so finalize derives its
+    # baseline from git instead of refusing it; after the boundary a missing receipt is a skipped
+    # step and needs `--without-receipt REASON`. See `plan_predates_cutover`.
+    "ipd_begin_receipt": "2026-08-24",
+    # legacyfin `18kg7o` E-01. The plan format reached its current required set on 2026-10-08, when
+    # `IPD-M113` made `Readiness` required (the newest of the required fields and headings). A pending
+    # plan dated before this repo's boundary gets the reduced legacy check in `ipd_lint.lint_file`.
+    "ipd_plan_format": "2026-10-08",
 }
+
+
+def plan_predates_cutover(
+    repo_root: "os.PathLike[str] | str", feature: str, date: Optional[str]
+) -> bool:
+    """True iff ``date`` is strictly earlier than this repository's stamped ``feature`` cutover.
+
+    THE ONE legacy predicate the finalize receipt gate, the lint format gate and the `aw commit`/`aw
+    test` warning share, so they cannot disagree about whether a plan is legacy. FAIL CLOSED: an
+    unresolvable cutover or an unparseable date is NOT legacy, so a repository that never stamped the
+    boundary keeps the strict behavior rather than silently exempting everything.
+
+    ``date`` accepts ``YYYY-MM-DD``, ``YYYYMMDD`` or a git ISO timestamp (its date prefix is used).
+    """
+
+    if not date:
+        return False
+    raw = str(date).strip()
+    m = re.match(r"^(\d{4})-?(\d{2})-?(\d{2})", raw)
+    if not m:
+        return False
+    compact = "".join(m.groups())
+    try:
+        cutover = resolve_cutover_date(repo_root, feature, compact=True)
+    except Exception:
+        return False
+    if not cutover:
+        return False
+    return compact < cutover
 
 
 def _format_date(date_str: str, compact: bool = True) -> str:

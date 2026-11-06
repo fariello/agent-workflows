@@ -1111,6 +1111,31 @@ def _add_commit_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_without_receipt_flags(parser: argparse.ArgumentParser) -> None:
+    """legacyfin `18kg7o` E-05: the reasoned no-receipt bypass, shared by every finalize route.
+
+    Only needed for a plan approved AFTER this repo's `ipd_begin_receipt` cutover (a skipped
+    `aw ipd begin`); a legacy plan finalizes on a git-derived baseline with a NOTICE and no flag.
+    """
+    parser.add_argument(
+        "--without-receipt",
+        dest="without_receipt",
+        default=None,
+        metavar="REASON",
+        help="Finalize a plan that has no `aw ipd begin` receipt, on a baseline derived from git "
+        "(the commit that approved it). REASON is required and recorded in the plan's history. Not "
+        "needed for plans approved before begin receipts existed in this repo.",
+    )
+    parser.add_argument(
+        "--base",
+        dest="base",
+        default=None,
+        metavar="COMMIT",
+        help="With a missing receipt: measure the scope check from COMMIT instead of the derived "
+        "approval commit (use when git cannot find it).",
+    )
+
+
 # worksequence i6015i E-03/E-04: the `aw next --order-by` choices come from the ONE contract tuple.
 # Imported lazily inside the helper (not at module import) to keep the CLI module's import graph
 # unchanged, and falling back to the bare default keeps `--help` buildable even if the contract module
@@ -2247,6 +2272,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="REASON",
         help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
     )
+    _add_without_receipt_flags(p_ipd_set)
     _add_commit_flags(p_ipd_set)  # selfcommit jgcm68 E-01/E-05
 
     # ipddeps Order g69y23: `aw ipd dependencies set` writes the machine-readable, id6-grounded
@@ -2470,6 +2496,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="REASON",
         help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
     )
+    _add_without_receipt_flags(p_ipd_finalize)
 
     # gradcover Order 03 (qs00nc E-03, spec 25kzda 2.5d): `aw ipd coverage` orchestrator review readiness.
     p_ipd_coverage = ipd_sub.add_parser(
@@ -5390,6 +5417,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="REASON",
         help="Override a live holder on this plan with a required non-empty reason, recorded in workflow history. This is an explicit recorded speed bump, not authorization.",
     )
+    _add_without_receipt_flags(p_set)
     # selfcommit jgcm68 E-01: `aw set` (and every family routing through it) offers to commit its
     # own path-scoped metadata rewrite. The subcommand `set` parsers (ipd/spec/prompts/backlog) that
     # also route through status_set register the flags on their own parsers below.
@@ -17352,6 +17380,12 @@ def _report_and_commit_migration(
     if summary["gitignore_written"]:
         term.status(
             "info", "Wrote .aw/.gitignore (keeps per-machine .aw/state/ out of git)."
+        )
+    if summary.get("cutovers_stamped"):
+        term.status(
+            "info",
+            "Recorded feature cutovers in .aw/config/project.json: existing plans are treated as "
+            "legacy (finalize derives their baseline from git; lint applies the older format).",
         )
     lo = summary["leftovers"]
     if lo["count"]:

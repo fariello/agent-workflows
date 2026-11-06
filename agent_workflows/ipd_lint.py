@@ -2474,6 +2474,7 @@ def lint_file(
         except Exception:
             # Resolution is best-effort; a repo-scan failure never masks the pure lint result.
             pass
+    result = _apply_legacy_format(path, result, checkpoint, doc)
     result = _merge_review_escalation(path, result, text, checkpoint, doc)
     result = _merge_durable_carrier(path, result, text, checkpoint, doc)
     result = _merge_setid_length_advisory(path, result, doc)
@@ -2501,6 +2502,112 @@ def lint_file(
                 list(result.advisories) + extra_adv,
             )
     return result
+
+
+#: legacyfin `18kg7o` E-07: the advisory a legacy-format pending plan carries, so the downgrade from
+#: the full check is always visible rather than silent.
+C_LEGACY_FORMAT = "IPD-L001"
+
+#: The checkpoints at which a legacy-format plan is judged by the reduced check: the gates that block
+#: taking an already-approved plan to executed (`aw ipd begin`, `aw ipd finalize` before and after
+#: its move; a full-format post-transition check would leave the move committed-incomplete).
+#: Authoring and review keep the full check, because a plan being authored or reviewed TODAY should
+#: meet today's format.
+_LEGACY_FORMAT_CHECKPOINTS = frozenset(
+    ("pre-execution", "pre-transition", "post-transition")
+)
+
+#: Metadata fields the reduced check still requires: the identity handle every lifecycle verb needs,
+#: the status the gates read, and the date that decides the plan is legacy at all.
+_LEGACY_REQUIRED_FIELDS = frozenset(("Id", "Status", "Date"))
+
+#: Codes that describe FORMAT the plan predates rather than STATE it records, dropped for a legacy
+#: plan. Everything else (status validity, E/V state at the checkpoint, open blocking questions,
+#: dependency resolution, scope rules on a declared Scope-Paths) is kept.
+_LEGACY_FORMAT_CODES = frozenset(
+    (
+        C_HEADING_ORDER,
+        C_HEADING_MISSING,
+        C_HEADING_DUP,
+        C_EXEC_PLACEMENT,
+        C_VALID_PLACEMENT,
+        C_ID_GRAMMAR,
+        C_ID_FAMILY,
+        C_BIJECTION,
+        C_WATERMARK,
+        C_READINESS_REQUIRED,
+        C_PRIORITY,
+        C_WORK_KIND,
+        C_SIZE,
+        C_SIZE_DENSITY,
+        C_NAME,
+        C_META_UNKNOWN,
+    )
+)
+
+
+def _is_legacy_format_diag(d: Diagnostic) -> bool:
+    if d.code in _LEGACY_FORMAT_CODES:
+        return True
+    field = d.message.split(":", 1)[0].strip()
+    if d.code == C_META_MISSING:
+        return field not in _LEGACY_REQUIRED_FIELDS
+    # Scope-Paths missing is a format gap; an INVALID declared Scope-Paths is not (kept).
+    if d.code == C_SCOPE_PATHS:
+        return "missing" in d.message or "required" in d.message
+    # IPD-M104: drop only the Approval-required clause; an invalid Status/Kind value is kept.
+    if d.code == C_META_FIELD:
+        return field == "Approval" and "required" in d.message
+    return False
+
+
+def _apply_legacy_format(
+    path: Path, result: LintResult, checkpoint: str, doc: ParsedDoc
+) -> LintResult:
+    """Judge a legacy pending plan by the format it was written in (legacyfin `18kg7o` E-07).
+
+    Applies when the plan sits in a NON-terminal directory, the checkpoint is a lifecycle gate
+    (`pre-execution`/`pre-transition`), and its `- Date:` predates this repository's stamped
+    `ipd_plan_format` cutover. Terminal plans already take the `DISPOSITION_LEGACY` short-circuit.
+    Drops the format-only codes and records one `IPD-L001` advisory; if nothing else remains the plan
+    is conforming. A plan dated on or after the cutover, or a repo with no stamped cutover, is
+    untouched (fail closed).
+
+    STATED LIMIT: the reduced check proves the state the plan RECORDS. A legacy plan with no E/V
+    leaves at all passes the pre-transition state rule vacuously; it never itemized its work, and no
+    after-the-fact check can supply that.
+    """
+
+    if checkpoint not in _LEGACY_FORMAT_CHECKPOINTS:
+        return result
+    if result.disposition not in (S.DISPOSITION_CONFORMING, S.DISPOSITION_ERROR):
+        return result
+    # Terminal plans take the `DISPOSITION_LEGACY` short-circuit at every other checkpoint; only the
+    # post-transition check (the one finalize runs on the moved file) reaches here for them.
+    if _is_terminal_dir(_dir_of(path)) and checkpoint != "post-transition":
+        return result
+    try:
+        from agent_workflows import config as _config
+
+        repo_root = _plan_repo_root(path)
+        legacy = _config.plan_predates_cutover(
+            repo_root, "ipd_plan_format", doc.meta_fields.get("Date")
+        )
+    except Exception:
+        return result
+    if not legacy:
+        return result
+    kept = [d for d in result.diagnostics if not _is_legacy_format_diag(d)]
+    advisory = Diagnostic(
+        0,
+        0,
+        C_LEGACY_FORMAT,
+        "legacy plan format: dated before this repo's plan-format cutover, so the reduced check "
+        "applies (format fields and headings added since are not required; recorded state, Id and "
+        "Status still are)",
+    )
+    disposition = S.DISPOSITION_ERROR if kept else S.DISPOSITION_CONFORMING
+    return LintResult(disposition, kept, list(result.advisories) + [advisory])
 
 
 def _merge_orchestrator_readiness(

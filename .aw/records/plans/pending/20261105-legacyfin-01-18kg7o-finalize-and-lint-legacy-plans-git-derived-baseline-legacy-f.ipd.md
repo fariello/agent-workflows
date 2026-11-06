@@ -104,7 +104,9 @@ E-01 to E-08 in order; each is independently testable through the commands named
 ## Deferred / out of scope (with reason)
 
 - Writing `Author`, `Readiness` or other derived fields into legacy plans: rejected (a derived author may be wrong, a tool-written readiness is a forged attestation, and the reduced check does not need them).
+  - Carrier-Declined: design decision, not a defect; rejected by the maintainer in chat 2026-11-05.
 - `aw how <keyword>` discovery verb: separate concern, not needed for this fix.
+  - Carrier-Declined: an optional enhancement mentioned in chat, not a defect; the maintainer did not ask for it.
 
 ## Scope check
 

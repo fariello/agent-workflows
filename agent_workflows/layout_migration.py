@@ -569,6 +569,51 @@ class MigrationManager:
             return {"path": str(gi), "written": False, "created": False}
         return {"path": str(gi), "written": True, "created": True}
 
+    def _stamp_cutovers(self) -> Dict[str, Any]:
+        """Stamp the repository's feature cutovers (legacyfin `18kg7o` E-02).
+
+        A migrated repo's existing plans predate every feature this toolkit added since they were
+        written, so the boundary must be recorded NOW: without it `config.plan_predates_cutover`
+        fails closed and every legacy plan would be judged by today's begin-receipt and plan-format
+        rules. Reuses the installer's own stamper, which never overwrites an existing date.
+        `project.json` is created (as `{}` plus cutovers) only when absent, and that creation is
+        journaled so rollback can remove it.
+        """
+
+        from agent_workflows import config as _config
+        from agent_workflows.project_schema import migrate_legacy_config
+
+        project_file = self.config_dir / "project.json"
+        created = False
+        if not project_file.exists():
+            # Creating project.json makes it the Level-3 policy source and SHADOWS the legacy
+            # config.json this migration just wrote (`resolve_project_context` reads the first file
+            # that exists). So seed it with exactly the portable policy the loader would have derived
+            # from config.json (`migrate_legacy_config`), and the resolved policy is unchanged.
+            legacy: Dict[str, Any] = {}
+            cfg = self.config_dir / "config.json"
+            if cfg.is_file():
+                try:
+                    loaded = json.loads(cfg.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        legacy = loaded
+                except (OSError, ValueError):
+                    legacy = {}
+            try:
+                portable, _local = migrate_legacy_config(legacy)
+                self.config_dir.mkdir(parents=True, exist_ok=True)
+                project_file.write_text(
+                    json.dumps(portable, indent=2) + "\n", encoding="utf-8"
+                )
+                created = True
+            except (OSError, ValueError):
+                return {"path": str(project_file), "created": False, "cutovers": {}}
+        try:
+            cut = _config.sync_cutovers_on_install(Path(self.target_repo))
+        except Exception:
+            cut = {}
+        return {"path": str(project_file), "created": created, "cutovers": cut}
+
     def summarize(self, tx_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """A human-sized account of what a completed transaction changed on disk.
 
@@ -622,6 +667,9 @@ class MigrationManager:
             "gitignore_written": bool(
                 (tx.get("gitignore_written") or {}).get("written")
             ),
+            "cutovers_stamped": sorted(
+                ((tx.get("cutovers_stamped") or {}).get("cutovers") or {}).keys()
+            ),
             "leftovers": {
                 "disposition": leftovers.get("disposition"),
                 "count": len(leftovers.get("leftovers", []) or []),
@@ -663,6 +711,11 @@ class MigrationManager:
         gi = tx.get("gitignore_written") or {}
         if gi.get("written"):
             _add(gi["path"])
+        # project.json is PORTABLE policy (spec kw5y2s 4.2) and carries the cutovers that decide
+        # which plans are legacy, so it is committed whether this run created or stamped it.
+        pj = self.config_dir / "project.json"
+        if (tx.get("cutovers_stamped") or {}).get("cutovers") and pj.is_file():
+            _add(str(pj))
         # The records-backend policy the switch wrote. Portable (`{"records_backend": ...}`), so it
         # belongs in the repo; skipped if it somehow carries this machine's home directory.
         cfg = self.config_dir / "config.json"
@@ -1357,6 +1410,7 @@ class MigrationManager:
         if backfill_ids:
             tx_data["id_backfill"] = self._backfill_plan_ids(tx_data)
         tx_data["gitignore_written"] = self._ensure_gitignore(target_backend)
+        tx_data["cutovers_stamped"] = self._stamp_cutovers()
         self._save_transaction(tx_data)
 
         tx_data["status"] = "retained"
@@ -1531,6 +1585,12 @@ class MigrationManager:
             line = f"- Id: {entry['id6']}\n"
             if line in text:
                 p.write_text(text.replace(line, "", 1), encoding="utf-8")
+        stamped = (tx or {}).get("cutovers_stamped") or {}
+        if stamped.get("created"):
+            try:
+                Path(stamped["path"]).unlink()
+            except OSError:
+                pass
         gi = (tx or {}).get("gitignore_written") or {}
         if gi.get("created"):
             try:
