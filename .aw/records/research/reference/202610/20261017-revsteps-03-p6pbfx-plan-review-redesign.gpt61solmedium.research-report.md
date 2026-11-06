@@ -6,10 +6,10 @@ order: 03
 topic: [plan-review, runner]
 model: gpt61solmedium
 kind: research-report
-status: todo
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Response to y6vfto by gpt61solmedium: design review of the runner-enforced, depth-scaled plan review (spec k3yx72)
-consumed-by: []
+consumed-by: [k3yx72]
 ---
 
 <!-- aw-adopt: provenance -->
