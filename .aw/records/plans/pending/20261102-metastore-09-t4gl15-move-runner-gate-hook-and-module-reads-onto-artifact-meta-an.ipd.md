@@ -13,12 +13,13 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 9
-- Highest E allocated: 15
+- Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: t4gl15
 
 ## Workflow history
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)
+- 2026-11-05 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer-agreed addition of E-16/V-16 and F-09 (research body test must ignore the 4.1 banner), found by research 53jbi5 E-2/E-3; status unchanged at to-review.
 
 - 2026-11-02 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -88,6 +89,11 @@ The pin-first rule of `ffceq0` applies to every move here: BEFORE the edit, a be
   - Expected outcome: all listed modules pass before and after; `aw index research --check` and `aw index prompts --check` report the same result as before.
   - Execution state: pending
 
+- [ ] E-16 Make the research body test ignore the 4.1 `aw-managed` banner (F-09): the value that `research_index.derive_pipeline_positions` reads as `has_body` (today computed in `research_index._doc_entry` as "any non-blank text after the closing `---`") must be false when the only text after the front matter is the single leading `<!-- aw-managed: ... -->` banner comment of `4sd62s` 4.1 plus whitespace, and true when any other text follows it. Compute it in ONE place used by every reader of `has_body`, whether that is the moved `research_index` reader or a field `artifact_meta` exposes; do not strip arbitrary HTML comments, only the leading banner. Test in `tests/test_readers_record_modules.py` with `tmp_path` research trees written in the post-cutover shape (two-key front matter plus banner): a Set holding a `research-prompt` with `outcome: none-yet` and a `reconciliation-report` whose body is only the banner yields `unrun`; adding a `research-report` whose body is the banner plus one heading yields `partial`; giving the reconciliation report the banner plus a heading yields `synthesized`. The same three trees in the pre-cutover shape (no banner) yield the same three positions.
+  - Depends on: E-10
+  - Expected outcome: the six fixture cases yield `unrun`, `partial`, `synthesized` in both shapes; `aw index research --check` reports the same result as before on this checkout.
+  - Execution state: pending
+
 ### Task group 4: review and orchestration modules
 
 - [ ] E-11 Pin, then move, `review_findings` (`_META_RE` front-matter read in `parse_review_text`; the review body grammar of rounds and findings stays, N3), `artifact_audit` (`_STATUS_LINE_RE`), `reviews` subject resolution and `review_findings.review_attestation_missing` lookups onto the cached `review_files` and `reviews` rows (`artifact_meta.query(latest_gate_review_of=...)`); the predicate's acceptance rule stays as it is (the gate-only change is Order 06's). Pin in `tests/test_readers_review_modules.py` and run `tests/test_review_findings_gate.py`, `tests/test_spec_review_attestation.py`, `tests/test_artifact_audit.py`, `tests/test_artifact_audit_verdicts.py` and `tests/test_artifact_audit_identity_staleness.py` green before and after.
@@ -112,8 +118,8 @@ The pin-first rule of `ffceq0` applies to every move here: BEFORE the edit, a be
   - Expected outcome: both runs exit 0.
   - Execution state: pending
 
-- [ ] E-15 Record the residual audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows` and `rg -n "Workflow history" agent_workflows`, and write table F-04 in this plan listing every remaining hit with its owner: writer (Orders 06/07, named), body-prose bullet kept by N3 (named pattern), legacy grammar inside `artifact_meta.py`, or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Run every module named in E-02 to E-14, the bare core gate `python3 -m pytest`, `make test-all`, `aw check` (rule-id multiset equal to the pre-E-02 baseline), and `aw sanitize --agent`; add a `CHANGELOG.md` `2.0.0 (pending)` line for the new hook; commit through `aw commit t4gl15 -- <each changed path>`. Never push.
-  - Depends on: E-04, E-05, E-08, E-10, E-12, E-14
+- [ ] E-15 Record the residual audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows` and `rg -n "Workflow history" agent_workflows`, and write table F-04 in this plan listing every remaining hit with its owner: writer (Orders 06/07, named), body-prose bullet kept by N3 (named pattern), legacy grammar inside `artifact_meta.py`, or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Run every module named in E-02 to E-14 and E-16, the bare core gate `python3 -m pytest`, `make test-all`, `aw check` (rule-id multiset equal to the pre-E-02 baseline), and `aw sanitize --agent`; add a `CHANGELOG.md` `2.0.0 (pending)` line for the new hook; commit through `aw commit t4gl15 -- <each changed path>`. Never push.
+  - Depends on: E-04, E-05, E-08, E-10, E-12, E-14, E-16
   - Expected outcome: F-04 has no unowned reader hit; all runs pass; one path-scoped commit.
   - Execution state: pending
 
@@ -145,6 +151,7 @@ Measured 2026-11-02 at `0cbfcc706`.
 | F-06 | `aw oc run` sub-commands are `start, resume, status, report, stop, integrate, audit`; none has a dry-run option | E-07 compares `discover_plans` output instead of a queue preview. |
 | F-07 | Path-only git readers (no change): `work_cmd` (`diff --name-only --cached`), `git_commit_helper`, `commit_lock`, `clean_delta`, `cli`, `placement_switch`, `engine`, `layout_migration`; non-metadata readers: `leak_sanitizer.scan_working_tree_counted` (reads every tracked file as text, which will include `meta/*.jsonl`), `artifact_audit.FinalizeEvidenceIndex` (commit subjects), `project_context` (`ls-files -s` modes) | Matches 4.4's "not metadata readers"; recorded so the E-01 classification is checkable. |
 | F-08 | No hook inspects `meta/*.jsonl`; 4.8 requires one | E-05 adds it. |
+| F-09 | Measured 2026-11-05: `research_index._doc_entry` sets `has_body` true for any non-blank text after the closing `---`, and `derive_pipeline_positions` uses it to place a Set `unrun`, `partial` or `synthesized`. `4sd62s` 4.1 puts the `aw-managed` banner after the front matter of every artifact. Re-running `derive_pipeline_positions` on this checkout's 164 research entries with every `has_body` forced true (the post-cutover state if the banner counts as body) moves Set `awclia` from `unrun` to `synthesized`, because its reconciliation report `v912ed` has no body today. Found by research `53jbi5` findings E-2/E-3. | A defect the cutover would introduce whether or not any other spec lands; E-16 fixes it before Order 13 (`cxxmyv`). |
 
 READER LEDGER: prior behavior, the pinning test, and the result.
 
@@ -176,7 +183,7 @@ DECISIONS where readers disagreed (4.3):
 
 1. Re-run the 4.4 search; move the `check_engine` git readers, the four hooks and the other git-content readers onto `read_at`; add the `meta/*.jsonl` append hook (E-01 to E-05).
 2. Pin then move the runner reads; own-log finalize scope (E-06 to E-08).
-3. Pin then move the plans, research and prompts modules (E-09, E-10).
+3. Pin then move the plans, research and prompts modules (E-09, E-10), and make the research body test ignore the 4.1 banner (E-16, F-09).
 4. Pin then move the review and orchestration modules (E-11, E-12).
 5. Gate cache parity (AC-1a), offline setter (AC-12), residual audit, commit (E-13 to E-15).
 
@@ -198,7 +205,7 @@ DECISIONS where readers disagreed (4.3):
 ## Scope check
 
 - Over-scope: none. `cli.py`, `command_surface.py`, `engine.py` and `tests/conformance_matrix.py` change only to register the new hook; `artifact_meta.py` changes only if `read_at` must accept a merge-stage revision spelling (E-04), recorded in the finalize scope reconciliation if used.
-- Under-scope: none known; E-01 and E-15 exist to find what the measurement missed. Plan size: 15 E-items in 5 task groups (limits 18 and 5).
+- Under-scope: none known; E-01 and E-15 exist to find what the measurement missed. Plan size: 16 E-items in 5 task groups (limits 18 and 5).
 
 ## Required tests / validation
 
@@ -214,7 +221,7 @@ Acceptance criteria of `4sd62s` this plan OWNS jointly with `ffceq0` (the split 
 
 CONTRIBUTES to: AC-16 (the hooks read through `read_at`, and the new append hook exists; final proof on the cutover commit by `cxxmyv`), AC-33 (gate-level `read_at` use after a rename; owned by `tve77h`), AC-21 row `l56tyz` (pasted `tests/test_readiness_absence_invariant.py`; AC-21 is owned by `xexn45`), AC-1 (residual audit F-04; owned by `9o83cr`), AC-3 and AC-17 (merge-path readers through `read_at`; owned by `xexn45` and `tve77h`).
 
-Commands: every module named in E-02 to E-14, the bare core gate `python3 -m pytest`, `make test-all`, `aw check`, `aw sanitize --agent`.
+Commands: every module named in E-02 to E-14 and E-16, the bare core gate `python3 -m pytest`, `make test-all`, `aw check`, `aw sanitize --agent`.
 
 ## Spec / documentation sync
 
@@ -241,7 +248,7 @@ No spec change; implements `4sd62s` 4.4 (`read_at` consumers, the re-run search,
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: No: 15 E-items in 5 task groups, within limits. If execution finds E-07 (the runner move) too large, split it into E-07a (`parse_plan_file`, `discover_*`, `edge_satisfied`) and E-07b (the remaining `execute_item_core`/`initialize_run_core`/review-sequence reads), which keeps the plan at 16. Recommendation strength: medium.
+- Resolution or deferral rationale: No: 15 E-items in 5 task groups, within limits (16 after the 2026-11-05 banner item, F-09). If execution finds E-07 (the runner move) too large, split it into E-07a (`parse_plan_file`, `discover_*`, `edge_satisfied`) and E-07b (the remaining `execute_item_core`/`initialize_run_core`/review-sequence reads), which keeps the plan at 16. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -320,6 +327,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste the two `rg` commands of E-15 and the F-04 table (every remaining hit with its owner, none unowned); the bare `python3 -m pytest` summary line and wall time; the `make test-all` summary line; `aw check` rule-id counts equal to the pre-E-02 baseline; the `aw sanitize --agent` result with zero `fail`; and the `aw commit t4gl15` output listing only Scope-Paths.
   - Observed evidence:
   - Result: pending
+- [ ] V-16 validates E-16
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k banner` with six tests PASSED (`unrun`, `partial`, `synthesized` for the banner shape and for the no-banner shape), each asserting the position `derive_pipeline_positions` returns for its `tmp_path` tree; and `aw index research --check; echo $?` on this checkout with the same exit code as the E-10 baseline in V-10.
+  - Observed evidence:
+  - Result: pending
+
 
 
 ## Approval and execution gate
