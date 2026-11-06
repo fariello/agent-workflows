@@ -84,7 +84,9 @@ REQUIRED_LEAVES: list[str] = [
 def test_exclusion_set_size_and_members() -> None:
     """Explicit visibility of the exclusion set size and members."""
     assert len(EXCLUDED_LEAVES) == 0
-    assert len(REQUIRED_LEAVES) == 70
+    # 69: `ipd sync` takes zero-or-more paths since legacyfin bulk mode (`--all`), so it is no
+    # longer a required-positional leaf; its bare invocation still refuses (exit 2, a FILE is required).
+    assert len(REQUIRED_LEAVES) == 69
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)

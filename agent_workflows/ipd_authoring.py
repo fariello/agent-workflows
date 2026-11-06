@@ -953,7 +953,13 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
         return 2
     # De-duplicate, order-stable.
     seen: set = set()
-    paths = [p for p in paths if not (p.resolve() in seen or seen.add(p.resolve()))]
+    unique: List[Path] = []
+    for p in paths:
+        key = p.resolve()
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+    paths = unique
 
     skipped_terminal = [p for p in paths if _is_terminal_plan(p)]
     candidates = [p for p in paths if not _is_terminal_plan(p)]
@@ -1022,7 +1028,19 @@ def run_sync(args: argparse.Namespace) -> int:
         return _run_bulk_id_backfill(args, targets)
     target = targets[0] if targets else None
     if not target:
-        print("error: a FILE is required (or several, or --all)")
+        from agent_workflows.renderers import get_renderer
+        from agent_workflows.result_types import CommandResult, select_output
+
+        ctx = select_output(args)
+        msg = "a FILE is required (or several, or --all)"
+        if ctx.is_agent or ctx.is_json:
+            return get_renderer(ctx).emit(
+                CommandResult(
+                    command="ipd sync", status="cannot-run", exit_code=2, summary=msg
+                ),
+                ctx,
+            )
+        print(f"error: {msg}")
         return 2
     path = Path(target)
     if not path.is_file():

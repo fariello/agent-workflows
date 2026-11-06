@@ -379,3 +379,12 @@ class MigrationSkipsTerminalPlansTests(_Repo):
         self.assertEqual(moved_done.read_text(encoding="utf-8"), done_text)
         moved_pending = self.root / ".aw/records/plans/pending/20260701-0001-01-p.md"
         self.assertIn("- Id: ", moved_pending.read_text(encoding="utf-8"))
+
+
+class BareSyncRefusalTests(_Repo):
+    def test_bare_sync_refuses_with_agent_record(self) -> None:
+        code, out, _err = self.run_cli("ipd", "sync", "--agent")
+        self.assertEqual(code, 2)
+        rec = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual(rec["cmd"], "ipd sync")
+        self.assertEqual(rec["exit"], 2)
