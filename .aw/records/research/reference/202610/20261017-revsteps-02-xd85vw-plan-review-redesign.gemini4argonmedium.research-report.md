@@ -6,8 +6,8 @@ order: 02
 topic: [plan-review, runner]
 model: gemini4argonmedium
 kind: research-report
-status: todo
-outcome: none-yet
+status: reference
+outcome: informational
 summary: Response to y6vfto by gemini4argonmedium: design review of the runner-enforced, depth-scaled plan review (spec k3yx72)
 consumed-by: []
 ---
