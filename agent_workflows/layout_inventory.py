@@ -345,6 +345,19 @@ def classify_item(
         # and already at their final location. The migration must not relocate a file
         # onto its own path. PRESERVED IN PLACE with disposition "skip", following the
         # precedent of the state/durable/runtime branch above, so they are excluded from the map.
+        # Framework-owned lanes ALREADY at their final .aw/ location, same reasoning:
+        # the raw-drop inbox (artifact_adopt.INBOX_REL; its README.md is tracked while
+        # drops are gitignored), the run-scratch tree, runner worktrees, and lane
+        # scratch. None of them is migratable legacy material, and before this branch
+        # `.aw/inbox` (created by every recent install) made the inventory fail closed
+        # with unknown-owner, refusing `aw migrate-layout` on otherwise-valid repos.
+        if first in {"inbox", "workflow-artifacts", "worktrees", "lane-scratch"}:
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "skip",
+            }
         if posix == ".gitignore":
             return {
                 "ownership": "system",

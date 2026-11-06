@@ -174,6 +174,27 @@ def test_case_4_direct_classify_item_assertions() -> None:
     }
 
 
+def test_aw_inbox_lane_does_not_block_and_survives_applied_migration(
+    tmp_path: Path,
+) -> None:
+    """A tracked .aw/inbox/README.md (written by every recent install) must not refuse the
+    migration with unknown-owner, and must be left byte-identical in place."""
+    readme_bytes = b"# Inbox lane\n"
+    repo = _make_git_repo(
+        tmp_path / "repo_inbox",
+        {
+            ".aw/inbox/README.md": readme_bytes,
+            ".aw/.gitignore": b"/inbox/*\n!/inbox/README.md\n",
+        },
+    )
+    mgr = layout_migration.MigrationManager(str(repo))
+    assert mgr.execute_migration(dry_run=True, leftover_disposition="remove").is_valid
+
+    mgr.execute_migration(dry_run=False, leftover_disposition="remove")
+    assert (repo / ".aw/inbox/README.md").read_bytes() == readme_bytes
+    assert (repo / ".aw/system").is_dir()
+
+
 def test_case_5_negative_control_unknown_path_blocks_and_refuses(
     tmp_path: Path,
 ) -> None:
