@@ -274,6 +274,7 @@ Topic ids `Tn` match the `53jbi5` alignment table (`53jbi5` Section 3). C02 sect
 - Options: (a) add `--gates each` as an opt-in flag, default `exceptions`; (b) leave it out of release 1.
 - Recommendation, weak: (b). The exception pauses plus `reject` already meet the brief, and an every-stage pause adds a `waiting-for-human` reason and a resume path to test. Unknown: how often the maintainer would want to inspect candidates before synthesis.
 - Blocking: no. The merged spec can be written with either answer, and (a) is additive.
+- RESOLVED 2026-11-06 by the user via /askme: (a), add `--gates exceptions|each` as an opt-in flag in release 1, default `exceptions`. Under `each` the run pauses after every candidate's final check and after synthesis verification, and continues only on `decide --accept`. No reason was given. Effect on the merged spec: one more `waiting-for-human` reason and its resume path, with tests.
 
 ### N-2. Antigravity permission posture
 
@@ -281,6 +282,7 @@ Topic ids `Tn` match the `53jbi5` alignment table (`53jbi5` Section 3). C02 sect
 - Options: (a) keep the driver's posture and record `isolation: instruction-only` for `agy` participants; (b) have specflow dispatches use `--sandbox`, after a measurement shows what it blocks.
 - Recommendation, medium: (a) for the merged spec, with (b) recorded as a measured follow-up. (a) is honest today and needs no driver change; (b) depends on an unmeasured host feature.
 - Blocking: no. The isolation label (T19-a) is correct under both answers.
+- RESOLVED 2026-11-06 by the user via /askme: (a), keep the driver's `--dangerously-skip-permissions` posture and record `isolation: instruction-only` for `agy` participants; measuring what `agy --sandbox` blocks is a follow-up backlog item. No reason was given.
 
 ## 5. Validation performed
 
