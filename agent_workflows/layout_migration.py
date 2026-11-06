@@ -140,6 +140,39 @@ _RECORD_SUBTYPE_FACET = {
 _NON_DURABLE_BASENAMES = frozenset(("README.md", "INDEX.md", "STATUS.md"))
 
 
+def _unknown_owner_hint(
+    inventory_doc: Dict[str, Any], errors: List[Dict[str, Any]]
+) -> str:
+    """Name the TOP-LEVEL repo paths behind any unknown-owner refusal and how to proceed.
+
+    The raw error list names every descendant of an unrecognized directory, which buries the one
+    path an operator has to act on. Collapse them to their shallowest repo-relative paths.
+    """
+
+    ids = {e.get("item_id") for e in errors if e.get("rule") == "unknown-owner"}
+    if not ids:
+        return ""
+    paths = sorted(
+        {
+            str(i.get("repo_relpath") or "")
+            for i in inventory_doc.get("items", [])
+            if i.get("item_id") in ids and i.get("repo_relpath")
+        }
+    )
+    top: List[str] = []
+    for p in paths:
+        if not any(p == t or p.startswith(t + "/") for t in top):
+            top.append(p)
+    if not top:
+        return ""
+    return (
+        "\nUnrecognized path(s) the migration does not know how to classify: "
+        + ", ".join(top)
+        + ". Nothing was changed. Move or remove them (or report them as a bug if the "
+        "toolkit created them), then re-run 'aw migrate-layout'."
+    )
+
+
 def _grammar_facet_for(
     destination_relpath: str, destination_root_class: str
 ) -> Optional[str]:
@@ -1047,8 +1080,10 @@ class MigrationManager:
         if resume_tx is None:
             assert plan_doc is not None
             if not plan_doc.get("valid", False):
+                errors = plan_doc.get("risk_analysis", {}).get("errors") or []
                 raise PreflightGateError(
-                    f"Migration plan invalid: {plan_doc.get('risk_analysis', {}).get('errors')}"
+                    f"Migration plan invalid: {errors}"
+                    + _unknown_owner_hint(plan_doc.get("inventory", {}), errors)
                 )
 
         if dry_run:

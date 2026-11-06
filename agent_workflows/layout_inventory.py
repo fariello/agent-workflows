@@ -42,6 +42,27 @@ DEFAULT_ROOTS: Tuple[Tuple[str, str], ...] = (
     ("claude-pointer", "CLAUDE.md"),
     ("gemini-pointer", "GEMINI.md"),
 )
+# Legacy `.agents/<type>/` record trees that migrate to `.aw/records/<type>/` unchanged
+# (doc-family types nested under `docs/` are flattened by `_flatten_records_subpath`). The flat
+# spellings (`specs`, `walkthroughs`, `roadmaps`, `reviews`, `releases`) are legacy roots the
+# toolkit still reads (attention_contract.TREE_POLICY, releases._releases_dir, doctor); without
+# them a repo carrying any of these failed the inventory closed with unknown-owner.
+_AGENTS_RECORD_SUBDIRS = frozenset(
+    {
+        "plans",
+        "prompts",
+        "docs",
+        "comms",
+        "research",
+        "backlog",
+        "specs",
+        "walkthroughs",
+        "roadmaps",
+        "reviews",
+        "releases",
+        "prompt-library",
+    }
+)
 LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 
@@ -221,12 +242,75 @@ def classify_item(
                 "expected_destination_class": "system",
                 "disposition": "migrate",
             }
-        if first in {"plans", "prompts", "docs", "comms", "research", "backlog"}:
+        if first in _AGENTS_RECORD_SUBDIRS:
             return {
                 "ownership": "records",
                 "lifecycle_class": "records",
                 "expected_destination_class": "records",
                 "disposition": "migrate",
+            }
+        # `.agents/records/<type>/...`: an intermediate layout some readers still accept
+        # (artifact_refs reads `.agents/records/plans/pending/`). Strip the wrapper so it
+        # lands at `.aw/records/<type>/...` rather than `.aw/records/records/...`.
+        if first == "records":
+            rest = posix.split("/", 1)[1] if "/" in posix else ""
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+                "destination_relpath_override": "records/"
+                + _flatten_records_subpath(rest)
+                if rest
+                else "records",
+            }
+        # Per-run durable state (`.agents/runs/`, now `.aw/records/runs/`, gitignored) is
+        # box-local run history the run viewer still reads; keep it with the records.
+        if first == "runs":
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+            }
+        # Legacy per-machine state (`.agents/state/`) -> `.aw/state/durable/` (state-runtime).
+        if first == "state":
+            return {
+                "ownership": "state-runtime",
+                "lifecycle_class": "state-runtime",
+                "expected_destination_class": "durable_state",
+                "disposition": "preserve",
+                "destination_relpath_override": "state/durable/"
+                + (posix.split("/", 1)[1] if "/" in posix else ""),
+            }
+        # The legacy raw-drop inbox (`.agents/inbox/`, now `.aw/inbox/`; doctor maps one onto
+        # the other). Drops are untracked scratch awaiting adoption, so they move as-is.
+        if first == "inbox":
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "migrate",
+                "destination_relpath_override": posix,
+            }
+        # Legacy repo config files -> `.aw/config/` (model_vocab reads
+        # `.aw/config/research-models.toml`, legacy `.agents/research-models.toml`;
+        # project_context still reads `.agents/config.json`).
+        if posix in {"research-models.toml", "config.json"}:
+            return {
+                "ownership": "config",
+                "lifecycle_class": "config",
+                "expected_destination_class": "config",
+                "disposition": "migrate",
+            }
+        # A legacy-layout AGENTS.md (engine.AGENTS_FILE_CANDIDATES accepts `.agents/AGENTS.md`)
+        # is a host discovery pointer: preserve it in place like the root-level pointers.
+        if posix == "AGENTS.md":
+            return {
+                "ownership": "host-adapter-candidate",
+                "lifecycle_class": "host-adapter-candidate",
+                "expected_destination_class": "host-adapter-in-place",
+                "disposition": "preserve",
             }
         # Infrastructure files every standard install carries (E-03). Without these the
         # inventory fails closed with unknown-owner on real repos. Dispositions match the
@@ -437,7 +521,7 @@ def _legacy_class(label: str, relpath: str) -> str:
         first = posix.split("/", 1)[0] if posix else ""
         if first == "workflows":
             return "system"
-        if first in {"plans", "prompts", "docs", "comms", "research", "backlog"}:
+        if first in _AGENTS_RECORD_SUBDIRS or first in {"records", "runs"}:
             return "records"
         if first == "agent-workflows":
             return "mixed-system-state-review-required"
@@ -768,6 +852,25 @@ def build_migration_map(
         if item.get("disposition") == "skip":
             continue
 
+        # A `partial-aw` item is ALREADY under the target's `.aw/`, so its `source_relpath`
+        # already carries its class segment (`records/...`, `system/...`, `config/...`).
+        # Prefixing the class again doubled it: a real apply moved `.aw/records/x` onto
+        # `.aw/records/records/x` (and likewise `system/system/`, `config/config/`), measured on
+        # a clone of a repo carrying both `.agents/skills` and a populated `.aw/`. system/config
+        # never change location (they always live under the TARGET's `.aw/`), and records stay
+        # put for the `repository` backend, so those are left out of the map entirely. Only a
+        # records item bound for a companion/home backend is relocated, keeping its own path
+        # relative to the records root.
+        if source_root == "partial-aw" and dest_class in {
+            "system",
+            "config",
+            "records",
+        }:
+            if dest_class != "records" or target_backend == "repository":
+                continue
+            item = dict(item)
+            item["destination_relpath_override"] = source_relpath
+
         override = item.get("destination_relpath_override")
         # Host-required discovery files (host-adapter-in-place) stay at their exact source path
         # (spec S3.1/S9); they are NOT relocated under .aw/. This is distinct from other
@@ -808,6 +911,14 @@ def build_migration_map(
                 prev = dest_seen[dest_key]
                 if prev["sha256"] == item["sha256"] and item["sha256"] is not None:
                     collision_policy = "deduplicate_identical"
+                elif (
+                    item.get("kind") == "directory" and prev.get("kind") == "directory"
+                ):
+                    # Two source DIRECTORIES merging into one destination directory (e.g.
+                    # `.agents/plans` and `.agents/records/plans`) is not a conflict: directory
+                    # entries are never moved as units, only the files they contain, and those
+                    # files still collide (and refuse) individually if they clash.
+                    collision_policy = "merge_directory"
                 else:
                     errors.append(
                         {

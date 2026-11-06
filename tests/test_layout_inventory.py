@@ -258,3 +258,76 @@ def test_case_6_rollback_leaves_all_three_paths_present(tmp_path: Path) -> None:
     assert (
         marker_path.read_bytes() == marker_bytes
     ), "Expected setup marker to be byte-identical after rollback"
+
+
+def test_populated_aw_tree_stays_in_place_and_is_not_nested(tmp_path: Path) -> None:
+    """A repo already carrying `.aw/records`, `.aw/system`, `.aw/config` (a split-brain repo:
+    current layout plus a residual `.agents/skills`) must migrate WITHOUT relocating those
+    files onto doubled paths such as `.aw/records/records/...`."""
+    files = {
+        ".aw/records/plans/pending/p.ipd.md": b"# plan\n",
+        ".aw/system/layout.json": b"{}\n",
+        ".aw/config/policy.json": b"{}\n",
+        ".agents/skills/assess/SKILL.md": b"# skill\n",
+    }
+    repo = _make_git_repo(tmp_path / "repo_populated_aw", files)
+    layout_migration.MigrationManager(str(repo)).execute_migration(
+        dry_run=False, leftover_disposition="defer"
+    )
+    for rel, content in files.items():
+        if rel.startswith(".aw/"):
+            assert (repo / rel).read_bytes() == content, rel
+    for doubled in ("records/records", "system/system", "config/config"):
+        assert not (repo / ".aw" / doubled).exists(), doubled
+
+
+def test_every_legacy_agents_path_the_toolkit_reads_migrates(tmp_path: Path) -> None:
+    """Legacy `.agents/` paths the toolkit still reads must neither refuse the migration nor be
+    dropped: each lands at its modern `.aw/` equivalent, and `.agents/AGENTS.md` stays put."""
+    moves = {
+        ".agents/specs/s.spec.md": ".aw/records/specs/s.spec.md",
+        ".agents/walkthroughs/w.walkthrough.md": ".aw/records/walkthroughs/w.walkthrough.md",
+        ".agents/roadmaps/r.roadmap.md": ".aw/records/roadmaps/r.roadmap.md",
+        ".agents/reviews/v.review.md": ".aw/records/reviews/v.review.md",
+        ".agents/releases/x.release.md": ".aw/records/releases/x.release.md",
+        ".agents/records/plans/pending/q.ipd.md": ".aw/records/plans/pending/q.ipd.md",
+        ".agents/runs/run-1/state.json": ".aw/records/runs/run-1/state.json",
+        ".agents/state/install.json": ".aw/state/durable/install.json",
+        ".agents/inbox/drop.md": ".aw/inbox/drop.md",
+        ".agents/research-models.toml": ".aw/config/research-models.toml",
+        ".agents/config.json": ".aw/config/config.json",
+    }
+    kept = {".agents/AGENTS.md": b"# pointer\n"}
+    files = {src: f'{{"payload": "{src}"}}\n'.encode() for src in moves}
+    files.update(kept)
+    repo = _make_git_repo(tmp_path / "repo_legacy_paths", files)
+    mgr = layout_migration.MigrationManager(str(repo))
+    assert mgr.execute_migration(dry_run=True, leftover_disposition="defer").is_valid
+
+    mgr.execute_migration(dry_run=False, leftover_disposition="defer")
+    import json
+
+    for src, dst in moves.items():
+        if dst == ".aw/config/config.json":
+            # The switch phase stamps `records_backend` into this file; the payload survives.
+            assert json.loads((repo / dst).read_text())["payload"] == src
+        else:
+            assert (repo / dst).read_bytes() == files[src], f"{src} -> {dst}"
+        assert not (repo / src).exists(), f"{src} was not moved"
+    assert (repo / ".agents/AGENTS.md").read_bytes() == kept[".agents/AGENTS.md"]
+
+
+def test_refusal_names_the_unrecognized_top_level_path(tmp_path: Path) -> None:
+    """An unknown directory is reported ONCE, at its top-level repo path, with a next step."""
+    repo = _make_git_repo(
+        tmp_path / "repo_unknown_dir",
+        {".agents/mystery/a/b.md": b"x\n", ".agents/mystery/c.md": b"y\n"},
+    )
+    with pytest.raises(PreflightGateError) as exc_info:
+        layout_migration.MigrationManager(str(repo)).execute_migration(
+            dry_run=True, leftover_disposition="defer"
+        )
+    msg = str(exc_info.value)
+    assert "classify: .agents/mystery." in msg
+    assert "Nothing was changed" in msg
+    assert (repo / ".agents/mystery/c.md").exists()
