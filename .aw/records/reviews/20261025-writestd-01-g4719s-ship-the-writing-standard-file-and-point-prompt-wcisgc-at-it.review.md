@@ -2,9 +2,9 @@
 
 - Subject-Id: g4719s
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-02
+- Reviewed-At: 2026-11-05
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REJECT - NEEDS REPLAN
 
 ## Round 1
 
@@ -157,3 +157,80 @@ Tier: standard.
 |----|----------|--------|-------------------------|-------|------------|
 | D-4 | Add a `state:backlog:...:qph7c5` edge to silence `check.ipd-carrier-ungated`? | No | Add the edge | `.aw/records/plans/README.md#Carrier records durable ownership, not a dispatch gate`; OQ-01 `Blocking: yes` already gates via `IPD-Q501`; an edge on the parent backlog item would block until it closes, which only happens after this plan executes | yes |
 | D-5 | Carry round 1 forward rather than re-deriving it | Cherry-pick `9b2d88cfd` and append round 2 | Discard and re-review from scratch | Every round-1 claim re-verified in this tree (Step R1) | yes |
+
+## Round 3
+
+Reviewed at HEAD `bfdcb514f` in runner review-sweep lane `run-20261106T024139Z-372975` (non-interactive). The lane-input copy (revision 1) is byte-identical to the tracked plan, which is the pre-round-1 text: rounds 1 and 2 (`9b2d88cfd`, `f3c647b16`) sit on parked branches and never reached main. Round 2's commit was cherry-picked as this round's starting point (`ee7ec5904`), and its claims were re-checked against this tree. `aw ipd lint --phase author` was clean on the input.
+
+New since round 2: maintainer commit `0cbfcc706` ("Add an installed technical writing standard for all technical text", 2026-11-02) shipped the standard that this plan was written to create, at a different path and with a different dash rule.
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Concern | "None exists" | "None existed at authoring", names `0cbfcc706` and the shipped path | Fact changed (PR-009). |
+| Detailed Implementation Checklist | No warning | REPLAN PENDING paragraph: do not execute E-01 to E-05 as written | PR-009. |
+| Findings | No mention of the shipped file | Bullet describing what `0cbfcc706` shipped and what it left out | PR-009. |
+| Open questions | OQ-01 only | OQ-02 added; OQ-01 notes it may become moot | PR-009. |
+| Gate | Waits on OQ-01 | Waits on OQ-01 and OQ-02 and a rewrite of the E-items | PR-009. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| PI-1 | E-01 | Source of the verbatim draft (carried) | Tracked path of the draft | Moot if OQ-02 keeps the shipped file | strong |
+| PI-2 | Whole plan | Which standard path and dash rule govern | Maintainer ruling on spec `ecmw83` vs commit `0cbfcc706` | Keep the shipped file; amend the spec; re-scope to diagrams and the procedure section (OQ-02) | strong |
+
+### Step T
+
+1. Yes: the plan would create a shipped file and repoint prompt `wcisgc`, and it now conflicts with a shipped contract (`technical-writing/technical-writing.md`, the `AGENTS.md` pointer from `engine.agents_pointer_prose`).
+2. No.
+3. No: 6 E-items, 2 task groups.
+4. Yes: four Scope-Paths, no `.spec.md`.
+5. Medium: executing as written would ship a second, conflicting standard into every managed repository.
+
+Tier: standard.
+
+### Step R1
+
+- Checked: `git show --stat 0cbfcc706` (14 files, including `.aw/system/workflows/technical-writing/technical-writing.md`, `README.md`, `tests/test_technical_writing_delivery.py`, `agent_workflows/engine.py`, `AGENTS.md`, `docs/technical-artifact-writing.md`); the shipped standard's requirements 1 to 11, its concision and automated-checks paragraphs, and item 4 "This standard adds no dash rule of its own"; the shipped file has no diagram requirement and no proofreading procedure section (`grep -n "diagram\|Proofread"` matches only requirement 11's title); `engine.py:1501` names `technical-writing/technical-writing.md`; spec `ecmw83` R-01 (line 152), R-02 (153), MD-2 (70), AC-01 (168) still name the old path and the widened dash rule; `grep -l standards/technical-artifact-writing` matches all ten `writestd` plans and spec `ecmw83`, and no shipped file.
+- `wcisgc` is unchanged (115 lines, one em dash). `p-proofread.md` still points at `wcisgc`.
+
+### Step R2
+
+- Checked: E/V bijection 6/6 still holds. E-01 to E-05 are executable only in a way that contradicts the shipped state: E-01 creates a second standard, E-01 and V-01 reverse the dash ruling, and E-05 duplicates `tests/test_technical_writing_delivery.py`. Repair needs the maintainer's choice of path and dash rule, so the E-items were not rewritten in this round (PR-009).
+
+### Step R3
+
+- Checked: no change from round 2.
+
+### Step R4
+
+- Checked: the Goal "exactly one shipped file" is violated by executing the plan as written. Spec sync: spec `ecmw83` now disagrees with the shipped code, so the replan needs a spec amendment listed in Scope-Paths.
+
+### Step S5
+
+- Checked: OQ-01 (carried) and new OQ-02. Both are the maintainer's: OQ-02 changes a spec contract and a recorded maintainer ruling. Non-interactive run: both left `open`, `Blocking: yes`, and listed in the lane outcome `questions[]`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | blocker | UNDER-SCOPE | G executability | `.gitignore` "tmp/"; `ecmw83` R-02 "wording preserved" | Carried: E-01 copies from a gitignored draft. | C:Low; U:Medium; S:Low; F:High; Overall:High | open | OQ-01 remains blocking. It becomes moot if OQ-02 keeps the shipped file. |
+| PR-002 | medium | IN-SCOPE | G execution contract | plan gate | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-003 | medium | UNDER-SCOPE | D invariant | `wcisgc` section 6 em dash | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-004 | medium | UNDER-SCOPE | G spec trace | `production_checks._compute_spec_trace_coverage` | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-005 | low | IN-SCOPE | E testing | V-01 | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-006 | low | UNDER-SCOPE | B privacy | `pyproject.toml` force-include `.aw/system` | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-007 | low | IN-SCOPE | R1 references | `CHANGELOG.md` "## 2.0.0 (pending)" | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-008 | low | UNDER-SCOPE | G execution contract | `8fvkmp` gate | Carried. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Present. |
+| PR-009 | blocker | IN-SCOPE | D invariant; G spec sync | `0cbfcc706`; `.aw/system/workflows/technical-writing/technical-writing.md` item 4 "This standard adds no dash rule of its own"; `engine.py:1501`; spec `ecmw83` R-01, R-02, MD-2 | The standard now ships at `technical-writing/technical-writing.md` with no dash rule, by maintainer ruling. E-01 to E-05 would add a second standard at `standards/technical-artifact-writing.md`, reverse the dash ruling, and duplicate the install test. That breaks the plan's own Goal. Spec `ecmw83` and all ten `writestd` plans still name the old path. | C:Medium; U:High; S:Low; F:High; Overall:High | replan | Escalated as OQ-02 (`Blocking: yes`). Warning added above the checklist. Minimum sound replacement: amend spec `ecmw83` to the shipped path and dash ruling; re-scope this plan to add requirement 12 and the proofreading procedure to the shipped file and reduce `wcisgc` to a pointer; drop E-05; then re-review Orders 02 to 09 against the new path. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-6 | Rewrite the E-items to target the shipped file in this round? | No; mark REPLAN and ask | Rewrite to the shipped path now | The choice reverses either spec `ecmw83` MD-2 or the ruling recorded in `0cbfcc706`; both are the maintainer's | yes |
+| D-7 | Carry rounds 1 and 2 forward | Cherry-pick `f3c647b16` and append round 3 | Re-review from scratch | Round 2 claims re-checked in this tree (Step R1) | yes |
