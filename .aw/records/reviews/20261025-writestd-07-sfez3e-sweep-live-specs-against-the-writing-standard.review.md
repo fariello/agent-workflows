@@ -117,3 +117,92 @@ Tier: complex.
 | D-3 | How to prove meaning was preserved? | Mechanical guard over protected elements plus per-diff reading; state that the guard cannot prove meaning | Diff metadata only; a repository test | `ecmw83` R-08, Risks "A proofreading pass can change meaning by accident"; guard measured on scratch mutations; P16 (a repository test of record text would pin content) | yes |
 | D-4 | Split the plan into several child plans by spec? | Keep one plan; two E-items by size; one committed unit per spec | Child plan per spec group | Identical procedure per spec; committed units survive a turn end; `lane_containment.MAX_TURN_TIMEOUT` 8 h | yes |
 | D-5 | Where do `Unresolved` annotations become tracked work? | One backlog carrier via `aw backlog new` | Walkthrough only (untracked); one item per annotation | walkthroughs README "nothing scans its contents"; AGENTS.md durable-carrier rule | yes |
+
+## Round 2
+
+Re-reviewed at HEAD `30b49d36c` in runner review-sweep lane `run-20261106T170833Z-1417128` (non-interactive). The lane-input copy (revision 1, sha256 `258514db...`) is byte-identical to the tracked plan (committed by `13f9026a8`, unmodified), so no pre-review snapshot. `aw ipd lint --phase author` was clean before revisions; `--phase review-finalize` is clean after them. The round 1 findings PR-001..PR-013 stay fixed; this round adds PR-101..PR-104. All guard measurements below ran in a scratch clone under `.aw/state/sfez3e-review/` (gitignored); no tracked spec was modified.
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Scope | "any change to a spec's metadata block" | "title line or metadata fields ... every `- Key:` field before the first `## ` heading" | PR-101. |
+| Definitions, "Do not change" bullet | Whole pre-heading block frozen; modals `must`/`should`/`may`; IDs like `R-08` | Title and `- Key:` fields frozen, preamble prose proofread; modals include `shall`, `never`, and `not` forms; IDs include `F-0004`, `D140`, id6 | PR-101, PR-102, PR-103. |
+| E-01, V-01 | Baseline only | Format check against the metadata cutover first, with pasted evidence | PR-104. |
+| Findings | none | Two bullets: `cxxmyv` cutover risk; round 2 guard measurements | PR-102, PR-104. |
+| Required tests, guard script | Round 1 guard | Revised guard and its re-measured behavior | PR-101..PR-103. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes: it edits the text of 22 live specs, 11 of them approved contracts that other plans review against.
+2. No: no code guarding private data, commits, worktrees, merges, or the sandbox.
+3. Yes: about 1.65 MB of spec text; 7 E-items in 3 task groups.
+4. Yes: seven directory Scope-Paths covering every live spec directory, the walkthroughs directory, and `backlog/open/`.
+5. Yes: a rewording can silently change an approved obligation or break a quoted-text citation; each is hard to detect afterwards.
+
+Tier: complex.
+
+### Step R1
+
+- Checked: guard script extracted verbatim from the plan; `specs.run_note` and `specs._append_history` (prepends under `## Workflow history`; probe on a scratch clone appended `- 2026-11-06 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged`); `set_records.write_walkthrough`; `aw backlog new --help` (`--summary`, `--priority`, `--work-kind`, `--body`, `--apply` exist; `followup` is a valid Work-Kind per `.aw/records/backlog/README.md`); `aw commit --help` (`-m` accepted); `aw find specs --status-not` (22 live: 11 approved, 4 draft, 2 implementing, 1 parked, 4 to-review); five specs at 100,000 bytes or more, matching E-03's list.
+- Pre-heading census: 10 live specs carry prose paragraphs before the first `## ` heading (for example `25kzda` lines 15 to 118, 104 lines; `pqsx96` 11; `llbr2b` 14). Spec `4sd62s` has `- Set: metastore` and `1tx9t8` has `- Set:`/`- Order:` after a blank line, so the field set is not one contiguous block.
+
+### Step R2
+
+- Checked: E/V bijection 7/7; the new E-01 clause has a matching V-01 demand; dependencies unchanged; `aw check all` errors unchanged at 13 (none for this plan; one pre-existing `info` `check.lifecycle-transition-unvalidated`).
+
+### Step R3
+
+- Checked: no code, credentials, or trust boundary; E-07 still runs `aw sanitize --agent`.
+
+### Step R4
+
+- Checked: guard sensitivity on a scratch clone of HEAD `30b49d36c`, spec `25kzda` unless noted. Round 1 guard: preamble reword `problems=1` (false refusal); `must` to `must not` `problems=0` (missed); `must not` to `must` `problems=0` (missed); `D148` removed from `llbr2b` body `problems=0` (missed). Revised guard: preamble reword `problems=0` exit 0; `must` to `must not`, `must not` to `must`, `must` to `should` each `modal count fell` exit 1; `- Status:` change and `- Scope:` continuation change each `metadata block changed` exit 1; `D148` removed `stable id removed: D148` exit 1; unchanged `problems=0` exit 0. Full revised run at HEAD: `TOTAL live=22 checked=22 problems=0`, exit 0, about 40 seconds.
+- Remaining limit, stated in the plan: the guard checks counts and presence, not meaning; a `must` moved between sentences passes.
+
+### Step R5
+
+- QA/QC: the round 1 guard both refused legitimate work and missed obligation inversion (PR-101, PR-102).
+- Testing and regression: the revised guard was re-measured against each mutation class.
+- UI/UX: not applicable.
+- Architect: no new mechanism; the guard stays a gitignored validation script.
+- Software engineer: the cutover precondition stops a run against a format the tools no longer write (PR-104).
+- Power user: unchanged resume rule.
+- Novice: the "Do not change" bullet now says plainly that preamble prose is proofread.
+- Stakeholder: obligation inversions in approved specs are now caught mechanically.
+
+### Step R6
+
+- Checked: decomposition unchanged from round 1 D-4; no new E-items.
+
+### Step R7
+
+- Checked: Set `metastore` plan `cxxmyv` (Status `reviewed`, `Attended: required`) runs migration `m0001`, which deletes the bullet block and `## Workflow history` of every record (`4sd62s` Section 5.2) and writes `metadata_schema: 2`; nothing orders it relative to `sfez3e` (PR-104). Sibling `uog8nc` uses the same guard shape and inherits PR-101..PR-103 in principle (its backlog items have no prose preambles, but the modal and stable-ID gaps apply); per `_findings.md` the fix belongs in `uog8nc`'s own review, so it is recorded here and not edited there.
+
+### Step S5
+
+- Checked: no open question in the plan. PR-104's ordering against `cxxmyv` resolved from evidence (D-1). No question needs the human.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-101 | high | IN-SCOPE | R4 executability | guard `parts` returned `lines[:end]`; `25kzda` lines 15-118 prose preamble; scratch reword gave `metadata block changed` | The guard froze every line before the first `## ` heading, so proofreading any of the 10 specs with a prose preamble was refused, contradicting the plan's own purpose and forcing the largest spec's opening to stay unproofread. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Guard compares only the title and `- Key:` fields with their continuation lines; definitions say preamble prose is proofread. Re-measured. |
+| PR-102 | high | UNDER-SCOPE | D invariant | guard modal regex matching only bare `must`, `should`, `may`; scratch `must` to `must not` gave `problems=0` | The modal check counted bare words, so negating or un-negating an obligation in an approved spec passed the guard, the exact failure `ecmw83` Risks names. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | Modal regex counts `must`, `should`, `may`, `shall`, `never`, each with optional `not`. Re-measured. |
+| PR-103 | medium | UNDER-SCOPE | D invariant | guard `stable_id` `[A-Z]{1,4}-\d{1,3}`; `D148` removal gave `problems=0`; 302 bare id6 references and `F-0004` in live specs | Decision numbers, four-digit IDs, and bare id6 references were unprotected, though the plan forbids changing stable IDs. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | `stable_id` also matches `D\d{2,4}`, four-digit IDs, and six-character base36 tokens containing a digit and a letter. Re-measured. |
+| PR-104 | medium | UNDER-SCOPE | R7 cross-plan | `cxxmyv` Concern "runs migration `m0001`"; `4sd62s` Section 5.2 "Delete the legacy bullet block ... and the `## Workflow history` section" | If `cxxmyv` lands first, the guard and `aw specs note` operate on a format that no longer exists, and the guard would report the deletion as a sweep problem or read empty history. | C:Low; U:Low; S:Low; F:Low; Overall:Low | fixed | E-01 checks for `metadata_schema` and for `- Status:`/`## Workflow history` in every live spec, and stops with a report if either fails; V-01 pastes the check. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | How should `sfez3e` handle the `cxxmyv` metadata cutover landing first? | Precondition check in E-01 that stops with a report | Add an `Item-Dependencies` edge on `cxxmyv` (wrong direction; the sweep must precede it or be rewritten); rewrite the plan for the log format now (the format is not shipped) | `cxxmyv` `Attended: required` and Status `reviewed`; `4sd62s` Section 5.2; `.aw/config/project.json` has no `metadata_schema` key at HEAD | yes |
+| D-2 | Protect bare id6 tokens, accepting false matches on six-character words with a digit? | Protect them | Protect only backticked ids (already covered by inline code spans) | Plan Scope "any change to ... a stable ID"; 302 bare references measured; a false match only blocks a rewording, never permits one | yes |

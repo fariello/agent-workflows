@@ -3,7 +3,7 @@
 - Date: 2026-10-25
 - Kind: child
 - Concern: Spec `ecmw83` R-08 and MD-3 to MD-5 require a one-time proofread of every live spec against the writing standard, adding diagrams where requirement 12 applies (`ecmw83` R-04). Each swept spec must get one history line, and no status, approval, identity, or provenance field may change. Approved specs keep their status (MD-4). Measured at review (2026-11-06, context only; E-01 re-derives the set): 22 live specs (4 draft, 4 to-review including `ecmw83` itself, 11 approved, 2 implementing, 1 parked; no `reviewed/` or `deferred/` directory exists), about 15,400 lines and 1.65 MB.
-- Scope: Proofread every spec whose status is `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `deferred`, or `parked` at execution time; add or correct diagrams per requirement 12; append one `aw specs note` history line to every swept spec; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `implemented` and `superseded` specs (`ecmw83` N3); any change to a spec's metadata block (status, approval, `Blocks-Release`, `Id`, `From-*`, `Graduated-To`, and every other field), requirement, acceptance criterion, or decision; any change to a heading, a stable ID, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes; and any change to the substance of recorded evidence or measured values.
+- Scope: Proofread every spec whose status is `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `deferred`, or `parked` at execution time; add or correct diagrams per requirement 12; append one `aw specs note` history line to every swept spec; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `implemented` and `superseded` specs (`ecmw83` N3); any change to a spec's title line or metadata fields (status, approval, `Blocks-Release`, `Id`, `From-*`, `Graduated-To`, and every other `- Key:` field before the first `## ` heading), requirement, acceptance criterion, or decision; any change to a heading, a stable ID, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes; and any change to the substance of recorded evidence or measured values.
 - Scope-Paths: .aw/records/specs/draft/, .aw/records/specs/to-review/, .aw/records/specs/approved/, .aw/records/specs/implementing/, .aw/records/specs/parked/, .aw/records/walkthroughs/, .aw/records/backlog/open/
 - Item-Dependencies: executed:g4719s, executed:gzhw9c, executed:k2x0yl, executed:e4n4p3
 - Status: to-review
@@ -20,6 +20,7 @@
 - Id: sfez3e
 
 ## Workflow history
+- 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2 PR-101..PR-104 FIXED; review record .aw/records/reviews/20261025-writestd-07-sfez3e-sweep-live-specs-against-the-writing-standard.review.md
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-013 FIXED; review record .aw/records/reviews/20261025-writestd-07-sfez3e-sweep-live-specs-against-the-writing-standard.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
 
@@ -38,14 +39,14 @@ Definitions used by every item below:
 - BASE is the commit that E-01 records. Every comparison in this plan is against BASE.
 - The guard is the script in `## Required tests / validation`. Save it once as `.aw/state/sfez3e/sweep_guard.py` (gitignored, inside the workspace) and run it from the repository root. With no spec arguments it checks every spec that was live at BASE; with spec paths it checks only those.
 - A spec unit is the work for ONE spec, done in this order: (1) proofread the spec per the "Proofreading procedure" section of `.aw/system/workflows/technical-writing/technical-writing.md` and its numbered requirements; (2) apply requirement 12: add a Mermaid entity diagram (`erDiagram` or class diagram) or a flow or state diagram (`flowchart` or `stateDiagram-v2`) only where its criteria apply and no diagram covers that content, and correct an existing diagram that disagrees with the text (the text is normative); (3) where a passage's meaning cannot be established, keep the original text and add an adjacent block-quote line `> **Unresolved (SW-NN):** <the ambiguity>. Decision needed: <what must be decided>.`, numbering `SW-01` upward across the whole sweep (`ecmw83` R-11); (4) run `aw specs note <spec path> --message "proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged"`, appending `; N Unresolved annotations` when step 3 added any (the verb takes a file path, not an id6); (5) run the guard on that spec and fix every reported problem by restoring the original text; (6) commit the spec alone with `aw commit sfez3e -m "sweep(writestd): proofread spec <id6> (sfez3e)" -- <spec path>`.
-- Do not change, in any spec unit: the metadata block (every line before the first `## ` heading); any heading text; any stable ID such as `R-08`, `AC-06`, `MD-4`, `OQ-01`, `F-12`; any inline code span; any number; any fenced block that is not a Mermaid diagram; any `## Workflow history` record; any text that another tracked file quotes; any `must`, `should`, or `may` (do not swap or drop one). The guard enforces each of these. Where the guard blocks a fix you judge necessary, keep the original and list the case in the walkthrough.
+- Do not change, in any spec unit: the title line and the metadata fields (every `- Key:` line before the first `## ` heading, with its indented continuation lines); any heading text; any stable ID such as `R-08`, `AC-06`, `MD-4`, `OQ-01`, `F-12`, `F-0004`, a decision number such as `D140`, or an id6 such as `25kzda`; any inline code span; any number; any fenced block that is not a Mermaid diagram; any `## Workflow history` record; any text that another tracked file quotes; any `must`, `should`, `may`, `shall`, or `never`, with or without a following `not` (do not swap, drop, or negate one). Prose paragraphs before the first `## ` heading are not metadata; proofread them like any other prose. The guard enforces each of these. Where the guard blocks a fix you judge necessary, keep the original and list the case in the walkthrough.
 - Dashes: the `AGENTS.md` execution contract exempts specs from the dash rule, and the shipped standard adds no dash rule of its own (maintainer ruling, `g4719s` OQ-02). Spec `ecmw83` AC-06 still requires that no swept spec carries a `spec.prose-dash` advisory outside quotations and recorded evidence. So reword a prose em or en dash that the advisory reports, unless the guard protects the text; do not search for dashes otherwise.
 
 ### Task group 1: baseline
 
-- [ ] E-01 Record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find specs --status-not implemented --status-not superseded` as the live set with statuses; `aw specs check --agent` with its `spec.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/sfez3e/` for E-05.
+- [ ] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live spec has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard and `aw specs note` no longer read or write the format this plan assumes, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find specs --status-not implemented --status-not superseded` as the live set with statuses; `aw specs check --agent` with its `spec.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/sfez3e/` for E-05.
   - Depends on: none
-  - Expected outcome: BASE and the four outputs are saved; the live set is re-derived at execution time rather than taken from this plan; the guard reports zero problems at BASE.
+  - Expected outcome: the format check passes; BASE and the four outputs are saved; the live set is re-derived at execution time rather than taken from this plan; the guard reports zero problems at BASE.
   - Execution state: pending
 
 ### Task group 2: sweep
@@ -97,7 +98,8 @@ Definitions used by every item below:
 - Text in live specs that other tracked files quote at review: 1,322 distinct passages (665 in `25kzda`). The guard keeps them unchanged, so a rewording never breaks a quoted-text citation.
 - `aw specs note` refuses an id6 (`aw specs note or061f` printed "cannot read or061f: [Errno 2] No such file or directory"); it needs the spec path.
 - Live specs held two prose em dashes at review, both on one line of `4sd62s` (section 1 table, row "Tracked `.md` records under `.aw/records/`").
-- Spec `k3yx72` is amended by Order 06 (`e4n4p3` E-06) and spec `ecmw83` by Orders 01 and 02 before this plan runs; the sweep proofreads the amended text. Pending plans `7ehv8l` and `cxxmyv` (Set `metastore`) also edit `4sd62s` and `2vev8j`; the runner's merge-and-revalidate gate integrates the commits, and the guard keeps the text those plans quote.
+- Spec `k3yx72` is amended by Order 06 (`e4n4p3` E-06) and spec `ecmw83` by Orders 01 and 02 before this plan runs; the sweep proofreads the amended text. Pending plans `7ehv8l` and `cxxmyv` (Set `metastore`) also edit `4sd62s` and `2vev8j`; the runner's merge-and-revalidate gate integrates the commits, and the guard keeps the text those plans quote. `cxxmyv` is different in kind: it runs migration `m0001`, which deletes every record's bullet block and `## Workflow history` section (spec `4sd62s` Section 5.2 step "Delete the legacy bullet block") and stamps `metadata_schema: 2`. After it lands, the guard's metadata and history checks read nothing and `aw specs note` targets a format that no longer exists, so E-01 checks the format before any spec unit starts.
+- Round 2 review (2026-11-06) re-ran the guard on a scratch clone. The round 1 guard compared every line before the first `## ` heading, so it refused any proofreading of prose preambles (10 live specs have them; `25kzda` has 104 such lines), and it counted `must` without `not`, so `must` to `must not` and `must not` to `must` passed with `problems=0`. The revised guard compares only the title and `- Key:` fields, counts `must`, `should`, `may`, `shall`, and `never` with and without `not`, and protects decision numbers, four-digit stable IDs, and bare id6 references; each mutation above now reports a problem and exits 1, and an unchanged tree reports `problems=0`.
 
 ## Proposed changes (ordered, validatable)
 
@@ -122,7 +124,7 @@ Definitions used by every item below:
 
 `aw specs check`, `aw check all` against the E-01 baseline, the guard below, the routine gate `python3 -m pytest`, and `aw sanitize --agent`.
 
-The guard (save verbatim as `.aw/state/sfez3e/sweep_guard.py`; usage `python3 .aw/state/sfez3e/sweep_guard.py <BASE> [--final] [spec path ...]`; exit 0 means no problem). It reports, per spec, the protected elements that changed between BASE and the working tree. Measured at review: a full run takes about 40 seconds and reports `TOTAL live=22 checked=22 problems=0` at HEAD `2f2b01f35`; in a scratch copy, a status change, a removed stable ID, a removed history line, a changed quoted passage, and a `must` changed to `should` were each reported and the exit code was 1.
+The guard (save verbatim as `.aw/state/sfez3e/sweep_guard.py`; usage `python3 .aw/state/sfez3e/sweep_guard.py <BASE> [--final] [spec path ...]`; exit 0 means no problem). It reports, per spec, the protected elements that changed between BASE and the working tree. Measured at review: a full run takes about 40 seconds and reports `TOTAL live=22 checked=22 problems=0` at HEAD `2f2b01f35` (round 1) and at HEAD `30b49d36c` (round 2, revised guard). In a scratch clone, each of these was reported with exit code 1: a status change, a changed `- Scope:` continuation line, a removed stable ID, a removed `D148`, a removed history line, a changed quoted passage, `must` changed to `should`, `must` changed to `must not`, and `must not` changed to `must`. A reworded preamble paragraph in `25kzda` reported `problems=0` and exit 0.
 
 ```python
 """Sweep guard for plan sfez3e: compares every live spec at BASE with the working tree."""
@@ -147,10 +149,18 @@ quoted = collections.defaultdict(set)
 for p, t in old.items():
     for q in quote.findall(t):
         if " " in q and "-sfez3e-" not in p: quoted[q].add(p)
-stable_id = re.compile(r"\b[A-Z]{1,4}-\d{1,3}[a-z]?\b")
+stable_id = re.compile(r"\b(?:[A-Z]{1,4}-\d{1,4}[a-z]?|D\d{2,4}|(?=[a-z\d]*\d)(?=[a-z\d]*[a-z])[a-z\d]{6})\b")
 code_span = re.compile(r"`[^`\n]+`")
 number = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)*")
-modal = re.compile(r"\b(must|should|may)\b", re.I)
+modal = re.compile(r"\b(?:must|should|may|shall)(?:\s+not)?\b|\bnever\b", re.I)
+key = re.compile(r"- [A-Z][\w/ -]*:")
+def fields(pre):
+    out, cont = [], False
+    for l in pre:
+        if l.startswith("# ") or key.match(l): out.append(l); cont = True
+        elif cont and l[:1] in " \t" and l.strip(): out.append(l)
+        else: cont = False
+    return out
 def parts(t):
     lines = t.splitlines(); end = next((k for k, l in enumerate(lines) if l.startswith("## ")), len(lines))
     heads, fences, mermaid, hist, cur, fence, inhist = [], [], 0, [], [], None, False
@@ -166,7 +176,7 @@ def parts(t):
         if s.startswith(("`" * 3, "~" * 3)): fence, cur = s[:3], [l]; continue
         if re.match(r"#{1,6} ", l): heads.append(l); inhist = s == "## Workflow history"; continue
         if inhist and l.startswith("- "): hist.append(l)
-    return lines[:end], heads, fences, mermaid, hist
+    return fields(lines[:end]), heads, fences, mermaid, hist
 by_name = {p.split("/")[-1]: p for p in git("ls-files", ".aw/records/specs").decode().split()}
 problems = 0
 for p in live:
@@ -185,7 +195,7 @@ for p in live:
     errs += [f"history line changed or removed: {h[:80]}" for h in collections.Counter(ohist) - collections.Counter(nhist)]
     errs += [f"stable id removed: {k}" for k in sorted(set(oc) - set(nc))]
     errs += [f"inline code span removed: {k[:60]}" for k in sorted(set(code_span.findall(o)) - set(code_span.findall(now)))]
-    om_c = collections.Counter(m.lower() for m in modal.findall(o)); nm_c = collections.Counter(m.lower() for m in modal.findall(now))
+    om_c = collections.Counter(" ".join(m.lower().split()) for m in modal.findall(o)); nm_c = collections.Counter(" ".join(m.lower().split()) for m in modal.findall(now))
     errs += [f"modal count fell: {k} {om_c[k]}->{nm_c[k]}" for k in om_c if nm_c[k] < om_c[k]]
     errs += [f"number removed: {k}" for k in sorted(set(number.findall(o)) - set(number.findall(now)))]
     errs += [f"text quoted by another file changed: {q[:80]}" for q in sorted(prot) if q not in now]
@@ -212,7 +222,7 @@ None.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste BASE, the sorted `error` list from `aw check all`, the live-spec list with statuses, the `spec.prose-dash` advisory count, and the last line of the BASE guard run showing `problems=0`.
+  - Required evidence: paste the format check (`grep -c metadata_schema .aw/config/project.json` and the count of live specs lacking `- Status:` or `## Workflow history`, both 0), BASE, the sorted `error` list from `aw check all`, the live-spec list with statuses, the `spec.prose-dash` advisory count, and the last line of the BASE guard run showing `problems=0`.
   - Observed evidence:
   - Result: pending
 
