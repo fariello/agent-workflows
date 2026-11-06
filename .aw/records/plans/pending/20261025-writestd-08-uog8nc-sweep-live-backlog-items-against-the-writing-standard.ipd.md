@@ -2,8 +2,8 @@
 
 - Date: 2026-10-25
 - Kind: child
-- Concern: Spec `ecmw83` R-08 and MD-5 require a one-time proofread of every live backlog item against the writing standard, parked items included, with diagrams where requirement 12 applies (`ecmw83` R-04). Each swept item must get one history line, and no status, priority, gate, release-gate, identity, or provenance field may change. Measured at review (2026-11-06, context only; E-01 re-derives the set): 48 live items (27 open, 6 graduated, 15 parked; no `blocked/` directory), about 143 KB, the largest 32 KB; item `qph7c5` is among them.
-- Scope: Proofread every backlog item whose status is `open`, `blocked`, `graduated`, or `parked` at execution time; add diagrams per requirement 12; append one `aw backlog note` history line to every swept item; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `done` items (`ecmw83` N3); any change to an item's metadata block (`Status`, `Priority`, `Work-Kind`, `Gate-*`, `Blocks-Release`, `Release-Exempt-*`, `Id`, `Set`, `Summary`, `Graduated-To`, and every other field); any change to a heading, a stable ID, an inline code span, a number, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes.
+- Concern: Spec `ecmw83` R-08 and MD-5 require a one-time proofread of every live backlog item against the writing standard, parked items included, with diagrams where requirement 12 applies (`ecmw83` R-04). Each swept item must get one history line, and no status, priority, gate, release-gate, identity, or provenance field may change. Measured at review (2026-11-06, context only; E-01 re-derives the set): 49 live items (28 open, 6 graduated, 15 parked; no `blocked/` directory), about 143 KB, the largest 32 KB; item `qph7c5` is among them.
+- Scope: Proofread every backlog item whose status is `open`, `blocked`, `graduated`, or `parked` at execution time; add diagrams per requirement 12; append one `aw backlog note` history line to every swept item; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `done` items (`ecmw83` N3); any change to an item's title line or metadata fields (`Status`, `Priority`, `Work-Kind`, `Gate-*`, `Blocks-Release`, `Release-Exempt-*`, `Id`, `Set`, `Summary`, `Graduated-To`, and every other `- Key:` field before the first `## ` heading); any change to a heading, a stable ID, an inline code span, a number, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes.
 - Scope-Paths: .aw/records/backlog/open/, .aw/records/backlog/graduated/, .aw/records/backlog/parked/, .aw/records/walkthroughs/
 - Item-Dependencies: executed:g4719s, executed:gzhw9c, executed:k2x0yl, executed:e4n4p3
 - Status: to-review
@@ -20,6 +20,7 @@
 - Id: uog8nc
 
 ## Workflow history
+- 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2 PR-101..PR-104 FIXED; review record .aw/records/reviews/20261025-writestd-08-uog8nc-sweep-live-backlog-items-against-the-writing-standard.review.md
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261025-writestd-08-uog8nc-sweep-live-backlog-items-against-the-writing-standard.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
 
@@ -38,14 +39,14 @@ Definitions used by every item below:
 - BASE is the commit that E-01 records. Every comparison in this plan is against BASE.
 - The guard is the script in `## Required tests / validation`. Save it once as `.aw/state/uog8nc/backlog_guard.py` (gitignored, inside the workspace) and run it from the repository root. With no item arguments it checks every item that was live at BASE; with item paths it checks only those.
 - An item unit is the work for ONE backlog item, done in this order: (1) proofread the item per the "Proofreading procedure" section of `.aw/system/workflows/technical-writing/technical-writing.md` and its numbered requirements, checking in particular that the item states a bounded outcome and how acceptance is shown; (2) apply requirement 12: add a Mermaid diagram only where its criteria apply and none covers that content, and correct an existing diagram that disagrees with the text; (3) where a passage's meaning cannot be established, keep the original text and add an adjacent block-quote line `> **Unresolved (BW-NN):** <the ambiguity>. Decision needed: <what must be decided>.`, numbering `BW-01` upward across the whole sweep (`ecmw83` R-11); (4) run `aw backlog note <item path> --message "proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged"`, appending `; N Unresolved annotations` when step 3 added any; (5) run the guard on that item and fix every reported problem by restoring the original text; (6) commit the item alone with `aw commit uog8nc -m "sweep(writestd): proofread backlog <id6> (uog8nc)" -- <item path>`.
-- Do not change, in any item unit: the metadata block (every line before the first `## ` heading, which includes `- Summary:`); any heading text; any stable ID such as `R-08`, `AC-06`, `OQ-01`; any inline code span (file and line citations live there); any number (measured values); any fenced block that is not a Mermaid diagram (pasted output, quoted commands); any `## Workflow history` record; any text that another tracked file quotes; any `must`, `should`, or `may`. The guard enforces each of these. Where you would improve `- Summary:` or the guard blocks another fix you judge necessary, keep the original and list the case and the suggested wording in the walkthrough.
+- Do not change, in any item unit: the title line and the metadata fields (every `- Key:` line before the first `## ` heading, with its indented continuation lines, which includes `- Summary:`); any heading text; any stable ID such as `R-08`, `AC-06`, `OQ-01`, a decision number such as `D140`, or an id6 such as `25kzda`; any inline code span (file and line citations live there); any number (measured values); any fenced block that is not a Mermaid diagram (pasted output, quoted commands); any `## Workflow history` record; any text that another tracked file quotes; any `must`, `should`, `may`, `shall`, or `never`, with or without a following `not` (do not swap, drop, or negate one). The guard enforces each of these. Prose paragraphs before the first `## ` heading are not metadata; proofread them like any other prose. Where you would improve `- Summary:` or the guard blocks another fix you judge necessary, keep the original and list the case and the suggested wording in the walkthrough.
 - Dashes: the `AGENTS.md` execution contract exempts backlog items from the dash rule, and the shipped standard adds no dash rule of its own (maintainer ruling, `g4719s` OQ-02). Spec `ecmw83` AC-06 still requires that no swept item carries a `backlog.prose-dash` advisory outside quotations and recorded evidence, so reword a prose em or en dash that the advisory reports, unless the guard protects the text. Live items held no em or en dash at review.
 
 ### Task group 1: baseline
 
-- [ ] E-01 Record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find backlog --status-not done` as the live set with statuses; `aw backlog check --agent` with its `backlog.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/uog8nc/` for E-04.
+- [ ] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live item has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard and `aw backlog note` no longer read or write the format this plan assumes, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find backlog --status-not done` as the live set with statuses; `aw backlog check --agent` with its `backlog.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/uog8nc/` for E-04.
   - Depends on: none
-  - Expected outcome: BASE and the four outputs are saved; the live set is re-derived at execution time; the guard reports zero problems at BASE.
+  - Expected outcome: the format check passes; BASE and the four outputs are saved; the live set is re-derived at execution time; the guard reports zero problems at BASE.
   - Execution state: pending
 
 ### Task group 2: sweep
@@ -92,6 +93,8 @@ Definitions used by every item below:
 - Text in live items that other tracked files quote at review: 159 passages. The guard keeps them unchanged.
 - Many items cite code as a path with a line number inside an inline code span (for example item `zvyo35`, section "Problem Statement", step 2). The guard keeps every code span, so the sweep never rewrites a citation it cannot re-verify.
 - Order 07 (`sfez3e` E-06) may file a carrier item in `backlog/open/` before this plan runs; it is live at BASE and is swept like any other item.
+- Pending plan `cxxmyv` (Set `metastore`, `Attended: required`) runs migration `m0001`, which deletes every record's bullet block and `## Workflow history` section (spec `4sd62s` Section 5.2) and stamps `metadata_schema: 2`. Nothing orders it relative to this plan. After it lands, the guard's metadata and history checks read nothing and `aw backlog note` targets a format that no longer exists, so E-01 checks the format before any item unit starts.
+- Round 2 review (2026-11-06) re-ran the guard on a scratch clone. The round 1 guard compared every line before the first `## ` heading, so it refused proofreading of the 42-line prose preamble in item `ms06pi`, and it counted `must` without `not`, so `must` to `must not`, `must not` to `must`, and dropping a `never` passed with `problems=0`. Live items hold 191 bare id6 references and 17 decision numbers outside code spans, which the round 1 `stable_id` pattern did not match. The revised guard compares only the title and `- Key:` fields, counts the modals with and without `not`, and protects decision numbers and bare id6 references; each mutation above now reports a problem and exits 1, and an unchanged tree reports `problems=0`.
 
 ## Proposed changes (ordered, validatable)
 
@@ -116,7 +119,7 @@ Definitions used by every item below:
 
 `aw backlog check`, `aw check all` against the E-01 baseline, the guard below, the routine gate `python3 -m pytest`, and `aw sanitize --agent`.
 
-The guard (save verbatim as `.aw/state/uog8nc/backlog_guard.py`; usage `python3 .aw/state/uog8nc/backlog_guard.py <BASE> [--final] [item path ...]`; exit 0 means no problem). It reports, per item, the protected elements that changed between BASE and the working tree. Measured at review: a full run takes about 9 seconds and reports `TOTAL live=48 checked=48 problems=0` at HEAD `3c7f9c987`; in a scratch copy, a changed `- Priority:`, a shortened code-span citation, and a changed quoted passage were each reported and the exit code was 1; after only `aw backlog note`, `--final` reported `problems=0`.
+The guard (save verbatim as `.aw/state/uog8nc/backlog_guard.py`; usage `python3 .aw/state/uog8nc/backlog_guard.py <BASE> [--final] [item path ...]`; exit 0 means no problem). It reports, per item, the protected elements that changed between BASE and the working tree. Measured at review: a full run takes about 9 seconds and reports `TOTAL live=48 checked=48 problems=0` at HEAD `3c7f9c987` (round 1) and `TOTAL live=49 checked=49 problems=0` at HEAD `604e5498f` (round 2, revised guard). In a scratch clone, each of these was reported with exit code 1: a changed `- Priority:`, a changed `- Summary:`, a shortened code-span citation, a changed quoted passage, `should` changed to `may`, `must` changed to `must not`, `must not` changed to `must`, `never` changed to `always`, and an id6 reference removed. A reworded preamble sentence in `ms06pi` reported `problems=0` and exit 0, and after only `aw backlog note`, `--final` reported `sweep-notes=1` and `problems=0`.
 
 ```python
 """Sweep guard for plan uog8nc: compares every live backlog item at BASE with the working tree."""
@@ -141,10 +144,18 @@ quoted = collections.defaultdict(set)
 for p, t in old.items():
     for q in quote.findall(t):
         if " " in q and SELF not in p: quoted[q].add(p)
-stable_id = re.compile(r"\b[A-Z]{1,4}-\d{1,3}[a-z]?\b")
+stable_id = re.compile(r"\b(?:[A-Z]{1,4}-\d{1,4}[a-z]?|D\d{2,4}|(?=[a-z\d]*\d)(?=[a-z\d]*[a-z])[a-z\d]{6})\b")
 code_span = re.compile(r"`[^`\n]+`")
 number = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)*")
-modal = re.compile(r"\b(must|should|may)\b", re.I)
+modal = re.compile(r"\b(?:must|should|may|shall)(?:\s+not)?\b|\bnever\b", re.I)
+key = re.compile(r"- [A-Z][\w/ -]*:")
+def fields(pre):
+    out, cont = [], False
+    for l in pre:
+        if l.startswith("# ") or key.match(l): out.append(l); cont = True
+        elif cont and l[:1] in " \t" and l.strip(): out.append(l)
+        else: cont = False
+    return out
 def parts(t):
     lines = t.splitlines(); end = next((k for k, l in enumerate(lines) if l.startswith("## ")), len(lines))
     heads, fences, mermaid, hist, cur, fence, inhist = [], [], 0, [], [], None, False
@@ -160,7 +171,7 @@ def parts(t):
         if s.startswith(("`" * 3, "~" * 3)): fence, cur = s[:3], [l]; continue
         if re.match(r"#{1,6} ", l): heads.append(l); inhist = s == "## Workflow history"; continue
         if inhist and l.startswith("- "): hist.append(l)
-    return lines[:end], heads, fences, mermaid, hist
+    return fields(lines[:end]), heads, fences, mermaid, hist
 by_name = {p.split("/")[-1]: p for p in git("ls-files", ROOT).decode().split()}
 problems = 0
 for p in live:
@@ -179,7 +190,7 @@ for p in live:
     errs += [f"history line changed or removed: {h[:80]}" for h in collections.Counter(ohist) - collections.Counter(nhist)]
     errs += [f"stable id removed: {k}" for k in sorted(set(oc) - set(nc))]
     errs += [f"inline code span removed: {k[:60]}" for k in sorted(set(code_span.findall(o)) - set(code_span.findall(now)))]
-    om_c = collections.Counter(m.lower() for m in modal.findall(o)); nm_c = collections.Counter(m.lower() for m in modal.findall(now))
+    om_c = collections.Counter(" ".join(m.lower().split()) for m in modal.findall(o)); nm_c = collections.Counter(" ".join(m.lower().split()) for m in modal.findall(now))
     errs += [f"modal count fell: {k} {om_c[k]}->{nm_c[k]}" for k in om_c if nm_c[k] < om_c[k]]
     errs += [f"number removed: {k}" for k in sorted(set(number.findall(o)) - set(number.findall(now)))]
     errs += [f"text quoted by another file changed: {q[:80]}" for q in sorted(prot) if q not in now]
@@ -206,7 +217,7 @@ None.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste BASE, the sorted `error` list from `aw check all`, the live-item list with statuses, the `backlog.prose-dash` advisory count, and the last line of the BASE guard run showing `problems=0`.
+  - Required evidence: paste the format check (`grep -c metadata_schema .aw/config/project.json` and the count of live items lacking `- Status:` or `## Workflow history`, both 0), BASE, the sorted `error` list from `aw check all`, the live-item list with statuses, the `backlog.prose-dash` advisory count, and the last line of the BASE guard run showing `problems=0`.
   - Observed evidence:
   - Result: pending
 
