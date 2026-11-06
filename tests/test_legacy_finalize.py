@@ -380,6 +380,32 @@ class MigrationSkipsTerminalPlansTests(_Repo):
         moved_pending = self.root / ".aw/records/plans/pending/20260701-0001-01-p.md"
         self.assertIn("- Id: ", moved_pending.read_text(encoding="utf-8"))
 
+    def test_pre_existing_pending_plan_gets_id_backfilled(self) -> None:
+        pending_dir = self.root / ".aw/records/plans/pending"
+        pending_dir.mkdir(parents=True)
+        p = pending_dir / "20260701-0001-01-already-here.md"
+        p.write_text(LEGACY_PLAN.replace("- Id: lg0001\n", ""), encoding="utf-8")
+        (self.root / ".agents").mkdir(parents=True)
+        (self.root / ".agents/README.md").write_text("dummy", encoding="utf-8")
+        self.commit("seed existing")
+        code, out, err = self.run_cli("migrate-layout", "--yes")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("- Id: ", p.read_text(encoding="utf-8"))
+
+    def test_pre_existing_aw_gitignore_updated_with_index_ignores(self) -> None:
+        aw_dir = self.root / ".aw"
+        aw_dir.mkdir(parents=True)
+        gi = aw_dir / ".gitignore"
+        gi.write_text("records/*/untracked/\n", encoding="utf-8")
+        (self.root / ".agents").mkdir(parents=True)
+        (self.root / ".agents/README.md").write_text("dummy", encoding="utf-8")
+        self.commit("seed gitignore")
+        code, out, err = self.run_cli("migrate-layout", "--yes")
+        self.assertEqual(code, 0, out + err)
+        text = gi.read_text(encoding="utf-8")
+        self.assertIn("records/plans/INDEX.json", text)
+        self.assertIn("records/plans/INDEX.md", text)
+
 
 class BareSyncRefusalTests(_Repo):
     def test_bare_sync_refuses_with_agent_record(self) -> None:

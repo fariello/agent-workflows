@@ -23,6 +23,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import plans as _plans
 
 DEFAULT_INDEX_LIMIT = 40  # OQ5: browse-by-Set view bounded to the N most-recent Sets.
 # (The former module-level `PLANS_DIR = ".agents/plans"` was dead - resolution is via `_dirs()` /
@@ -114,16 +115,17 @@ def plan_entry(
         kind=_meta(text, "Kind"),
     )
     drift: List[_core.Drift] = []
-    # Drift class (a): missing/invalid Id. Terminal grandfathered plans are still expected to
-    # carry an Id after migration; report a missing/invalid one regardless of disposition.
-    if plan_id is None:
-        drift.append(_core.Drift(rel, "id-missing", "no `- Id:` metadata line"))
-    elif not _core.is_valid_id6(plan_id):
-        drift.append(
-            _core.Drift(
-                rel, "id-invalid", f"Id '{plan_id}' is not a 6-char base36 token"
+    # Drift class (a): missing/invalid Id. Terminal plans record finished history and are never
+    # rewritten (commit aab5c1e27), so only non-terminal plans are expected to carry an Id.
+    if disposition not in _plans.TERMINAL:
+        if plan_id is None:
+            drift.append(_core.Drift(rel, "id-missing", "no `- Id:` metadata line"))
+        elif not _core.is_valid_id6(plan_id):
+            drift.append(
+                _core.Drift(
+                    rel, "id-invalid", f"Id '{plan_id}' is not a 6-char base36 token"
+                )
             )
-        )
     return entry, drift
 
 

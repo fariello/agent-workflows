@@ -199,7 +199,7 @@ class CheckDriftTests(unittest.TestCase):
     def test_missing_id_flagged(self):
         _plan(
             self.root,
-            "executed",
+            "pending",
             "20260702-set-a-01-nope-y.md",
             plan_id=None,
             set_id="set-a",
@@ -207,6 +207,19 @@ class CheckDriftTests(unittest.TestCase):
         )
         drift = I.check_drift(self.root, self.pdir)
         self.assertTrue(any(d.rule == "id-missing" for d in drift))
+
+    def test_missing_id_in_terminal_plan_not_flagged(self):
+        _plan(
+            self.root,
+            "executed",
+            "20260702-set-a-01-nope-y.md",
+            plan_id=None,
+            set_id="set-a",
+            order=1,
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.pdir)
+        self.assertFalse(any(d.rule == "id-missing" for d in drift))
 
     def test_name_metadata_mismatch_on_clustered_name(self):
         # A clustered name whose id6 disagrees with metadata Id.

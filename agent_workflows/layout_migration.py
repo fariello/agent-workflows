@@ -541,32 +541,44 @@ class MigrationManager:
     # ------------------------------------------------------------------
 
     def _moved_plan_files(self, tx_data: Dict[str, Any]) -> List[Path]:
-        """Every NON-TERMINAL plan document this transaction MOVED, at its new location."""
+        """Every NON-TERMINAL plan document this transaction MOVED or that sits in plans_root."""
 
         records_root = self._records_root_for_backend(
             tx_data.get("target_backend", "repository")
         )
         plans_root = records_root / "plans"
+        seen: set[Path] = set()
         out: List[Path] = []
-        for e in tx_data.get("move_journal", []):
-            if e.get("action") != "move":
-                continue
-            dst = Path(e["destination"])
-            if (
-                dst.suffix == ".md"
-                and dst.name not in _NON_DURABLE_BASENAMES
-                and self._is_within(dst, plans_root)
+
+        def _is_non_terminal_plan(p: Path) -> bool:
+            return (
+                p.suffix == ".md"
+                and p.name not in _NON_DURABLE_BASENAMES
+                and self._is_within(p, plans_root)
                 # A terminal plan records finished history and is never rewritten; only a plan
                 # that can still be begun or finalized needs an Id (and the lifecycle verbs read
                 # terminal plans through the legacy short-circuit, which needs none).
                 and not any(
-                    self._is_within(dst, plans_root / d)
+                    self._is_within(p, plans_root / d)
                     for d in ("executed", "superseded", "not-executed")
                 )
-                and dst.is_file()
-                and not dst.is_symlink()
-            ):
+                and p.is_file()
+                and not p.is_symlink()
+            )
+
+        for e in tx_data.get("move_journal", []):
+            if e.get("action") != "move":
+                continue
+            dst = Path(e["destination"])
+            if _is_non_terminal_plan(dst) and dst not in seen:
+                seen.add(dst)
                 out.append(dst)
+
+        if plans_root.is_dir():
+            for p in sorted(plans_root.rglob("*.md")):
+                if _is_non_terminal_plan(p) and p not in seen:
+                    seen.add(p)
+                    out.append(p)
         return out
 
     def _backfill_plan_ids(self, tx_data: Dict[str, Any]) -> List[Dict[str, str]]:
@@ -587,27 +599,27 @@ class MigrationManager:
         return [{"path": str(p), "id6": id6} for p, id6 in written]
 
     def _ensure_gitignore(self, target_backend: str) -> Dict[str, Any]:
-        """Create the framework-owned `.aw/.gitignore` when the repo has none.
+        """Ensure the framework-owned `.aw/.gitignore` exists and carries standard ignore rules.
 
-        Without it the per-machine `.aw/state/` tree this migration just wrote (transaction
-        journal, switch receipt) is offered to `git add`, and those files embed absolute home
-        paths. CREATE-ONLY: an existing `.aw/.gitignore` is left byte-identical (migration
-        preserves files already under `.aw/`; back-filling patterns into one is `aw install`'s
-        job). Writes the installer's own template so the two cannot drift. Returns
-        `{path, written, created}`; rollback removes a file this created.
+        Delegates to engine._ensure_aw_gitignore so that both a fresh file and an existing
+        file carry the standard ignore rules (including state, layout artifacts, run artifacts,
+        and generated INDEX manifests). Returns {path, written, created}; rollback removes
+        a file this created.
         """
 
         from agent_workflows import engine as _engine
 
         gi = self.aw_dir / ".gitignore"
-        if gi.exists() or gi.is_symlink():
-            return {"path": str(gi), "written": False, "created": False}
+        existed_before = gi.exists() or gi.is_symlink()
         try:
-            gi.parent.mkdir(parents=True, exist_ok=True)
-            gi.write_text(_engine._AW_GITIGNORE_TEMPLATE, encoding="utf-8")
+            wrote = _engine._ensure_aw_gitignore(Path(self.target_repo))
         except OSError:
             return {"path": str(gi), "written": False, "created": False}
-        return {"path": str(gi), "written": True, "created": True}
+        return {
+            "path": str(gi),
+            "written": wrote,
+            "created": not existed_before and wrote,
+        }
 
     def _stamp_cutovers(self) -> Dict[str, Any]:
         """Stamp the repository's feature cutovers (legacyfin `18kg7o` E-02).
