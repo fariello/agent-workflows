@@ -6,7 +6,7 @@
 - Scope: Amend spec `ecmw83` R-05, AC-03, N1, and N2 to describe the shipped paragraph, the kept dash split, and the shipped standard's scope; confirm the shipped state with the existing delivery test and the block regeneration check. EXCLUDES any change to `engine.py`, `AGENTS.md`, P13, `CONTRIBUTING.md`, `GEMINI.md`, `prose-style.md`, `intent-audit.md`, or DECISIONS (the shipped text already matches the ruling), the spec rows that Order 01 `g4719s` amends (R-01, R-02, MD-2, AC-01, AC-02), and R-07 (Order 03).
 - Scope-Paths: .aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md
 - Item-Dependencies: executed:g4719s
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Review-Depth: simple
 - Work-Kind: feature
@@ -20,6 +20,7 @@
 - Id: gzhw9c
 
 ## Workflow history
+- 2026-11-06 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 - 2026-11-05 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; re-scoped to a spec amendment after the g4719s OQ-02 ruling; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261025-writestd-02-gzhw9c-add-the-writing-standard-paragraph-to-the-agents-md-managed.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
 
