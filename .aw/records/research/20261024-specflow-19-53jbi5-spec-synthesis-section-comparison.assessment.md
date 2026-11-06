@@ -747,6 +747,8 @@ Context: C01 proposes `aw specs flow ...` and `aw research flow ...`. C03 propos
 
 Recommendation: (a), for the reasons in C03 3.1.
 
+RESOLVED 2026-11-05 by the user via /askme: (a) one shared `aw synth` noun (`aw synth spec ...`, `aw synth research ...`). No reason was given.
+
 ### Q-2. Does the working spec exist in `specs/draft/` before finalize?
 
 Context: C03 creates the spec record when synthesis starts and refines it in place (R-60), so `/spec-review` and later plans cite one id6 from the start. C01 keeps a synthesis draft as a research `source-draft` and writes the spec only at finalize. DL-16 places intermediates in the research tree, and both readings satisfy it if the working spec counts as the final record.
@@ -757,6 +759,8 @@ Context: C03 creates the spec record when synthesis starts and refines it in pla
 | (b) C01: spec only at finalize | No spec on the board until finalize; one more research record per run; the id6 that reviewers cite appears only at the end. |
 
 Recommendation: (a), and add to C03 R-07: "Cancel MUST set the working spec record to `parked` with a message naming the run."
+
+RESOLVED 2026-11-05 by the user via /askme: (a) the spec record is created in `specs/draft/` when synthesis starts and is refined in place; cancel sets it to `parked` with a message naming the run. No reason was given.
 
 ### Q-3. May an `agy` runner profile store a variant?
 
@@ -769,6 +773,8 @@ Context: today `RUNNER_REGISTRY["agy"].supports_variant` is `False` and `MODEL_R
 
 Recommendation: (a).
 
+RESOLVED 2026-11-05 by the user via /askme: (a) relax both rules (C03 R-11): an `agy` runner profile may store a variant (passed as `--effort`) and a bare model id. No reason was given.
+
 ### Q-4. Run directory name
 
 Context: MS indexes runs only through the runner's readers, which list `run-*` directories (E-1).
@@ -779,6 +785,8 @@ Context: MS indexes runs only through the runner's readers, which list `run-*` d
 | (b) Keep a `synth-` prefix | Runs stay separate from driver runs; MS 4.5b needs a second reader, which MS 4.5b forbids ("never uses a new parser"). |
 
 Recommendation: (a).
+
+RESOLVED 2026-11-05 by the user via /askme: (a) synth run directories are minted with `runner_shared.mint_run_dir` (`run-*` name) and `state.json` carries a `queue` list with one entry per dispatch; the `aw runs` viewer must tolerate a non-plan queue. No reason was given.
 
 ### Q-5. Liveness of a run's research set
 
@@ -791,6 +799,8 @@ Context: both candidates keep a set `partial` by withholding the matrix body. Th
 
 Recommendation: (a), measured across the current research tree before the plan is approved.
 
+RESOLVED 2026-11-05 by the user via /askme: (a) `derive_pipeline_positions` counts a set as `synthesized` only when a synthesis-kind member has status `reference`. Measured 2026-11-05 on 164 research entries (16 sets with a position: 7 synthesized, 3 partial, 6 unrun): the change moves 2 sets, `awnamespace` and `rq`, from `synthesized` to `partial`, because their synthesis members are `active`, not `reference`. No reason was given.
+
 ### Q-6. New registry entries for MS
 
 Context: the feature needs fields and relations that MS does not list: `run_kind`, `run_role`, `participant`, `revision`, `identity_class`, `assurance`, and relations `assessment_subject`, `reused_from`, plus `ace` as a mirrored filename facet and a refinement vocabulary of seven loop outcomes. MS plan step 1 owns the registry (MS OQ-1). MS 4.2c says the spec implemented second must agree with the other.
@@ -802,7 +812,15 @@ Context: the feature needs fields and relations that MS does not list: `run_kind
 
 Recommendation: (a). Also decide whether `review` events may name a research assessment as `review_ref` (Section 5.4).
 
+RESOLVED 2026-11-05 by the user via /askme: (a) submit the fields (`run_kind`, `run_role`, `participant`, `revision`, `identity_class`, `assurance`), relations (`assessment_subject`, `reused_from`) and the seven refinement loop outcomes to metastore plan `tve77h` (Order 02, status `reviewed`) now; checked 2026-11-05 that `tve77h` E-01 already registers `ace` and E-18 holds only the two legacy refinement verdicts. No reason was given. RESOLVED 2026-11-05 by the user via /askme (sub-question): a `review` event with `review_kind: refinement` MAY name a research assessment id6 as `review_ref`; the MS 4.6 round-count rule applies only to review files and skips these events; gate reviews still reference review files. No reason was given.
+
 The following C03 open questions are within the synthesis author's authority, and I recommend C03's own answers: OQ-10 (a), OQ-11 (a), OQ-12 (a), OQ-13 (a) plus a budget flag, OQ-14 (yes), OQ-15 (yes), OQ-16 (b).
+
+### Q-7. Third candidate `1tx9t8` (added 2026-11-05)
+
+Context: this record compares only C01 (`18hh1u`) and C03 (`yfz5u9`). Candidate `1tx9t8` (Codex, 2026-10-25, evidence `ear8qy`) was not compared.
+
+RESOLVED 2026-11-05 by the user via /askme: before the synthesized spec is written, compare `1tx9t8` topic by topic (keep / alter / discard) against the Section 7 outline in a new research assessment, then synthesize from all three candidates. No reason was given.
 
 ## 9. Validation performed
 
