@@ -6,7 +6,7 @@
 - Scope: Records and citation hygiene only. Transition `2vev8j` to `superseded` with a history message citing `4sd62s`, and clear its `- From-Backlog:` so it stops counting as an unshippable carrier of `ms06pi`; add `- From-Backlog: ms06pi` to `4sd62s` with the tooled setter; record the handoff on `ms06pi`; re-point every `2vev8j` citation in `agent_workflows/` and `tests/` to the `4sd62s` section that now holds the rule. EXCLUDES any behavior change, any code other than comments, docstrings and one recovery-hint string, and `CHANGELOG.md` (released history).
 - Scope-Paths: .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, .aw/records/specs/superseded/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md, agent_workflows/artifact_core.py, agent_workflows/attention.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/ipd_authoring.py, agent_workflows/record_history.py, agent_workflows/specs.py, agent_workflows/status_set.py, tests/test_backlog.py, tests/test_backlog_history_dedup_parity.py, tests/test_history_date_clock.py, tests/test_history_date_clock_parity.py, tests/test_history_date_clock_residual.py, tests/test_history_date_clock_sidecar.py, tests/test_history_label_parity.py, tests/test_scaffold_history_clock.py, .aw/records/plans/pending/20261102-metastore-01-7ehv8l-supersede-spec-2vev8j-and-re-home-backlog-ms06pi-s-release-g.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,12 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7ehv8l
+- Readiness: go-pending-approval
+- Review-Depth: standard
 
 ## Workflow history
+- 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
+- 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261102-metastore-01-7ehv8l-supersede-spec-2vev8j-and-re-home-backlog-ms06pi-s-release-g.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)
 
 - 2026-11-02 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -32,9 +36,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline
 
-- [ ] E-01 Record the baseline before any change: save `aw check --agent` to `/tmp/opencode/7ehv8l-check-before.jsonl`, and save the output of `aw releases show next`, `aw specs check`, `rg -l 2vev8j agent_workflows tests` and `python3 -c "from pathlib import Path; from agent_workflows import check_engine as c; print(c.find_from_backlog_artifacts(Path('.').resolve(), 'ms06pi'))"`.
+- [ ] E-01 Record the baseline before any change: save `aw check --agent` to `.aw/state/7ehv8l/check-before.jsonl` (gitignored and inside the workspace; a runner lane may refuse writes outside it, measured at review), and save the output of `aw releases show next`, `aw specs check`, `rg -l 2vev8j agent_workflows tests` and `python3 -c "from pathlib import Path; from agent_workflows import check_engine as c; print(c.find_from_backlog_artifacts(Path('.').resolve(), 'ms06pi'))"`.
   - Depends on: none
-  - Expected outcome: the release blocker list names `2vev8j` and `4sd62s`; the carrier list names only `2vev8j`; `rg` lists 16 files.
+  - Expected outcome: the release blocker list names `2vev8j` and `4sd62s`; the carrier list names only `2vev8j`; the `rg` file list is saved and is the set of files E-05 and E-06 must change (16 files, 8 modules and 8 tests, at authoring; re-derive it here and use the list this step prints, not the authoring count).
   - Execution state: pending
 
 ### Task group 2: records
@@ -56,21 +60,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: citations
 
-- [ ] E-05 Re-point the 8 module citations, comment and docstring text only plus one recovery hint, using this mapping (each 4sd62s section quoted from the spec): `2vev8j` 4.4 UTC writer rule -> `4sd62s` 4.2b; `2vev8j` 4.3 per-artifact seq -> `4sd62s` 4.2; `2vev8j` C5 (no event before the durable write) -> `4sd62s` C6; `2vev8j` E1 (shared JSONL append conflicts) -> `4sd62s` C3 and 4.7 (per-artifact logs so different artifacts never share a file). Files: `artifact_core.py` (the `utc_history_date` banner and docstring), `attention.py`, `backlog.py` (two sidecar-order comments), `check_engine.py` (the `check.lifecycle-transition-unvalidated` rule comment and docstring, its `recovery=` hint which becomes "wait for spec 4sd62s 4.2 per-artifact seq", and the namespace-gate comment, which becomes "spec 6m4kow and the superseded artifact-metadata-storage spec (now 4sd62s)"), `ipd_authoring.py`, `record_history.py`, `specs.py`, `status_set.py`.
+- [ ] E-05 Re-point the `2vev8j` citations in the modules from the E-01 list (8 modules at authoring), comment and docstring text only plus one recovery hint, using this mapping (each 4sd62s section quoted from the spec): `2vev8j` 4.4 UTC writer rule -> `4sd62s` 4.2b; `2vev8j` 4.3 per-artifact seq -> `4sd62s` 4.2; `2vev8j` C5 (no event before the durable write) -> `4sd62s` C6; `2vev8j` E1 (shared JSONL append conflicts) -> `4sd62s` P3 (which cites that measured evidence) and C3 and 4.7 (per-artifact logs so different artifacts never share a file); keep the sentence a citation of where the measurement is recorded, not a claim that `4sd62s` made it. Files: `artifact_core.py` (the `utc_history_date` banner and docstring), `attention.py`, `backlog.py` (two sidecar-order comments), `check_engine.py` (the `check.lifecycle-transition-unvalidated` rule comment and docstring, its `recovery=` hint which becomes "wait for spec 4sd62s 4.2 per-artifact seq", and the namespace-gate comment, a historical measurement, which becomes "spec 6m4kow and the artifact-metadata-storage spec since superseded by 4sd62s"), `ipd_authoring.py`, `record_history.py`, `specs.py`, `status_set.py`.
   - Depends on: E-01
-  - Expected outcome: `rg -n 2vev8j agent_workflows` prints nothing; `git diff --stat agent_workflows` shows only those 8 files; every changed line is a comment, a docstring, or the one `recovery=` string.
+  - Expected outcome: `rg -n 2vev8j agent_workflows` prints nothing; `git diff --stat agent_workflows` shows only the modules from the E-01 list; every changed line is a comment, a docstring, or the one `recovery=` string.
   - Execution state: pending
 
-- [ ] E-06 Re-point the 8 test-file citations (module docstrings and inline comments only; no assertion reads the spec id, measured with `rg -n 2vev8j tests`): `test_backlog.py`, `test_backlog_history_dedup_parity.py`, `test_history_date_clock.py`, `test_history_date_clock_parity.py`, `test_history_date_clock_residual.py`, `test_history_date_clock_sidecar.py`, `test_history_label_parity.py`, `test_scaffold_history_clock.py`, using the E-05 mapping (the "One timezone for every writer" rule is `4sd62s` 4.2b "One clock for each stored value").
+- [ ] E-06 Re-point the `2vev8j` citations in the test files from the E-01 list (8 files at authoring; module docstrings and inline comments only; no assertion reads the spec id, measured with `rg -n 2vev8j tests`): `test_backlog.py`, `test_backlog_history_dedup_parity.py`, `test_history_date_clock.py`, `test_history_date_clock_parity.py`, `test_history_date_clock_residual.py`, `test_history_date_clock_sidecar.py`, `test_history_label_parity.py`, `test_scaffold_history_clock.py`, using the E-05 mapping (the "One timezone for every writer" rule is `4sd62s` 4.2b "One clock for each stored value").
   - Depends on: E-01
   - Expected outcome: `rg -l 2vev8j agent_workflows tests` prints nothing; no test logic changes.
   - Execution state: pending
 
 ### Task group 4: verification and commit
 
-- [ ] E-07 Verify and commit: rerun the E-01 commands and diff `aw check --agent` against the baseline; run `python3 -m pytest -o addopts="" -n auto tests/test_backlog.py tests/test_backlog_history_dedup_parity.py tests/test_history_date_clock.py tests/test_history_date_clock_parity.py tests/test_history_date_clock_residual.py tests/test_history_date_clock_sidecar.py tests/test_history_label_parity.py tests/test_scaffold_history_clock.py tests/test_check_engine_release_gate.py tests/test_release_gate_one_way_mismatch.py`, the bare core gate `python3 -m pytest`, `aw check release-gates` and `aw sanitize --agent`; commit through `aw commit 7ehv8l -- <every Scope-Paths path that changed>`. Never push.
+- [ ] E-07 Verify and commit: rerun the E-01 commands and diff the `(location, rule)` pairs of `aw check --agent` against `.aw/state/7ehv8l/check-before.jsonl`; run `python3 -m pytest -o addopts="" -n auto tests/test_backlog.py tests/test_backlog_history_dedup_parity.py tests/test_history_date_clock.py tests/test_history_date_clock_parity.py tests/test_history_date_clock_residual.py tests/test_history_date_clock_sidecar.py tests/test_history_label_parity.py tests/test_scaffold_history_clock.py tests/test_check_engine_release_gate.py tests/test_release_gate_one_way_mismatch.py`, the bare core gate `python3 -m pytest`, `aw check release-gates` and `aw sanitize --agent`; commit through `aw commit 7ehv8l -- <every Scope-Paths path that changed>`. Never push.
   - Depends on: E-04, E-05, E-06
-  - Expected outcome: both pytest runs pass; `aw check` shows no new error or warning (the only path change is `2vev8j`'s pre-existing `check.spec-criteria-uncovered` advisory moving with the file); `aw releases show next` lists `ms06pi` and `4sd62s` and not `2vev8j`; one path-scoped commit.
+  - Expected outcome: both pytest runs pass; `aw check` shows no new error or warning (the only path change is `2vev8j`'s pre-existing `check.spec-criteria-uncovered` advisory moving with the file; any other difference is named and traced to a cause, such as a date-derived rule crossing midnight); `aw releases show next` lists `ms06pi` and `4sd62s` and not `2vev8j`; one path-scoped commit.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -89,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | `aw releases show next` lists `ms06pi`, `2vev8j` and `4sd62s` | `2vev8j` is still counted as a live blocker of 2.0.0. |
 | F-03 | `find_from_backlog_artifacts(repo, 'ms06pi')` returns only the `2vev8j` spec | The gate is handed to the superseded spec only. |
 | F-04 | Scratch copy, `2vev8j` superseded with its `From-Backlog` kept and `4sd62s` linked: `evaluate_blocking_close(..., 'done')` refuses and names BOTH carriers as not shipped | Clearing `2vev8j`'s `From-Backlog` is required, not cosmetic. After clearing it, the verdict names only `4sd62s`, which is correct until `4sd62s` is implemented. |
-| F-05 | Scratch copy after E-NEW steps: `aw releases show next` lists `ms06pi` and `4sd62s`; `aw check release-gates` reports 0 errors; `aw check` adds no finding for `2vev8j`, `ms06pi` or `4sd62s` once the metastore plans are present | The record change is safe for every release-gate rule. |
+| F-05 | Scratch copy after the E-02 to E-04 steps (re-measured at review 2026-11-06 on a scratch clone of `bfdcb514f`: same result, `aw check` severity counts unchanged at 14 error, 1 warning, 55 info): `aw releases show next` lists `ms06pi` and `4sd62s`; `aw check release-gates` reports 0 errors; `aw check` adds no finding for `2vev8j`, `ms06pi` or `4sd62s` once the metastore plans are present | The record change is safe for every release-gate rule. |
 | F-06 | `rg -n "per-artifact seq" tests` returns nothing | No test asserts the `check_engine` recovery hint text, so re-pointing it changes no test. |
 | F-07 | `CHANGELOG.md` cites `2vev8j` twice (lines for the lifecycle-unvalidated rule and the UTC unification) | Those are entries describing work as it shipped; see Deferred. |
 
@@ -138,7 +142,7 @@ Amends two spec records through tooled setters only, both declared in Scope-Path
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the baseline `aw releases show next` rows for `ms06pi`, `2vev8j` and `4sd62s`; the printed `find_from_backlog_artifacts` list (one `2vev8j` path); and the 16-line `rg -l 2vev8j agent_workflows tests` output.
+  - Required evidence: paste the baseline `aw releases show next` rows for `ms06pi`, `2vev8j` and `4sd62s`; the printed `find_from_backlog_artifacts` list (one `2vev8j` path); the full `rg -l 2vev8j agent_workflows tests` output as re-derived at execution; and `ls .aw/state/7ehv8l/check-before.jsonl`.
   - Observed evidence:
   - Result: pending
 
@@ -158,17 +162,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `rg -n 2vev8j agent_workflows` (empty output and exit code 1), `git diff --stat -- agent_workflows` listing exactly the 8 named modules, and the `git diff` hunk of the `check_engine.py` `recovery=` string.
+  - Required evidence: paste `rg -n 2vev8j agent_workflows` (empty output and exit code 1), `git diff --stat -- agent_workflows` listing exactly the modules from the V-01 list, `git diff -U0 -- agent_workflows | rg '^[-+][^-+]'` showing every changed line is a comment, a docstring line, or the `recovery=` string, and the `git diff` hunk of the `check_engine.py` `recovery=` string.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: paste `rg -l 2vev8j agent_workflows tests` (empty output, exit code 1) and `git diff --stat -- tests` listing exactly the 8 named test files, plus `git diff -U0 -- tests | rg '^[-+][^-+]'` showing every changed line is a comment or docstring line.
+  - Required evidence: paste `rg -l 2vev8j agent_workflows tests` (empty output, exit code 1) and `git diff --stat -- tests` listing exactly the test files from the V-01 list, plus `git diff -U0 -- tests | rg '^[-+][^-+]'` showing every changed line is a comment or docstring line.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: paste the summary lines of the named pytest run and of the bare `python3 -m pytest`; the post-change `aw releases show next` rows (`ms06pi` and `4sd62s` present, `2vev8j` absent); the `aw check release-gates` summary line (0 errors); a before/after diff of `(location, rule)` pairs from the two `aw check --agent` captures showing only the `2vev8j` advisory path move; the `aw sanitize --agent` result record; and the `aw commit` output listing the committed paths.
+  - Required evidence: paste the summary lines of the named pytest run and of the bare `python3 -m pytest`; the post-change `aw releases show next` rows (`ms06pi` and `4sd62s` present, `2vev8j` absent); the `aw check release-gates` summary line (0 errors); a before/after diff of `(location, rule)` pairs from the two `aw check --agent` captures showing only the `2vev8j` advisory path move (or each other difference with its named cause); the `aw sanitize --agent` result record; and the `aw commit` output listing the committed paths.
   - Observed evidence:
   - Result: pending
 
@@ -178,4 +182,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Scope fence: the paths in `- Scope-Paths:`; a needed file outside the fence is edited only with a justification recorded in the finalize scope reconciliation. Run every setter with `--no-commit`, then commit only through `aw commit 7ehv8l -- <paths>`; never push. Paste actual command and test output into each `V-*`. Move the plan to `.aw/records/plans/executed/` only through `aw ipd finalize 7ehv8l`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`). All open questions are resolved. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified in the finalize scope reconciliation (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Run every setter with `--no-commit`, then commit only through `aw commit 7ehv8l -- <paths>` (name both the old and new `2vev8j` paths; the setter stages the rename itself, and `aw commit` was measured at review to commit it); never `git add -A`, a bare `git add`, or `git commit -a`, and never push. Paste the ACTUAL command and test output into each `V-*`; never claim a result you did not run. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 7ehv8l` itself.
