@@ -309,3 +309,73 @@ class LegacyFormatLintTests(_Repo):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BulkIdBackfillTests(_Repo):
+    """`aw ipd sync <plans...>` / `aw ipd sync --all`: Id-only, preview by default, never terminal."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        body = "# IPD: {n}\n\n- Date: 2026-07-01\n- Status: approved\n\n## Goal\n"
+        self.a = self.write_plan(body.format(n="a"), "20260701-0001-01-a.ipd.md")
+        self.b = self.write_plan(body.format(n="b"), "20260701-0001-01-b.ipd.md")
+        self.done = self.root / ".aw/records/plans/executed/20260101-0001-01-old.ipd.md"
+        self.done.parent.mkdir(parents=True)
+        self.done_text = "# IPD: old\n\n- Status: executed\n\n## Goal\n"
+        self.done.write_text(self.done_text, encoding="utf-8")
+        self.commit("seed")
+
+    def _ids(self, p: Path) -> list:
+        return [
+            ln
+            for ln in p.read_text(encoding="utf-8").splitlines()
+            if ln.startswith("- Id: ")
+        ]
+
+    def test_all_preview_writes_nothing(self) -> None:
+        code, out, _err = self.run_cli("ipd", "sync", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertIn("would backfill Id in 2 plan(s)", out)
+        self.assertEqual(self._ids(self.a), [])
+
+    def test_all_apply_mints_unique_ids_and_skips_terminal(self) -> None:
+        code, out, _err = self.run_cli("ipd", "sync", "--all", "--apply")
+        self.assertEqual(code, 0, out)
+        ia, ib = self._ids(self.a), self._ids(self.b)
+        self.assertEqual(len(ia), 1)
+        self.assertEqual(len(ib), 1)
+        self.assertNotEqual(ia, ib)
+        self.assertEqual(self.done.read_text(encoding="utf-8"), self.done_text)
+        self.assertIn("1 terminal plan(s) skipped", out)
+        # Idempotent: a second run adds nothing.
+        _c, out2, _e = self.run_cli("ipd", "sync", "--all", "--apply")
+        self.assertIn("backfilled Id in 0 plan(s); 2 already had one", out2)
+
+    def test_explicit_paths_and_unanchored_plan_reported(self) -> None:
+        bad = self.write_plan("# IPD: c\n\nno metadata\n", "20260701-0001-01-c.ipd.md")
+        code, out, _err = self.run_cli("ipd", "sync", str(self.a), str(bad), "--apply")
+        self.assertEqual(code, 1)
+        self.assertEqual(len(self._ids(self.a)), 1)
+        self.assertEqual(self._ids(self.b), [])
+        self.assertIn("cannot place Id", out)
+
+
+class MigrationSkipsTerminalPlansTests(_Repo):
+    def test_executed_plan_bytes_untouched_by_migration(self) -> None:
+        legacy = self.root / ".agents/plans"
+        (legacy / "pending").mkdir(parents=True)
+        (legacy / "executed").mkdir(parents=True)
+        done_text = "# IPD: old\n\n- Status: executed\n\n## Goal\n"
+        (legacy / "executed/20260101-0001-01-old.md").write_text(
+            done_text, encoding="utf-8"
+        )
+        (legacy / "pending/20260701-0001-01-p.md").write_text(
+            LEGACY_PLAN.replace("- Id: lg0001\n", ""), encoding="utf-8"
+        )
+        self.commit("seed legacy")
+        code, out, err = self.run_cli("migrate-layout", "--yes")
+        self.assertEqual(code, 0, out + err)
+        moved_done = self.root / ".aw/records/plans/executed/20260101-0001-01-old.md"
+        self.assertEqual(moved_done.read_text(encoding="utf-8"), done_text)
+        moved_pending = self.root / ".aw/records/plans/pending/20260701-0001-01-p.md"
+        self.assertIn("- Id: ", moved_pending.read_text(encoding="utf-8"))

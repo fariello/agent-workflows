@@ -1860,6 +1860,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw ipd scaffold --kind child ...     # create a new conformant IPD skeleton\n"
             "  aw ipd sync FILE --apply             # assign step ids + validation skeletons;\n"
             "                                       # also adds a missing '- Id:' (any status)\n"
+            "  aw ipd sync --all --apply            # add missing '- Id:' to every non-terminal plan\n"
             "\n"
             "PLAN LIFECYCLE (which verb moves a plan where)\n"
             "  author     aw ipd scaffold -> aw ipd sync -> aw ipd lint --phase author\n"
@@ -2010,7 +2011,23 @@ def _build_parser() -> argparse.ArgumentParser:
             "finalize' and 'aw ipd set' require."
         ),
     )
-    p_ipd_sync.add_argument("path", help="IPD file to sync.")
+    p_ipd_sync.add_argument(
+        "path",
+        nargs="*",
+        default=None,
+        help="IPD file(s) to sync. ONE file runs the full sync; SEVERAL files (or --all) run a bulk "
+        "Id-only backfill that skips executed/superseded/not-executed plans.",
+    )
+    p_ipd_sync.add_argument(
+        "--all",
+        action="store_true",
+        help="Bulk Id-only backfill across every non-terminal plan under the repo's plans tree.",
+    )
+    p_ipd_sync.add_argument(
+        "--dir",
+        default=None,
+        help="Repo root for --all (default: current directory).",
+    )
     p_ipd_sync.add_argument(
         "--apply",
         action="store_true",

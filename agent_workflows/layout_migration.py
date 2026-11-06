@@ -508,7 +508,7 @@ class MigrationManager:
     # ------------------------------------------------------------------
 
     def _moved_plan_files(self, tx_data: Dict[str, Any]) -> List[Path]:
-        """Every plan document this transaction MOVED, at its new location."""
+        """Every NON-TERMINAL plan document this transaction MOVED, at its new location."""
 
         records_root = self._records_root_for_backend(
             tx_data.get("target_backend", "repository")
@@ -523,6 +523,13 @@ class MigrationManager:
                 dst.suffix == ".md"
                 and dst.name not in _NON_DURABLE_BASENAMES
                 and self._is_within(dst, plans_root)
+                # A terminal plan records finished history and is never rewritten; only a plan
+                # that can still be begun or finalized needs an Id (and the lifecycle verbs read
+                # terminal plans through the legacy short-circuit, which needs none).
+                and not any(
+                    self._is_within(dst, plans_root / d)
+                    for d in ("executed", "superseded", "not-executed")
+                )
                 and dst.is_file()
                 and not dst.is_symlink()
             ):

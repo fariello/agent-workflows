@@ -892,10 +892,137 @@ def _backfill_id(text: str, existing: set) -> tuple[str, Optional[str]]:
     return new_text, new_id
 
 
+_TERMINAL_PLAN_DIRS = ("executed", "superseded", "not-executed")
+
+
+def _is_terminal_plan(path: Path) -> bool:
+    """A plan in a terminal directory records finished history and is never rewritten."""
+
+    return LINT._dir_of(path) in _TERMINAL_PLAN_DIRS
+
+
+def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
+    """`aw ipd sync <plan> <plan> ...` / `aw ipd sync --all`: backfill missing `- Id:` lines in bulk.
+
+    BULK MODE DOES ONLY THE ID, deliberately. E/V assignment is a per-plan authoring act whose
+    result a human reads; a missing Id is mechanical identity, and the case that needs bulk is a
+    migrated repo full of legacy plans. Terminal plans (executed/superseded/not-executed) are
+    SKIPPED and reported, because an executed plan's record is not rewritten. Preview by default,
+    like the single-file form; `--apply` writes. Every mint is checked against the repository-wide id
+    set plus the ids minted earlier in the same batch. Never commits.
+    """
+
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import Change, CommandResult, select_output
+
+    ctx = select_output(args)
+    apply = bool(getattr(args, "apply", False))
+    paths: List[Path] = []
+    missing: List[str] = []
+    if getattr(args, "all", False):
+        root_arg = getattr(args, "dir", None) or "."
+        # The repository's own tree first; the backend router only when there is none (a home or
+        # companion records backend), since the router falls back to a home-backend path for an
+        # unconfigured repo even when the repo carries its plans itself.
+        plans_root = Path(root_arg).resolve() / ".aw" / "records" / "plans"
+        if not plans_root.is_dir():
+            from agent_workflows.record_producers import resolve_record_path
+
+            try:
+                plans_root = resolve_record_path(
+                    "plans", target_repo=str(Path(root_arg).resolve())
+                )
+            except Exception:
+                pass
+        if not plans_root.is_dir():
+            print(f"error: no plans tree found under {root_arg}")
+            return 2
+        paths = sorted(
+            p
+            for p in plans_root.rglob("*.md")
+            if p.name not in ("README.md", "INDEX.md", "STATUS.md")
+        )
+    for t in targets:
+        p = Path(t)
+        if p.is_file():
+            paths.append(p)
+        else:
+            missing.append(t)
+    if missing:
+        print("error: not a file: " + ", ".join(missing))
+        return 2
+    # De-duplicate, order-stable.
+    seen: set = set()
+    paths = [p for p in paths if not (p.resolve() in seen or seen.add(p.resolve()))]
+
+    skipped_terminal = [p for p in paths if _is_terminal_plan(p)]
+    candidates = [p for p in paths if not _is_terminal_plan(p)]
+    have_id: List[Path] = []
+    no_anchor: List[Path] = []
+    todo: List[Path] = []
+    for p in candidates:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            no_anchor.append(p)
+            continue
+        if _ID_LINE_RE.search(text):
+            have_id.append(p)
+        elif insert_id_line(text, "000000") is None:
+            no_anchor.append(p)
+        else:
+            todo.append(p)
+
+    written: List[tuple] = []
+    if apply and todo:
+        repo_root = _core.repo_root_of(todo[0])
+        written = backfill_plan_ids(todo, Path(repo_root))
+
+    verb = "backfilled" if apply else "would backfill"
+    summary = (
+        f"{verb} Id in {len(written) if apply else len(todo)} plan(s); "
+        f"{len(have_id)} already had one; {len(skipped_terminal)} terminal plan(s) skipped; "
+        f"{len(no_anchor)} without a Status/Date/Author line to anchor it"
+    )
+    if ctx.is_agent or ctx.is_json:
+        changes = [
+            Change(path=str(p), kind="update", applied=apply, detail=f"Id {i}")
+            for p, i in written
+        ] or [
+            Change(path=str(p), kind="update", applied=False, detail="Id") for p in todo
+        ]
+        return get_renderer(ctx).emit(
+            CommandResult(
+                command="ipd sync",
+                status="clean" if not no_anchor else "findings",
+                exit_code=0 if not no_anchor else 1,
+                summary=summary,
+                changes=changes,
+                verified=True,
+                complete=True,
+            ),
+            ctx,
+        )
+    if apply:
+        for p, i in written:
+            print(f"  {i}  {p}")
+    else:
+        for p in todo:
+            print(f"  would add Id  {p}")
+    for p in no_anchor:
+        print(f"  cannot place Id (no - Status:/- Date:/- Author: line)  {p}")
+    print(summary + ("" if apply else " (dry-run; pass --apply)"))
+    return 0 if not no_anchor else 1
+
+
 def run_sync(args: argparse.Namespace) -> int:
-    target = getattr(args, "path", None)
+    raw = getattr(args, "path", None)
+    targets = list(raw) if isinstance(raw, (list, tuple)) else ([raw] if raw else [])
+    if getattr(args, "all", False) or len(targets) > 1:
+        return _run_bulk_id_backfill(args, targets)
+    target = targets[0] if targets else None
     if not target:
-        print("error: a FILE is required")
+        print("error: a FILE is required (or several, or --all)")
         return 2
     path = Path(target)
     if not path.is_file():
