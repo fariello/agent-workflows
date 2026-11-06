@@ -121,7 +121,7 @@ AW-TIER: complex
 
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
-| D-1 | Must `read_text` be added to the spec's interface list? | Yes; amend spec 4.3 in this plan | Leave the spec unamended; move `read_text` into `tve77h` (already reviewed) | Spec 4.3 function list; C5; AGENTS.md "A plan may amend a spec" | yes (no caller outside phase B depends on it) |
+| D-1 | Must `read_text` be added to the spec's interface list? | Yes; amend spec 4.3 in this plan | Leave the spec unamended; move `read_text` into `tve77h` (already reviewed) | Spec 4.3 function list; C5; AGENTS.md "A plan may amend a spec"; reversible because no caller outside phase B depends on it | yes |
 | D-2 | Normalize status matching for all types or plans only? | Plans only | All types (breaks backlog and spec matching); none (keeps the F-03 disagreement) | `plans.normalize_status` measured on `open`, `implemented`; D-1 of the plan | yes |
 | D-3 | Split E-07 or the plan? | No | Split at OQ-02's type boundary | One pin set per E-item; 14 items in 5 groups | yes |
 | D-4 | Add `executed:1ajqaa` to Item-Dependencies for `meta_cli.py`? | No | Add the edge | E-10 creates the module if absent, within Scope-Paths; adding an edge changes Set ordering for one file | yes |
