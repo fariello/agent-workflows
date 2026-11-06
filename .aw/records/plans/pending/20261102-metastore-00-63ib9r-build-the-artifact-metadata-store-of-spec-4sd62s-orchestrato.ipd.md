@@ -6,11 +6,11 @@
 - Scope: Orchestration only: sequence the thirteen children below and confirm each reaches `executed`. No code, test or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: b5e3d8673f4a0f16c3cf9c8e81270fd96a2ed933797803bc58c327c3e79e2447
-- Coverage-Checked: 2026-11-05 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 96fe24cd857bd6bec4dc629231005da297a3a4e5eacc65c52f2c65bca9bff5e4
+- Coverage-Checked: 2026-11-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
@@ -19,8 +19,13 @@
 - Highest E allocated: 13
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
+- Readiness: go-pending-approval
+- Review-Depth: orchestrator
 
 ## Workflow history
+- 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
+- 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.review.md
+- 2026-11-06 coverage pass (aw oc run): fingerprint 96fe24cd857b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-05 to-review (aw set): authored review-ready: orchestrates spec 4sd62s across 13 children; coverage pass
 
 - 2026-11-05 coverage pass (aw oc run): fingerprint b5e3d8673f4a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -83,12 +88,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-10 CONFIRM 59aiyh REACHED executed
-  - Depends on: E-02
+  - Depends on: E-02, E-07
   - Expected outcome: `aw find plans 59aiyh` shows it under `executed/`.
   - Execution state: pending
 
 - [ ] E-11 CONFIRM 9o83cr REACHED executed
-  - Depends on: E-08, E-09, E-10
+  - Depends on: E-08, E-09, E-10, E-03, E-04
   - Expected outcome: `aw find plans 9o83cr` shows it under `executed/`.
   - Execution state: pending
 
@@ -115,8 +120,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 07 | `xexn45` | `20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md` | Move the remaining metadata writers onto artifact_meta. | `executed:tve77h`, `executed:2xwb9b` |
 | 08 | `ffceq0` | `20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md` | Move selectors, check_engine, attention and ipd_lint reads onto artifact_meta. | `executed:tve77h`, `executed:xexn45` |
 | 09 | `t4gl15` | `20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md` | Move runner, gate, hook and module reads onto artifact_meta and read_at. | `executed:tve77h`, `executed:xexn45`, `executed:ffceq0` |
-| 10 | `59aiyh` | `20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md` | Move test data to one shared record builder over artifact_meta. | `executed:tve77h` |
-| 11 | `9o83cr` | `20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` | Delete INDEX and STATUS code and every legacy parser outside artifact_meta. | `executed:ffceq0`, `executed:t4gl15`, `executed:59aiyh` |
+| 10 | `59aiyh` | `20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md` | Move test data to one shared record builder over artifact_meta. | `executed:tve77h`, `executed:xexn45` |
+| 11 | `9o83cr` | `20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` | Delete INDEX and STATUS code and every legacy parser outside artifact_meta. | `executed:ffceq0`, `executed:t4gl15`, `executed:59aiyh`, `executed:1ajqaa`, `executed:dcerjg` |
 | 12 | `90iqr1` | `20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md` | Rewrite documents, managed block, templates and quickstarts for the log format. | `executed:9o83cr` |
 | 13 | `cxxmyv` | `20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md` | Perform the attended metadata cutover commit. | `executed:90iqr1`, `executed:dcerjg`, `executed:ya4ee4`, `executed:1ajqaa` |
 
@@ -129,12 +134,12 @@ Phase A (Orders 01 to 05) adds code on today's format and moves no caller; Order
 - `aw show --history`, `aw show --format json` and `aw index rebuild` exist (AC-2 on a fixture). Owner: `1ajqaa`.
 - Migration `m0001` is built and proven on a copy (AC-10, AC-11, AC-14, AC-14a(5), AC-19, AC-20, AC-22(1), AC-27, AC-28, AC-29, AC-30, AC-32, AC-40, AC-41). Owner: `dcerjg`.
 - Short descriptions are generated tool-less and sanitized through the journal (AC-36 cases 3, 4, 5, 7). Owner: `ya4ee4`.
-- Every writer goes through `artifact_meta` (AC-15, AC-14a(1-4), AC-21, AC-31 phase-B form). Owners: `2xwb9b`, `xexn45`.
+- Every writer goes through `artifact_meta` (AC-15, AC-14a(1-4), AC-21, and the phase-B forms of AC-3, AC-6 and AC-31). Owners: `2xwb9b`, `xexn45`.
 - Every reader goes through `artifact_meta` or `read_at` (AC-1a, AC-7, AC-9 reader part, AC-12). Owners: `ffceq0`, `t4gl15`.
 - Test data uses one shared record builder. Owner: `59aiyh`.
 - No legacy parser or INDEX/STATUS code remains outside `artifact_meta` (AC-1, AC-9). Owner: `9o83cr`.
 - The post-cutover documentation is ready as an applicable patch. Owner: `90iqr1`.
-- The cutover commit has landed and the real-repository criteria are demonstrated (AC-1b, AC-13, AC-16, and the real forms of AC-2, AC-3, AC-6, AC-7, AC-9, AC-10, AC-11, AC-22(2), AC-30(3), AC-31, AC-34, AC-36(6), AC-41). Owner: `cxxmyv`.
+- The cutover commit has landed and the real-repository criteria are demonstrated (AC-1b, AC-13, AC-16, and the real forms of AC-1, AC-2, AC-3, AC-6, AC-7, AC-9, AC-10, AC-11, AC-22(2), AC-30(2), AC-30(3), AC-31, AC-34, AC-36(6), AC-41). Owner: `cxxmyv`.
 
 ## Cross-IPD validation
 
@@ -165,8 +170,8 @@ This plan runs no tests. Each child runs its own suites; `cxxmyv` performs the w
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: Not now. Both are within the size limits (18 and 16 E-items, 5 task groups), and each records a concrete split point; `/plan-review` of each child decides. A split adds rows to this table before approval, so it cannot leave an unauthored row. Recommendation strength: medium.
+- Owner: plan author
+- Resolution or deferral rationale: Not now. Both are within the size limits (18 and 16 E-items, 5 task groups), and each records a concrete split point; `/plan-review` of each child decides. A split adds rows to this table before approval, so it cannot leave an unauthored row. Recommendation strength: medium. Confirmed 2026-11-06: the `/plan-review` of `tve77h` (decision D-1) and of `dcerjg` (decision D-2) each declined the split.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
