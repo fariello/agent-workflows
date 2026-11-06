@@ -6,7 +6,7 @@
 - Scope: Define the pointer line once, emit it after the metadata block of every new plan (child and orchestrator), spec, and backlog item, regenerate the two `assess` templates, and test that each verb writes the line, that the written file still passes its own lint or check, and that the line survives a status transition. EXCLUDES runner prompts (Order 05), workflow bodies (Order 06), existing artifacts (Orders 07 to 09 sweep them), and the checked-in fixtures under `tests/fixtures/` (none is compared byte for byte with the scaffold).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/ipd_authoring.py, agent_workflows/specs.py, agent_workflows/backlog.py, .aw/system/workflows/assess/templates/ipd.md, .aw/system/workflows/assess/templates/orchestrator-ipd.md, tests/test_generators_writing_standard_pointer.py, CHANGELOG.md
 - Item-Dependencies: executed:g4719s
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -20,6 +20,7 @@
 - Id: yz4jdm
 
 ## Workflow history
+- 2026-11-06 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 fixed
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; re-scoped to the standard shipped by 0cbfcc706 (g4719s OQ-02 answer); PR-001..PR-009 FIXED; review record .aw/records/reviews/20261025-writestd-04-yz4jdm-point-the-spec-backlog-and-plan-generators-at-the-writing-st.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
 
