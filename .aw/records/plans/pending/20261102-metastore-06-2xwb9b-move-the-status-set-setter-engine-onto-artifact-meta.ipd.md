@@ -6,7 +6,7 @@
 - Scope: Phase B, section 7 step 4, first writer. (1) Add to `artifact_meta` the LEGACY-format write path: `append` renders its events into today's bullet block, status mirror and `## Workflow history` line (no log file is written in phase B), with a `dry_run` preview, a source-digest freshness check, a path-keyed target for id-less legacy records, the per-artifact lock, the disposition move, the specs/backlog sidecar append, and the same event-owned field rules as the log format (AC-15, AC-14a (1)-(3)). (2) Change `status_set._prepare_status_change`, `apply_status_change` and the orchestrator retirement line in `run_set_command` to build events and call `artifact_meta.append` once per record. (3) Move `status_set`'s own metadata READS (`read_artifact_record`, `inventory_all_artifacts`, `_format_status_transition_line`, `plan_priority_work_kind_problems`, `read_item_dependencies_value`, the backlog gate-default inputs) onto `artifact_meta.resolve`/`read`/`query`. (4) Make `review_findings.review_attestation_missing` require a `gate` review (4.4 SR-601, AC-14a (4)). EXCLUDES: the HEAD-status read in `_prepare_status_change` (`check_engine._blob_text`/`_status_meta`, Order 09 `t4gl15` E-04); the other writers (`specs`, `backlog`, `releases`, `prompts`, `ipd_authoring`, finalize, retirement, coverage and review writers; Order 07 `xexn45`); deleting the `releases.set_*_line`/`backlog.set_*_line` helpers (Order 11 `9o83cr`); the log format (Order 13 `cxxmyv`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_meta.py, agent_workflows/review_findings.py, tests/test_status_set_meta_writer.py, tests/test_artifact_meta_legacy_write.py, tests/test_spec_review_gate_kind.py, .aw/records/plans/pending/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:7ehv8l
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,12 @@
 - Highest E allocated: 15
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2xwb9b
+- Readiness: go-pending-approval
+- Review-Depth: complex
 
 ## Workflow history
+- 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)
 
 - 2026-11-02 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -34,9 +38,9 @@ Every new test module sets `pytestmark = pytest.mark.core`, builds fixtures in `
 
 ### Task group 1: pin today's behavior
 
-- [ ] E-01 Run the 26 existing behavior tests named in the Findings table W/R rows (the "Baseline modules" command in Required tests) on the unchanged tree and record the per-module pass counts; dump `status_set.inventory_all_artifacts(<this repo>)` as sorted JSON (`path`, `record_type`, `id6`, `set_id`, `status`) to `/tmp/opencode/2xwb9b-inventory-before.json`.
+- [ ] E-01 Run the 26 existing behavior tests named in the Findings table W/R rows (the "Baseline modules" command in Required tests) on the unchanged tree and record the per-module pass counts; dump `status_set.inventory_all_artifacts(<this repo>)` as sorted JSON (`path`, `record_type`, `id6`, `set_id`, `status`) to `.aw/state/2xwb9b/inventory-before.json` (gitignored and inside the workspace; a runner lane may refuse writes outside it); save `aw check --agent` to `.aw/state/2xwb9b/check-before.jsonl`; and run `tests/test_artifact_meta_write.py` (tve77h's log-branch write and repair tests) and record its pass count.
   - Depends on: none
-  - Expected outcome: every baseline test passes before any edit; the inventory dump exists and lists every record `status_set` sees today.
+  - Expected outcome: every baseline test passes before any edit; the inventory dump and the `aw check` baseline exist; the tve77h write module passes.
   - Execution state: pending
 
 - [ ] E-02 Add `tests/test_status_set_meta_writer.py` (core) that pins, against the UNCHANGED code, the write behaviors that no existing test checks (Findings rows W-04, W-05 position, W-09 refusal, W-14 single-line case, W-18 heading creation, W-16 position): a plan with no `- Status:` gets one inserted after `- Date:`; a research report with a `---` block and no `status:` gets one inserted before the closing `---`; `aw backlog set` on an item carrying only `- Kind: chore` writes `- Work-Kind: chore` and no `- Kind:` line; gate bullets land directly after `- Status:` in `Gate-Kind`, `Gate-Ref`, `Gate-Summary` order; `- Approval:` lands directly after `- Id:`; a plan with no `## Workflow history` gets the heading before its first `## ` and a prompt gets it at the end; `aw ipd set to-review <plan> --from-spec zzzzzz` exits nonzero naming `zzzzzz` with the file byte-identical. Each test compares full file bytes with an expected literal.
@@ -46,9 +50,9 @@ Every new test module sets `pytestmark = pytest.mark.core`, builds fixtures in `
 
 ### Task group 2: the legacy-format writer in artifact_meta
 
-- [ ] E-03 In `artifact_meta.py`, make `append` dispatch on the repository's on-disk format (`_storage_format(records_root)` returning `legacy` until Order 13 changes it) and implement the LEGACY branch: validate the events with the same writer rules the log branch uses (`validate_new_events` and the event-owned field rules of tve77h E-03/E-06) BEFORE any write; take `platform_lock.held(<state>/locks/meta-<key>.lock)`; render the events into the current `.md` text (status mirror for bullet, `---` YAML and `aw-prompt` comment forms with the insertion rules pinned in E-02; one bullet edit per `set`/`unset`, reusing the existing pure value writers `releases.set_*_line` and `backlog.set_release_exempt_*_line`/`set_close_evidence_line` for the fields they own; the `- Kind:` to `- Work-Kind:` canonicalization; the newest-first history line under `## Workflow history`); and return the rendered text. Test module `tests/test_artifact_meta_legacy_write.py`.
+- [ ] E-03 In `artifact_meta.py`, make `append` dispatch on the TARGET artifact's on-disk format through `_storage_format(records_root, target)`, which returns `log` when `<records_root>/meta/<id6>.jsonl` exists for the target and `legacy` otherwise (so in phase B every real record writes the legacy format, since no log exists before the cutover, while tve77h's synthetic-log tests in `tests/test_artifact_meta_write.py` keep exercising the log branch unchanged; a repository-wide `legacy` switch would silently route those tests to the legacy branch and break them at this merge, contrary to C10a; Order 13 replaces the rule) and implement the LEGACY branch: validate the events with the same writer rules the log branch uses (`validate_new_events` and the event-owned field rules of tve77h E-03/E-06) BEFORE any write; take `platform_lock.held(<state>/locks/meta-<key>.lock)`; render the events into the current `.md` text (status mirror for bullet, `---` YAML and `aw-prompt` comment forms with the insertion rules pinned in E-02; one bullet edit per `set`/`unset`, reusing the existing pure value writers `releases.set_*_line` and `backlog.set_release_exempt_*_line`/`set_close_evidence_line` for the fields they own; the `- Kind:` to `- Work-Kind:` canonicalization; the newest-first history line under `## Workflow history`); and return the rendered text. Test module `tests/test_artifact_meta_legacy_write.py`.
   - Depends on: E-02
-  - Expected outcome: for each pinned E-02 case and each W-row fixture, rendering the equivalent events produces byte-identical text to today's setter output.
+  - Expected outcome: for each pinned E-02 case and each W-row fixture, rendering the equivalent events produces byte-identical text to today's setter output; `tests/test_artifact_meta_write.py` passes unchanged with the E-01 count; an artifact with a `meta/<id6>.jsonl` takes the log branch and one without takes the legacy branch.
   - Execution state: pending
 
 - [ ] E-04 Add the phase-B write arguments to `append`: `dry_run=True` returns a `WritePreview` (rendered text, destination path, `changed` flag) and writes nothing; `legacy_render=LegacyRender(tag, day, actor_label)` carries the exact history-line token, day and actor label that today's line uses (removed with the legacy branch at the cutover; OQ-02); the target may be the handle returned by `artifact_meta.resolve(path)` so the 14 id-less legacy specs stay settable by path (OQ-03); the freshness check compares the source digest that `read`/`resolve` returned (`State.source_digest`) with the current file and refuses a changed file. Test module `tests/test_artifact_meta_legacy_write.py`.
@@ -85,19 +89,19 @@ Every new test module sets `pytestmark = pytest.mark.core`, builds fixtures in `
 
 ### Task group 4: move the status_set reads and the review-kind rule
 
-- [ ] E-10 Change `status_set.read_artifact_record` and `inventory_all_artifacts` to take `id6`, `status`, `set_id` and `record_type` from `artifact_meta.resolve`/`artifact_meta.read`/`artifact_meta.query` (type detection by path stays, since it reads no file content); `ArtifactRecord.raw_text` stays as the body text for body-prose consumers (open-question gates, N3); delete `_ID_RE`, `_STATUS_RE`, `_SET_RE` and the two inline YAML regexes. Then dump the inventory again to `/tmp/opencode/2xwb9b-inventory-after.json`.
+- [ ] E-10 Change `status_set.read_artifact_record` and `inventory_all_artifacts` to take `id6`, `status`, `set_id` and `record_type` from `artifact_meta.resolve`/`artifact_meta.read`/`artifact_meta.query` (type detection by path stays, since it reads no file content); `ArtifactRecord.raw_text` stays as the body text for body-prose consumers (open-question gates, N3); delete `_ID_RE`, `_STATUS_RE`, `_SET_RE` and the two inline YAML regexes. Then dump the inventory again to `.aw/state/2xwb9b/inventory-after.json`.
   - Depends on: E-01, E-08
   - Expected outcome: the before and after inventory dumps are identical; `tests/test_status_set_metadata_region.py` and `tests/test_selector_resolver_matrix.py` pass unchanged.
   - Execution state: pending
 
-- [ ] E-11 Change the remaining `status_set` metadata reads to cached fields: `_format_status_transition_line` (priority, blocks_release, gate kind and ref), `plan_priority_work_kind_problems` (priority and work kind; same `ipd_schema.parse_plan_priority`/`parse_plan_work_kind` judgement), `read_item_dependencies_value` (raw `item_dependencies` declaration), and the backlog gate-default inputs in `_prepare_status_change` (`work_kind`, `blocks_release`, the release exemption pair; today `backlog.parse_item` and `selectors.read_front_matter_blocks_release` on in-memory text). The text-taking signatures change to take a `State`, because every caller holds an on-disk record.
+- [ ] E-11 Change the remaining `status_set` metadata reads to cached fields: `_format_status_transition_line` (priority, blocks_release, gate kind and ref), `plan_priority_work_kind_problems` (priority and work kind; same `ipd_schema.parse_plan_priority`/`parse_plan_work_kind` judgement), `read_item_dependencies_value` (raw `item_dependencies` declaration), and the backlog gate-default inputs in `_prepare_status_change` (`work_kind`, `blocks_release`, the release exemption pair; today `backlog.parse_item` and `selectors.read_front_matter_blocks_release` on in-memory text). `_format_status_transition_line(rec, dest_path, norm_stat, term, ...)` KEEPS its `ArtifactRecord` signature (it reads the cached fields for `rec` internally), because `tests/test_blocks_release_reader_bounding.py` calls it directly and must pass unchanged; only the text-taking `plan_priority_work_kind_problems` and `read_item_dependencies_value`, whose only callers are inside `status_set.py` (measured: no test calls them), change to take a `State`.
   - Depends on: E-10
   - Expected outcome: `rg -n "re\.(compile|match|search|finditer|split)" agent_workflows/status_set.py` lists only non-metadata patterns (none of `Id`, `Status`, `Set`, `Priority`, `Gate-`, `Kind`, `Work-Kind`, `Approval`, `Readiness`, `Workflow history`); the R-row baseline tests pass.
   - Execution state: pending
 
-- [ ] E-12 Change `review_findings.review_attestation_missing(repo_root, subject_id6, subject_type)` to pass only when `artifact_meta.query` returns at least one `review` row for the subject with `review_kind = gate` whose review file has `parse_ok`; a subject with only `refinement` rows gets a reason string that names the refinement-only state and says a gate review (`/spec-review`) is required. The callers `specs._review_attestation_refusal`, the positional `aw set` path in `status_set.validate_transition_allowed` and `check_engine.check_spec_review_attestation` are unchanged and inherit the rule. This is the deliberate behavior change that 4.4 SR-601 assigns to this consumer.
+- [ ] E-12 Change `review_findings.review_attestation_missing(repo_root, subject_id6, subject_type)` to pass only when `artifact_meta.query` returns at least one `review` row for the subject with `review_kind = gate` whose review file has `parse_ok`; a subject with only `refinement` rows gets a reason string that names the refinement-only state and says a gate review (`/spec-review`) is required. The callers `specs._review_attestation_refusal`, the positional `aw set` path in `status_set.validate_transition_allowed`, `check_engine.check_spec_review_attestation` and the runner's spec-review disposition gate `runner_shared.reconcile_disposition` are unchanged and inherit the rule. The runner caller passes the LANE worktree as `repo_root` and judges review files that are still uncommitted there, so the query must build the cache for the `repo_root` it is given (that worktree's state root) and the freshness check must see working-tree bytes; `tests/test_spec_review_dispatch.py` proves it. This is the deliberate behavior change that 4.4 SR-601 assigns to this consumer.
   - Depends on: E-08
-  - Expected outcome: one predicate, three callers, stricter for refinement-only subjects, identical for every subject with a gate record.
+  - Expected outcome: one predicate, four callers, stricter for refinement-only subjects, identical for every subject with a gate record; `tests/test_spec_review_dispatch.py` passes unchanged.
   - Execution state: pending
 
 - [ ] E-13 Add `tests/test_spec_review_gate_kind.py` (core) for AC-14a (4): a spec at `to-review` whose only review record is a `specflow` refinement record (`Verdict: REVIEWED - MATERIAL CHANGES APPLIED`) is refused `->reviewed` by `aw specs set <spec> --status reviewed` and by `aw set reviewed <id6>`, each exit nonzero with the file byte-identical; a spec forced to `reviewed` by hand with that record makes `aw check specs --agent` report `check.spec-review-unattested`; adding one gate record (`Verdict: APPROVE WITH REVISIONS APPLIED`) makes both spellings succeed and the check clean.
@@ -112,7 +116,7 @@ Every new test module sets `pytestmark = pytest.mark.core`, builds fixtures in `
   - Expected outcome: four identical results.
   - Execution state: pending
 
-- [ ] E-15 Re-run the baseline modules and every new module, the bare core gate `python3 -m pytest`, `aw check` against a pre-E-01 baseline, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit 2xwb9b -- <each changed path>`. Never push.
+- [ ] E-15 Re-run the baseline modules and every new module, the bare core gate `python3 -m pytest`, `aw check --agent` diffed by `(location, rule)` against `.aw/state/2xwb9b/check-before.jsonl`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit 2xwb9b -- <each changed path>`. Never push.
   - Depends on: E-09, E-11, E-13, E-14
   - Expected outcome: every run passes with equal or higher per-module pass counts than E-01; no new `aw check` error or warning; one path-scoped commit.
   - Execution state: pending
@@ -217,7 +221,7 @@ Further measurements:
 
 New core modules: `tests/test_status_set_meta_writer.py` (E-02, E-14), `tests/test_artifact_meta_legacy_write.py` (E-03 to E-06), `tests/test_spec_review_gate_kind.py` (E-13).
 
-Baseline modules (run at E-01 and E-15, counts compared): `python3 -m pytest -o addopts="" -n auto tests/test_status_set.py tests/test_prompts_set_surface.py tests/test_gate_pair_validation_parity.py tests/test_backlog.py tests/test_releases_line_writers.py tests/test_specs_from_backlog.py tests/test_check_engine_from_spec_missing.py tests/test_status_set_descriptive_safety.py tests/test_work_begin_plan_path_outside_root.py tests/test_set_dispatch_parity.py tests/test_backlog_gate_follows_status.py tests/test_backlog_handoff_close.py tests/test_orchestrator_status_gate.py tests/test_backlog_history_dedup_parity.py tests/test_history_block_bounding.py tests/test_release_sentinel_succession.py tests/test_specs_set_adapter.py tests/test_specs_status_dirs.py tests/test_companion_record_owner_root.py tests/test_history_write_order.py tests/test_history_date_clock_sidecar.py tests/test_status_set_partial_batch.py tests/test_orchestrator_child_retired.py tests/test_status_set_metadata_region.py tests/test_check_engine_metadata_region.py tests/test_selector_resolver_matrix.py tests/test_blocks_release_reader_bounding.py tests/test_spec_review_attestation.py`.
+Baseline modules (run at E-01 and E-15, counts compared): `python3 -m pytest -o addopts="" -n auto tests/test_status_set.py tests/test_prompts_set_surface.py tests/test_gate_pair_validation_parity.py tests/test_backlog.py tests/test_releases_line_writers.py tests/test_specs_from_backlog.py tests/test_check_engine_from_spec_missing.py tests/test_status_set_descriptive_safety.py tests/test_work_begin_plan_path_outside_root.py tests/test_set_dispatch_parity.py tests/test_backlog_gate_follows_status.py tests/test_backlog_handoff_close.py tests/test_orchestrator_status_gate.py tests/test_backlog_history_dedup_parity.py tests/test_history_block_bounding.py tests/test_release_sentinel_succession.py tests/test_specs_set_adapter.py tests/test_specs_status_dirs.py tests/test_companion_record_owner_root.py tests/test_history_write_order.py tests/test_history_date_clock_sidecar.py tests/test_status_set_partial_batch.py tests/test_orchestrator_child_retired.py tests/test_status_set_metadata_region.py tests/test_check_engine_metadata_region.py tests/test_selector_resolver_matrix.py tests/test_blocks_release_reader_bounding.py tests/test_spec_review_attestation.py tests/test_spec_review_dispatch.py tests/test_artifact_meta_write.py`.
 
 Gate at merge (C10a, AC-1b per-merge line): the bare `python3 -m pytest` core tier summary line.
 
@@ -271,7 +275,7 @@ No spec change; implements `4sd62s` 4.3 (writes, phase-B legacy loader counterpa
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the summary line of the "Baseline modules" command (Required tests) run BEFORE any edit, with its per-module pass counts from `-o addopts="" -q -rA | grep -c PASSED` per module, and `wc -l /tmp/opencode/2xwb9b-inventory-before.json` plus its first 3 lines.
+  - Required evidence: paste the summary line of the "Baseline modules" command (Required tests) run BEFORE any edit, with its per-module pass counts from `-o addopts="" -q -rA | grep -c PASSED` per module, `wc -l .aw/state/2xwb9b/inventory-before.json` plus its first 3 lines, and `ls -l .aw/state/2xwb9b/check-before.jsonl`.
   - Observed evidence:
   - Result: pending
 
@@ -281,7 +285,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_artifact_meta_legacy_write.py -k render` with every selected test PASSED, covering each of W-01 to W-18 by name (one test id per row), and the `git diff` hunk adding the `legacy` branch of `append`.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_artifact_meta_legacy_write.py -k render` with every selected test PASSED, covering each of W-01 to W-18 by name (one test id per row), the `git diff` hunk adding the `legacy` branch of `append` and `_storage_format`, the test showing a target with a log takes the log branch and one without takes the legacy branch, and the `tests/test_artifact_meta_write.py` summary line with the E-01 pass count.
   - Observed evidence:
   - Result: pending
 
@@ -316,7 +320,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-10 validates E-10
-  - Required evidence: paste `diff /tmp/opencode/2xwb9b-inventory-before.json /tmp/opencode/2xwb9b-inventory-after.json` (no output) and the summary line of `python3 -m pytest -o addopts="" tests/test_status_set_metadata_region.py tests/test_selector_resolver_matrix.py tests/test_check_engine_metadata_region.py` with 0 failed.
+  - Required evidence: paste `diff .aw/state/2xwb9b/inventory-before.json .aw/state/2xwb9b/inventory-after.json` (no output) and the summary line of `python3 -m pytest -o addopts="" tests/test_status_set_metadata_region.py tests/test_selector_resolver_matrix.py tests/test_check_engine_metadata_region.py` with 0 failed.
   - Observed evidence:
   - Result: pending
 
@@ -326,7 +330,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-12 validates E-12
-  - Required evidence: paste the `git diff` hunk of `review_findings.review_attestation_missing` and the summary line of `python3 -m pytest -o addopts="" tests/test_spec_review_attestation.py` with 0 failed and a pass count equal to E-01.
+  - Required evidence: paste the `git diff` hunk of `review_findings.review_attestation_missing` and the summary line of `python3 -m pytest -o addopts="" tests/test_spec_review_attestation.py tests/test_spec_review_dispatch.py` with 0 failed and pass counts equal to E-01.
   - Observed evidence:
   - Result: pending
 
@@ -341,7 +345,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-15 validates E-15
-  - Required evidence: paste: the "Baseline modules" summary line with per-module counts against E-01; the summary line of the three new modules; the bare `python3 -m pytest` core-tier summary line with its wall time (AC-1b per-merge line); before/after `aw check` error and warning counts; `aw ipd lint` on this plan (`conforming`); the `aw sanitize --agent` result record; and the `aw commit 2xwb9b` output listing the committed paths.
+  - Required evidence: paste: the "Baseline modules" summary line with per-module counts against E-01; the summary line of the three new modules; the bare `python3 -m pytest` core-tier summary line with its wall time (AC-1b per-merge line); the `(location, rule)` diff of `aw check --agent` against `.aw/state/2xwb9b/check-before.jsonl` (no new error or warning; each other difference named with its cause); `aw ipd lint` on this plan (`conforming`); the `aw sanitize --agent` result record; and the `aw commit 2xwb9b` output listing the committed paths.
   - Observed evidence:
   - Result: pending
 
@@ -350,4 +354,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Scope fence: the paths in `- Scope-Paths:`; a needed file outside the fence is edited only with a justification recorded in the finalize scope reconciliation. The on-disk format must stay the bullet format (C10a): E-01/E-02 baselines and the inventory dump diff are the proof. Commit only through `aw commit 2xwb9b -- <paths>`; never push. Run the bare `python3 -m pytest` core gate, the baseline modules and the three new modules, and paste the actual summary lines. Move the plan to `.aw/records/plans/executed/` only through `aw ipd finalize 2xwb9b`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after `tve77h` and `7ehv8l` are executed. All open questions are resolved. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). The on-disk format must stay the bullet format (C10a): E-01/E-02 baselines and the inventory dump diff are the proof. Commit only through `aw commit 2xwb9b -- <paths>`; never `git add -A`, a bare `git add`, or `git commit -a`, and never push. Run the bare `python3 -m pytest` core gate, the baseline modules and the three new modules, and paste the ACTUAL summary lines; never claim a result you did not run. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 2xwb9b` itself.
