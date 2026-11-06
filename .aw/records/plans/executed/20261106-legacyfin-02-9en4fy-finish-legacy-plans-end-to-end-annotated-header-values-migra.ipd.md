@@ -6,7 +6,7 @@
 - Scope: Reduced legacy lint reads annotated `Status`/`Date` values; the git-derived baseline accepts an annotated approval; finalize rewrites an annotated status without duplicating it; a no-cutover advisory/hint; pure layout-migration renames excused from the finalize scope audit; index findings on other plans become finalize warnings; Id backfill anchors on bold field names; the migrate-layout commit subject counts what the commit changes; the IPD-C801 message and scaffold line stop citing a spec target repos do not have; spec Section 13.2a amended.
 - Scope-Paths: .aw/system/workflows/assess/templates/ipd.md, agent_workflows/ipd_lint.py, agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/ipd_authoring.py, agent_workflows/cli.py, tests/test_legacy_finalize.py, tests/test_orchestrator_retirement.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: executed:18kg7o
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: next
@@ -17,9 +17,9 @@
 - Review-Depth: standard
 - Author: opencode/claude-opus
 - Id: 9en4fy
-- Approval: 2026-11-06, human ("approved"): maintainer instruction 2026-11-06: 'Let's address these. Use the repos conventions.'
 
 ## Workflow history
+- 2026-11-06 executed (opencode/claude-opus): executed: legacy plans in a migrated repo finish with plain finalize (annotated Status/Date read as meant, annotation kept as Prior-Status, IPD-L002 missing-cutover hint, pure layout renames excused, other-plan index findings are warnings, bold Id anchors, honest migration commit subject, self-contained C801); core 1860 passed [Scope attribution - 1 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: .aw/records/specs/draft/20261024-specflow-30-11037v-synth-merged.spec.md]
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 fixed in place (standard tier: references, executability, security, engineering).
 - 2026-11-06 approved (opencode/claude-opus, --by-human): maintainer instruction 2026-11-06: 'Let's address these. Use the repos conventions.'
 
@@ -140,42 +140,42 @@ Amends `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted pytest output for `AnnotatedLegacyHeaderTests` and `AnnotatedApprovedPassesPreExecutionTests` (conforming annotated plan at pre-execution and pre-transition, refused unrecognized status, refused annotated draft at pre-execution), plus `aw ipd lint --phase pre-transition` output on a clone of the target repository's `20260914-2010-01-...` plan.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: pytest -v tests/test_legacy_finalize.py: `AnnotatedLegacyHeaderTests::test_reduced_lint_accepts_annotated_status_and_timed_date PASSED`, `::test_annotation_on_an_unrecognized_status_still_refuses PASSED`, `::test_annotated_draft_still_fails_the_execution_checkpoint PASSED`, `AnnotatedApprovedPassesPreExecutionTests::test_annotated_approved_is_ready_to_execute PASSED`. On a clone of the target repo (cutovers stamped by its installer sync), `aw ipd lint --phase pre-transition` and `--phase pre-execution` on `20260914-2010-01-test-isolation-runtime-config-fail-loud.ipd.md` both print `approved ... advisory` (before the fix: 3x `IPD-M104`).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output for `test_derive_baseline_finds_an_annotated_approval`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `AnnotatedLegacyHeaderTests::test_derive_baseline_finds_an_annotated_approval PASSED` (the returned sha equals the approval commit of `- Status: approved (2026-07-02; executing)`).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output for `NoCutoverHintTests` (both tests).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `NoCutoverHintTests::test_lint_and_finalize_name_the_missing_cutover PASSED` (lint advisory `IPD-L002`, finalize refusal contains "no `ipd_begin_receipt` cutover"), `NoCutoverHintTests::test_no_hint_once_cutovers_are_stamped PASSED`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted pytest output for `test_finalize_completes_and_keeps_the_annotation` (one Status line, Prior-Status kept, exit 0).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `AnnotatedLegacyHeaderTests::test_finalize_completes_and_keeps_the_annotation PASSED` (exit 0; `text.count("- Status:") == 1`; `- Status: executed`; `- Prior-Status: approved (2026-07-02; executing)`). Replay on a clone of the target repo at its migration commit, with the UNCONVERTED approved plan: `aw ipd sync --all --apply` then plain `aw ipd finalize hltig2 ... --apply` printed `finalized hltig2 -> executed at cf60bed38e72` and `aw index plans --check` printed `plans index --check: clean`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted pytest output for `MigrationRenamesNotOutOfScopeTests` (pure renames need no reason; a content-changed rename still does).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `MigrationRenamesNotOutOfScopeTests::test_pure_renames_need_no_scope_reason PASSED`, `::test_a_renamed_file_with_changed_content_still_needs_a_reason PASSED`. Replay of the reported case on a clone (converted plan at its approval-time commit, `--base <pre-migration commit> --without-receipt`): `needs a --scope-reason` lines = 463 with the pre-fix code (`git stash` of this change), 0 with it.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: pasted pytest output for `IndexFindingOnAnotherPlanTests` and for `tests/test_orchestrator_retirement.py` plus the `FailLoud` tests in `tests/test_ipd_lifecycle_cli.py` (genuine non-convergence still COMMITTED-INCOMPLETE).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `IndexFindingOnAnotherPlanTests::test_other_plans_missing_id_is_a_warning_not_committed_incomplete PASSED`; `pytest -q tests/test_orchestrator_retirement.py tests/test_ipd_lifecycle_cli.py` -> `117 passed in 37.93s` (includes `test_fail_loud_arm_refuses_on_genuine_non_convergence` and `test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence`). On a target-repo clone, finalizing `p5cfpq` printed `finalized p5cfpq -> executed` plus `IPD-FINALIZE plans index: pending/20260710-1400-01-reference-docs-integration.ipd.md: id-missing: ... (another plan; not caused by this finalize; fix it separately)`.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: pasted pytest output for `BoldHeaderIdBackfillTests`, plus `aw ipd sync --all` dry-run output on a clone of the target repository's plans showing the bold-header plan would get an Id.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: `BoldHeaderIdBackfillTests::test_bold_status_header_gets_an_id PASSED`. On a clone of the target repo, `aw ipd sync --all` printed `would add Id  .aw/records/plans/pending/20260710-1400-01-reference-docs-integration.ipd.md` and `... 0 without a Status/Date/Author line to anchor it` (before: `1 without ...`).
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: pasted pytest output for `MigrationCommitSubjectTests` (both tests).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: `MigrationCommitSubjectTests::test_subject_counts_only_what_the_commit_moves PASSED`, `::test_subject_counts_real_moves PASSED`. Scratch `aw migrate-layout --yes`: subject `chore(aw): migrate legacy layout to .aw/ (2 moved, 0 plan Ids backfilled, 3 other file(s))` on a commit whose `--stat` shows 2 renames and 3 added files.
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: pasted pytest output for `CitationAdvisoryNamesNoUninstalledSpecTests` and `tests/test_ipd_templates.py` (template parity with `build_skeleton`), the spec diff of Section 13.2a, and the routine core gate (`python3 -m pytest`) summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `CitationAdvisoryNamesNoUninstalledSpecTests::test_c801_message_is_self_contained PASSED`; `TemplateParityTests::test_child_template_matches_generator PASSED`, `::test_orchestrator_template_matches_generator PASSED` (`48 passed in 5.55s` for the two files). Spec diff adds two paragraphs to Section 13.2a and the history note `2026-11-06 note (aw specs): Section 13.2a amended (legacyfin 9en4fy) ...`. Core gate `python3 -m pytest`: `1860 passed, 11 warnings in 39.10s`. Full non-slow `python3 -m pytest tests/` before the template regeneration: `3 failed, 10099 passed`; the template failure is fixed above, and the other two (`test_layout_inventory.py` case 3/case 6) and the `test_run_viewer.py` error fail identically with this change stashed (`1 failed` for case 3 on the stashed tree), so they predate it.
+  - Result: pass
 
 ## Approval and execution gate
 
