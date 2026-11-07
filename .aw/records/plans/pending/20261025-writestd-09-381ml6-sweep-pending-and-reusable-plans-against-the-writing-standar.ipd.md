@@ -6,7 +6,7 @@
 - Scope: Proofread every live plan in `pending/` and `reusable/` that is not skipped at execution time; add or correct diagrams per requirement 12; append one sweep line to the `## Workflow history` of every swept plan; write the sweep walkthrough; file one backlog carrier for any skipped plan, any defect left inside a protected region, or any `Unresolved` annotation. EXCLUDES this plan's own file; plans in terminal directories (`ecmw83` N3); any change to a plan's title line or metadata fields (every `- Key:` line before the first `## ` heading, which includes `Status`, `Readiness`, `Review-Depth`, `Approval`, `Coverage*`, `Blocks-Release`, `Id`, `From-*`, `Item-Dependencies`, and `Scope-Paths`); any change to an E/V id, a checkbox, a `Depends on`, `Execution state`, `Result`, or `Observed evidence` value, or an open-question or deferral field; for a plan in `reviewed`, `approved`, or `auto-approved`, any change to an E-item or V-item action block or any of its indented sub-fields; for an orchestrator, any change to the text its coverage fingerprint covers; and any change to a heading, a stable ID, an inline code span, a number, a non-diagram fenced block, a `## Workflow history` record, or text that another tracked file quotes.
 - Scope-Paths: .aw/records/plans/pending/, .aw/records/plans/reusable/, .aw/records/walkthroughs/, .aw/records/backlog/open/
 - Item-Dependencies: executed:g4719s, executed:gzhw9c, executed:k2x0yl, executed:e4n4p3, executed:sfez3e, executed:uog8nc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 381ml6
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-07 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED
 - 2026-11-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED; review record .aw/records/reviews/20261025-writestd-09-381ml6-sweep-pending-and-reusable-plans-against-the-writing-standar.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
