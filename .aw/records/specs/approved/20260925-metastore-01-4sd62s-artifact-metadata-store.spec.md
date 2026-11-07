@@ -2,6 +2,7 @@
 
 - Date: 2026-09-25
 - Status: approved
+- From-Backlog: ms06pi
 - Blocks-Release: next
 - Id: 4sd62s
 - Author: aw specs new
@@ -2332,6 +2333,7 @@ for concurrency.
 | `tg80ht` spec-to-plan bridge | open (backlog) | Connects approved specs to runner dispatch and to IPD Set authoring. It automates the graduation of this spec into the implementing IPD Set and does not change the metadata schema. |
 
 ## Workflow history
+- 2026-11-07 approved (aw set): Inherits the release-gate handoff of backlog ms06pi from superseded spec 2vev8j (4sd62s OQ-4; plan 7ehv8l). Status unchanged.
 
 - 2026-11-05 note (aw specs): Amended 2026-11-02 on maintainer decision (plan cxxmyv OQ-01, via /askme): event key overrides (list of setter override flags) added to 4.2; aw specs set --date refused once metadata_schema is 2. Spec stays approved; the change is an additive event key decided by the maintainer.
 - 2026-11-02 note (aw specs): Editorial fix after approval: removed a fragment ('the run') left in section 7 step 1 by the 2026-11-01 split; no requirement changed.

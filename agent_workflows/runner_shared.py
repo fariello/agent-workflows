@@ -40249,8 +40249,8 @@ def reconcile_disposition(
             spec_path = None
             try:
                 spec_path = queue_artifact_path(source, item)
-                text = spec_path.read_text(encoding="utf-8")
-                status = _read_status(text)
+                spec_text = spec_path.read_text(encoding="utf-8")
+                status = _read_status(spec_text)
             except Exception:
                 status = None
 

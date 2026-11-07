@@ -15,6 +15,8 @@
 - Author: <agent/model>
 - Id: tmp1d6
 
+> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+
 ## Workflow history
 
 - <YYYY-MM-DD> draft (<agent/model>): created.

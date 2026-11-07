@@ -851,6 +851,8 @@ def _render_item(
         today = core.utc_history_date()
         msg = (message or "").strip() or item.summary
         lines.append("")
+        lines.append(core.writing_standard_pointer("backlog item"))
+        lines.append("")
         lines.append("## Workflow history")
         lines.append(f"- {today} created (aw backlog): {msg}")
         lines.append("")
@@ -1453,7 +1455,7 @@ def run_new(args) -> int:
     # `except Exception: pass`. The inline `## Workflow history` record is already in `rendered` and
     # was written by the `atomic_write` directly above, so it is unaffected either way; the sidecar is
     # a machine-local activity log (OQ-01) and must never gate a durable write.
-    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    # Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
     # because an event for a transition that did not happen is worse than a missing event; see
     # `record_history.append_advisory`.
     if item.id:
@@ -1638,7 +1640,7 @@ def run_note(args) -> int:
 
     # plan `vhbvwz` E-04 / OQ-01: the sidecar remains a machine-local activity log and can never gate
     # this write.
-    # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    # Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
     # because an event for a transition that did not happen is worse than a missing event; see
     # `record_history.append_advisory`.
     if item.id:

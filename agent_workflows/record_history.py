@@ -2,9 +2,10 @@
 
 ONE file per repo: `.aw/records/history.jsonl`, keyed by id6. Each line is a JSON object
 `{id6, date, tree, workflow, actor, message}`. Note that the original design rationale claiming
-concurrent-append git merges rarely conflict was measured false in spec 2vev8j E1 (two branches
-each appending one line to the same JSONL produce an ordinary content conflict, making a shared
-file a conflict magnet under the isolated worktrees aw oc run uses by default), and the claim is
+concurrent-append git merges rarely conflict was measured false in spec 4sd62s P3 (which cites that
+measured evidence) and C3 and 4.7 (per-artifact logs so different artifacts never share a file; two
+branches each appending one line to the same JSONL produce an ordinary content conflict, making a
+shared file a conflict magnet under the isolated worktrees aw oc run uses by default), and the claim is
 moot for a gitignored file that is never committed. Pure (no CLI, no argparse). Consumed by the
 status writers (Order 02) and the read verb (Order 03).
 
@@ -58,7 +59,7 @@ def append(
 
     `id6` MUST match `artifact_core.ID6_RE` (else ValueError). `date` defaults to today as YYYYMMDD.
     Fixed key order; utf-8; one JSON object per line followed by `\\n`. Note that concurrent-append
-    merges were measured to conflict (spec 2vev8j E1), though moot as this sidecar is gitignored."""
+    merges were measured to conflict (spec 4sd62s P3, C3, 4.7), though moot as this sidecar is gitignored."""
     if not _core.ID6_RE.match(id6 or ""):
         raise ValueError(f"record_history.append: {id6!r} is not a valid id6")
     if date is None:

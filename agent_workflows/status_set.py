@@ -1908,7 +1908,7 @@ def apply_status_change(
             pass
 
     # Type-conditional sidecar append for specs and backlog (spec wy9aru 4.3 ratified in OQ-1; spec 1525-02 R2)
-    # The write happens AFTER the durable write succeeds (spec 2vev8j C5).
+    # The write happens AFTER the durable write succeeds (spec 4sd62s C6).
     if rec.record_type in ("specs", "backlog") and prep.should_write_history:
         target_id6 = rec.id6
         if not target_id6:
