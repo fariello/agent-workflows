@@ -1,6 +1,6 @@
 """Tests verifying that every artifact history record is stamped with the UTC clock.
 
-Spec 2vev8j Section 4.4 ("One timezone for every writer") requires:
+Spec 4sd62s Section 4.2b ("One clock for each stored value") requires:
 "Every writer, tool and human-facing helper alike, records UTC; local time is a
 RENDER-TIME concern only."
 
@@ -218,7 +218,7 @@ class HistoryDateClockTests(unittest.TestCase):
                     f"Under {zone}, backlog filename prefix {file_prefix} was not local in {local_compact}",
                 )
 
-                # Check created history record date is UTC per 2vev8j 4.4
+                # Check created history record date is UTC per 4sd62s 4.2b
                 text = item_file.read_text(encoding="utf-8")
                 created_lines = [
                     line for line in text.splitlines() if "created (aw backlog)" in line
@@ -342,7 +342,7 @@ class HistoryDateClockTests(unittest.TestCase):
                     f"Under {zone}, specs filename prefix {file_prefix} was not local in {local_compact}",
                 )
 
-                # Check created history record date is UTC per 2vev8j 4.4
+                # Check created history record date is UTC per 4sd62s 4.2b
                 text = spec_file.read_text(encoding="utf-8")
                 created_lines = [
                     line for line in text.splitlines() if "created (aw specs)" in line
@@ -400,7 +400,7 @@ class HistoryDateClockTests(unittest.TestCase):
                     f"Under {zone}, release filename prefix {file_prefix} was not local in {local_compact}",
                 )
 
-                # Check created history record date is UTC per 2vev8j 4.4
+                # Check created history record date is UTC per 4sd62s 4.2b
                 text = rel_file.read_text(encoding="utf-8")
                 created_lines = [
                     line

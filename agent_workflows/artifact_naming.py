@@ -68,7 +68,7 @@ available and not an oversight.
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Any, NamedTuple, Optional
 
 from agent_workflows import artifact_core as _core
 
@@ -255,3 +255,72 @@ def is_clustered_conformant(name: str, expected_type: str = "ipd") -> bool:
         return False
     facet = m.groupdict().get("type")
     return facet is None or facet == expected_type
+
+
+class AttributedName(NamedTuple):
+    date: str
+    set: str
+    nn: str
+    id6: str
+    slug: str
+    ace: Optional[str] = None
+    model: Optional[str] = None
+    type: Optional[str] = None
+
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, str):
+            if hasattr(self, key):
+                return getattr(self, key)
+            raise KeyError(key)
+        return tuple.__getitem__(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+
+_FACET_TOKEN_RE = re.compile(r"\A[a-z0-9-]+\Z")
+
+
+def parse_attributed(name: str) -> Optional[AttributedName]:
+    """Parse a D177-attributed artifact filename:
+    ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<ace>][.<model>].<type>.md``.
+
+    Returns an ``AttributedName`` exposing ``date``, ``set``, ``nn``, ``id6``, ``slug``,
+    optional ``ace``, optional ``model``, and ``type``. Returns ``None`` when the name
+    does not conform.
+    """
+    clean = name.replace("\\", "/").rsplit("/", 1)[-1]
+    if not clean.endswith(".md"):
+        return None
+    stem = clean[:-3]
+    segments = stem.split(".")
+    if not segments:
+        return None
+
+    m = _CORE_RE.match(segments[0])
+    if m is None:
+        return None
+
+    date = m.group("date")
+    set_id = m.group("set")
+    nn = m.group("nn")
+    id6 = m.group("id6")
+    slug = m.group("slug")
+
+    facets = segments[1:]
+    for f in facets:
+        if not _FACET_TOKEN_RE.match(f):
+            return None
+
+    if len(facets) == 0:
+        return AttributedName(date, set_id, nn, id6, slug, None, None, None)
+    elif len(facets) == 1:
+        return AttributedName(date, set_id, nn, id6, slug, None, None, facets[0])
+    elif len(facets) == 2:
+        return AttributedName(date, set_id, nn, id6, slug, None, facets[0], facets[1])
+    elif len(facets) == 3:
+        return AttributedName(
+            date, set_id, nn, id6, slug, facets[0], facets[1], facets[2]
+        )
+    else:
+        return None

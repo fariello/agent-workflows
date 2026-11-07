@@ -236,14 +236,14 @@ def shard_for_date(yyyymmdd: str) -> str:
 
 
 # --------------------------------------------------------------------------------------
-# Workflow history UTC date helper (spec 2vev8j Section 4.4; IPD 5ivkdh E-01)
+# Workflow history UTC date helper (spec 4sd62s Section 4.2b; IPD 5ivkdh E-01)
 # --------------------------------------------------------------------------------------
 
 
 def utc_history_date() -> str:
     """Return the current date in UTC as ``YYYY-MM-DD`` for artifact workflow history records.
 
-    Authority: Spec ``2vev8j`` Section 4.4 ("One timezone for every writer") requires all history
+    Authority: Spec ``4sd62s`` Section 4.2b ("One clock for each stored value") requires all history
     writers to record UTC dates; local time is a render-time concern only.
 
     DO NOT CALL THIS FOR FILENAME DATES. Artifact filename date prefixes (e.g. ``YYYYMMDD-...``)

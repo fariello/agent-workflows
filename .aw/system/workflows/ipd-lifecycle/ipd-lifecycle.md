@@ -78,6 +78,10 @@ evidence supports the expected outcome. Commit the plan's PRODUCT changes path-s
 (never `git add -A`/`-a`; never push). The terminal lifecycle transition is NOT one of these
 checklist items; it happens only at Checkpoint 2 below.
 
+When an agent writes or revises plan text during execution (for example a re-scope or a new open
+question), it follows `../technical-writing/technical-writing.md`; it never rewrites recorded evidence,
+results, or `## Workflow history` entries to improve their wording.
+
 ## Checkpoint 2: pre-transition gate
 
 When every `E-*` is `performed`+checked and every `V-*` is `pass`+checked with nonempty observed

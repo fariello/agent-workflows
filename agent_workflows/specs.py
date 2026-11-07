@@ -240,7 +240,7 @@ def _sidecar_append(repo_root, text: str, message: str) -> None:
     `except Exception: pass`. The inline `## Workflow history` record is the durable one (OQ-01) and is
     written by the caller regardless of what happens here, so this never gates provenance; see
     `record_history.append_advisory`.
-    Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+    Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
     because an event for a transition that did not happen is worse than a missing event.
     """
     m = _SPEC_ID_RE.search(text)
@@ -1000,7 +1000,7 @@ def run_note(args) -> int:
     ):
         out = _append_history(lines, f"- {date} note (aw specs): {args.message}")
         core.atomic_write(path, "\n".join(out))
-        # Spec `2vev8j` C5 first clause: the sidecar may never precede the durable write it describes,
+        # Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
         # because an event for a transition that did not happen is worse than a missing event. The sidecar
         # remains a machine-local activity log (OQ-01) and may never gate a durable write; see
         # `record_history.append_advisory`.
@@ -1137,7 +1137,7 @@ def run_new(args) -> int:
     else:
         # DECISIONS.md D55: Human-facing timestamps use LOCAL time, so the filename prefix remains local.
         date_iso = _today()
-        # Spec 2vev8j Section 4.4: Every writer records UTC for history records.
+        # Spec 4sd62s Section 4.2b: Every writer records UTC for history records.
         history_date = core.utc_history_date()
 
     if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):

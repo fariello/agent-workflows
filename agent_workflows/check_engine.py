@@ -672,8 +672,8 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.lifecycle-transition-invalid": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
-    # Event-derived lifecycle transition coverage companion (IPD 5xq2ng E-01, spec 2vev8j Section 4.4).
-    # The lifecycle gate's inputs are DATE-DERIVED, and the UTC history-date ruling (spec 2vev8j 4.4)
+    # Event-derived lifecycle transition coverage companion (IPD 5xq2ng E-01, spec 4sd62s Section 4.2b).
+    # The lifecycle gate's inputs are DATE-DERIVED, and the UTC history-date ruling (spec 4sd62s 4.2b)
     # removes the date variation it depends on, causing groups to be treated as unordered and skipping
     # transitions. A gate that validates nothing is otherwise indistinguishable in output from a gate
     # that found nothing wrong. Advisory only (`info`), so `artifact_core.drift_exit_code` exempts it
@@ -3927,7 +3927,7 @@ def check_lifecycle_transition_coverage(
 
     Report when the lifecycle-transition gate examined a pending plan carrying two or more distinct
     forward lifecycle statuses, yet validated zero transitions. This makes the gate's blindness
-    observable when date variation is collapsed by UTC history-date unification (spec 2vev8j 4.4).
+    observable when date variation is collapsed by UTC history-date unification (spec 4sd62s 4.2b).
     Advisory only (`info`), so `artifact_core.drift_exit_code` exempts it and cannot fail a gate.
     """
     drift: List[_core.Drift] = []
@@ -3964,7 +3964,7 @@ def check_lifecycle_transition_coverage(
                     required="a verifiable lifecycle transition order across distinct statuses",
                     recovery=(
                         "order history entries across distinct dates or wait for "
-                        "spec 2vev8j 4.3 per-artifact seq"
+                        "spec 4sd62s 4.2 per-artifact seq"
                     ),
                 )
             )
@@ -8740,7 +8740,7 @@ def check_spec_criteria_uncovered(
         # ACCEPTED FALSE NEGATIVE: The cost of this gate is that a Set that legitimately names NO
         # criterion at all (e.g. 7p3tt8 from the motivating review) is also silent. This is accepted
         # permanently because the alternative is a rule whose every live finding is a false positive
-        # (spec 6m4kow and 2vev8j are the ONLY reported specs at HEAD without this gate, both namespace
+        # (spec 6m4kow and the artifact-metadata-storage spec since superseded by 4sd62s are the ONLY reported specs at HEAD without this gate, both namespace
         # mismatches).
         if not matched:
             continue

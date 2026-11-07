@@ -1,6 +1,6 @@
 """Tests verifying UTC history-date clock parity across derived command surface.
 
-Enforces spec 2vev8j Section 4.4 ("One timezone for every writer"):
+Enforces spec 4sd62s Section 4.2b ("One clock for each stored value"):
 "Every writer, tool and human-facing helper alike, records UTC; local time is a
 RENDER-TIME concern only."
 
@@ -910,7 +910,7 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     f"Under {zone}, filename prefix {file_prefix} must be local ({local_compact})",
                 )
 
-                # Check created history record date is UTC per 2vev8j 4.4
+                # Check created history record date is UTC per 4sd62s 4.2b
                 content = spec_file.read_text(encoding="utf-8")
                 created_lines = [
                     ln for ln in content.splitlines() if "created (aw specs)" in ln

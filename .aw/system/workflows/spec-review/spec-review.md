@@ -6,7 +6,7 @@ improving that spec in place and advancing it to `reviewed` through the setter.
 Review specification documents only. Do not change code, tests, runtime configuration,
 infrastructure, or production data. Do not author plans. Reviewing a spec is not implementing it.
 
-Review the writing against the technical writing standard (`../technical-writing/technical-writing.md`) as well as the substance, and
+Review the writing against the technical writing standard (`../technical-writing/technical-writing.md`), including the diagram check of requirement 12, as well as the substance, and
 check that every wording fix preserves the spec's meaning and obligations.
 
 THIS IS THE SPEC-TIME SIBLING OF `plan-review`, and it is deliberately a SEPARATE package rather than
@@ -384,6 +384,11 @@ a plan must answer. For each item, verify the spec addresses it or justifies `No
 - Dependencies on other specs/artifacts are named with their ids, and the direction of each dependency
   is stated.
 - Any release gate (`Blocks-Release`) is present in the front matter rather than only in prose.
+
+### H. Writing and diagrams
+- The spec follows `../technical-writing/technical-writing.md`, including requirement 12.
+- The reviewer fixes writing defects in place within its authority and records a finding where a fix
+  would change meaning or where a required diagram is missing and cannot be drawn from the text alone.
 
 ---
 ## Verdict

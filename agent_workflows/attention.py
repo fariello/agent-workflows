@@ -2564,7 +2564,7 @@ def _age_marker(
 ) -> str:
     """awdoctor Order 01 + awdoctorfix Order 03: a compact staleness marker from last_history_at.
     '!' when older than ~30 days, '?' when unknown (None) EXCEPT on a history-less tree (returns ''),
-    else '' (recent). Reads the UTC clock per spec 2vev8j Section 4.4 so verdicts are invariant under reader timezone."""
+    else '' (recent). Reads the UTC clock per spec 4sd62s Section 4.2b so verdicts are invariant under reader timezone."""
     if last_history_at is None:
         return "" if tree in _HISTORYLESS_TREES else "?"
     try:

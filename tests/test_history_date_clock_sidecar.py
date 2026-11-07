@@ -1,6 +1,6 @@
 """Tests verifying that the gitignored history sidecar is stamped with the UTC clock.
 
-Spec 2vev8j Section 4.4 ("One timezone for every writer"):
+Spec 4sd62s Section 4.2b ("One clock for each stored value"):
 "Every writer, tool and human-facing helper alike, records UTC; local time is a
 RENDER-TIME concern only."
 

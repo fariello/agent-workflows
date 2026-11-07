@@ -1,7 +1,7 @@
 """Outcome tests for the scaffold's workflow history clock parity (IPD 9wcei0).
 
 Asserts that `aw ipd scaffold` stamps a new plan's `draft` history record from the
-UTC clock per spec `2vev8j` Section 4.4, while leaving human-facing timestamp names
+UTC clock per spec `4sd62s` Section 4.2b, while leaving human-facing timestamp names
 (the `- Date:` metadata field and the filename prefix) on the LOCAL clock per
 `DECISIONS.md` D55.
 
