@@ -208,6 +208,30 @@ Each criterion has a label:
   maintainer decision 2026-10-24, finding SR-103).
 - C11 `[Want]` An agent reads fewer bytes for each artifact, and `aw find`, `aw attention` and the
   board run faster. AC-13 measures both.
+- C12 `[Must]` THE MIGRATION MIGRATES ANY REPOSITORY, FROM ANY PRIOR FORMAT THIS TOOLKIT HAS
+  WRITTEN, AND THE IMPLEMENTING SET BUILDS THE TOOL THAT DOES IT (maintainer decision 2026-11-07).
+  This repository is ONE input, not the definition of the input. Section 5.3 makes every command
+  refuse an unmigrated repository, so every repository that uses this toolkit is forced through
+  `aw migrate metadata`, and the toolkit must therefore ship a migration proven on the shapes those
+  repositories actually have. Measured on the maintainer's machine on 2026-11-07: 28 other
+  repositories use the toolkit, most still on the legacy `.agents/` layout, and the phase-A cache
+  built by Orders 02 to 06 returned 0 records for one of them (`.agents/` layout, 201 records seen by
+  `status_set`). The shapes the migration MUST handle, each with a fixture in AC-42:
+  - (a) the legacy `.agents/` layout (records under `.agents/plans/...`, `.agents/docs/...`), with or
+    without `- Id:` and `- Status:` bullets;
+  - (b) a mixed repository holding both `.agents/` and `.aw/` trees;
+  - (c) id-less records with no bullet block at all, for example a prose plan whose first line is
+    `# Implementation Plan Document (IPD) - <title>` and which carries no metadata bullet;
+  - (d) a repository with NO history sidecar (every repository except the maintainer's main
+    checkout of this one);
+  - (e) a `companion` or `home` records backend (records under the per-project directory that
+    `project_context` resolves, not under the repository).
+  NOTHING IN THE MIGRATION MAY BE KEYED TO THIS REPOSITORY'S CONTENT. Every count, filename, id6 and
+  Set named in 5.2 is a MEASUREMENT of this repository used as evidence, never a constant the code
+  reads. The migration DISCOVERS its inputs, reports them in the dry-run census, and applies the
+  same rules to every repository: legacy-timestamp renames, id minting for id-less records, the
+  Set and order rule, the citation rewrite and the sidecar import are each a generic rule of which
+  this repository's 34 renames and 466 sidecar records are one instance.
 
 ## 3a. Non-goals
 
@@ -274,11 +298,18 @@ into the plan's validation evidence.
 | AC-39 | 4.2, 4.3 (OQ-24) | The `append` key makes every same-append rule checkable. | Pasted tests: (1) every multi-event write gives its events consecutive `seq`, the same `append`, `at` and `actor`; (2) the loader refuses a hand-edited log in which a `set approval`, an `unset approval`, an `unset readiness`, or a `set` of `scope_result`, `out_of_scope_paths` or `widened_paths` appears outside the append of its owning transition; (3) a migrated log's checkpoint and imported events share `append` 0. (4) finalizing a test plan writes `scope_result`, `out_of_scope_paths` and `widened_paths` (each path with its reason) in the same append as its `transition` to `executed`; they appear in `scope_exceptions` with `exception_kind` `out-of-scope` or `widened` and `source` `finalize`; a migrated `Scope-Exceeded` bullet appears with `exception_kind` `out-of-scope` and `source` `checkpoint`; rollup retirement writes none of the three. |
 | AC-40 | 4.1, 4.6, 5.2 (OQ-25) | A migrated staged prompt is upload-ready and its in-file mirror is checked. | Pasted: (1) after migrating a fixture with an `aw-prompt` prompt and a prompt with no comment, line 1 of each is the single `aw-managed-prompt` comment, no `---` line exists, the old comment is gone, and `prompt_kind`, `set` and `order` are in the log; (2) the comment contains no instruction addressed to an agent; (3) a setter transition rewrites only the comment's `status`; (4) `aw check meta` reports drift on a hand-edited comment `status` or `id`. |
 | AC-41 | C10, 4.6, 5.2 step 3 (OQ-26, OQ-27, OQ-28) | The cutover leaves no legacy-timestamp artifact or walkthrough filename, keeps every Set and order consistent, and keeps imported history exact. | Pasted: (1) the dry-run rename map for all 34 records, with minted `id6` values for 28 and the preserved `Id`, `Set` and logged `Order` for 6 (`wvlk84` becomes `awphysical-17`); (2) in a fixture, a legacy name whose slug starts with a 6-letter word is classified as legacy; (3) after apply, no tracked artifact or walkthrough matches `_LEGACY_TIMESTAMP_RE` and no two plans share a Set and order; (4) every raw history line that cited an old name is recovered byte for byte (AC-10), and `aw show --history` displays it with the current name; (5) the citation-rewrite report per location, with 0 ambiguity warnings and the list of deliberately unchanged citations. |
+| AC-42 | C12, 5.1, 5.2, 5.2a, 5.3 | `aw migrate metadata` migrates a repository of each prior shape, end to end, with the same code and no repository-specific constant. | On a test corpus with one ANONYMIZED fixture repository per C12 shape (a) to (e), each built with real `git init` from the structure of a real repository that uses the toolkit (no record text copied verbatim), and on a COPY of this repository, pasted for EACH: (1) the dry-run census, which lists every record found, every id it will mint, and every record it cannot classify; (2) `--apply`, then a second `--apply` that changes nothing (AC-10 per repository); (3) the round-trip check that every legacy field value and history line is in the logs; (4) `aw find`, `aw attention --format json` and `aw show <id6> --history` on a migrated record; (5) that `aw find` before the migration (legacy readers) and after it (logs) list the same records with the same status; (6) for shape (d), that the migration runs with no sidecar and states that in the census instead of refusing; (7) for shape (a) and (b), that the layout migration (5.2a) ran first in the same transaction. Plus a pasted search proving no migration module names a repository-specific id6, filename or count. |
 
 ## 3c. Honest limits
 
 - The size counts in sections 1 and 6 come from one inventory pass. The implementing plan must measure
   them again.
+- C12's "any prior format" means every format THIS TOOLKIT HAS WRITTEN, as found in the AC-42 corpus.
+  It cannot cover a format nobody has shown the toolkit: a repository hand-edited into a shape no
+  release wrote may still produce census entries the migration lists but cannot convert. The rule for
+  those (5.2a item 4) is to report and leave them, never to guess. AC-42's corpus is drawn from the
+  maintainer's own repositories, so a shape only a different user has is covered only once someone
+  adds a fixture for it.
 - Two lanes can append incompatible events for the same artifact. This is expected to
   be rare, because each lane owns different plans. The toolkit reports conflicting histories and does not
   resolve them automatically (4.7). Git may merge identical changes without a textual conflict.
@@ -1942,6 +1973,41 @@ flowchart LR
 After the cutover, the legacy readers exist ONLY in `migrations/m0001_metadata_v2.py`, and they do
 not change. A later change deletes them when no supported version needs to migrate from 1.x (C9).
 
+### 5.2a Any repository, any prior shape (C12; maintainer decision 2026-11-07)
+
+Section 5.2 is written against this repository, which was the first input measured. C12 makes the
+migration generic. These rules apply to EVERY repository, and where they conflict with a number or a
+name in 5.2, these rules win and the 5.2 value is read as this repository's measurement.
+
+1. ONE TOOL, THE SAME CODE EVERYWHERE. `aw migrate metadata` is the only entry point. It has no
+   argument, configuration key or branch that selects a repository. A repository's own content is
+   discovered at run time and reported in the census.
+2. LAYOUT FIRST, IN THE SAME RUN. When the repository holds a legacy `.agents/` tree (C12 shapes (a)
+   and (b)), the migration runs the existing transactional layout migration (`aw migrate-layout`,
+   `layout_migration.MigrationManager`, to become `aw migrate layout`) as its first stage, in the
+   same journal, so a failure in the metadata stage rolls back the layout stage too. The dry run
+   shows both stages. A repository already on `.aw/` skips the stage and says so.
+3. RESOLVE THE RECORDS ROOT THROUGH `project_context`, NEVER BY ASSUMING `.aw/records`. A companion
+   or home backend (shape (e)) is migrated where its records live; the logs land next to them
+   (AC-18).
+4. EVERY RECORD IT CAN FIND IS MIGRATED OR LISTED. A record with no bullet block and no id (shape
+   (c)) gets a minted repository-unique `id6`, a `status` taken from its disposition directory (as
+   5.2 step 4 already does for comment-less staged prompts), its title from its first `# ` line, and
+   its Set and order by the 5.2 step 3 rule. A file the migration cannot classify as any record type
+   is never silently skipped and never refused as a whole: the census lists it with the reason, and
+   `--apply` leaves it untouched and reports it.
+5. NO SIDECAR IS NORMAL. The 5.2 step 2 sidecar refusal applies ONLY when the repository's own
+   writers would have produced a sidecar that is now missing. A repository whose records predate the
+   sidecar, or that never ran a sidecar writer, migrates with no sidecar and the census says
+   "no sidecar (none expected)" (shape (d)). The rule that decides "expected" is a property of the
+   repository's records, computed and printed, not this repository's count.
+6. MIGRATING ANOTHER REPOSITORY NEEDS NO MAINTAINER. 5.2's attended-cutover rules (sidecar-holding
+   checkout, refusal in a linked worktree) still apply to every repository, but nothing in the
+   migration requires the toolkit's maintainer or this repository to be present.
+7. THE TOOL SHIPS BEFORE THE CUTOVER. The implementing Set builds and proves this tool (AC-42)
+   before this repository's own cutover commit, because shipping the cutover with a migration proven
+   only here would leave every other repository refused by 5.3 with an untested way out.
+
 ### 5.3 Every other command refuses an unmigrated repository
 
 Every command that reads metadata checks `metadata_schema`. If the value is less than 2, the command
@@ -2028,6 +2094,13 @@ PHASE A: build the single interface on today's format. Phase A is additive: it a
 2. `aw show --history`, `aw show --format json` and `aw index rebuild`, served through the interface.
 3. The migration chain framework and `m0001_metadata_v2`, with the dry run, the census (AC-20) and
    the round-trip check. Run it only on a COPY of this repository.
+3a. (C12, 5.2a; added 2026-11-07) Make the migration generic and PROVE it on every prior shape:
+   the anonymized real-shape fixture corpus (AC-42 shapes (a) to (e)), the layout stage chained in
+   the same journal, records-root resolution through `project_context` in the phase-A cache and
+   the migration alike, id minting and census listing for id-less and unclassifiable records, and
+   the no-sidecar case. The phase-A cache built in step 1 must also serve shapes (a), (b) and (e),
+   because phase B moves this toolkit's readers onto it and those readers run in every repository.
+   This step is done before ANY phase-B reader move merges and before step 9.
 
 Phase A step 1 also defines the `short_description`, `path` and `append` event fields (4.2) and
 their cache tables (4.5a). The writers of path-bearing events start at the cutover commit (step 9),
@@ -2064,7 +2137,7 @@ PHASE C: change the storage and migrate the corpus, in one commit.
    `m0001`, run the migration on this repository, and write the `metadata_schema` stamp. Measure
    AC-13. A person attends this step, in the checkout that holds the sidecar (5.2 step 1), because a
    runner lane worktree has no sidecar. The code for this step is prepared and verified on a COPY in
-   phase A, step 3.
+   phase A, step 3, and on the AC-42 corpus in step 3a.
 
 The first plan of phase A also SUPERSEDES `2vev8j` (OQ-4), so that the records are consistent before
 any code changes.
@@ -2333,6 +2406,8 @@ for concurrency.
 | `tg80ht` spec-to-plan bridge | open (backlog) | Connects approved specs to runner dispatch and to IPD Set authoring. It automates the graduation of this spec into the implementing IPD Set and does not change the metadata schema. |
 
 ## Workflow history
+
+- 2026-11-07 note (aw specs): amended at maintainer direction 2026-11-07: new C12 [Must] (the migration migrates ANY repository from ANY prior format this toolkit has written, and the Set builds that tool), new 5.2a (generic rules; layout stage chained; records root via project_context; id-less records minted; no-sidecar is normal; tool ships before cutover), new AC-42 (anonymized real-shape corpus, shapes a-e, plus this repo), section 7 step 3a, and an honest limit. Trigger: phase-A cache returned 0 of 201 records on a copy of a .agents-layout repo. All 10 pending metastore plans demoted to to-review for re-review against this amendment.
 - 2026-11-07 approved (aw set): Inherits the release-gate handoff of backlog ms06pi from superseded spec 2vev8j (4sd62s OQ-4; plan 7ehv8l). Status unchanged.
 
 - 2026-11-05 note (aw specs): Amended 2026-11-02 on maintainer decision (plan cxxmyv OQ-01, via /askme): event key overrides (list of setter override flags) added to 4.2; aw specs set --date refused once metadata_schema is 2. Spec stays approved; the change is an additive event key decided by the maintainer.
