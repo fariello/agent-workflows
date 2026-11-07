@@ -12,6 +12,9 @@
 - Constrained-by: `.aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md` (`k3yx72`, `approved`). Its proofreading step uses prompt `wcisgc`, and its non-goal N5 excludes "a writing standard applied while drafting". This spec supplies that standard and amends N5 (Section 7, Order 06).
 
 ## Workflow history
+
+- 2026-11-07 note (aw specs): R-05, AC-03, N1, N2 aligned with the shipped AGENTS.md paragraph and kept dash split (plan gzhw9c; maintainer ruling g4719s OQ-02)
+- 2026-11-07 note (aw specs): R-01, R-02, MD-2, AC-01, AC-02 amended to the standard shipped by 0cbfcc706 (plan g4719s, OQ-02 answer)
 - 2026-10-26 to-review (aw specs): authored review-ready from backlog qph7c5
 
 - 2026-10-26 created (aw specs): Ship one writing standard (including diagram rules) and apply it whenever a spec, backlog item, or plan is written, proofread, reviewed, or revised; sweep live artifacts once.
@@ -56,8 +59,8 @@ The maintainer supplied a draft standard on 2026-10-25. Backlog item `qph7c5` re
 
 ### 2.2 Non-goals
 
-- N1. User-facing prose (READMEs, CHANGELOG, docs, UI and CLI text). The existing rules in `prose-style.md` and the execution contract continue to govern it.
-- N2. Other record types (research, walkthroughs, prompts, reviews, run records). A later spec may extend the standard to them.
+- N1. User-facing prose (READMEs, CHANGELOG, docs, UI and CLI text). The existing rules in `prose-style.md` and the execution contract continue to govern it. The shipped standard itself also covers user-facing documentation (commit `0cbfcc706`); this non-goal limits only this spec's sweep (R-08) and advisory (R-07).
+- N2. Other record types (research, walkthroughs, prompts, reviews, run records). A later spec may extend the standard to them. The shipped standard itself also covers user-facing documentation (commit `0cbfcc706`); this non-goal limits only this spec's sweep (R-08) and advisory (R-07).
 - N3. Terminal artifacts: plans under `executed/`, `superseded/`, or `not-executed/`; specs that are `implemented` or `superseded`; backlog items that are `done`. The execution contract forbids rewriting what an executed plan records.
 - N4. Automated judgement of clarity, completeness, or diagram need. Automated checks cover only mechanical defects (R-07).
 - N5. Enforcing the ASD-STE100 controlled dictionary.
@@ -67,7 +70,7 @@ The maintainer supplied a draft standard on 2026-10-25. Backlog item `qph7c5` re
 | ID | Decision |
 | --- | --- |
 | MD-1 | The standard ships to every managed repository. |
-| MD-2 | The standard's dash rule applies to specs, plans, and backlog items. It covers em dashes and en dashes. This replaces the exemption in P13 and in the `AGENTS.md` execution contract for these three artifact types. |
+| MD-2 | The standard's dash rule applies to specs, plans, and backlog items. It covers em dashes and en dashes. This replaces the exemption in P13 and in the `AGENTS.md` execution contract for these three artifact types. Superseded 2026-11-05: the shipped standard adds no dash rule of its own and defers to the `AGENTS.md` execution contract (maintainer ruling recorded in commit `0cbfcc706`; confirmed in plan `g4719s` OQ-02). |
 | MD-3 | The standard applies to new work, and a one-time sweep proofreads every live artifact. |
 | MD-4 | The sweep includes approved artifacts. They keep their status. The sweep skips any plan that a live run is executing or has queued. |
 | MD-5 | The sweep includes parked backlog items and parked specs. |
@@ -95,7 +98,7 @@ erDiagram
 
 | Entity | Meaning | Location |
 | --- | --- | --- |
-| Standard | The single authoritative writing standard. | `.aw/system/workflows/standards/technical-artifact-writing.md` (R-01) |
+| Standard | The single authoritative writing standard. | `.aw/system/workflows/technical-writing/technical-writing.md` (R-01) |
 | Proofreading procedure | The review-time procedure, adopted from `wcisgc`. | A section of the standard (R-03) |
 | AGENTS block paragraph | The managed `AGENTS.md` paragraph that points to the standard. | `engine.agents_pointer_prose` (R-05) |
 | Workflow body | A shipped workflow that writes or reviews an artifact, for example `spec`, `spec-review`, `plan-review`. | `.aw/system/workflows/<name>/` (R-06) |
@@ -149,11 +152,11 @@ This table is the canonical declaration of this spec's requirements.
 
 | ID | Requirement | Section |
 | --- | --- | --- |
-| R-01 | The standard must exist at `.aw/system/workflows/standards/technical-artifact-writing.md`. `aw install` must copy it into a target repository at the same relative path. The filename must not carry a date. | 1, 4 |
-| R-02 | The standard must contain the scope statement, the eleven numbered language requirements of the maintainer's draft (wording preserved except where R-04 and MD-2 change it), the concision paragraph, and the statement that automated checks do not establish clarity. Requirement 11 must say "Do not use em dashes or en dashes." | 3, 4 |
+| R-01 | The standard must exist at `.aw/system/workflows/technical-writing/technical-writing.md`. `aw install` must copy it into a target repository at the same relative path. The filename must not carry a date. | 1, 4 |
+| R-02 | The standard must contain its scope statement, the eleven numbered language requirements, the concision paragraph, and the statement that automated checks do not establish clarity, as shipped by commit `0cbfcc706`. | 3, 4 |
 | R-03 | The standard must contain a proofreading procedure section that carries the substance of prompt `wcisgc` sections 1 to 7. After this, `wcisgc` must be a pointer to that section, so one source holds the procedure. | 1, 4 |
 | R-04 | The standard must contain a twelfth numbered requirement on diagrams. It must say: (a) add a Mermaid `erDiagram` or class diagram when an artifact introduces or changes three or more related entities, records, files, or components; (b) add a Mermaid `flowchart` or `stateDiagram-v2` when an artifact describes a process of three or more steps with a branch, a loop, or a status lifecycle; (c) do not add a diagram for a single entity or a linear process of fewer than three steps; (d) the text is normative, and a diagram that disagrees with the text is a defect that the author corrects; (e) a diagram must name entities and steps with the same terms as the text. | 2.1 G3, 4, 5 |
-| R-05 | The `AGENTS.md` managed block must contain a "Technical artifact writing" paragraph with the substance of the draft's "Required agent instruction", pointing to the path in R-01. The execution contract's dash clause must state that the dash rule also applies to specs, plans, and backlog items. `GUIDING_PRINCIPLES.md` P13, `CONTRIBUTING.md`, `prose-style.md`, `verify-execution/intent-audit.md`, and `GEMINI.md` must state the same scope. | 3 MD-2 |
+| R-05 | The `AGENTS.md` managed block (`engine.agents_pointer_prose`) must contain a `### Technical writing standard` paragraph that tells the agent to read and follow the standard at the path in R-01 before it creates, revises, reviews, or proofreads technical text, to check the complete text against every numbered requirement, and to report the standard as missing rather than claim compliance. The execution contract's dash clause, `GUIDING_PRINCIPLES.md` P13, `CONTRIBUTING.md`, `prose-style.md`, `verify-execution/intent-audit.md`, and `GEMINI.md` keep the existing split: no em or en dashes in user-facing prose; internal artifacts, including specs, plans, and backlog items, are exempt (MD-2 as superseded). | 3 MD-2 (superseded) |
 | R-06 | Each of these surfaces must direct the agent to the standard before it writes, reviews, or revises a spec, backlog item, or plan: the `spec`, `spec-review`, `plan-review` (its step files once `3bwrfx` executes), `plan-review-long`, and `ipd-lifecycle` workflow bodies; the `advise` `spec-editor` persona; the `assess` IPD templates; the skeletons written by `aw ipd scaffold`, `aw specs new`, and `aw backlog new`; and the runner's authoring and review prompts. | 2.1 G2, 4 |
 | R-07 | `aw ipd lint`, `aw specs check`, and `aw backlog check` (and `aw check` through them) must report an em dash (U+2014) or en dash (U+2013) in authored prose as an advisory of severity `info`. The advisory must never change a disposition or an exit status. It must ignore fenced code, indented code, block quotes, inline code spans, and front-matter values. Retired code `IPD-D701` must not be reused. | 3 MD-2 |
 | R-08 | A one-time sweep must proofread every live artifact against the standard and add diagrams per R-04. Live means: specs in `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `deferred`, `parked`; backlog items in `open`, `blocked`, `graduated`, `parked`; plans in `pending/` and `reusable/`. The sweep must not change any status, approval, `Readiness`, `Blocks-Release`, identity, or provenance field. Each swept artifact must get one history line through its owner verb (`aw specs note`, `aw backlog note`, or a plan `## Workflow history` line) that says it was proofread per the standard and that its meaning is unchanged. | 3 MD-3 to MD-5 |
@@ -165,9 +168,9 @@ This table is the canonical declaration of this spec's requirements.
 
 | ID | Criterion | Requirements |
 | --- | --- | --- |
-| AC-01 | A test installs the toolkit into a temporary repository and finds `.aw/system/workflows/standards/technical-artifact-writing.md` with the same bytes as the source. | R-01 |
-| AC-02 | The standard contains numbered requirements 1 to 12, a proofreading procedure section, and no em or en dash outside code. `wcisgc` points to the standard. | R-02 to R-04 |
-| AC-03 | `python3 -m tools.regen_agents_block --check` reports no drift, and the regenerated `AGENTS.md` contains the "Technical artifact writing" paragraph and the widened dash clause. | R-05 |
+| AC-01 | A test installs the toolkit into a temporary repository and finds `.aw/system/workflows/technical-writing/technical-writing.md` with the same bytes as the source (`tests/test_technical_writing_delivery.py`). | R-01 |
+| AC-02 | The standard contains numbered requirements 1 to 12 and a proofreading procedure section. `wcisgc` points to the standard. | R-02 to R-04 |
+| AC-03 | `python3 -m tools.regen_agents_block --check` reports no drift, and `tests/test_technical_writing_delivery.py` passes: the installed `AGENTS.md` names the standard's path for both install layouts. | R-05 |
 | AC-04 | A plan created by `aw ipd scaffold`, a spec created by `aw specs new`, and a backlog item created by `aw backlog new` each name the standard's path. Each still passes its own lint or check. | R-06 |
 | AC-05 | A test lints a plan, a spec, and a backlog item that each contain an em dash and an en dash in prose and in a fenced block. It observes one `info` advisory per prose dash, none for the fenced dashes, and an unchanged exit status. | R-07 |
 | AC-06 | After the sweep, `aw ipd lint`, `aw specs check`, and `aw backlog check` report no dash advisory on any swept artifact, except inside quotations and recorded evidence. Each swept artifact carries the history line of R-08. `aw check all` reports no new error. | R-08 |

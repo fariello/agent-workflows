@@ -23,7 +23,7 @@
 | Review invocation | One runner review of one plan, from the first prompt to the verdict, including any re-review passes. |
 | Review record | The findings file under `.aw/records/reviews/` that the review writes. It has one `## Round <n>` section per review invocation. |
 | Review tier | `simple`, `standard`, or `complex`. The tier decides which review checks run and how many prompts the review uses (Section 5). |
-| Proofreading instructions | Prompt `wcisgc`, "Proofread Technical Artifacts", at `.aw/records/prompts/reusable/20261017-revsteps-01-wcisgc-technical-artifact-proofreading.prompt.md`. |
+| Proofreading instructions | The "Proofreading procedure" section of `.aw/system/workflows/technical-writing/technical-writing.md`, with prompt `wcisgc` as a pointer to it. |
 | Recommendation strength | One of `very weak`, `weak`, `medium`, `strong`, `very strong`, attached to every recommendation (Section 7.3). |
 | Verdict outputs | The three things existing gates read to decide whether a review cleared a plan: the plan's `- Readiness:` field, its `- Status:` move from `to-review` to `reviewed`, and the one history entry that states a review verdict (`APPROVE`, `APPROVE WITH REVISIONS APPLIED`, `REVIEWED - OPEN QUESTIONS`, or `REJECT - NEEDS REPLAN`). |
 | Reviewed-contract hash | The value of `agent_workflows/ipd_lifecycle.py::frozen_region_digest`: a SHA-256 over the plan's `- Scope-Paths:` list and the action text of every `E-*` and `V-*` item. It does NOT cover checkbox marks, `Execution state`, evidence fields, open questions, prose sections, or `## Workflow history`. Two plan texts with the same hash ask the executor to do the same work in the same files. |
@@ -75,7 +75,7 @@ Non-goals:
 - N4. The shorter backlog-to-execution pipeline for small changes. It is filed separately as backlog
   work (Section 15).
 - N5. A writing standard applied while drafting. The proofreading instructions apply at review time
-  only.
+  only. Amended 2026-11-05: spec `ecmw83` now specifies a writing standard applied while drafting; see `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## 3. Maintainer decisions
 
@@ -168,7 +168,7 @@ to exactly one place; nothing is dropped. Sizes are the current section sizes in
 | Severity and scope | 658 | `steps/_findings.md` |
 | Verdict and readiness, NO-GO re-evaluable, escalation return path | 5,253 | `steps/s7-finalize.md` (verdict) and `steps/s5-questions.md` (escalation) |
 | Required final report | 2,095 | `steps/s7-finalize.md`; in a runner review the report is the review record, not chat text |
-| (new) proofreading | - | `steps/p-proofread.md`: prompt `wcisgc`, with open questions written to the review record (Section 6.1) and citations in the forms of Section 11 |
+| (new) proofreading | - | `steps/p-proofread.md`: the "Proofreading procedure" section of `.aw/system/workflows/technical-writing/technical-writing.md`, with open questions written to the review record (Section 6.1) and citations in the forms of Section 11 |
 | (new) tier, quick risk, personas, decomposition, cross-plan, re-review | - | `steps/t-tier.md`, `steps/q-quick-risk.md`, `steps/r5-personas.md`, `steps/r6-decomposition.md`, `steps/r7-cross-plan.md`, `steps/s6-rereview.md` |
 
 The personas in `.aw/system/workflows/release-review/00-run-protocol.md` and the Fix Bar in
@@ -874,6 +874,7 @@ five of MD-9.
 
 ## Workflow history
 
+- 2026-11-07 note (aw specs): N5 and the two proofreading rows amended to the shipped writing standard (plan e4n4p3, spec ecmw83)
 - 2026-10-26 note (aw specs): MD-20 gate: OTHERWISE; maintainer decision via /askme: BUILD THE REST; complex default: single-12; report: .aw/records/research/20261017-revsteps-06-2m4i0o-review-pilot-results.findings.md
 - 2026-10-25 approved (aw set): status set to approved
 - 2026-10-24 approved (aw specs): Blocks release 2.0.0 (f33nrj, the planned release) per maintainer 2026-10-24
