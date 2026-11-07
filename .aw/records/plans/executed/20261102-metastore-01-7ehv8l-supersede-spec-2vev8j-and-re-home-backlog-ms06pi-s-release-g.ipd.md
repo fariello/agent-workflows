@@ -6,7 +6,7 @@
 - Scope: Records and citation hygiene only. Transition `2vev8j` to `superseded` with a history message citing `4sd62s`, and clear its `- From-Backlog:` so it stops counting as an unshippable carrier of `ms06pi`; add `- From-Backlog: ms06pi` to `4sd62s` with the tooled setter; record the handoff on `ms06pi`; re-point every `2vev8j` citation in `agent_workflows/` and `tests/` to the `4sd62s` section that now holds the rule. EXCLUDES any behavior change, any code other than comments, docstrings and one recovery-hint string, and `CHANGELOG.md` (released history).
 - Scope-Paths: .aw/records/specs/approved/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, .aw/records/specs/superseded/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md, agent_workflows/artifact_core.py, agent_workflows/attention.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/ipd_authoring.py, agent_workflows/record_history.py, agent_workflows/specs.py, agent_workflows/status_set.py, tests/test_backlog.py, tests/test_backlog_history_dedup_parity.py, tests/test_history_date_clock.py, tests/test_history_date_clock_parity.py, tests/test_history_date_clock_residual.py, tests/test_history_date_clock_sidecar.py, tests/test_history_label_parity.py, tests/test_scaffold_history_clock.py, .aw/records/plans/pending/20261102-metastore-01-7ehv8l-supersede-spec-2vev8j-and-re-home-backlog-ms06pi-s-release-g.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,11 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7ehv8l
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7ehv8l verified (set metastore, attempt 1).
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261102-metastore-01-7ehv8l-supersede-spec-2vev8j-and-re-home-backlog-ms06pi-s-release-g.review.md
