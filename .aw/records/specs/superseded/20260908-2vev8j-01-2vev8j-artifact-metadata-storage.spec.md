@@ -1,11 +1,10 @@
 # Spec: Artifact metadata storage: per-artifact history journals and explicit event ordering
 
 - Date: 2026-09-08
-- Status: approved
+- Status: superseded
 - Id: 2vev8j
 - Author: aw specs new
 - Scope: Where aw-owned artifact metadata lives: front matter stays inline; unbounded workflow history moves to git-tracked per-artifact JSONL keyed by id6, ordered by an explicit per-artifact seq
-- From-Backlog: ms06pi
 - Blocks-Release: next
 - Canonical: true
 
@@ -336,6 +335,7 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
 
 
 ## Workflow history
+- 2026-11-07 superseded (aw set): Superseded by spec 4sd62s (4sd62s OQ-4, maintainer ruling 2026-10-24, SR-102). Surviving rules folded into 4sd62s 4.2, 4.2a, 4.2b, 4.5. Release-gate handoff of backlog ms06pi moved to 4sd62s (plan 7ehv8l).
 
 - 2026-10-13 note (aw specs): amend Section 4.4: bind date readers to the clock of their stored operand (IPD hinpcf, backlog 6ly144)
 - 2026-10-08 approved (aw specs, --by-human): amend Section 7 write-order bullet (IPD ulepef E-05)
