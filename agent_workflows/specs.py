@@ -1027,6 +1027,8 @@ def _render_new_spec(
     hdate = history_date_iso or date_iso
     lines += [
         "",
+        core.writing_standard_pointer("spec"),
+        "",
         "## Workflow history",
         "",
         f"- {hdate} created (aw specs): {summary or title}",

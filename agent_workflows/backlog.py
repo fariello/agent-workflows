@@ -851,6 +851,8 @@ def _render_item(
         today = core.utc_history_date()
         msg = (message or "").strip() or item.summary
         lines.append("")
+        lines.append(core.writing_standard_pointer("backlog item"))
+        lines.append("")
         lines.append("## Workflow history")
         lines.append(f"- {today} created (aw backlog): {msg}")
         lines.append("")

@@ -254,6 +254,21 @@ def utc_history_date() -> str:
 
 
 # --------------------------------------------------------------------------------------
+# Technical writing standard pointer (spec ecmw83 R-06; IPD yz4jdm E-01)
+# --------------------------------------------------------------------------------------
+
+
+def writing_standard_pointer(noun: str) -> str:
+    """Return the pointer line directing authors to the technical writing standard."""
+    return (
+        f"> Write and proofread this {noun} per the technical writing standard, "
+        "`.aw/system/workflows/technical-writing/technical-writing.md` "
+        "(`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), "
+        "including requirement 12 (diagrams)."
+    )
+
+
+# --------------------------------------------------------------------------------------
 # The ONE lifecycle-commit subject grammar (IPD `zexed1` E-02)
 # --------------------------------------------------------------------------------------
 #

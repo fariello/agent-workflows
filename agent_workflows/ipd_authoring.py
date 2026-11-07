@@ -323,6 +323,8 @@ def build_skeleton(
     lines.append(f"- Author: {author}")
     lines.append(f"- Id: {plan_id}")
     lines.append("")
+    lines.append(_core.writing_standard_pointer("plan"))
+    lines.append("")
     for h in order_seq:
         lines.append(f"## {h}")
         lines.append("")
