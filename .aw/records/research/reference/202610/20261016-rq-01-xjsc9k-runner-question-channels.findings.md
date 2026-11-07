@@ -6,7 +6,7 @@ order: 01
 topic: [runner, questions, notifications]
 model: claude-opus-5-5
 kind: findings
-status: active
+status: reference
 outcome: informational
 summary: How a live aw run can ask the maintainer a question and take the answer back, over the terminal, a CLI verb, and push/chat channels (ntfy, Telegram, Teams, Google Chat, Signal)
 consumed-by: []

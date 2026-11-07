@@ -6,8 +6,8 @@ order: 05
 topic: [runner, questions, notifications, telegram, signal]
 model: gpt61med
 kind: research-report
-status: todo
-outcome: none-yet
+status: reference
+outcome: informational
 summary: Response to bao493 by gpt61med: two-way Telegram and Signal question channels for aw runners on macOS, Linux and Windows
 consumed-by: []
 ---

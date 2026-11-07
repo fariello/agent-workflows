@@ -6,8 +6,8 @@ order: 08
 topic: [runner, questions, notifications, telegram, signal]
 model: opus55high
 kind: research-report
-status: todo
-outcome: none-yet
+status: reference
+outcome: informational
 summary: Response to bao493 by opus55high: two-way Telegram and Signal question channels for aw runners on macOS, Linux and Windows
 consumed-by: []
 ---
