@@ -275,7 +275,7 @@ The checkup runs automatically at run start when the branch advances past the co
 - `ci_checkup_branch`: Target branch to inspect (default `main`).
 - `ci_red_exempt_sets`: List of plan Set IDs exempt from the red-CI run-start gate (default `[]`).
 
-Checkup results are displayed in run-start banners, run-end summaries, `aw attention`, and `aw doctor`. When the saved checkup record shows CI's last pass is more than `ci_checkup_interval_commits` first-parent commits behind `ci_checkup_branch`, `aw oc run` and `aw agy run` refuse to start new work unless every selected item belongs to a Set in `ci_red_exempt_sets` or `--allow-red-ci "<why>"` is passed (recording the reason in the run events and summary).
+Checkup results are displayed in run-start banners, run-end summaries, `aw attention`, and `aw doctor`. When the saved checkup record shows CI's last pass is more than `ci_checkup_interval_commits` first-parent commits behind `ci_checkup_branch`, `aw oc run` and `aw agy run` refuse to start new work unless every selected item belongs to a Set in `ci_red_exempt_sets` or `--allow-red-ci "<why>"` is passed (recording the reason in the run events and summary). Runs also type-check the commit their lanes branch from: if it already fails `mypy agent_workflows`, an unattended run refuses to start and an interactive run shows the errors and asks before continuing; `--allow-failed-checks "<why>"` overrides either and records the reason. Lane integration refuses only type errors a lane adds, so an error inherited from main never blocks a lane.
 
 ### Concise agent reporting
 

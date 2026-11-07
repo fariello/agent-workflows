@@ -110,6 +110,20 @@ repos:
         stages: [pre-push]
         verbose: true
 
+      # basegate (run-20261107T023507Z-1895321): COMMIT-TIME type gate. A hand commit put a mypy
+      # error on main that only the pre-push hook would have caught, and the next unattended run
+      # inherited it. This checks the STAGED tree (git write-tree), never the working tree, and
+      # refuses only errors the commit ADDS relative to HEAD, so a co-worker's unstaged edit or an
+      # error already on HEAD cannot block an unrelated commit. Skipped when no agent_workflows/*.py
+      # or mypy config file is staged. Warm cost is well under a second via the shared
+      # <git-common-dir>/aw-mypy-cache; the first run in a clone is a cold mypy run (~20s here).
+      - id: static-type-gate-commit
+        name: static type gate on staged changes (new mypy errors vs HEAD)
+        entry: python3 -m agent_workflows.typecheck_gate staged
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # cihealth: static type gate before push.
       - id: static-type-gate
         name: static type gate before push (mypy agent_workflows)

@@ -8033,10 +8033,22 @@ def check_lane_type_safety(
     handle: Any,
     changed_files: Sequence[str],
 ) -> tuple[bool, str]:
-    """Verify static type safety (mypy) of an incoming lane that touched agent_workflows/ Python files.
+    """Refuse a lane only for the mypy errors IT ADDS relative to its own base commit.
 
-    Prevents type regressions from landing on main and breaking the CI typecheck gate.
+    Prevents type regressions from landing on main and breaking the CI typecheck gate, WITHOUT
+    blaming a lane for an error it inherited. Run `run-20261107T023507Z-1895321` is why: one error
+    already on `main` made this check (which then ran mypy on the lane tip alone) refuse all five
+    verified lanes of the run, none of which had introduced it.
+
+    The lane's committed tip (`handle.branch`, else the worktree's `HEAD`) is compared with
+    `handle.base_commit` through :mod:`agent_workflows.typecheck_gate`, which extracts each tree
+    with `git archive` and compares errors with line numbers normalized. The base is type-checked
+    only when the tip has errors, so a clean lane costs one (usually cached) mypy run. A comparison
+    that cannot be performed FAILS CLOSED, as the tip-only check did. With no recorded base the
+    tip's errors are all treated as new, which is exactly the previous behavior.
     """
+    from agent_workflows import typecheck_gate as _tc
+
     wt_path = (
         Path(handle.path)
         if (getattr(handle, "path", None) and Path(handle.path).is_dir())
@@ -8053,28 +8065,23 @@ def check_lane_type_safety(
     if not touches_pkg:
         return True, ""
 
-    import subprocess
-
-    cmd = [sys.executable, "-m", "mypy", "agent_workflows"]
+    head = str(getattr(handle, "branch", "") or "HEAD")
+    base = str(getattr(handle, "base_commit", "") or "")
     try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(wt_path),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-        if proc.returncode != 0:
-            err_lines = [
-                line.strip() for line in proc.stdout.splitlines() if "error:" in line
-            ]
-            summary = "; ".join(err_lines[:5]) if err_lines else proc.stdout.strip()
-            return False, f"type check failed: {summary}"
+        if base:
+            cmp = _tc.compare_trees(wt_path, base, head)
+        else:
+            run = _tc.check_tree(wt_path, head)
+            cmp = _tc.Comparison(
+                list(run.errors), 0, _tc.MypyRun(ok=True), run, failure=run.failure
+            )
     except Exception as exc:
         return False, f"failed to execute type check in lane: {exc}"
-
+    if cmp.failure:
+        return False, f"failed to execute type check in lane: {cmp.failure}"
+    if cmp.new_errors:
+        summary = "; ".join(e.strip() for e in cmp.new_errors[:5])
+        return False, f"type check failed: {summary}"
     return True, ""
 
 
@@ -17029,6 +17036,27 @@ RUN_POLICY_FLAGS: tuple = (
         ),
         resume_rule=RESUME_REFUSE,
     ),
+    # basegate (run-20261107T023507Z-1895321): the main-typecheck run-start gate's override flag.
+    # A `str` row for the same reason its siblings are: the risk accepted is spending a run on a
+    # base whose own checks already fail, so the record must say WHY. Refused on resume because
+    # `resume` does not re-run `initialize_run_core`, where the gate lives.
+    RunPolicyFlag(
+        flag="--allow-failed-checks",
+        dest="allow_failed_checks",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.enforce_main_typecheck_gate",
+        help=(
+            "Start the run even though the committed HEAD every lane branches from already FAILS "
+            "its static type check (mypy agent_workflows), and RECORD THE SUPPLIED JUSTIFICATION. "
+            "Takes a non-empty reason string. Without it an interactive run warns and asks for "
+            "acknowledgement and an unattended run refuses before any agent turn. Lane integration "
+            "only refuses errors a lane ADDS, so an inherited failure no longer strands lanes, but "
+            "the base stays red until someone fixes it. It waives no other gate, `--full-auto` "
+            "does not imply it, and it cannot be changed on --resume"
+        ),
+        resume_rule=RESUME_REFUSE,
+    ),
     RunPolicyFlag(
         flag="--on-integration-blocked",
         dest="on_integration_blocked",
@@ -17187,6 +17215,14 @@ def register_run_policy_flags(
             )
         return cleaned
 
+    def _non_empty_failed_checks_reason(value: str) -> str:
+        cleaned = str(value).strip()
+        if not cleaned:
+            raise _argparse.ArgumentTypeError(
+                'requires a non-empty justification string (for example: --allow-failed-checks "fixing it in this run")'
+            )
+        return cleaned
+
     skipped = set(skip)
     unknown = skipped - set(RUN_POLICY_FLAGS_BY_DEST)
     if unknown:
@@ -17295,6 +17331,8 @@ def register_run_policy_flags(
             }
             if row.dest == "allow_red_ci":
                 str_kwargs["type"] = _non_empty_red_ci_reason
+            elif row.dest == "allow_failed_checks":
+                str_kwargs["type"] = _non_empty_failed_checks_reason
             parser.add_argument(row.flag, **str_kwargs)
         else:  # pragma: no cover - the table is closed; a new kind is a programming error
             raise ValueError(
@@ -22598,6 +22636,201 @@ def enforce_spec_edit_ack_gate(
         impacts=tuple(impacts),
         refusal=refusal,
         message=f"{reason}. {remedy}",
+    )
+
+
+# ==================================================================================================
+# basegate: THE MAIN-TYPECHECK RUN-START GATE (spec `25kzda` 2.5g)
+# ==================================================================================================
+
+MAIN_TYPECHECK_REFUSAL_CODE = "main-typecheck-failed"
+
+
+class MainTypecheckDecision(NamedTuple):
+    """The main-typecheck gate's verdict."""
+
+    #: True when the run may proceed. False means a refusal was recorded and the caller must raise.
+    proceed: bool
+    #: Whether the gate checked anything (False when it does not apply to this repo or queue).
+    applied: bool = False
+    #: The base's `error:` lines (or empty when clean or not applied).
+    errors: tuple[str, ...] = ()
+    #: How the run was allowed past a red base: "flag", "interactive", or "".
+    override: str = ""
+    #: The recorded justification or interactive acknowledgement.
+    justification: str = ""
+    #: The human message the caller prints and, on refusal, raises with.
+    message: str = ""
+
+
+def enforce_main_typecheck_gate(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    repo: Path,
+    interactive: bool,
+    write_report_fn: Any,
+    justification: str | None = None,
+    prompt: Any = None,
+    check_tree_fn: Callable[..., Any] | None = None,
+) -> MainTypecheckDecision:
+    """Refuse (unattended) or ask (TTY) before a run whose BASE already fails its type check.
+
+    WHY (run `run-20261107T023507Z-1895321`): a run started three hours after a hand commit put a
+    mypy error on `main`; every lane inherited it and the run spent its whole budget producing lanes
+    the integration gate then refused. Lane integration now refuses only errors a lane ADDS, so an
+    inherited error no longer strands lanes, but launching a run onto a known-red base is still a
+    decision a human should make knowingly. This gate makes it one, before any agent turn.
+
+    WHAT IS CHECKED is the committed `HEAD` of `repo`, extracted with `git archive`, because that is
+    the commit each lane worktree branches from; the working tree (and a co-worker's uncommitted
+    edits in it) is never consulted. It applies only when the queue contains an `execute` item
+    (review and plan turns produce records, not code) and the repo carries the `agent_workflows`
+    package. Sited before the `--prepare-only` early return so a prepared queue cannot bypass it.
+
+    A check that cannot be PERFORMED (mypy missing, timeout, extraction failure) warns and proceeds:
+    the gate exists to stop a run on a KNOWN-red base, and the integration gate still fails closed
+    per lane, so an unavailable checker must not cost a night's work.
+    """
+    from agent_workflows import typecheck_gate as _tc
+
+    def _emit(payload: dict[str, Any]) -> None:
+        append_jsonl(
+            Path(run_dir) / "events.jsonl",
+            {"at": utc_now(), "event": "main-typecheck-gate", **payload},
+        )
+
+    queue = [q for q in (state.get("queue") or []) if isinstance(q, dict)]
+    executes = [
+        q for q in queue if integration_action_for_item(q) == INTEGRATION_ACTION_EXECUTE
+    ]
+    if not executes or not _tc.applies(repo, "HEAD"):
+        return MainTypecheckDecision(proceed=True)
+
+    head_sha = ""
+    with contextlib.suppress(Exception):
+        head_sha = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+    run = (check_tree_fn or _tc.check_tree)(repo, "HEAD")
+    if getattr(run, "failure", None):
+        message = (
+            f"main type check: could not be performed on HEAD {head_sha} ({run.failure}); "
+            "proceeding. Lane integration still type-checks each lane."
+        )
+        print(f"WARNING: {message}", file=sys.stderr)
+        _emit(
+            {
+                "proceed": True,
+                "applied": True,
+                "head": head_sha,
+                "unavailable": run.failure,
+            }
+        )
+        return MainTypecheckDecision(proceed=True, applied=True, message=message)
+    if run.ok:
+        _emit({"proceed": True, "applied": True, "head": head_sha, "errors": 0})
+        return MainTypecheckDecision(proceed=True, applied=True)
+
+    errors = tuple(run.errors)
+    shown = "\n".join(f"  {e}" for e in errors[:10])
+    more = f"\n  ... and {len(errors) - 10} more" if len(errors) > 10 else ""
+    summary = (
+        f"HEAD {head_sha} already FAILS its static type check (mypy agent_workflows): "
+        f"{len(errors)} error(s).\n{shown}{more}\n"
+        "Every lane in this run branches from this commit. Lane integration refuses only errors a "
+        "lane ADDS, so these will not strand lanes, but the base stays red until someone fixes it."
+    )
+
+    reason = (justification or "").strip()
+    if reason:
+        state.setdefault("options", {})["allow_failed_checks"] = reason
+        save_state(Path(run_dir), state, write_report=write_report_fn)
+        _emit(
+            {
+                "proceed": True,
+                "applied": True,
+                "head": head_sha,
+                "errors": len(errors),
+                "override": "flag",
+                "justification": reason,
+            }
+        )
+        message = (
+            f"main type check override (--allow-failed-checks): {reason}\n{summary}"
+        )
+        print(f"WARNING: {message}", file=sys.stderr)
+        return MainTypecheckDecision(
+            proceed=True,
+            applied=True,
+            errors=errors,
+            override="flag",
+            justification=reason,
+            message=message,
+        )
+
+    if interactive:
+        question = f"WARNING: {summary}\nStart the run anyway? [y/N]: "
+        answer = (
+            prompt(question)
+            if prompt is not None
+            else prompt_for_gate_phrase(question, timeout=None)
+        )
+        if answer is not None and str(answer).strip().lower() in ("y", "yes"):
+            ack = "interactive acknowledgement: y"
+            state.setdefault("options", {})["allow_failed_checks"] = ack
+            save_state(Path(run_dir), state, write_report=write_report_fn)
+            _emit(
+                {
+                    "proceed": True,
+                    "applied": True,
+                    "head": head_sha,
+                    "errors": len(errors),
+                    "override": "interactive",
+                    "justification": ack,
+                }
+            )
+            return MainTypecheckDecision(
+                proceed=True,
+                applied=True,
+                errors=errors,
+                override="interactive",
+                justification=ack,
+                message=summary,
+            )
+
+    remedy = (
+        "Fix the type errors on main and commit the fix, or re-run on a TTY and answer 'y', or pass "
+        "`--allow-failed-checks '<why>'`."
+    )
+    for item in executes:
+        record_refusal(
+            item, code=MAIN_TYPECHECK_REFUSAL_CODE, reason=summary, remedy=remedy
+        )
+    state["main_typecheck_refusal"] = {
+        "code": MAIN_TYPECHECK_REFUSAL_CODE,
+        "head": head_sha,
+        "errors": list(errors),
+        "remedy": remedy,
+    }
+    save_state(Path(run_dir), state, write_report=write_report_fn)
+    _emit(
+        {
+            "proceed": False,
+            "applied": True,
+            "head": head_sha,
+            "errors": len(errors),
+            "remedy": remedy,
+        }
+    )
+    return MainTypecheckDecision(
+        proceed=False,
+        applied=True,
+        errors=errors,
+        message=f"REFUSED: {summary}\n{remedy}",
     )
 
 
@@ -37642,6 +37875,20 @@ def initialize_run_core(
         allow_red_ci=getattr(args, "allow_red_ci", None),
         write_report_fn=write_report_fn,
     )
+
+    # basegate: THE MAIN-TYPECHECK RUN-START GATE, sited with the red-CI gate and for the same
+    # reason: before the `--prepare-only` early return (so a prepared queue cannot bypass it on
+    # resume) and before any agent turn, lane worktree or session.
+    typecheck_decision = enforce_main_typecheck_gate(
+        run_dir,
+        state,
+        repo=repo,
+        interactive=is_interactive_run(args),
+        write_report_fn=write_report_fn,
+        justification=getattr(args, "allow_failed_checks", None),
+    )
+    if not typecheck_decision.proceed:
+        raise DriverError(typecheck_decision.message)
 
     # specpause-01 (`1g4i1t`) E-05: THE SPEC-EDIT ACKNOWLEDGEMENT GATE, sited HERE immediately
     # after the initial run report is written and BEFORE the `--prepare-only` early return.
