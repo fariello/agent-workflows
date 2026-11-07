@@ -13,6 +13,7 @@ Read `review-rubric.md` in full. Apply:
 - domain invariants;
 - all eight personas;
 - the mandatory security lens;
+- the technical writing standard (`../technical-writing/technical-writing.md`), including requirement 12 (diagrams);
 - the rubric.
 
 ## 1. Record findings

@@ -8,7 +8,7 @@ Fences the contract established by IPD jbipfa (backlog awqzuh):
 - Legacy default label for callers omitting label parameter is 'set' (E-05(e))
 
 All cross-spelling comparisons compare history dates literally (unified onto UTC
-per spec 2vev8j 4.4) while normalizing the actor and passing an explicit --message
+per spec 4sd62s 4.2b) while normalizing the actor and passing an explicit --message
 to prevent failure from defaulted message asymmetry.
 """
 
@@ -33,7 +33,7 @@ def _normalize_history_record(record: str) -> str:
 
     Hides one known out-of-scope asymmetry:
     1. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate.
-    (Date skew fnb8pl is fixed by routing all writers to UTC per spec 2vev8j 4.4; dates are compared literally).
+    (Date skew fnb8pl is fixed by routing all writers to UTC per spec 4sd62s 4.2b; dates are compared literally).
     """
     return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
 

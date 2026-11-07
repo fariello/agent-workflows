@@ -77,6 +77,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Review prompts: they stay a bare slash command (or a step-file list) by design; the workflow bodies and step files carry the instruction (Order 06).
   - Carrier: e4n4p3
+  - Carrier-Evidence: .aw/records/plans/executed/20261025-writestd-06-e4n4p3-point-the-authoring-and-review-workflow-bodies-at-the-writin.ipd.md
 
 ## Scope check
 

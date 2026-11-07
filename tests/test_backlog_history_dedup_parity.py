@@ -11,7 +11,7 @@ Fences the contract established by IPD evbx9s (backlog r74211):
 - (f) the sidecar: a suppressed call adds no .aw/records/history.jsonl line; a recorded call adds exactly one.
 
 All cross-spelling comparisons compare history dates literally (unified onto UTC
-per spec 2vev8j 4.4) while normalizing:
+per spec 4sd62s 4.2b) while normalizing:
 1. Actor ('(aw backlog)' vs '(aw set)') as truthful attribution kept distinct by design (jbipfa).
 
 Conforms strictly to GUIDING_PRINCIPLES P16 and AGENTS.md:
@@ -41,7 +41,7 @@ def _normalize_history_record(record: str) -> str:
 
     Hides one known out-of-scope axis per IPD evbx9s:
     1. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate (jbipfa).
-    (Date clock differences are eliminated by unifying writers onto UTC per spec 2vev8j 4.4; dates are compared literally).
+    (Date clock differences are eliminated by unifying writers onto UTC per spec 4sd62s 4.2b; dates are compared literally).
     """
     return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
 
