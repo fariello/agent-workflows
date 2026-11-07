@@ -20,6 +20,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 note (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): the legacy loader this plan built scans only the resolved records root, so in a `.agents/`-layout repository it returns 0 records (measured on a copy of one: 201 records seen by status_set, 0 by the cache); extended to every prior shape by g5hpbb (spec 4sd62s C12, 5.2a, AC-42). Loader parity defects on this repository were fixed separately by backlog suth7l (7377cbc0b). Nothing this plan records is changed.
 - 2026-11-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tve77h verified (set metastore, attempt 1).
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED

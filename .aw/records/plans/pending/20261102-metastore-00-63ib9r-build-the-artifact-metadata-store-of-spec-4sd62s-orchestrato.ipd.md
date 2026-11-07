@@ -9,19 +9,20 @@
 - Status: to-review
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: 96fe24cd857bd6bec4dc629231005da297a3a4e5eacc65c52f2c65bca9bff5e4
-- Coverage-Checked: 2026-11-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 979ef50d956a9d734eced87fe98dc568d664800571e0902399178ebe888b5bc6
+- Coverage-Checked: 2026-11-07 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
 - Set: metastore
 - Order: 0
-- Highest E allocated: 13
+- Highest E allocated: 14
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
 - Review-Depth: orchestrator
 
 ## Workflow history
+- 2026-11-07 coverage pass (aw oc run): fingerprint 979ef50d956a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
@@ -79,22 +80,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-08 CONFIRM ffceq0 REACHED executed
-  - Depends on: E-02, E-07
+  - Depends on: E-02, E-07, E-14
   - Expected outcome: `aw find plans ffceq0` shows it under `executed/`.
   - Execution state: pending
 
 - [ ] E-09 CONFIRM t4gl15 REACHED executed
-  - Depends on: E-02, E-07, E-08
+  - Depends on: E-02, E-07, E-08, E-14
   - Expected outcome: `aw find plans t4gl15` shows it under `executed/`.
   - Execution state: pending
 
 - [ ] E-10 CONFIRM 59aiyh REACHED executed
-  - Depends on: E-02, E-07
+  - Depends on: E-02, E-07, E-14
   - Expected outcome: `aw find plans 59aiyh` shows it under `executed/`.
   - Execution state: pending
 
 - [ ] E-11 CONFIRM 9o83cr REACHED executed
-  - Depends on: E-08, E-09, E-10, E-03, E-04
+  - Depends on: E-08, E-09, E-10, E-03, E-04, E-14
   - Expected outcome: `aw find plans 9o83cr` shows it under `executed/`.
   - Execution state: pending
 
@@ -103,8 +104,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw find plans 90iqr1` shows it under `executed/`.
   - Execution state: pending
 
+- [ ] E-14 CONFIRM g5hpbb REACHED executed
+  - Depends on: E-04
+  - Expected outcome: `aw find plans g5hpbb` shows it under `executed/`.
+  - Execution state: pending
+
 - [ ] E-13 CONFIRM cxxmyv REACHED executed
-  - Depends on: E-12, E-04, E-05, E-03
+  - Depends on: E-12, E-04, E-05, E-03, E-14
   - Expected outcome: `aw find plans cxxmyv` shows it under `executed/`.
   - Execution state: pending
 
@@ -119,14 +125,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 05 | `ya4ee4` | `20261102-metastore-05-ya4ee4-build-the-short-description-journal-and-the-tool-less-saniti.ipd.md` | Build the short-description journal and the tool-less sanitized generation prompt. | `executed:dcerjg` |
 | 06 | `2xwb9b` | `20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md` | Move the status_set setter engine onto artifact_meta. | `executed:tve77h`, `executed:7ehv8l` |
 | 07 | `xexn45` | `20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md` | Move the remaining metadata writers onto artifact_meta. | `executed:tve77h`, `executed:2xwb9b` |
-| 08 | `ffceq0` | `20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md` | Move selectors, check_engine, attention and ipd_lint reads onto artifact_meta. | `executed:tve77h`, `executed:xexn45` |
-| 09 | `t4gl15` | `20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md` | Move runner, gate, hook and module reads onto artifact_meta and read_at. | `executed:tve77h`, `executed:xexn45`, `executed:ffceq0` |
-| 10 | `59aiyh` | `20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md` | Move test data to one shared record builder over artifact_meta. | `executed:tve77h`, `executed:xexn45` |
-| 11 | `9o83cr` | `20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` | Delete INDEX and STATUS code and every legacy parser outside artifact_meta. | `executed:ffceq0`, `executed:t4gl15`, `executed:59aiyh`, `executed:1ajqaa`, `executed:dcerjg` |
+| 08 | `ffceq0` | `20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md` | Move selectors, check_engine, attention and ipd_lint reads onto artifact_meta. | `executed:tve77h`, `executed:xexn45`, `executed:g5hpbb` |
+| 09 | `t4gl15` | `20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md` | Move runner, gate, hook and module reads onto artifact_meta and read_at. | `executed:tve77h`, `executed:xexn45`, `executed:ffceq0`, `executed:g5hpbb` |
+| 10 | `59aiyh` | `20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md` | Move test data to one shared record builder over artifact_meta. | `executed:tve77h`, `executed:xexn45`, `executed:g5hpbb` |
+| 11 | `9o83cr` | `20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` | Delete INDEX and STATUS code and every legacy parser outside artifact_meta. | `executed:ffceq0`, `executed:t4gl15`, `executed:59aiyh`, `executed:1ajqaa`, `executed:dcerjg`, `executed:g5hpbb` |
 | 12 | `90iqr1` | `20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md` | Rewrite documents, managed block, templates and quickstarts for the log format. | `executed:9o83cr` |
-| 13 | `cxxmyv` | `20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md` | Perform the attended metadata cutover commit. | `executed:90iqr1`, `executed:dcerjg`, `executed:ya4ee4`, `executed:1ajqaa` |
+| 13 | `cxxmyv` | `20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md` | Perform the attended metadata cutover commit. | `executed:90iqr1`, `executed:dcerjg`, `executed:ya4ee4`, `executed:1ajqaa`, `executed:g5hpbb` |
+| 14 | `g5hpbb` | `20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md` | Make `aw migrate metadata` migrate any repository from any prior format (spec C12, 5.2a, AC-42), and make the phase-A cache read every shape. Runs AFTER 04 and BEFORE 08, 09, 10, 11 and 13, by dependency edge (the number is only the next free Order; added 2026-11-07). | `executed:dcerjg` |
 
-Phase A (Orders 01 to 05) adds code on today's format and moves no caller; Order 01 is records only. Phase B (Orders 06 to 11) moves every writer and reader onto `artifact_meta` while the on-disk format stays the legacy bullet block, so `main` has one format at every merge (spec C10a). Order 12 prepares the post-cutover documentation as a patch file that never reaches the live documents before the cutover. Order 13 is `Attended: required`: it runs in the maintainer's main checkout, which holds the history sidecar, so an `--unattended` run holds it `not-run` and this orchestrator cannot retire until Order 13 has been run attended.
+Phase A (Orders 01 to 05, plus Order 14 added 2026-11-07 for spec C12) adds code on today's format and moves no caller; Order 01 is records only. Phase B (Orders 06 to 11) moves every writer and reader onto `artifact_meta` while the on-disk format stays the legacy bullet block, so `main` has one format at every merge (spec C10a). Order 12 prepares the post-cutover documentation as a patch file that never reaches the live documents before the cutover. Order 13 is `Attended: required`: it runs in the maintainer's main checkout, which holds the history sidecar, so an `--unattended` run holds it `not-run` and this orchestrator cannot retire until Order 13 has been run attended.
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -240,6 +247,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-13 validates E-13
   - Required evidence: paste `aw find plans cxxmyv` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-14 validates E-14
+  - Required evidence: paste `aw find plans g5hpbb` output showing the plan under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
