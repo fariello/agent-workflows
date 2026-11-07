@@ -6,7 +6,7 @@
 - Scope: Proofread every backlog item whose status is `open`, `blocked`, `graduated`, or `parked` at execution time; add diagrams per requirement 12; append one `aw backlog note` history line to every swept item; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `done` items (`ecmw83` N3); any change to an item's title line or metadata fields (`Status`, `Priority`, `Work-Kind`, `Gate-*`, `Blocks-Release`, `Release-Exempt-*`, `Id`, `Set`, `Summary`, `Graduated-To`, and every other `- Key:` field before the first `## ` heading); any change to a heading, a stable ID, an inline code span, a number, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes.
 - Scope-Paths: .aw/records/backlog/open/, .aw/records/backlog/graduated/, .aw/records/backlog/parked/, .aw/records/walkthroughs/
 - Item-Dependencies: executed:g4719s, executed:gzhw9c, executed:k2x0yl, executed:e4n4p3
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: uog8nc
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-07 reviewed (opencode/claude-opus): status reconciliation: /plan-review rounds 1-2 (runs run-20261106T033613Z-1047571, run-20261106T170833Z-1417128) recorded APPROVE WITH REVISIONS APPLIED and Readiness go-pending-approval but left Status to-review; the review-gated runner therefore blocked 381ml6
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2 PR-101..PR-104 FIXED; review record .aw/records/reviews/20261025-writestd-08-uog8nc-sweep-live-backlog-items-against-the-writing-standard.review.md
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261025-writestd-08-uog8nc-sweep-live-backlog-items-against-the-writing-standard.review.md

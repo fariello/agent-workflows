@@ -6,7 +6,7 @@
 - Scope: Add the numbered migration chain (`agent_workflows/migrations/`, the `metadata_schema` stamp in the resolved `project.json`, `aw migrate metadata`, `aw migrate layout` as the new spelling of `aw migrate-layout`), the `aw install` pending-migration prompt and `--migrate`, and `m0001_metadata_v2` with: the step-1 preflight and `--force`/`--force-worktree`; the step-2 sidecar import and orphan export; the step-3 legacy-name renames (OQ-26 logged-Order rule, OQ-28 checkpoint-at-old-path plus `rename` event) and citation rewrite over widened scan roots (OQ-27); the step-4 conversion of artifacts, walkthroughs, roadmap, staged prompts and review files; the step-4a terminal-exception marker accepted by the two commit hooks; step-5 target-repository cleanup; the step-6 field census and round-trip verifier; and a description seam that Order 05 fills. Everything runs ONLY on test fixtures and on a disposable clone of this repository; this plan never migrates this checkout. EXCLUDES: the description journal and model generation (Order 05, `ya4ee4`); switching the toolkit's loader and writer to logs, moving the legacy loader into `m0001`, the real cutover run, and flipping `CURRENT_METADATA_SCHEMA` to 2 (Order 13, `cxxmyv`); removing the sidecar writer and the `history.jsonl` lines from `engine.py` and `placement_switch.py` (Order 13); deleting INDEX/STATUS code (Order 11, `9o83cr`); `aw check meta` (Order 08, `ffceq0`).
 - Scope-Paths: agent_workflows/migrations/__init__.py, agent_workflows/migrations/chain.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_preflight.py, agent_workflows/migrations/m0001_renames.py, agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_verify.py, agent_workflows/artifact_meta.py, agent_workflows/project_schema.py, agent_workflows/install_wizard.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, agent_workflows/engine.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_migrations_chain.py, tests/test_m0001_preflight.py, tests/test_m0001_renames.py, tests/test_m0001_conversion.py, tests/test_m0001_roundtrip.py, tests/test_m0001_gate_marker.py, tests/test_install_migrate_prompt.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md
 - Item-Dependencies: executed:tve77h
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dcerjg
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)

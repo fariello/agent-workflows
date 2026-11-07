@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the nine children below and confirm each reaches `executed`. No file, test, or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -21,8 +21,10 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8fvkmp
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-02 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-02 coverage pass (aw oc run): fingerprint c21e5196b48f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.review.md

@@ -6,7 +6,7 @@
 - Scope: Phase B, section 7 step 7 of `4sd62s`. (1) Make `aw index plans|research|prompts|all` and `aw research index` informational aliases of `aw index rebuild` (`meta_cli.index_rebuild`); delete the INDEX writers, every automatic INDEX regeneration call, the INDEX `--check` freshness classes and the `check.stale-index-missing`/`check.stale-index-stale` rules with their doctor remediation, while keeping every non-INDEX drift rule that `check_drift` hosts today. (2) Delete the STATUS code (`plans.render_status_index` and the dead `write_index` branch of `cli._run_plans`) and `artifact_audit._INDEX_CACHE`. (3) Fold the `releases.set_*_line`, `backlog.set_*_line` and `research_cmd._set_priority_line` value writers into `artifact_meta`; delete the thin adapters kept by `xexn45` F-08; delete every legacy metadata parser and regular expression outside `artifact_meta` that phase B left, moving any grammar the legacy loader still borrows into `artifact_meta`. (4) Add the AC-1 behavioral test and the AC-1 audit. EXCLUDES: anything that needs the log format or the migrated tree (cutover, `cxxmyv`), and document rewrites for log-based commands (`90iqr1`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/meta_cli.py, agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/prompts_index.py, agent_workflows/plans.py, agent_workflows/cli.py, agent_workflows/artifact_types.py, agent_workflows/command_surface.py, agent_workflows/record_producers.py, agent_workflows/artifact_core.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/artifact_rename.py, agent_workflows/research_cmd.py, agent_workflows/research_refs.py, agent_workflows/plans_refs.py, agent_workflows/artifact_adopt.py, agent_workflows/artifact_audit.py, agent_workflows/selectors.py, agent_workflows/releases.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/prompts.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/research_contract.py, agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/plan_readiness.py, agent_workflows/review_findings.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/orchestrator_readiness.py, agent_workflows/production_checks.py, agent_workflows/research_archive.py, agent_workflows/review_sequence.py, agent_workflows/set_records.py, agent_workflows/lane_containment.py, agent_workflows/record_history.py, tools/gate_drop_audit.py, tests/test_*.py, tests/conformance_matrix.py, tests/support.py, docs/cli-output-contract.md, docs/cli-agent-protocol.md, README.md, CONTRIBUTING.md, CHANGELOG.md, .aw/records/plans/README.md, .aw/records/research/README.md, .aw/system/workflows/templates/agents-docs-research-README.md, .aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:t4gl15, executed:59aiyh, executed:1ajqaa, executed:dcerjg
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9o83cr
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)

@@ -6,7 +6,7 @@
 - Scope: Phase B step 4, part 2 of 2 (`4sd62s` section 7). Add ONE phase-B legacy writer inside `artifact_meta` (`write_legacy`) that renders a validated batch of events as bullet-block, `aw-prompt`-comment and history-line edits. Then move these writers onto `artifact_meta.create`, `artifact_meta.append` and `write_legacy`, each pinned first by its existing tests: `specs` (`run_new`, `run_note`, `run_migrate`), `backlog` (`run_new`, `run_note`, `_reattach_history`), `releases` (`create_release`, `plan_release`, `set_item_dependencies_line`, `set_graduated_to_line`), `prompts` (`run_new`, `render_metadata_comment`, `inject_metadata_id6`, `update_metadata_status`), `ipd_authoring` (`run_scaffold`, `run_sync` watermark), `artifact_rename` (`_update_frontmatter_metadata`, `_update_or_inject_set_metadata`, rename and group ledger), `plans_refs` (`_set_metadata`, `apply_renames`), `research_refs` and `research_cmd` and `research_archive` and `plans_archive` path and field writes, `artifact_adopt.apply_adoption`, `plan_readiness.recheck_readiness` with `readiness_recheck`, `set_records` (`write_walkthrough`, `close_on_answer`, `promote_question_to_backlog`), `coverage_record.write`, finalize scope fields (`ipd_lifecycle._finalize_transaction`, `_insert_scope_exceeded_metadata`), retirement (`ipd_lifecycle.retire_orchestrator` and `status_set`'s child-retirement history on the orchestrator), and the runner writer helpers (`runner_shared.rederive_front_matter`, `mark_plan_attended`, `record_oq_answer`, `perform_coordinator_proposal_file`, `review_sequence.restore_pre_s7_plan`). Add `--summary` to `aw ipd scaffold` and `aw prompts new` and an `aw describe <id6>` short-description setter (AC-36 case 1). EXCLUDES: the `status_set` engine itself (`2xwb9b`); readers (`ffceq0`, `t4gl15`); deleting old parsers (`9o83cr`); the log format, `rename` and path events and sidecar retirement, which start at the cutover (`cxxmyv`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/specs.py, agent_workflows/backlog.py, agent_workflows/releases.py, agent_workflows/prompts.py, agent_workflows/ipd_authoring.py, agent_workflows/artifact_rename.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/research_cmd.py, agent_workflows/research_archive.py, agent_workflows/plans_archive.py, agent_workflows/artifact_adopt.py, agent_workflows/plan_readiness.py, agent_workflows/readiness_recheck.py, agent_workflows/set_records.py, agent_workflows/coverage_record.py, agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/runner_shared.py, agent_workflows/review_sequence.py, agent_workflows/cli.py, agent_workflows/command_surface.py, docs/cli-output-contract.md, CHANGELOG.md, tests/test_artifact_meta_legacy_writer.py, tests/test_writers_create_summary.py, tests/test_writers_scope_fields.py, tests/test_writers_merge_independence.py, tests/test_writers_obligations.py, tests/test_artifact_meta_registry.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 14
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xexn45
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED; review record .aw/records/reviews/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)

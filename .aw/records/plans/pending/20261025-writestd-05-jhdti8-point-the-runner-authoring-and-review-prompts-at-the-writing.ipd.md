@@ -6,7 +6,7 @@
 - Scope: Add one requirement line, naming the layout-resolved path of the shipped standard, to the "## Production Contract" list of all three authoring prompt variants, and test it. EXCLUDES `build_review_prompt` and `review_sequence.render_prompt` (the review prompts reach the standard through the workflow bodies and step files Order 06 edits), the correction prompts `build_production_set_correction_prompt` and `build_review_orchestrator_correction_prompt` (they resume a session that already received the authoring or review prompt), and the execution prompt `build_prompt`, which executes plans rather than writes them.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_production_prompt_writing_standard.py, CHANGELOG.md
 - Item-Dependencies: executed:g4719s
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -18,8 +18,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jhdti8
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; re-scoped to the standard shipped by 0cbfcc706 (g4719s OQ-02 answer); PR-001..PR-008 FIXED; review record .aw/records/reviews/20261025-writestd-05-jhdti8-point-the-runner-authoring-and-review-prompts-at-the-writing.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5

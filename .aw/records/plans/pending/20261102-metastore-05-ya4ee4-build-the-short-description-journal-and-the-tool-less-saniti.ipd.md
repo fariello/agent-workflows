@@ -6,7 +6,7 @@
 - Scope: Add `agent_workflows/migrations/m0001_describe.py` (the description journal keyed per 4.2: `id6`, or the records-root-relative path for a record that Order 04's step 3 gives a minted `id6`, with text, model, host, prompt version and SHA-256 source digest per entry, saved per result); the tracked generation prompt `agent_workflows/data/short-description-prompt.md` with a version line; a tool-less one-shot call through the host binaries (opencode: an inline `aw-describe` agent with every tool disabled and every permission denied, supplied through `OPENCODE_CONFIG_CONTENT`; prompt over stdin; a scratch read-only working directory; Antigravity refused as a description host because it has no tool-less mode); validation of each result by `attention_contract.refuse_unsafe_descriptive` (300) and the leak sanitizer, with one regeneration and otherwise a census-listed absence; the `aw migrate metadata` options `--describe-host`, `--describe-model`, `--no-describe`; fake-model tests; and a small real trial on a copy that measures cost and time per record. EXCLUDES: the m0001 framework, census and refusal logic (Order 04, `dcerjg`); the creating-command `--summary` options and the `short_description` setter (Order 07, `xexn45`); `aw attention --details` and `aw find` reading the column (Order 08, `ffceq0`); the full run over this repository and the AC-13 cost line (Order 13, `cxxmyv`).
 - Scope-Paths: agent_workflows/migrations/m0001_describe.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/data/short-description-prompt.md, agent_workflows/cli.py, pyproject.toml, tests/test_m0001_describe.py, tests/fixtures/describe/fake_host.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-05-ya4ee4-build-the-short-description-journal-and-the-tool-less-saniti.ipd.md
 - Item-Dependencies: executed:dcerjg
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ya4ee4
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261102-metastore-05-ya4ee4-build-the-short-description-journal-and-the-tool-less-saniti.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)

@@ -6,7 +6,7 @@
 - Scope: Amend spec `ecmw83` R-01, R-02, MD-2, AC-01, AC-02, and its entity-table row to match the shipped file. Add requirement 12 (diagrams) and a proofreading procedure section to the shipped file. Reduce `wcisgc` to a pointer. Add a CHANGELOG line. EXCLUDES a new install test (the shipped `tests/test_technical_writing_delivery.py` covers installation), every other surface that references the standard (Orders 02, 04, 05, 06), the dash advisory (Order 03), and the spec's dash-dependent rows R-05 and R-07 and non-goals N1 and N2, which Orders 02 and 03 must be re-reviewed against.
 - Scope-Paths: .aw/system/workflows/technical-writing/technical-writing.md, .aw/records/prompts/reusable/20261017-revsteps-01-wcisgc-technical-artifact-proofreading.prompt.md, .aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g4719s
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-05 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 4: maintainer answered OQ-02 (keep shipped file, amend spec, re-scope) and OQ-01 (moot); plan re-scoped; PR-001, PR-009 FIXED; PR-010 FIXED
 - 2026-11-05 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REJECT - NEEDS REPLAN; round 3: PR-009 REPLAN (commit 0cbfcc706 shipped the standard at technical-writing/technical-writing.md, no dash rule; OQ-02 blocking); PR-001 still OPEN (OQ-01 blocking)
 - 2026-11-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; round 2: round 1 (parked commit 9b2d88cfd) re-verified and carried forward; PR-001 still OPEN (OQ-01 blocking); PR-008 FIXED

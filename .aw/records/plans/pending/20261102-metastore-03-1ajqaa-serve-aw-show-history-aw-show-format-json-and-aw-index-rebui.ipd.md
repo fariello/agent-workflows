@@ -6,7 +6,7 @@
 - Scope: Add `aw show <ref> --history` and `aw show <ref> --format json`, both answered by `artifact_meta.read`, `artifact_meta.history` and `artifact_meta.resolve`; add `aw index rebuild`, which rebuilds the cache through `artifact_meta`; keep the three typed `aw index` spellings working exactly as today in phase A while ALSO refreshing the cache, deferring their alias conversion to the plan that deletes INDEX files; prove AC-2 on a migrated-copy fixture. EXCLUDES changing the default (no-flag) `aw show` output, deleting INDEX files or their `--check` drift checks (Order 11), moving any other reader (Orders 08/09), and the migration itself (Order 04).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/artifact_types.py, agent_workflows/command_surface.py, agent_workflows/meta_cli.py, tests/conformance_matrix.py, tests/test_cli_show.py, tests/test_show_history.py, tests/test_index_rebuild.py, tests/test_show_history_clone.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-03-1ajqaa-serve-aw-show-history-aw-show-format-json-and-aw-index-rebui.ipd.md
 - Item-Dependencies: executed:tve77h
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1ajqaa
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261102-metastore-03-1ajqaa-serve-aw-show-history-aw-show-format-json-and-aw-index-rebui.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)

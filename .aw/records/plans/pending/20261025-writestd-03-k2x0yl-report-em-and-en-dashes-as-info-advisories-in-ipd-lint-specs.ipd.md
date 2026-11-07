@@ -6,7 +6,7 @@
 - Scope: Add one shared prose-dash scanner; emit it as advisory `IPD-C802` from `ipd_lint.lint_text` and as `info` rules `spec.prose-dash` and `backlog.prose-dash` from separate advisory functions (`specs.prose_dash_advisories`, `backlog.prose_dash_advisories`) that only the two `run_check` commands and `check_engine.check_content` call, each Drift carrying `severity="info"` and registered in `check_engine.RULE_REGISTRY`; make the two `run_check` agent outputs report each drift's own severity instead of the hard-coded `"error"`; amend the IPD linting spec's Section 10 item 17. EXCLUDES fixing dashes in existing artifacts (Orders 07 to 09) and any blocking severity.
 - Scope-Paths: agent_workflows/prose_dash.py, agent_workflows/ipd_lint.py, agent_workflows/specs.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, tests/test_prose_dash_advisory.py, tests/test_ipd_lint.py, tests/fixtures/review-pilot/, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -18,8 +18,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k2x0yl
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-02 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED; review record .aw/records/reviews/20261025-writestd-03-k2x0yl-report-em-and-en-dashes-as-info-advisories-in-ipd-lint-specs.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5

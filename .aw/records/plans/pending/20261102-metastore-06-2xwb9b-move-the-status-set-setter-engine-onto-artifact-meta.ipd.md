@@ -6,7 +6,7 @@
 - Scope: Phase B, section 7 step 4, first writer. (1) Add to `artifact_meta` the LEGACY-format write path: `append` renders its events into today's bullet block, status mirror and `## Workflow history` line (no log file is written in phase B), with a `dry_run` preview, a source-digest freshness check, a path-keyed target for id-less legacy records, the per-artifact lock, the disposition move, the specs/backlog sidecar append, and the same event-owned field rules as the log format (AC-15, AC-14a (1)-(3)). (2) Change `status_set._prepare_status_change`, `apply_status_change` and the orchestrator retirement line in `run_set_command` to build events and call `artifact_meta.append` once per record. (3) Move `status_set`'s own metadata READS (`read_artifact_record`, `inventory_all_artifacts`, `_format_status_transition_line`, `plan_priority_work_kind_problems`, `read_item_dependencies_value`, the backlog gate-default inputs) onto `artifact_meta.resolve`/`read`/`query`. (4) Make `review_findings.review_attestation_missing` require a `gate` review (4.4 SR-601, AC-14a (4)). EXCLUDES: the HEAD-status read in `_prepare_status_change` (`check_engine._blob_text`/`_status_meta`, Order 09 `t4gl15` E-04); the other writers (`specs`, `backlog`, `releases`, `prompts`, `ipd_authoring`, finalize, retirement, coverage and review writers; Order 07 `xexn45`); deleting the `releases.set_*_line`/`backlog.set_*_line` helpers (Order 11 `9o83cr`); the log format (Order 13 `cxxmyv`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_meta.py, agent_workflows/review_findings.py, tests/test_status_set_meta_writer.py, tests/test_artifact_meta_legacy_write.py, tests/test_spec_review_gate_kind.py, .aw/records/plans/pending/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:7ehv8l
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 15
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2xwb9b
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)

@@ -6,7 +6,7 @@
 - Scope: Prepare, review and commit the complete post-cutover documentation change as ONE patch file owned by this plan; do not apply it to the live documents. Order 13 (`cxxmyv`) applies the patch inside the cutover commit.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch, tests/test_metastore_cutover_patch.py
 - Item-Dependencies: executed:9o83cr
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 90iqr1
+- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED; review record .aw/records/reviews/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.review.md
 - 2026-11-05 to-review (aw set): authored review-ready for spec 4sd62s (Set metastore)
