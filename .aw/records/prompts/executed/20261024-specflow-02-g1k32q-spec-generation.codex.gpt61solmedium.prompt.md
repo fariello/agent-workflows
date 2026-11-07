@@ -212,3 +212,5 @@ If running inside a writable repository, create candidate/spec and supporting re
 If running in a chat/file environment without repository authoring tools, return a **downloadable Markdown (`.md`) file**, or an indexed set with all parts downloadable and an optional ZIP. Use a date-stamped descriptive filename and include the actual ACE/model/reasoning identity only if known; never invent your identity. Mark it as an external candidate awaiting repository adoption, without forged repository IDs or status metadata.
 
 End with a concise report containing the files, recommended CLI grammar and rationale, material reuse/new-extension decisions, source revision, validation actually performed, and unresolved blocking questions. Do not claim that a self-review is `/spec-review`, that a diagram renderer ran if it did not, or that the feature was implemented.
+## Workflow history
+- 2026-11-07 executed (aw set): generation prompt for the specflow candidate specs 18hh1u, 1tx9t8, yfz5u9; candidates merged into draft spec 11037v
