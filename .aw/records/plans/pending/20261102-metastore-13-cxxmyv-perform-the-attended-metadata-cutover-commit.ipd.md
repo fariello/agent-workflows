@@ -5,7 +5,7 @@
 - Concern: Spec `4sd62s` section 7 step 9 and section 5.2 require ONE attended commit that switches `artifact_meta` from the legacy bullet-block format to per-artifact event logs, runs migration `m0001` on this repository in the checkout that holds the gitignored history sidecar, applies the post-cutover documentation, and stamps `metadata_schema: 2`. Every earlier child deferred its log-format half here (re-measured 2026-11-06: deferral rows naming `Carrier: cxxmyv` in 11 of the 12 sibling plans; `7ehv8l` has none), because C10a forbids a second on-disk format on `main` before this commit.
 - Scope: The code switch to the log format and every deferred log-format item; the real migration on this repository; the documentation patch of `90iqr1`; the two commands documented there; and the final real-repository demonstrations of the acceptance criteria the earlier children proved on fixtures. One commit, attended by the maintainer.
 - Scope-Paths: .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, agent_workflows/, tests/, .aw/records/, .aw/system/workflows/, .aw/system/cutover/, .aw/system/managed-sections.json, .aw/.gitignore, .aw/config/project.json, .aw/AGENT_QUICKSTART.md, .aw/QUICKSTART.md, docs/, AGENTS.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md
-- Item-Dependencies: executed:90iqr1, executed:dcerjg, executed:ya4ee4, executed:1ajqaa
+- Item-Dependencies: executed:1ajqaa, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -20,6 +20,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-016 FIXED
