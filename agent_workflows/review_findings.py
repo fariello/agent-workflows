@@ -1055,6 +1055,7 @@ def review_attestation_missing(
 
     malformed: List[str] = []
     wrong_type: List[str] = []
+    conforming: List[Path] = []
     for path in subject_review_records(repo_root, wanted):
         doc = parse_review_file(path)
         if doc.diagnostics:
@@ -1066,7 +1067,23 @@ def review_attestation_missing(
                 "{0} (Subject-Type: {1})".format(path, doc.subject_type or "absent")
             )
             continue
-        return None  # a conforming record exists.
+        conforming.append(path)
+
+    if conforming:
+        # Spec 4sd62s 4.4 SR-601 (plan 2xwb9b E-12): a conforming record attests the review ONLY
+        # when it is a GATE review. A refinement record (the `specflow` spec-refinement rounds)
+        # improves a spec but never clears it for `reviewed`. The kind comes from the
+        # `artifact_meta` cache, built for THIS `repo_root` so a lane worktree's uncommitted review
+        # files are judged as they are on disk.
+        kinds = _attestation_review_kinds(repo_root, wanted, conforming)
+        if any(k == "gate" for k in kinds.values()):
+            return None
+        return (
+            "every review record naming {0} is a REFINEMENT review, which never attests the "
+            "`reviewed` transition; a GATE review (`/spec-review`) is required: {1}".format(
+                wanted, "; ".join(str(p) for p in conforming)
+            )
+        )
 
     if malformed:
         return "a review record naming {0} exists but does NOT parse, so it attests nothing: {1}".format(
@@ -1078,6 +1095,36 @@ def review_attestation_missing(
             "(expected {1}): {2}".format(wanted, want_type, "; ".join(wrong_type))
         )
     return "no review record names {0} as its `- Subject-Id:`".format(wanted)
+
+
+def _attestation_review_kinds(
+    repo_root, subject_id6: str, paths: Sequence[Path]
+) -> Dict[Path, str]:
+    """`review_kind` of each conforming review file: from the `artifact_meta` cache's review rows
+    (gate only when the cached file has `parse_ok`), else the loader's own rule for a file outside the
+    cached records root (a legacy `.agents/reviews` file)."""
+    from agent_workflows import artifact_meta as _am
+
+    ctx = _am.legacy_context(Path(repo_root))
+    records_root = Path(ctx.logical_roots["records"]).resolve()
+    try:
+        rows = _am.review_rows(subject_id6, project_context=ctx)
+    except Exception:
+        rows = []
+    cached: Dict[str, str] = {
+        r["path"]: (r["review_kind"] if r["parse_ok"] else "unparsed") for r in rows
+    }
+    out: Dict[Path, str] = {}
+    for p in paths:
+        try:
+            rel = Path(p).resolve().relative_to(records_root).as_posix()
+        except ValueError:
+            rel = None
+        if rel is not None and rel in cached:
+            out[p] = cached[rel]
+        else:
+            out[p] = _am.review_kind_of_file(rel or Path(p).name)
+    return out
 
 
 # --------------------------------------------------------------------------------------

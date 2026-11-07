@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import json
 import re
 import shlex
@@ -117,7 +118,6 @@ TYPE_ALIASES: dict[str, str] = {
 _ID_RE = re.compile(r"^-\s*Id:\s*([0-9a-z]{6})\s*$", re.MULTILINE)
 _STATUS_RE = re.compile(r"^-\s*Status:\s*(\S+)\s*$", re.MULTILINE)
 _SET_RE = re.compile(r"^-\s*Set:\s*(.+?)\s*$", re.MULTILINE)
-_HISTORY_HDR_RE = re.compile(r"^##\s*Workflow history\s*$", re.MULTILINE)
 _GATE_KIND_RE = re.compile(r"^-\s*Gate-Kind:\s*(\S+)\s*$", re.MULTILINE)
 _GATE_REF_RE = re.compile(r"^-\s*Gate-Ref:\s*(.+?)\s*$", re.MULTILINE)
 _GATE_SUMMARY_RE = re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$", re.MULTILINE)
@@ -126,6 +126,8 @@ _GATE_SUMMARY_RE = re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$", re.MULTILINE)
 # valid IFF the record sits in that status, so ANY transition to a different status must clear it,
 # for every gate-carrying tree and not just specs (bug `43p53n`). Plans and prompts carry no gate
 # fields, so they are absent here and no clearing applies to them.
+_GATE_FIELDS: tuple[str, ...] = ("gate_kind", "gate_ref", "gate_summary")
+
 _GATE_STATUS_BY_TYPE: dict[str, str] = {
     "specs": "deferred",
     "backlog": "blocked",
@@ -1097,72 +1099,66 @@ class StatusChangeResult(tuple):
         self.warning = warning
 
 
-def inherit_from_backlog_release_gate(
-    text: str,
+def inherited_backlog_release_gate(
+    carrier_blocks_release: str | None,
     repo_root: Path,
     from_backlog: str | None,
     blocks_release: str | None,
     verb_label: str = "aw set",
     quiet: bool = False,
-) -> str:
-    """Inherit the backlog item's release gate at graduation if artifact has no gate.
-
-    nobugship di08i9 E-03: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION, so the handoff
-    obligation stops depending on prose.
-
-    Shared between `status_set.apply_status_change` and `specs.run_set` (c6f6sj E-02).
-    Text in, text out.
-
-    Three semantics preserved:
-    (1) A write, never a refusal: un-inheritable gate does not fail the call.
-    (2) An explicit blocks_release in the same call wins (guarded by blocks_release is None).
-    (3) An existing gate on the artifact is never overwritten (carrier_br is None).
-    """
+) -> str | None:
+    """The release gate a graduation INHERITS from its backlog item, or None (which replaced the
+    text-in/text-out `inherit_from_backlog_release_gate`, plan 2xwb9b E-07). Same three semantics: never a
+    refusal, an explicit ``blocks_release`` wins, and an existing gate on the carrier is kept."""
     if not from_backlog or from_backlog == "-":
-        return text
-    if blocks_release is not None:
-        return text
-    carrier_br = _sel.read_front_matter_blocks_release(text)
-    if carrier_br is not None:
-        return text
+        return None
+    if blocks_release is not None or carrier_blocks_release is not None:
+        return None
     from agent_workflows import backlog as _backlog
-    from agent_workflows import releases as _releases
 
     item_gate = _backlog.blocks_release_of_item(Path(repo_root), from_backlog)
     if not item_gate:
-        return text
+        return None
     prefix = verb_label if verb_label.endswith(":") else f"{verb_label}:"
-    updated_text = _releases.set_blocks_release_line(text, item_gate)
     if not quiet:
         sys.stdout.write(
             f"{prefix} inherited - Blocks-Release: {item_gate} from backlog item "
             f"{from_backlog} (graduation handoff: the gate travels with the work)\n"
         )
-    return updated_text
+    return item_gate
 
 
-def _prepend_workflow_history_entry(
-    lines: list[str],
-    hist_entry: str,
-    *,
-    is_prompt: bool = False,
-) -> list[str]:
-    """Prepend a history record under the `## Workflow history` heading (newest-first)."""
-    for i, line in enumerate(lines):
-        if _HISTORY_HDR_RE.match(line):
-            lines.insert(i + 1, hist_entry)
-            return lines
+def _record_state(rec: ArtifactRecord, repo_root: Path) -> dict[str, Any]:
+    """The current values of the fields the setter's events depend on, read from the record's file.
 
-    insert_idx = len(lines)
-    if not is_prompt:
-        for i, line in enumerate(lines):
-            if line.startswith("## "):
-                insert_idx = i
-                break
-    lines.insert(insert_idx, "")
-    lines.insert(insert_idx, hist_entry)
-    lines.insert(insert_idx, "## Workflow history")
-    return lines
+    Phase B (plan 2xwb9b D-01): the `artifact_meta` cache does not yet hold these per-type fields
+    (its legacy loader fills only the shared `artifacts` row), so the setter still reads them here
+    with the readers it used before the move; E-11 moves them to the cache once the loader does."""
+    text = (
+        rec.path.read_text(encoding="utf-8")
+        if rec.path.is_file()
+        else (rec.raw_text or "")
+    )
+    lines = text.split("\n")
+    state: dict[str, Any] = {}
+    for field, pat in (
+        ("gate_kind", _GATE_KIND_RE),
+        ("gate_ref", _GATE_REF_RE),
+        ("gate_summary", _GATE_SUMMARY_RE),
+    ):
+        state[field] = next((ln for ln in lines if pat.match(ln)), None)
+    state["approval"] = next((ln for ln in lines if ln.startswith("- Approval:")), None)
+    state["readiness"] = next(
+        (ln for ln in lines if ln.startswith("- Readiness:")), None
+    )
+    state["blocks_release"] = _sel.read_front_matter_blocks_release(text)
+    if rec.record_type == "backlog":
+        item = _backlog_mod.parse_item(text)
+        state["work_kind"] = item.kind
+        state["release_exempt_kind"] = item.release_exempt_kind
+        state["release_exempt_ref"] = item.release_exempt_ref
+        state["close_evidence"] = item.close_evidence
+    return state
 
 
 @dataclass
@@ -1179,6 +1175,9 @@ class _PreparedStatusChange:
     write_history_anyway: bool
     should_write_history: bool
     demotion_warning: str | None = None
+    events: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    render: Any = None
+    source_digest: str | None = None
 
 
 def _prepare_status_change(
@@ -1415,157 +1414,54 @@ def _prepare_status_change(
         if rec.path.is_file()
         else (rec.raw_text or "")
     )
-    lines = text.splitlines()
-    if rec.record_type == "prompts":
-        from agent_workflows import prompts as _prompts
+    from agent_workflows import artifact_meta as _am
 
-        if _prompts.has_metadata_comment(text):
-            updated_text = _prompts.update_metadata_status(text, norm_status)
-            new_lines = updated_text.splitlines()
+    # plan 2xwb9b E-07: the change is now a LIST OF EVENTS for ONE `artifact_meta.append`, not a list
+    # of line edits. The append's legacy branch renders them into today's bullet bytes; a dry-run
+    # append gives the rendered text that every in-memory judge below reads.
+    current_state = _record_state(rec, repo_root)
+    events: list[dict[str, Any]] = []
+    if not is_same_status:
+        events.append({"op": "transition", "from": old_status, "to": norm_status})
+
+    def _set(field: str, value: Any) -> None:
+        if value is None or value == "-":
+            events.append({"op": "unset", "fields": [field]})
         else:
-            new_lines = list(lines)
-            if not quiet:
-                sys.stdout.write(
-                    f"aw set: note: prompt {rec.id6 or rec.path.name} has no metadata comment; "
-                    f"status lives in directory only\n"
-                )
-    else:
-        status_updated = False
-        new_lines = []
-        in_frontmatter = True
-        is_fenced_yaml = bool(lines and lines[0].strip() == "---")
-
-        for line in lines:
-            if is_fenced_yaml:
-                if in_frontmatter and line.strip() == "---" and new_lines:
-                    in_frontmatter = False
-                if (
-                    in_frontmatter
-                    and not status_updated
-                    and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
-                ):
-                    new_lines.append(f"status: {norm_status}")
-                    status_updated = True
-                else:
-                    new_lines.append(line)
-            else:
-                if in_frontmatter and line.startswith("## "):
-                    in_frontmatter = False
-                if in_frontmatter and not status_updated and _STATUS_RE.match(line):
-                    new_lines.append(f"- Status: {norm_status}")
-                    status_updated = True
-                else:
-                    new_lines.append(line)
-
-        if not status_updated and not is_fenced_yaml and rec.record_type == "plans":
-            # AN ANNOTATED LEGACY STATUS (legacyfin `9en4fy` E-04). The old plan format wrote
-            # `- Status: approved (2026-09-25; executing)`, which the bare-token match above skips, so
-            # the fallback below used to INSERT a second `- Status:` line and post-transition lint
-            # refused the moved plan as a duplicate field (measured: COMMITTED-INCOMPLETE). Replace
-            # the front-matter line whose value LEADS with a recognized status, and keep the old
-            # annotated value verbatim as `- Prior-Status:` so the recorded text is not lost.
-            for i, line in enumerate(new_lines):
-                if line.startswith("## "):
-                    break
-                m_ann = re.match(r"^-\s*Status:\s*([A-Za-z][A-Za-z-]*)(\W.*)$", line)
-                if not m_ann:
-                    continue
-                if (
-                    _plans_mod.normalize_status(m_ann.group(1))
-                    not in _plans_mod.RECOGNIZED
-                ):
-                    continue
-                old_value = line.split(":", 1)[1].strip()
-                new_lines[i : i + 1] = [
-                    f"- Status: {norm_status}",
-                    f"- Prior-Status: {old_value}",
-                ]
-                status_updated = True
-                break
-
-        if not status_updated:
-            if is_fenced_yaml:
-                res_lines = []
-                inserted = False
-                for line in new_lines:
-                    if not inserted and line.strip() == "---" and res_lines:
-                        res_lines.append(f"status: {norm_status}")
-                        inserted = True
-                    res_lines.append(line)
-                new_lines = res_lines
-            else:
-                inserted = False
-                res_lines = []
-                for i, line in enumerate(new_lines):
-                    res_lines.append(line)
-                    if not inserted and (line.startswith(("# ", "- Date:"))):
-                        res_lines.append(f"- Status: {norm_status}")
-                        inserted = True
-                if not inserted:
-                    res_lines.insert(0, f"- Status: {norm_status}")
-                new_lines = res_lines
+            events.append({"op": "set", "fields": {field: value}})
 
     gate_status = _GATE_STATUS_BY_TYPE.get(rec.record_type)
     if gate_status is not None:
         if norm_status != gate_status:
-            new_lines = [
-                line_item
-                for line_item in new_lines
-                if not _GATE_KIND_RE.match(line_item)
-                and not _GATE_REF_RE.match(line_item)
-                and not _GATE_SUMMARY_RE.match(line_item)
-            ]
+            present = [g for g in _GATE_FIELDS if current_state.get(g) is not None]
+            if present:
+                events.append({"op": "unset", "fields": present})
         else:
             gk = getattr(args, "gate_kind", None)
             gr = getattr(args, "gate_ref", None)
             gs = getattr(args, "gate_summary", None)
             if gk and gr:
-                new_lines = [
-                    line_item
-                    for line_item in new_lines
-                    if not _GATE_KIND_RE.match(line_item)
-                    and not _GATE_REF_RE.match(line_item)
-                    and not _GATE_SUMMARY_RE.match(line_item)
-                ]
-                st_idx = -1
-                for i, line_item in enumerate(new_lines):
-                    if _STATUS_RE.match(line_item):
-                        st_idx = i
-                        break
-                insert_pos = st_idx + 1 if st_idx >= 0 else 1
-                gate_lines = [f"- Gate-Kind: {gk}", f"- Gate-Ref: {gr}"]
+                gate_fields: dict[str, Any] = {"gate_kind": gk, "gate_ref": gr}
                 if gs:
-                    gate_lines.append(f"- Gate-Summary: {gs}")
-                for gl in reversed(gate_lines):
-                    new_lines.insert(insert_pos, gl)
+                    gate_fields["gate_summary"] = gs
+                elif current_state.get("gate_summary") is not None:
+                    events.append({"op": "unset", "fields": ["gate_summary"]})
+                events.append({"op": "set", "fields": gate_fields})
 
     br = getattr(args, "blocks_release", None)
     if br is not None:
-        from agent_workflows import releases as _releases
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_blocks_release_line(tmp_text, br)
-        new_lines = tmp_text.splitlines()
+        _set("blocks_release", br)
 
     rel_exempt_kind = getattr(args, "release_exempt_kind", None)
     rel_exempt_ref = getattr(args, "release_exempt_ref", None)
-    if rel_exempt_kind is not None or rel_exempt_ref is not None:
-        from agent_workflows import backlog as _backlog
-
-        tmp_text = "\n".join(new_lines)
-        if rel_exempt_kind == "-":
-            tmp_text = _backlog.set_release_exempt_kind_line(tmp_text, "-")
-            tmp_text = _backlog.set_release_exempt_ref_line(tmp_text, "-")
-        else:
-            if rel_exempt_ref is not None:
-                tmp_text = _backlog.set_release_exempt_ref_line(
-                    tmp_text, rel_exempt_ref
-                )
-            if rel_exempt_kind is not None:
-                tmp_text = _backlog.set_release_exempt_kind_line(
-                    tmp_text, rel_exempt_kind
-                )
-        new_lines = tmp_text.splitlines()
+    if rel_exempt_kind == "-":
+        _set("release_exempt_kind", "-")
+        _set("release_exempt_ref", "-")
+    else:
+        if rel_exempt_ref is not None:
+            _set("release_exempt_ref", rel_exempt_ref)
+        if rel_exempt_kind is not None:
+            _set("release_exempt_kind", rel_exempt_kind)
 
     fb = getattr(args, "from_backlog", None)
     if fb is not None:
@@ -1577,22 +1473,17 @@ def _prepare_status_change(
                 raise ValueError(
                     f"unresolvable backlog id '{fb}' (does not resolve to an existing backlog item)"
                 )
-        from agent_workflows import releases as _releases
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
-        new_lines = tmp_text.splitlines()
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = inherit_from_backlog_release_gate(
-            tmp_text,
+        _set("from_backlog", fb)
+        inherited = inherited_backlog_release_gate(
+            current_state.get("blocks_release"),
             repo_root,
             fb,
             getattr(args, "blocks_release", None),
             verb_label=getattr(args, "_verb_label", None) or "aw set",
             quiet=quiet,
         )
-        new_lines = tmp_text.splitlines()
+        if inherited is not None:
+            _set("blocks_release", inherited)
 
     fs = getattr(args, "from_spec", None)
     if fs is not None:
@@ -1604,172 +1495,75 @@ def _prepare_status_change(
                 raise ValueError(
                     f"unresolvable spec id '{fs}' (does not resolve to an existing spec)"
                 )
-        from agent_workflows import releases as _releases
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_from_spec_line(tmp_text, fs)
-        new_lines = tmp_text.splitlines()
+        _set("from_spec", fs)
 
     idep = getattr(args, "item_dependencies", None)
     if idep is not None:
-        from agent_workflows import releases as _releases
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_item_dependencies_line(tmp_text, idep)
-        new_lines = tmp_text.splitlines()
+        _set("item_dependencies", idep)
 
     prio = getattr(args, "priority", None)
     if prio is not None:
-        from agent_workflows import releases as _releases
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_priority_line(tmp_text, prio)
-        new_lines = tmp_text.splitlines()
+        _set("priority", prio)
 
     work_kind = getattr(args, "work_kind", None)
     if work_kind is not None:
-        from agent_workflows import releases as _releases
-
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_work_kind_line(tmp_text, work_kind)
-        new_lines = tmp_text.splitlines()
+        _set("work_kind", work_kind)
 
     graduated_to = getattr(args, "graduated_to", None)
     if graduated_to is not None:
-        from agent_workflows import releases as _releases
+        _set("graduated_to", graduated_to)
 
-        tmp_text = "\n".join(new_lines)
-        tmp_text = _releases.set_graduated_to_line(tmp_text, graduated_to)
-        new_lines = tmp_text.splitlines()
+    def _effective(field: str) -> Any:
+        """The value ``field`` will have after the events so far (later events win)."""
+        value = current_state.get(field)
+        for ev in events:
+            if ev["op"] == "set" and field in ev["fields"]:
+                value = ev["fields"][field]
+            elif ev["op"] == "unset" and field in ev["fields"]:
+                value = None
+        return value
 
     if rec.record_type == "backlog" and getattr(args, "blocks_release", None) is None:
         from agent_workflows import backlog as _backlog
-        from agent_workflows import releases as _releases
 
-        _current_text = "\n".join(new_lines)
-        _effective_kind = work_kind or _backlog.parse_item(_current_text).kind
-        _existing_br = _sel.read_front_matter_blocks_release(_current_text)
-        _parsed_item = _backlog.parse_item(_current_text)
-        _is_exempt = bool(
-            _parsed_item.release_exempt_kind
-            and _parsed_item.release_exempt_ref
-            and _parsed_item.release_exempt_kind != "-"
-            and _parsed_item.release_exempt_ref != "-"
-        )
+        _ek, _er = _effective("release_exempt_kind"), _effective("release_exempt_ref")
+        _is_exempt = bool(_ek and _er and _ek != "-" and _er != "-")
         _gate_default, _gate_notice = _backlog.decide_gate_default(
             repo_root,
-            kind=_effective_kind,
+            kind=work_kind or _effective("work_kind"),
             status=norm_status,
             explicit_blocks_release=None,
-            existing_blocks_release=_existing_br,
+            existing_blocks_release=_effective("blocks_release"),
             is_exempt=_is_exempt,
         )
         if _gate_default is not None:
-            tmp_text = _releases.set_blocks_release_line(_current_text, _gate_default)
-            new_lines = tmp_text.splitlines()
+            _set("blocks_release", _gate_default)
         if _gate_notice and not quiet:
             sys.stdout.write(f"aw backlog set: {_gate_notice}\n")
 
-    if rec.record_type == "backlog":
-        # E-02: only canonical - Work-Kind: is ever written
-        has_wk = any(re.match(r"^- Work-Kind:\s*", ln) for ln in new_lines)
-        converted = []
-        for ln in new_lines:
-            m = re.match(r"^- Kind:\s*(.*)", ln)
-            if m:
-                if not has_wk:
-                    converted.append(f"- Work-Kind: {m.group(1).strip()}")
-                    has_wk = True
-            else:
-                converted.append(ln)
-        new_lines = converted
-        verdict = close_verdict
-        if verdict is None and getattr(args, "evidence", None):
-            from agent_workflows import check_engine as _ce
-            from agent_workflows import backlog as _backlog_eval
-
-            verdict = _ce.evaluate_blocking_close(
-                effective_gate_root,
-                rec.path,
-                norm_status,
-                evidence=getattr(args, "evidence", None),
-                item_text="\n".join(new_lines),
-                prior_priority=_backlog_eval.parse_item(text).priority,
-                lane_carrier_ref=effective_lane_carrier_ref,
-                lane_carrier_path=effective_lane_carrier_path,
-            )
-        if verdict and verdict.legitimate and verdict.path == "SATISFIED":
-            from agent_workflows import backlog as _backlog
-
-            accepted_evidence = (
-                getattr(args, "evidence", None)
-                or _backlog.parse_item("\n".join(new_lines)).close_evidence
-            )
-            if accepted_evidence:
-                tmp_text = "\n".join(new_lines)
-                tmp_text = _backlog.set_close_evidence_line(
-                    tmp_text, accepted_evidence, repo_root=effective_gate_root
-                )
-                new_lines = tmp_text.splitlines()
-
-    if rec.record_type == "plans" and norm_status != "approved":
-        new_lines = [
-            line_item
-            for line_item in new_lines
-            if not re.match(r"^- Approval:\s*", line_item)
-        ]
-    if (
-        rec.record_type == "plans"
-        and _is_backward_plan
-        and norm_status in ("draft", "to-review")
-    ):
-        new_lines = [
-            line_item
-            for line_item in new_lines
-            if not re.match(r"^- Readiness:\s*", line_item)
-        ]
-
     if rec.record_type == "plans" and norm_status == "approved":
-        has_approval = any(
-            re.match(r"^- Approval:\s*", line_item) for line_item in new_lines
-        )
-        if not has_approval:
+        if current_state.get("approval") is None:
             attn = (
                 'human ("approved")'
                 if getattr(args, "by_human", False)
                 else "recorded via aw ipd set"
             )
-            approval_line = f"- Approval: {today}, {attn}: {message}"
-            insert_idx = None
-            for i, line_item in enumerate(new_lines):
-                if line_item.startswith("## "):
-                    break
-                if re.match(r"^- Id:\s*", line_item):
-                    insert_idx = i + 1
-            if insert_idx is None:
-                for i, line_item in enumerate(new_lines):
-                    if line_item.startswith("## "):
-                        break
-                    if _STATUS_RE.match(line_item):
-                        insert_idx = i + 1
-            if insert_idx is None:
-                for i, line_item in enumerate(new_lines):
-                    if line_item.startswith("## "):
-                        insert_idx = i
-                        break
-                if insert_idx is None:
-                    insert_idx = len(new_lines)
-            new_lines.insert(insert_idx, approval_line)
+            events.append(
+                {"op": "set", "fields": {"approval": f"{today}, {attn}: {message}"}}
+            )
+    elif rec.record_type == "plans" and (
+        current_state.get("approval") is not None or old_status == "approved"
+    ):
+        # Leaving `approved` always carries the `unset approval` the owned-field rule requires.
+        events.append({"op": "unset", "fields": ["approval"]})
+    if (
+        rec.record_type == "plans"
+        and _is_backward_plan
+        and norm_status in ("draft", "to-review")
+    ):
+        events.append({"op": "unset", "fields": ["readiness"]})
 
-    from agent_workflows import record_placement as _placement
-
-    dest_path = _placement.resolve_transition_path(
-        rec.record_type, rec.path, norm_status, repo_root=repo_root
-    )
-
-    content_changed = new_lines != lines
-    path_changed = dest_path.resolve() != rec.path.resolve()
-
+    # The history line and its duplicate judgement (unchanged): judged on the CURRENT text.
     _explicit_message = (getattr(args, "message", None) or "").strip()
     is_dup = (
         same_status_message_is_duplicate(
@@ -1783,21 +1577,88 @@ def _prepare_status_change(
         or untooled_transition
         or (rec.record_type == "backlog" and not is_dup)
     ) and not is_dup
-
     should_write_history = not (is_same_status and is_dup)
-    if should_write_history:
-        hist_entry = f"- {today} {status_tag} ({actor}): {message}"
-        new_lines = _prepend_workflow_history_entry(
-            new_lines, hist_entry, is_prompt=(rec.record_type == "prompts")
+    if is_same_status:
+        events.append({"op": "note", "message": message})
+    else:
+        next(e for e in events if e["op"] == "transition")["message"] = message
+
+    from agent_workflows import record_placement as _placement
+
+    dest_path = _placement.resolve_transition_path(
+        rec.record_type, rec.path, norm_status, repo_root=repo_root
+    )
+    render = _am.LegacyRender(
+        tag=status_tag,
+        day=today,
+        actor_label=actor,
+        history=should_write_history,
+        is_prompt=(rec.record_type == "prompts"),
+        status=norm_status,
+    )
+    target = _am.LegacyTarget(rec.path, rec.record_type, rec.id6)
+    notes: list[str] = []
+
+    def _preview(evs: list[dict[str, Any]], *, history: bool) -> Any:
+        return _am.append(
+            target,
+            evs,
+            legacy_render=dataclasses.replace(render, history=history),
+            repo_root=repo_root,
+            project_context=_am.legacy_context(repo_root),
+            destination=dest_path,
+            dry_run=True,
+            by_human=bool(getattr(args, "by_human", False)),
+            from_status=old_status,
+            notes_out=notes if history == should_write_history else None,
         )
 
-    updated_text = "\n".join(new_lines).rstrip() + "\n"
+    # The SATISFIED close records its evidence; the close verdict judges the rendered item text.
+    if rec.record_type == "backlog":
+        verdict = close_verdict
+        if verdict is None and getattr(args, "evidence", None):
+            from agent_workflows import check_engine as _ce
+            from agent_workflows import backlog as _backlog_eval
+
+            verdict = _ce.evaluate_blocking_close(
+                effective_gate_root,
+                rec.path,
+                norm_status,
+                evidence=getattr(args, "evidence", None),
+                item_text=_preview(events, history=False).text.rstrip("\n"),
+                prior_priority=_backlog_eval.parse_item(text).priority,
+                lane_carrier_ref=effective_lane_carrier_ref,
+                lane_carrier_path=effective_lane_carrier_path,
+            )
+        if verdict and verdict.legitimate and verdict.path == "SATISFIED":
+            accepted_evidence = getattr(args, "evidence", None) or _effective(
+                "close_evidence"
+            )
+            if accepted_evidence:
+                _set("close_evidence", accepted_evidence)
+                if is_same_status:
+                    events.append(
+                        events.pop(-2)
+                    )  # the note carrying the message stays last
+
+    preview = _preview(events, history=should_write_history)
+    for note in notes:
+        if not quiet:
+            sys.stdout.write(note)
+    # `content_changed` compares the rendered text WITHOUT the history line against the current
+    # text, as the line-list comparison did before the history entry was prepended.
+    content_changed = (
+        _preview(events, history=False).text.rstrip() != text.rstrip()
+        if should_write_history
+        else preview.text.rstrip() != text.rstrip()
+    )
+    path_changed = dest_path.resolve() != rec.path.resolve()
 
     return _PreparedStatusChange(
         rec=rec,
         dest_path=dest_path,
         norm_status=norm_status,
-        updated_text=updated_text,
+        updated_text=preview.text,
         today=today,
         actor=actor,
         message=message,
@@ -1806,6 +1667,9 @@ def _prepare_status_change(
         write_history_anyway=_write_history_anyway,
         should_write_history=should_write_history,
         demotion_warning=_demotion_warning,
+        events=events,
+        render=render,
+        source_digest=_am._compute_digest(rec.path) if rec.path.is_file() else None,
     )
 
 
@@ -1852,7 +1716,7 @@ def apply_status_change(
             rec.path, prep.norm_status, [], warning=prep.demotion_warning
         )
 
-    # Fail-closed backstop for specs conformance (E-01)
+    # Fail-closed backstop for specs conformance (E-01), judged on the rendered preview text.
     if rec.record_type == "specs":
         from agent_workflows import specs as _specs_mod
 
@@ -1864,87 +1728,48 @@ def apply_status_change(
             )
 
     dest_path = prep.dest_path
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-
     moving = dest_path.resolve() != rec.path.resolve()
-    if moving and rec.path.exists():
-        from agent_workflows import project_context
 
-        git_target_root = repo_root
-        owner = project_context.record_owner_root(rec.path)
-        if owner is not None:
-            try:
-                ctx = project_context.resolve_project_context(target_repo=str(owner))
-                if (
-                    ctx.records_backend
-                    == project_context.RecordsBackend.COMPANION.value
-                ):
-                    gr = project_context.record_git_root(rec.path)
-                    if gr is not None:
-                        git_target_root = gr
-            except Exception:
-                pass
+    # plan 2xwb9b E-08: ONE `artifact_meta.append` performs the move, the content write, the source
+    # cleanup and the specs/backlog sidecar record, in today's order (`append_legacy`).
+    from agent_workflows import artifact_meta as _am
 
-        try:
-            rel_src = str(rec.path.relative_to(git_target_root))
-            rel_dst = str(dest_path.relative_to(git_target_root))
-        except ValueError:
-            rel_src = str(rec.path)
-            rel_dst = str(dest_path)
-        _core.git_mv(
-            git_target_root,
-            rel_src,
-            rel_dst,
-        )
-
-    _core.atomic_write(dest_path, prep.updated_text)
-
-    # Belt and braces: if the source somehow survived the move (a fallback that copied rather than
-    # moved), drop it, because a surviving source is the very dirty-path residue described above.
-    if moving and rec.path.exists():
-        try:
-            rec.path.unlink()
-        except OSError:
-            pass
-
-    # Type-conditional sidecar append for specs and backlog (spec wy9aru 4.3 ratified in OQ-1; spec 1525-02 R2)
-    # The write happens AFTER the durable write succeeds (spec 4sd62s C6).
+    sidecar = None
     if rec.record_type in ("specs", "backlog") and prep.should_write_history:
-        target_id6 = rec.id6
-        if not target_id6:
-            m_id = _ID_RE.search(prep.updated_text)
-            if m_id:
-                target_id6 = m_id.group(1)
-        if target_id6:
-            from agent_workflows import record_history as _rh
-
-            if rec.record_type == "specs":
-                _sidecar_date = (
-                    prep.today.replace("-", "") if getattr(args, "date", None) else None
-                )
-                _rh.append_advisory(
-                    repo_root,
-                    id6=target_id6,
-                    tree="specs",
-                    workflow="aw specs",
-                    actor="aw specs",
-                    message=f"{prep.norm_status}: {prep.message}".strip(),
-                    date=_sidecar_date,
-                    artifact=dest_path.name,
-                )
-            elif rec.record_type == "backlog":
-                _sidecar_msg = (
+        if rec.record_type == "specs":
+            sidecar = _am.SidecarRecord(
+                tree="specs",
+                workflow="aw specs",
+                actor="aw specs",
+                message=f"{prep.norm_status}: {prep.message}".strip(),
+                date=prep.today.replace("-", "")
+                if getattr(args, "date", None)
+                else None,
+            )
+        else:
+            sidecar = _am.SidecarRecord(
+                tree="backlog",
+                workflow="aw backlog set",
+                actor=getattr(args, "actor", None) or "aw backlog",
+                message=(
                     getattr(args, "message", "") or f"status -> {prep.norm_status}"
-                ).strip()
-                _rh.append_advisory(
-                    repo_root,
-                    id6=target_id6,
-                    tree="backlog",
-                    workflow="aw backlog set",
-                    actor=getattr(args, "actor", None) or "aw backlog",
-                    message=_sidecar_msg,
-                    artifact=dest_path.name,
-                )
+                ).strip(),
+            )
+    _am.append(
+        # The digest of the bytes the events were built from: an out-of-band edit between the
+        # prepare and this write refuses instead of being overwritten (2xwb9b E-04).
+        _am.LegacyTarget(rec.path, rec.record_type, rec.id6, prep.source_digest),
+        prep.events,
+        legacy_render=prep.render,
+        repo_root=repo_root,
+        project_context=_am.legacy_context(repo_root),
+        destination=dest_path,
+        by_human=bool(getattr(args, "by_human", False)),
+        from_status=normalize_target_status((rec.status or "draft"), rec.record_type)
+        .strip()
+        .lower(),
+        sidecar=sidecar,
+    )
 
     rewritten_citations: list[str] = []
     if (
@@ -2380,7 +2205,7 @@ def _offer_self_commit(
                 pass
 
     # The touched paths are passed to git_commit_helper.offer_commit already staged by
-    # artifact_core.git_mv; offer_commit drops a staged rename's source from its git add set
+    # artifact_meta.append's staged move; offer_commit drops a staged rename's source from its git add set
     # via _in_index and stages the rest itself, so no pre-reset is needed, and a pre-reset would
     # unstage the rename whenever the commit is skipped (backlog r73v9i).
     outcome = _gch.offer_commit(
@@ -4032,13 +3857,20 @@ def run_set_command(
         actor = getattr(args, "actor", None) or "aw set"
         msg = getattr(args, "message", None) or f"status set to {norm_stat}"
         today = _core.utc_history_date()
-        hist_entry = f"- {today} same-status ({actor}): child {rec.id6 or rec.path.name} retired {norm_stat}: {msg}"
+        # plan 2xwb9b E-09: one `note` event on the orchestrator, rendered as today's line.
+        from agent_workflows import artifact_meta as _am
 
-        orch_text = orch.path.read_text(encoding="utf-8")
-        orch_lines = orch_text.splitlines()
-        new_orch_lines = _prepend_workflow_history_entry(orch_lines, hist_entry)
-        orch.path.write_text(
-            "\n".join(new_orch_lines).rstrip() + "\n", encoding="utf-8"
+        _am.append(
+            _am.LegacyTarget(orch.path, "plans", orch.id6),
+            [
+                {
+                    "op": "note",
+                    "message": f"child {rec.id6 or rec.path.name} retired {norm_stat}: {msg}",
+                }
+            ],
+            legacy_render=_am.LegacyRender("same-status", today, actor),
+            repo_root=repo_root,
+            project_context=_am.legacy_context(repo_root),
         )
         command_modified_orch_paths.add(orch.path.resolve())
 

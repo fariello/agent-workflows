@@ -724,6 +724,36 @@ def _check_path_safety(p_str: str, records_root: Path, label: str) -> None:
         raise ValueError(f"failed to resolve {label} {p_str!r}: {exc}") from exc
 
 
+#: Field values that are prose or carry a list, so they take the prose length class rather than the
+#: 300-character single-line bound: `approval` embeds the approval `--message` (2xwb9b D-03), and
+#: `item_dependencies`/`graduated_to` grow with their edge count.
+_PROSE_FIELDS: FrozenSet[str] = frozenset(
+    ("close_evidence", "gate_summary", "approval", "item_dependencies", "graduated_to")
+)
+
+
+def _writer_ruleset(repo_root: Path) -> "_leak.Ruleset":
+    """The leak ruleset the writer scans with: every `fail` rule plus every auto-derived `warn`
+    token EXCEPT, inside a runner lane (`.aw/worktrees/<lane>`), the sibling LANE directory names
+    (2xwb9b D-02).
+
+    Spec 4.2 lists what the writer refuses: session ids, command lines, absolute or home paths, user
+    names and host names. A sibling directory name is none of those; in a runner lane the siblings
+    are the OTHER lanes, which are named by plan id6, so keeping them would refuse every message or
+    `Item-Dependencies` value that cites a plan that happens to have a lane (measured: 39 tracked
+    history lines would be refused for this reason alone)."""
+    ruleset = _leak.build_ruleset(repo_root, include_warn=True)
+    try:
+        in_lane = Path(repo_root).resolve().parent.name == "worktrees"
+        derived = _leak.derive_warn_tokens(repo_root) if in_lane else {}
+    except Exception:
+        return ruleset
+    for tok, reason in derived.items():
+        if reason == "sibling checkout dir name":
+            ruleset.warn.pop(f"derived:{tok}", None)
+    return ruleset
+
+
 def validate_new_events(
     artifact_type: str,
     events: List[Dict[str, Any]],
@@ -739,7 +769,7 @@ def validate_new_events(
     repo_root = Path(repo_root)
 
     # Build ruleset with include_warn=True once per call
-    ruleset = _leak.build_ruleset(repo_root, include_warn=True)
+    ruleset = _writer_ruleset(repo_root)
 
     for ev in events:
         validate_event(ev, artifact_type)
@@ -816,7 +846,7 @@ def validate_new_events(
                 elif fk == "path":
                     _check_path_safety(str(fv), records_root, "fields.path")
                 elif isinstance(fv, str):
-                    is_prose = fk in ("close_evidence", "gate_summary")
+                    is_prose = fk in _PROSE_FIELDS
                     _check_string_safety(
                         fk, fv, prose=is_prose, migration_import=migration_import
                     )
@@ -2366,11 +2396,7 @@ def load_legacy_review(
     elif "Ref" in bullets:
         review_ref = bullets["Ref"]
 
-    review_kind = (
-        "refinement"
-        if "spec-refinement" in filename or "refinement" in rel_path
-        else "gate"
-    )
+    review_kind = review_kind_of_file(rel_path)
 
     review_file_row = {
         "path": rel_path,
@@ -3369,6 +3395,50 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
         conn.close()
 
 
+def review_rows(
+    subject_id6: str, *, project_context: Any = None
+) -> List[Dict[str, Any]]:
+    """One row per cached review FILE of ``subject_id6``: `path`, `parse_ok`, `review_kind`.
+
+    The read behind the `->reviewed` attestation (plan 2xwb9b E-12, spec 4.4 SR-601). It reads the
+    `review_files` table, which has one row per file, rather than joining `reviews`: two files that
+    are both named by the subject's own id6 share a NULL `review_ref` and so collide in `reviews`
+    (backlog filed by 2xwb9b), which would let one file's kind stand in for the other's. The kind is
+    the loader's own per-file rule (:func:`review_kind_of_file`). The freshness check runs first, so a
+    review file that is still uncommitted in a lane worktree is seen exactly as it is on disk."""
+    ctx = project_context or _proj_ctx.resolve_project_context()
+    records_root = Path(ctx.logical_roots["records"])
+    state_root = Path(ctx.logical_roots["state"])
+    conn = open_cache(records_root, state_root)
+    try:
+        check_freshness(conn, records_root)
+        rows = conn.execute(
+            "SELECT path, parse_ok, round_count FROM review_files WHERE subject_id6 = ? ORDER BY path",
+            (subject_id6,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "path": r[0],
+            "parse_ok": bool(r[1]),
+            "round_count": r[2],
+            "review_kind": review_kind_of_file(r[0]),
+        }
+        for r in rows
+    ]
+
+
+def review_kind_of_file(path: Union[str, Path]) -> str:
+    """The `review_kind` the legacy loader assigns a review file (`load_legacy_review`'s rule)."""
+    p = str(path).replace("\\", "/")
+    return (
+        "refinement"
+        if "spec-refinement" in Path(p).name or "refinement" in p
+        else "gate"
+    )
+
+
 @dataclasses.dataclass
 class ReadAtResult:
     kind: str  # ok, absent, invalid-revision, unversioned, corrupt
@@ -3529,8 +3599,722 @@ def _journal_dir(state_root: Path) -> Path:
     return d
 
 
+# --------------------------------------------------------------------------------------
+# 12a. Phase-B LEGACY write branch (plan 2xwb9b E-03..E-06; spec 4sd62s 4.3, 4.4, C10a)
+#
+# Until the cutover (Order 13, `cxxmyv`) no record in a live repository has a `meta/<id6>.jsonl`
+# log, so every write must keep today's bullet format byte for byte (C10a). `append` therefore
+# dispatches on the TARGET's storage format: a record with a log takes the log branch above (still
+# exercised by tve77h's synthetic-log tests), and a record without one takes this branch, which
+# renders the SAME events into the Markdown file instead of appending them to a log. The event
+# validation (envelope, payload schema, writer-side refusals) and the event-owned field rules are the
+# same ones the log branch and `replay` apply, so the rules cannot differ between the two formats.
+#
+# Everything in this section except `WritePreview` is phase-B only and is deleted with the legacy
+# branch at the cutover (`LegacyRender`, the path-keyed target, `legacy_context`).
+# --------------------------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class LegacyRender:
+    """The exact history-line tokens today's bullet format writes (`- <day> <tag> (<actor>): <msg>`).
+
+    The event schema has no home for the `same-status` tag, a back-dated `--date` day or the
+    `--allow-*` actor suffixes (2xwb9b OQ-02), so phase B carries them beside the events. `tag=None`
+    with `history=False` writes no history line (a duplicate same-status re-assertion)."""
+
+    tag: str
+    day: str
+    actor_label: str
+    history: bool = True
+    is_prompt: bool = False
+    #: The status the file's mirror must show after the write. Today's setter rewrites the mirror
+    #: even on a same-status write (normalizing an alias or an annotated legacy value), which a
+    #: `note` event cannot express; `None` means "the transition's target, if any".
+    status: Optional[str] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class SidecarRecord:
+    """The values of the gitignored history sidecar record a specs/backlog setter writes today."""
+
+    tree: str
+    workflow: str
+    actor: str
+    message: str
+    date: Optional[str] = None
+
+
+@dataclasses.dataclass
+class WritePreview:
+    """What a write WOULD do: the rendered text, its destination and whether anything changes."""
+
+    text: str
+    destination: Path
+    source: Path
+    changed: bool
+    events: List[Dict[str, Any]]
+
+
+@dataclasses.dataclass(frozen=True)
+class LegacyTarget:
+    """A path-keyed write target (2xwb9b OQ-03): the record's file, its type and optional id6.
+
+    An id-less legacy record (14 specs measured, F-03) has no id6 to key a log or a cache row, so
+    phase B addresses it by path; `key` is what the per-artifact lock is named after."""
+
+    path: Path
+    record_type: str
+    id6: Optional[str] = None
+    source_digest: Optional[str] = None
+
+    @property
+    def key(self) -> str:
+        if self.id6:
+            return self.id6
+        return "path-" + hashlib.sha256(str(self.path).encode("utf-8")).hexdigest()[:12]
+
+
+#: `status_set` plural record types -> registry types (walkthroughs/roadmaps/other have no registry
+#: entry; they are written without field validation, exactly as the setter wrote them before).
+_LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
+    "plans": "ipd",
+    "specs": "spec",
+    "backlog": "backlog",
+    "research": "research",
+    "releases": "release",
+    "prompts": "prompt",
+    "walkthroughs": "walkthrough",
+}
+
+#: Registry field -> today's bullet label, for the fields the setter writes generically.
+_LEGACY_BULLET_LABEL: Dict[str, str] = {
+    "approval": "Approval",
+    "readiness": "Readiness",
+    "review_depth": "Review-Depth",
+    "gate_kind": "Gate-Kind",
+    "gate_ref": "Gate-Ref",
+    "gate_summary": "Gate-Summary",
+    "coverage": "Coverage",
+    "coverage_fingerprint": "Coverage-Fingerprint",
+    "coverage_checked": "Coverage-Checked",
+}
+
+_GATE_FIELDS: Tuple[str, ...] = ("gate_kind", "gate_ref", "gate_summary")
+
+#: The exact removal patterns today's setter uses (whole-file, as before), so a strip removes the
+#: same lines it removed before the move.
+_LEGACY_REMOVE_RE: Dict[str, "re.Pattern[str]"] = {
+    "gate_kind": re.compile(r"^-\s*Gate-Kind:\s*(\S+)\s*$"),
+    "gate_ref": re.compile(r"^-\s*Gate-Ref:\s*(.+?)\s*$"),
+    "gate_summary": re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$"),
+    "approval": re.compile(r"^- Approval:\s*"),
+    "readiness": re.compile(r"^- Readiness:\s*"),
+}
+
+
+def legacy_context(repo_root: Union[str, Path]) -> Any:
+    """The `project_context` a phase-B setter passes for ``repo_root``: the records root every record
+    verb reads (`project_context.project_records_dir`) and the repository's own `.aw/state`.
+
+    The full resolver can place a bare repository's records under the AW_HOME companion directory
+    while the setter reads `<repo>/.aw/records` (backlog `ggp2pf`), so the setter builds this context
+    from the SAME records root it resolved the record from. The cache therefore always describes the
+    tree the setter edits."""
+    root = Path(repo_root).resolve()
+    records = Path(_proj_ctx.project_records_dir(root))
+    state: Optional[Path] = None
+    with contextlib.suppress(Exception):
+        resolved = _proj_ctx.resolve_project_context(target_repo=str(root))
+        if Path(resolved.logical_roots["records"]).resolve() == records.resolve():
+            state = Path(resolved.logical_roots["state"])
+    if state is None:
+        state = root / ".aw" / "state"
+    return type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {"records": str(records), "state": str(state)},
+            "repo_root": root,
+        },
+    )()
+
+
+def _storage_format(records_root: Path, target: Any) -> str:
+    """`log` when the target has `<records_root>/meta/<id6>.jsonl`, else `legacy` (phase B)."""
+    id6 = target if isinstance(target, str) else getattr(target, "id6", None)
+    if id6 and (Path(records_root) / "meta" / f"{id6}.jsonl").exists():
+        return "log"
+    return "legacy"
+
+
+def _bullet_re(label: str) -> "re.Pattern[str]":
+    return re.compile(r"^-\s*" + re.escape(label) + r":")
+
+
+def _check_owned_fields(
+    record_type: str, events: List[Dict[str, Any]], from_status: Optional[str]
+) -> None:
+    """The event-owned field rules of 4.2/4.4 (AC-15, AC-14a (1)-(3)), applied to ONE append before
+    any write. These are the rules `replay` enforces for a log, stated over a single append so the
+    legacy branch refuses the same appends the log branch would refuse."""
+    trans = next((e for e in events if e.get("op") == "transition"), None)
+    to_s = trans.get("to") if trans else None
+    from_s = trans.get("from") if trans else from_status
+    to_approved = to_s == "approved"
+    leaving_approved = trans is not None and from_s == "approved" and to_s != "approved"
+    # `approval` may only be cleared by an append that leaves the record NOT approved: a transition
+    # to another status, or (cleanup of a stale value, 2xwb9b D-05) a write to a record that is not
+    # approved. It can never be cleared from a record that stays or ends approved.
+    ends_approved = to_approved or (trans is None and from_status == "approved")
+    backward = (
+        record_type == "ipd"
+        and trans is not None
+        and (from_s, to_s) in _ipd_life._LEGAL_BACKWARD_EDGES
+        and to_s in ("draft", "to-review")
+    )
+    unset_fields: Set[str] = set()
+    for ev in events:
+        op = ev.get("op")
+        if op == "set":
+            for fk in ev.get("fields", {}):
+                if fk in ("status", "id", "type"):
+                    raise ValueError(
+                        f"refuse generic set of identity/status field: {fk!r}"
+                    )
+                if fk in ("readiness", "review_depth"):
+                    raise ValueError(f"refuse set of review-owned field {fk!r}")
+                if fk in ("coverage", "coverage_fingerprint"):
+                    raise ValueError(f"refuse set of coverage-owned field {fk!r}")
+                # A same-status write to a plan that IS approved but lacks the bullet keeps today's
+                # backfill (2xwb9b D-06); any other append outside a transition to approved is refused.
+                if fk == "approval" and not ends_approved:
+                    raise ValueError(
+                        "set of approval outside transition to approved append"
+                    )
+                if (
+                    fk in ("scope_result", "out_of_scope_paths", "widened_paths")
+                    and to_s != "executed"
+                ):
+                    raise ValueError(
+                        f"set of {fk!r} outside transition to executed append"
+                    )
+        elif op == "unset":
+            for fk in ev.get("fields", []):
+                if fk in ("status", "id", "type"):
+                    raise ValueError(
+                        f"refuse generic unset of identity/status field: {fk!r}"
+                    )
+                if fk in ("readiness", "review_depth") and not backward:
+                    raise ValueError(
+                        f"refuse unset of {fk!r} outside backward transition append"
+                    )
+                if fk == "approval" and ends_approved:
+                    raise ValueError(
+                        "refuse unset of approval outside transition away from approved"
+                    )
+                unset_fields.add(fk)
+    if leaving_approved and record_type == "ipd" and "approval" not in unset_fields:
+        raise ValueError(
+            "approval must be unset in the append containing a transition away from approved"
+        )
+    if backward and "readiness" not in unset_fields:
+        raise ValueError(
+            "readiness must be unset in the append of a backward plan transition"
+        )
+
+
+def _set_bullet(
+    text: str, label: str, value: Optional[str], *, anchors: Tuple[str, ...]
+) -> str:
+    """Replace or remove `- <label>:` inside the metadata region, else insert after an anchor."""
+    from agent_workflows import selectors as _sel
+
+    region = _sel.metadata_region(text)
+    rest = text[len(region) :]
+    pat = re.compile(r"(?m)^-\s*" + re.escape(label) + r":[^\n]*\n?")
+    if value is None:
+        return pat.sub("", region) + rest
+    new_line = f"- {label}: {value}\n"
+    m = pat.search(region)
+    if m:
+        return region[: m.start()] + new_line + region[m.end() :] + rest
+    for anchor in anchors:
+        am = re.search(r"(?m)^-\s*" + re.escape(anchor) + r":[^\n]*\n", region)
+        if am:
+            return region[: am.end()] + new_line + region[am.end() :] + rest
+    return region + rest
+
+
+def _render_status(
+    text: str, plural: str, status: str, *, quiet: bool, label: str
+) -> Tuple[str, List[str]]:
+    """Write the status mirror in today's three forms: prompt comment, `---` YAML, bullet."""
+    notes: List[str] = []
+    lines = text.splitlines()
+    if plural == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        if _prompts.has_metadata_comment(text):
+            return _prompts.update_metadata_status(text, status), notes
+        notes.append(
+            f"aw set: note: prompt {label} has no metadata comment; status lives in directory only\n"
+        )
+        return text, notes
+
+    status_updated = False
+    new_lines: List[str] = []
+    in_front = True
+    fenced = bool(lines and lines[0].strip() == "---")
+    status_bullet = re.compile(r"^-\s*Status:\s*(\S+)\s*$")
+    for line in lines:
+        if fenced:
+            if in_front and line.strip() == "---" and new_lines:
+                in_front = False
+            if (
+                in_front
+                and not status_updated
+                and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
+            ):
+                new_lines.append(f"status: {status}")
+                status_updated = True
+            else:
+                new_lines.append(line)
+        else:
+            if in_front and line.startswith("## "):
+                in_front = False
+            if in_front and not status_updated and status_bullet.match(line):
+                new_lines.append(f"- Status: {status}")
+                status_updated = True
+            else:
+                new_lines.append(line)
+
+    if not status_updated and not fenced and plural == "plans":
+        # The annotated legacy status (`- Status: approved (2026-09-25; executing)`, plan `9en4fy`).
+        for i, line in enumerate(new_lines):
+            if line.startswith("## "):
+                break
+            m_ann = re.match(r"^-\s*Status:\s*([A-Za-z][A-Za-z-]*)(\W.*)$", line)
+            if not m_ann:
+                continue
+            if _plans.normalize_status(m_ann.group(1)) not in _plans.RECOGNIZED:
+                continue
+            old_value = line.split(":", 1)[1].strip()
+            new_lines[i : i + 1] = [
+                f"- Status: {status}",
+                f"- Prior-Status: {old_value}",
+            ]
+            status_updated = True
+            break
+
+    if not status_updated:
+        res: List[str] = []
+        inserted = False
+        if fenced:
+            for line in new_lines:
+                if not inserted and line.strip() == "---" and res:
+                    res.append(f"status: {status}")
+                    inserted = True
+                res.append(line)
+        else:
+            for line in new_lines:
+                res.append(line)
+                if not inserted and line.startswith(("# ", "- Date:")):
+                    res.append(f"- Status: {status}")
+                    inserted = True
+            if not inserted:
+                res.insert(0, f"- Status: {status}")
+        new_lines = res
+    return "\n".join(new_lines), notes
+
+
+def _render_field(
+    text: str,
+    plural: str,
+    field: str,
+    value: Optional[str],
+    *,
+    repo_root: Optional[Path],
+) -> str:
+    """One bullet edit, reusing the existing pure value writers for the fields they own."""
+    from agent_workflows import backlog as _backlog
+
+    writers = {
+        "blocks_release": _releases.set_blocks_release_line,
+        "priority": _releases.set_priority_line,
+        "work_kind": _releases.set_work_kind_line,
+        "from_backlog": _releases.set_from_backlog_line,
+        "from_spec": _releases.set_from_spec_line,
+        "item_dependencies": _releases.set_item_dependencies_line,
+        "graduated_to": _releases.set_graduated_to_line,
+        "release_exempt_kind": _backlog.set_release_exempt_kind_line,
+        "release_exempt_ref": _backlog.set_release_exempt_ref_line,
+    }
+    if field in writers:
+        return writers[field](text, value if value is not None else "-")
+    if field == "close_evidence":
+        return _backlog.set_close_evidence_line(
+            text, value if value is not None else "-", repo_root=repo_root
+        )
+    label = _LEGACY_BULLET_LABEL.get(field)
+    if label is None:
+        raise ValueError(f"legacy writer has no bullet form for field {field!r}")
+    if value is None:
+        pat = _LEGACY_REMOVE_RE.get(field) or _bullet_re(label)
+        return "\n".join(ln for ln in text.split("\n") if not pat.match(ln))
+    anchors = {
+        "review_depth": ("Readiness", "Status"),
+        "coverage": ("Readiness", "Status"),
+    }.get(field, ("Status",))
+    return _set_bullet(text, label, value, anchors=anchors)
+
+
+def _render_gate(text: str, fields: Dict[str, Any]) -> str:
+    """Gate bullets are written as a block directly after `- Status:` (Kind, Ref, Summary)."""
+    lines = [
+        ln
+        for ln in text.split("\n")
+        if not any(_LEGACY_REMOVE_RE[g].match(ln) for g in _GATE_FIELDS)
+    ]
+    st_idx = -1
+    for i, ln in enumerate(lines):
+        if re.match(r"^-\s*Status:\s*(\S+)\s*$", ln):
+            st_idx = i
+            break
+    pos = st_idx + 1 if st_idx >= 0 else 1
+    block = [
+        f"- {_LEGACY_BULLET_LABEL[g]}: {fields[g]}"
+        for g in _GATE_FIELDS
+        if fields.get(g)
+    ]
+    for gl in reversed(block):
+        lines.insert(pos, gl)
+    return "\n".join(lines)
+
+
+def _render_approval(text: str, value: str) -> str:
+    """`- Approval:` directly after `- Id:`, else after `- Status:`, else before the first `## `."""
+    lines = text.split("\n")
+    if any(re.match(r"^- Approval:\s*", ln) for ln in lines):
+        return text
+    line = f"- Approval: {value}"
+    idx: Optional[int] = None
+    for i, ln in enumerate(lines):
+        if ln.startswith("## "):
+            break
+        if re.match(r"^- Id:\s*", ln):
+            idx = i + 1
+    if idx is None:
+        for i, ln in enumerate(lines):
+            if ln.startswith("## "):
+                break
+            if re.match(r"^-\s*Status:\s*(\S+)\s*$", ln):
+                idx = i + 1
+    if idx is None:
+        idx = next(
+            (i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines)
+        )
+    lines.insert(idx, line)
+    return "\n".join(lines)
+
+
+def _render_history(text: str, entry: str, *, is_prompt: bool) -> str:
+    """Prepend a newest-first record under `## Workflow history`, creating the heading if absent."""
+    lines = text.split("\n")
+    for i, ln in enumerate(lines):
+        if re.match(r"^##\s*Workflow history\s*$", ln):
+            lines.insert(i + 1, entry)
+            return "\n".join(lines)
+    idx = len(lines)
+    if not is_prompt:
+        idx = next(
+            (i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines)
+        )
+    lines[idx:idx] = ["## Workflow history", entry, ""]
+    return "\n".join(lines)
+
+
+def render_legacy(
+    text: str,
+    plural: str,
+    events: List[Dict[str, Any]],
+    render: LegacyRender,
+    *,
+    label: str = "",
+    repo_root: Optional[Path] = None,
+    quiet: bool = True,
+) -> Tuple[str, List[str]]:
+    """Render ONE append's events into a record's legacy Markdown text. Pure.
+
+    Event order is the append's order; the history line is written last. Returns the rendered text
+    (ending in exactly one newline) and the notes the setter prints."""
+    notes: List[str] = []
+    # Today's setter worked on `text.splitlines()` and re-split after every value writer, so the
+    # renderer normalizes the same way (no trailing empty line, CRLF folded) between edits.
+    out = "\n".join(text.splitlines())
+    trans = next((e for e in events if e.get("op") == "transition"), None)
+    mirror = render.status or (trans.get("to") if trans else None)
+    if mirror:
+        out, n = _render_status(out, plural, mirror, quiet=quiet, label=label)
+        notes.extend(n)
+    for ev in events:
+        op = ev["op"]
+        if op == "transition":
+            pass
+        elif op == "set":
+            fields = dict(ev["fields"])
+            gate = {g: fields.pop(g) for g in _GATE_FIELDS if g in fields}
+            if gate:
+                out = _render_gate(out, gate)
+            if "approval" in fields:
+                out = _render_approval(out, fields.pop("approval"))
+            for fk, fv in fields.items():
+                out = "\n".join(
+                    _render_field(out, plural, fk, fv, repo_root=repo_root).splitlines()
+                )
+        elif op == "unset":
+            for fk in ev["fields"]:
+                out = "\n".join(
+                    _render_field(
+                        out, plural, fk, None, repo_root=repo_root
+                    ).splitlines()
+                )
+        elif op == "review":
+            if ev.get("review_kind") == "gate":
+                for fk in ("readiness", "review_depth"):
+                    if ev.get(fk):
+                        out = _render_field(
+                            out, plural, fk, ev[fk], repo_root=repo_root
+                        )
+        elif op == "coverage":
+            out = _render_field(
+                out, plural, "coverage", ev["coverage"], repo_root=repo_root
+            )
+            out = _set_bullet(
+                out,
+                "Coverage-Fingerprint",
+                ev["coverage_fingerprint"],
+                anchors=("Coverage",),
+            )
+            out = _set_bullet(
+                out,
+                "Coverage-Checked",
+                f"{render.day} by {render.actor_label}",
+                anchors=("Coverage-Fingerprint",),
+            )
+        elif op in ("note", "legacy"):
+            pass
+        else:
+            raise ValueError(f"legacy writer cannot render op {op!r}")
+    if plural == "backlog":
+        out = _canonicalize_work_kind(out)
+    if render.history:
+        msg = next((e.get("message") for e in events if e.get("message")), "") or ""
+        entry = f"- {render.day} {render.tag} ({render.actor_label}): {msg}"
+        out = _render_history(out, entry, is_prompt=render.is_prompt)
+    return out.rstrip() + "\n", notes
+
+
+def _canonicalize_work_kind(text: str) -> str:
+    """Backlog `- Kind:` becomes `- Work-Kind:`; a second spelling is dropped (only canonical written)."""
+    lines = text.split("\n")
+    has_wk = any(re.match(r"^- Work-Kind:\s*", ln) for ln in lines)
+    out: List[str] = []
+    for ln in lines:
+        m = re.match(r"^- Kind:\s*(.*)", ln)
+        if m:
+            if not has_wk:
+                out.append(f"- Work-Kind: {m.group(1).strip()}")
+                has_wk = True
+        else:
+            out.append(ln)
+    return "\n".join(out)
+
+
+def _prepare_legacy_events(
+    record_type: Optional[str],
+    events: List[Dict[str, Any]],
+    *,
+    records_root: Path,
+    actor: Optional[Dict[str, Any]],
+    by_human: bool,
+    overrides: Optional[List[str]],
+) -> List[Dict[str, Any]]:
+    """Give the events a v1 envelope and run the SAME writer-side refusals as the log branch."""
+    now_utc = datetime.datetime.now(timezone.utc).isoformat()
+    prepared: List[Dict[str, Any]] = []
+    for i, ev in enumerate(events):
+        e = dict(ev)
+        e.update(
+            {
+                "v": 1,
+                "seq": 1 + i,
+                "append": 1,
+                "at": now_utc,
+                "actor": actor or {"tool": "artifact_meta"},
+            }
+        )
+        if by_human:
+            e["by_human"] = True
+        if overrides:
+            e["overrides"] = list(overrides)
+        if e.get("message") == "":
+            e.pop("message")
+        prepared.append(e)
+    # Field names: the type's registry, plus the setter vocabulary today's bullet format accepts on
+    # any record (2xwb9b D-04; e.g. `--work-kind` on a research report). Unknown names are refused.
+    legacy_vocab = set(_LEGACY_BULLET_LABEL) | {
+        "blocks_release",
+        "priority",
+        "work_kind",
+        "from_backlog",
+        "from_spec",
+        "item_dependencies",
+        "graduated_to",
+        "release_exempt_kind",
+        "release_exempt_ref",
+        "close_evidence",
+    }
+    reg = REGISTRY.get(record_type or "", {})
+    for e in prepared:
+        f = e.get("fields")
+        names = f if isinstance(f, list) else list(f or {})
+        for fk in names:
+            if fk not in reg and fk not in legacy_vocab:
+                raise ValueError(f"unknown field '{fk}' for type '{record_type}'")
+    validate_new_events("", prepared, records_root=records_root)
+    return prepared
+
+
+def _git_target_root(path: Path, repo_root: Path) -> Path:
+    """The git root a move is staged in: the companion records repository when it owns the record."""
+    owner = _proj_ctx.record_owner_root(path)
+    if owner is not None:
+        with contextlib.suppress(Exception):
+            c = _proj_ctx.resolve_project_context(target_repo=str(owner))
+            if c.records_backend == _proj_ctx.RecordsBackend.COMPANION.value:
+                gr = _proj_ctx.record_git_root(path)
+                if gr is not None:
+                    return gr
+    return repo_root
+
+
+def append_legacy(
+    target: LegacyTarget,
+    events: List[Dict[str, Any]],
+    *,
+    render: LegacyRender,
+    repo_root: Path,
+    project_context: Any = None,
+    destination: Optional[Path] = None,
+    dry_run: bool = False,
+    actor: Optional[Dict[str, Any]] = None,
+    by_human: bool = False,
+    overrides: Optional[List[str]] = None,
+    sidecar: Optional[SidecarRecord] = None,
+    quiet: bool = True,
+    from_status: Optional[str] = None,
+    notes_out: Optional[List[str]] = None,
+) -> WritePreview:
+    """The LEGACY branch of `append` (phase B): validate, render, then move, write and record.
+
+    Write order is today's (2xwb9b F-07): the disposition move first (`git mv` in the record's git
+    root), then the atomic content write (the phase-B commit point), then the belt-and-braces source
+    unlink, then the specs/backlog sidecar record, then the cache rows (best effort). A failure before
+    the content write raises with every file and the sidecar unchanged. A refused append raises
+    ``ValueError`` before anything is read for writing. ``dry_run`` writes nothing."""
+    repo_root = Path(repo_root)
+    ctx = project_context or legacy_context(repo_root)
+    records_root = Path(ctx.logical_roots["records"])
+    state_root = Path(ctx.logical_roots["state"])
+    reg_type = _LEGACY_PLURAL_TO_TYPE.get(target.record_type)
+
+    prepared = _prepare_legacy_events(
+        reg_type,
+        events,
+        records_root=records_root,
+        actor=actor,
+        by_human=by_human,
+        overrides=overrides,
+    )
+    _check_owned_fields(reg_type or target.record_type, prepared, from_status)
+
+    src = Path(target.path)
+    text = src.read_text(encoding="utf-8") if src.is_file() else ""
+    if (
+        target.source_digest is not None
+        and src.is_file()
+        and _compute_digest(src) != target.source_digest
+    ):
+        raise ValueError(
+            f"refused: {src} changed since it was read (source digest differs); re-read and retry"
+        )
+    rendered, notes = render_legacy(
+        text,
+        target.record_type,
+        prepared,
+        render,
+        label=target.id6 or src.name,
+        repo_root=repo_root,
+        quiet=quiet,
+    )
+    if notes_out is not None:
+        notes_out.extend(notes)
+    dest = Path(destination) if destination is not None else src
+    moving = dest.resolve() != src.resolve()
+    preview = WritePreview(
+        text=rendered,
+        destination=dest,
+        source=src,
+        changed=moving or rendered != text,
+        events=prepared,
+    )
+    if dry_run:
+        return preview
+
+    lock_path = state_root / "locks" / f"meta-{target.key}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with _lock.held(lock_path):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if moving and src.exists():
+            git_root = _git_target_root(src, repo_root)
+            try:
+                rel_src = str(src.relative_to(git_root))
+                rel_dst = str(dest.relative_to(git_root))
+            except ValueError:
+                rel_src, rel_dst = str(src), str(dest)
+            _core.git_mv(git_root, rel_src, rel_dst)
+        _core.atomic_write(dest, rendered)
+        if moving and src.exists():
+            with contextlib.suppress(OSError):
+                src.unlink()
+        if sidecar is not None:
+            sid = target.id6
+            if not sid:
+                from agent_workflows import selectors as _sel
+
+                sid = _sel.read_front_matter_id(rendered)
+            if sid:
+                from agent_workflows import record_history as _rh
+
+                _rh.append_advisory(
+                    repo_root,
+                    id6=sid,
+                    tree=sidecar.tree,
+                    workflow=sidecar.workflow,
+                    actor=sidecar.actor,
+                    message=sidecar.message,
+                    date=sidecar.date,
+                    artifact=dest.name,
+                )
+        # No cache refresh here: the two-check freshness rule (4.3) reloads the changed files on the
+        # next read, and a refresh on every write would cost a whole cold build (measured about 14 s
+        # on this repository) in a fresh checkout or lane, where most setter calls run.
+    return preview
+
+
 def append(
-    id6: str,
+    id6: Union[str, "LegacyTarget"],
     events: List[Dict[str, Any]],
     *,
     expect_seq: Optional[int] = None,
@@ -3542,8 +4326,55 @@ def append(
     overrides: Optional[List[str]] = None,
     migration_import: bool = False,
     _from_create: bool = False,
-) -> Dict[str, Any]:
-    """Append events to an artifact's event log under lock."""
+    legacy_render: Optional[LegacyRender] = None,
+    **legacy_kwargs: Any,
+) -> Any:
+    """Append events to an artifact under lock.
+
+    Dispatches on the TARGET's storage format (2xwb9b E-03, `_storage_format`): a record with a
+    `meta/<id6>.jsonl` log appends to the log (the tve77h path below); a record without one, which in
+    phase B is every real record, renders the events into its bullet-format file through
+    :func:`append_legacy` and returns a :class:`WritePreview`. The legacy branch needs a
+    :class:`LegacyTarget` (or an id6 whose file the cache resolves) and a :class:`LegacyRender`."""
+    if isinstance(id6, LegacyTarget) or legacy_render is not None:
+        target = id6
+        ctx = project_context or (
+            legacy_context(legacy_kwargs["repo_root"])
+            if "repo_root" in legacy_kwargs
+            else _proj_ctx.resolve_project_context()
+        )
+        records_root = Path(ctx.logical_roots["records"])
+        if _storage_format(records_root, target) == "legacy":
+            if not isinstance(target, LegacyTarget):
+                rel = resolve(target, project_context=ctx)
+                if rel is None:
+                    raise ValueError(f"artifact not found: {target}")
+                st = read(target, project_context=ctx)
+                plural = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}.get(
+                    st.type, "other"
+                )
+                target = LegacyTarget(records_root / rel, plural, target)
+            if legacy_render is None:
+                raise ValueError("a legacy-format append requires legacy_render")
+            repo_root = (
+                legacy_kwargs.pop("repo_root", None)
+                or getattr(ctx, "repo_root", None)
+                or records_root.parent.parent
+            )
+            return append_legacy(
+                target,
+                events,
+                render=legacy_render,
+                repo_root=repo_root,
+                project_context=ctx,
+                dry_run=dry_run,
+                actor=actor,
+                by_human=by_human,
+                overrides=overrides,
+                **legacy_kwargs,
+            )
+        id6 = (target.id6 or "") if isinstance(target, LegacyTarget) else str(target)
+    assert isinstance(id6, str)
     validate_id6(id6)
     ctx = project_context or _proj_ctx.resolve_project_context()
     records_root = Path(ctx.logical_roots["records"])
