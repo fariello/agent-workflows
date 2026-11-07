@@ -1819,7 +1819,7 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # One asymmetry is normalized away here:
             # 1. Actor: (aw backlog) vs (aw set) truthfully identifies the code path and is deliberate.
-            # (History dates now both use UTC per spec 2vev8j 4.4 and are compared literally).
+            # (History dates now both use UTC per spec 4sd62s 4.2b and are compared literally).
             norm1 = (
                 res1_text.replace("bk0001", "bkXXXX")
                 .replace("Bug 1", "Bug X")

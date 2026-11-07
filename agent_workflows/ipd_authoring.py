@@ -248,8 +248,8 @@ def build_skeleton(
     ``from_backlog``/``blocks_release`` are written only when given.
 
     ``history_date`` stamps the ``draft`` history record under ``## Workflow history`` and defaults
-    to ``when`` if omitted. The history date is recorded in UTC per spec ``2vev8j`` Section 4.4
-    ("One timezone for every writer"), whereas the ``- Date:`` metadata field (and the artifact's
+    to ``when`` if omitted. The history date is recorded in UTC per spec ``4sd62s`` Section 4.2b
+    ("One clock for each stored value"), whereas the ``- Date:`` metadata field (and the artifact's
     filename) remain machine-local per ``DECISIONS.md`` D55 ("Human-facing timestamps use LOCAL
     time, not UTC").
 
@@ -540,7 +540,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
             f"work kind must be one of {sorted(_bk_vocab.KINDS)}: {work_kind!r}", ctx
         )
     when = date.today().strftime("%Y-%m-%d")
-    # History records record UTC per spec 2vev8j Section 4.4 (reusing artifact_core.utc_history_date,
+    # History records record UTC per spec 4sd62s Section 4.2b (reusing artifact_core.utc_history_date,
     # added by 5ivkdh E-01); human-facing names (- Date: and filename prefixes) remain machine-local
     # per DECISIONS.md D55.
     history_date = _core.utc_history_date()
