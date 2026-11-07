@@ -487,3 +487,30 @@ Commands whose primary purpose is path discovery and artifact lookup (e.g. `aw f
 - **`--paths` (`-p`) Flag**: Query and discovery verbs support `--paths` to emit bare repo-relative file paths on `stdout`, one per line, with no column headers, ANSI formatting, or summary boilerplate. Passing `aw find --limit <N>` bounds every row-printing surface to the first `N` matches: the `--agent` stream reports counts in its `summary`, the human listing prints an omitted notice and continuation, and `--paths` keeps stdout pure and reports the notice on stderr; `--json` remains the full unbounded dictionary.
 - **`--agent` Mode for Discovery**: When `--agent` is passed to `aw find`, it emits a canonical `aw.agent/v1` stream: one `item` record per match followed by a terminal `summary` record. This allows token-bounded queries via `--limit` and field projection via `--fields`. While full unconstrained listings cost more than bare paths (measured on this repository at 1329 plans: 158031 bytes for bare paths versus 239238 bytes for path-only items (1.51x) or 329319 bytes for five-field records (2.08x)), bounded queries dramatically reduce token consumption (for example, `--limit 20` requires only 4809 bytes, or 3.0 percent of the bare full listing). Callers requiring bare paths use `--paths`, while callers requiring the full unstreamed dictionary use explicit `--json`.
 - **Exit Classification**: If one or more matching paths are found, the command exits `0`. If an empty result set occurs, the exit code follows the Section 11.1 standing-question discriminator (governed by spec `25kzda` Sections 2.3 and 2.4a, with `aw runs`, `aw attention`, and `aw find` conforming): listing an empty unfiltered set or asking a standing vocabulary question exits `0`, while a specific selector asserting a named artifact that matches zero paths is treated as an unresolved selector refusal and exits `2` with `outcome: "cannot-run"`. On `--paths`, a refusal prints diagnostic text to `stderr` while `stdout` remains empty (0 bytes).
+
+## 13. Metadata Reads: `aw show --history`, `aw show --format json`, `aw index rebuild`
+
+These three commands read artifact metadata through the metadata store, a SQLite cache at
+`.aw/state/index.db` that is rebuilt from the tracked records. Deleting the cache loses nothing:
+the next command rebuilds it.
+
+- **`aw show <selector> --history`**: Prints the metadata history of every record the selector
+  names, one row per event in sequence order. Before the metadata cutover the rows come from the
+  record's `## Workflow history` lines, in file order, plus one `review` row per review round. With
+  `--agent`, it emits one `result` record whose `evidence` lists `show-match:<count>`,
+  `<id6>-status:<status>` and `<id6>-events:<count>`. With `--json`, the full history is under
+  `data.records[].history`.
+- **`aw show <selector> --format json`**: Prints the record's metadata state as JSON (status, path,
+  Set, order, every registry field, `valid` and `defect`) under `data.records[]`. Add `--history` to
+  include the events. `--format text`, or no `--format` at all, keeps the existing text view.
+  `--format json` cannot be combined with `--agent` (exit 2, conflicting output format flags).
+- **Exit codes for `aw show`**: `0` when the records were shown. `2` when the selector names no
+  artifact (the Section 11.1 refusal) or when a named record is invalid; the invalid record is
+  named with its defect and no stale state is printed.
+- **`aw index rebuild`**: Deletes and rebuilds the metadata cache from the tracked records and
+  reports the counts of artifacts, walkthroughs, review files, events, and valid and invalid
+  records. It writes no tracked file. Exit `0` when every record is valid, `1` when at least one
+  record is invalid (each is named in a diagnostic), `2` when the cache cannot be built.
+- **`aw index plans`, `aw index research`, `aw index prompts`, `aw index all`**: Unchanged. They
+  still write and check their INDEX files with the same output and exit codes, and after a write
+  they also refresh the metadata cache. A cache problem never changes their output or exit code.

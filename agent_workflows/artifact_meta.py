@@ -2049,6 +2049,11 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
     return data, title
 
 
+#: Per-process id6 collision pools for the legacy loader's fallback mint, keyed by resolved records
+#: root (see `load_legacy_artifact`).
+_LEGACY_MINT_POOLS: Dict[str, Set[str]] = {}
+
+
 def load_legacy_artifact(
     path: Path,
     records_root: Path,
@@ -2172,8 +2177,21 @@ def load_legacy_artifact(
         id6 = bullets["id"]
 
     if not id6:
-        # Default fallback id6 for grandfathered legacy files
-        id6 = _core.mint_id6(_proj_ctx.record_git_root(records_root) or records_root)
+        # Default fallback id6 for grandfathered legacy files. The repository-wide collision pool
+        # is scanned ONCE per records root per process and extended with every id minted here
+        # (1ajqaa): calling `mint_id6` per file re-scanned the whole repository each time, which
+        # measured 70 scans and about 5 minutes for one cold cache build of this repository.
+        _pool_key = str(Path(records_root).resolve())
+        _pool = _LEGACY_MINT_POOLS.get(_pool_key)
+        if _pool is None:
+            _pool = set(
+                _core.global_id6s(
+                    _proj_ctx.record_git_root(records_root) or records_root
+                )
+            )
+            _LEGACY_MINT_POOLS[_pool_key] = _pool
+        id6 = _core.generate_id6(_pool)
+        _pool.add(id6)
 
     validate_id6(id6)
 
@@ -2431,8 +2449,35 @@ def _load_sources(
                 if row and row[0]:
                     id6 = row[0]
 
-            # Remove prior projection of this file/artifact
-            if id6:
+            # Remove prior projection of this file/artifact, but ONLY when this source is the one
+            # that owns the projection (1ajqaa, fixing three measured clobbers): a review file is
+            # keyed by its SUBJECT's id6 and owns no artifact row; an in-file mirror (`.md`) whose
+            # `meta/<id6>.jsonl` log exists is a mirror, and the log is the authority (4.3); and a
+            # removed path only owns the row if that row still points at it, since a `git mv`
+            # loads the new path first and the old path's removal must not delete it.
+            owns_projection = bool(id6)
+            if id6 and role == "review":
+                owns_projection = False
+            elif id6 and role in ("artifact", "walkthrough"):
+                if (records_root / "meta" / f"{id6}.jsonl").exists():
+                    owns_projection = False
+            elif id6 and role == "removed":
+                if path_str.startswith("meta/") and path_str.endswith(".jsonl"):
+                    owns_projection = True
+                elif (records_root / "meta" / f"{id6}.jsonl").exists():
+                    owns_projection = False
+                else:
+                    prior = conn.execute(
+                        "SELECT file_role FROM files WHERE path = ?", (path_str,)
+                    ).fetchone()
+                    cur = conn.execute(
+                        "SELECT path FROM artifacts WHERE id6 = ?", (id6,)
+                    ).fetchone()
+                    if prior is not None and prior[0] == "review":
+                        owns_projection = False
+                    elif cur is not None and cur[0] != path_str:
+                        owns_projection = False
+            if owns_projection:
                 conn.execute("DELETE FROM artifacts WHERE id6 = ?", (id6,))
                 for t in SUPPORTED_TYPES:
                     conn.execute(f'DELETE FROM "{t}" WHERE id6 = ?', (id6,))
@@ -2450,9 +2495,25 @@ def _load_sources(
                 conn.execute("DELETE FROM field_changes WHERE id6 = ?", (id6,))
 
             if not abs_p.exists():
-                # Removed file
+                # Removed file. A removed source arrives with role "removed", so its former role
+                # is read from the files table (1ajqaa: a deleted review file kept its row).
+                prior_role = role
+                if role == "removed":
+                    pr = conn.execute(
+                        "SELECT file_role FROM files WHERE path = ?", (path_str,)
+                    ).fetchone()
+                    prior_role = pr[0] if pr else role
                 conn.execute("DELETE FROM files WHERE path = ?", (path_str,))
-                if role == "review":
+                if prior_role == "review":
+                    rf = conn.execute(
+                        "SELECT subject_id6, review_ref FROM review_files WHERE path = ?",
+                        (path_str,),
+                    ).fetchone()
+                    if rf is not None:
+                        conn.execute(
+                            "DELETE FROM reviews WHERE subject_id6 = ? AND review_ref IS ?",
+                            (rf[0], rf[1]),
+                        )
                     conn.execute("DELETE FROM review_files WHERE path = ?", (path_str,))
                 continue
 
@@ -2686,6 +2747,12 @@ def _load_sources(
             elif role == "review":
                 try:
                     rf_row, rev_rows = load_legacy_review(abs_p, records_root)
+                    # Replace this file's rounds rather than overlaying them (1ajqaa): a review
+                    # edited to fewer rounds must not keep the old ones.
+                    conn.execute(
+                        "DELETE FROM reviews WHERE subject_id6 = ? AND review_ref IS ?",
+                        (rf_row["subject_id6"], rf_row["review_ref"]),
+                    )
                     conn.execute(
                         """INSERT OR REPLACE INTO review_files (
                             path, subject_id6, review_ref, round_count, parse_ok
@@ -2755,8 +2822,15 @@ def _load_sources(
                 # Phase B legacy loader
                 try:
                     art_row, h_rows = load_legacy_artifact(abs_p, records_root)
+                    # A mirror of a logged artifact does not replace the log's projection
+                    # (1ajqaa): the log is the authority once `meta/<id6>.jsonl` exists.
+                    _has_log = (
+                        records_root / "meta" / f"{art_row['id6']}.jsonl"
+                    ).exists()
+                    _verb = "INSERT OR IGNORE" if _has_log else "INSERT OR REPLACE"
                     conn.execute(
-                        """INSERT OR REPLACE INTO artifacts (
+                        _verb
+                        + """ INTO artifacts (
                             id6, type, path, disposition, status, title, short_description,
                             set_id, order_nn, filename_date, created_day, created_at, updated_at,
                             last_history_day, last_seq, valid, defect
@@ -3106,15 +3180,49 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
 
         # Otherwise return legacy history lines
         art = conn.execute(
-            "SELECT path, last_history_day FROM artifacts WHERE id6 = ?", (id6,)
+            "SELECT path, last_history_day, valid, defect FROM artifacts WHERE id6 = ?",
+            (id6,),
         ).fetchone()
+        if art and (art[2] == 0 or art[3]):
+            # Fail closed on an invalid record rather than re-parsing its source as a
+            # legacy `.md` file (1ajqaa): never return stale or misparsed history.
+            raise ValueError(f"invalid record {id6}: {art[3]}")
+        legacy_rows: List[Dict[str, Any]] = []
         if art and art[0]:
             abs_p = records_root / art[0]
-            if abs_p.exists():
-                _, hist_rows = load_legacy_artifact(abs_p, records_root)
-                return hist_rows
+            if abs_p.exists() and abs_p.suffix == ".md":
+                _, legacy_rows = load_legacy_artifact(abs_p, records_root)
 
-        return []
+        # Phase B: each review ROUND of a legacy review file is a `review` event of its SUBJECT
+        # (4.1a), appended after the history lines in file order, with no inferred ordering.
+        for rv in conn.execute(
+            """SELECT r.seq, r.round, r.review_kind, r.verdict, r.legacy_verdict, r.observed_day,
+                      r.readiness, r.review_depth, r.reviewer, r.review_ref
+               FROM reviews r
+               WHERE r.subject_id6 = ? ORDER BY r.seq""",
+            (id6,),
+        ).fetchall():
+            row: Dict[str, Any] = {
+                "id6": id6,
+                "op": "review",
+                "round": rv[1],
+                "review_kind": rv[2],
+                "observed_day": rv[5],
+                "source": "review-file",
+            }
+            for k, v in (
+                ("verdict", rv[3]),
+                ("legacy_verdict", rv[4]),
+                ("readiness", rv[6]),
+                ("review_depth", rv[7]),
+                ("reviewer", rv[8]),
+                ("review_ref", rv[9]),
+            ):
+                if v is not None:
+                    row[k] = v
+            legacy_rows.append(row)
+
+        return legacy_rows
     finally:
         conn.close()
 

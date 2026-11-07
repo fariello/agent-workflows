@@ -224,6 +224,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="shared_empty_result",
+        # metastore `1ajqaa` (spec `4sd62s` 4.8): `--history` and `--format json` answered by artifact_meta.
+        legacy_flags=("--json", "--agent", "--dir", "--history", "--format"),
         # Pure read verb: zero-match refusal exits 2 (upryxf; docs/cli-output-contract.md Section 11.1); no reachable exit 1 path.
         exit_contract=(0, 2),
     ),
@@ -537,6 +539,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     ),
     CommandDeclaration(
         command="index",
+        # metastore `1ajqaa`: `aw index rebuild` is a positional value of this leaf (exit 0 ok, 1
+        # invalid records found, 2 cannot-run), so it shares this declaration.
         command_class="read",
         human_recipe="list",
         agent_record_kind="result",

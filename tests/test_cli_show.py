@@ -274,6 +274,42 @@ class CliShowCommandTests(unittest.TestCase):
             self.assertIn(code, decl.exit_contract)
         self.assertNotIn(1, observed_exits)
 
+    def test_history_flag_prints_one_row_per_history_line(self) -> None:
+        """metastore `1ajqaa` E-03: `--history` renders the record's metadata history."""
+        self.p1_path.write_text(
+            self.p1_content + "\n## Workflow history\n"
+            "- 2026-11-02 to-review (aw set): ready\n"
+            "- 2026-11-01 draft (author): created\n",
+            encoding="utf-8",
+        )
+        rc, out, _ = self._invoke(["p99001", "--history"])
+        self.assertEqual(rc, 0)
+        self.assertIn("2026-11-02 to-review (aw set): ready", out)
+        self.assertIn("2026-11-01 draft (author): created", out)
+        self.assertNotIn("Plan details.", out)  # the body text is not printed
+        rc_a, out_a, _ = self._invoke(["p99001", "--history", "--agent"])
+        rec = json.loads(out_a.strip().splitlines()[-1])
+        self.assertEqual((rc_a, rec["exit"]), (0, 0))
+        self.assertIn("p99001-events:2", rec["evidence"])
+        self.assertEqual(agent_schema.validate_agent_record(rec), [])
+
+    def test_format_json_prints_replayed_state(self) -> None:
+        """metastore `1ajqaa` E-03: `--format json` prints parseable state; it conflicts with --agent."""
+        rc, out, _ = self._invoke(["p99001", "--format", "json"])
+        self.assertEqual(rc, 0)
+        rec = json.loads(out)["data"]["records"][0]
+        self.assertEqual(rec["status"], "to-review")
+        self.assertIn("fields", rec)
+        rc_text, out_text, _ = self._invoke(["p99001", "--format", "text"])
+        self.assertEqual(rc_text, 0)
+        self.assertEqual(
+            out_text.count(self.p1_content), 1
+        )  # explicit text == no-flag view
+        rc_c, out_c, err_c = self._invoke(["p99001", "--agent", "--format", "json"])
+        self.assertEqual(rc_c, 2)
+        self.assertEqual(out_c, "")
+        self.assertIn("conflicting output format flags", err_c)
+
 
 if __name__ == "__main__":
     unittest.main()

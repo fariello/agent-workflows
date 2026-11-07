@@ -554,7 +554,12 @@ _DESCRIPTIONS = {
     "check": "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract; exit 0 clean, 1 findings, 2 cannot-run.",
     "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment), or across all types when omitted.",
     "search": "Search the artifacts of a given TYPE for matching content (regex-enabled), or across all types when omitted. Groups matches by file with color highlighting.",
-    "index": "Rebuild and print the manifest/index for a given artifact TYPE.",
+    "index": (
+        "Rebuild and print the manifest/index for a given artifact TYPE (this also refreshes the "
+        "metadata cache). `aw index rebuild` deletes and rebuilds the metadata cache "
+        "(.aw/state/index.db) from the tracked records and reports artifact, review and event counts; "
+        "it writes no tracked file and exits 1 when a record is invalid."
+    ),
     "rename": "Rename or move an artifact of a given TYPE, rewriting references to it across the repo.",
     "group": "Assign an artifact of a given TYPE to a Set/group, re-clustering its name.",
     "migrate-layout": (
@@ -4748,6 +4753,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw show pp6y76               # print the record with id6 pp6y76 (plans/specs/research/...)\n"
             "  aw show <set-id>             # the records in a Set\n"
             "  aw show to-review            # records with status to-review (exits 0 even if none)\n"
+            "  aw show <id6> --history      # the record's metadata history, one row per event\n"
+            "  aw show <id6> --format json  # the record's replayed metadata state as JSON\n"
         ),
     )
     p_show.add_argument(
@@ -4758,6 +4765,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir",
         default=None,
         help="Repo root to search for a records artifact (default: current directory).",
+    )
+    # metastore `1ajqaa` E-03 (spec `4sd62s` 4.8): two flags on the EXISTING `aw show`, no second
+    # `show` command. `--format` defaults to None, NOT `text`: `result_types.select_output` refuses
+    # any non-None, non-json `--format` beside `--agent`/`--json`, so a `text` default would break
+    # every existing `aw show <ref> --agent` call. None and an explicit `text` both mean the human view.
+    p_show.add_argument(
+        "--history",
+        action="store_true",
+        default=False,
+        help="Print the record's metadata history (one row per event, in seq order) instead of its text.",
+    )
+    p_show.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default=None,
+        help="Output format: 'json' prints the replayed metadata state (with --history, the events too).",
     )
 
     # graduate Order 01 (`jxxec8`): the PRE-GRADUATION VIEW. Read-only and advisory: it reports the
@@ -4996,7 +5019,10 @@ def _build_parser() -> argparse.ArgumentParser:
             "Find artifacts of a TYPE by selector (or across all types if omitted).",
         ),
         ("search", "Search artifacts of a TYPE (or across all types if omitted)."),
-        ("index", "Rebuild/print the index for a TYPE."),
+        (
+            "index",
+            "Rebuild/print the index for a TYPE, or `rebuild` the metadata cache.",
+        ),
         ("rename", "Rename/move an artifact of a TYPE (rewriting references)."),
         ("group", "Assign an artifact of a TYPE to a Set/group."),
     ):
@@ -5044,7 +5070,14 @@ def _build_parser() -> argparse.ArgumentParser:
         elif _verb not in ("search", "find", "check"):
             _p.add_argument(
                 "type",
-                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all'.",
+                help=(
+                    "Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all'"
+                    + (
+                        ", or 'rebuild' to rebuild the metadata cache."
+                        if _verb == "index"
+                        else "."
+                    )
+                ),
             )
             _p.add_argument(
                 "selector",
@@ -13618,6 +13651,21 @@ def _run_show(
     # 1. Try to resolve the token as a RECORDS artifact (id6 | setid | filename | status),
     #    searching each record type; print every match.
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+
+    # metastore `1ajqaa` E-03: `--history` and `--format json` are answered by `artifact_meta`
+    # through `meta_cli`; the no-flag path below is unchanged.
+    want_history = bool(getattr(args, "history", False))
+    want_json_state = getattr(args, "format", None) == "json"
+    if want_history or want_json_state:
+        return _run_show_meta(
+            args,
+            term,
+            ctx,
+            repo_root,
+            ref,
+            want_history=want_history,
+            want_json_state=want_json_state,
+        )
     record_types = (
         "plans",
         "specs",
@@ -13705,6 +13753,63 @@ def _run_show(
         status="clean",
     )
     return 0
+
+
+def _run_show_meta(
+    args: argparse.Namespace,
+    term: Term,
+    ctx: Any,
+    repo_root: Path,
+    ref: str,
+    *,
+    want_history: bool,
+    want_json_state: bool,
+) -> int:
+    """`aw show <ref> --history` / `--format json` (metastore `1ajqaa` E-03, spec `4sd62s` 4.8).
+
+    Both are answered by `meta_cli` over `artifact_meta`. A selector naming no artifact keeps the
+    existing zero-match refusal (exit 2); an invalid record is reported with its defect at exit 2.
+    `--format json` prints the CommandResult JSON (the same shape `--json` prints); `--agent` prints
+    one `aw.agent/v1` result record, whose `evidence` carries the per-record counts, because a
+    compact agent record carries no free-form data.
+    """
+    import json as _json
+
+    from agent_workflows import meta_cli
+    from agent_workflows.renderers import JsonRenderer, get_renderer
+
+    if want_json_state:
+        res = meta_cli.show_json(repo_root, ref, history=want_history)
+    else:
+        res = meta_cli.show_history(repo_root, ref)
+
+    if not res.data.get("records"):
+        refusable = selector_tokens_naming_no_artifact(repo_root, [ref])
+        if refusable:
+            return emit_zero_match_selector_refusal(
+                ctx=ctx,
+                cmd="show",
+                tokens=refusable,
+                next_cmd="aw find",
+                next_desc="list all records",
+                searched="all artifact types",
+                term=term,
+            )
+
+    if ctx.is_agent:
+        return get_renderer(ctx).emit(res, ctx)
+    if want_json_state or ctx.is_json:
+        out = JsonRenderer().render(res, ctx)
+        # Validate before printing: the output must be parseable JSON.
+        _json.loads(out)
+        ctx.stdout.write(out)
+        ctx.stdout.flush()
+        return res.exit_code
+    ctx.stdout.write(meta_cli.render_history_human(res))
+    ctx.stdout.flush()
+    if res.exit_code != 0:
+        term.status("fail", res.summary)
+    return res.exit_code
 
 
 def _run_record_history(
@@ -14443,6 +14548,16 @@ def _run_noun_verb(
     ctx = context or select_output(args)
     emit_human = ctx.is_human
 
+    # metastore `1ajqaa` E-05 (spec `4sd62s` 4.5): `aw index rebuild` rebuilds the metadata cache
+    # through `artifact_meta`. Routed BEFORE type normalization because the `aw index` parser takes
+    # the type as its first positional and no record type is named `rebuild`.
+    if verb == "index" and str(getattr(args, "type", "") or "").strip() == "rebuild":
+        from agent_workflows import meta_cli
+
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+        rb = meta_cli.index_rebuild(repo_root)
+        return get_renderer(ctx).emit(rb, ctx)
+
     types, err_msg = _nv_resolve_types(args, term, verb, emit_human=emit_human)
     if types is None:
         if not emit_human:
@@ -14516,6 +14631,15 @@ def _run_noun_verb(
             touched_all.extend(result.touched_paths)
         elif isinstance(result, int):
             rc = max(rc, result)
+
+    # metastore `1ajqaa` E-06: a typed `aw index <type>` (and `aw index all`) ALSO refreshes the
+    # metadata cache after its existing INDEX work. Best effort by construction: `refresh_cache`
+    # swallows every error, so neither the output nor the exit code of the typed spelling changes.
+    # `--check` is read-only drift detection and does not refresh.
+    if verb == "index" and not getattr(args, "check", False):
+        from agent_workflows import meta_cli
+
+        meta_cli.refresh_cache(resolve_verb_repo_root(getattr(args, "dir", None)))
 
     if verb in ("group", "rename") and touched_all:
         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
