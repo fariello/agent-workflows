@@ -6,7 +6,7 @@
 - Scope: Proofread every spec whose status is `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `deferred`, or `parked` at execution time; add or correct diagrams per requirement 12; append one `aw specs note` history line to every swept spec; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `implemented` and `superseded` specs (`ecmw83` N3); any change to a spec's title line or metadata fields (status, approval, `Blocks-Release`, `Id`, `From-*`, `Graduated-To`, and every other `- Key:` field before the first `## ` heading), requirement, acceptance criterion, or decision; any change to a heading, a stable ID, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes; and any change to the substance of recorded evidence or measured values.
 - Scope-Paths: .aw/records/specs/draft/, .aw/records/specs/to-review/, .aw/records/specs/approved/, .aw/records/specs/implementing/, .aw/records/specs/parked/, .aw/records/walkthroughs/, .aw/records/backlog/open/
 - Item-Dependencies: executed:g4719s, executed:gzhw9c, executed:k2x0yl, executed:e4n4p3
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Work-Kind: feature
@@ -20,6 +20,7 @@
 - Id: sfez3e
 
 ## Workflow history
+- 2026-11-07 reviewed (opencode/claude-opus): status reconciliation: /plan-review rounds 1-2 (runs run-20261106T033613Z-1047571, run-20261106T170833Z-1417128) recorded APPROVE WITH REVISIONS APPLIED and Readiness go-pending-approval but left Status to-review; the review-gated runner therefore blocked 381ml6
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2 PR-101..PR-104 FIXED; review record .aw/records/reviews/20261025-writestd-07-sfez3e-sweep-live-specs-against-the-writing-standard.review.md
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-013 FIXED; review record .aw/records/reviews/20261025-writestd-07-sfez3e-sweep-live-specs-against-the-writing-standard.review.md
 - 2026-10-26 to-review (aw set): authored review-ready from spec ecmw83 / backlog qph7c5
