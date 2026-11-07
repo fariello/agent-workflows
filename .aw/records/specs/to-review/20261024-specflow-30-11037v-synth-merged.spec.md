@@ -1,7 +1,7 @@
 # Spec: Multi-participant spec and research synthesis (aw synth)
 
 - Date: 2026-10-24
-- Status: draft
+- Status: to-review
 - Id: 11037v
 - Author: aw specs new
 - Scope: Merged spec for aw synth from candidates 18hh1u, 1tx9t8 and yfz5u9, per research 53jbi5 and hesuzv
@@ -9,6 +9,7 @@
 - Order: 30
 
 ## Workflow history
+- 2026-11-07 to-review (aw set): ready for review
 
 - 2026-11-06 note (aw specs): authored (OpenCode, uri/its_direct/pt3-claude-opus-5.5-1m-us) by hand merge of candidates 18hh1u, 1tx9t8, yfz5u9 per 53jbi5 Sections 4, 5, 7, 8 and hesuzv Sections 3, 4, 6; maintainer answers Q-1..Q-7, N-1, N-2 applied; 135 R ids, 121 AC ids, every R covered; 4 mermaid blocks render; stays draft under DL-17; not reviewed
 - 2026-10-24 created (aw specs): Merged spec for aw synth from candidates 18hh1u, 1tx9t8 and yfz5u9, per research 53jbi5 and hesuzv
