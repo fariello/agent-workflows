@@ -6,7 +6,7 @@ order: 04
 topic: [slash-commands, namespace, installer, host-adapters]
 model: reconciliation
 kind: reconciliation-report
-status: active
+status: reference
 outcome: adopted
 summary: Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.
 consumed-by: []
