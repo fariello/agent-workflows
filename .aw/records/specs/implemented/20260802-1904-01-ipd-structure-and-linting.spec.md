@@ -498,7 +498,7 @@ For a new or migrated IPD, it MUST check at least:
 14. size thresholds and exception fields are consistent, and per-E-item density advisories (`IPD-Z602`) are surfaced advisory-only;
 15. persisted status, directory, plan kind, requested checkpoint, and legacy applicability are compatible;
 16. terminal status, history, directory, and lifecycle-commit metadata agree at `post-transition` to the extent repository state makes them deterministically observable (`IPD-S405`: an executed plan carries an `executed` workflow-history entry);
-17. RETIRED: the no-em/en-dash style rule (formerly rule code IPD-D701) is no longer checked by this command. The no-dash convention is a user-facing prose rule only (GUIDING_PRINCIPLES P13, the AGENTS.md execution contract); IPDs are internal/AI-facing artifacts, so the linter does not flag dashes in them. Any other Markdown style rules delegated to this command are applied only to authored prose outside code, with front matter values exempted by schema and other explicitly excluded constructs.
+17. em and en dashes in authored prose are reported as advisory `IPD-C802`, never blocking, with no authoring-date cutover (spec `ecmw83` R-07); formerly rule code `IPD-D701` stays retired. Any other Markdown style rules delegated to this command are applied only to authored prose outside code, with front matter values exempted by schema and other explicitly excluded constructs.
 18. code citations in authored prose carry a DURABLE ANCHOR (Section 10.2), surfaced advisory-only (`IPD-C801`) and gated on an authoring-date cutover so plans predating the rule are silent.
 19. for an orchestrator plan at the `review-finalize` and `pre-execution` checkpoints, that it is ready for review per spec `25kzda` Section 2.5d (`IPD-S408`), evaluating conditions 1 to 3 directly and condition 4 by READING the plan's own coverage record (spec `25kzda` 2.5e), never by asking a model. An absent coverage record, or one whose fingerprint does not match the current text, is an error that names `aw ipd coverage <id6>` as the remedy. Because the record is in the plan, the result is the same on every clone and in CI. At the `author` checkpoint the rule is advisory only, so a plan being written is not refused for children not yet written.
 20. that a coverage record (`- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:`) is either wholly absent or complete, and is matched by a `coverage` line in `## Workflow history` (`IPD-M112`), at every checkpoint, as an error (an incomplete or unattested record is a defect at any stage, unlike a missing child).
@@ -812,7 +812,7 @@ Each case below is mandatory. The implementation IPD Set MUST map each case to a
 - migrated legacy file is checked under the current schema;
 - quarantined nonterminal file reports the explicit `quarantined` disposition (not a pass, not silently skipped);
 - diagnostics contain a stable rule code, file path, line, and column;
-- the retired no-em/en-dash rule is NOT enforced: an IPD containing em/en dashes still lints conforming (the convention is user-facing prose only, GUIDING_PRINCIPLES P13);
+- em and en dashes in authored prose are reported as advisory `IPD-C802`, never blocking (an IPD containing em/en dashes still lints conforming, with no authoring-date cutover, spec `ecmw83` R-07); `IPD-D701` stays retired;
 - an intentionally desynchronized parity fixture fails, and a missing required dependency (for example `report-template.md`) fails explicitly;
 - repository dogfood distinguishes conforming, quarantined, grandfathered, and erroneous plans, and never calls a skipped file conforming.
 
@@ -857,6 +857,7 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
+- 2026-11-07 note (aw specs): amend Section 10 item 17 and Section 16 acceptance bullet: em/en dashes in authored prose reported as advisory IPD-C802 per spec ecmw83 R-07
 - 2026-11-06 note (aw specs): Section 13.2a amended (legacyfin 9en4fy): reduced check reads annotated Status/Date values; finalize keeps the annotation as Prior-Status; IPD-L002 names a missing cutover; pure layout-migration renames excused from the finalize scope audit; index findings on other plans are finalize warnings.
 - 2026-11-05 note (aw specs): Sections 11 and 13.2a amended (legacyfin 18kg7o E-08): finalize without a begin receipt derives the baseline from git for plans approved before the stamped ipd_begin_receipt cutover (loud NOTICE + history), requires --without-receipt REASON after it; reduced legacy-format check for nonterminal plans dated before the ipd_plan_format cutover (IPD-L001); aw migrate-layout stamps both cutovers.
 - 2026-10-25 note (aw specs): Section 4.4 amended (revsteps gv3smb E-02): document optional field - Review-Depth: with closed enum simple/standard/complex/orchestrator, written by review finalize step (source spec k3yx72 Section 7.2).

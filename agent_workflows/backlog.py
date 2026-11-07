@@ -415,6 +415,26 @@ def drift_location(path: Path) -> str:
     return specs.drift_location(path)
 
 
+def prose_dash_advisories(path: Path, text: str) -> List[core.Drift]:
+    """Emit one backlog.prose-dash info advisory per em or en dash in authored prose (spec ecmw83 R-07)."""
+    from agent_workflows import prose_dash
+
+    dashes = prose_dash.find_prose_dashes(text)
+    loc = drift_location(path)
+    out: List[core.Drift] = []
+    for line, col, ch in dashes:
+        ch_name = "em dash (U+2014)" if ch == "\u2014" else "en dash (U+2013)"
+        out.append(
+            core.Drift(
+                loc,
+                "backlog.prose-dash",
+                f"line {line}, col {col}: prose contains {ch_name} (spec ecmw83 R-07)",
+                severity="info",
+            )
+        )
+    return out
+
+
 def validate_item(path: Path, text: str) -> List[core.Drift]:
     """Validate one backlog item fail-closed. Returns Drift records (empty == conformant)."""
 
@@ -1798,6 +1818,7 @@ def run_check(args) -> int:
         text = f.read_text(encoding="utf-8")
         item_drift = validate_item(f, text)
         drift.extend(item_drift)
+        drift.extend(prose_dash_advisories(f, text))
         pid = parse_item(text).id
         if pid and core.is_valid_id6(pid):
             loc = drift_location(f)
@@ -1827,7 +1848,7 @@ def run_check(args) -> int:
                 location=d.location,
                 rule=d.rule,
                 detail=d.detail,
-                severity="error",
+                severity=d.severity or "error",
             )
             for d in drift
         ]

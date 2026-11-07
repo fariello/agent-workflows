@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: Non-blocking info advisories for em and en dashes in authored prose across aw ipd lint (IPD-C802), aw specs check (spec.prose-dash), and aw backlog check (backlog.prose-dash) (spec ecmw83 R-07).
 - Added: Writing standard pointers and diagram requirements across the authoring and review workflow bodies.
 - Added: unattended plan authoring by `aw oc run` and `aw agy run` now directs the agent to the writing standard.
 - Changed: /plan-review is now a checklist of step files, each review check can be run on its own, and /askme recommendations use five strength levels.

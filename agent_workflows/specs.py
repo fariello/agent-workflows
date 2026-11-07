@@ -362,6 +362,26 @@ def drift_location(path: Path) -> str:
     return core.repo_relative_posix(path)
 
 
+def prose_dash_advisories(path: Path, text: str) -> List[core.Drift]:
+    """Emit one spec.prose-dash info advisory per em or en dash in authored prose (spec ecmw83 R-07)."""
+    from agent_workflows import prose_dash
+
+    dashes = prose_dash.find_prose_dashes(text)
+    loc = drift_location(path)
+    out: List[core.Drift] = []
+    for line, col, ch in dashes:
+        ch_name = "em dash (U+2014)" if ch == "\u2014" else "en dash (U+2013)"
+        out.append(
+            core.Drift(
+                loc,
+                "spec.prose-dash",
+                f"line {line}, col {col}: prose contains {ch_name} (spec ecmw83 R-07)",
+                severity="info",
+            )
+        )
+    return out
+
+
 def validate_spec(path: Path, text: str) -> List[core.Drift]:
     """Return every spec-contract violation for one spec file, as Drift records (rule ids from the
     Order 01 catalog). Pure; does not read anything but the passed text.
@@ -694,6 +714,7 @@ def run_check(args) -> int:
             )
             continue
         drift.extend(validate_spec(p, text))
+        drift.extend(prose_dash_advisories(p, text))
 
     exit_code = core.drift_exit_code(drift)
     status = "clean" if exit_code == 0 else "findings"
@@ -710,7 +731,7 @@ def run_check(args) -> int:
                 location=d.location,
                 rule=d.rule,
                 detail=d.detail,
-                severity="error",
+                severity=d.severity or "error",
             )
             for d in drift
         ]

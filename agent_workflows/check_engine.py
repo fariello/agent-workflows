@@ -1049,6 +1049,9 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "backlog.gate-descriptive-unsafe": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # writestd Order 03 (k2x0yl): em and en dashes in authored prose (spec ecmw83 R-07).
+    "spec.prose-dash": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""),
+    "backlog.prose-dash": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""),
     # Repeated frontmatter key rule covers research docs in YAML dialect (Set jnpl08 / IPD 7d4bgs).
     # Registered `error` to match sibling bullet rules (backlog.metadata-bullet-repeated and
     # spec.metadata-bullet-repeated); `error` is not a free choice dressed as one:
@@ -1509,6 +1512,7 @@ def check_content(
             try:
                 text = p.read_text(encoding="utf-8")
                 drift.extend(_specs.validate_spec(p, text))
+                drift.extend(_specs.prose_dash_advisories(p, text))
                 if p.name.endswith(".spec.md"):
                     drift.extend(check_spec_test_citations_for_text(repo_root, p, text))
             except OSError:
@@ -1534,7 +1538,9 @@ def check_content(
             include_retired=include_retired,
         ):
             try:
-                drift.extend(_backlog.validate_item(p, p.read_text(encoding="utf-8")))
+                text = p.read_text(encoding="utf-8")
+                drift.extend(_backlog.validate_item(p, text))
+                drift.extend(_backlog.prose_dash_advisories(p, text))
             except OSError:
                 continue
         try:
