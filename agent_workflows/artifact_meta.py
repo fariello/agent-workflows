@@ -2173,7 +2173,7 @@ def load_legacy_artifact(
 
     if not id6:
         # Default fallback id6 for grandfathered legacy files
-        id6 = _core.mint_id6()
+        id6 = _core.mint_id6(_proj_ctx.record_git_root(records_root) or records_root)
 
     validate_id6(id6)
 
