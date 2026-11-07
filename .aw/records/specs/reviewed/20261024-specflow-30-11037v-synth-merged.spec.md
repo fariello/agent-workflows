@@ -1,7 +1,7 @@
 # Spec: Multi-participant spec and research synthesis (aw synth)
 
 - Date: 2026-10-24
-- Status: to-review
+- Status: reviewed
 - Id: 11037v
 - Author: aw specs new
 - Scope: Merged spec for aw synth from candidates 18hh1u, 1tx9t8 and yfz5u9, per research 53jbi5 and hesuzv
@@ -9,6 +9,9 @@
 - Order: 30
 
 ## Workflow history
+
+- 2026-11-07 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-009
+- 2026-11-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-009 fixed
 - 2026-11-07 to-review (aw set): ready for review
 
 - 2026-11-06 note (aw specs): authored (OpenCode, uri/its_direct/pt3-claude-opus-5.5-1m-us) by hand merge of candidates 18hh1u, 1tx9t8, yfz5u9 per 53jbi5 Sections 4, 5, 7, 8 and hesuzv Sections 3, 4, 6; maintainer answers Q-1..Q-7, N-1, N-2 applied; 135 R ids, 121 AC ids, every R covered; 4 mermaid blocks render; stays draft under DL-17; not reviewed
@@ -20,7 +23,7 @@
 
 This is the merged specification for `aw synth` [PROPOSED]. It replaces the three `specflow` candidate specs: `18hh1u` (C01), `1tx9t8` (C02) and `yfz5u9` (C03). It follows the merge plan of research record `53jbi5` (Sections 4, 5, 7 and 8) and the third-candidate comparison `hesuzv` (Sections 3, 4 and 6). Section 12.1 lists how it was produced.
 
-Status: `draft`. Under DL-17 the maintainer decides when this spec moves to `to-review`. The workflow it describes would also leave a hand merge like this one at `draft`.
+Status: the front-matter `- Status:` line is authoritative. The spec was authored at `draft`, and the maintainer moved it to `to-review` on 2026-11-07, as DL-17 requires for a one-model merge. The workflow it describes would also leave a hand merge like this one at `draft` until a human moves it.
 
 Labels:
 
@@ -92,9 +95,9 @@ Every durable output is either a repository record that an existing owner verb c
 
 Today the maintainer does this work by hand. The `specflow` Set is the live example. It holds six hand-written prompts (`hj6b60`, `g1k32q`, `443ltw`, `jsgs0f`, `z1zu8c`, `khjc70`), three candidates filed as separate draft specs (`18hh1u`, `1tx9t8`, `yfz5u9`), two comparisons of two candidates (`7fe5zd`, `53jbi5`), and one comparison of the third (`hesuzv`). These problems were measured in that example:
 
-1. Six prompts fail `check.name-nonconformant` and six fail `check.prompt-metadata-missing` (V-03). The cause: the tools cannot emit or parse the D177 attributed form, a filename that carries the ACE and model tokens (for example `.opencode.opus55high.`).
+1. Six prompts fail `check.name-nonconformant` and six fail `check.prompt-metadata-missing` under `aw check prompts --all` (V-03). The default scope omits the three executed prompts and reports three and six. The cause: the tools cannot emit or parse the D177 attributed form, a filename that carries the ACE and model tokens (for example `.opencode.opus55high.`).
 2. Every candidate became a separate draft spec. One feature therefore appears as three unrelated specs in `aw attention`.
-3. Refinement findings for `18hh1u` were written as review records (`20261024-specflow-04-vprs7o-...review.md`). `review_findings.review_attestation_missing("18hh1u")` returns `None` today, so these records already satisfy the `to-review -> reviewed` evidence check without a `/spec-review` (`53jbi5` V-10). The tooling must prevent this hazard (R-62).
+3. Refinement findings for `18hh1u` were written as review records (`20261024-specflow-04-vprs7o-...review.md`). `review_findings.review_attestation_missing(<repo>, "18hh1u")` returns `None` today (re-checked 2026-11-07), so these records already satisfy the `to-review -> reviewed` evidence check without a `/spec-review` (`53jbi5` V-10). The tooling must prevent this hazard (R-62).
 4. Iteration counts, caps, model identity, and the contribution of each candidate are recorded only in prose, or not at all.
 
 ### 1.3 Actors
@@ -160,7 +163,7 @@ Deferred items:
 
 ### 2.1 Findings that decide the design
 
-Symbols re-checked at HEAD on 2026-11-06 (V-01). Code at HEAD equals code at the pin of Section 12.1.
+Symbols re-checked at HEAD on 2026-11-06 (V-01), when code at HEAD equaled code at the pin of Section 12.1. Re-checked again at HEAD `40ef2b506` on 2026-11-07 (spec review): 15 files under `agent_workflows/` now differ from the pin (mostly the MS `artifact_meta` core), every cited symbol still resolves, and the only change that affects a finding is the new `artifact_naming.parse_attributed` (FND-8).
 
 | # | Finding | Evidence | Consequence |
 | --- | --- | --- | --- |
@@ -171,7 +174,7 @@ Symbols re-checked at HEAD on 2026-11-06 (V-01). Code at HEAD equals code at the
 | FND-5 | The `aw run` ledger engine has no loop, fan-out, merge, or launcher. `plan_retry` has no production callers. | [s-run-recovery] `plan_retry` | Synth uses its own small state machine and reuses the ledger primitives that work (Section 6.5). |
 | FND-6 | The runner's readers list only directories named `run-*` (`run_viewer.discover_run_dirs`) and refuse a `state.json` without a list `queue` of objects (`runner_shared.load_state`). The run index of spec `bfuzs6` reads runs only with these readers. Measured: `aw runs` lists a fixture `run-*` directory whose queue items are dispatches (`action: dispatch`, `id6: null`); it reports the item as a missing artifact (V-05). | [s-run-viewer], [s-runner-shared] `load_state`; spec `bfuzs6` | The run directory is minted by `mint_run_dir` and `state.json` carries a `queue` with one entry per dispatch (R-81a, maintainer answer Q-4). The `aw runs` viewer must not report a dispatch item as a missing artifact (R-81b). |
 | FND-7 | Research already has the attributed grammar `YYYYMMDD-<set>-NN-<id6>-<slug>[.<model>].<kind>.md`, companion directories, an index, and Set pipeline positions `unrun`, `partial`, `synthesized`. | [s-research-contract] `parse_name`, `SYNTHESIS_KINDS`; [s-research-index] `derive_pipeline_positions` | Intermediate records belong in the research tree (DL-16). |
-| FND-8 | `research_contract.parse_name` refuses more than three dotted segments, so it rejects `[.<ace>].<model>.<kind>`. `artifact_naming._CLUSTERED_RE` accepts no attribution facet. | [s-research-contract], [s-naming]; V-03 | D177 needs a grammar extension (R-90 to R-94). |
+| FND-8 | `research_contract.parse_name` refuses more than three dotted segments, so it rejects `[.<ace>].<model>.<kind>`. `artifact_naming._CLUSTERED_RE` accepts no attribution facet. Since the pin, MS commit `e4c084ec9` added `artifact_naming.parse_attributed`, which parses `[.<ace>][.<model>].<type>` positionally but accepts any `[a-z0-9-]+` token as the ACE (measured: `.foo.opus55high.prompt.md` parses with ACE `foo`). Only `artifact_meta` calls it; `check.name-nonconformant` and `parse_name` do not. | [s-research-contract], [s-naming]; V-03 | D177 needs a grammar extension (R-90 to R-94). R-94 builds on `parse_attributed` rather than adding a second parser. |
 | FND-9 | `derive_pipeline_positions` marks a Set `synthesized` when any member of kind `reconciliation-report` or `findings` has a body, whatever the member's status. Measured on 165 research records: the rule ignores status; a reused setid whose earlier run left a `reference` matrix reads `synthesized` while a new run is live; and after the MS cutover the banner comment of MS 4.1 counts as a body (`53jbi5` V-08). | [s-research-index]; V-04 | Liveness is decided by research status, not by body (R-97, maintainer answer Q-5). |
 | FND-10 | A spec moves to `reviewed` only when a parseable review record names it. | [s-review-findings] `review_attestation_missing` | Synth MUST NOT write review records (R-62). Refinement findings go in research `assessment` records (DL-16). |
 | FND-11 | `aw specs new` takes no `--set`. It writes `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md`. A spec joins a Set through `aw group specs <id6> --set <s> --order <NN> --rename`. `aw specs new --date` sets the filename date; `aw group specs --date` does not change the date on rename (`hesuzv` V-06). | [s-specs] `run_new`; this spec was created exactly that way | R-60 uses `specs new --date` and `group --rename` without `--date`. |
@@ -628,7 +631,7 @@ Input handling. A brief file is data. The engine never executes text from the br
 ### 4.8 Finalization and lifecycle
 
 - R-60: For a spec run, the working document MUST be a spec record in the specs tree from the moment it is created (maintainer answer Q-2). The synthesize stage creates it when synthesis runs. The generate stage creates it when N = 1 and there is no incumbent. R-61 covers the single-survivor case. The creating stage MUST use two owner verbs:
-  - `aw specs new --date <YYYY-MM-DD> --apply`, with the ISO date converted from the 8-digit Set date (Section 6.7.1);
+  - `aw specs new --title <title> --slug <base> --date <YYYY-MM-DD> --apply`, with the title taken from the brief (the same source as the default slug, Section 3.2), the base slug of Section 6.7.1, and the ISO date converted from the 8-digit Set date (Section 6.7.1);
   - `aw group specs <id6> --set <setid> --order <NN> --rename --apply`.
   The candidates that feed the working spec record MUST be research records.
 - R-61: A single-survivor run (N >= 2, one candidate available after `resume --continue-reduced`) MUST skip synthesis. At the point where synthesis would run, the engine MUST create the spec record from that candidate's last revision. Synth-refine then runs on it, and the engine records `participation: 1 of N`.
@@ -709,11 +712,11 @@ Input handling. A brief file is data. The engine never executes text from the br
 - R-91: `aw research new` and `aw research mv` MUST gain `--ace` (and `--ace -` to clear on `mv`). `[Should]` `aw specs new` gains `--set` and `--order`, with the setid length guard. `aw specs set` MUST gain `--from-spec <id6>` (with `-` to clear), recording `from_spec` lineage, because the synthesize stage needs it for R-05 and the verb has no such flag today (V-03).
 - R-92: The research index drift check MUST compare the `ace` facet with the logged or front-matter `ace`, as it does for `model`.
 - R-93: Before `--apply`, the planner MUST compute the maximum number of research records the run can create (Section 6.9) and MUST refuse with `nn-exhausted` when the highest existing NN in the Set plus that number exceeds 99.
-- R-94: `artifact_naming._CLUSTERED_RE` and the shipped normalizer used by `check.name-nonconformant` MUST accept the optional `[.<ace>][.<model>]` group before the type token. This extension is shared with other D177 work and MUST be implemented once.
+- R-94: `artifact_naming._CLUSTERED_RE` and the shipped normalizer used by `check.name-nonconformant` MUST accept the optional `[.<ace>][.<model>]` group before the type token. This extension is shared with other D177 work and MUST be implemented once: the existing `artifact_naming.parse_attributed` (FND-8) MUST be the one parser, extended to refuse an ACE token outside `ACES`, rather than a second grammar beside it.
 - R-95: A start MUST refuse with exit 2 `set-busy` when another non-terminal synth run in the repository names the same setid, except the run named by its own `--from-run`. Every publication MUST happen while the engine holds the run lock.
 - R-97: While a run is non-terminal, the engine MUST keep every intermediate research record except the brief, and the working document (research), at a hot research status (`todo` or `active`). The brief is a statusless `research-prompt` until finalize [EXISTING]. `research_index.derive_pipeline_positions` MUST count a Set as `synthesized` only when a member of a synthesis kind (`reconciliation-report`, `findings`) with a body has status `reference` and no member with a body has a hot status (maintainer answer Q-5). The engine MUST hold the live bodies of the matrix and the working document (research) in the brief companion (`<C>/matrix.md`, `<C>/working.md`) and MUST write them into the records at finalize or cancel.
   - The second condition ("no member with a body has a hot status") is this spec's addition to the Q-5 answer. Without it, a reused setid whose earlier run left a `reference` synthesis reads `synthesized` while a new run is live, which is the defect Q-5 was asked to fix (`53jbi5` E-2; V-04 case E). On the current corpus it changes nothing beyond the Q-5 rule alone (V-04).
-  - Measured on the 165 current research records (V-04): this rule moves Sets `awnamespace` and `rq` from `synthesized` to `partial`, because their synthesis records are `active`; it changes no other Set. It also makes a reused Set with a finalized earlier run and a live new run read `partial`, where today it reads `synthesized`.
+  - Measured on the 165 current research records: on 2026-11-06 (V-04) this rule moved Sets `awnamespace` and `rq` from `synthesized` to `partial`, because their synthesis records were `active`. On 2026-11-07 the maintainer promoted both synthesis records to `reference` (commits `223a35075`, `7faae8496`), and a re-measurement at HEAD `40ef2b506` shows the rule now changes no existing Set. It still makes a reused Set with a finalized earlier run and a live new run read `partial`, where today it reads `synthesized`.
   - This change belongs in a plan that lands after MS plan `t4gl15` E-10 moves `research_index` onto the new store (Section 11).
 - R-96a: The engine MUST refuse a derived filename longer than 240 bytes with exit 2 `filename-too-long`, naming a shorter `--slug` as the remedy. It MUST NOT truncate a name silently.
 
@@ -1527,7 +1530,7 @@ The dispatch counter (R-37) and `--max-seconds` (R-37a) can end the run in `capp
 - The runner-profile change (R-11) only relaxes a refusal; existing profile files load unchanged.
 - No change to `aw.agent/v1`, the run-family exit table, the spec lifecycle, or review records.
 - The six existing `specflow` prompts become conformant when R-94 lands. Nothing renames them.
-- The R-97 rule changes the pipeline position of two existing Sets (`awnamespace`, `rq`) from `synthesized` to `partial` until their synthesis records reach `reference` (V-04).
+- The R-97 rule changes the pipeline position of no existing Set at HEAD `40ef2b506`. The two Sets it moved when V-04 was measured (`awnamespace`, `rq`) have since had their synthesis records promoted to `reference`. The plan that lands R-97 re-measures the corpus (AC-101).
 - `aw runs` lists synth runs (R-81b).
 - MS: the engine writes metadata only through owner verbs, so it works before and after the MS cutover. Its new registry fields enter MS through R-130.
 
@@ -1558,7 +1561,7 @@ Each criterion is observable through the CLI, files, or exit codes. Tests use sc
 | AC-9 | R-10, R-13 | A participant naming a nonexistent profile is refused at preview (exit 2). A model id absent from the scripted catalog is refused unless `--allow-uncataloged <label>`. |
 | AC-9b | R-99 | With no synth preferences file and no `--with`, a start exits 2 `no-roster-configured` and prints the init hint. With `--with`, the run proceeds without the file. |
 | AC-10 | R-11 | An `agy` profile with `variant: high` and model `gemini-3.8-flash-high` loads, and the dispatch argv contains `--model gemini-3.8-flash-high --effort high`. An existing schema-2 file loads unchanged. |
-| AC-11 | R-12 | A profile with runner `codex` is refused with `ace-unsupported`, and the message names the deferral and `import --returns`. |
+| AC-11 | R-12 | With a test runner registry that registers a third runner `codex`, a participant whose profile has runner `codex` is refused at preview with `ace-unsupported`, and the message names the deferral and `import --returns`. With the shipped registry, a runner-profiles file that names runner `codex` fails to load (`runner_profiles` raises `unknown runner 'codex'` today), and the preview exits 2 `profile-unresolved` with that message. |
 | AC-12 | R-15, R-29 | Two participants sharing one profile: status shows `model-diversity: 1 of 2`; a scripted synthesizer that calls their agreement `independent` is flagged by the check `same-model-corroboration`. |
 | AC-13 | R-16 | The preview for an `agy` participant shows `requested-unconfirmable` for effort; the dispatch record has `identity_class: echoed`. A profile with model `gemini-3.8-flash-high` and variant `low` warns `effort-ambiguous`. |
 | AC-14 | R-17, R-19 | `config set` writes only the user file. A synth preferences file with `schema_version: 2` is refused and left byte-identical. |
@@ -1593,7 +1596,7 @@ Each criterion is observable through the CLI, files, or exit codes. Tests use sc
 | AC-36 | R-62 | After any run, the reviews tree is unchanged, no spec reached `reviewed`, and no gate review event exists. |
 | AC-37 | R-63, R-64 | A final spec with a `TODO` placeholder stays `draft`; finalize exits 1 and lists `placeholder-text`. A 3-model synthesis with every check passing and no limitation moves to `to-review` (exit 0) with `auto_advance: multi-model`. |
 | AC-37b | R-64, R-67 | With every check passing, finalize leaves the spec `draft`, exits 0 with `auto_advance: not-multi-model`, and prints `Next  aw specs set to-review <id6>` for: (i) one participant; (ii) one survivor of three; (iii) two profiles of one model id with different variants; (iv) one participant with a hidden incumbent; (v) two imported candidates with identity `unknown`. |
-| AC-38 | R-64, R-69a | On a multi-model synthesis, `--accept-limitations "cap reached on F07" --by-human` moves a `capped-open` spec to `to-review`, records the text through `aw specs note`, and writes `## Known limitations`. Before the MS cutover, every history line added to the final spec during the run has the form that `aw specs note` or `aw specs set` writes (`- <date> note (aw specs): ...` or `- <date> <status> (aw specs): ...`), and `aw specs check` passes. After the cutover, each is a `note` or `transition` event in the spec's log. Without `--by-human`, the command exits 2. On a one-model run, the spec stays `draft`. |
+| AC-38 | R-64, R-69a | On a multi-model synthesis, `--accept-limitations "cap reached on F07" --by-human` moves a `capped-open` spec to `to-review`, records the text through `aw specs note`, and writes `## Known limitations`. Before the MS cutover, every history line added to the final spec during the run is byte-identical to a line that `aw specs note` or `aw specs set` writes for the same message in a scratch copy of the spec (today `- <date> note (aw specs): ...` for a note; the status setter's actor label, for example `(aw set)`, is whatever that verb emits), and `aw specs check` passes. After the cutover, each is a `note` or `transition` event in the spec's log. Without `--by-human`, the command exits 2. On a one-model run, the spec stays `draft`. |
 | AC-38b | R-69 | `finalize --keep-draft` on a run that meets every R-64 condition leaves the spec `draft`, moves the intermediates to `reference`, and reports `auto_advance: kept-draft`. |
 | AC-39 | R-66 | After a clean spec-run finalize, every intermediate record that was not rejected is under `reference/YYYYMM/` with `consumed-by` naming the spec id6, and `aw research index --check` reports no drift. After a research-run finalize, those records have outcome `informational` and empty `consumed-by`. |
 | AC-40 | R-70, R-75 | Every id6 of the run is unique repository-wide. Revisions keep the id6 and filename, and every revision body exists in the brief companion. |
@@ -1660,7 +1663,7 @@ Each criterion is observable through the CLI, files, or exit codes. Tests use sc
 | AC-98 | R-96a | A `--slug` that makes a derived filename longer than 240 bytes exits 2 `filename-too-long` at preview and names a shorter slug as the remedy. |
 | AC-99 | R-60, Section 6.7.1 | After a run on an existing Set whose date prefix is `20261024`, started on a later day, the working spec's filename date is `20261024`. |
 | AC-100 | R-81a, R-81b | A run directory is named `run-*`, `runner_shared.load_state` loads its `state.json`, and `aw runs` lists the run with one item per dispatch and reports no missing artifact for a dispatch item. |
-| AC-101 | R-97 | On a fixture Set holding a finalized earlier run (synthesis at `reference`) and a live new run (a candidate at `active`), `derive_pipeline_positions` returns `partial`. After the new run finalizes, it returns `synthesized`. On the current research tree, the change moves only `awnamespace` and `rq`. |
+| AC-101 | R-97 | On a fixture Set holding a finalized earlier run (synthesis at `reference`) and a live new run (a candidate at `active`), `derive_pipeline_positions` returns `partial`. After the new run finalizes, it returns `synthesized`. On the research tree at the time of the change, the plan pastes the before and after positions of every Set, and every Set that moves is named and explained (at HEAD `40ef2b506` the expected list is empty). |
 | AC-102 | R-120, R-121, R-122 | With `--gates each` and three candidates, the preview lists two gates and the documents each waits on. The run stops at `stage-gate` before synthesize. `resume` without the three acceptances exits 2 `stage-gate-pending`. After `accept <run> <id6> --by-human --message m` for each, `resume` synthesizes, and the run stops at `stage-gate` again before `ready-to-finalize`. With `--gates exceptions`, the same run never stops at `stage-gate`. `--explicit` prints `--gates each`. |
 | AC-103 | R-24a | With `--source-scope docs/`, a packet that would list `agent_workflows/cli.py` is refused with `source-out-of-scope`. |
 | AC-104 | R-06a, R-12 | A run prepared with `--prepare-only`, whose generation prompts are executed by a scripted external tool, imports the outputs with `import --returns` and resumes to synthesis without launching a generation dispatch. |
@@ -1684,7 +1687,7 @@ Each criterion is observable through the CLI, files, or exit codes. Tests use sc
 | A remote session keeps running after its local process died | unknown | duplicate charge | `unknown-outcome` requires an explicit decision before a retry (R-86a). Whether hosts can report it is not established. |
 | Antigravity identity cannot be confirmed | certain | weaker audit | Recorded and shown as `echoed`. |
 | A reused setid reads `synthesized` while a new run is live | certain without R-97 | live work hidden | R-97 (status-aware rule). |
-| R-97 relabels existing Sets | certain | two Sets show as active | Measured: only `awnamespace` and `rq` (V-04). Their owners promote the synthesis to `reference` if finished. |
+| R-97 relabels existing Sets | low | a finished Set shows as active | Measured 2026-11-06: `awnamespace` and `rq` (V-04); both promoted to `reference` on 2026-11-07, so no Set moves at HEAD `40ef2b506`. AC-101 re-measures when the rule lands. |
 | NN exhaustion on a long-lived topic | low | refusal | R-93 refuses early; use a new setid. |
 | The research tree grows by up to 6N+7 records per run | medium | browsing noise | Finalize moves records to monthly shards. |
 | Prompt injection through brief sources | medium | wrong output | Data blocks, no participant authority, leak scan, human finalize. |
@@ -1752,7 +1755,7 @@ Nonblocking questions:
 - OQ-8: Should the package model vocabulary include `opus55high` and `gpt61solmedium`, which exist only in the repository layer today? Recommendation: yes, so other repositories recognize the starter roster tokens.
 - OQ-9: Should a model write task-specific prompts? Recommendation: keep deterministic templates in release 1; revisit with run data.
 - OQ-17: Worked inventories in this spec and in run outputs use fictional id6 values, which `aw research check-refs` reports as dangling (`hesuzv` V-09: 2 in C01, 4 in C03, 8 in C02). Should the citation checker skip an explicitly marked example block (proposed marker: a fenced block labelled `example-ids`) while still checking its names against the naming grammar? Recommendation: yes, as a separate backlog item, because it is a checker change outside this feature. Until then, the example blocks of Section 6.7 are expected to be reported.
-- OQ-19: What pipeline position should a cancelled run's Set have? Under R-97 it reads `partial`, so its brief shows as active work (V-04 case F). Options: (a) accept this and rely on the cancelled run's `archive` records and `aw synth list` to explain it; (b) cancel also records the brief outcome `rejected`, and the pipeline rule gives no position to a Set whose prompts all have a non-`none-yet` outcome and whose members are all `reference` or `archive` (measured to change three other Sets in the variant without the outcome condition; the outcome-conditioned variant is not measured). Recommendation: (b), measured across the corpus before the R-97 plan is approved. Blocking: no.
+- OQ-19: What pipeline position should a cancelled run's Set have? Under R-97 it reads `partial`, so its brief shows as active work (V-04 case F). Options: (a) accept this and rely on the cancelled run's `archive` records and `aw synth list` to explain it; (b) cancel also records the brief outcome `rejected`, and the pipeline rule gives no position to a Set whose prompts all have a non-`none-yet` outcome and whose members are all `reference` or `archive` (measured to change three other Sets in the variant without the outcome condition). Re-measured at HEAD `40ef2b506` during spec review, with the rule applied where a Set would otherwise read `partial`: both variants remove the position of the same three Sets (`planrev`, `occomms`, `awoptimize`, today `partial`), because every prompt of those Sets already has a non-`none-yet` outcome. So the outcome condition does not protect those three Sets. Applied to every Set instead, the outcome-conditioned variant also removes the `synthesized` position of four more Sets (`awmetastore`, `chkplace`, `agentadhere`, `revsteps`), so the plan must apply it only in the `partial` branch. Recommendation: (b), applied only in the `partial` branch, with the owners of the three Sets asked whether they are finished, and measured again before the R-97 plan is approved. Blocking: no.
 - OQ-18: Should `aw synth` runs also appear in the `aw runs` live view with stage names rather than queue positions? Recommendation: later; R-81b requires only that they are listed correctly.
 
 ### 10.5 Decision log
@@ -1801,7 +1804,7 @@ Each step is a candidate child plan, in dependency order. This section is not an
 2. **Profiles** (R-11): `agy` variant and bare-id support; OQ-8 vocabulary tokens.
 3. **Owner-verb extensions** (R-91): `aw specs set --from-spec`; optional `aw specs new --set/--order`.
 4. **Wait for the MS cutover.** Steps 5 onward use owner verbs only and so work on either side of it, but step 9 needs it.
-5. **Pipeline position** (R-97): the status-aware rule in `research_index.derive_pipeline_positions`, after MS plan `t4gl15` E-10 moves `research_index` onto the new store. Before landing, ask the owners of `awnamespace` and `rq` whether those Sets are finished.
+5. **Pipeline position** (R-97): the status-aware rule in `research_index.derive_pipeline_positions`, after MS plan `t4gl15` E-10 moves `research_index` onto the new store. Before landing, re-measure the corpus and ask the owner of any Set that moves whether it is finished (none moves at HEAD `40ef2b506`).
 6. **Engine core** (`synth_engine.py`, `synth_state.py`): freeze, request digest and `--request-id`, run event log, state replay, lock, caps and `--max-seconds`, `mint_run_dir` with a dispatch `queue`, NN planning, publication journal, gates.
 7. **Dispatch** (`synth_dispatch.py`): argv builders for `oc` and `agy`, worktrees and outboxes, stall observers, identity observation, isolation labels, failure classes and backoff, `unknown-outcome`.
 8. **Templates and validators** (`agent_workflows/data/synth/templates/`, `synth_outcome.py`): outcome envelope with `input_digest`, companion schemas, provenance and coverage checks, oscillation detection, research confidence and origin rules.
@@ -1827,7 +1830,7 @@ This spec was written by hand, by one agent, from the three candidates and the t
 | Inputs | C01 `18hh1u` (read in part: requirement and acceptance ids cited in `53jbi5`); C02 `1tx9t8` (read in part: the passages `hesuzv` keeps); C03 `yfz5u9` (read in full); `53jbi5` (read in full); `hesuzv` (read in full); MS `4sd62s` 4.1, 4.1a, 4.2c, 4.5b, 4.5c, 4.6, 4.8, 8 OQ-32, 9 |
 | Attribution of candidate C02 | The C02 filename facet `.codex.gpt-6-astra-medium.` is a label the maintainer supplied, not a measured runtime identity (C02 section 1). |
 | Independence of candidate C03 | C03's author read the first 60 lines of C01 while writing C03, so overlap between C01 1.1 to 1.6 and C03 1.1 to 1.6 may not be independent (C03 section 0). |
-| Independence of this spec | The same agent and session recorded the maintainer's answers to Q-1 to Q-7, N-1 and N-2 and then wrote this spec. It is one model's merge, so under DL-17 it stays `draft`. |
+| Independence of this spec | The same agent and session recorded the maintainer's answers to Q-1 to Q-7, N-1 and N-2 and then wrote this spec. It is one model's merge, so under DL-17 it could not advance to `to-review` automatically; the maintainer moved it there on 2026-11-07. |
 | Code pin | `7c99d82f5500c73dfb5641086af7513c2c096a28` (`origin/main`, 2026-11-06). No file under `agent_workflows/` differs between it and the local HEAD used for V-01 to V-05. |
 
 Each path below is relative to `https://github.com/fariello/agent-workflows/blob/7c99d82f5500c73dfb5641086af7513c2c096a28/`.
