@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the thirteen children below and confirm each reaches `executed`. No code, test or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: to-review
 - From-Spec: 4sd62s
 - Coverage: pass
 - Coverage-Fingerprint: 96fe24cd857bd6bec4dc629231005da297a3a4e5eacc65c52f2c65bca9bff5e4
@@ -19,11 +19,10 @@
 - Highest E allocated: 13
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
-- Readiness: go-pending-approval
 - Review-Depth: orchestrator
 
 ## Workflow history
+- 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.review.md

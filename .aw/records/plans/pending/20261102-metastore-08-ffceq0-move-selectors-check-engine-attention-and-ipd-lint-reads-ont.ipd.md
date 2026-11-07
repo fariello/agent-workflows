@@ -6,7 +6,7 @@
 - Scope: Phase B readers, part 1 of 2 (`4sd62s` section 7 step 5). Move the metadata READS of `selectors`, `cli._find_type_records` with its prompt helpers and `cli._run_search`, `cli._run_plans` (`aw ipd board`), `attention` (every per-tree `_*_record`, `_plans_id`, `_extract_detail`), `attention_contract.history_block` and `last_history_at` callers, `plans.read_status`/`plans.scan`, `check_engine` working-tree readers (every `_read_*`, `_metadata_status` working-tree call, every `^-` metadata literal, `known_spec_ids`, `build_dependency_index`, `build_graduation_reverse_index`, `graduation_cluster`, `evaluate_blocking_close`, `evaluate_handoff_ready`, `check_spec_review_attestation`), and `ipd_lint` (`parse` metadata slice, the `IPD-S405`/`IPD-M107`/`IPD-M112`/`IPD-M113` history and field reads, `run_lint` row reads) onto `artifact_meta.read`, `artifact_meta.history`, `artifact_meta.query` and `artifact_meta.resolve`. Add `aw check meta` (4.6) and `aw meta repair` (4.3, 4.7) as the CLI over the Order 02 functions, and one additive interface function, `artifact_meta.read_text`, for metadata of in-memory text (OQ-03). Replace the three `_SKIP_NAMES` copies with one exclusion list (4.4 last bullet). Record the kept behavior for the `selectors`/`plans_index` disagreement. EXCLUDES: every reader of HEAD, staged or branch content (`check_engine._blob_text`/`_status_meta` git callers, hooks, runner) and the runner, plans/research/prompts index, `artifact_audit` and `review_findings` modules (Order 09, `t4gl15`); deleting the old parsers and INDEX code (Order 11, `9o83cr`); writers (Orders 06 and 07).
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/cli.py, agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/plans.py, agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, agent_workflows/artifact_refs.py, agent_workflows/layout.py, agent_workflows/meta_cli.py, agent_workflows/command_surface.py, agent_workflows/artifact_meta.py, tests/conformance_matrix.py, tests/test_readers_selectors_find.py, tests/test_readers_attention.py, tests/test_readers_check_engine.py, tests/test_readers_ipd_lint.py, tests/test_check_meta.py, tests/test_meta_repair_cli.py, tests/test_readers_cache_parity.py, tests/test_readers_offline.py, tests/test_front_matter_loose_whitespace.py, tests/test_find_single_read.py, tests/test_selector_two_dialect_readers.py, agent_workflows/artifact_core.py, agent_workflows/specs.py, agent_workflows/releases.py, tests/test_artifact_meta_legacy.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md
 - Item-Dependencies: executed:tve77h, executed:xexn45
-- Status: approved
+- Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,10 @@
 - Highest E allocated: 14
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ffceq0
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
-- Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED; review record .aw/records/reviews/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.review.md

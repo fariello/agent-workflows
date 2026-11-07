@@ -6,7 +6,7 @@
 - Scope: Phase B step 6 (`4sd62s` section 7). Add `tests/record_builder.py`, one builder that creates every record type (plan, spec, backlog item, research report, release, staged prompt, walkthrough, review) in a fixture repository through `artifact_meta` (its write path when available, and in phase B the legacy on-disk format that the legacy loader reads), plus a text form for tests that need a string. Move test DATA in the F-01 files onto it in seven family batches (G1 to G7, partitioned by the first-match rule of F-03): every hand-built record becomes a builder call. Keep assertions on observable output (CLI text, JSON fields, exit codes) and change no assertion unless the assertion inspected the raw record bytes as a stand-in for metadata, in which case it moves to `artifact_meta.read` (listed per batch). Convert the tracked `.md` fixtures that tests copy or lint as records into builder calls (E-10). EXCLUDES: changing production code; tests whose subject IS the legacy text format (the legacy loader tests of `tve77h`, the legacy writer tests of `2xwb9b` and `xexn45`, and the migration tests of `dcerjg`/`ya4ee4`, which must keep literal legacy input; the EXCLUDED list in F-03), which are listed and left unchanged; the review-pilot plan corpus that `tools/review_pilot.py` reads (F-05); changing the builder's on-disk output to the log format (Order 13, `cxxmyv`).
 - Scope-Paths: tests/record_builder.py, tests/support.py, tests/conformance_matrix.py, tests/test_record_builder.py, tests/test_*.py, tests/fixtures/attnview/**, tests/fixtures/conforming-orchestrator.md, tests/fixtures/record_builder/**, .aw/records/plans/pending/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
 - Item-Dependencies: executed:tve77h, executed:xexn45
-- Status: approved
+- Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,10 @@
 - Highest E allocated: 13
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 59aiyh
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
-- Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.review.md

@@ -6,7 +6,7 @@
 - Scope: The code switch to the log format and every deferred log-format item; the real migration on this repository; the documentation patch of `90iqr1`; the two commands documented there; and the final real-repository demonstrations of the acceptance criteria the earlier children proved on fixtures. One commit, attended by the maintainer.
 - Scope-Paths: .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, agent_workflows/, tests/, .aw/records/, .aw/system/workflows/, .aw/system/cutover/, .aw/system/managed-sections.json, .aw/.gitignore, .aw/config/project.json, .aw/AGENT_QUICKSTART.md, .aw/QUICKSTART.md, docs/, AGENTS.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md
 - Item-Dependencies: executed:90iqr1, executed:dcerjg, executed:ya4ee4, executed:1ajqaa
-- Status: approved
+- Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,11 +17,10 @@
 - Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cxxmyv
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
-- Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-016 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-016 FIXED; feasibility risk named: the one-commit mechanism is proven only by the E-17 rehearsal; review record .aw/records/reviews/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.review.md
