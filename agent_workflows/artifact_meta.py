@@ -1635,6 +1635,15 @@ def parse_staged_prompt_mirror(text: str) -> Dict[str, Any]:
 
 LAYOUT_VERSION = "layout_v1"
 
+#: The legacy loader's own version, folded into the schema hash so that a change to WHAT THE LOADER
+#: READS rebuilds every existing cache (backlog `suth7l`). Without it the hash covers only the field
+#: registry, so a loader fix leaves each cache built by the old loader in place: rows are reloaded
+#: only when their source FILE changes, and a loader change touches no source file. Bump it whenever
+#: `load_legacy_artifact` or its parsers change what they produce for an unchanged file.
+#: "legacy_v3" (2026-11-07, suth7l): bullet blocks without a `# ` title are read; YAML front matter
+#: is read for every record that opens with `---`; per-type fields are written to their tables.
+LEGACY_LOADER_VERSION = "legacy_v3"
+
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
     "actors",
@@ -1680,7 +1689,8 @@ def compute_schema_hash(
             field_items.append((f, fdef.value_type, fdef.ownership, vals))
         items.append((t, field_items))
     canon_bytes = json.dumps(
-        {"version": LAYOUT_VERSION, "registry": items}, sort_keys=True
+        {"version": LAYOUT_VERSION, "loader": LEGACY_LOADER_VERSION, "registry": items},
+        sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(canon_bytes).hexdigest()
 
@@ -2014,21 +2024,28 @@ _YAML_KEY_RE = re.compile(r"^\s*([A-Za-z0-9_-]+):\s*(.*)$")
 def _parse_bullet_metadata(
     text: str,
 ) -> Tuple[Dict[str, str], Optional[str], List[str]]:
-    """Parse bullet block before first ## heading. Returns (bullets, title, history_lines)."""
+    """Parse bullet block before first ## heading. Returns (bullets, title, history_lines).
+
+    THE BULLET REGION STARTS AT THE TOP OF THE FILE, not after a `# ` title (backlog `suth7l`).
+    It is the same region `selectors.metadata_region` bounds every other reader to: everything
+    before the first `##` heading, with an optional leading `# ` title inside it. Backlog items
+    carry no title line at all (they open with `- Id:`), so a loader that started reading only
+    after a title dropped every backlog item's bullets; measured on this repository on 2026-11-07,
+    that cost 1146 backlog records their status in the cache.
+    """
     lines = text.splitlines()
     bullets: Dict[str, str] = {}
     title: Optional[str] = None
-    in_bullets = False
+    in_bullets = True
     first_h1_done = False
     history_lines: List[str] = []
     in_history = False
 
     for line in lines:
         stripped = line.strip()
-        if not first_h1_done and stripped.startswith("# "):
+        if not first_h1_done and in_bullets and stripped.startswith("# "):
             title = stripped[2:].strip()
             first_h1_done = True
-            in_bullets = True
             continue
 
         if stripped.startswith("## Workflow history"):
@@ -2159,11 +2176,39 @@ def load_legacy_artifact(
                 if ftype:
                     art_type = ftype
 
+    # A FILENAME FACET IS NOT ALWAYS A REGISTRY TYPE (backlog `suth7l`). Research records are named
+    # by their KIND (`findings`, `research-report`, `roadmap`, `assessment`, ...), which
+    # `parse_clustered`/`parse_attributed` return in the `type` slot, so `art_type` used to become
+    # that kind: 21 distinct "types" were cached on this repository, none of them `research`, and
+    # every per-type table lookup (keyed on the REGISTRY type) failed. The registry type is decided
+    # by the records tree the file lives in when the facet is not itself a registry type, and the
+    # facet is kept as the record's `research_kind`.
+    facet_kind: Optional[str] = None
+    if art_type not in REGISTRY:
+        facet_kind = art_type
+        # A roadmap is research-shaped (YAML front matter, a `kind`), so it shares that table.
+        art_type = type_map.get(top_dir, "research")
+        if art_type not in REGISTRY:
+            art_type = "research"
+
     bullets: Dict[str, str] = {}
     title: Optional[str] = None
     history_lines: List[str] = []
 
-    if art_type == "research" and text.startswith("---"):
+    # ANY record that opens with a YAML fence is read as YAML front matter (backlog `suth7l`), not
+    # only one whose type resolved to the literal "research". Research records carry a type FACET
+    # (`findings`, `research-report`, `roadmap`, ...) that `parse_clustered` returns as the type,
+    # so the old `art_type == "research"` test never matched them: their YAML `status:` reached
+    # no column, which measured as 156 research and roadmap records with no cached status. A
+    # bullet-format record in this repository never opens with `---` (measured: 166 tracked records
+    # do, all YAML), but a fixture or another repository can open a bullet block with a bare `---`
+    # rule, so the YAML branch is taken only when the fence actually yields YAML keys and no
+    # bullet block follows; otherwise the bullet parser runs as before.
+    _yaml_probe: Dict[str, str] = {}
+    if text.startswith("---"):
+        _yaml_probe, _ = _parse_yaml_front_matter(text)
+    _after_fence = text.split("\n", 1)[1][:200] if "\n" in text else ""
+    if _yaml_probe and not _BULLET_RE.search(_after_fence):
         yaml_data, title = _parse_yaml_front_matter(text)
         bullets = dict(yaml_data)
         if "id" in bullets and not id6:
@@ -2275,6 +2320,8 @@ def load_legacy_artifact(
     }
 
     mapped_fields: Dict[str, Any] = {}
+    if facet_kind and "research_kind" in REGISTRY.get(art_type, {}):
+        mapped_fields["research_kind"] = facet_kind
     if ace_val:
         mapped_fields["ace"] = ace_val
     if model_val:
@@ -2327,6 +2374,13 @@ def load_legacy_artifact(
         "last_seq": len(history_lines),
         "valid": 1,
         "defect": None,
+        # The registry-typed field values, for the per-type table (backlog `suth7l`: the loader
+        # computed these and then dropped them, so every per-type table held 0 rows). Only fields
+        # the REGISTRY declares for this type are carried; unregistered legacy bullets (OQ-02) stay
+        # out of the typed table, exactly as the log branch's replay keeps them out.
+        "fields": {
+            k: v for k, v in mapped_fields.items() if k in REGISTRY.get(art_type, {})
+        },
     }
 
     # History rows
@@ -2881,6 +2935,24 @@ def _load_sources(
                             None,
                         ),
                     )
+                    if not _has_log:
+                        # The per-type row (backlog `suth7l`), written with exactly the column
+                        # layout and value encoding the log branch uses, so a reader of a typed
+                        # field sees one representation whichever format the record is in.
+                        _lt = art_row["type"]
+                        if _lt in REGISTRY:
+                            _reg_fields = registry_fields(_lt)
+                            _fv = art_row.get("fields") or {}
+                            conn.execute(
+                                f"""INSERT OR REPLACE INTO "{_lt}" ({", ".join(["id6"] + [f'"{f}"' for f in _reg_fields])}) VALUES ({", ".join(["?"] * (len(_reg_fields) + 1))})""",
+                                [art_row["id6"]]
+                                + [
+                                    json.dumps(_fv[f])
+                                    if isinstance(_fv.get(f), (list, dict))
+                                    else _fv.get(f)
+                                    for f in _reg_fields
+                                ],
+                            )
                     conn.execute(
                         """INSERT OR REPLACE INTO files (
                             path, file_role, id6, size, mtime_ns, content_digest, loaded_at, load_error
