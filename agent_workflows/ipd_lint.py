@@ -126,6 +126,8 @@ C_ORCH_NOT_READY = "IPD-S408"
 C_CITATION_ANCHOR = (
     "IPD-C801"  # a code citation carrying no durable anchor (spec Section 10.2)
 )
+# writestd Order 03 (k2x0yl): em and en dashes in authored prose (spec ecmw83 R-07).
+C_PROSE_DASH = "IPD-C802"
 
 
 def _name_conformant(path: Path, legacy: bool) -> bool:
@@ -1266,6 +1268,25 @@ def check_citation_anchors(
     return out
 
 
+def check_prose_dashes(text: str) -> List[Diagnostic]:
+    """Emit one IPD-C802 advisory per em or en dash in authored prose (spec ecmw83 R-07)."""
+    from agent_workflows import prose_dash
+
+    dashes = prose_dash.find_prose_dashes(text)
+    out: List[Diagnostic] = []
+    for line, col, ch in dashes:
+        ch_name = "em dash (U+2014)" if ch == "\u2014" else "en dash (U+2013)"
+        out.append(
+            Diagnostic(
+                line,
+                col,
+                C_PROSE_DASH,
+                f"prose contains {ch_name}; em and en dashes in authored prose are non-blocking advisories ({C_PROSE_DASH}, spec ecmw83 R-07)",
+            )
+        )
+    return out
+
+
 # rdattest: `- Readiness:` is a REVIEW OUTPUT, not an authoring field, and this rule is the only thing
 # that says so mechanically.
 #
@@ -2304,6 +2325,7 @@ def lint_text(
     advisories += check_citation_anchors(
         doc, text, include_pre_cutover=citation_anchors
     )
+    advisories += check_prose_dashes(text)
     return LintResult(disposition, diags, advisories)
 
 
@@ -3040,7 +3062,7 @@ _NON_IPD_BASENAMES = frozenset(("README.md", "STATUS.md", "INDEX.md"))
 # THIS CHANGES ONLY WHAT IS PRINTED. Exit status and disposition do not move (an advisory never
 # reaches `diagnostics`), and the `--agent`/`--json` paths already emit every advisory unconditionally
 # with `severity: "info"`, so they need no change and must not gain one.
-_ALWAYS_VISIBLE_ADVISORY_CODES = frozenset((C_CITATION_ANCHOR,))
+_ALWAYS_VISIBLE_ADVISORY_CODES = frozenset((C_CITATION_ANCHOR, C_PROSE_DASH))
 
 
 def _visible_advisories(advisories: List[Diagnostic], detail: bool) -> List[Diagnostic]:

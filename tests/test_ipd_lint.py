@@ -295,9 +295,9 @@ class StructuralRuleTests(unittest.TestCase):
             (),
             (),
             (),
-            "THE SECOND POSITIVE ROW, and a retired rule: the no-em/en-dash convention is a "
-            "USER-FACING prose rule only (GUIDING_PRINCIPLES P13), and IPDs are internal/AI-facing "
-            "artifacts. IPD-D701 was retired, so a dash must not affect linting at all",
+            "THE SECOND POSITIVE ROW, and a retired rule: em and en dashes in authored prose are "
+            "an info advisory (IPD-C802, spec ecmw83 R-07) and never blocking, so the plan lints "
+            "conforming; retired rule IPD-D701 stays retired",
         ),
         (
             "a required H2 deleted",
