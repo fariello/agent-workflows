@@ -33755,6 +33755,21 @@ _ORCHESTRATOR_PLANS_SECTION = (
 )
 
 
+def _writing_standard_contract_line(root: Path, number: int) -> str:
+    """Return the writing standard requirement line for an authoring prompt."""
+    from agent_workflows import engine
+
+    path = (
+        engine.resolve_workflows_dir(engine.resolve_target_layout(root))
+        + "/technical-writing/technical-writing.md"
+    )
+    return (
+        f"{number}. Write and proofread every plan you author or revise per "
+        f"`{path}`, including requirement 12 (diagrams). If that file is "
+        f"absent, report the missing dependency and do not claim compliance."
+    )
+
+
 def build_spec_production_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -33804,6 +33819,7 @@ def build_spec_production_prompt(
             "7. Do NOT modify the approved spec's requirements.",
             f"8. Mandatory uncited requirement and acceptance items awaiting coverage: {uncited_str}. "
             f"Each must be cited qualified with the spec id6 (for example `{spec_id6} R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.",
+            _writing_standard_contract_line(root, 9),
         ]
         _append_continue_handoff_section(lines, root, "spec", spec_id6)
         lines.extend(_ORCHESTRATOR_PLANS_SECTION)
@@ -33837,6 +33853,7 @@ def build_spec_production_prompt(
         "7. Do NOT modify the approved spec's requirements.",
         f"8. Mandatory uncited requirement and acceptance items awaiting coverage: {uncited_str}. "
         f"Each must be cited qualified with the spec id6 (for example `{spec_id6} R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.",
+        _writing_standard_contract_line(root, 9),
     ]
     _append_continue_handoff_section(lines, root, "spec", spec_id6)
     lines.extend(_ORCHESTRATOR_PLANS_SECTION)
@@ -33885,6 +33902,7 @@ def build_backlog_production_prompt(
         "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
         "6. Every produced plan must lint conforming via `aw ipd lint`.",
         "7. Do NOT modify the backlog item's requirements.",
+        _writing_standard_contract_line(root, 8),
     ]
     _append_continue_handoff_section(lines, root, "backlog", item_id6)
     lines.extend(_ORCHESTRATOR_PLANS_SECTION)
