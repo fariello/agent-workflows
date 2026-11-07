@@ -3,7 +3,7 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` 4.8 makes the `status_set` engine (the single setter engine since spec `wy9aru`) the ONE place where every status setter changes to write through `artifact_meta`, and section 7 step 4 orders it first among the phase-B writers. Today the engine edits Markdown itself. Measured 2026-11-02 at `0cbfcc706`: `agent_workflows/status_set.py` is 4,571 lines with 20 `re.compile`/`re.match`/`re.search`/`re.finditer`/`re.split` metadata sites (7 module-level patterns `_ID_RE`, `_STATUS_RE`, `_SET_RE`, `_HISTORY_HDR_RE`, `_GATE_KIND_RE`, `_GATE_REF_RE`, `_GATE_SUMMARY_RE`); `_prepare_status_change` rewrites the status bullet, YAML `status:` or prompt comment, 13 optional bullet fields, the `- Approval:`/`- Readiness:` attestations and the `## Workflow history` line in a line list; `apply_status_change` writes with `artifact_core.atomic_write`, moves with `artifact_core.git_mv`, and appends the gitignored sidecar through `record_history.append_advisory`; `run_set_command` writes an orchestrator's retirement history line with a raw `Path.write_text`. The `->reviewed` attestation predicate `review_findings.review_attestation_missing` accepts any parseable record, so the 24 `specflow` refinement records for spec `18hh1u` would attest it (4.4 SR-601). C10a requires the move to keep today's on-disk bullet format and to pass the core tier at the merge, and 3c requires this plan to name each moved behavior and the test that checks it.
-- Scope: Phase B, section 7 step 4, first writer. (1) Add to `artifact_meta` the LEGACY-format write path: `append` renders its events into today's bullet block, status mirror and `## Workflow history` line (no log file is written in phase B), with a `dry_run` preview, a source-digest freshness check, a path-keyed target for id-less legacy records, the per-artifact lock, the disposition move, the specs/backlog sidecar append, and the same event-owned field rules as the log format (AC-15, AC-14a (1)-(3)). (2) Change `status_set._prepare_status_change`, `apply_status_change` and the orchestrator retirement line in `run_set_command` to build events and call `artifact_meta.append` once per record. (3) Move `status_set`'s own metadata READS (`read_artifact_record`, `inventory_all_artifacts`, `_format_status_transition_line`, `plan_priority_work_kind_problems`, `read_item_dependencies_value`, the backlog gate-default inputs) onto `artifact_meta.resolve`/`read`/`query`. (4) Make `review_findings.review_attestation_missing` require a `gate` review (4.4 SR-601, AC-14a (4)). EXCLUDES: the HEAD-status read in `_prepare_status_change` (`check_engine._blob_text`/`_status_meta`, Order 09 `t4gl15` E-04); the other writers (`specs`, `backlog`, `releases`, `prompts`, `ipd_authoring`, finalize, retirement, coverage and review writers; Order 07 `xexn45`); deleting the `releases.set_*_line`/`backlog.set_*_line` helpers (Order 11 `9o83cr`); the log format (Order 13 `cxxmyv`).
+- Scope: Phase B, section 7 step 4, first writer. (1) Add to `artifact_meta` the LEGACY-format write path: `append` renders its events into today's bullet block, status mirror and `## Workflow history` line (no log file is written in phase B), with a `dry_run` preview, a source-digest freshness check, a path-keyed target for id-less legacy records, the per-artifact lock, the disposition move, the specs/backlog sidecar append, and the same event-owned field rules as the log format (AC-15, AC-14a (1)-(3)). (2) Change `status_set._prepare_status_change`, `apply_status_change` and the orchestrator retirement line in `run_set_command` to build events and call `artifact_meta.append` once per record. (3) [RE-SCOPED 2026-11-07 to `ffceq0`, see Deferred] Move `status_set`'s own metadata READS (`read_artifact_record`, `inventory_all_artifacts`, `_format_status_transition_line`, `plan_priority_work_kind_problems`, `read_item_dependencies_value`, the backlog gate-default inputs) onto `artifact_meta.resolve`/`read`/`query`. (4) Make `review_findings.review_attestation_missing` require a `gate` review (4.4 SR-601, AC-14a (4)). EXCLUDES: the HEAD-status read in `_prepare_status_change` (`check_engine._blob_text`/`_status_meta`, Order 09 `t4gl15` E-04); the other writers (`specs`, `backlog`, `releases`, `prompts`, `ipd_authoring`, finalize, retirement, coverage and review writers; Order 07 `xexn45`); deleting the `releases.set_*_line`/`backlog.set_*_line` helpers (Order 11 `9o83cr`); the log format (Order 13 `cxxmyv`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_meta.py, agent_workflows/review_findings.py, tests/test_status_set_meta_writer.py, tests/test_artifact_meta_legacy_write.py, tests/test_spec_review_gate_kind.py, .aw/records/plans/pending/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:7ehv8l
 - Status: approved
@@ -89,19 +89,7 @@ Every new test module sets `pytestmark = pytest.mark.core`, builds fixtures in `
   - Expected outcome: `tests/test_orchestrator_child_retired.py::OrchestratorChildRetiredTests::test_retirement_appends_orchestrator_history_and_commits_both` passes unchanged and the orchestrator line is byte-identical to before.
   - Execution state: performed
 
-### Task group 4: move the status_set reads and the review-kind rule
-
-- [ ] E-10 Change `status_set.read_artifact_record` and `inventory_all_artifacts` to take `id6`, `status`, `set_id` and `record_type` from `artifact_meta.resolve`/`artifact_meta.read`/`artifact_meta.query` (type detection by path stays, since it reads no file content); `ArtifactRecord.raw_text` stays as the body text for body-prose consumers (open-question gates, N3); delete `_ID_RE`, `_STATUS_RE`, `_SET_RE` and the two inline YAML regexes. Then dump the inventory again to `.aw/state/2xwb9b/inventory-after.json`.
-  - Depends on: E-01, E-08
-  - Expected outcome: the before and after inventory dumps are identical; `tests/test_status_set_metadata_region.py` and `tests/test_selector_resolver_matrix.py` pass unchanged.
-  - Execution state: blocked
-  - Execution note: the artifact_meta legacy loader disagrees with today's reader on 1385 of 3143 records and fills no per-type rows (D-01, backlog suth7l); moving the reads would change the inventory dump.
-
-- [ ] E-11 Change the remaining `status_set` metadata reads to cached fields: `_format_status_transition_line` (priority, blocks_release, gate kind and ref), `plan_priority_work_kind_problems` (priority and work kind; same `ipd_schema.parse_plan_priority`/`parse_plan_work_kind` judgement), `read_item_dependencies_value` (raw `item_dependencies` declaration), and the backlog gate-default inputs in `_prepare_status_change` (`work_kind`, `blocks_release`, the release exemption pair; today `backlog.parse_item` and `selectors.read_front_matter_blocks_release` on in-memory text). `_format_status_transition_line(rec, dest_path, norm_stat, term, ...)` KEEPS its `ArtifactRecord` signature (it reads the cached fields for `rec` internally), because `tests/test_blocks_release_reader_bounding.py` calls it directly and must pass unchanged; only the text-taking `plan_priority_work_kind_problems` and `read_item_dependencies_value`, whose only callers are inside `status_set.py` (measured: no test calls them), change to take a `State`.
-  - Depends on: E-10
-  - Expected outcome: `rg -n "re\.(compile|match|search|finditer|split)" agent_workflows/status_set.py` lists only non-metadata patterns (none of `Id`, `Status`, `Set`, `Priority`, `Gate-`, `Kind`, `Work-Kind`, `Approval`, `Readiness`, `Workflow history`); the R-row baseline tests pass.
-  - Execution state: blocked
-  - Execution note: same cause as E-10: the cached per-type fields this item reads are not filled (D-01, backlog suth7l).
+### Task group 4: the review-kind rule (the status_set read move was re-scoped to ffceq0; see Deferred)
 
 - [x] E-12 Change `review_findings.review_attestation_missing(repo_root, subject_id6, subject_type)` to pass only when `artifact_meta.query` returns at least one `review` row for the subject with `review_kind = gate` whose review file has `parse_ok`; a subject with only `refinement` rows gets a reason string that names the refinement-only state and says a gate review (`/spec-review`) is required. The callers `specs._review_attestation_refusal`, the positional `aw set` path in `status_set.validate_transition_allowed`, `check_engine.check_spec_review_attestation` and the runner's spec-review disposition gate `runner_shared.reconcile_disposition` are unchanged and inherit the rule. The runner caller passes the LANE worktree as `repo_root` and judges review files that are still uncommitted there, so the query must build the cache for the `repo_root` it is given (that worktree's state root) and the freshness check must see working-tree bytes; `tests/test_spec_review_dispatch.py` proves it. This is the deliberate behavior change that 4.4 SR-601 assigns to this consumer.
   - Depends on: E-08
@@ -120,11 +108,11 @@ Every new test module sets `pytestmark = pytest.mark.core`, builds fixtures in `
   - Expected outcome: four identical results.
   - Execution state: performed
 
-- [ ] E-15 Re-run the baseline modules and every new module, the bare core gate `python3 -m pytest`, `aw check --agent` diffed by `(location, rule)` against `.aw/state/2xwb9b/check-before.jsonl`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit 2xwb9b -- <each changed path>`. Never push.
-  - Depends on: E-09, E-11, E-13, E-14
+- [x] E-15 Re-run the baseline modules and every new module, the bare core gate `python3 -m pytest`, `aw check --agent` diffed by `(location, rule)` against `.aw/state/2xwb9b/check-before.jsonl`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit 2xwb9b -- <each changed path>`. Never push.
+  - Depends on: E-09, E-13, E-14
   - Expected outcome: every run passes with equal or higher per-module pass counts than E-01; no new `aw check` error or warning; one path-scoped commit.
-  - Execution state: blocked
-  - Execution note: every gate ran and passed (V-15), but the plan cannot finalize while E-10 and E-11 are blocked.
+  - Execution state: performed
+  - Execution note: the gates were first run by the run's agent (attempt 2), then re-run by the maintainer's session after E-10/E-11 were re-scoped to `ffceq0`; V-15 carries the re-run output.
 
 ## Project conventions discovered (Step 0)
 
@@ -197,11 +185,13 @@ Further measurements:
 1. Pin today's bytes and baseline (E-01, E-02).
 2. Legacy-format `append` in `artifact_meta` with preview, freshness, path target, move, sidecar and owned-field rules (E-03 to E-06).
 3. `status_set` writes become one `append` per record (E-07 to E-09).
-4. `status_set` reads come from the cache; the `->reviewed` rule needs a gate review (E-10 to E-13).
+4. The `->reviewed` rule needs a gate review (E-12, E-13). The `status_set` read move (former E-10, E-11) is re-scoped to `ffceq0`; see Deferred.
 5. Cache parity, gates, commit (E-14, E-15).
 
 ## Deferred / out of scope (with reason)
 
+- RE-SCOPED 2026-11-07 by the maintainer (run `run-20261107T082247Z-2899457`, question `02-2xwb9b-a2-sequence-loader-fix`, answer C): the `status_set` metadata READ move, former items E-10 and E-11, reproduced verbatim below so nothing is lost. It was not performed here because the `artifact_meta` legacy loader disagreed with today's reader on 1385 of 3143 records and filled no per-type rows (D-01, backlog `suth7l`, bug, Blocks-Release next), so the move would have changed behavior. `suth7l` is fixed first and separately; `ffceq0` then performs both items with their original outcomes and evidence requirements. Former E-10: E-10 Change `status_set.read_artifact_record` and `inventory_all_artifacts` to take `id6`, `status`, `set_id` and `record_type` from `artifact_meta.resolve`/`artifact_meta.read`/`artifact_meta.query` (type detection by path stays, since it reads no file content); `ArtifactRecord.raw_text` stays as the body text for body-prose consumers (open-question gates, N3); delete `_ID_RE`, `_STATUS_RE`, `_SET_RE` and the two inline YAML regexes. Then dump the inventory again to `.aw/state/2xwb9b/inventory-after.json`. Former E-11: E-11 Change the remaining `status_set` metadata reads to cached fields: `_format_status_transition_line` (priority, blocks_release, gate kind and ref), `plan_priority_work_kind_problems` (priority and work kind; same `ipd_schema.parse_plan_priority`/`parse_plan_work_kind` judgement), `read_item_dependencies_value` (raw `item_dependencies` declaration), and the backlog gate-default inputs in `_prepare_status_change` (`work_kind`, `blocks_release`, the release exemption pair; today `backlog.parse_item` and `selectors.read_front_matter_blocks_release` on in-memory text). `_format_status_transition_line(rec, dest_path, norm_stat, term, ...)` KEEPS its `ArtifactRecord` signature (it reads the cached fields for `rec` internally), because `tests/test_blocks_release_reader_bounding.py` calls it directly and must pass unchanged; only the text-taking `plan_priority_work_kind_problems` and `read_item_dependencies_value`, whose only callers are inside `status_set.py` (measured: no test calls them), change to take a `State`. Former V-10 required evidence: paste `diff .aw/state/2xwb9b/inventory-before.json .aw/state/2xwb9b/inventory-after.json` (no output) and the summary line of `python3 -m pytest -o addopts="" tests/test_status_set_metadata_region.py tests/test_selector_resolver_matrix.py tests/test_check_engine_metadata_region.py` with 0 failed. Former V-11 required evidence: paste the output of `rg -n "re\.(compile|match|search|finditer|split)" agent_workflows/status_set.py` (no line names a metadata field) and the summary line of `python3 -m pytest -o addopts="" tests/test_blocks_release_reader_bounding.py tests/test_status_set.py -k "priority or bidirectional or deps" tests/test_status_set_descriptive_safety.py` with 0 failed.
+  - Carrier: ffceq0
 - The HEAD-status read in `_prepare_status_change` (`check_engine._blob_text`, `_status_meta`): a revision reader, moved to `read_at` with the other 4.4 git readers.
   - Carrier: t4gl15
 - `specs`, `backlog`, `releases`, `prompts`, `ipd_authoring`, `artifact_rename`, `plans_refs`, `plan_readiness`, `readiness_recheck`, `set_records`, `coverage_record` writers, finalize (including its scope fields and the finalize-side `unset approval`, F-04) and retirement: section 7 step 4 after this engine.
@@ -220,7 +210,7 @@ Further measurements:
 ## Scope check
 
 - Over-scope: none. `artifact_meta.py` changes only to add the legacy write branch, `WritePreview`, `LegacyRender`, the path-keyed target and the source-digest check (E-03, E-04); `review_findings.py` changes only `review_attestation_missing` (E-12), which 4.4 SR-601 assigns to the plan that moves this setter's attestation read.
-- Under-scope: none known. Every write in `status_set.py` (`atomic_write`, `git_mv`, the source unlink, `record_history.append_advisory`, `orch.path.write_text`) and every metadata regex (F-01) has an E-item. Size: 15 E-items in 5 task groups.
+- Under-scope: none known. Every write in `status_set.py` (`atomic_write`, `git_mv`, the source unlink, `record_history.append_advisory`, `orch.path.write_text`) and every metadata regex (F-01) has an E-item. Size: 15 E-items in 5 task groups as authored; 13 after E-10 and E-11 were re-scoped to `ffceq0` (2026-11-07).
 
 ## Required tests / validation
 
@@ -408,18 +398,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     rg exit 1
   - Result: pass
 
-- [ ] V-10 validates E-10
-  - Required evidence: paste `diff .aw/state/2xwb9b/inventory-before.json .aw/state/2xwb9b/inventory-after.json` (no output) and the summary line of `python3 -m pytest -o addopts="" tests/test_status_set_metadata_region.py tests/test_selector_resolver_matrix.py tests/test_check_engine_metadata_region.py` with 0 failed.
-  - Observed evidence:
-    BLOCKED (D-01, backlog suth7l). Measured before any read was moved: `artifact_meta.query` disagrees with `status_set.inventory_all_artifacts` on 1385 of 3143 records (backlog status None for 1143 because the legacy loader reads bullets only after a `# ` title; Set missing for 164 research, 30 prompts, 23 specs, 14 plans, 8 walkthroughs, 3 roadmaps; YAML status missing for 154 research and 2 roadmaps; 1 multi-word plan status), and the per-type tables are empty (0 rows in `ipd`, `spec`, `backlog`, ...). Moving the reads would make the before/after inventory dumps differ, which E-10's outcome forbids; fixing the loader is outside this plan's scope (ffceq0 owns loader parity).
-  - Result: blocked
-
-- [ ] V-11 validates E-11
-  - Required evidence: paste the output of `rg -n "re\.(compile|match|search|finditer|split)" agent_workflows/status_set.py` (no line names a metadata field) and the summary line of `python3 -m pytest -o addopts="" tests/test_blocks_release_reader_bounding.py tests/test_status_set.py -k "priority or bidirectional or deps" tests/test_status_set_descriptive_safety.py` with 0 failed.
-  - Observed evidence:
-    BLOCKED (D-01, backlog suth7l): the cached fields E-11 reads (`priority`, `work_kind`, `blocks_release`, gate and exemption fields, `item_dependencies`) are not filled by the legacy loader (per-type tables hold 0 rows), so the move cannot keep the R-row behaviors.
-  - Result: blocked
-
 - [x] V-12 validates E-12
   - Required evidence: paste the `git diff` hunk of `review_findings.review_attestation_missing` and the summary line of `python3 -m pytest -o addopts="" tests/test_spec_review_attestation.py tests/test_spec_review_dispatch.py` with 0 failed and pass counts equal to E-01.
   - Observed evidence:
@@ -447,11 +425,18 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ======================= 4 passed, 7 deselected in 2.33s ========================
   - Result: pass
 
-- [ ] V-15 validates E-15
+- [x] V-15 validates E-15
   - Required evidence: paste: the "Baseline modules" summary line with per-module counts against E-01; the summary line of the three new modules; the bare `python3 -m pytest` core-tier summary line with its wall time (AC-1b per-merge line); the `(location, rule)` diff of `aw check --agent` against `.aw/state/2xwb9b/check-before.jsonl` (no new error or warning; each other difference named with its cause); `aw ipd lint` on this plan (`conforming`); the `aw sanitize --agent` result record; and the `aw commit 2xwb9b` output listing the committed paths.
   - Observed evidence:
-    Partial, recorded honestly. Baseline modules after the move: `588 passed` (30 baseline modules equal to E-01, plus 11 + 32 + 4 in the three new modules). Bare core gate `python3 -m pytest`: `2062 passed, 11 warnings in 58.40s` (wall 59.0s). `aw check --agent` (location, rule) diff against check-before.jsonl: 57 before, 57 after, new: none, gone: none. `aw sanitize --agent`: `outcome clean, exit 0, checked 6277, findings 0`. The commit is made through `aw commit 2xwb9b` after this evidence is written. BLOCKED because E-10 and E-11 are blocked, so the plan cannot finalize as executed.
-  - Result: blocked
+    Re-run 2026-11-07 by the maintainer's session in the lane worktree, after E-10/E-11 were re-scoped to `ffceq0`, at lane HEAD `da77fb797` with the re-scoped plan file.
+    Baseline modules plus the three new modules (the "Baseline modules" command followed by `tests/test_status_set_meta_writer.py tests/test_artifact_meta_legacy_write.py tests/test_spec_review_gate_kind.py`): `============================= 588 passed in 56.41s =============================` (equal to the agent's attempt-2 count: 30 baseline modules equal to E-01, plus 11 + 32 + 4 new).
+    Bare core gate `python3 -m pytest`: `2062 passed, 11 warnings in 45.37s`. The conftest wall-time budget line also printed `Core tier wall time: 45.37s exceeded budget of 30.00s.`; main itself measured 39.25s on 2026-11-07 before any of this work, so the overrun is pre-existing and not attributable to this plan.
+    `python3 -m mypy agent_workflows`: `Success: no issues found in 215 source files`.
+    `aw check --agent` (location, rule) diff against `.aw/state/2xwb9b/check-before.jsonl`: 57 before, 59 after; gone: none; new: (1) `check.ipd-review-may-be-stale` (info) on this plan, caused by the post-review re-scope edit itself; (2) `check.scope-drift` on this plan, caused by the three backlog items this execution filed (`suth7l`, `z90pda`, `k3kye2`) lying outside Scope-Paths, reconciled with `--scope-reason` at `aw ipd finalize`. No other new error or warning.
+    `aw ipd lint` on this plan: no errors; two `IPD-C802` em-dash advisories (non-blocking).
+    `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6283,"findings":0,...}`.
+    Commit: the code was committed by the run's agent as `da77fb797` (path-scoped, via `aw commit`); this re-scope is committed through `aw commit 2xwb9b` and finalized through `aw ipd finalize`.
+  - Result: pass
 
 ## Approval and execution gate
 
