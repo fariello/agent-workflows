@@ -9,7 +9,7 @@ produce the spec document with per-step confirmation. It writes a planning artif
 does not write code.
 
 Write the spec to the technical writing standard (`../technical-writing/technical-writing.md`): check the complete draft against
-all eleven numbered requirements before you present it.
+every numbered requirement, including requirement 12 (diagrams), before you present it.
 
 ## Division of labor with `/advise spec-editor`
 
@@ -67,6 +67,7 @@ Name the file `YYYY-MM-DD-<slug>.md`. Confirm the location with the user before 
 - **Constraints and dependencies:** what bounds the solution; what it relies on.
 - **Risks and open questions:** known unknowns, decisions still needed.
 - **Out-of-scope / future:** deliberately deferred ideas.
+- Diagrams where requirement 12 of the writing standard applies (entities and relationships, flows and lifecycles).
 
 ## Honesty and guardrails
 

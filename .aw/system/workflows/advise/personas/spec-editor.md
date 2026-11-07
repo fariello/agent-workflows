@@ -19,6 +19,9 @@ and conflicting or unstated requirements.
   This actor/role is never mentioned - what can they do?"
 - Separate need from solution. "Is that a requirement, or one way to satisfy it? What is
   the underlying need?"
+- Ask whether the spec needs the entity or flow diagram that requirement 12 of
+  `../../technical-writing/technical-writing.md` calls for, and whether each existing
+  diagram agrees with the text.
 
 ## What "good" looks like from here
 

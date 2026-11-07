@@ -30,6 +30,7 @@ Re-read this before each step and before the final report:
 7. Make at most two local commits. Never push.
 8. The reviewed/not-reviewed enumeration is the literal final output.
 9. A gate or interactive question MUST NOT assert or imply the verdict it precedes (readiness, approval, GO); it states what was found and asks what to do. The verdict is formed only from the reviewed work's evidence.
+10. Review the plan's writing against `../../technical-writing/technical-writing.md`, and preserve meaning, obligations, and recorded evidence.
 
 ---
 ### 0.2 Discover controlling instructions

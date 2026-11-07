@@ -152,3 +152,10 @@ Check:
 - rollout, rollback, reconciliation, and recovery;
 - logs do not expose secrets or unnecessary sensitive data;
 - specs, docs, examples, schemas, and release notes remain synchronized.
+
+## I. Writing and diagrams
+
+Check:
+
+- the plan follows `../technical-writing/technical-writing.md`, including requirement 12;
+- the reviewer fixes writing defects in place within its authority and records a finding where a fix would change meaning or where a required diagram is missing and cannot be drawn from the text alone.
