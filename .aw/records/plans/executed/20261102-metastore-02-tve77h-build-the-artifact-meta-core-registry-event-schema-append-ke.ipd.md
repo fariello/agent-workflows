@@ -6,7 +6,7 @@
 - Scope: Phase A step 1 of `4sd62s` section 7, additive only. Build `agent_workflows/artifact_meta.py` with: the per-type field registry and per-op payload schemas (4.2, 4.2c, OQ-1); the version-1 event envelope with the structured `actor`, the `append` key and the records-root-relative `path` rule (4.2, OQ-17, OQ-24); writer-side refusals (unsafe descriptive values including `short_description`, leaks in `actor`/`message`, bad paths); `seq` replay with every LOADER VALIDATION rule of 4.3 and every event-owned field rule of 4.2 and 4.4; the cache schema generated from the registry, with `schema_hash` (4.5, 4.5a); cache placement, WAL, rebuild and in-memory fallback (4.5); the two-check freshness rule (4.3); the one loader entry point; the LEGACY loader that fills the same rows from today's bullet blocks, research YAML, `aw-prompt` comments, history sections and review files (4.3, section 7); the public `read`, `history`, `query`, `resolve` and `read_at` functions (4.3, 4.4); and the ordered log-format `append`/`create` write with lock, `expect_seq`, operation journal and mirror repair (4.3, 4.7), proven on synthetic logs. Adds one new pure function to `artifact_naming` for D177 facets (OQ-32). EXCLUDES moving any caller (Orders 06 to 09), any CLI verb (Order 03 and later), the migration (Order 04), the description journal (Order 05), and switching the live format (Order 13).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/artifact_naming.py, tests/test_artifact_meta_registry.py, tests/test_artifact_meta_replay.py, tests/test_artifact_meta_cache.py, tests/test_artifact_meta_legacy.py, tests/test_artifact_meta_read.py, tests/test_artifact_meta_write.py, .aw/records/plans/pending/20261102-metastore-02-tve77h-build-the-artifact-meta-core-registry-event-schema-append-ke.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,11 @@
 - Highest E allocated: 18
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tve77h
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-07 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tve77h verified (set metastore, attempt 1).
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261102-metastore-02-tve77h-build-the-artifact-meta-core-registry-event-schema-append-ke.review.md
