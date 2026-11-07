@@ -649,3 +649,55 @@ class AnnotatedApprovedPassesPreExecutionTests(_Repo):
         plan = self.write_plan(ANNOTATED_PLAN, "20260701-1400-01-annotated.ipd.md")
         res = L.lint_file(plan, checkpoint="pre-execution")
         self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING, res.diagnostics)
+
+
+class ReviewTurnLeavesStatusBehindTests(_Repo):
+    """A review turn that recorded its verdict and Readiness but left Status to-review.
+
+    Measured in runs run-20261106T033613Z-1047571 and run-20261106T170833Z-1417128: the run scored
+    sfez3e/uog8nc `reviewed`, the files still read `to-review`, and the dependent 381ml6 was blocked.
+    """
+
+    BASE = (
+        "# IPD: r\n\n- Date: 2026-11-01\n- Kind: child\n- Status: to-review\n{readiness}"
+        "- Id: rv0001\n\n## Workflow history\n{history}\n## Goal\n\nx\n"
+    )
+
+    def _reconcile(self, text: str):
+        from agent_workflows import runner_shared as RS
+
+        plan = self.write_plan(text, "20261101-rv-01-rv0001-r.ipd.md")
+        self.commit("seed")
+        run_dir = self.root / ".aw/state/run"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "outcomes" / "01-rv0001.json").write_text("{}", encoding="utf-8")
+        item = {
+            "position": 1,
+            "id6": "rv0001",
+            "configured_file": str(plan.relative_to(self.root)),
+            "action": "review",
+            "attempts": [],
+        }
+        disp, _ = RS.reconcile_disposition(self.root, item, run_dir, 0)
+        return disp, plan.read_text(encoding="utf-8")
+
+    def test_attested_readiness_promotes_status_to_reviewed(self) -> None:
+        disp, text = self._reconcile(
+            self.BASE.format(
+                readiness="- Readiness: go-pending-approval\n",
+                history="- 2026-11-06 /plan-review (m): APPROVE WITH REVISIONS APPLIED; PR-001 FIXED\n",
+            )
+        )
+        self.assertEqual(disp, "reviewed")
+        self.assertIn("- Status: reviewed", text)
+        self.assertIn("status advanced by the runner", text)
+
+    def test_no_readiness_leaves_status_alone(self) -> None:
+        disp, text = self._reconcile(
+            self.BASE.format(
+                readiness="",
+                history="- 2026-11-06 /plan-review (m): APPROVE WITH REVISIONS APPLIED\n",
+            )
+        )
+        self.assertEqual(disp, "reviewed")
+        self.assertIn("- Status: to-review", text)

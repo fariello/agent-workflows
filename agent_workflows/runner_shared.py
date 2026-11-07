@@ -40122,6 +40122,59 @@ def review_has_positive_evidence(
     return False
 
 
+def _promote_reviewed_plan(
+    tree: Path, item: Mapping[str, Any], text: str | None
+) -> str | None:
+    """Move a plan a review turn left at `draft`/`to-review` to `reviewed`, or return None.
+
+    Only when the plan text carries a RECOGNIZED `- Readiness:` value AND its workflow history holds
+    a genuine review record (`plan_readiness.history_has_review_record`), which is the same pairing
+    the attestation lint (`IPD-M107`) demands; so the driver records a transition the review already
+    earned and never mints one. Runs the pinned `aw ipd set reviewed ... --no-commit` in ``tree`` so
+    the setter's own gates (orchestrator coverage, open questions) still apply, and the edited file
+    rides in the review's lane commit. Returns `"reviewed"` on success; None on any refusal, leaving
+    the file as it was.
+    """
+    from agent_workflows import ipd_schema as _schema
+    from agent_workflows import plan_readiness as _pr
+
+    if not text or _schema.read_readiness(text) is None:
+        return None
+    if not _pr.history_has_review_record(text):
+        return None
+    id6 = str(item.get("id6") or "").strip()
+    if not id6:
+        return None
+    cmd = pinned_module_argv(
+        [
+            "ipd",
+            "set",
+            "reviewed",
+            id6,
+            "--message",
+            "status advanced by the runner: the review turn recorded its verdict and Readiness "
+            "but left Status unchanged",
+            "--yes",
+            "--no-commit",
+            "--dir",
+            str(tree),
+        ]
+    )
+    try:
+        run_checked(cmd, cwd=tree, env_builder=pinned_child_env)
+    except Exception:
+        return None
+    try:
+        after = resolve_plan_path(tree, item.get("configured_file", ""), id6)
+        from agent_workflows.selectors import read_front_matter_status as _rfs
+
+        if _rfs(after.read_text(encoding="utf-8")) == "reviewed":
+            return "reviewed"
+    except Exception:
+        return None
+    return None
+
+
 def reconcile_disposition(
     repo: Path,
     item: dict[str, Any],
@@ -40215,6 +40268,7 @@ def reconcile_disposition(
                 return "fail-gate", None
             return "fail-gate", None
 
+        text: str | None = None
         try:
             current_plan = resolve_plan_path(
                 source, item.get("configured_file", ""), item["id6"]
@@ -40253,6 +40307,18 @@ def reconcile_disposition(
                 return "reviewed", None
             if status in ("reviewed", "approved"):
                 return status, None
+            # A CLEAN REVIEW THAT LEFT THE STATUS BEHIND (backlog-free fix, 2026-11-07). Measured:
+            # runs run-20261106T033613Z-1047571 and run-20261106T170833Z-1417128 each reviewed sfez3e
+            # and uog8nc, wrote the verdict and `- Readiness: go-pending-approval`, scored them
+            # `reviewed`, and left `- Status: to-review` on disk. The run's own dependency check then
+            # read the FIELD (`check_dep_edge_satisfied`) and blocked 381ml6 permanently, twice, so the
+            # score and the record disagreed. When the turn left a recognized readiness attested by a
+            # review history record, the driver now performs the transition the review owed, through
+            # the setter, in the tree the review lane commits from. Anything else keeps the old score,
+            # and the record stays honest: no readiness, no promotion.
+            promoted = _promote_reviewed_plan(source, item, text)
+            if promoted is not None:
+                return promoted, None
             return "reviewed", None
         return "fail-gate", None
 
