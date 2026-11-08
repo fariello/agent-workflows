@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` section 7 step 9 and section 5.2 require ONE attended commit that switches `artifact_meta` from the legacy bullet-block format to per-artifact event logs, runs migration `m0001` on this repository in the checkout that holds the gitignored history sidecar, applies the post-cutover documentation, and stamps `metadata_schema: 2`. Every earlier child deferred its log-format half here (re-measured 2026-11-06: deferral rows naming `Carrier: cxxmyv` in 11 of the 12 sibling plans; `7ehv8l` has none), because C10a forbids a second on-disk format on `main` before this commit.
-- Scope: The code switch to the log format and every deferred log-format item; the real migration on this repository; the documentation patch of `90iqr1`; the two commands documented there; and the final real-repository demonstrations of the acceptance criteria the earlier children proved on fixtures. One commit, attended by the maintainer.
+- Scope: The code switch to the log format and every deferred log-format item that changes the on-disk format or needs the migrated tree (the post-cutover code that is dormant on `main` was built earlier by `clors0`, and the setter-byte test conversion by `iog3cw` and `w13bkp`, split 2026-11-07); the real migration on this repository; the documentation patch of `90iqr1`; and the final real-repository demonstrations of the acceptance criteria the earlier children proved on fixtures. One commit, attended by the maintainer.
 - Scope-Paths: .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, agent_workflows/, tests/, .aw/records/, .aw/system/workflows/, .aw/system/cutover/, .aw/system/managed-sections.json, .aw/.gitignore, .aw/config/project.json, .aw/AGENT_QUICKSTART.md, .aw/QUICKSTART.md, docs/, AGENTS.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md
-- Item-Dependencies: executed:1ajqaa, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4
+- Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -20,6 +20,8 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added executed:87rvs2, executed:rdg0qv, executed:aqc3m6, executed:zgyna1 (setter-byte assertion batches split from iog3cw and w13bkp, Orders 59 to 62) per maintainer step-complexity rule.
+- 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-05, E-06, E-14, E-15 and the log-format halves of E-04 (rename events) and E-17 (the one-commit extra-path mechanism, with its spec 5.2 step 7 amendment) moved to clors0; the setter-byte half of E-07 moved to iog3cw and w13bkp. The format switch, the migration run and the single cutover commit stay here (spec 5.2, C10a).
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
@@ -39,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: decisions and preflight
 
-- [ ] E-01 Apply the OQ-02 decision before the code switch: from `ya4ee4`'s 40-record trial result (its E-10 table), pick the cheapest model whose output the maintainer judges accurate, and record here the chosen host, the model, the per-record mean cost and the extrapolated full-run cost and duration. This item writes no code; the OQ-01 code is E-14.
+- [ ] E-01 Apply the OQ-02 decision before the code switch: from `ya4ee4`'s 40-record trial result (its E-10 table), pick the cheapest model whose output the maintainer judges accurate, and record here the chosen host, the model, the per-record mean cost and the extrapolated full-run cost and duration. This item writes no code; the OQ-01 code is `clors0` E-14.
   - Depends on: none
   - Expected outcome: the chosen host and model are recorded in this plan with the trial figures they rest on and the maintainer's confirmation.
   - Execution state: pending
@@ -56,38 +58,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: no module outside `artifact_meta.py` (log format only) and `migrations/m0001_metadata_v2.py` can produce a bullet block or a `## Workflow history` line.
   - Execution state: pending
 
-- [ ] E-14 Implement `4sd62s` OQ-01 as spec 4.2 states it (verified at review: spec 4.2 `overrides` bullet): every event a setter writes with `--allow-open-questions`, `--allow-terminal-reopen` or `--allow-unresolvable-release-sentinel` carries an `overrides` list naming each flag given (for example `["allow-open-questions"]`), absent when none was given; `aw specs set --date` exits nonzero with a message that names the `--message` alternative once `metadata_schema` is 2. Add behavioral tests on a migrated (log-format) fixture.
+- [ ] E-04 Turn on the log-only writers in code: retire the rename ledger (`xexn45`, AC-31, AC-34), now that `clors0` E-18 already writes path-bearing `rename` events for `aw rename`, `aw group` and `aw archive plans` on log-format records (after E-03 every record is log-format, so those events become the only rename record); retire `record_history.append`, `append_advisory` and `append_rename`; remove `records/history.jsonl` and the INDEX lines from the `engine.py` `.aw/.gitignore` template, the `engine._ensure_aw_gitignore` adder and `placement_switch.py`; and remove the skip-name entries that protected scans from INDEX and STATUS files (`9o83cr` Deferred row). Do NOT edit this repository's own `.aw/.gitignore`, delete its on-disk `INDEX.*` files or `plans/STATUS.md`, or move the sidecar: migration steps 2 and 5 do that (`dcerjg` E-06 and E-11). Doing it here would un-ignore the sidecar and dirty `.aw/records/`, which the step-1 preflight refuses.
   - Depends on: E-03
-  - Expected outcome: a setter run with an override flag writes `overrides` on its event; a run without one writes no `overrides` key; `aw specs set --date` refuses on a migrated fixture and leaves the fixture byte-identical.
+  - Expected outcome: in fixtures, a spec setter, a backlog setter, a rename and a group create no `history.jsonl` and no rename-ledger line, and append the expected events; a fresh `aw install` into a temporary repository writes no `records/history.jsonl` or INDEX ignore line; this repository's `.aw/.gitignore`, INDEX files, `STATUS.md` and sidecar are unchanged by this item.
   - Execution state: pending
 
-- [ ] E-04 Turn on the log-only writers in code: path-bearing events and `rename` events for `aw rename`, `aw group` and `aw archive plans`, retiring the rename ledger (`xexn45`, AC-31, AC-34); retire `record_history.append`, `append_advisory` and `append_rename`; remove `records/history.jsonl` and the INDEX lines from the `engine.py` `.aw/.gitignore` template, the `engine._ensure_aw_gitignore` adder and `placement_switch.py`; and remove the skip-name entries that protected scans from INDEX and STATUS files (`9o83cr` Deferred row). Do NOT edit this repository's own `.aw/.gitignore`, delete its on-disk `INDEX.*` files or `plans/STATUS.md`, or move the sidecar: migration steps 2 and 5 do that (`dcerjg` E-06 and E-11). Doing it here would un-ignore the sidecar and dirty `.aw/records/`, which the step-1 preflight refuses.
-  - Depends on: E-03
-  - Expected outcome: in fixtures, a spec setter, a backlog setter, a rename and a group create no `history.jsonl` and append the expected events; a fresh `aw install` into a temporary repository writes no `records/history.jsonl` or INDEX ignore line; this repository's `.aw/.gitignore`, INDEX files, `STATUS.md` and sidecar are unchanged by this item.
-  - Execution state: pending
 
-- [ ] E-05 Put the gates in their post-cutover form: "mirrored status differs from replayed state" and "staged log violates append rules" in `check_engine` and the hooks; the executed transition accepted only as a finalize append or an orchestrator rollup-retirement append (`t4gl15`, AC-16 case 2); and the terminal-log rules of the `meta/*.jsonl` append-only hook, accepting only the appends that spec OQ-30 allows (`9o83cr`). The `->reviewed` gate-only rule (SR-601) is NOT here: `2xwb9b` E-12 implements it over `artifact_meta.query`, which serves log-format review rows unchanged.
-  - Depends on: E-03
-  - Expected outcome: each gate refuses its post-cutover violation in a fixture and accepts the allowed appends.
-  - Execution state: pending
-
-- [ ] E-15 Put the readers in their post-cutover form (`ffceq0` Deferred row): `last_history_at` comes from the newest post-cutover event `at` with `last_history_precision` (spec 4.4), and `aw check meta` gains the logged-path drift row (spec 4.6).
-  - Depends on: E-03
-  - Expected outcome: on a log-format fixture, `last_history_at` equals the newest event's `at` with its precision; `aw check meta` reports a planted `path-drift` and reports nothing on the unplanted fixture.
-  - Execution state: pending
-
-- [ ] E-06 Build the two commands documented by `90iqr1`: `aw reviews record` (appends one `review` event per spec 4.1a, with `review_kind`, `verdict`, optional `readiness` and `review_depth`; refuses `readiness` on a refinement event and any verdict outside the vocabulary of its kind) and `aw walkthrough new` (creates a walkthrough with its log over `set_records.write_walkthrough`). Declare both leaves in `command_surface` as mutations and change the `aw reviews` namespace description, which today says the namespace "is read-only and writes nothing". `aw meta repair` is NOT built here: `ffceq0` E-11 builds it.
-  - Depends on: E-03
-  - Expected outcome: `--help` of each command shows the arguments the `90iqr1` patch documents; behavioral tests pass; `tests/test_command_surface_declarations.py` reports no undeclared leaf.
-  - Execution state: pending
-
-- [ ] E-07 Switch the shared test record builder to `RECORD_FORMAT = "log"` and convert the setter-byte assertions to `artifact_meta.read` plus the in-file mirror (`59aiyh`); keep the legacy-format tests that must keep literal input (the legacy loader, migration round-trip and conversion tests) pointing at `m0001`; and settle the `tests/fixtures/review-pilot/plans/` legacy corpus (`59aiyh` Deferred row): convert it to the log format with `m0001`'s conversion, or route `tests/test_review_pilot.py` through `m0001`, and record which.
+- [ ] E-07 Switch the shared test record builder to `RECORD_FORMAT = "log"` and add the log-format branch of the field assertion helper (`assert_field`/`assert_no_field`, added by `iog3cw` E-01: in the log format it reads `artifact_meta.read` plus the in-file mirror); the setter-byte assertions were already moved onto that helper by `iog3cw` and `w13bkp`, so this item changes only the rows their F-28 tables list as `setter-byte, exact spelling` (`59aiyh`); keep the legacy-format tests that must keep literal input (the legacy loader, migration round-trip and conversion tests) pointing at `m0001`; and settle the `tests/fixtures/review-pilot/plans/` legacy corpus (`59aiyh` Deferred row): convert it to the log format with `m0001`'s conversion, or route `tests/test_review_pilot.py` through `m0001`, and record which.
   - Depends on: E-03
   - Expected outcome: every test that builds its own fixture passes on the switched tree. Tests that read this repository's own unmigrated records (`livecorpus` tests and tests over `REPO_ROOT`, such as `tests/test_attention.py`) are expected to be refused with "run `aw migrate metadata`" until E-10; they are listed, not fixed, here.
   - Execution state: pending
 
 - [ ] E-08 Apply the `90iqr1` documentation patch with `git apply .aw/system/cutover/metastore-docs.cutover.patch` (regenerate it from `90iqr1`'s scratch-worktree steps if it no longer applies), and delete the patch file and `tests/test_metastore_cutover_patch.py`, whose job ends here.
-  - Depends on: E-06
+  - Depends on: E-03
   - Expected outcome: the documents, managed block, templates and quickstarts describe the log-format commands; the patch file is gone.
   - Execution state: pending
 
@@ -99,16 +82,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 3: run the migration and commit
 
 - [ ] E-09 On the switched, not-yet-migrated tree, run the bare core gate and `make test-all`. The only allowed failures are tests that read this repository's own unmigrated records and fail with "run `aw migrate metadata`" (E-07); any other failure stops the cutover here. Commit this plan's own progress edits with `aw commit cxxmyv -- <this plan's path>`, so the step-1 preflight sees a clean `.aw/records/` tree, then run `aw migrate metadata` (dry run) once more on this exact tree; any census refusal stops the cutover here with nothing else committed.
-  - Depends on: E-04, E-05, E-07, E-08, E-14, E-15, E-16
+  - Depends on: E-04, E-07, E-08, E-16
   - Expected outcome: both tiers pass except the listed refusals; `git status --porcelain -- .aw/records` prints nothing; the dry run is clean.
   - Execution state: pending
 
-- [ ] E-17 Rehearse the whole cutover on a COPY before E-10 touches this checkout. `git clone --no-hardlinks` this checkout to the gitignored `tmp/cxxmyv-rehearsal`, apply the uncommitted task group 2 changes (E-03 to E-08 and E-14 to E-16) with `git diff --binary HEAD | git -C tmp/cxxmyv-rehearsal apply --index`, copy the sidecar and the description journal into the clone (so no new model call is made), and in the clone run `aw migrate metadata --apply` without `--force`, the commit through every installed hook, then the bare core gate and `make test-all` on the migrated clone. This answers the question E-10 depends on: how does the migration's one `aw commit --no-plan` include the task group 2 code, test and documentation paths, given that 5.2 step 7 commits "the migration's own list of paths" and the step-4a marker matches only the exact staged tree (`dcerjg` E-11)? If `m0001` has no way to stage extra paths, add one under `agent_workflows/migrations/` (for example an explicit path-list argument that is staged before the marker is written) and repeat the rehearsal. If the `90iqr1` patch's hunks under `.aw/records/` (the records READMEs) trip the uncommitted-records preflight, the rehearsal must show a form that needs no `--force`. Stop condition: if no form produces ONE commit containing both the migration and the task group 2 paths without `--force` and without `--no-verify`, stop before E-10 and ask the maintainer. Delete the clone afterwards.
+- [ ] E-17 Rehearse the whole cutover on a COPY before E-10 touches this checkout. `git clone --no-hardlinks` this checkout to the gitignored `tmp/cxxmyv-rehearsal`, apply the uncommitted task group 2 changes (E-03, E-04, E-07, E-08 and E-16) with `git diff --binary HEAD | git -C tmp/cxxmyv-rehearsal apply --index`, copy the sidecar and the description journal into the clone (so no new model call is made), and in the clone run `aw migrate metadata --apply` without `--force`, the commit through every installed hook, then the bare core gate and `make test-all` on the migrated clone. This proves, on a full copy of this repository, the mechanism E-10 depends on: the migration's one `aw commit --no-plan` includes the task group 2 code, test and documentation paths through the extra-path argument that `clors0` E-19 built and proved on a fixture (spec 5.2 step 7 as amended there). If that argument does not cover a path the real cutover needs, stop and report; do not write a new mechanism inside the attended turn. If the `90iqr1` patch's hunks under `.aw/records/` (the records READMEs) trip the uncommitted-records preflight, the rehearsal must show a form that needs no `--force`. Stop condition: if no form produces ONE commit containing both the migration and the task group 2 paths without `--force` and without `--no-verify`, stop before E-10 and ask the maintainer. Delete the clone afterwards.
   - Depends on: E-09
-  - Expected outcome: in the clone, one commit holds the migrated records and every task group 2 path, passes every installed hook, and both test tiers pass on it with no failures; the mechanism used is recorded in this plan's `## Findings`; this checkout's `git status --porcelain` is identical before and after.
+  - Expected outcome: in the clone, one commit holds the migrated records and every task group 2 path, passes every installed hook, and both test tiers pass on it with no failures; the extra-path invocation used is recorded in this plan's `## Findings` (F-08); this checkout's `git status --porcelain` is identical before and after.
   - Execution state: pending
 
-- [ ] E-10 With the maintainer present, first commit this plan's E-17 edits (F-08, evidence) with `aw commit cxxmyv -- <this plan's path>` so the records tree is clean again, then run `aw migrate metadata --apply` in the main checkout with the mechanism that the E-17 rehearsal proved. The migration acquires the integration lock and holds it while it runs (5.2 step 1). Do not pass `--force` or `--force-worktree` unless the maintainer explicitly decides to and the override is recorded here. The migration renames, converts, rewrites citations, writes the terminal-exception marker, runs `aw check meta` and `aw sanitize --agent` on the staged tree (5.2 step 6), writes `metadata_schema: 2`, and makes its ONE commit through `aw commit --no-plan`, whose path list includes the task group 2 changes (E-03 to E-08 and E-14 to E-16).
+- [ ] E-10 With the maintainer present, first commit this plan's E-17 edits (F-08, evidence) with `aw commit cxxmyv -- <this plan's path>` so the records tree is clean again, then run `aw migrate metadata --apply` in the main checkout with the mechanism that the E-17 rehearsal proved. The migration acquires the integration lock and holds it while it runs (5.2 step 1). Do not pass `--force` or `--force-worktree` unless the maintainer explicitly decides to and the override is recorded here. The migration renames, converts, rewrites citations, writes the terminal-exception marker, runs `aw check meta` and `aw sanitize --agent` on the staged tree (5.2 step 6), writes `metadata_schema: 2`, and makes its ONE commit through `aw commit --no-plan`, whose path list includes the task group 2 changes (E-03, E-04, E-07, E-08 and E-16), passed through the `clors0` E-19 extra-path argument.
   - Depends on: E-17
   - Expected outcome: one commit containing the migration and every task group 2 path; `aw check meta` reports no findings; the sanitizer reports no `fail`; `aw migrate metadata --apply` run again changes nothing (AC-10).
   - Execution state: pending
@@ -144,23 +127,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Id | Evidence | Finding |
 |---|---|---|
 | F-01 | `rg -n 'Carrier: cxxmyv' .aw/records/plans/pending/20261102-metastore-*.ipd.md` (2026-11-02; re-run at review 2026-11-06: rows in 11 sibling plans, `tve77h`, `1ajqaa`, `dcerjg`, `ya4ee4`, `2xwb9b`, `xexn45`, `ffceq0`, `t4gl15`, `59aiyh`, `9o83cr`, `90iqr1`; `7ehv8l` has none) | Every sibling that has a log-format half defers it here; the Scope check maps each row to an E-item. |
-| F-02 | `ya4ee4` OQ-02 and `2xwb9b` OQ-02 | Both maintainer questions were answered on 2026-11-02 (OQ-01, OQ-02 below); E-01 applies OQ-02 and E-14 implements OQ-01. |
+| F-02 | `ya4ee4` OQ-02 and `2xwb9b` OQ-02 | Both maintainer questions were answered on 2026-11-02 (OQ-01, OQ-02 below); E-01 applies OQ-02 and `clors0` E-14 implements OQ-01. |
 | F-03 | `90iqr1` E-08 to E-10 | The documentation arrives as a patch file guarded by a core test; this plan applies it and retires the guard. |
 | F-04 | spec `4sd62s` 5.2 steps 0 to 7 | The migration itself is built and proven on a copy by `dcerjg`; this plan runs it for real. |
 | F-05 | `ffceq0` E-11 (`aw meta repair <id6> [--apply] [--confirm]` in `meta_cli.py`); `2xwb9b` E-12 (`review_findings.review_attestation_missing` reads gate `review` rows through `artifact_meta.query`) | `aw meta repair` and the SR-601 `->reviewed` rule are built in phase B, not here. |
-| F-06 | `aw reviews --help`: "the whole namespace is read-only and writes nothing"; `cli.py` has `--kind` on `aw ipd scaffold`, `aw research new`, `aw research mv` and `aw prompts new` | E-06 must change the namespace text; E-16 renames these options. |
+| F-06 | `aw reviews --help`: "the whole namespace is read-only and writes nothing"; `cli.py` has `--kind` on `aw ipd scaffold`, `aw research new`, `aw research mv` and `aw prompts new` | `clors0` E-06 changes the namespace text; E-16 renames these options. |
 | F-07 | `tests/test_attention.py` `REPO_ROOT` and `att.scan(REPO_ROOT)`; `pyproject.toml` `livecorpus` marker | Some tests read this repository's own records; after the E-03 schema flip they are refused until E-10 migrates the repository, so E-09 cannot demand a fully green tree before the migration. E-17 runs both tiers on the migrated copy instead. |
-| F-08 | (written by E-17) | The mechanism that puts the migration and the task group 2 changes in one commit. |
+| F-08 | (written by E-17) | The exact `clors0` E-19 extra-path invocation that puts the migration and the task group 2 changes in one commit on the rehearsal clone. |
 
 ## Proposed changes (ordered, validatable)
 
 1. E-01, E-02: the model decision, a real dry run and the AC-13 before values.
-2. E-03 to E-08 and E-14 to E-16: the code and documentation switch in one working tree.
+2. E-03, E-04, E-07, E-08 and E-16: the code and documentation switch in one working tree.
 3. E-09, E-17, E-10: both test tiers, a full rehearsal on a copy, then the attended migration commit.
 4. E-11 to E-13: real-repository demonstrations, measurements, changelog, finalize.
 
 ## Deferred / out of scope (with reason)
 
+- Moved to clors0 (split 2026-11-07 per maintainer step-complexity rule): E-05 (post-cutover gates), E-06 (`aw reviews record`, `aw walkthrough new`), E-14 (event `overrides`, `--date` refusal), E-15 (post-cutover readers), each made dormant on `main` until the migration; the path-bearing `rename` events of E-04 (as `clors0` E-18); the one-commit extra-path mechanism of E-17 with the spec 5.2 step 7 amendment (as `clors0` E-19).
+  - Carrier: clors0
+- Moved to iog3cw (split 2026-11-07 per maintainer step-complexity rule): from E-07, the format-aware field assertion helper and the conversion of the setter-byte assertions of batches S01 to S10.
+  - Carrier: iog3cw
+- Moved to w13bkp (split 2026-11-07 per maintainer step-complexity rule): from E-07, the conversion of the setter-byte assertions of batches S11 to S20.
+  - Carrier: w13bkp
 - The execution record (`finalize` and `turn` events) and the run index: separate specs, implemented after this cutover through the registry.
   - Carrier: nq1src
 - The run index tables.
@@ -169,17 +158,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. Each `Carrier: cxxmyv` row from F-01 maps to an E-item: `tve77h` (loader and writer switch) and `dcerjg` (legacy loader into `m0001`, `CURRENT_METADATA_SCHEMA`) to E-03; `2xwb9b` (`append` legacy branch, `LegacyRender`, path-keyed target) to E-03, and its AC-31 (2) to E-11; `xexn45` and `9o83cr` (`write_legacy`, folded value writers) to E-03; `xexn45`, `9o83cr` and `dcerjg` (rename and path events, rename ledger, sidecar writer and ignore lines, INDEX ignore lines and skip names) to E-04, with the on-disk deletions done by migration steps 2 and 5 in E-10; `t4gl15` and `9o83cr` (post-cutover gates, terminal-log hook rules) to E-05; `ffceq0` (`last_history_at`, logged-path drift) to E-15; `90iqr1` (patch, two commands, `Kind` option renames, F-07 tests) to E-06, E-08 and E-16; `59aiyh` (builder, setter-byte assertions, `review-pilot` corpus) to E-07; `9o83cr` (AC-1 audit re-run) to E-11; and the real-repository evidence (AC-2 from `1ajqaa`; AC-10, AC-11, AC-16, AC-22 case 2, AC-30 case 3 and AC-41 from `dcerjg`; AC-36 case 6 and the generation cost from `ya4ee4`; AC-7 from `ffceq0`; AC-16 case 2 from `t4gl15`) to E-02, E-10, E-11 and E-12. The leak-sanitizer note of `t4gl15` is covered by E-10's sanitizer run. OQ-01 is implemented by E-14.
+- Under-scope: none. Each `Carrier: cxxmyv` row from F-01 maps to an E-item: `tve77h` (loader and writer switch) and `dcerjg` (legacy loader into `m0001`, `CURRENT_METADATA_SCHEMA`) to E-03; `2xwb9b` (`append` legacy branch, `LegacyRender`, path-keyed target) to E-03, and its AC-31 (2) to E-11; `xexn45` and `9o83cr` (`write_legacy`, folded value writers) to E-03; `xexn45` (rename and path events) to `clors0` E-18; `xexn45`, `9o83cr` and `dcerjg` (rename ledger, sidecar writer and ignore lines, INDEX ignore lines and skip names) to E-04, with the on-disk deletions done by migration steps 2 and 5 in E-10; `t4gl15` and `9o83cr` (post-cutover gates, terminal-log hook rules) to `clors0` E-05; `ffceq0` (`last_history_at`, logged-path drift) to `clors0` E-15; `90iqr1` (patch, `Kind` option renames, F-07 tests) to E-08 and E-16, and its two commands to `clors0` E-06; `59aiyh` (builder, `review-pilot` corpus) to E-07, and its setter-byte assertions to `iog3cw` and `w13bkp` with the exact-spelling remainder in E-07; `9o83cr` (AC-1 audit re-run) to E-11; and the real-repository evidence (AC-2 from `1ajqaa`; AC-10, AC-11, AC-16, AC-22 case 2, AC-30 case 3 and AC-41 from `dcerjg`; AC-36 case 6 and the generation cost from `ya4ee4`; AC-7 from `ffceq0`; AC-16 case 2 from `t4gl15`) to E-02, E-10, E-11 and E-12. The leak-sanitizer note of `t4gl15` is covered by E-10's sanitizer run. OQ-01 is implemented by `clors0` E-14.
 
 ## Required tests / validation
 
 - Owns, finally on the real repository: AC-1b, AC-13, AC-16, and the real-repository forms of AC-1, AC-2, AC-3, AC-6, AC-7, AC-9, AC-10, AC-11, AC-22 case 2, AC-30 cases 2 and 3, AC-31, AC-34, AC-36 case 6 and AC-41. Each was first proven on fixtures by the child named in the Scope check.
 - Commands: bare `python3 -m pytest` and `make test-all` on the switched tree (E-09) and on the migrated copy (E-17); `aw check meta`, `aw sanitize --agent` and a second `--apply` after the real apply (E-10); the AC evidence of E-11; the AC-13 table of E-12.
-- New behavioral tests: E-14 (`overrides`, `--date` refusal), E-15 (`last_history_at`, path drift), E-06 (`aw reviews record`, `aw walkthrough new`), E-16 (renamed options and aliases), E-05 (post-cutover gates). Each calls the real code or CLI on a fixture and asserts on outputs, exit codes and file bytes.
+- New behavioral tests: E-16 (renamed options and aliases). The tests of the moved items live in `clors0` and `iog3cw`. Each calls the real code or CLI on a fixture and asserts on outputs, exit codes and file bytes.
 
 ## Spec / documentation sync
 
-No spec change is planned. The OQ-01 `overrides` key and the `--date` refusal are already in spec 4.2 (verified at review). This plan executes spec `4sd62s` section 7 step 9 and section 5.2, and lands the section 5.4 documentation prepared by `90iqr1`, including the AGENTS.md executed-plan rule amendment of 5.2 step 4a. If E-17 adds a way for `m0001` to stage paths beyond its own conversion output, amend spec 5.2 step 7 ("the migration's own list of paths") in the same change to say so, because that step is the contract the AC-16 hooks and the step-4a marker are reviewed against; the spec file is in `- Scope-Paths:` for that reason.
+No spec change is planned. The OQ-01 `overrides` key and the `--date` refusal are already in spec 4.2 (verified at review). This plan executes spec `4sd62s` section 7 step 9 and section 5.2, and lands the section 5.4 documentation prepared by `90iqr1`, including the AGENTS.md executed-plan rule amendment of 5.2 step 4a. The spec 5.2 step 7 amendment for the migration's extra-path argument moved to `clors0` E-19 with the mechanism (split 2026-11-07); if the E-17 rehearsal shows the amended text is still incomplete, stop and report rather than amend the spec inside the attended turn.
 
 ## Open questions
 
@@ -222,14 +211,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste a fixture test run in which a spec setter, a backlog setter, `aw rename` and `aw group` each append the expected event and the fixture has no `records/history.jsonl` afterwards; a test showing a fresh `aw install` into a temporary repository writes no `records/history.jsonl` or INDEX ignore line; and `git status --porcelain --ignored -- .aw/.gitignore .aw/records/history.jsonl .aw/records/plans/STATUS.md` in this checkout showing them unchanged (the real deletions are V-10's and V-11's).
   - Observed evidence:
   - Result: pending
-- [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v` of the gate and hook tests showing a raw transition into `executed` refused, a finalize append and a rollup-retirement append accepted, a non-append log edit refused, a `set` of `readiness` on a terminal log refused, an OQ-30 terminal append accepted, and a mirror that differs from the replayed state reported.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
-  - Required evidence: paste `aw reviews record --help` and `aw walkthrough new --help`, the new `aw reviews --help` namespace text, the pytest summary of their behavioral tests including the refusal of `readiness` on a refinement event and of an off-vocabulary verdict, and the `tests/test_command_surface_declarations.py` summary line.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-07 validates E-07
   - Required evidence: paste the diff hunk setting `RECORD_FORMAT = "log"` in the shared builder; the bare core gate summary line on the switched tree with every failure listed and each one shown to be a "run `aw migrate metadata`" refusal of a test that reads this repository's own records; and the recorded `review-pilot` decision with its passing `tests/test_review_pilot.py` run.
   - Observed evidence:
@@ -258,14 +239,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste the `CHANGELOG.md` diff hunk, the `aw commit cxxmyv` output, and the `aw ipd finalize cxxmyv` output.
   - Observed evidence:
   - Result: pending
-- [ ] V-14 validates E-14
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v` of the new tests showing an event with `overrides: ["allow-open-questions"]` after a setter run with that flag, no `overrides` key after a run without one, and `aw specs set --date` refused on a migrated fixture with its message and a byte-identical fixture.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-15 validates E-15
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v` of the new tests showing `last_history_at` and `last_history_precision` taken from the newest event, and `aw check meta` output on the fixture with the planted `path-drift` and on the clean fixture.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-16 validates E-16
   - Required evidence: paste the re-derived lists (the `Kind`-named options and the `90iqr1` F-07 tests), `--help` of each renamed command showing the new spelling, a test run showing each old spelling as an alias gives the same result, and the pytest summary of every F-07 test on the patched tree.
   - Observed evidence:
@@ -276,13 +249,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 
-
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: one indivisible commit (C10a, spec 5.2): splitting it would put two formats on `main`.
+- Cohesion rationale: one indivisible commit (C10a, spec 5.2): splitting it would put two formats on `main`. Everything that could be built or tested before the cutover without changing `main`'s format was split out on 2026-11-07 (`clors0`, `iog3cw`, `w13bkp`).
 
-Execute only with the maintainer present, in the main checkout that holds the history sidecar, after `90iqr1`, `dcerjg`, `ya4ee4` and `1ajqaa` are `executed`. OQ-01 and OQ-02 are resolved. The runner must not dispatch this plan unattended (`- Attended: required`).
+Execute only with the maintainer present, in the main checkout that holds the history sidecar, after every plan in `- Item-Dependencies:` is `executed` (`90iqr1`, `dcerjg`, `ya4ee4`, `1ajqaa`, `g5hpbb`, and the split parts `clors0`, `iog3cw`, `w13bkp`, `87rvs2`, `rdg0qv`, `aqc3m6`, `zgyna1`). OQ-01 and OQ-02 are resolved. The runner must not dispatch this plan unattended (`- Attended: required`).
 
 Scope fence: `- Scope-Paths:` declares what this plan may change. The migration rewrites most of `.aw/records/`, which is declared. An edit outside the fence is made and then justified at finalize with `--scope-reason`.
 

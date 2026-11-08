@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` section 6 requires that test data be written by ONE shared record builder in phase B, so that the cutover (Order 13) changes the builder and not hundreds of test files; C10a requires the suite to pass at every commit, including the cutover commit. Measured 2026-11-02 at `0cbfcc706`: 309 of 717 Python files under `tests/` (307 test modules plus `tests/support.py` and `tests/conformance_matrix.py`) contain 6,638 lines with a legacy bullet string (`- Id:`, `- Status:`, `- Set:` and 18 other metadata fields) or `## Workflow history`; 88 private helper functions in 60 modules build plans, specs, backlog items, reviews, research and prompts by hand (24 copies of `_write_plan`, 12 of `_write_spec`, 7 of `_write_backlog_item`); 7 modules hand-write `aw-prompt` comments; 26 of the 40 tracked `.md` files under `tests/fixtures/` and `tests/benchmark_fixtures/` carry `- Id:` or `- Status:` bullets (27 carry an F-01 string). The one existing shared helper, `support.ready_plan_text`, is used by 14 modules. If the cutover had to rewrite these strings, the cutover commit would carry thousands of test edits and C10a would be unverifiable.
-- Scope: Phase B step 6 (`4sd62s` section 7). Add `tests/record_builder.py`, one builder that creates every record type (plan, spec, backlog item, research report, release, staged prompt, walkthrough, review) in a fixture repository through `artifact_meta` (its write path when available, and in phase B the legacy on-disk format that the legacy loader reads), plus a text form for tests that need a string. Move test DATA in the F-01 files onto it in seven family batches (G1 to G7, partitioned by the first-match rule of F-03): every hand-built record becomes a builder call. Keep assertions on observable output (CLI text, JSON fields, exit codes) and change no assertion unless the assertion inspected the raw record bytes as a stand-in for metadata, in which case it moves to `artifact_meta.read` (listed per batch). Convert the tracked `.md` fixtures that tests copy or lint as records into builder calls (E-10). EXCLUDES: changing production code; tests whose subject IS the legacy text format (the legacy loader tests of `tve77h`, the legacy writer tests of `2xwb9b` and `xexn45`, and the migration tests of `dcerjg`/`ya4ee4`, which must keep literal legacy input; the EXCLUDED list in F-03), which are listed and left unchanged; the review-pilot plan corpus that `tools/review_pilot.py` reads (F-05); changing the builder's on-disk output to the log format (Order 13, `cxxmyv`).
-- Scope-Paths: tests/record_builder.py, tests/support.py, tests/conformance_matrix.py, tests/test_record_builder.py, tests/test_*.py, tests/fixtures/attnview/**, tests/fixtures/conforming-orchestrator.md, tests/fixtures/record_builder/**, .aw/records/plans/pending/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
-- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
+- Scope: Phase B step 6 (`4sd62s` section 7), FINISHING PART after the 2026-11-07 split. The builder, its tests, the baselines and the tracked-fixture conversion moved to `9rgn2w` (Order 37); batch subsets G1a to G7a moved to `x05v02` (Order 38), `7qxey9` (Order 39) and `nbfg7w` (Order 40). This plan keeps: the last batch subset G7b with the shared helpers `tests/support.py` and `tests/conformance_matrix.py`, and the repository-wide deletion of private record-building helpers that lost their callers (E-09); the single-switch-point proof and the F-06 census of every remaining legacy string (E-11); the full-suite comparison, core-gate timing, `make test-all`, `aw check` comparison and commit (E-12). EXCLUDES: changing production code; tests whose subject IS the legacy text format (the F-03 EXCLUDED list), which are listed and left unchanged; the review-pilot plan corpus (F-05); changing the builder's on-disk output to the log format (Order 13, `cxxmyv`).
+- Scope-Paths: tests/support.py, tests/conformance_matrix.py, tests/test_record_builder.py, tests/test_legacy_finalize.py, tests/test_limit_reach_check_search.py, tests/test_live_conformance_sweep.py, tests/test_migrate_layout_cli.py, tests/test_mutation_result_facts.py, tests/test_notify_cli.py, tests/test_notify_core.py, tests/test_notify_groups.py, tests/test_notify_telegram.py, tests/test_nv_backend_args_climb.py, tests/test_prose_dash_advisory.py, tests/test_receipt_lane_record.py, tests/test_repo_relative_posix.py, tests/test_rereview_reviewed_plan.py, tests/test_resolve_plan_path_typed.py, tests/test_show_history.py, tests/test_staged_illegal_backlog_transition_gate.py, tests/test_support_section.py, tests/test_term_components.py, tests/test_term.py, tests/test_validator_nonsurveyable_dir.py, tests/test_workflow_artifacts_prune.py, tests/test_lane_submission_retention_narrowing.py, tests/test_suite_baseline_direction.py, tests/test_lifecycle_lane_nudge.py, tests/test_finidem_reusable_not_finalized.py, tests/test_research_set_assign_date_containment.py, tests/test_finalize_trailer_attribution.py, tests/test_finalize_disregarded_record.py, tests/test_research_rename_frontmatter.py, .aw/records/plans/pending/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
+- Item-Dependencies: executed:1upea0, executed:7qxey9, executed:9rgn2w, executed:g5hpbb, executed:nbfg7w, executed:tve77h, executed:x05v02, executed:xexn45, executed:653ndz
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -19,6 +19,8 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added executed:1upea0 (new batch part at Order 50 carrying subsets G3a, G5a, G7a from x05v02, 7qxey9 and nbfg7w) per maintainer decision 2026-11-07 ("Codemod first, then small runs").
+- 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-02, E-10, E-13 moved to 9rgn2w; E-03, E-04 and the G3a part of E-05 moved to x05v02; the G3b part of E-05, E-06 and the G5a part of E-07 moved to 7qxey9; the G5b part of E-07, E-08 and the G7a part of E-09 moved to nbfg7w.
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
@@ -30,13 +32,15 @@
 
 ## Goal
 
-Every test that needs a record gets it from one builder, so that the cutover switches the test corpus to the log format by changing one module, and the suite proves C10a at the cutover commit without rewriting test data.
+Every test that needs a record gets it from one builder, so that the cutover switches the test corpus to the log format by changing one module, and the suite proves C10a at the cutover commit without rewriting test data. After the 2026-11-07 split, this plan finishes that work: it migrates the last subset and the shared helpers, proves the builder is the single switch, censuses what remains, and runs the full-suite comparison.
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Batch rule, applied to every batch E-item (E-03 to E-09):
+Split note (2026-11-07): items E-01 to E-08, E-10 and E-13 moved to `9rgn2w`, `x05v02`, `7qxey9` and `nbfg7w` (see `## Deferred / out of scope`). In the text kept here, "E-13" and its baseline files mean `9rgn2w` E-13 and its F-10 table: when this plan runs in a worktree without those gitignored files, regenerate `full-before.txt` and `check-before.jsonl` at F-10's recorded commit in a temporary `git worktree add` under `.aw/state/59aiyh/` before comparing. "The builder's `raw_fields=` escape (E-01)" means `9rgn2w` E-01.
+
+Batch rule, applied to every batch E-item (originally E-03 to E-09; here E-09 only):
 1. Before the batch, re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706`, not the bar.
 2. Record the unmodified per-test outcome list (a batch whose files a previous batch did not touch may reuse the matching lines of E-13's `full-before.txt`): `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA $(cat .aw/state/59aiyh/<batch>-files.txt) | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/<batch>-before.txt`. `-p no:randomly` and `-n 0` make the list deterministic; `-m ""` includes `slow` and `livecorpus` modules.
 3. Replace hand-built records with builder calls. A test that deliberately writes an INVALID value (an unknown status, `- Status: EXECUTED`, `- Priority: bogus`, a malformed gate) gets it through the builder's `raw_fields=` escape (E-01) and is listed with reason class `invalid-input`.
@@ -44,98 +48,34 @@ Batch rule, applied to every batch E-item (E-03 to E-09):
 5. Count the remaining legacy strings with the F-01 `rg` pattern over the batch files, and give each remaining line one reason class from F-06: `legacy-format subject`, `displayed-output assertion`, `setter-byte assertion`, `invalid-input`, or `body prose` (for example open-question `- Status: open` rows, which N3 keeps in Markdown).
 6. The builder never reads production source, and no test gains a source-reading assertion.
 
-### Task group 1: the builder
+### Task group 1: last batch subset and the shared helpers
 
-- [ ] E-13 Capture every baseline BEFORE any edit, under the gitignored `.aw/state/59aiyh/`:
-  - the bare `python3 -m pytest` summary line and wall time (`core-before.txt`);
-  - the full-suite outcome list (`full-before.txt`), using the E-12 command;
-  - `aw check --agent` output (`check-before.jsonl`);
-  - the F-01 `rg` count over `tests/` (`legacy-before.txt`);
-  - the E-09 helper count (`helpers-before.txt`);
-  - the golden bytes of `support.ready_plan_text(**kwargs)` for every distinct argument set its call sites use at HEAD, plus the default call. They go in `tests/fixtures/record_builder/ready_plan_text_golden.json`, a tracked generated file whose generating command E-02 writes in its module docstring.
+Batch rule for E-09 (restructured 2026-11-08 per maintainer decision 2026-11-07 "Codemod first, then small runs"): E-09 applies the SAME batch rule as `x05v02`, quoted here verbatim so this plan is self-contained:
+
+Batch rule,  (the `59aiyh` batch rule, restructured 2026-11-08 for the Order-49 fixture codemod `653ndz` per maintainer decision 2026-11-07 "Codemod first, then small runs": the tool performs the mechanical rewrite, and the hand work is bounded by its measured refusals). In it, "E-13's `full-before.txt`" and "the builder's `raw_fields=` escape (E-01)" are items of Order 37 (`9rgn2w`); because `.aw/state/` does not travel between lane worktrees, step 2 always records a fresh before list here. Step 1's partition is restricted to the named subset: a module that the partition now places in this subset but the list below does not name is added and reported; a named module that no longer matches F-01 is reported and skipped:
+1. Before the batch, re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
+2. Record the unmodified per-test outcome list (a batch whose files a previous batch did not touch may reuse the matching lines of E-13's `full-before.txt`): `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA $(cat .aw/state/59aiyh/<batch>-files.txt) | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/<batch>-before.txt`. `-p no:randomly` and `-n 0` make the list deterministic; `-m ""` includes `slow` and `livecorpus` modules.
+3. Run the codemod: `python3 tools/fixture_codemod.py --apply --format json $(cat .aw/state/59aiyh/<batch>-files.txt) > .aw/state/59aiyh/<batch>-codemod.json`. It rewrites only the sites whose module outcome list it proved identical (`653ndz` E-03) and lists every other site as a refusal with a reason code and a disposition (`hand` or `legacy-kept`, the `653ndz` reason-code table).
+4. Hand-convert ONLY the refusals with disposition `hand`: the static count is the subset's row in `653ndz` F-31, and the codemod report adds any apply-time `not-equivalent` refusals; the item's hand count is their sum. If the hand count exceeds 25, stop after step 3 (the proved codemod rewrites may be committed), convert nothing by hand, and report the subset for re-splitting. A hand conversion uses builder calls; a test that deliberately writes an INVALID value (an unknown status, `- Status: EXECUTED`, `- Priority: bogus`, a malformed gate) gets it through the builder's `raw_fields=` escape (E-01) and is listed with reason class `invalid-input`. A refusal with disposition `legacy-kept` stays in legacy form on purpose and is listed with its F-06 reason class.
+5. Re-run step 2's command into `<batch>-after.txt` and require `diff` to print nothing. A batch that would need any changed assertion other than a raw-byte metadata stand-in moved to `artifact_meta.read` (scope rule) stops and is reported; it does not weaken the assertion.
+6. Count the remaining legacy strings with the F-01 `rg` pattern over the batch files, and give each remaining line one reason class from F-06: `legacy-format subject`, `displayed-output assertion`, `setter-byte assertion`, `invalid-input`, or `body prose` (for example open-question `- Status: open` rows, which N3 keeps in Markdown).
+7. The builder never reads production source, and no test gains a source-reading assertion.
+
+
+### Task group 1: batch subsets
+
+- [ ] E-09 Batch G7, subset G7b, and the shared helpers (the rest of G7, subset G7a, moved to `nbfg7w`): the unmatched test modules whose basename sorts at or after `test_l`, 24 modules and 234 F-01 legacy lines at `ac76110f4` including `tests/support.py` (`ready_plan_text`, `scope_drift_repo`) and `tests/conformance_matrix.py`. The file list is re-derived by the batch rule and restricted to this subset; at the split it was: `tests/conformance_matrix.py`, `tests/support.py`, `tests/test_legacy_finalize.py`, `tests/test_limit_reach_check_search.py`, `tests/test_live_conformance_sweep.py`, `tests/test_migrate_layout_cli.py`, `tests/test_mutation_result_facts.py`, `tests/test_notify_cli.py`, `tests/test_notify_core.py`, `tests/test_notify_groups.py`, `tests/test_notify_telegram.py`, `tests/test_nv_backend_args_climb.py`, `tests/test_prose_dash_advisory.py`, `tests/test_receipt_lane_record.py`, `tests/test_repo_relative_posix.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_resolve_plan_path_typed.py`, `tests/test_show_history.py`, `tests/test_staged_illegal_backlog_transition_gate.py`, `tests/test_support_section.py`, `tests/test_term_components.py`, `tests/test_term.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_workflow_artifacts_prune.py`. Apply the batch rule above with `<batch>` = `G7b` (the codemod performs the rewrite; hand-convert only the refusals `653ndz` F-31 marks `hand` for G7b). Then delete every private record-building helper (`_write_plan`, `_write_spec`, `_write_backlog_item`, `_make_item`, `_mk_plan`, ...) that no longer has a caller, anywhere under `tests/`: the per-subset deletions are done by each batch part, so this item deletes the helpers of this subset (at the split: `tests/test_legacy_finalize.py`: `write_plan`; `tests/test_prose_dash_advisory.py`: `_make_ipd`, `_make_spec`, `_make_backlog`; `tests/test_repo_relative_posix.py`: `_write_plan`; `tests/test_rereview_reviewed_plan.py`: `_write_plan`; `tests/test_staged_illegal_backlog_transition_gate.py`: `_make_item`) and the helpers in test modules no batch names (at the split: `tests/test_lane_submission_retention_narrowing.py`: `_make_item`; `tests/test_suite_baseline_direction.py`: `_make_item`; `tests/test_lifecycle_lane_nudge.py`: `_write_plan`; `tests/test_finidem_reusable_not_finalized.py`: `_write_plan`; `tests/test_research_set_assign_date_containment.py`: `_seed_record`; `tests/test_finalize_trailer_attribution.py`: `_write_plan`; `tests/test_finalize_disregarded_record.py`: `_write_plan`; `tests/test_research_rename_frontmatter.py`: `_seed_research_doc`), and lists every survivor across `tests/` with its reason. (Measured units: 24 modules, 7 plus 8 helpers.)
   - Depends on: none
-  - Expected outcome: all six files exist with modification times earlier than the first edit to `tests/support.py` or `tests/record_builder.py`.
+  - Expected outcome: an empty before/after `diff`; the helper count from `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` pasted before and after, with each surviving helper and its reason (89 matches at review, 92 at the split).
   - Execution state: pending
 
-- [ ] E-01 Create `tests/record_builder.py` with one `RecordBuilder(repo_root)` and one method per type: `plan(...)`, `spec(...)`, `backlog(...)`, `research(...)`, `release(...)`, `prompt(...)`, `walkthrough(...)` and `review(subject, rounds=...)`. Each method takes registry field names (`status`, `set`, `order`, `plan_role`, `item_dependencies`, `blocks_release`, `from_backlog`, `readiness`, `approval`, `gate_kind`, `gate_ref`, `short_description`, ...), `history=[...]` events, `body=` prose (and, for plans, `open_questions=`), `disposition=` (a non-default lifecycle directory) and `raw_fields={legacy_name: text}` (inserted verbatim into the metadata block after the validated write and never validated; ONLY for tests whose input is deliberately invalid, F-08). Each method returns the created `Path`. Rules:
-  - VALIDATION. Every field name and value outside `raw_fields` is validated through the `artifact_meta` registry (`artifact_meta.registry_fields`, `artifact_meta.validate_new_events`), so a misspelled field fails the test at build time.
-  - WRITING (phase B). The builder writes through `artifact_meta`, as spec `4sd62s` section 7 step 6 requires: the file form calls `artifact_meta.create` (whose phase-B branch renders through `write_legacy`, `xexn45` E-01) and `artifact_meta.append` for `history=` events, with the fixture repository as the project that `artifact_meta` resolves (the fixture repository carries `.aw/`, without which `project_context` finds no project). The text form calls `artifact_meta.render_legacy_text(text, events)` (`xexn45` E-11). The builder has NO renderer of its own, so the cutover changes the format by changing `artifact_meta` and `RECORD_FORMAT`, never by editing a second copy of the format in the tests. Plans start from `ipd_authoring.build_skeleton`, as `support.ready_plan_text` does today; other types start from the minimal heading and body that today's creating command emits. Review records have no `artifact_meta` writer in phase B (no CLI writes them; `xexn45` defers the review-recording command), so `review(...)` renders through `review_findings.render_review` and writes with `review_findings.write_review`.
-  - PLACEMENT. The file goes at `artifact_naming.build_clustered_name` under the type's records directory and default disposition: `pending/` for a plan, `artifact_types.TYPE_BACKENDS` for the other types.
-  - DETERMINISM. `when=` defaults to the fixed day `2026-08-24` (the `support.ready_plan_text` default) and is never read from the clock, so built bytes are reproducible.
-  - TEXT FORM. `text_only=True` returns the string without writing, for tests that pass text (`ipd_lint.lint_text`, merge-stage helpers).
-  - SWITCH. One module-level constant, `RECORD_FORMAT`, names the format: `"legacy"` now; Order 13 adds `"log"`.
-  - SUPERSESSION. `support.ready_plan_text` becomes a thin call into `plan(..., text_only=True)` with the same signature and the same bytes.
-  - Depends on: E-13
-  - Expected outcome: `RecordBuilder(tmp).plan(status="approved", set="demo", order=1)` writes a plan that `aw ipd lint` and `artifact_meta.read` accept; `plan(stauts="approved")` raises naming `stauts`; `plan(raw_fields={"Status": "EXECUTED"})` writes the literal line.
-  - Execution state: pending
-
-- [ ] E-02 Add `tests/test_record_builder.py` (core). Tests:
-  - (a) ROUND TRIP. For each of the eight types, a built record round-trips through `artifact_meta.read` with every field equal to the builder input.
-  - (b) LINT. A built plan with `support.ready_plan_text`'s defaults lints `conforming` at the `pre-execution` checkpoint.
-  - (c) VISIBILITY. One fixture repository holds one record of each type. ONE call each of `aw find`, `aw attention --format json` and `aw check all --agent` sees every built record.
-  - (d) GOLDEN. `support.ready_plan_text` reproduces the E-13 golden bytes for every captured argument set (30 call expressions at review).
-  - (e) PARITY. For plan, spec, backlog, research, release and prompt, the builder's file and the file the production creating command writes (`aw ipd scaffold`, `aw specs new`, `aw backlog new`, `aw research new`, `aw releases new`, `aw prompts new`, each with `--apply`) for the same fields give equal `artifact_meta.read` states, so a builder record is a record the toolkit itself would write. Review is excluded because no CLI creates review records; its rounds are checked by (a) through `review_findings.parse_review_text`.
-  - (f) REFUSALS. An unknown field, an illegal status for the type and a `short_description` over 300 characters each raise.
-  - Depends on: E-01
-  - Expected outcome: every test passes; the module's total wall time under `-n 0` stays under 10 s, because (c) and (e) start CLI subprocesses (if it exceeds 10 s, (c) and (e) move to a separate module listed in `tests/slow_allowlist.txt` and the core module keeps (a), (b), (d) and (f)) (measured at review: about 0.4 s for `aw find`, 2.4 s for `aw attention --format json` and 0.9 s for `aw check all --agent` in an empty fixture repository).
-  - Execution state: pending
-
-### Task group 2: migrate the high-density families
-
-- [ ] E-03 Batch G1, backlog and release-gate tests (39 files and 1,568 legacy lines at review; F-03): `test_backlog*`, `test_release*`, `test_releases*`, `test_graduat*`, `test_gate_*`, `test_blocks_release*`, `test_handoff*`, `test_from_backlog*`, `test_live_bug*`, `test_*close*`, `test_carrier*`, `test_durable_carrier*`. Apply the batch rule. This is the densest batch: if it cannot be done in one pass, split it at G1a (`test_backlog*`, `test_release*`, `test_releases*`: 24 files, 1,012 lines) and G1b (the rest: 15 files, 556 lines), per OQ-01.
-  - Depends on: E-02
-  - Expected outcome: an empty before/after `diff`; the remaining legacy-string count for the batch and the reason class of every remaining line pasted.
-  - Execution state: pending
-
-- [ ] E-04 Batch G2, check-engine tests (22 files, 1,102 legacy lines): `test_check*`, `test_production*`, `test_decision_ref*`, `test_source_citation*`, `test_severity*`, `test_suppress*`, `test_from_spec*`. Apply the batch rule.
-  - Depends on: E-02
-  - Expected outcome: an empty before/after `diff`; the remaining count and reason classes pasted.
-  - Execution state: pending
-
-- [ ] E-05 Batch G3, setter and spec tests (28 files, 795 legacy lines): `test_status*`, `test_spec*`, `test_specs*`, `test_set_*`, `test_scaffold*`, `test_ipd_authoring*`, `test_descriptive*`, `test_bidi*`. A test that asserts the bytes a SETTER wrote (for example `test_status_set.py` checking the rewritten `- Status:` line) keeps that assertion in phase B, because the written format is the subject. Each such assertion is listed with reason class `setter-byte assertion`, so Order 13 can convert it to `artifact_meta.read` plus the in-file mirror.
-  - Depends on: E-02
-  - Expected outcome: an empty before/after `diff`; the remaining count, the reason classes and the list of setter-byte assertions pasted.
-  - Execution state: pending
-
-### Task group 3: migrate plan, lifecycle and runner tests
-
-- [ ] E-06 Batch G4, plan, lint, lifecycle, finalize and orchestration tests (63 files, 1,244 legacy lines): `test_ipd*`, `test_plan*`, `test_plans*`, `test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`, `test_orchestrator*`, `test_coverage*`, `test_gradcover*`, `test_readiness*`, `test_partition*`, `test_unresolved*`, `test_terminal*`, `test_implementing*`. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. If the batch cannot be done in one pass, split it at G4a (`test_ipd*`, `test_plan*`, `test_plans*`: 21 files, 403 lines) and G4b (the rest: 42 files, 841 lines).
-  - Depends on: E-02
-  - Expected outcome: an empty before/after `diff`; the remaining count and reason classes pasted.
-  - Execution state: pending
-
-- [ ] E-07 Batch G5, runner and lane tests (46 files, 598 legacy lines): `test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`, `test_integrat*`, `test_isolation*`, `test_freeze*`, `test_typed_queue*`, `test_attempt*`, `test_attended*`, `test_turn*`, `test_verifier*`, `test_runwire*`, `test_runfresh*`, `test_red_ci*`, `test_silent*`, `test_prior*`, `test_reask*`, `test_hostcap*`, `test_host*`, `test_fixfirst*`, `test_fix_it*`, `test_clean_target*`, `test_commit*`, `test_work_*`, `test_ipdrunner*`, `test_stdin*`. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`.
-  - Depends on: E-02
-  - Expected outcome: an empty before/after `diff` (the batch rule's `-m ""` includes this batch's `slow` modules); the remaining count and reason classes pasted.
-  - Execution state: pending
-
-### Task group 4: migrate reader tests, helpers and fixtures
-
-- [ ] E-08 Batch G6, reader and record-surface tests (69 files, 1,004 legacy lines): `test_find*`, `test_attention*`, `test_history*`, `test_selector*`, `test_cli*`, `test_front_matter*`, `test_record*`, `test_artifact*`, `test_rename*`, `test_group*`, `test_research*`, `test_prompt*`, `test_prompts*`, `test_walkthrough*`, `test_read*`, `test_resolver*`, `test_reference*`, `test_review*`, `test_reviews*`. The `aw-prompt` comment tests (7 files) use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. If the batch cannot be done in one pass, split it at G6a (`test_find*`, `test_attention*`, `test_history*`, `test_selector*`, `test_cli*`: 31 files, 503 lines) and G6b (the rest: 38 files, 501 lines).
-  - Depends on: E-02
-  - Expected outcome: an empty before/after `diff`; the remaining count and reason classes pasted.
-  - Execution state: pending
-
-- [ ] E-09 Batch G7, the files no G1 to G6 pattern matches, and the shared helpers (44 files, 346 legacy lines at review, including `tests/support.py` (`ready_plan_text`, `scope_drift_repo`) and `tests/conformance_matrix.py`). The file list is re-derived by the batch rule; at review it included `test_action_table_runner_parity.py`, `test_already_landed_dispatch.py`, `test_authoring_coverage_guidance.py`, `test_completion.py`, `test_legacy_finalize.py`, `test_receipt_lane_record.py`, `test_repo_relative_posix.py`, `test_rereview_reviewed_plan.py`, `test_resolve_plan_path_typed.py`, `test_staged_illegal_backlog_transition_gate.py`, `test_workflow_artifacts_prune.py` and the `test_notify*`, `test_index_*`, `test_awmig*` and `test_explicit_dir*` modules. Then delete every private record-building helper (`_write_plan`, `_write_spec`, `_write_backlog_item`, `_make_item`, `_mk_plan`, ...) that no longer has a caller.
-  - Depends on: E-03, E-04, E-05, E-06, E-07, E-08
-  - Expected outcome: an empty before/after `diff`; the helper count from `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` pasted before and after, with each surviving helper and its reason (89 matches at review).
-  - Execution state: pending
-
-- [ ] E-10 Convert the tracked `.md` fixtures that tests copy into a repository or lint as records. Re-derive the list with `git ls-files tests/fixtures tests/benchmark_fixtures | grep '\.md$' | xargs grep -l -E '^- (Id|Status):'` (26 at review: `tests/fixtures/attnview/specs-valid` 9, `tests/fixtures/attnview/violations` 7, `tests/fixtures/review-pilot/plans` 9, `tests/fixtures/conforming-orchestrator.md` 1). Rules:
-  - A fixture that a test copies or lints is replaced by a builder recipe in the consuming test. The consumers are `test_attention.py`, `test_attention_stem.py`, `test_attention_contract.py`, `test_specs_verbs.py`, `test_specs_releases_unsafe_field.py` (attnview), and `test_ipd_lint.py` and `test_ipd_schema.py` through `support.CONFORMING_ORCHESTRATOR`. Because the orchestrator fixture is a `Path` used by name, `support.CONFORMING_ORCHESTRATOR` becomes a builder-generated file written once per test session under a temporary directory, so its consumers stay unchanged.
-  - A fixture whose purpose is malformed legacy input (the `violations` set) stays literal and is listed.
-  - `tests/fixtures/review-pilot/plans/` stays literal and is listed. `tools/review_pilot.py` reads it by `manifest.json` filename as a frozen corpus of real plans whose `defects.json` entries quote exact text, so its tracked files must exist and must not change. Order 13 decides its fate with the migrated corpus.
-  - Depends on: E-02
-  - Expected outcome: the consuming modules' before/after `diff` is empty; the converted and kept fixture lists, each with its reason, are pasted.
-  - Execution state: pending
-
-### Task group 5: prove the switch point and finish
+### Task group 2: prove the switch point and finish
 
 - [ ] E-11 Prove that the builder is the single switch point, and write F-06:
   - Add to `tests/test_record_builder.py` a test that monkeypatches `record_builder.RECORD_FORMAT` to an unknown value and asserts that every builder method, including `text_only=True` and `raw_fields=`, raises. This proves that no builder path bypasses the switch. It does not prove that no test builds records outside the builder; the F-06 census below is the evidence for that.
   - Run the F-01 `rg` pattern over `tests/` and write table F-06 in this plan: every remaining legacy string, grouped by file, each with one reason class (`legacy-format subject`, `displayed-output assertion`, `setter-byte assertion`, `invalid-input`, `body prose`).
-  - Compare the remaining-line count with the baseline recorded before E-03.
-  - Depends on: E-09, E-10
+  - Compare the remaining-line count with the baseline recorded before the first batch (F-10 of `9rgn2w`).
+  - Depends on: E-09
   - Expected outcome: the test passes; F-06 has no row without a reason class; the remaining-line count and E-13's `legacy-before.txt` are pasted.
   - Execution state: pending
 
@@ -179,14 +119,20 @@ Measured 2026-11-02 at `0cbfcc706`.
 
 ## Proposed changes (ordered, validatable)
 
-1. Capture the baselines, then build and test the shared builder (E-13, E-01, E-02).
-2. Migrate the backlog/release, check-engine and setter families (E-03 to E-05).
-3. Migrate the plan/lifecycle and runner families (E-06, E-07).
-4. Migrate the reader family, the helpers and the `.md` fixtures (E-08 to E-10).
-5. Prove the single switch point, then run the full comparison and commit (E-11, E-12).
+1. Migrate subset G7b and the shared helpers; delete orphaned helpers (E-09).
+2. Prove the single switch point and write F-06 (E-11).
+3. Run the full comparison and commit (E-12).
 
 ## Deferred / out of scope (with reason)
 
+- Moved to 9rgn2w (split 2026-11-07 per maintainer step-complexity rule): E-13 (baselines), E-01 (the builder), E-02 (its tests), E-10 (tracked `.md` fixtures).
+  - Carrier: 9rgn2w
+- Moved to x05v02 (split 2026-11-07 per maintainer step-complexity rule): E-03 (batch G1, as subsets G1a and G1b), E-04 (batch G2, as subsets G2a and G2b), and the setter subset G3a of E-05.
+  - Carrier: x05v02
+- Moved to 7qxey9 (split 2026-11-07 per maintainer step-complexity rule): the spec subset G3b of E-05, E-06 (batch G4, as subsets G4a, G4b and G4c), and the runner subset G5a of E-07.
+  - Carrier: 7qxey9
+- Moved to nbfg7w (split 2026-11-07 per maintainer step-complexity rule): the runner-family subset G5b of E-07, E-08 (batch G6, as subsets G6a, G6b and G6c), and the first unmatched subset G7a of E-09.
+  - Carrier: nbfg7w
 - Adding `RECORD_FORMAT = "log"` (builder writes through `artifact_meta.create`/`append` and the two-key front matter) and converting the F-06 setter-byte assertions to `artifact_meta.read` plus the in-file mirror: both belong in the cutover commit (C10a: one format per commit).
   - Carrier: cxxmyv
 - The legacy-format tests that must keep literal input (the legacy loader tests in `tve77h`, the legacy writer tests in `2xwb9b` and `xexn45`, the migration round-trip and conversion tests in `dcerjg` and `ya4ee4`; the F-03 EXCLUDED list).
@@ -200,8 +146,8 @@ Measured 2026-11-02 at `0cbfcc706`.
 
 ## Scope check
 
-- Over-scope: none. No production module changes. `tests/test_*.py` is a glob because the batches touch about 300 modules; each batch's file list is saved under `.aw/state/59aiyh/` and pasted in its V-item, and the finalize scope reconciliation lists every changed file. `tests/fixtures/review-pilot/**` was removed from `- Scope-Paths:` because E-10 keeps that corpus literal; `tests/fixtures/record_builder/**` was added for the E-13 golden file.
-- Under-scope: none known. Plan size: 13 E-items in 5 task groups (limits 18 and 5).
+- Over-scope: none. No production module changes. Scope-Paths names the G7b modules, `tests/support.py`, `tests/conformance_matrix.py`, `tests/test_record_builder.py` (the E-11 switch test) and the 8 test modules outside every batch that hold a record-building helper (E-09's repository-wide deletion).
+- Under-scope: none known. Plan size after the split: 3 E-items in 2 task groups; per-item units: E-09 24 modules plus 15 helpers, E-11 1 test plus a census table, E-12 5 runs and a commit. Scope-Paths is 35 entries, over the 12-entry guideline; see the size assessment.
 
 ## Required tests / validation
 
@@ -225,7 +171,7 @@ No spec change; implements `4sd62s` section 6 ("Rewrite the test data with ONE s
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: No: 13 E-items in 5 task groups. The work is large in files, not in decisions; each batch is mechanical under the batch rule. If a batch proves too large for one pass during execution, split it at the seam its E-item names, measured at review: G1 into G1a/G1b (1,012 and 556 lines), G4 into G4a/G4b (403 and 841), G6 into G6a/G6b (503 and 501). Adding all three splits brings the plan to 16 E-items, inside the 18-item limit. Recommendation strength: medium.
+- Resolution or deferral rationale: SUPERSEDED 2026-11-07: split per the maintainer step-complexity rule into `9rgn2w`, `x05v02`, `7qxey9`, `nbfg7w` and this finishing part. The original resolution read: No: 13 E-items in 5 task groups. The work is large in files, not in decisions; each batch is mechanical under the batch rule. If a batch proves too large for one pass during execution, split it at the seam its E-item names, measured at review: G1 into G1a/G1b (1,012 and 556 lines), G4 into G4a/G4b (403 and 841), G6 into G6a/G6b (503 and 501). Adding all three splits brings the plan to 16 E-items, inside the 18-item limit. Recommendation strength: medium.
 
 ### OQ-02: Which prior Orders does the builder depend on?
 
@@ -237,53 +183,8 @@ No spec change; implements `4sd62s` section 6 ("Rewrite the test data with ONE s
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-01 validates E-01
-  - Required evidence: paste `python3 -c` output that builds one record of each of the eight types in a temporary fixture repository with `RecordBuilder` and prints, for each, the created path and the `artifact_meta.read(<id6>)` status, set and order; `aw ipd lint <built plan>` ending in `conforming`; the exception message raised for `plan(stauts="approved")`, naming `stauts`; the bytes of the line written by `plan(raw_fields={"Status": "EXECUTED"})`; and `rg -n "def |import" tests/record_builder.py` output showing that the module imports `artifact_meta` for writing and defines no metadata renderer of its own (the verbatim `raw_fields=` line insertion is the one permitted text edit).
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-02 validates E-02
-  - Required evidence: paste `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_record_builder.py` with every test PASSED: one round-trip test per type, the lint test, the `aw find`/`aw attention`/`aw check` visibility test, the golden test over every argument set in `tests/fixtures/record_builder/ready_plan_text_golden.json`, the six-type parity test, and the three refusal tests. Paste the total duration (under 10 s, or the moved module named in `tests/slow_allowlist.txt` with its own PASSED run).
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-03 validates E-03
-  - Required evidence: paste `.aw/state/59aiyh/G1-files.txt` (or G1a and G1b), `diff .aw/state/59aiyh/G1-before.txt .aw/state/59aiyh/G1-after.txt` printing nothing, the before and after F-01 `rg -c` totals for the batch, and the reason class of every remaining match.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-04 validates E-04
-  - Required evidence: paste the G2 file list, the empty `diff` of `G2-before.txt` and `G2-after.txt`, the before/after F-01 totals for the batch, and the reason class of every remaining match.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-05 validates E-05
-  - Required evidence: paste the G3 file list, the empty `diff` of `G3-before.txt` and `G3-after.txt`, the before/after F-01 totals, the reason classes, and the list of setter-byte assertions kept for Order 13 (file::test and the asserted line).
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-06 validates E-06
-  - Required evidence: paste the G4 file list (or G4a and G4b), the empty `diff` of the before/after outcome lists, the before/after F-01 totals, and the reason classes (open-question body rows shown as written through `body=`/`open_questions=`).
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-07 validates E-07
-  - Required evidence: paste the G5 file list, the empty `diff` of the before/after outcome lists (run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list), the before/after F-01 totals, and the reason classes.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-08 validates E-08
-  - Required evidence: paste the G6 file list (or G6a and G6b), the empty `diff` of the before/after outcome lists, the before/after F-01 totals, and the reason classes, including the legacy-grammar modules kept literal.
-  - Observed evidence:
-  - Result: pending
-
 - [ ] V-09 validates E-09
   - Required evidence: paste the G7 file list, the empty `diff` of the before/after outcome lists, and the helper count from `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` before (E-13's `helpers-before.txt`) and after, with each surviving helper and its reason.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-10 validates E-10
-  - Required evidence: paste `git ls-files tests/fixtures tests/benchmark_fixtures | grep '\.md$' | xargs grep -l -E '^- (Id|Status):'` before and after; the converted and kept lists, each path with its reason (the `violations` set and `review-pilot/plans` kept); `git status --short tests/fixtures/review-pilot` printing nothing; and the empty `diff` of the before/after outcome lists of every consuming module named in E-10.
   - Observed evidence:
   - Result: pending
 
@@ -297,17 +198,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
-- [ ] V-13 validates E-13
-  - Required evidence: paste `ls -l --time-style=full-iso .aw/state/59aiyh/ tests/fixtures/record_builder/ready_plan_text_golden.json` and `git log --reverse --format='%H %ci %s' -- tests/record_builder.py | head -1` (the commit that adds the module, which does not exist at review), showing every baseline file older than that commit; the first line of `core-before.txt`; the line count of `full-before.txt`; and the number of argument sets in the golden file.
-  - Observed evidence:
-  - Result: pending
-
 ## Approval and execution gate
 
-- Size assessment: standard
-- Cohesion rationale: not required
+- Size assessment: exception
+- Cohesion rationale: The step bound holds (E-09 names 24 modules under one mechanical rule). The Scope-Paths count exceeds 12 because the last subset is kept with the two shared helper modules it must edit last (every other subset depends on `support.ready_plan_text` staying byte-identical until then) and with the 8 modules whose orphaned helpers only this finishing pass can delete.
 
-Execute only after human approval (`Status: approved`) and after `tve77h` and `xexn45` are executed. All open questions are resolved.
+Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed (the builder part `9rgn2w`, the codemod `653ndz`, the batch parts `x05v02`, `7qxey9`, `nbfg7w` and `1upea0`, and `g5hpbb`, `tve77h`, `xexn45`). All open questions are resolved.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if a batch cannot keep its outcome list identical without a production change, stop that batch and report the missing capability rather than changing production code or an assertion. Each batch keeps every assertion except those its V-item lists.
 
