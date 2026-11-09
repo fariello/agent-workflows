@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-07 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-009
 - 2026-11-07 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-009 fixed
 - 2026-11-07 to-review (aw set): ready for review
