@@ -7,6 +7,7 @@
 - Summary: aw adopt supports only the research tree: add prompts (and stop defaulting every inbox drop to research)
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-07 created (aw backlog): aw adopt supports only the research tree: add prompts (and stop defaulting every inbox drop to research)
 
 ## Problem
