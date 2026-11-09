@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the nine children below and confirm each reaches `executed`. No file, test, or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -21,9 +21,9 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8fvkmp
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-09 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set writestd reached executed, so the runner (run run-20261109T154200Z-1081790) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: g4719s, gzhw9c, k2x0yl, yz4jdm, jhdti8, e4n4p3, sfez3e, uog8nc, 381ml6.
 - 2026-11-09 proofread (antigravity/gemini-3.8-flash): per the technical writing standard (spec ecmw83 R-08); meaning unchanged; frozen region untouched
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-02 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
@@ -41,6 +41,9 @@
 Deliver spec `ecmw83` as nine independently executable children: ship the standard, wire it into every authoring and review surface, add the dash advisory, then sweep live specs, backlog items, and plans.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
