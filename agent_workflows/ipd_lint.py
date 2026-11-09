@@ -1004,6 +1004,81 @@ def check_size(doc: ParsedDoc) -> List[Diagnostic]:
     return diags
 
 
+C_FOLLOWABLE = "IPD-Z603"
+
+#: Plans dated before this get no followability advisory (research `nj8zdp`, 2026-11-08), so the
+#: existing corpus is not suddenly covered in guidance it was never written against.
+FOLLOWABLE_CUTOVER_DATE = "20261108"
+
+
+def check_followability(doc: ParsedDoc) -> List[Diagnostic]:
+    """Advisory guidance that a plan stay followable by a modest agent (spec Section 8.2).
+
+    Maintainer ruling 2026-11-08: these are NOT caps. Each finding is an advisory (`IPD-Z603`), never
+    a diagnostic, so it cannot change the disposition, the exit status, or any lifecycle gate. It
+    names which of four signals fired: too many E-items, too many Scope-Paths, one E-item naming too
+    many concrete units, and a V-item whose required evidence is only a suite-level pass.
+    """
+    raw = (doc.meta_fields.get("Date") or "").strip()
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
+    if m is None or "{0}{1}{2}".format(*m.groups()) < FOLLOWABLE_CUTOVER_DATE:
+        return []
+    if (doc.meta_fields.get("Kind") or "").strip().lower() == "orchestrator":
+        return []  # an orchestrator's items are CONFIRM checks, one per child, not work
+    out: List[Diagnostic] = []
+    e_leaves = [lf for lf in doc.exec_leaves if lf.kind == "E"]
+    if len(e_leaves) > S.FOLLOWABLE_MAX_E_ITEMS:
+        out.append(
+            Diagnostic(
+                0,
+                0,
+                C_FOLLOWABLE,
+                f"plan has {len(e_leaves)} E-items (guidance: at most {S.FOLLOWABLE_MAX_E_ITEMS}); "
+                "a plan a modest agent can hold in its head is easier to execute correctly. "
+                "Consider splitting into more child plans",
+            )
+        )
+    sp_raw = doc.meta_fields.get("Scope-Paths") or ""
+    sp_n = S.countable_scope_paths([x for x in sp_raw.split(",")])
+    if sp_n > S.FOLLOWABLE_MAX_SCOPE_PATHS:
+        out.append(
+            Diagnostic(
+                0,
+                0,
+                C_FOLLOWABLE,
+                f"plan declares {sp_n} work Scope-Paths (guidance: at most "
+                f"{S.FOLLOWABLE_MAX_SCOPE_PATHS}); consider splitting by module family",
+            )
+        )
+    for lf in e_leaves:
+        n = S.count_named_units(lf.text)
+        if n > S.FOLLOWABLE_MAX_UNITS_PER_ITEM:
+            out.append(
+                Diagnostic(
+                    lf.line,
+                    1,
+                    C_FOLLOWABLE,
+                    f"{lf.ident} names {n} distinct units (guidance: at most "
+                    f"{S.FOLLOWABLE_MAX_UNITS_PER_ITEM}); one item should be one step, not a list",
+                )
+            )
+    for lf in doc.valid_leaves:
+        if lf.kind != "V":
+            continue
+        req = lf.fields.get("Required evidence", "")
+        if S.evidence_names_no_unit(req):
+            out.append(
+                Diagnostic(
+                    lf.line,
+                    1,
+                    C_FOLLOWABLE,
+                    f"{lf.ident} asks only for a suite-level pass and names no unit; name each "
+                    "unit it covers with its own check so a partly done item cannot pass",
+                )
+            )
+    return out
+
+
 def check_density(doc: ParsedDoc) -> List[Diagnostic]:
     """Advisory density check (spec Section 8.1, Order 07).
 
@@ -2316,6 +2391,8 @@ def lint_text(
     advisories = (
         check_density(doc) + scope_advisory + prio_advisory + wk_advisory + dep_advisory
     )
+    # research `nj8zdp` / spec 8.2: followability guidance, ADVISORY-ONLY (maintainer 2026-11-08).
+    advisories += check_followability(doc)
     advisories += _draft_ready_advisory(doc, text, checkpoint)
     advisories += _review_stale_advisory(doc, path, checkpoint)
     # citeanchor `mzc019` E-03/E-04: ADVISORY-ONLY by construction. It is appended to `advisories`
@@ -3062,7 +3139,9 @@ _NON_IPD_BASENAMES = frozenset(("README.md", "STATUS.md", "INDEX.md"))
 # THIS CHANGES ONLY WHAT IS PRINTED. Exit status and disposition do not move (an advisory never
 # reaches `diagnostics`), and the `--agent`/`--json` paths already emit every advisory unconditionally
 # with `severity: "info"`, so they need no change and must not gain one.
-_ALWAYS_VISIBLE_ADVISORY_CODES = frozenset((C_CITATION_ANCHOR, C_PROSE_DASH))
+_ALWAYS_VISIBLE_ADVISORY_CODES = frozenset(
+    (C_CITATION_ANCHOR, C_PROSE_DASH, C_FOLLOWABLE)
+)
 
 
 def _visible_advisories(advisories: List[Diagnostic], detail: bool) -> List[Diagnostic]:

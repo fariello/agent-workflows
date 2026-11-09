@@ -1379,6 +1379,104 @@ def size_warning(task_group_count: int, e_leaf_count: int) -> bool:
 
 
 # --------------------------------------------------------------------------------------
+# Followability guidance (spec Section 8.2; research `nj8zdp`, 2026-11-08) - ADVISORY ONLY
+# --------------------------------------------------------------------------------------
+#
+# WHY THESE NUMBERS. Measured over 425 runner execute turns (research `nj8zdp`): plans with at most 5
+# E-items finished cleanly on the first attempt 62 to 66% of the time, plans with 8 or more 40%; plans
+# declaring more than 8 Scope-Paths ran longer and retried more; a typical clean E-item changed about
+# one file. The maintainer's ruling (2026-11-08) is that these are GUIDANCE, not caps: "We don't want
+# overly large and complex plans. ... We want agents to make plans that obtuse and not-too-smart agents
+# won't mess up when they can't hold too much in their head." So nothing here changes a disposition.
+
+#: Advise splitting when a plan holds more E-items than this.
+FOLLOWABLE_MAX_E_ITEMS = 5
+#: Advise splitting when a plan declares more Scope-Paths entries than this (the plan's own file and
+#: `.spec.md` files it amends are not counted: they are bookkeeping, not work surface).
+FOLLOWABLE_MAX_SCOPE_PATHS = 8
+#: Advise splitting one E-item that names more distinct concrete units (code paths, `module.symbol`
+#: references, test modules) than this: past it an executor must track a list, not a step.
+FOLLOWABLE_MAX_UNITS_PER_ITEM = 8
+
+_UNIT_RE = re.compile(
+    r"`([A-Za-z_][\w]*\.[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?|[\w./-]+\.(?:py|md|toml|json|yaml|yml|sh))`"
+)
+
+
+_CODE_SPAN_ANY_RE = re.compile(r"`([^`]+)`")
+_PATH_IN_SPAN_RE = re.compile(
+    r"(?<![\w/.-])([\w-]+(?:/[\w.-]+)*\.(?:py|md|toml|json|yaml|yml|sh))\b"
+)
+
+
+def count_named_units(text: str) -> int:
+    """Distinct concrete units a plan item names: backticked `module.symbol` refs, and file paths
+    anywhere inside a code span (so a path inside a quoted command, such as
+    `python3 -m pytest tests/test_x.py`, counts as the unit it names)."""
+    text = text or ""
+    units = set(_UNIT_RE.findall(text))
+    for span in _CODE_SPAN_ANY_RE.findall(text):
+        units.update(_PATH_IN_SPAN_RE.findall(span))
+    return len(units)
+
+
+def countable_scope_paths(scope_paths: Sequence[str]) -> int:
+    """Scope-Paths entries that are work surface (excludes `.ipd.md` plan files and `.spec.md`)."""
+    return sum(
+        1
+        for p in scope_paths
+        if p.strip() and not p.strip().endswith((".ipd.md", ".spec.md"))
+    )
+
+
+#: A suite-level pass line is acceptable evidence only alongside something specific; on its own it
+#: cannot show that every unit an item covers was done (research `nj8zdp`: 23% of executed V-items had
+#: exactly that shape).
+_SUITE_ONLY_RE = re.compile(
+    r"\b(summary line|suite|core (gate|tier)|full (suite|tier)|all tests|tests pass|pytest)\b",
+    re.IGNORECASE,
+)
+#: Evidence that is SPECIFIC even without a named file: a diff, a listing, a per-item output, a
+#: before/after comparison, a named failing node id, a search result.
+_SPECIFIC_EVIDENCE_RE = re.compile(
+    r"\b(diff|git (status|show|log)|ls\b|listing|per[- ](path|item|module|test|row|site)|each (named|listed)|"
+    r"before (and|/) after|before-?/after|node ids?|test ids?|rg\b|grep\b|search|classified|table|"
+    r"output of `|outputs?\b of each|transcript)",
+    re.IGNORECASE,
+)
+
+
+#: Words that show the evidence describes a SPECIFIC behavior even when it names no file: a test
+#: run "showing <something>", a demonstrated case, an exit code, a named assertion.
+_BEHAVIOR_EVIDENCE_RE = re.compile(
+    r"\b(showing|shows|demonstrat\w*|exit codes?|assertion|cases?\b|both|red before|green after|"
+    r"failed\b|failing\b|mutant|mutation|excerpt|refus\w*|guard tests?|\(a\)|baseline|narrowed|"
+    r"focused|new test|regression test|named in|--help|--collect-only|result per|delta|pre-exist\w*)",
+    re.IGNORECASE,
+)
+
+
+def evidence_names_no_unit(required_evidence: str) -> bool:
+    """True when a V-item's Required evidence asks ONLY for a suite-level pass.
+
+    That is: it mentions the suite, names no concrete unit, and asks for nothing specific (a diff,
+    a listing, a per-item output, a before/after comparison, a demonstrated behavior). Tuned on this
+    repository's 1,762 plans (research `nj8zdp`): the remaining hits are evidence like "paste the
+    final summary line of the bare `python3 -m pytest` run" as a V-item's whole demand, which is the
+    shape that cannot show every unit of the item was done. A suite line is FINE beside specific
+    evidence; this only fires when it is the entire demand."""
+    text = required_evidence or ""
+    if not _SUITE_ONLY_RE.search(text):
+        return False
+    if count_named_units(text) > 0:
+        return False
+    stripped = _CODE_SPAN_ANY_RE.sub(" ", text)
+    if _SPECIFIC_EVIDENCE_RE.search(text) or _BEHAVIOR_EVIDENCE_RE.search(stripped):
+        return False
+    return True
+
+
+# --------------------------------------------------------------------------------------
 # Per-E-item density heuristic (spec Section 8.1, Order 07)
 # --------------------------------------------------------------------------------------
 

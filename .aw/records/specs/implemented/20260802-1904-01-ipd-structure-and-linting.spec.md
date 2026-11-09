@@ -430,6 +430,19 @@ This signal is strictly ADVISORY:
 - It does NOT fail structural conformance or gate lifecycle transitions (a structurally-valid plan with an advisory retains `conforming` disposition and exit code 0).
 - Semantic reviewers and authors use the advisory alongside the review rubric to determine whether an item should be split into smaller child IPDs.
 
+### 8.2 Followability guidance (advisory, `IPD-Z603`)
+
+Added 2026-11-08 (research `nj8zdp`; maintainer ruling 2026-11-08: "We don't want overly large and complex plans. ... We want agents to make plans that obtuse and not-too-smart agents won't mess up when they can't hold too much in their head."). A plan must be followable by a modest executor. The linter gives ADVISORY guidance toward that, measured from 425 runner execute turns of this repository: plans with at most 5 E-items finished cleanly on the first attempt 62 to 66% of the time and plans with 8 or more 40%; a typical clean E-item changed about one file.
+
+For a child plan dated 2026-11-08 or later, `IPD-Z603` advises when:
+
+- the plan holds more than 5 E-items;
+- the plan declares more than 8 work Scope-Paths entries (the plan's own `.ipd.md` file and amended `.spec.md` files are not counted);
+- one E-item names more than 8 distinct concrete units (backticked `module.symbol` references and file paths, including paths inside a quoted command): one item should be one step, not a list;
+- a V-item's Required evidence asks only for a suite-level pass (it mentions the suite, names no concrete unit, and asks for no diff, listing, per-item output, before/after comparison or demonstrated behavior). A suite line beside specific evidence is fine. This signal is a heuristic: measured on 9,024 V-items it fired on 66, about 70% of them correctly.
+
+These are guidance, NOT caps. `IPD-Z603` never changes a disposition, an exit status or a lifecycle gate, and the existing Section 8 thresholds and `Size assessment` mechanism are unchanged. Orchestrator plans are exempt (their items are one CONFIRM check per child). The thresholds should be re-measured after more runner history accumulates.
+
 ## 9. Lint checkpoints and lifecycle state
 
 ### 9.1 Persisted status versus lint checkpoint
