@@ -7,6 +7,7 @@
 - Summary: Spec-to-plan bridge: automate graduation, IPD set authoring, and runner dispatch for approved specs
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-25 created (aw backlog): Spec-to-plan bridge: automate graduation, IPD set authoring, and runner dispatch for approved specs
 
 
