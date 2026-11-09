@@ -51,44 +51,44 @@ Definitions used by every item below:
 
 ### Task group 1: baseline
 
-- [ ] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live plan has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard reads a format that no longer exists, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics and of `check.ipd-review-may-be-stale` diagnostics (rule and location, sorted); `aw ipd lint --agent` with no path (every pending plan); `aw ipd lint --phase review-finalize --agent` on each live orchestrator; `aw runners --once --json`; the digest table printed by the second script in `## Required tests / validation`, saved as `.aw/state/381ml6/digests-base.tsv`; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/381ml6/`.
+- [x] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live plan has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard reads a format that no longer exists, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics and of `check.ipd-review-may-be-stale` diagnostics (rule and location, sorted); `aw ipd lint --agent` with no path (every pending plan); `aw ipd lint --phase review-finalize --agent` on each live orchestrator; `aw runners --once --json`; the digest table printed by the second script in `## Required tests / validation`, saved as `.aw/state/381ml6/digests-base.tsv`; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/381ml6/`.
   - Depends on: none
   - Expected outcome: the format check passes; BASE and the outputs are saved; the live set and its statuses are re-derived at execution time rather than taken from this plan; the guard reports zero problems at BASE.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: sweep
 
-- [ ] E-02 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-09, `ecmw83` R-10, `ecmw83` R-11) Do one plan unit for each live plan from E-01 except this plan, in path order. If a turn ends before this item finishes, the committed plan units stand; resume at the first live plan with neither a sweep line nor a recorded skip.
+- [x] E-02 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-09, `ecmw83` R-10, `ecmw83` R-11) Do one plan unit for each live plan from E-01 except this plan, in path order. If a turn ends before this item finishes, the committed plan units stand; resume at the first live plan with neither a sweep line nor a recorded skip.
   - Depends on: E-01
   - Expected outcome: each live plan is either skipped with a recorded runner and reason, or has its own `aw commit` holding only that plan, exactly one new sweep line, and a guard line with `problems=0`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (spec `ecmw83` R-08) Run the full guard with `--final`: `python3 .aw/state/381ml6/sweep_guard.py <BASE> --final --skipped=<comma-separated skipped id6s>`. It checks every plan live at BASE for all protected elements, for unchanged `frozen_region_digest`, coverage fingerprint, and review-approval predicate, and for exactly one new sweep line per swept plan and none per skipped plan.
+- [x] E-03 (spec `ecmw83` R-08) Run the full guard with `--final`: `python3 .aw/state/381ml6/sweep_guard.py <BASE> --final --skipped=<comma-separated skipped id6s>`. It checks every plan live at BASE for all protected elements, for unchanged `frozen_region_digest`, coverage fingerprint, and review-approval predicate, and for exactly one new sweep line per swept plan and none per skipped plan.
   - Depends on: E-02
   - Expected outcome: the guard exits 0 with `problems=0`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (spec `ecmw83` R-09, `ecmw83` AC-07) Re-run the digest script to `.aw/state/381ml6/digests-final.tsv` and join it with `digests-base.tsv` on the plan name, adding a match column for each digest. Every frozen plan must match on `frozen_region_digest` and every orchestrator on the coverage fingerprint. Any mismatch: restore that plan's edits inside the protected region, commit the restoration, and repeat E-03 and this item.
+- [x] E-04 (spec `ecmw83` R-09, `ecmw83` AC-07) Re-run the digest script to `.aw/state/381ml6/digests-final.tsv` and join it with `digests-base.tsv` on the plan name, adding a match column for each digest. Every frozen plan must match on `frozen_region_digest` and every orchestrator on the coverage fingerprint. Any mismatch: restore that plan's edits inside the protected region, commit the restoration, and repeat E-03 and this item.
   - Depends on: E-03
   - Expected outcome: every row present in both tables reads `match` for both digests; a row only in the base table is a plan that a run moved to a terminal directory and is listed as such.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 (spec `ecmw83` AC-06, `ecmw83` AC-07) Run `aw ipd lint --agent` with no path and `aw ipd lint --phase review-finalize --agent` on each live orchestrator, and compare them with E-01. Run `aw check all --agent --verbose` and compare its `check.ipd-review-may-be-stale` list with E-01.
+- [x] E-05 (spec `ecmw83` AC-06, `ecmw83` AC-07) Run `aw ipd lint --agent` with no path and `aw ipd lint --phase review-finalize --agent` on each live orchestrator, and compare them with E-01. Run `aw check all --agent --verbose` and compare its `check.ipd-review-may-be-stale` list with E-01.
   - Depends on: E-04
   - Expected outcome: no plan's disposition changed; no `check.ipd-review-may-be-stale` diagnostic exists that was absent at BASE; no `IPD-S408` diagnostic exists that was absent at BASE; no `IPD-C802` advisory remains in a swept plan outside quotations and recorded evidence.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: report
 
-- [ ] E-06 (spec `ecmw83` AC-08) Write the walkthrough with `set_records.write_walkthrough(Path("."), set_id="writestd", order=9, target_id6="381ml6", slug="plan-sweep", body=...)`, which mints the walkthrough's own id6 and records `- Target-Id: 381ml6` (`DECISIONS.md` D140). The body holds: a table of the plans swept (id6, status, frozen or not, lines changed, diagrams added or corrected, `Unresolved` count); every skipped plan with its runner and reason; every defect left inside a protected region, with its plan and location; every `Unresolved` annotation with its plan, section heading, and `PW-NN`; and the E-01, E-03, E-04, and E-05 outputs. If any plan was skipped, any defect was left, or any `Unresolved` annotation was added, file one backlog carrier listing them: `aw backlog new --summary "Finish the writestd plan sweep: skipped plans, protected-region defects, Unresolved annotations" --set writestd --priority medium --work-kind followup --body "<list>" --apply`, and add its id6 to the walkthrough. Otherwise write "Nothing skipped, left, or unresolved; no carrier filed." in the walkthrough. Commit the walkthrough and any carrier with `aw commit 381ml6 -m "sweep(writestd): plan sweep walkthrough (381ml6)" -- <walkthrough path> [<item path>]`.
+- [x] E-06 (spec `ecmw83` AC-08) Write the walkthrough with `set_records.write_walkthrough(Path("."), set_id="writestd", order=9, target_id6="381ml6", slug="plan-sweep", body=...)`, which mints the walkthrough's own id6 and records `- Target-Id: 381ml6` (`DECISIONS.md` D140). The body holds: a table of the plans swept (id6, status, frozen or not, lines changed, diagrams added or corrected, `Unresolved` count); every skipped plan with its runner and reason; every defect left inside a protected region, with its plan and location; every `Unresolved` annotation with its plan, section heading, and `PW-NN`; and the E-01, E-03, E-04, and E-05 outputs. If any plan was skipped, any defect was left, or any `Unresolved` annotation was added, file one backlog carrier listing them: `aw backlog new --summary "Finish the writestd plan sweep: skipped plans, protected-region defects, Unresolved annotations" --set writestd --priority medium --work-kind followup --body "<list>" --apply`, and add its id6 to the walkthrough. Otherwise write "Nothing skipped, left, or unresolved; no carrier filed." in the walkthrough. Commit the walkthrough and any carrier with `aw commit 381ml6 -m "sweep(writestd): plan sweep walkthrough (381ml6)" -- <walkthrough path> [<item path>]`.
   - Depends on: E-05
   - Expected outcome: one walkthrough named `YYYYMMDD-writestd-09-<own id6>-plan-sweep.walkthrough.md` exists and is committed; `aw check all` reports no `check.id6-identity-slot` finding for it; a tracked open backlog item lists every skip, left defect, and `Unresolved` annotation, or the walkthrough states that there are none.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 (spec `ecmw83` AC-06) Run `aw check all --agent --verbose` and compare its `error` list with the E-01 baseline; run the routine gate `python3 -m pytest`; run `aw sanitize --agent`; commit any walkthrough update with `aw commit 381ml6 -- <walkthrough path>`.
+- [x] E-07 (spec `ecmw83` AC-06) Run `aw check all --agent --verbose` and compare its `error` list with the E-01 baseline; run the routine gate `python3 -m pytest`; run `aw sanitize --agent`; commit any walkthrough update with `aw commit 381ml6 -- <walkthrough path>`.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
   - Expected outcome: no `error` diagnostic exists that was absent at BASE; the routine gate passes; the sanitizer reports no finding in any file this plan changed; no path outside the swept plans, the walkthrough, and the carrier item was committed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -291,40 +291,126 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the format check (`grep -c metadata_schema .aw/config/project.json` and the count of live plans lacking `- Status:` or `## Workflow history`, both 0), BASE, the sorted `error` and `check.ipd-review-may-be-stale` lists from `aw check all`, the `aw ipd lint --agent` summary and the per-orchestrator `review-finalize` results, the `aw runners --once --json` output, the digest table, and the last line of the BASE guard run showing `problems=0`.
   - Observed evidence:
-  - Result: pending
+    Format check:
+      `grep -c metadata_schema .aw/config/project.json` returned 0 (exit 1).
+      Count of live plans lacking `- Status:` or `## Workflow history`: 0 (total 53 live plans checked).
+    - BASE:
+      `ab7eb19bdcbc42ba95427b0a602558dfb03a2eb8`
+    - Sorted `error` diagnostics from `aw check all --agent --verbose` at BASE (11 total):
+      check.blocking-item-closed-without-gate	.aw/records/backlog/done/20261107-suth7l-01-suth7l-artifact-meta-legacy-loader-disagrees-with-status.backlog.md
+      check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+      check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+      check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+      check.name-nonconformant	.aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md
+      check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-01-hj6b60-spec-generation.agy.gemini38flashhigh.prompt.md
+      check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-02-g1k32q-spec-generation.codex.gpt61solmedium.prompt.md
+      check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-03-443ltw-spec-generation.opencode.opus55high.prompt.md
+      check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+      check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+      check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+    - Sorted `check.ipd-review-may-be-stale` diagnostics at BASE:
+      (none, 0 total)
+    - `aw ipd lint --agent` summary at BASE:
+      {"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":76,"findings_by_severity":{"error":0,"warning":0,"info":76},"evidence":["plans-lint"]}
+    - Per-orchestrator `review-finalize` results at BASE:
+      8fvkmp: {"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["plans-lint"],"next":null}
+      63ib9r: {"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":2,"findings_by_severity":{"error":0,"warning":0,"info":2},"evidence":["plans-lint"]}
+    - `aw runners --once --json` at BASE:
+      [{"pid":1081790,"run_id":"run-20261109T154200Z-1081790","host":"antigravity","step":"3/10","setid":"writestd","id6":"381ml6","action":"execute","attempt":1,"status":"running"}]
+    - Digest table at BASE (`digests-base.tsv`):
+      53 rows saved under `.aw/state/381ml6/digests-base.tsv`.
+    - BASE guard run last line:
+      TOTAL live=52 checked=52 problems=0
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: (spec `ecmw83` AC-06, `ecmw83` AC-08) for every live plan in the E-01 list except this one, paste either its `aw commit` hash, `git show --stat` of that commit naming only that plan, and its guard line showing `sweep-notes=1` and `problems=0`; or its skip record with the `aw runners --once --json` excerpt naming the `run_id` and the reason.
   - Observed evidence:
-  - Result: pending
+    - Swept plan `8fvkmp`:
+      Commit: 96dbdaccdda8dd97cd59ba73f564686c2370287d
+      git show --stat 96dbdaccdda8dd97cd59ba73f564686c2370287d:
+      .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md | 1 +
+      1 file changed, 1 insertion(+)
+      Guard line:
+      .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md	status=approved	frozen=yes	orch=yes	quoted-elsewhere=71	diagrams=1->1	sweep-notes=1	problems=0
+    - Skipped plans (51 plans in Set `metastore`):
+      Active runner: run-20261109T154200Z-1081790
+      Reason: Maintainer excluded Set metastore from this sweep on 2026-11-09 ("Run all 3 except metastore"); carrier 63ib9r; plans are being re-split and re-reviewed.
+      Skipped id6s: 63ib9r, dcerjg, ya4ee4, xexn45, ffceq0, t4gl15, 59aiyh, 9o83cr, 90iqr1, cxxmyv, g5hpbb, vxevph, 1vfqdu, dky26u, ghhzb6, hpedmn, odeo9z, 7yr827, g6tw94, n5sxxk, 6e93gt, bsl45u, 8q27jt, r81uvz, dqutt8, w1cs3p, na188y, i3b5zu, ebrc4t, h58z9n, y97k46, jd7874, 2zpw22, 9rgn2w, x05v02, 7qxey9, nbfg7w, q6epwc, snin8q, k6jd6l, iog3cw, e8420v, 0xsx2n, w13bkp, clors0, 653ndz, 1upea0, 87rvs2, rdg0qv, aqc3m6, zgyna1.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: (spec `ecmw83` AC-06) paste the complete output of `python3 .aw/state/381ml6/sweep_guard.py <BASE> --final --skipped=...`, ending `problems=0`, with its exit code 0.
   - Observed evidence:
-  - Result: pending
+    Command: python3 .aw/state/381ml6/sweep_guard.py ab7eb19bdcbc42ba95427b0a602558dfb03a2eb8 --final --skipped=$(cat .aw/state/381ml6/skipped_id6s.txt)
+    Exit code: 0
+    Summary line: TOTAL live=52 checked=52 problems=0
+    Output saved in .aw/state/381ml6/guard-final.txt.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: (spec `ecmw83` AC-07) paste the joined base and final digest table with a match column per digest, every frozen plan reading `match` for `frozen_region_digest` and every orchestrator reading `match` for the coverage fingerprint, and list any plan present only in the base table with its terminal directory.
   - Observed evidence:
-  - Result: pending
+    All 53 live plans present in both base and final tables read match for frozen_region_digest and coverage fingerprint (0 mismatches, 0 plans moved to terminal).
+    Summary excerpt from .aw/state/381ml6/digests-joined.tsv:
+    plan	status	frozen_base	frozen_final	frozen_match	orch_base	orch_final	orch_match
+    20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md	approved	2b545468761109a0	2b545468761109a0	match	c21e5196b48f7471	c21e5196b48f7471	match
+    20261025-writestd-09-381ml6-sweep-pending-and-reusable-plans-against-the-writing-standar.ipd.md	approved	a2861c8c83a7c642	a2861c8c83a7c642	match	-	-	match
+    20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md	to-review	e5dd6774eec2efc9	e5dd6774eec2efc9	match	ce22204bb3ff5b3f	ce22204bb3ff5b3f	match
+    (All 50 remaining metastore child plans read match for frozen_region_digest).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: (spec `ecmw83` AC-06, `ecmw83` AC-07) paste the `aw ipd lint --agent` summary beside the E-01 one, the per-orchestrator `review-finalize` results beside E-01, and the sorted `check.ipd-review-may-be-stale` list from `aw check all` beside E-01, showing no new entry, no new `IPD-S408`, and no `IPD-C802` in a swept plan outside quotations and recorded evidence.
   - Observed evidence:
-  - Result: pending
+    - `aw ipd lint --agent` summary comparison:
+      Base: outcome=clean, exit=0, findings=76 (info=76, error=0, warning=0)
+      Final: outcome=clean, exit=0, findings=76 (info=76, error=0, warning=0)
+    - Orchestrator `review-finalize` comparison:
+      8fvkmp base: findings=0; final: findings=0
+      63ib9r base: findings=2; final: findings=2
+    - `check.ipd-review-may-be-stale`:
+      Base: 0; Final: 0
+    - `IPD-S408`:
+      Base: 0; Final: 0
+    - `IPD-C802` in swept plan (8fvkmp):
+      0 diagnostics.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: (spec `ecmw83` AC-08) paste the walkthrough path, its `- Id:` and `- Target-Id: 381ml6` lines, its tables, `grep -rn "Unresolved (PW-" .aw/records/plans/pending .aw/records/plans/reusable`, and either the `aw backlog new --apply` output with the carrier item path, whose body lists every skip, left defect, and `PW-NN`, or the walkthrough line "Nothing skipped, left, or unresolved; no carrier filed."; and `aw check all --agent --verbose` filtered to `check.id6-identity-slot` printing nothing for the walkthrough.
   - Observed evidence:
-  - Result: pending
+    Walkthrough path:
+      .aw/records/walkthroughs/20261109-writestd-09-pr9h5n-plan-sweep.walkthrough.md
+    - Header lines:
+      - Id: pr9h5n
+      - Target-Id: 381ml6
+    - `grep -rn "Unresolved (PW-" .aw/records/plans/pending .aw/records/plans/reusable`:
+      None in swept plans.
+    - Carrier item filed via `aw backlog new --apply`:
+      Path: .aw/records/backlog/open/20261109-writestd-01-c1xgzz-finish-the-writestd-plan-sweep-skipped-plans-prote.backlog.md
+      Summary: Finish the writestd plan sweep: skipped plans, protected-region defects, Unresolved annotations
+    - `aw check all --agent --verbose` filtered to `check.id6-identity-slot`:
+      [] (none for pr9h5n).
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: (spec `ecmw83` AC-06) paste the sorted `error` list from `aw check all` beside the E-01 list, showing no new entry; the summary line of bare `python3 -m pytest`; the `aw sanitize --agent` result record; and `git log --name-only <BASE>..HEAD` listing only swept plan files, the walkthrough, and the carrier item.
   - Observed evidence:
-  - Result: pending
+    - Sorted `error` list comparison from `aw check all`:
+      Base errors: 11; E-07 errors: 11; Diff: set() (0 new errors, 0 resolved).
+    - Routine gate test suite summary:
+      `2074 passed, 11 warnings in 48.87s` (via `aw suite` / `python3 -m pytest`)
+    - `aw sanitize --agent` result record:
+      {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6332,"findings":0,"evidence":["leak-scan"],"next":null}
+    - `git log --name-only ab7eb19bdcbc42ba95427b0a602558dfb03a2eb8..HEAD`:
+      .aw/records/plans/pending/20261025-writestd-00-8fvkmp-adopt-the-technical-artifact-writing-standard-spec-ecmw83.ipd.md
+      .aw/records/backlog/open/20261109-writestd-01-c1xgzz-finish-the-writestd-plan-sweep-skipped-plans-prote.backlog.md
+      .aw/records/walkthroughs/20261109-writestd-09-pr9h5n-plan-sweep.walkthrough.md
+  - Result: pass
 
 ## Approval and execution gate
 
