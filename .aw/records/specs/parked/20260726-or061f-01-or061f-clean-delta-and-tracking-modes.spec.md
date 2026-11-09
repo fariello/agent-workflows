@@ -27,6 +27,20 @@ A clean working tree is NOT sufficient proof: `.git/info/exclude` reduces but do
 
 ## 3. Recommended architecture
 
+```mermaid
+flowchart LR
+    HostSkill["User-scope host skill (T2)"] --> Resolver["agent-workflows resolver"]
+    Resolver --> Harness["Packaged workflow / harness"]
+    Target["Target repository: genuine code changes only"]
+    Companion["Companion repository: tracked plans / research / runs"]
+    GlobalConfig["User-global aw config: target->companion mapping, mode"]
+    GlobalManifest["User-global ownership manifest: ownership of global skill files"]
+    Resolver -.-> Target
+    Resolver -.-> Companion
+    Resolver -.-> GlobalConfig
+    Resolver -.-> GlobalManifest
+```
+
 ```
 User-scope host skill (T2)  ->  agent-workflows resolver  ->  packaged workflow/harness
 Target repository            =  genuine code changes ONLY
@@ -133,6 +147,7 @@ This spec builds nothing. The build is a sequence of separate IPDs, each with it
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-26 note (aw specs): 2026-10-25 spec audit: stays parked (parked->deferred is not a legal transition); the remaining build is tracked by backlog m15n3k (its former deferral gate). NOT superseded by isolated worktrees, which solve concurrent-run isolation, not clean-delta contribution. BUILT: --delivery-mode {tracked,clean-delta}, --preset completely-clean-target, --records-backend {home,companion,repository,repository-untracked}, aw storage attach/detach/move/reattach/preflight, aw context resolver, clean_delta.py merge-base/index/filesystem proof, and the zero-write cleantgt Set (ucr3h8, 3m8aix, xoy5yg, nwporz). REMAINING: user-scope skill delivery (~/.claude/skills, ~/.config/opencode/skills; Phase 2, declined by three cleantgt plans naming this spec as owner), recorded per-host Phase 0 conformance results, and the global ownership manifest for user-level files. Absorbs lz6bem (superseded 2026-10-25).
 - 2026-10-15 parked (aw set): status set to parked
 
