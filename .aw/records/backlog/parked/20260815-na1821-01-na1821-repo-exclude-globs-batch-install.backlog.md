@@ -6,4 +6,5 @@
 - Summary: Repo exclude-globs for aw setup / aw install all: config list of globs to skip in batch install/setup
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-08-15 created (aw backlog): Repo exclude-globs for aw setup / aw install all: config list of globs to skip in batch install/setup
