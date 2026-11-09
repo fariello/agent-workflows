@@ -21,6 +21,7 @@
 - Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer 2026-11-09 excluded Set metastore from this sweep ("Run all 3 except metastore"); added as a Deferred entry carried by 63ib9r.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-07 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED
 - 2026-11-07 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED; review record .aw/records/reviews/20261025-writestd-09-381ml6-sweep-pending-and-reusable-plans-against-the-writing-standar.review.md
@@ -120,6 +121,8 @@ Definitions used by every item below:
 
 ## Deferred / out of scope (with reason)
 
+- Every plan of Set `metastore` (`.aw/records/plans/pending/*-metastore-*.ipd.md`): EXCLUDED from this sweep by the maintainer (2026-11-09, "Run all 3 except metastore"), because those plans are being re-split and re-reviewed; a sweep edit now would be overwritten or would conflict. Record each with a skip line naming this reason, exactly as for a plan held by a live run (`ecmw83` R-10), and proofread them in their own review.
+  - Carrier: 63ib9r
 - Plans skipped because a live run held them, and defects left inside a protected region: proofread when they are next revised; E-06 files a backlog carrier listing them.
   - Carrier: 381ml6
 - Terminal plans: out of scope by spec `ecmw83` N3.

@@ -21,6 +21,7 @@
 - Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer 2026-11-09 excluded Set metastore from this sweep ("Run all 3 except metastore"); added as a Deferred entry carried by 63ib9r.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-07 reviewed (opencode/claude-opus): status reconciliation: /plan-review rounds 1-2 (runs run-20261106T033613Z-1047571, run-20261106T170833Z-1417128) recorded APPROVE WITH REVISIONS APPLIED and Readiness go-pending-approval but left Status to-review; the review-gated runner therefore blocked 381ml6
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; round 2 PR-101..PR-104 FIXED; review record .aw/records/reviews/20261025-writestd-07-sfez3e-sweep-live-specs-against-the-writing-standard.review.md
@@ -113,6 +114,8 @@ Definitions used by every item below:
 
 ## Deferred / out of scope (with reason)
 
+- Spec `4sd62s` (artifact metadata store) and any spec of Set `metastore`: EXCLUDED from this sweep by the maintainer (2026-11-09, "Run all 3 except metastore"), because the Set is mid-redesign (spec amended 2026-11-07 with C12/5.2a/AC-42; its plans are being re-split). Record it with a skip line naming this reason, as for a spec held by a live run, and proofread it when the metastore re-design settles.
+  - Carrier: 63ib9r
 - Terminal specs: out of scope by spec `ecmw83` N3.
   - Carrier-Declined: deliberate non-goal of the spec.
 - Spec `ecmw83` Section 5.1 flowchart node "Run the advisory check. Fix reported dashes outside quotations and evidence." and AC-06's dash clause still describe the widened dash rule that the maintainer did not keep (`g4719s` OQ-02). This plan satisfies AC-06 as written and does not amend it, because AC-06 also governs Orders 08 and 09.
