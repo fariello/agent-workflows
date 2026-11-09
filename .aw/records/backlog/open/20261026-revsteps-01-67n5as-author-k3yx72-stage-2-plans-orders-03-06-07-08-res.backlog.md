@@ -7,6 +7,7 @@
 - Summary: author k3yx72 Stage 2 plans (Orders 03, 06, 07, 08, rest of 05)
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-26 created (aw backlog): author k3yx72 Stage 2 plans (Orders 03, 06, 07, 08, rest of 05)
 
 ### Problem Statement
