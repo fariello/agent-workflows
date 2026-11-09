@@ -6,4 +6,5 @@
 - Summary: Refine aw specs reviewed->approved ergonomics (OQ10): proportionality + an honest delegated-approval path; keep the anti-self-approval floor
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-08-15 created (aw backlog): Refine aw specs reviewed->approved ergonomics (OQ10): proportionality + an honest delegated-approval path; keep the anti-self-approval floor
