@@ -6,6 +6,7 @@
 - Summary: a dependency-blocked item records no reason in run state or events, so the cause survives only in the terminal that happened to be watching
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-09-07 parked (aw set): RETRACTED: the premise is false. Measured at HEAD 670bf38c: both blocked paths already persist the reason (unsatisfied_dependency_reasons, dependency_block_recovery) and both emit events carrying reasons plus recovery; verified present on both runs this item was filed from. My original probe checked a hardcoded list of wrong key names and I read its silence as absence. What remains true is far narrower and not release-blocking: aw runs does not SURFACE the persisted reason in rendered output. Re-scope to the viewer or close.
 - 2026-09-06 created (aw backlog): a dependency-blocked item records no reason in run state or events, so the cause survives only in the terminal that happened to be watching
 
