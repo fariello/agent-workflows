@@ -18,6 +18,8 @@
   (`llbr2b`, `approved`), which owns the configurable per-(type, transition) permission surface.
 
 ## Workflow history
+
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-25 approved (aw set, --by-human): Approved by maintainer 2026-10-25 in session: 'Accept both defaults + approve'. OQ-01 (verb aw ipd quick + scaffold --quick alias) and OQ-02 (explicit Pipeline: quick field) resolved to the recommendations. OQ-03 and OQ-05 remain open, non-blocking.
 
 - 2026-10-25 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-012 FIXED; OQ-05 added (Part 2 scope vs shipped --full-auto); OQ-03 decoupled from Part 1; OQ-04 resolved from evidence
@@ -337,6 +339,18 @@ after authoring (for example by review revisions) is re-judged rather than admit
 shape.
 
 ### 4.3 Disagreement and fallback rule
+
+```mermaid
+flowchart TD
+    A["aw ipd quick (author plan with Pipeline: quick)"] --> B{"Creation admission rules pass? (3.2)"}
+    B -->|No| R1["Refuse creation"]
+    B -->|Yes| C["IPD in draft / to-review"]
+    C --> D["/plan-review (simple tier)"]
+    D --> E{"Review rates simple and 3.2 rules pass?"}
+    E -->|No| F["Fallback to standard pipeline (stop at reviewed)"]
+    E -->|Yes| G["auto-approved (runner auto-clear)"]
+    G --> H["Isolated execution lane -> executed"]
+```
 
 If the review agent rates the tier as `standard` or `complex`, or if any mechanical disqualifier fires:
 - The plan immediately falls back to the standard pipeline.
