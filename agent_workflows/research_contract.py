@@ -305,7 +305,7 @@ class ResearchName(NamedTuple):
 
     date: str  # YYYYMMDD (the SET date)
     set_id: str
-    order: str  # NN, two digits
+    order: str  # NN, two or three digits
     id6: str
     slug: str
     model: Optional[str]  # optional authorship facet
@@ -499,7 +499,9 @@ FRONTMATTER_FIELDS: Tuple[str, ...] = (
 )
 
 _CREATED_RE = re.compile(r"\A\d{8}\Z")  # YYYYMMDD
-_ORDER_RE = re.compile(r"\A\d{2}\Z")  # NN
+_ORDER_RE = re.compile(
+    r"\A\d{2,3}\Z"
+)  # NN: two or three digits (artifact_naming ORDER WIDTH)
 
 
 class FrontmatterError(NamedTuple):
@@ -546,7 +548,9 @@ def validate_frontmatter(
         val = data["order"]
         if not isinstance(val, str) or not _ORDER_RE.match(val):
             errors.append(
-                FrontmatterError("order", "order must be a two-digit string NN")
+                FrontmatterError(
+                    "order", "order must be a two- or three-digit string NN"
+                )
             )
     # topic
     if "topic" in data and not isinstance(data["topic"], list):

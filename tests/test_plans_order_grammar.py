@@ -1,7 +1,7 @@
 """Outcome tests for plan Order grammar enforcement (IPD yqv6b7).
 
 Validates that aw group plans and aw rename plans unconditionally refuse any resolved
-Order outside 0 to 99 inclusive (the two-digit NN facet), before writing anything,
+Order outside 0 to 999 inclusive (the two- or three-digit NN facet; widened from 0 to 99 by maintainer ruling 2026-11-09), before writing anything,
 on every plan whether or not it declares a Kind; that --allow-invalid-order cannot
 bypass the grammar check; and that metadata rewrites fail safe instead of creating
 duplicate - Order: lines.
@@ -112,7 +112,7 @@ def test_negative_order_refused_group_plans_kindless(order_repo: Path) -> None:
     )
     assert proc.returncode == 2
     assert "Order '-1' is out of grammar" in proc.stdout
-    assert "0 to 99" in proc.stdout
+    assert "0 to 999" in proc.stdout
     assert "--1" not in p.name
     assert _file_hash(p) == before_hash
 
@@ -131,7 +131,7 @@ def test_negative_order_refused_group_plans_child(order_repo: Path) -> None:
     )
     assert proc.returncode == 2
     assert "Order '-1' is out of grammar" in proc.stdout
-    assert "0 to 99" in proc.stdout
+    assert "0 to 999" in proc.stdout
     assert "--1" not in p.name
     assert _file_hash(p) == before_hash
 
@@ -150,7 +150,7 @@ def test_negative_order_refused_rename_plans_kindless(order_repo: Path) -> None:
     )
     assert proc.returncode == 2
     assert "Order '-1' is out of grammar" in proc.stdout
-    assert "0 to 99" in proc.stdout
+    assert "0 to 999" in proc.stdout
     assert "--1" not in p.name
     assert _file_hash(p) == before_hash
 
@@ -169,7 +169,7 @@ def test_negative_order_refused_rename_plans_child(order_repo: Path) -> None:
     )
     assert proc.returncode == 2
     assert "Order '-1' is out of grammar" in proc.stdout
-    assert "0 to 99" in proc.stdout
+    assert "0 to 999" in proc.stdout
     assert "--1" not in p.name
     assert _file_hash(p) == before_hash
 
@@ -202,7 +202,7 @@ def test_preview_without_apply_refuses_negative_order(order_repo: Path) -> None:
 
 
 def test_allow_invalid_order_does_not_bypass_range_check(order_repo: Path) -> None:
-    """E-01 & E-02: --allow-invalid-order does not override the 0 to 99 grammar range check on either verb."""
+    """E-01 & E-02: --allow-invalid-order does not override the 0 to 999 grammar range check on either verb."""
     p1 = _seed_conforming_plan(order_repo, "ovr001", kind="child", order=1)
     before_hash1 = _file_hash(p1)
     proc_group = _run_cli(
@@ -247,46 +247,65 @@ def test_allow_invalid_order_does_not_bypass_range_check(order_repo: Path) -> No
 # ------------------------------------------------------------------------------
 
 
-def test_order_99_allowed_and_100_refused_rename(order_repo: Path) -> None:
-    """E-01 & E-02: Order 99 is accepted, while Order 100 is refused with exit 2."""
+def test_order_999_allowed_and_1000_refused_rename(order_repo: Path) -> None:
+    """E-01 & E-02: Order 999 is accepted, while Order 1000 is refused with exit 2 (also 100, the old
+    boundary, is now accepted)."""
     p = _seed_conforming_plan(order_repo, "bnd001", kind="child", order=1)
 
-    # 100 is refused, file unchanged
+    # 1000 is refused, file unchanged
     before_hash = _file_hash(p)
+    proc_1000 = _run_cli(
+        order_repo,
+        ["rename", "plans", "bnd001", "--order", "1000", "--apply"],
+    )
+    assert proc_1000.returncode == 2
+    assert "Order '1000' is out of grammar" in proc_1000.stdout
+    assert _file_hash(p) == before_hash
+
+    # 100 (the old boundary) is now accepted and produces a three-digit name that lints clean
     proc_100 = _run_cli(
         order_repo,
         ["rename", "plans", "bnd001", "--order", "100", "--apply"],
     )
-    assert proc_100.returncode == 2
-    assert "Order '100' is out of grammar" in proc_100.stdout
-    assert _file_hash(p) == before_hash
-
-    # 99 is accepted
-    proc_99 = _run_cli(
-        order_repo,
-        ["rename", "plans", "bnd001", "--order", "99", "--apply"],
-    )
-    assert proc_99.returncode == 0
-    p_99 = (
+    assert proc_100.returncode == 0
+    p_100 = (
         order_repo
         / ".aw"
         / "records"
         / "plans"
         / "pending"
-        / "20261002-testset-99-bnd001-test-plan.ipd.md"
+        / "20261002-testset-100-bnd001-test-plan.ipd.md"
     )
-    assert p_99.exists()
-    assert "- Order: 99" in p_99.read_text(encoding="utf-8")
+    assert p_100.exists()
+    assert "- Order: 100" in p_100.read_text(encoding="utf-8")
+    assert "IPD-N001" not in _run_ipd_lint(order_repo, p_100).stdout
+
+    # 999 is accepted
+    proc_999 = _run_cli(
+        order_repo,
+        ["rename", "plans", "bnd001", "--order", "999", "--apply"],
+    )
+    assert proc_999.returncode == 0
+    p_999 = (
+        order_repo
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20261002-testset-999-bnd001-test-plan.ipd.md"
+    )
+    assert p_999.exists()
+    assert "- Order: 999" in p_999.read_text(encoding="utf-8")
 
 
 def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
-    """E-01: In a two-plan batch with --order 99, the second plan resolves 100 and refuses before any write."""
+    """E-01: In a two-plan batch with --order 999, the second plan resolves 1000 and refuses before any write."""
     p1 = _seed_conforming_plan(order_repo, "btc001", order=1)
     p2 = _seed_conforming_plan(order_repo, "btc002", order=2)
     h1_before = _file_hash(p1)
     h2_before = _file_hash(p2)
 
-    # --order 99: resolves 99 for btc001, then 100 for btc002 -> refuses entire batch
+    # --order 999: resolves 999 for btc001, then 1000 for btc002 -> refuses entire batch
     proc = _run_cli(
         order_repo,
         [
@@ -297,20 +316,20 @@ def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
             "--set",
             "newset",
             "--order",
-            "99",
+            "999",
             "--apply",
         ],
     )
     assert proc.returncode == 2
     assert "btc002" in proc.stdout
-    assert "Order '100' is out of grammar" in proc.stdout
+    assert "Order '1000' is out of grammar" in proc.stdout
     # Nothing was written for either plan
     assert p1.exists()
     assert p2.exists()
     assert _file_hash(p1) == h1_before
     assert _file_hash(p2) == h2_before
 
-    # --order 98: resolves 98 (btc001) and 99 (btc002) -> succeeds
+    # --order 998: resolves 998 (btc001) and 999 (btc002) -> succeeds
     proc_ok = _run_cli(
         order_repo,
         [
@@ -321,7 +340,7 @@ def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
             "--set",
             "newset",
             "--order",
-            "98",
+            "998",
             "--rename",
             "--apply",
         ],
@@ -333,7 +352,7 @@ def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
         / "records"
         / "plans"
         / "pending"
-        / "20261002-newset-98-btc001-test-plan.ipd.md"
+        / "20261002-newset-998-btc001-test-plan.ipd.md"
     )
     p2_new = (
         order_repo
@@ -341,12 +360,12 @@ def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
         / "records"
         / "plans"
         / "pending"
-        / "20261002-newset-99-btc002-test-plan.ipd.md"
+        / "20261002-newset-999-btc002-test-plan.ipd.md"
     )
     assert p1_new.exists()
     assert p2_new.exists()
-    assert "- Order: 98" in p1_new.read_text(encoding="utf-8")
-    assert "- Order: 99" in p2_new.read_text(encoding="utf-8")
+    assert "- Order: 998" in p1_new.read_text(encoding="utf-8")
+    assert "- Order: 999" in p2_new.read_text(encoding="utf-8")
 
 
 # ------------------------------------------------------------------------------
@@ -397,13 +416,7 @@ def test_bmhoxe_repair_sequence_leaves_well_formed_name(order_repo: Path) -> Non
 
 def test_set_metadata_substitutes_negative_order_in_place() -> None:
     """E-03: _set_metadata on text with '- Order: -1' substitutes in place rather than inserting a duplicate."""
-    raw = (
-        "# IPD: Test\n\n"
-        "- Id: sst001\n"
-        "- Set: oldset\n"
-        "- Order: -1\n\n"
-        "## Goal\n"
-    )
+    raw = "# IPD: Test\n\n- Id: sst001\n- Set: oldset\n- Order: -1\n\n## Goal\n"
     updated = _set_metadata(raw, set_id="newset", order=5, plan_name="sst001")
     order_lines = [line for line in updated.splitlines() if line.startswith("- Order:")]
     assert order_lines == ["- Order: 5"]
@@ -412,13 +425,7 @@ def test_set_metadata_substitutes_negative_order_in_place() -> None:
 
 def test_set_metadata_raises_on_unmatchable_order_line() -> None:
     """E-03: _set_metadata raises ValueError when an unmatchable Order line would cause duplicate insertion."""
-    raw = (
-        "# IPD: Test\n\n"
-        "- Id: sst002\n"
-        "- Set: oldset\n"
-        "- Order: x1\n\n"
-        "## Goal\n"
-    )
+    raw = "# IPD: Test\n\n- Id: sst002\n- Set: oldset\n- Order: x1\n\n## Goal\n"
     with pytest.raises(ValueError, match="expected exactly one '- Order:' line"):
         _set_metadata(raw, set_id="newset", order=5, plan_name="sst002")
 

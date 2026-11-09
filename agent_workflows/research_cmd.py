@@ -274,9 +274,9 @@ def plan_new(
         try:
             order_int = int(order)
         except (ValueError, TypeError):
-            return None, f"--order must be between 0 and 99 (got {order!r})"
-        if order_int < 0 or order_int > 99:
-            return None, f"--order must be between 0 and 99 (got {order})"
+            return None, f"--order must be between 0 and 999 (got {order!r})"
+        if order_int < 0 or order_int > 999:
+            return None, f"--order must be between 0 and 999 (got {order})"
         if research_root.is_dir():
             for p in sorted(research_root.rglob("*.md")):
                 if R.companion_owner_stem(p, research_root) is not None:

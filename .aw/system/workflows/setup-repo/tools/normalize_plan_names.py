@@ -113,8 +113,9 @@ _NEW_RE = re.compile(
 # enum so a dotted slug is never mis-parsed as a facet; a bare `.md` remains conformant (dual-read).
 _ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms", "release", "review", "other")
 _FACET_ALT = "|".join(_ARTIFACT_TYPE_FACETS)
+# `NN` is two or three digits (maintainer ruling 2026-11-09; mirrors `artifact_naming` ORDER WIDTH).
 _CLUSTERED_RE = re.compile(
-    r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
+    r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
     r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md$"
 )
 # Legacy shapes (ordered; first match wins). Each yields date + optional time/nn + slug.

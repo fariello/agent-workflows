@@ -291,11 +291,11 @@ def _preserved_date(name: str, text: str) -> str:
 
 
 def _order_grammar_error(order: int) -> Optional[str]:
-    """Validate that the resolved Order is an integer in 0 to 99 inclusive (the two-digit NN facet)."""
-    if not isinstance(order, int) or order < 0 or order > 99:
+    """Validate that the resolved Order is an integer in 0 to 999 inclusive (the 2-3 digit NN facet)."""
+    if not isinstance(order, int) or order < 0 or order > 999:
         return (
-            f"Order '{order}' is out of grammar: must be an integer from 0 to 99 "
-            "(the two-digit NN facet)"
+            f"Order '{order}' is out of grammar: must be an integer from 0 to 999 "
+            "(the two- or three-digit NN facet)"
         )
     return None
 

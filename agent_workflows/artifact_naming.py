@@ -124,7 +124,7 @@ TYPE_FACET = {
 # The CANONICAL clustered grammar: YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md with a CLOSED
 # facet enum, and a bare `.md` remains valid (permanent dual-read).
 _CLUSTERED_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
     r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md\Z"
 )
 
@@ -132,7 +132,7 @@ _CLUSTERED_RE = re.compile(
 # preserves the pre-refactor `artifact_rename._UNIFORM_RE` acceptance (a name with an arbitrary
 # facet still renames). The canonical clustered grammar above stays CLOSED.
 _UNIFORM_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
     r"(?:\.(?P<facet>[a-z0-9.-]+))?\.md\Z"
 )
 
@@ -153,11 +153,18 @@ _DATED_SLUG_FACET_RE = re.compile(
     r"\A(?P<date>\d{8})-(?P<slug>[a-z0-9-]+)(?:\.(?P<facet>[a-z0-9.-]+))?\.md\Z"
 )
 
+# ORDER WIDTH (maintainer ruling 2026-11-09): `NN` is TWO OR THREE digits. Two digits is the form a
+# Set of at most 100 plans has always used and every existing name keeps; a Set past Order 99 (the
+# metastore Set reached 279 after its step-complexity split) needs a third digit. Measured before the
+# change: all 4,473 tracked two-digit clustered names parse identically under `\d{2,3}`, because the
+# id6 is exactly 6 characters and hyphens delimit every field. The builder pads to 2 and lets 100+
+# take its natural width, so no existing name changes.
+#
 # The shared clustered CORE (no facet, no `.md`): YYYYMMDD-<set-id>-<NN>-<id6>-<slug>. Research's
 # grammar is this core followed by its own `.<model>.<kind>.md` facets; research re-exports THIS so
 # the core is defined once here and the `.<model>.<kind>` assembly stays in research_contract.
 _CORE_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)\Z"
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)\Z"
 )
 
 # The clustered IDENTITY PREFIX: `YYYYMMDD-<set-id>-<NN>-<id6>-`, anchored at the START only, with no
@@ -175,7 +182,7 @@ _CORE_RE = re.compile(
 # `20260101-foo-12-abc123-bar-01-def456-slug` as set `foo-12-abc123-bar` / order `01`, disagreeing
 # with this module's own canonical reading of set `foo` / order `12`.
 _CLUSTERED_PREFIX_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-"
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-"
 )
 
 

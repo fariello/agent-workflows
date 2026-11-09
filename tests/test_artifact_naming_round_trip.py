@@ -106,3 +106,49 @@ class ArtifactNamingRoundTripTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_three_digit_order_round_trips_and_two_digit_names_are_unchanged() -> None:
+    """ORDER WIDTH (maintainer ruling 2026-11-09): NN is two or three digits.
+
+    A Set past Order 99 gets a three-digit name that parses back to the same fields; every two-digit
+    name keeps both its spelling and its parse, including a set id that itself contains digits.
+    """
+    from agent_workflows import artifact_naming as n
+
+    name = n.build_clustered_name(
+        date="20261109",
+        set_id="metastore",
+        order=100,
+        id6="o19353",
+        slug="x",
+        artifact_type="ipd",
+    )
+    assert name == "20261109-metastore-100-o19353-x.ipd.md"
+    m = n.parse_clustered(name)
+    assert m and (m.group("set"), m.group("nn"), m.group("id6")) == (
+        "metastore",
+        "100",
+        "o19353",
+    )
+
+    assert (
+        n.build_clustered_name(
+            date="20261109",
+            set_id="s",
+            order=7,
+            id6="abc123",
+            slug="x",
+            artifact_type="ipd",
+        )
+        == "20261109-s-07-abc123-x.ipd.md"
+    )
+    m2 = n.parse_clustered("20261109-a-1-12-abc123-x.ipd.md")
+    assert m2 and (m2.group("set"), m2.group("nn")) == ("a-1", "12")
+    m3 = n.parse_clustered("20260101-foo-12-abc123-bar-01-def456-slug.ipd.md")
+    assert m3 and (m3.group("set"), m3.group("nn"), m3.group("id6")) == (
+        "foo",
+        "12",
+        "abc123",
+    )
+    assert n.parse_clustered("20261109-s-1000-abc123-x.ipd.md") is None

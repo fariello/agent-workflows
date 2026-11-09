@@ -285,8 +285,8 @@ def plan_mv(
         date_err = _rcmd._refuse_unsafe_date("aw rename research", date)
         if date_err:
             return None, date_err
-    if order is not None and not (0 <= order <= 99):
-        return None, f"order must be between 0 and 99 (got {order})"
+    if order is not None and not (0 <= order <= 999):
+        return None, f"order must be between 0 and 999 (got {order})"
     new_kind = parsed.kind
     if kind is not None:
         kr = R.normalize_kind(kind)

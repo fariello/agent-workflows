@@ -45,7 +45,7 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
   So an over-length setid is a POLICY finding (`check.setid-length-warn` / `check.setid-length-error`,
   `IPD-M109` on a plan) and is NOT a `check.name-nonconformant` violation; do not "tighten" the regex to
   enforce it, which would refuse the 36 grandfathered setids the cutover exists to protect.
-- `NN` - two-digit order within the Set (`00` reserved for an orchestrator, `01+` otherwise);
+- `NN` - order within the Set, two digits (`00` reserved for an orchestrator, `01+` otherwise), or three digits for Order 100 to 999 (amended 2026-11-09 by maintainer ruling: a Set split by step complexity can exceed 99 plans; every two-digit name is unchanged and parses identically);
   `01` for a standalone singleton.
 - `<id6>` - the stable 6-char base36 id (the artifact's `- Id:`), in the filename.
 - `<slug>` - lowercase kebab-case.
