@@ -6,6 +6,7 @@
 - Summary: Federate AW projects across sibling repositories: project-qualified Item-Dependencies, multi-project attention, and registry registration on install
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-02 note (aw backlog): R4.1 and R4.4 changed to match AceLM PR-06/PR-08 (2026-11-01): qualifier on the target after the condition; qualified edges resolve against the fetched remote default branch
 - 2026-11-02 note (aw backlog): D7 prerequisite confirmed by maintainer (for now); D8 amended: first version supports repository-backed peers only, others refused as federation-unsupported-backend, companion support gated on m1wdj8; acceptance step 16 added.
 - 2026-11-01 note (aw backlog): Review findings 1-12 resolved as maintainer decisions D1-D12 (Decisions section); R-items amended to cite them; acceptance evidence 10-15 added. Open: D7 AceLM contractor visibility of acelm; D8 companion project.json location.
