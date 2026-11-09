@@ -6,6 +6,7 @@
 - Summary: Adopt a shipped technical-artifact writing standard (with diagram rules) for specs, backlog items, and plans, wire it into authoring and review, and sweep live artifacts
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-26 created (aw backlog): Maintainer request 2026-10-25: apply the technical-artifact writing requirements plus entity and flow diagrams to all specs, backlog items, and plans going forward
 
 ## Problem
