@@ -28,6 +28,8 @@
   policy's INVENTORY without weakening or re-deciding R-5.
 
 ## Workflow history
+
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-24 approved (aw set, --by-human): status set to approved
 
 - 2026-10-16 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-007; inventory extended with 3.10 (4 post-2c316ef0 advances), 6.4 re-keyed on target with wildcard source, D-1/D-2 recorded resolved, criteria 12-14 added, OQ-06 raised
@@ -641,6 +643,19 @@ that nothing breaks on the day the policy lands.
 ### 7.1 Signature
 
 One predicate, consulted by every surface that performs a lifecycle transition.
+
+```mermaid
+flowchart TD
+    In["Inputs: (type, transition), condition_state, resolved_policy, override"] --> CC{"Contract-closed? (6.4)"}
+    CC -->|Yes| R_CC["REFUSE: contract-closed (no override)"]
+    CC -->|No| PC{"Policy-closed? (6.3)"}
+    PC -->|Yes: loosening override| Att["PERMIT-WITH-ATTESTATION (record override)"]
+    PC -->|Yes: no override| R_PC["REFUSE: policy-closed (overrideable)"]
+    PC -->|No: permitted| Inv{"Invariants satisfied? (4.1)"}
+    Inv -->|No| R_Inv["REFUSE: invariant violation"]
+    Inv -->|Yes: automated sibling| Att2["PERMIT-WITH-ATTESTATION (auto-approved / actor)"]
+    Inv -->|Yes: standard| Perm["PERMIT"]
+```
 
 INPUTS:
 
