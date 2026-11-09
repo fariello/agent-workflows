@@ -6,4 +6,5 @@
 - Summary: Audit workflows for deterministic work extractable into --agent scripts (P11/D96); leak-sanitizer Set Orders 2-3 follow-ups
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-08-15 created (aw backlog): Audit workflows for deterministic work extractable into --agent scripts (P11/D96); leak-sanitizer Set Orders 2-3 follow-ups
