@@ -369,6 +369,8 @@ Compatibility row excerpt (moved from 4sd62s 9, 25kzda):
 The `finalize` event replaces the `Scope-Exceeded` bullet and keeps the 5.5a widening reasons; finalize copies the attempt-level verifier verdict to each V-item until the verifier reports per item; the drivers write `turn` events (4.2 TURN EVENTS); the run-state fields it records are indexed read-only (4.5b). |
 
 ## Workflow history
+
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-01 to-review (aw set): Split from 4sd62s (2026-11-01) on maintainer ruling; contains text reviewed in 4sd62s rounds 8-18; needs its own standalone review
 
 - 2026-11-01 created (aw specs): Tracked finalize and turn events recording what plan execution changed, how V-items were verified, and tokens, time and cost per turn and per item; split from 4sd62s
