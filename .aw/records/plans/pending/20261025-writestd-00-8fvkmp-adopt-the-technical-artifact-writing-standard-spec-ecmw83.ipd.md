@@ -24,6 +24,7 @@
 - Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-09 proofread (antigravity/gemini-3.8-flash): per the technical writing standard (spec ecmw83 R-08); meaning unchanged; frozen region untouched
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-02 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-02 coverage pass (aw oc run): fingerprint c21e5196b48f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
