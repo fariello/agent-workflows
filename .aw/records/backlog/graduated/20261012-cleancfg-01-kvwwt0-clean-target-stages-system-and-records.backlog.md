@@ -8,6 +8,7 @@
 - Summary: completely-clean-target install stages .aw/system, .aw/records, .aw/.gitignore and host adapters into the target despite records_backend home and the zero-target-delta promise
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: irjoga
 - 2026-10-12 created (aw backlog): found while graduating mbx0o4 (plan p425hv)
 
