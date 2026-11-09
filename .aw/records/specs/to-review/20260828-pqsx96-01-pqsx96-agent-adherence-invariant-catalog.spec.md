@@ -76,6 +76,15 @@ Every invariant is classified into exactly one of three assurance classes before
 built for it (findings section 7.1). The class states what kind of adherence the invariant can
 realistically get, given the threat model, so a later phase cannot oversell it.
 
+```mermaid
+flowchart TD
+    Start["Process invariant to classify"] --> CanAgentBypass{"Can local agent alter or bypass check\n(direct file edit, raw git, --no-verify)?"}
+    CanAgentBypass -- "No" --> ClassAuth["Authority invariant\n(External signing, protected branch, CI gate)"]
+    CanAgentBypass -- "Yes" --> CanCheckDeterministic{"Can noncompliance be deterministically\nchecked from committed tree in CI?"}
+    CanCheckDeterministic -- "Yes" --> ClassRepo["Repository invariant\n(aw check deterministic rule, CI merge gate)"]
+    CanCheckDeterministic -- "No" --> ClassGuidance["Guidance\n(Prose guidance, nudge, heuristic detector)"]
+```
+
 ### 2.1 Guidance
 
 A cooperative agent should normally follow the invariant, but the toolkit cannot deterministically
@@ -249,6 +258,8 @@ Additional worked traces, to show the catalog covers the existing engine:
   later external-authority set (findings section 8).
 
 ## Workflow history
+
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-26 to-review (aw set): Maintainer ruling 2026-10-25 (spec audit, /askme): move to to-review so the catalog enters spec review; the aw check rules are built against it (plan gfokao). Known drift for the review: check_engine.py:100 comment says I-01..I-15, the catalog now has I-01..I-17.
 
 - 2026-09-28 note (aw specs): Recorded check.spec-criteria-uncovered claiming invariant "" rather than an existing I-* row (IPD 3dexf1). Nearest rows (I-05 finalize validation, I-07 release-gate preservation) do not fit; criterion coverage is a guidance-class concern whose only deterministic observable is that a criterion id is named somewhere in the linked plans, with the honest limit that naming is not validating.
