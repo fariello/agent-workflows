@@ -12,6 +12,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-25 note (aw specs): AMENDED 2026-10-25 on maintainer ruling (spec audit): R4.4(b), R4.4d, A10b, A10d updated to the shipped values MAX_TURN_TIMEOUT=8h and agy DEFAULT_TIMEOUT=480m, set by commit 48321755b (2026-10-12) without a spec change. Stale 4h/240m code comments in lane_containment.py and agy_runipd.py corrected. Spec stays implementing: ~12 criteria rely on tests deleted by 19313eed7.
 - 2026-10-13 note (aw specs): AMENDED 2026-10-13 (4xtpvg-02 thzrpo): R4.1d and A8d added to specify question-only denial and partial-denial posture on non-isolated unattended opencode turns (backlog 8ctu3u, research 7so8uz)
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
@@ -499,6 +500,19 @@ R5.5 Teardown MUST be refused while a lane holds content the driver cannot class
 file, an unknown untracked file, an uncollected submission, or unlanded lane commits. Gitignored files
 (including interpreter bytecode caches, toolchain dependencies, and build or test residues) are
 disposable upon lane destruction and do not block teardown.
+
+```mermaid
+flowchart TD
+    Start["Lane teardown request"] --> CheckDirty{"Dirty tracked files present?"}
+    CheckDirty -- "Yes" --> PreserveDirty["Preserve lane: dirty-tracked"]
+    CheckDirty -- "No" --> CheckUntracked{"Unknown untracked files present?"}
+    CheckUntracked -- "Yes" --> PreserveUntracked["Preserve lane: unknown-untracked"]
+    CheckUntracked -- "No" --> CheckSubmission{"Uncollected submission?"}
+    CheckSubmission -- "Yes" --> PreserveSubmission["Preserve lane: uncollected-submission"]
+    CheckSubmission -- "No" --> CheckLanded{"Lane commits landed on target?"}
+    CheckLanded -- "No / unanswerable" --> PreserveLanded["Preserve lane: unlanded-lane-commits"]
+    CheckLanded -- "Yes" --> Teardown["Teardown lane (ignored files disposable)"]
+```
 
 AMENDED 2026-09-18 by maintainer ruling: R5.5 originally required unknown ignored files to refuse teardown
 on the premise that "ignored means disposable" had previously deleted uncommitted files. In practice,
