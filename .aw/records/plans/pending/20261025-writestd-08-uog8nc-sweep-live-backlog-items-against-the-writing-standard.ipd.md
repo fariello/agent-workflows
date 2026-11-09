@@ -47,39 +47,39 @@ Definitions used by every item below:
 
 ### Task group 1: baseline
 
-- [ ] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live item has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard and `aw backlog note` no longer read or write the format this plan assumes, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find backlog --status-not done` as the live set with statuses; `aw backlog check --agent` with its `backlog.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/uog8nc/` for E-04.
+- [x] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live item has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard and `aw backlog note` no longer read or write the format this plan assumes, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find backlog --status-not done` as the live set with statuses; `aw backlog check --agent` with its `backlog.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/uog8nc/` for E-04.
   - Depends on: none
   - Expected outcome: the format check passes; BASE and the four outputs are saved; the live set is re-derived at execution time; the guard reports zero problems at BASE.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: sweep
 
-- [ ] E-02 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-11) Do one item unit for each live item from E-01, in path order. If a turn ends before this item finishes, the committed item units stand; resume at the first live item without a sweep history line.
+- [x] E-02 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-11) Do one item unit for each live item from E-01, in path order. If a turn ends before this item finishes, the committed item units stand; resume at the first live item without a sweep history line.
   - Depends on: E-01
   - Expected outcome: each live item has its own `aw commit` holding only that item, one new sweep history line, and a guard line with `problems=0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: proof and report
 
-- [ ] E-03 (spec `ecmw83` R-08) Run the full guard with `--final`: `python3 .aw/state/uog8nc/backlog_guard.py <BASE> --final`. Then run `aw backlog check --agent`.
+- [x] E-03 (spec `ecmw83` R-08) Run the full guard with `--final`: `python3 .aw/state/uog8nc/backlog_guard.py <BASE> --final`. Then run `aw backlog check --agent`.
   - Depends on: E-02
   - Expected outcome: the guard exits 0 with `problems=0` for every item live at BASE, including exactly one sweep note each; `aw backlog check` reports the tree conforms; no `backlog.prose-dash` advisory remains outside quotations and recorded evidence.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (spec `ecmw83` AC-08) Write the walkthrough with `set_records.write_walkthrough(Path("."), set_id="writestd", order=8, target_id6="uog8nc", slug="backlog-sweep", body=...)`, which mints the walkthrough's own id6 and records `- Target-Id: uog8nc` (`DECISIONS.md` D140). The body holds: a table of the items swept (id6, status, lines changed, diagrams added or corrected, `Unresolved` count); every `Unresolved` annotation with its item, heading, and `BW-NN`; every suggested `- Summary:` wording and every guard-blocked case; and the E-01 and E-03 outputs. Commit it with `aw commit uog8nc -m "sweep(writestd): backlog sweep walkthrough (uog8nc)" -- <walkthrough path>`.
+- [x] E-04 (spec `ecmw83` AC-08) Write the walkthrough with `set_records.write_walkthrough(Path("."), set_id="writestd", order=8, target_id6="uog8nc", slug="backlog-sweep", body=...)`, which mints the walkthrough's own id6 and records `- Target-Id: uog8nc` (`DECISIONS.md` D140). The body holds: a table of the items swept (id6, status, lines changed, diagrams added or corrected, `Unresolved` count); every `Unresolved` annotation with its item, heading, and `BW-NN`; every suggested `- Summary:` wording and every guard-blocked case; and the E-01 and E-03 outputs. Commit it with `aw commit uog8nc -m "sweep(writestd): backlog sweep walkthrough (uog8nc)" -- <walkthrough path>`.
   - Depends on: E-03
   - Expected outcome: one walkthrough named `YYYYMMDD-writestd-08-<own id6>-backlog-sweep.walkthrough.md` exists and is committed; `aw check all` reports no `check.id6-identity-slot` finding for it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 (spec `ecmw83` R-11) If E-02 added any `Unresolved` annotation, file one backlog carrier that lists every `BW-NN` with its item and heading: `aw backlog new --summary "Resolve Unresolved annotations from the writestd backlog sweep" --priority medium --work-kind followup --body "<list>" --apply`, commit it with `aw commit uog8nc -m "backlog: carrier for writestd backlog sweep Unresolved annotations (uog8nc)" -- <item path>`, and add its id6 to the walkthrough. If none were added, write "No Unresolved annotations; no carrier filed." in the walkthrough. The carrier is created after BASE, so the guard does not check it and it gets no sweep note.
+- [x] E-05 (spec `ecmw83` R-11) If E-02 added any `Unresolved` annotation, file one backlog carrier that lists every `BW-NN` with its item and heading: `aw backlog new --summary "Resolve Unresolved annotations from the writestd backlog sweep" --priority medium --work-kind followup --body "<list>" --apply`, commit it with `aw commit uog8nc -m "backlog: carrier for writestd backlog sweep Unresolved annotations (uog8nc)" -- <item path>`, and add its id6 to the walkthrough. If none were added, write "No Unresolved annotations; no carrier filed." in the walkthrough. The carrier is created after BASE, so the guard does not check it and it gets no sweep note.
   - Depends on: E-04
   - Expected outcome: every `Unresolved` annotation is listed in one tracked, open backlog item, or the walkthrough states that there are none.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 (spec `ecmw83` AC-06) Run `aw check all --agent --verbose` and compare its `error` list with the E-01 baseline; run the routine gate `python3 -m pytest`; run `aw sanitize --agent`; commit any walkthrough update with `aw commit uog8nc -- <walkthrough path>`.
+- [x] E-06 (spec `ecmw83` AC-06) Run `aw check all --agent --verbose` and compare its `error` list with the E-01 baseline; run the routine gate `python3 -m pytest`; run `aw sanitize --agent`; commit any walkthrough update with `aw commit uog8nc -- <walkthrough path>`.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: no `error` diagnostic exists that was absent at BASE; the routine gate passes; the sanitizer reports no finding; no path outside the swept items, the walkthrough, and the carrier item was committed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -219,35 +219,804 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the format check (`grep -c metadata_schema .aw/config/project.json` and the count of live items lacking `- Status:` or `## Workflow history`, both 0), BASE, the sorted `error` list from `aw check all`, the live-item list with statuses, the `backlog.prose-dash` advisory count, and the last line of the BASE guard run showing `problems=0`.
   - Observed evidence:
-  - Result: pending
+    ```
+    Format check:
+    grep -c metadata_schema .aw/config/project.json: 0
+    Count of live items lacking - Status: or ## Workflow history: 0
 
-- [ ] V-02 validates E-02
+    BASE commit:
+    4ec01293618ccd240cd8b97db9c3ebefa147a8e4
+
+    Sorted error diagnostics from aw check all:
+check.blocking-item-closed-without-gate	.aw/records/backlog/done/20261107-suth7l-01-suth7l-artifact-meta-legacy-loader-disagrees-with-status.backlog.md
+check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+check.name-nonconformant	.aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md
+check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-01-hj6b60-spec-generation.agy.gemini38flashhigh.prompt.md
+check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-02-g1k32q-spec-generation.codex.gpt61solmedium.prompt.md
+check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-03-443ltw-spec-generation.opencode.opus55high.prompt.md
+check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+
+    Live-item list with statuses:
+aw: invoked in checkout /mnt/md1/VC/agent-workflows/.aw/worktrees/uog8nc but imported agent_workflows from /mnt/md1/VC/agent-workflows; re-running with /mnt/md1/VC/agent-workflows/.aw/worktrees/uog8nc's package (set AW_NO_REEXEC=1 to disable)
+●  graduated     ms06pi  .aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md
+●  graduated     wcbpqf  .aw/records/backlog/graduated/20260929-denypush-01-wcbpqf-decide-port-denial-capability-posture.backlog.md
+●  graduated     vmrhj0  .aw/records/backlog/graduated/20260930-vmrhj0-01-vmrhj0-retry-allowlist-legacy-token-only.backlog.md
+●  graduated     pyhq6s  .aw/records/backlog/graduated/20261001-setdispgate-01-pyhq6s-blast-radius-test-rejects-non-plan-dep-edge.backlog.md
+●  graduated     1vd74h  .aw/records/backlog/graduated/20261002-sbh1o1-01-1vd74h-decide-spec-anchor-stale-gating.backlog.md
+●  graduated     kvwwt0  .aw/records/backlog/graduated/20261012-cleancfg-01-kvwwt0-clean-target-stages-system-and-records.backlog.md
+◕  open          zvyo35  .aw/records/backlog/open/20261023-awinstallfix-01-zvyo35-install-noop-clean-reporting-and-skip-commit.backlog.md
+◕  open          dthgoi  .aw/records/backlog/open/20261023-tabcomp-01-dthgoi-completion-install-verify-shell-loader.backlog.md
+◕  open          tg80ht  .aw/records/backlog/open/20261024-specplan-01-tg80ht-spec-to-plan-graduation-and-runner-dispatch.backlog.md
+◕  open          n4a06q  .aw/records/backlog/open/20261025-reslife-01-n4a06q-research-triage-backfill.backlog.md
+◕  open          k899rl  .aw/records/backlog/open/20261025-rk25gap-01-k899rl-prompt-run-contract.backlog.md
+◕  open          l90ejs  .aw/records/backlog/open/20261025-rk25gap-01-l90ejs-bind-finding-codes.backlog.md
+◕  open          m429wp  .aw/records/backlog/open/20261025-rk25gap-01-m429wp-run-type-selectors.backlog.md
+◕  open          my4fki  .aw/records/backlog/open/20261025-rk25gap-01-my4fki-host-prompt-verb.backlog.md
+◕  open          oboc47  .aw/records/backlog/open/20261025-rk25gap-01-oboc47-aw-hooks-install.backlog.md
+◕  open          aoyivs  .aw/records/backlog/open/20261025-specaudit-01-aoyivs-6m4kow-stale-text.backlog.md
+◕  open          bkr6b0  .aw/records/backlog/open/20261025-specaudit-01-bkr6b0-7ckptx-restore-tests.backlog.md
+◕  open          hwaukk  .aw/records/backlog/open/20261025-specaudit-01-hwaukk-77tr3o-r2-terminal-children.backlog.md
+◕  open          okjz5y  .aw/records/backlog/open/20261025-specaudit-01-okjz5y-i4gpto-restore-tests.backlog.md
+◕  open          s6zc2f  .aw/records/backlog/open/20261025-specaudit-01-s6zc2f-w15vzb-amend-and-finish.backlog.md
+◕  open          t8nqyh  .aw/records/backlog/open/20261025-specaudit-01-t8nqyh-specs-check-id6-unreadable.backlog.md
+◕  open          xa7pqe  .aw/records/backlog/open/20261025-specaudit-01-xa7pqe-c4gd2h-restore-tests.backlog.md
+◕  open          xoetwv  .aw/records/backlog/open/20261025-specaudit-01-xoetwv-r07vma-tests-and-ac9.backlog.md
+◕  open          xvwlis  .aw/records/backlog/open/20261025-specaudit-01-xvwlis-llbr2b-post-approval-text.backlog.md
+◕  open          qph7c5  .aw/records/backlog/open/20261025-writestd-01-qph7c5-adopt-writing-standard.backlog.md
+◕  open          n2lr3g  .aw/records/backlog/open/20261026-askmerequired-01-n2lr3g-mandatory-askme-for-human-decisions.backlog.md
+◕  open          67n5as  .aw/records/backlog/open/20261026-revsteps-01-67n5as-author-k3yx72-stage-2-plans-orders-03-06-07-08-res.backlog.md
+◕  open          c1f6rd  .aw/records/backlog/open/20261101-awfed-01-c1f6rd-federate-projects-across-repos.backlog.md
+◕  open          m1wdj8  .aw/records/backlog/open/20261101-compplace-01-m1wdj8-companion-config-placement-drift.backlog.md
+◕  open          nq1src  .aw/records/backlog/open/20261105-execrecord-01-nq1src-implement-execution-record.backlog.md
+◕  open          fme4h4  .aw/records/backlog/open/20261105-fme4h4-01-fme4h4-runner-question-timeout-notification-and-formattin.backlog.md
+◕  open          f4p4vn  .aw/records/backlog/open/20261105-runindex-01-f4p4vn-implement-run-index.backlog.md
+◕  open          ucuqq6  .aw/records/backlog/open/20261105-ucuqq6-01-ucuqq6-runner-askme-questions-and-clarification-loop.backlog.md
+◕  open          mniobx  .aw/records/backlog/open/20261106-adopttypes-01-mniobx-adopt-supports-prompts-not-just-research.backlog.md
+◕  open          rdqciq  .aw/records/backlog/open/20261106-specflow-01-rdqciq-measure-agy-sandbox.backlog.md
+◕  open          hqt8tb  .aw/records/backlog/open/20261107-awnamespace-01-hqt8tb-slash-command-syntax.backlog.md
+◕  open          ggp2pf  .aw/records/backlog/open/20261107-ggp2pf-01-ggp2pf-records-root-resolver-divergence.backlog.md
+◕  open          k3kye2  .aw/records/backlog/open/20261107-k3kye2-01-k3kye2-artifact-meta-writer-leak-scan-treats-sibling-chec.backlog.md
+◕  open          kmo4bc  .aw/records/backlog/open/20261107-kmo4bc-01-kmo4bc-thorough-tier-layout-and-spec-template-failures.backlog.md
+◕  open          vqnb4v  .aw/records/backlog/open/20261107-vqnb4v-01-vqnb4v-artifact-meta-freshness-clobber.backlog.md
+◕  open          z90pda  .aw/records/backlog/open/20261107-z90pda-01-z90pda-artifact-meta-reviews-table-keys-rows-by-subject-i.backlog.md
+◕  open          w93his  .aw/records/backlog/open/20261108-w93his-01-w93his-retry-fresh-session.backlog.md
+◇  parked        2seinm  .aw/records/backlog/parked/20260815-2seinm-01-2seinm-extract-ci-verify-loop.backlog.md
+◇  parked        5114n4  .aw/records/backlog/parked/20260815-agent-comms-trust-01-5114n4-agent-comms-verifiable-provenance.backlog.md
+◇  parked        5wmo8y  .aw/records/backlog/parked/20260815-agent-comms-trust-01-5wmo8y-agent-comms-trust-tiers.backlog.md
+◇  parked        w1ib6z  .aw/records/backlog/parked/20260815-agent-comms-trust-01-w1ib6z-aw-comms-helper-tool.backlog.md
+◇  parked        cm6wdt  .aw/records/backlog/parked/20260815-cm6wdt-01-cm6wdt-audit-workflows-for-scriptable-work.backlog.md
+◇  parked        zpez3o  .aw/records/backlog/parked/20260815-human-approval-01-zpez3o-specs-approval-ergonomics.backlog.md
+◇  parked        n3of99  .aw/records/backlog/parked/20260815-n3of99-01-n3of99-reeval-bounded-iteration-roadmap.backlog.md
+◇  parked        na1821  .aw/records/backlog/parked/20260815-na1821-01-na1821-repo-exclude-globs-batch-install.backlog.md
+◇  parked        nm69aj  .aw/records/backlog/parked/20260815-nm69aj-01-nm69aj-unified-status-transition-verb.backlog.md
+◇  parked        uaogjp  .aw/records/backlog/parked/20260815-uaogjp-01-uaogjp-aw-block-do-not-edit-directive.backlog.md
+◇  parked        sv0sf3  .aw/records/backlog/parked/20260829-reviewloc-01-sv0sf3-should-reviews-move-to-per-type-subdirs.backlog.md
+◇  parked        phawyy  .aw/records/backlog/parked/20260906-depreview-01-phawyy-dependency-blocked-reason-not-persisted.backlog.md
+◇  parked        m15n3k  .aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md
+◇  parked        w07sbr  .aw/records/backlog/parked/20260921-w07sbr-01-w07sbr-runner-stop-trigger-slow-tests-fail.backlog.md
+◇  parked        szjsgj  .aw/records/backlog/parked/20261017-rq-01-szjsgj-signal-question-channel.backlog.md
+
+    backlog.prose-dash advisory count:
+aw: invoked in checkout /mnt/md1/VC/agent-workflows/.aw/worktrees/uog8nc but imported agent_workflows from /mnt/md1/VC/agent-workflows; re-running with /mnt/md1/VC/agent-workflows/.aw/worktrees/uog8nc's package (set AW_NO_REEXEC=1 to disable)
+{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1147,"findings":0,"evidence":["backlog"],"next":null}
+
+    Last line of BASE guard run:
+    TOTAL live=57 checked=57 problems=0
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (spec `ecmw83` AC-06) for every live item in the E-01 list, paste its `aw commit` hash, `git show --stat` of that commit naming only that item, and its guard line showing `sweep-notes=1` and `problems=0`.
   - Observed evidence:
-  - Result: pending
+    ```
+Item ms06pi (.aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md):
+  Commit: e17147c48310bdc1a937eb1f022e5098abc62b20
+  Git show --stat:
+    commit e17147c48310bdc1a937eb1f022e5098abc62b20
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:44:37 2026 -0500
 
-- [ ] V-03 validates E-03
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md	quoted-elsewhere=14	diagrams=0->0	modals=9->9	sweep-notes=1	problems=0
+
+Item wcbpqf (.aw/records/backlog/graduated/20260929-denypush-01-wcbpqf-decide-port-denial-capability-posture.backlog.md):
+  Commit: e181efdfa520f2923ac05f401f25cef1382f9921
+  Git show --stat:
+    commit e181efdfa520f2923ac05f401f25cef1382f9921
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:45:47 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/graduated/20260929-denypush-01-wcbpqf-decide-port-denial-capability-posture.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=5->5	sweep-notes=1	problems=0
+
+Item vmrhj0 (.aw/records/backlog/graduated/20260930-vmrhj0-01-vmrhj0-retry-allowlist-legacy-token-only.backlog.md):
+  Commit: 79088727d893121cee562ecf4d35601af9d95912
+  Git show --stat:
+    commit 79088727d893121cee562ecf4d35601af9d95912
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:46:53 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/graduated/20260930-vmrhj0-01-vmrhj0-retry-allowlist-legacy-token-only.backlog.md	quoted-elsewhere=6	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+
+Item pyhq6s (.aw/records/backlog/graduated/20261001-setdispgate-01-pyhq6s-blast-radius-test-rejects-non-plan-dep-edge.backlog.md):
+  Commit: 196896419891d512aafd3acb1ca17c7228e25b3c
+  Git show --stat:
+    commit 196896419891d512aafd3acb1ca17c7228e25b3c
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:47:25 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/graduated/20261001-setdispgate-01-pyhq6s-blast-radius-test-rejects-non-plan-dep-edge.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+
+Item 1vd74h (.aw/records/backlog/graduated/20261002-sbh1o1-01-1vd74h-decide-spec-anchor-stale-gating.backlog.md):
+  Commit: e8e10f316dd78ea1dfb631d6b8ef4e76bafdee67
+  Git show --stat:
+    commit e8e10f316dd78ea1dfb631d6b8ef4e76bafdee67
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:47:57 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/graduated/20261002-sbh1o1-01-1vd74h-decide-spec-anchor-stale-gating.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+
+Item kvwwt0 (.aw/records/backlog/graduated/20261012-cleancfg-01-kvwwt0-clean-target-stages-system-and-records.backlog.md):
+  Commit: 833994efc123eadfe2e701e14437cc44d3e3cd19
+  Git show --stat:
+    commit 833994efc123eadfe2e701e14437cc44d3e3cd19
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:48:28 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/graduated/20261012-cleancfg-01-kvwwt0-clean-target-stages-system-and-records.backlog.md	quoted-elsewhere=6	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item zvyo35 (.aw/records/backlog/open/20261023-awinstallfix-01-zvyo35-install-noop-clean-reporting-and-skip-commit.backlog.md):
+  Commit: 19be100a05291cfb25c0fb0e7d933db0936c3a7c
+  Git show --stat:
+    commit 19be100a05291cfb25c0fb0e7d933db0936c3a7c
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:49:00 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261023-awinstallfix-01-zvyo35-install-noop-clean-reporting-and-skip-commit.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item dthgoi (.aw/records/backlog/open/20261023-tabcomp-01-dthgoi-completion-install-verify-shell-loader.backlog.md):
+  Commit: 6b7126d334ba364843b2809956198eda7216b29c
+  Git show --stat:
+    commit 6b7126d334ba364843b2809956198eda7216b29c
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:49:32 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261023-tabcomp-01-dthgoi-completion-install-verify-shell-loader.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+
+Item tg80ht (.aw/records/backlog/open/20261024-specplan-01-tg80ht-spec-to-plan-graduation-and-runner-dispatch.backlog.md):
+  Commit: 178c2ebb39303d6c94d00e6da2505b1bf5ee9a31
+  Git show --stat:
+    commit 178c2ebb39303d6c94d00e6da2505b1bf5ee9a31
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:50:05 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261024-specplan-01-tg80ht-spec-to-plan-graduation-and-runner-dispatch.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+
+Item n4a06q (.aw/records/backlog/open/20261025-reslife-01-n4a06q-research-triage-backfill.backlog.md):
+  Commit: fbad00f22995d55caec6fb02210a8bb9f10e0183
+  Git show --stat:
+    commit fbad00f22995d55caec6fb02210a8bb9f10e0183
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:50:38 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-reslife-01-n4a06q-research-triage-backfill.backlog.md	quoted-elsewhere=5	diagrams=0->0	modals=2->2	sweep-notes=1	problems=0
+
+Item k899rl (.aw/records/backlog/open/20261025-rk25gap-01-k899rl-prompt-run-contract.backlog.md):
+  Commit: bfc97b2d2b7ca2e7d6adb4ff00e523d0ac1cf362
+  Git show --stat:
+    commit bfc97b2d2b7ca2e7d6adb4ff00e523d0ac1cf362
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:51:10 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-rk25gap-01-k899rl-prompt-run-contract.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item l90ejs (.aw/records/backlog/open/20261025-rk25gap-01-l90ejs-bind-finding-codes.backlog.md):
+  Commit: 9291bc95b0700b381a2b6cfe7d35441e4a2bc8e3
+  Git show --stat:
+    commit 9291bc95b0700b381a2b6cfe7d35441e4a2bc8e3
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:51:42 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-rk25gap-01-l90ejs-bind-finding-codes.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item m429wp (.aw/records/backlog/open/20261025-rk25gap-01-m429wp-run-type-selectors.backlog.md):
+  Commit: 68ebdf3577e8982059249f68862e8a1083f128df
+  Git show --stat:
+    commit 68ebdf3577e8982059249f68862e8a1083f128df
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:52:13 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-rk25gap-01-m429wp-run-type-selectors.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item my4fki (.aw/records/backlog/open/20261025-rk25gap-01-my4fki-host-prompt-verb.backlog.md):
+  Commit: 763e5e61d9c93c6d002423ba8dbcd3b6b0263ba4
+  Git show --stat:
+    commit 763e5e61d9c93c6d002423ba8dbcd3b6b0263ba4
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:52:44 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-rk25gap-01-my4fki-host-prompt-verb.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+
+Item oboc47 (.aw/records/backlog/open/20261025-rk25gap-01-oboc47-aw-hooks-install.backlog.md):
+  Commit: f4c631eec0dfd8c96376e9af500c28ee5415002c
+  Git show --stat:
+    commit f4c631eec0dfd8c96376e9af500c28ee5415002c
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:53:17 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-rk25gap-01-oboc47-aw-hooks-install.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item aoyivs (.aw/records/backlog/open/20261025-specaudit-01-aoyivs-6m4kow-stale-text.backlog.md):
+  Commit: 19cfebd536d48b3a3f55a6badb0095c34693eef0
+  Git show --stat:
+    commit 19cfebd536d48b3a3f55a6badb0095c34693eef0
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:53:50 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-aoyivs-6m4kow-stale-text.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item bkr6b0 (.aw/records/backlog/open/20261025-specaudit-01-bkr6b0-7ckptx-restore-tests.backlog.md):
+  Commit: 624c85cd31197652b8d73414c17d6b5d96aae4f6
+  Git show --stat:
+    commit 624c85cd31197652b8d73414c17d6b5d96aae4f6
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:54:23 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-bkr6b0-7ckptx-restore-tests.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item hwaukk (.aw/records/backlog/open/20261025-specaudit-01-hwaukk-77tr3o-r2-terminal-children.backlog.md):
+  Commit: c05d117f09ce1866c6432d917f4384c94e211339
+  Git show --stat:
+    commit c05d117f09ce1866c6432d917f4384c94e211339
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:54:53 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-hwaukk-77tr3o-r2-terminal-children.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item okjz5y (.aw/records/backlog/open/20261025-specaudit-01-okjz5y-i4gpto-restore-tests.backlog.md):
+  Commit: 95b2ba172ab93dc11a9d24316c9101869f950885
+  Git show --stat:
+    commit 95b2ba172ab93dc11a9d24316c9101869f950885
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:55:25 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-okjz5y-i4gpto-restore-tests.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=2->2	sweep-notes=1	problems=0
+
+Item s6zc2f (.aw/records/backlog/open/20261025-specaudit-01-s6zc2f-w15vzb-amend-and-finish.backlog.md):
+  Commit: cf290af0d3f4ee8716211c3ce4989ee5c97d33b4
+  Git show --stat:
+    commit cf290af0d3f4ee8716211c3ce4989ee5c97d33b4
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:55:59 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-s6zc2f-w15vzb-amend-and-finish.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+
+Item t8nqyh (.aw/records/backlog/open/20261025-specaudit-01-t8nqyh-specs-check-id6-unreadable.backlog.md):
+  Commit: e99de457ad08808dcb55c61910cf868e025f5e8e
+  Git show --stat:
+    commit e99de457ad08808dcb55c61910cf868e025f5e8e
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:56:32 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-t8nqyh-specs-check-id6-unreadable.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item xa7pqe (.aw/records/backlog/open/20261025-specaudit-01-xa7pqe-c4gd2h-restore-tests.backlog.md):
+  Commit: 91fcc69c73a31cd3726cbd221149c6c02282e69d
+  Git show --stat:
+    commit 91fcc69c73a31cd3726cbd221149c6c02282e69d
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:57:04 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-xa7pqe-c4gd2h-restore-tests.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item xoetwv (.aw/records/backlog/open/20261025-specaudit-01-xoetwv-r07vma-tests-and-ac9.backlog.md):
+  Commit: bff8d8744e70baf57dfa614fc64593a7292b40dd
+  Git show --stat:
+    commit bff8d8744e70baf57dfa614fc64593a7292b40dd
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:57:35 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-xoetwv-r07vma-tests-and-ac9.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item xvwlis (.aw/records/backlog/open/20261025-specaudit-01-xvwlis-llbr2b-post-approval-text.backlog.md):
+  Commit: 250915b45c2c58bd35edfde3f410ed980c163c21
+  Git show --stat:
+    commit 250915b45c2c58bd35edfde3f410ed980c163c21
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:58:07 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-specaudit-01-xvwlis-llbr2b-post-approval-text.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item qph7c5 (.aw/records/backlog/open/20261025-writestd-01-qph7c5-adopt-writing-standard.backlog.md):
+  Commit: 29bd8f3f70dae09bb399be25a2d1af635c4ae0de
+  Git show --stat:
+    commit 29bd8f3f70dae09bb399be25a2d1af635c4ae0de
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:58:38 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261025-writestd-01-qph7c5-adopt-writing-standard.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item n2lr3g (.aw/records/backlog/open/20261026-askmerequired-01-n2lr3g-mandatory-askme-for-human-decisions.backlog.md):
+  Commit: 2c5ed3a7d79dde119d313e03fc691f3b1d101f19
+  Git show --stat:
+    commit 2c5ed3a7d79dde119d313e03fc691f3b1d101f19
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:59:09 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261026-askmerequired-01-n2lr3g-mandatory-askme-for-human-decisions.backlog.md	quoted-elsewhere=6	diagrams=0->0	modals=4->4	sweep-notes=1	problems=0
+
+Item 67n5as (.aw/records/backlog/open/20261026-revsteps-01-67n5as-author-k3yx72-stage-2-plans-orders-03-06-07-08-res.backlog.md):
+  Commit: 68b28aef1110fd93d030e5e938f4bb2b12eb408c
+  Git show --stat:
+    commit 68b28aef1110fd93d030e5e938f4bb2b12eb408c
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 11:59:42 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261026-revsteps-01-67n5as-author-k3yx72-stage-2-plans-orders-03-06-07-08-res.backlog.md	quoted-elsewhere=5	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+
+Item c1f6rd (.aw/records/backlog/open/20261101-awfed-01-c1f6rd-federate-projects-across-repos.backlog.md):
+  Commit: 08c716882dc798aa9e0f89769b1e44045ea6583d
+  Git show --stat:
+    commit 08c716882dc798aa9e0f89769b1e44045ea6583d
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:00:14 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261101-awfed-01-c1f6rd-federate-projects-across-repos.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=26->26	sweep-notes=1	problems=0
+
+Item m1wdj8 (.aw/records/backlog/open/20261101-compplace-01-m1wdj8-companion-config-placement-drift.backlog.md):
+  Commit: 923d7d72343190be1f7bc82a88454fc037de1611
+  Git show --stat:
+    commit 923d7d72343190be1f7bc82a88454fc037de1611
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:00:48 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261101-compplace-01-m1wdj8-companion-config-placement-drift.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item nq1src (.aw/records/backlog/open/20261105-execrecord-01-nq1src-implement-execution-record.backlog.md):
+  Commit: 486a69214f7cdcae60986e1a713850a1672bf204
+  Git show --stat:
+    commit 486a69214f7cdcae60986e1a713850a1672bf204
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:01:19 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261105-execrecord-01-nq1src-implement-execution-record.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item fme4h4 (.aw/records/backlog/open/20261105-fme4h4-01-fme4h4-runner-question-timeout-notification-and-formattin.backlog.md):
+  Commit: d1c9921a80ec65d6e13c6678c919131e53989320
+  Git show --stat:
+    commit d1c9921a80ec65d6e13c6678c919131e53989320
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:01:52 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261105-fme4h4-01-fme4h4-runner-question-timeout-notification-and-formattin.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item f4p4vn (.aw/records/backlog/open/20261105-runindex-01-f4p4vn-implement-run-index.backlog.md):
+  Commit: cca7dc2b0707d2a3c51ccb0a07a72978cbea7512
+  Git show --stat:
+    commit cca7dc2b0707d2a3c51ccb0a07a72978cbea7512
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:02:24 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261105-runindex-01-f4p4vn-implement-run-index.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item ucuqq6 (.aw/records/backlog/open/20261105-ucuqq6-01-ucuqq6-runner-askme-questions-and-clarification-loop.backlog.md):
+  Commit: 6222dc926e17b70a4cb86442a6ea3aadbaf3962a
+  Git show --stat:
+    commit 6222dc926e17b70a4cb86442a6ea3aadbaf3962a
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:02:55 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261105-ucuqq6-01-ucuqq6-runner-askme-questions-and-clarification-loop.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=50->50	sweep-notes=1	problems=0
+
+Item mniobx (.aw/records/backlog/open/20261106-adopttypes-01-mniobx-adopt-supports-prompts-not-just-research.backlog.md):
+  Commit: 62a3f287302825fdb917dc8d571b567e64160ffb
+  Git show --stat:
+    commit 62a3f287302825fdb917dc8d571b567e64160ffb
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:03:27 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261106-adopttypes-01-mniobx-adopt-supports-prompts-not-just-research.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=4->4	sweep-notes=1	problems=0
+
+Item rdqciq (.aw/records/backlog/open/20261106-specflow-01-rdqciq-measure-agy-sandbox.backlog.md):
+  Commit: f962b0a3b9b9d998e1cb121e6b1371b53979fb34
+  Git show --stat:
+    commit f962b0a3b9b9d998e1cb121e6b1371b53979fb34
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:03:59 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261106-specflow-01-rdqciq-measure-agy-sandbox.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item hqt8tb (.aw/records/backlog/open/20261107-awnamespace-01-hqt8tb-slash-command-syntax.backlog.md):
+  Commit: 7f57460ab1130b5b7743a53cc8acea32b814a030
+  Git show --stat:
+    commit 7f57460ab1130b5b7743a53cc8acea32b814a030
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:04:33 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261107-awnamespace-01-hqt8tb-slash-command-syntax.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=2->2	sweep-notes=1	problems=0
+
+Item ggp2pf (.aw/records/backlog/open/20261107-ggp2pf-01-ggp2pf-records-root-resolver-divergence.backlog.md):
+  Commit: ae1a288c4e2335b9908164c2a9ac3f54115c4f5a
+  Git show --stat:
+    commit ae1a288c4e2335b9908164c2a9ac3f54115c4f5a
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:05:05 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261107-ggp2pf-01-ggp2pf-records-root-resolver-divergence.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item k3kye2 (.aw/records/backlog/open/20261107-k3kye2-01-k3kye2-artifact-meta-writer-leak-scan-treats-sibling-chec.backlog.md):
+  Commit: f13f8a90c532c9190a273782dd052167a8506edc
+  Git show --stat:
+    commit f13f8a90c532c9190a273782dd052167a8506edc
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:05:36 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261107-k3kye2-01-k3kye2-artifact-meta-writer-leak-scan-treats-sibling-chec.backlog.md	quoted-elsewhere=9	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item kmo4bc (.aw/records/backlog/open/20261107-kmo4bc-01-kmo4bc-thorough-tier-layout-and-spec-template-failures.backlog.md):
+  Commit: 8f8cbcd76ff7c9b6934ac3bfc48d35bf5ecfb065
+  Git show --stat:
+    commit 8f8cbcd76ff7c9b6934ac3bfc48d35bf5ecfb065
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:06:09 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261107-kmo4bc-01-kmo4bc-thorough-tier-layout-and-spec-template-failures.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item vqnb4v (.aw/records/backlog/open/20261107-vqnb4v-01-vqnb4v-artifact-meta-freshness-clobber.backlog.md):
+  Commit: eff0aa6bd9f30ef624cffa2b241a59aa9992385c
+  Git show --stat:
+    commit eff0aa6bd9f30ef624cffa2b241a59aa9992385c
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:06:40 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261107-vqnb4v-01-vqnb4v-artifact-meta-freshness-clobber.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item z90pda (.aw/records/backlog/open/20261107-z90pda-01-z90pda-artifact-meta-reviews-table-keys-rows-by-subject-i.backlog.md):
+  Commit: eb31d4d25da2dd537839b4d6001c034950300568
+  Git show --stat:
+    commit eb31d4d25da2dd537839b4d6001c034950300568
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:07:12 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261107-z90pda-01-z90pda-artifact-meta-reviews-table-keys-rows-by-subject-i.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item w93his (.aw/records/backlog/open/20261108-w93his-01-w93his-retry-fresh-session.backlog.md):
+  Commit: cb11f7a3b301623d71f440235b3b63ce84decf42
+  Git show --stat:
+    commit cb11f7a3b301623d71f440235b3b63ce84decf42
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:07:44 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/open/20261108-w93his-01-w93his-retry-fresh-session.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item 2seinm (.aw/records/backlog/parked/20260815-2seinm-01-2seinm-extract-ci-verify-loop.backlog.md):
+  Commit: ca9912df7ffb38ad69fc344d9bcefa29c8cccef0
+  Git show --stat:
+    commit ca9912df7ffb38ad69fc344d9bcefa29c8cccef0
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:08:15 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-2seinm-01-2seinm-extract-ci-verify-loop.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item 5114n4 (.aw/records/backlog/parked/20260815-agent-comms-trust-01-5114n4-agent-comms-verifiable-provenance.backlog.md):
+  Commit: 72252479c8b281a13169a884130a2b989b7063a9
+  Git show --stat:
+    commit 72252479c8b281a13169a884130a2b989b7063a9
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:08:47 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-agent-comms-trust-01-5114n4-agent-comms-verifiable-provenance.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item 5wmo8y (.aw/records/backlog/parked/20260815-agent-comms-trust-01-5wmo8y-agent-comms-trust-tiers.backlog.md):
+  Commit: 5a4a9dfccb8e1853c83581149f30a50c97187600
+  Git show --stat:
+    commit 5a4a9dfccb8e1853c83581149f30a50c97187600
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:09:18 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-agent-comms-trust-01-5wmo8y-agent-comms-trust-tiers.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item w1ib6z (.aw/records/backlog/parked/20260815-agent-comms-trust-01-w1ib6z-aw-comms-helper-tool.backlog.md):
+  Commit: 2f6e4e37519aab46b4b77a5d3ba63ed67af49994
+  Git show --stat:
+    commit 2f6e4e37519aab46b4b77a5d3ba63ed67af49994
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:09:49 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-agent-comms-trust-01-w1ib6z-aw-comms-helper-tool.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item cm6wdt (.aw/records/backlog/parked/20260815-cm6wdt-01-cm6wdt-audit-workflows-for-scriptable-work.backlog.md):
+  Commit: 1f79d3290554ade2436619f3488368945653add5
+  Git show --stat:
+    commit 1f79d3290554ade2436619f3488368945653add5
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:10:21 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-cm6wdt-01-cm6wdt-audit-workflows-for-scriptable-work.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item zpez3o (.aw/records/backlog/parked/20260815-human-approval-01-zpez3o-specs-approval-ergonomics.backlog.md):
+  Commit: 8ce6660c1baf8bb35757307926a0e2791410b1ac
+  Git show --stat:
+    commit 8ce6660c1baf8bb35757307926a0e2791410b1ac
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:10:53 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-human-approval-01-zpez3o-specs-approval-ergonomics.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item n3of99 (.aw/records/backlog/parked/20260815-n3of99-01-n3of99-reeval-bounded-iteration-roadmap.backlog.md):
+  Commit: 5f43a73cf6b28e3cb69f053c67fd1d3484afcbf4
+  Git show --stat:
+    commit 5f43a73cf6b28e3cb69f053c67fd1d3484afcbf4
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:11:25 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-n3of99-01-n3of99-reeval-bounded-iteration-roadmap.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item na1821 (.aw/records/backlog/parked/20260815-na1821-01-na1821-repo-exclude-globs-batch-install.backlog.md):
+  Commit: ebe70ebd7c6cb03c97c0417417e9ab45d23567d4
+  Git show --stat:
+    commit ebe70ebd7c6cb03c97c0417417e9ab45d23567d4
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:11:56 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-na1821-01-na1821-repo-exclude-globs-batch-install.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item nm69aj (.aw/records/backlog/parked/20260815-nm69aj-01-nm69aj-unified-status-transition-verb.backlog.md):
+  Commit: abd84fd6ef54e97791c50ab8a61cf6150f164ac9
+  Git show --stat:
+    commit abd84fd6ef54e97791c50ab8a61cf6150f164ac9
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:12:28 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-nm69aj-01-nm69aj-unified-status-transition-verb.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item uaogjp (.aw/records/backlog/parked/20260815-uaogjp-01-uaogjp-aw-block-do-not-edit-directive.backlog.md):
+  Commit: 53bcc7db9c20be8c9fde2759bd3bbd18787dc457
+  Git show --stat:
+    commit 53bcc7db9c20be8c9fde2759bd3bbd18787dc457
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:12:59 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260815-uaogjp-01-uaogjp-aw-block-do-not-edit-directive.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item sv0sf3 (.aw/records/backlog/parked/20260829-reviewloc-01-sv0sf3-should-reviews-move-to-per-type-subdirs.backlog.md):
+  Commit: 72c4a6e2f3950a0e8e6b4f4248e622c26d30167b
+  Git show --stat:
+    commit 72c4a6e2f3950a0e8e6b4f4248e622c26d30167b
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:13:31 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260829-reviewloc-01-sv0sf3-should-reviews-move-to-per-type-subdirs.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+
+Item phawyy (.aw/records/backlog/parked/20260906-depreview-01-phawyy-dependency-blocked-reason-not-persisted.backlog.md):
+  Commit: fdd71330c86ff3dfea1b34ef2461cc18cea60d92
+  Git show --stat:
+    commit fdd71330c86ff3dfea1b34ef2461cc18cea60d92
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:14:01 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260906-depreview-01-phawyy-dependency-blocked-reason-not-persisted.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+
+Item m15n3k (.aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md):
+  Commit: 8505984a09a5054f8d235318134963f585f1a69b
+  Git show --stat:
+    commit 8505984a09a5054f8d235318134963f585f1a69b
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:14:33 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item w07sbr (.aw/records/backlog/parked/20260921-w07sbr-01-w07sbr-runner-stop-trigger-slow-tests-fail.backlog.md):
+  Commit: e12d5a7f92871ad67546725a7e99019714e41843
+  Git show --stat:
+    commit e12d5a7f92871ad67546725a7e99019714e41843
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:15:05 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20260921-w07sbr-01-w07sbr-runner-stop-trigger-slow-tests-fail.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+
+Item szjsgj (.aw/records/backlog/parked/20261017-rq-01-szjsgj-signal-question-channel.backlog.md):
+  Commit: 4c1790485d4d82bd1a8259e3cdd20c52079a44d7
+  Git show --stat:
+    commit 4c1790485d4d82bd1a8259e3cdd20c52079a44d7
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Mon Nov 9 12:15:36 2026 -0500
+
+     1 file changed, 1 insertion(+)
+  Guard: .aw/records/backlog/parked/20261017-rq-01-szjsgj-signal-question-channel.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (spec `ecmw83` AC-06) paste the complete output of `python3 .aw/state/uog8nc/backlog_guard.py <BASE> --final`, ending `problems=0`, with exit code 0, and the `aw backlog check --agent` output showing the tree conforms and no `backlog.prose-dash` advisory outside quotations or recorded evidence.
   - Observed evidence:
-  - Result: pending
+    ```
+    Full guard run with --final (exit code 0):
+.aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md	quoted-elsewhere=14	diagrams=0->0	modals=9->9	sweep-notes=1	problems=0
+.aw/records/backlog/graduated/20260929-denypush-01-wcbpqf-decide-port-denial-capability-posture.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=5->5	sweep-notes=1	problems=0
+.aw/records/backlog/graduated/20260930-vmrhj0-01-vmrhj0-retry-allowlist-legacy-token-only.backlog.md	quoted-elsewhere=6	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+.aw/records/backlog/graduated/20261001-setdispgate-01-pyhq6s-blast-radius-test-rejects-non-plan-dep-edge.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+.aw/records/backlog/graduated/20261002-sbh1o1-01-1vd74h-decide-spec-anchor-stale-gating.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+.aw/records/backlog/graduated/20261012-cleancfg-01-kvwwt0-clean-target-stages-system-and-records.backlog.md	quoted-elsewhere=6	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261023-awinstallfix-01-zvyo35-install-noop-clean-reporting-and-skip-commit.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261023-tabcomp-01-dthgoi-completion-install-verify-shell-loader.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261024-specplan-01-tg80ht-spec-to-plan-graduation-and-runner-dispatch.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-reslife-01-n4a06q-research-triage-backfill.backlog.md	quoted-elsewhere=5	diagrams=0->0	modals=2->2	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-rk25gap-01-k899rl-prompt-run-contract.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-rk25gap-01-l90ejs-bind-finding-codes.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-rk25gap-01-m429wp-run-type-selectors.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-rk25gap-01-my4fki-host-prompt-verb.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-rk25gap-01-oboc47-aw-hooks-install.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-aoyivs-6m4kow-stale-text.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-bkr6b0-7ckptx-restore-tests.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-hwaukk-77tr3o-r2-terminal-children.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-okjz5y-i4gpto-restore-tests.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=2->2	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-s6zc2f-w15vzb-amend-and-finish.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-t8nqyh-specs-check-id6-unreadable.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-xa7pqe-c4gd2h-restore-tests.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-xoetwv-r07vma-tests-and-ac9.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-specaudit-01-xvwlis-llbr2b-post-approval-text.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261025-writestd-01-qph7c5-adopt-writing-standard.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261026-askmerequired-01-n2lr3g-mandatory-askme-for-human-decisions.backlog.md	quoted-elsewhere=6	diagrams=0->0	modals=4->4	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261026-revsteps-01-67n5as-author-k3yx72-stage-2-plans-orders-03-06-07-08-res.backlog.md	quoted-elsewhere=5	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261101-awfed-01-c1f6rd-federate-projects-across-repos.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=26->26	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261101-compplace-01-m1wdj8-companion-config-placement-drift.backlog.md	quoted-elsewhere=4	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261105-execrecord-01-nq1src-implement-execution-record.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261105-fme4h4-01-fme4h4-runner-question-timeout-notification-and-formattin.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261105-runindex-01-f4p4vn-implement-run-index.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261105-ucuqq6-01-ucuqq6-runner-askme-questions-and-clarification-loop.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=50->50	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261106-adopttypes-01-mniobx-adopt-supports-prompts-not-just-research.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=4->4	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261106-specflow-01-rdqciq-measure-agy-sandbox.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261107-awnamespace-01-hqt8tb-slash-command-syntax.backlog.md	quoted-elsewhere=7	diagrams=0->0	modals=2->2	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261107-ggp2pf-01-ggp2pf-records-root-resolver-divergence.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261107-k3kye2-01-k3kye2-artifact-meta-writer-leak-scan-treats-sibling-chec.backlog.md	quoted-elsewhere=9	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261107-kmo4bc-01-kmo4bc-thorough-tier-layout-and-spec-template-failures.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261107-vqnb4v-01-vqnb4v-artifact-meta-freshness-clobber.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261107-z90pda-01-z90pda-artifact-meta-reviews-table-keys-rows-by-subject-i.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/open/20261108-w93his-01-w93his-retry-fresh-session.backlog.md	quoted-elsewhere=8	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-2seinm-01-2seinm-extract-ci-verify-loop.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-agent-comms-trust-01-5114n4-agent-comms-verifiable-provenance.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-agent-comms-trust-01-5wmo8y-agent-comms-trust-tiers.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-agent-comms-trust-01-w1ib6z-aw-comms-helper-tool.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-cm6wdt-01-cm6wdt-audit-workflows-for-scriptable-work.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-human-approval-01-zpez3o-specs-approval-ergonomics.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-n3of99-01-n3of99-reeval-bounded-iteration-roadmap.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-na1821-01-na1821-repo-exclude-globs-batch-install.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-nm69aj-01-nm69aj-unified-status-transition-verb.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260815-uaogjp-01-uaogjp-aw-block-do-not-edit-directive.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260829-reviewloc-01-sv0sf3-should-reviews-move-to-per-type-subdirs.backlog.md	quoted-elsewhere=1	diagrams=0->0	modals=3->3	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260906-depreview-01-phawyy-dependency-blocked-reason-not-persisted.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20260921-w07sbr-01-w07sbr-runner-stop-trigger-slow-tests-fail.backlog.md	quoted-elsewhere=3	diagrams=0->0	modals=0->0	sweep-notes=1	problems=0
+.aw/records/backlog/parked/20261017-rq-01-szjsgj-signal-question-channel.backlog.md	quoted-elsewhere=2	diagrams=0->0	modals=1->1	sweep-notes=1	problems=0
+TOTAL live=57 checked=57 problems=0
 
-- [ ] V-04 validates E-04
+    aw backlog check --agent output:
+aw: invoked in checkout /mnt/md1/VC/agent-workflows/.aw/worktrees/uog8nc but imported agent_workflows from /mnt/md1/VC/agent-workflows; re-running with /mnt/md1/VC/agent-workflows/.aw/worktrees/uog8nc's package (set AW_NO_REEXEC=1 to disable)
+{"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1147,"findings":0,"evidence":["backlog"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (spec `ecmw83` AC-08) paste the walkthrough path, its `- Id:` and `- Target-Id: uog8nc` lines, its table of items, its list of `Unresolved` annotations, suggested summaries, and guard-blocked cases (or "none"), and `aw check all --agent --verbose` filtered to `check.id6-identity-slot` printing nothing for the walkthrough.
   - Observed evidence:
-  - Result: pending
+    ```
+    Walkthrough path:
+    .aw/records/walkthroughs/20261109-writestd-08-6wu5mn-backlog-sweep.walkthrough.md
 
-- [ ] V-05 validates E-05
+    Walkthrough identity headers:
+    - Id: 6wu5mn
+    - Target-Id: uog8nc
+
+    Table of items swept (sample):
+| Item ID | Status | Lines Changed | Diagrams Added/Corrected | Unresolved Count | Path |
+| --- | --- | --- | --- | --- | --- |
+| `ms06pi` | graduated | 1 | 0 | 0 | `.aw/records/backlog/graduated/20260905-awmetastore-01-ms06pi-decide-where-aw-metadata-lives.backlog.md` |
+| `wcbpqf` | graduated | 1 | 0 | 0 | `.aw/records/backlog/graduated/20260929-denypush-01-wcbpqf-decide-port-denial-capability-posture.backlog.md` |
+| `vmrhj0` | graduated | 1 | 0 | 0 | `.aw/records/backlog/graduated/20260930-vmrhj0-01-vmrhj0-retry-allowlist-legacy-token-only.backlog.md` |
+... (57 rows total) ...
+| `szjsgj` | parked | 1 | 0 | 0 | `.aw/records/backlog/parked/20261017-rq-01-szjsgj-signal-question-channel.backlog.md` |
+
+    Unresolved annotations:
+    No Unresolved annotations; no carrier filed.
+
+    Suggested summaries and guard-blocked cases:
+    None. All 57 items conformed to required structure and criteria without requiring summary rewording or encountering guard-blocked cases.
+
+    check.id6-identity-slot filter check:
+    aw check all --agent --verbose | grep "check.id6-identity-slot" returned 0 lines (exit code 0).
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (spec `ecmw83` AC-08) paste `grep -rn "Unresolved (BW-" .aw/records/backlog` and either the `aw backlog new --apply` output with the carrier item path and its `aw commit` hash, whose body lists every `BW-NN` found by the grep, or the grep printing nothing beside the walkthrough line "No Unresolved annotations; no carrier filed."
   - Observed evidence:
-  - Result: pending
+    ```
+    grep -rn "Unresolved (BW-" .aw/records/backlog returned nothing (exit code 0, empty).
+    Walkthrough line:
+    No Unresolved annotations; no carrier filed.
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: (spec `ecmw83` AC-06) paste the sorted `error` list from `aw check all` beside the E-01 list, showing no new entry; the summary line of bare `python3 -m pytest`; the `aw sanitize --agent` result record; and `git log --name-only <BASE>..HEAD` listing only swept item files, the walkthrough, and the carrier item.
   - Observed evidence:
-  - Result: pending
+    ```
+    Baseline error diagnostics count: 11
+    Final error diagnostics count: 11
+    diff -u .aw/state/uog8nc/aw_check_errors_base.txt .aw/state/uog8nc/aw_check_errors_final.txt: (empty)
+
+    Routine gate test suite summary:
+    2074 passed, 11 warnings in 48.89s (aw suite / python3 -m pytest)
+
+    aw sanitize --agent result record:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6330,"findings":0,"evidence":["leak-scan"],"next":null}
+
+    git log --name-only 4ec01293618ccd240cd8b97db9c3ebefa147a8e4..HEAD:
+    (57 backlog item files plus walkthrough: .aw/records/walkthroughs/20261109-writestd-08-6wu5mn-backlog-sweep.walkthrough.md)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
