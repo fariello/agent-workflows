@@ -7,6 +7,7 @@
 - Summary: Companion preset leaves config_project untracked in the target and the companion directory is not a git repository, contrary to the companion-tracked placement contract
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-02 created (aw backlog): Companion preset leaves config_project untracked in the target and the companion directory is not a git repository, contrary to the companion-tracked placement contract
 
 ## Problem
