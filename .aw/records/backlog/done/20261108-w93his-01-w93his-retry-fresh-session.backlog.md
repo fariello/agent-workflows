@@ -1,5 +1,6 @@
 - Id: w93his
-- Status: open
+- Status: done
+- Close-Evidence: .aw/records/research/20261108-plansize-01-nj8zdp-plan-size-calibration.findings.md
 - Blocks-Release: next
 - Set: w93his
 - Priority: high
@@ -9,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-09 done (aw set): fixed in eacd744f9: correction turns start a fresh session in the re-adopted lane; --resume-correction-session opts back in; tests test_turn_fix_it test_09/test_10 and test_production_fix_it e10_01
 - 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-08 created (aw backlog): Runner correction/retry turns resume the failed attempt's session, so they start with its full context (measured 324K tokens) and run slower and costlier; start them fresh with only the failed predicates
 
