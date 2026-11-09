@@ -6,6 +6,7 @@
 - Summary: Runner drain question prompt timeout notification and formatting
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-06 created (aw backlog): Runner drain question prompt timeout notification and formatting
 
 ## Problem
