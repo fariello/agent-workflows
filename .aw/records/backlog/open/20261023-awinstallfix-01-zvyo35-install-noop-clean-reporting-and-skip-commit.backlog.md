@@ -7,6 +7,7 @@
 - Summary: aw install: report no-op cleanly and skip commit prompt when staging is empty
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-23 created (aw backlog): aw install: report no-op cleanly and skip commit prompt when staging is empty
 
 ### Problem Statement
