@@ -368,6 +368,8 @@ Compatibility row (moved from 4sd62s 9):
 | `6kwd2e` mid-run questions | implemented | `run_questions` indexes its `questions/<qid>.json` and `answers/<qid>.json` files read-only, with its status vocabulary `open`, `answered`, `stale` (4.5b); an unmerged lane paused for the answer-resume path (`answer_resume` attempt field, `resume_with_answers`, `resolve_prior_lane`) keeps its `turn` events on the lane branch until adopted or abandoned (4.2 TURN EVENTS). |
 
 ## Workflow history
+
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-01 to-review (aw set): Split from 4sd62s (2026-11-01) on maintainer ruling; contains text reviewed in 4sd62s rounds 8-18; needs its own standalone review
 
 - 2026-11-01 created (aw specs): Read-only SQLite index of the structured data in the local runs tree; split from 4sd62s
