@@ -10,6 +10,7 @@
 - Order: 2
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-26 created (aw specs): Bounded synthesis with auditable contributions and capability-checked participants
 
 ## 1. Summary and release boundary
