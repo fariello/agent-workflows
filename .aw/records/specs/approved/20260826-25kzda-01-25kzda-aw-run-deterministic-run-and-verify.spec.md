@@ -135,6 +135,24 @@ This specifies only the clean final design. No alternate, deprecated, or transit
 
 ### 1.2 Required execution sequence
 
+```mermaid
+flowchart TD
+    S1["1. Resolve and type item"] --> S2["2. Validate status and structure"]
+    S2 --> S3["3. Parse Item-Dependencies & build DAG"]
+    S3 --> S4["4. Freeze item scope, digest, predicates"]
+    S4 --> S5["5. Check host capability descriptor"]
+    S5 --> S6["6. Acquire lease & allocate lane worktree"]
+    S6 --> S7["7. Executor session with action packet"]
+    S7 --> S8["8. Record execution in state.json / events.jsonl"]
+    S8 --> S9["9. Skeptical-verifier session"]
+    S9 --> S10["10. Deterministic checker on repository state"]
+    S10 --> S11{"Verification pass?"}
+    S11 -- "Pass" --> S12["11. Lifecycle setter / terminal transaction"]
+    S12 --> S14["13. Record outcome & release ready items"]
+    S11 -- "Fail" --> S13["12. Contain changes & cascade dependency-not-met"]
+    S13 --> S14
+```
+
 Every actionable item follows this sequence:
 
 1. Resolve and type the item.
@@ -1759,6 +1777,8 @@ aw oc run resume <run-id>
 This example demonstrates the revised guarantees: `all` is safely bounded; dependencies are explicit id6-grounded facts; a failed item is contained instead of poisoning independent work; unmet state cascades without starting dependents; a host capability gap refuses only the affected item; contractless prompt neutrality changes only aggregate exit calculation; and deterministic repository evidence rather than agent confidence decides completion.
 
 ## Workflow history
+
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-25 approved (aw specs): Release gate cleared on maintainer ruling 2026-10-25 (spec audit): the spec is ~80% shipped and stays approved as the living runner contract; unbuilt pieces are filed as individual backlog items instead of gating 2.0.0 on the whole spec.
 
 - 2026-10-25 note (aw specs): AMENDED per spec k3yx72 Section 17.1 (IPD uiyoax, Set revsteps): Section 3.2 clarifies that plan review under --review-mode steps is the multi-prompt review of k3yx72; Section 4.4 IPD-REVIEW-HISTORY admits progress lines without verdict tokens; Section 5.4 orders orchestrator reviews after Set children reviews; added review sessions paragraph.
