@@ -14,6 +14,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R-12 scoped to runs that may retire an orchestrator and extended to a re-check at the retirement point; R-12 point 3 clarified that a refusing readiness lint rule is permitted and that R-5's rejection concerns exemptions only; new R-13 requires the 25kzda 2.5d readiness check at every status change and production handoff that would claim an orchestrator's Set is ready.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
@@ -161,6 +162,18 @@ has superseded. Note `agy_runipd.py:1313` already carries a comment about `actio
 so the asymmetry is known in passing but unfixed.
 
 ## 3. Requirements
+
+```mermaid
+flowchart TD
+    Start["Evaluate Set on disk"] --> A{"Child table fully authored? (R-3)"}
+    A -->|No| R1["Refuse: unauthored rows"]
+    A -->|Yes| B{"All children executed on disk? (R-1, R-2)"}
+    B -->|No: non-success terminal child| T1["Terminate set (R-8)"]
+    B -->|No: children unfinished| D1["Defer: reconsiderable within run (R-7)"]
+    B -->|Yes| C{"Carries work no child covers? (R-12)"}
+    C -->|Yes| R2["Refuse unattended or prompt (R-12)"]
+    C -->|No| Ret["Retire orchestrator as runner rollup (R-4, R-5)"]
+```
 
 - R-1 SET COMPLETENESS IS EVALUATED ON DISK, NOT FROM THE QUEUE. The retirement decision MUST consult
   every member of the Set as it exists in the plans tree, so a run that completes only the Set's LAST
