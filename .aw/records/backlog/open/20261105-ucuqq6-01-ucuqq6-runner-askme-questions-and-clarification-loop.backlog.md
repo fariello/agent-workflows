@@ -7,6 +7,7 @@
 - Summary: Runner questions follow /askme and support free-text answers and a clarification re-ask loop
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-06 created (aw backlog): Runner questions follow /askme and support free-text answers and a clarification re-ask loop
 
 ## Problem
