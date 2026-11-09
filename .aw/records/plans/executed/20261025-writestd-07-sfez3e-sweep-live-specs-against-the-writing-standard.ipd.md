@@ -5,8 +5,9 @@
 - Concern: Spec `ecmw83` R-08 and MD-3 to MD-5 require a one-time proofread of every live spec against the writing standard, adding diagrams where requirement 12 applies (`ecmw83` R-04). Each swept spec must get one history line, and no status, approval, identity, or provenance field may change. Approved specs keep their status (MD-4). Measured at review (2026-11-06, context only; E-01 re-derives the set): 22 live specs (4 draft, 4 to-review including `ecmw83` itself, 11 approved, 2 implementing, 1 parked; no `reviewed/` or `deferred/` directory exists), about 15,400 lines and 1.65 MB.
 - Scope: Proofread every spec whose status is `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `deferred`, or `parked` at execution time; add or correct diagrams per requirement 12; append one `aw specs note` history line to every swept spec; write the sweep walkthrough; file one backlog carrier for any `Unresolved` annotation. EXCLUDES `implemented` and `superseded` specs (`ecmw83` N3); any change to a spec's title line or metadata fields (status, approval, `Blocks-Release`, `Id`, `From-*`, `Graduated-To`, and every other `- Key:` field before the first `## ` heading), requirement, acceptance criterion, or decision; any change to a heading, a stable ID, a fenced block that is not a Mermaid diagram, a `## Workflow history` record, or text that another tracked file quotes; and any change to the substance of recorded evidence or measured values.
 - Scope-Paths: .aw/records/specs/draft/, .aw/records/specs/to-review/, .aw/records/specs/approved/, .aw/records/specs/implementing/, .aw/records/specs/parked/, .aw/records/walkthroughs/, .aw/records/backlog/open/
+- Scope-Exceeded: .aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md (live spec reviewed directory created after plan sfez3e authoring)
 - Item-Dependencies: executed:g4719s, executed:gzhw9c, executed:k2x0yl, executed:e4n4p3
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Work-Kind: feature
@@ -18,9 +19,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: sfez3e
-- Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-09 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: sfez3e verified (set writestd, attempt 1). [Scope reconciliation - out-of-scope .aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md: live spec reviewed directory created after plan sfez3e authoring; in-scope-unmodified .aw/records/backlog/open/: declared-but-unmodified (auto-acknowledged by aw agy run)]
 
 - 2026-11-09 note (sfez3e): swept 21 live specs against technical writing standard; added 7 Mermaid diagrams; no protected element changed; walkthrough u8dsej; metastore 4sd62s excluded per maintainer ruling
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer 2026-11-09 excluded Set metastore from this sweep ("Run all 3 except metastore"); added as a Deferred entry carried by 63ib9r.
