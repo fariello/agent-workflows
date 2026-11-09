@@ -13,6 +13,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-07 note (aw specs): R-05, AC-03, N1, N2 aligned with the shipped AGENTS.md paragraph and kept dash split (plan gzhw9c; maintainer ruling g4719s OQ-02)
 - 2026-11-07 note (aw specs): R-01, R-02, MD-2, AC-01, AC-02 amended to the standard shipped by 0cbfcc706 (plan g4719s, OQ-02 answer)
 - 2026-10-26 to-review (aw specs): authored review-ready from backlog qph7c5
