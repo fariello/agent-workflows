@@ -9,6 +9,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-08 created (aw backlog): Runner correction/retry turns resume the failed attempt's session, so they start with its full context (measured 324K tokens) and run slower and costlier; start them fresh with only the failed predicates
 
 ## Problem
