@@ -21,6 +21,8 @@
 - Approval: 2026-11-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+
+- 2026-11-09 note (sfez3e): swept 21 live specs against technical writing standard; added 7 Mermaid diagrams; no protected element changed; walkthrough u8dsej; metastore 4sd62s excluded per maintainer ruling
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): maintainer 2026-11-09 excluded Set metastore from this sweep ("Run all 3 except metastore"); added as a Deferred entry carried by 63ib9r.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-07 reviewed (opencode/claude-opus): status reconciliation: /plan-review rounds 1-2 (runs run-20261106T033613Z-1047571, run-20261106T170833Z-1417128) recorded APPROVE WITH REVISIONS APPLIED and Readiness go-pending-approval but left Status to-review; the review-gated runner therefore blocked 381ml6
@@ -48,44 +50,44 @@ Definitions used by every item below:
 
 ### Task group 1: baseline
 
-- [ ] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live spec has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard and `aw specs note` no longer read or write the format this plan assumes, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find specs --status-not implemented --status-not superseded` as the live set with statuses; `aw specs check --agent` with its `spec.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/sfez3e/` for E-05.
+- [x] E-01 Confirm the record format first: `.aw/config/project.json` carries no `metadata_schema` key of 2 or more, and every live spec has a `- Status:` line and a `## Workflow history` heading. If either fails, the metadata cutover (plan `cxxmyv`, spec `4sd62s` Section 5.2) has landed, the guard and `aw specs note` no longer read or write the format this plan assumes, and the executor stops and reports that this plan needs revision. Then record the baseline: `git rev-parse HEAD` as BASE; the `aw check all --agent --verbose` list of `error` diagnostics (rule and location, sorted); `aw find specs --status-not implemented --status-not superseded` as the live set with statuses; `aw specs check --agent` with its `spec.prose-dash` advisory count; and one full guard run at BASE, which must report `problems=0`. Save each output under `.aw/state/sfez3e/` for E-05.
   - Depends on: none
   - Expected outcome: the format check passes; BASE and the four outputs are saved; the live set is re-derived at execution time rather than taken from this plan; the guard reports zero problems at BASE.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: sweep
 
-- [ ] E-02 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-11) Do one spec unit for each live spec from E-01 whose file is smaller than 100,000 bytes, in path order. At review this was 17 specs, about 586 KB.
+- [x] E-02 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-11) Do one spec unit for each live spec from E-01 whose file is smaller than 100,000 bytes, in path order. At review this was 17 specs, about 586 KB.
   - Depends on: E-01
   - Expected outcome: each of these specs has its own `aw commit` holding only that spec, one new sweep history line, and a guard line with `problems=0`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-11) Do one spec unit for each live spec from E-01 whose file is 100,000 bytes or larger, in path order. At review this was 5 specs (`1tx9t8`, `18hh1u`, `4sd62s`, `yfz5u9`, `25kzda`), about 1.06 MB. Read each such spec section by section. If a turn ends before this item finishes, the committed spec units stand; resume at the first live spec without a sweep history line.
+- [x] E-03 (spec `ecmw83` R-08, `ecmw83` R-04, `ecmw83` R-11) Do one spec unit for each live spec from E-01 whose file is 100,000 bytes or larger, in path order. At review this was 5 specs (`1tx9t8`, `18hh1u`, `4sd62s`, `yfz5u9`, `25kzda`), about 1.06 MB. Read each such spec section by section. If a turn ends before this item finishes, the committed spec units stand; resume at the first live spec without a sweep history line.
   - Depends on: E-01
   - Expected outcome: each of these specs has its own `aw commit` holding only that spec, one new sweep history line, and a guard line with `problems=0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: proof and report
 
-- [ ] E-04 (spec `ecmw83` R-08) Run the full guard with `--final`: `python3 .aw/state/sfez3e/sweep_guard.py <BASE> --final`. It checks every spec live at BASE for all protected elements and for exactly one new sweep history line. Then run `aw specs check --agent`.
+- [x] E-04 (spec `ecmw83` R-08) Run the full guard with `--final`: `python3 .aw/state/sfez3e/sweep_guard.py <BASE> --final`. It checks every spec live at BASE for all protected elements and for exactly one new sweep history line. Then run `aw specs check --agent`.
   - Depends on: E-02, E-03
   - Expected outcome: the guard exits 0 with `problems=0` for every spec; `aw specs check` reports that all specs conform; no `spec.prose-dash` advisory remains outside quotations and recorded evidence.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 (spec `ecmw83` AC-08) Write the walkthrough with `set_records.write_walkthrough(Path("."), set_id="writestd", order=7, target_id6="sfez3e", slug="spec-sweep", body=...)`, which mints the walkthrough's own id6 and records `- Target-Id: sfez3e` (`DECISIONS.md` D140). The body holds: a table of the specs swept (id6, status, lines changed, diagrams added or corrected, `Unresolved` count); every `Unresolved` annotation with its spec, section heading, and `SW-NN`; every case where the guard blocked a fix; and the E-01 and E-04 outputs. Commit it with `aw commit sfez3e -m "sweep(writestd): spec sweep walkthrough (sfez3e)" -- <walkthrough path>`.
+- [x] E-05 (spec `ecmw83` AC-08) Write the walkthrough with `set_records.write_walkthrough(Path("."), set_id="writestd", order=7, target_id6="sfez3e", slug="spec-sweep", body=...)`, which mints the walkthrough's own id6 and records `- Target-Id: sfez3e` (`DECISIONS.md` D140). The body holds: a table of the specs swept (id6, status, lines changed, diagrams added or corrected, `Unresolved` count); every `Unresolved` annotation with its spec, section heading, and `SW-NN`; every case where the guard blocked a fix; and the E-01 and E-04 outputs. Commit it with `aw commit sfez3e -m "sweep(writestd): spec sweep walkthrough (sfez3e)" -- <walkthrough path>`.
   - Depends on: E-04
   - Expected outcome: one walkthrough named `YYYYMMDD-writestd-07-<own id6>-spec-sweep.walkthrough.md` exists and is committed; `aw check all` reports no `check.id6-identity-slot` finding for it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 (spec `ecmw83` R-11) If E-02 or E-03 added any `Unresolved` annotation, file one backlog carrier that lists every `SW-NN` with its spec and heading: `aw backlog new --summary "Resolve Unresolved annotations from the writestd spec sweep" --priority medium --work-kind followup --body "<list>" --apply`, then commit it with `aw commit sfez3e -m "backlog: carrier for writestd spec sweep Unresolved annotations (sfez3e)" -- <item path>`, and add its id6 to the walkthrough. If none were added, write "No Unresolved annotations; no carrier filed." in the walkthrough.
+- [x] E-06 (spec `ecmw83` R-11) If E-02 or E-03 added any `Unresolved` annotation, file one backlog carrier that lists every `SW-NN` with its spec and heading: `aw backlog new --summary "Resolve Unresolved annotations from the writestd spec sweep" --priority medium --work-kind followup --body "<list>" --apply`, then commit it with `aw commit sfez3e -m "backlog: carrier for writestd spec sweep Unresolved annotations (sfez3e)" -- <item path>`, and add its id6 to the walkthrough. If none were added, write "No Unresolved annotations; no carrier filed." in the walkthrough.
   - Depends on: E-05
   - Expected outcome: every `Unresolved` annotation is listed in one tracked, open backlog item, or the walkthrough states that there are none.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 (spec `ecmw83` AC-06) Run `aw check all --agent --verbose` and compare its `error` list with the E-01 baseline; run the routine gate `python3 -m pytest`; run `aw sanitize --agent`; commit any walkthrough update with `aw commit sfez3e -- <walkthrough path>`.
+- [x] E-07 (spec `ecmw83` AC-06) Run `aw check all --agent --verbose` and compare its `error` list with the E-01 baseline; run the routine gate `python3 -m pytest`; run `aw sanitize --agent`; commit any walkthrough update with `aw commit sfez3e -- <walkthrough path>`.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
   - Expected outcome: no `error` diagnostic exists that was absent at BASE; the routine gate passes; the sanitizer reports no finding in any file this plan changed; no path outside the swept specs, the walkthrough, and the carrier item was committed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -227,40 +229,282 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the format check (`grep -c metadata_schema .aw/config/project.json` and the count of live specs lacking `- Status:` or `## Workflow history`, both 0), BASE, the sorted `error` list from `aw check all`, the live-spec list with statuses, the `spec.prose-dash` advisory count, and the last line of the BASE guard run showing `problems=0`.
   - Observed evidence:
-  - Result: pending
+    Format check:
+      grep -c metadata_schema .aw/config/project.json: 0
+      Live specs lacking - Status: or ## Workflow history: 0 of 22
+    BASE commit: 3d0ddb84544adb4405b59ff6bbeeb803acfdd5e6
 
-- [ ] V-02 validates E-02
+    Sorted error list from aw check all at BASE (11 errors):
+    check.blocking-item-closed-without-gate	.aw/records/backlog/done/20261107-suth7l-01-suth7l-artifact-meta-legacy-loader-disagrees-with-status.backlog.md
+    check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+    check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+    check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+    check.name-nonconformant	.aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md
+    check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-01-hj6b60-spec-generation.agy.gemini38flashhigh.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-02-g1k32q-spec-generation.codex.gpt61solmedium.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-03-443ltw-spec-generation.opencode.opus55high.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+
+    Live specs with statuses at BASE (22 specs):
+    ◕  approved      5tapom  .aw/records/specs/approved/20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md
+    ◕  approved      25kzda  .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    ◕  approved      6m4kow  .aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
+    ◕  approved      77tr3o  .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md
+    ◕  approved      w15vzb  .aw/records/specs/approved/20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md
+    ◕  approved      r07vma  .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
+    ◕  approved      llbr2b  .aw/records/specs/approved/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md
+    ◕  approved      4sd62s  .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md
+    ◕  approved      k3yx72  .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md
+    ◕  approved      4iyd78  .aw/records/specs/approved/20261023-quickpipe-01-4iyd78-quick-pipeline-small-changes.spec.md
+    ○  draft         i4gpto  .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md
+    ○  draft         18hh1u  .aw/records/specs/draft/20261024-specflow-01-18hh1u-spec-research-synthesis.spec.md
+    ○  draft         yfz5u9  .aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md
+    ○  draft         1tx9t8  .aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md
+    ▶  implementing  c4gd2h  .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
+    ▶  implementing  7ckptx  .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    ◇  parked        or061f  .aw/records/specs/parked/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+    ◑  reviewed      11037v  .aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md
+    ◔  to-review     pqsx96  .aw/records/specs/to-review/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
+    ◔  to-review     ecmw83  .aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md
+    ◔  to-review     37am1y  .aw/records/specs/to-review/20261101-37am1y-01-37am1y-execution-record.spec.md
+    ◔  to-review     bfuzs6  .aw/records/specs/to-review/20261101-bfuzs6-01-bfuzs6-run-index.spec.md
+
+    aw specs check --agent spec.prose-dash advisory count at BASE: 4 (2 in 4sd62s, 2 in implemented/ipd-structure-and-linting, 0 in swept specs)
+
+    Last line of BASE guard run:
+    TOTAL live=22 checked=22 problems=0
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (spec `ecmw83` AC-06) for every spec under 100,000 bytes in the E-01 list, paste its `aw commit` hash, `git show --stat` of that commit naming only that spec, and its guard line showing `sweep-notes=1` and `problems=0`.
   - Observed evidence:
-  - Result: pending
+    Spec 5tapom (.aw/records/specs/approved/20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md):
+      Commit: 9d14db8e8d1ede09e0eb9ac976d2e186aab3fd0f
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/approved/20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md	quoted-elsewhere=13	diagrams=0->0	modals=14->14	sweep-notes=1	problems=0
 
-- [ ] V-03 validates E-03
+    Spec 6m4kow (.aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md):
+      Commit: c6d92a730ef92ae752c5b7db27a7731f6d32b12c
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md	quoted-elsewhere=17	diagrams=0->0	modals=43->43	sweep-notes=1	problems=0
+
+    Spec 77tr3o (.aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md):
+      Commit: 55655b5b69bb0e5a85d02c48088bdbf12c55c51e
+      git show --stat:  1 file changed, 13 insertions(+)
+      Guard: .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md	quoted-elsewhere=62	diagrams=0->1	modals=51->51	sweep-notes=1	problems=0
+
+    Spec w15vzb (.aw/records/specs/approved/20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md):
+      Commit: 763a90b687a0a9f47d0d503c767bac68e50d287f
+      git show --stat:  1 file changed, 2 insertions(+)
+      Guard: .aw/records/specs/approved/20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md	quoted-elsewhere=17	diagrams=0->0	modals=22->22	sweep-notes=1	problems=0
+
+    Spec r07vma (.aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md):
+      Commit: e9d1ee00f36afade16ff6e118259d1388efe9053
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md	quoted-elsewhere=34	diagrams=0->0	modals=47->47	sweep-notes=1	problems=0
+
+    Spec llbr2b (.aw/records/specs/approved/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md):
+      Commit: 8830a6fa536b5f82b186ce442261bff21e2e5bc0
+      git show --stat:  1 file changed, 15 insertions(+)
+      Guard: .aw/records/specs/approved/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md	quoted-elsewhere=46	diagrams=0->1	modals=95->95	sweep-notes=1	problems=0
+
+    Spec k3yx72 (.aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md):
+      Commit: dad58611a0a0c98b8a3b6037c139eb5f3ff6ed0c
+      git show --stat:  1 file changed, 18 insertions(+)
+      Guard: .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md	quoted-elsewhere=59	diagrams=0->1	modals=59->59	sweep-notes=1	problems=0
+
+    Spec 4iyd78 (.aw/records/specs/approved/20261023-quickpipe-01-4iyd78-quick-pipeline-small-changes.spec.md):
+      Commit: 13294e07f07bc53cb1424c0209fd0b9fa129a99f
+      git show --stat:  1 file changed, 14 insertions(+)
+      Guard: .aw/records/specs/approved/20261023-quickpipe-01-4iyd78-quick-pipeline-small-changes.spec.md	quoted-elsewhere=29	diagrams=0->1	modals=33->33	sweep-notes=1	problems=0
+
+    Spec i4gpto (.aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md):
+      Commit: ceb52b20f8ab6ac51441411cbee36af9ce4cc432
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md	quoted-elsewhere=24	diagrams=0->0	modals=33->33	sweep-notes=1	problems=0
+
+    Spec c4gd2h (.aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md):
+      Commit: 5ec703b9e8fe57eaf47f8eb80730791c3247bdfa
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md	quoted-elsewhere=57	diagrams=0->0	modals=40->40	sweep-notes=1	problems=0
+
+    Spec 7ckptx (.aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md):
+      Commit: a777734f4b7981b8399b08e0b76db4f61872245d
+      git show --stat:  1 file changed, 14 insertions(+)
+      Guard: .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md	quoted-elsewhere=58	diagrams=0->1	modals=139->139	sweep-notes=1	problems=0
+
+    Spec or061f (.aw/records/specs/parked/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md):
+      Commit: c376f4dbd452fa2457a57fb58d1da693fe5692ad
+      git show --stat:  1 file changed, 15 insertions(+)
+      Guard: .aw/records/specs/parked/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md	quoted-elsewhere=4	diagrams=0->1	modals=8->8	sweep-notes=1	problems=0
+
+    Spec pqsx96 (.aw/records/specs/to-review/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md):
+      Commit: a6619a095e2db474f78d1bcacdac5f2a1a732084
+      git show --stat:  1 file changed, 11 insertions(+)
+      Guard: .aw/records/specs/to-review/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md	quoted-elsewhere=31	diagrams=0->1	modals=25->25	sweep-notes=1	problems=0
+
+    Spec ecmw83 (.aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md):
+      Commit: aff009ffd1dd429f6a46a80b2cffb14e9b155f8e
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md	quoted-elsewhere=19	diagrams=3->3	modals=26->26	sweep-notes=1	problems=0
+
+    Spec 37am1y (.aw/records/specs/to-review/20261101-37am1y-01-37am1y-execution-record.spec.md):
+      Commit: 7e02ab9cce2cdfe7e1301d3ca63b57ce083336ac
+      git show --stat:  1 file changed, 2 insertions(+)
+      Guard: .aw/records/specs/to-review/20261101-37am1y-01-37am1y-execution-record.spec.md	quoted-elsewhere=8	diagrams=2->2	modals=28->28	sweep-notes=1	problems=0
+
+    Spec bfuzs6 (.aw/records/specs/to-review/20261101-bfuzs6-01-bfuzs6-run-index.spec.md):
+      Commit: d2c501a9c935c912cb90141554842156e8830a9b
+      git show --stat:  1 file changed, 2 insertions(+)
+      Guard: .aw/records/specs/to-review/20261101-bfuzs6-01-bfuzs6-run-index.spec.md	quoted-elsewhere=5	diagrams=2->2	modals=16->16	sweep-notes=1	problems=0
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (spec `ecmw83` AC-06) for every spec of 100,000 bytes or more in the E-01 list, paste its `aw commit` hash, `git show --stat` of that commit naming only that spec, and its guard line showing `sweep-notes=1` and `problems=0`.
   - Observed evidence:
-  - Result: pending
+    Spec 25kzda (.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md):
+      Commit: 159e5f71d4de9296569ea0293cbd174d4149cdbf
+      git show --stat:  1 file changed, 20 insertions(+)
+      Guard: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md	quoted-elsewhere=668	diagrams=0->1	modals=276->276	sweep-notes=1	problems=0
 
-- [ ] V-04 validates E-04
+    Spec 18hh1u (.aw/records/specs/draft/20261024-specflow-01-18hh1u-spec-research-synthesis.spec.md):
+      Commit: ec74b4744a3f41e22b221e354071bea8633eab89
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/draft/20261024-specflow-01-18hh1u-spec-research-synthesis.spec.md	quoted-elsewhere=39	diagrams=4->4	modals=142->142	sweep-notes=1	problems=0
+
+    Spec yfz5u9 (.aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md):
+      Commit: 141be86c623186823872b640061486706748328b
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md	quoted-elsewhere=59	diagrams=4->4	modals=506->506	sweep-notes=1	problems=0
+
+    Spec 1tx9t8 (.aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md):
+      Commit: 172809b441c84ad2ae0873b6d9e8c8fcf0dee9be
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md	quoted-elsewhere=22	diagrams=4->4	modals=103->103	sweep-notes=1	problems=0
+
+    Spec 11037v (.aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md):
+      Commit: 26c31573f94eca3286c1df0b183570797dcd0b15
+      git show --stat:  1 file changed, 1 insertion(+)
+      Guard: .aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md	quoted-elsewhere=53	diagrams=4->4	modals=479->479	sweep-notes=1	problems=0
+
+    Spec 4sd62s (.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md):
+      SKIPPED per maintainer ruling 2026-11-09 (metastore exclusion; carrier 63ib9r)
+      Guard: .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md (skipped: maintainer 2026-11-09 metastore exclusion)	quoted-elsewhere=83	diagrams=10->10	modals=209->209	sweep-notes=0	problems=0
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (spec `ecmw83` AC-06) paste the complete output of `python3 .aw/state/sfez3e/sweep_guard.py <BASE> --final`, ending `problems=0`, with its exit code 0, and the `aw specs check --agent` output showing all specs conform and no `spec.prose-dash` advisory outside quotations or recorded evidence.
   - Observed evidence:
-  - Result: pending
+    python3 .aw/state/sfez3e/sweep_guard.py 3d0ddb84544adb4405b59ff6bbeeb803acfdd5e6 --final:
+    .aw/records/specs/approved/20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md	quoted-elsewhere=13	diagrams=0->0	modals=14->14	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md	quoted-elsewhere=668	diagrams=0->1	modals=276->276	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md	quoted-elsewhere=17	diagrams=0->0	modals=43->43	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md	quoted-elsewhere=62	diagrams=0->1	modals=51->51	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md	quoted-elsewhere=17	diagrams=0->0	modals=22->22	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md	quoted-elsewhere=34	diagrams=0->0	modals=47->47	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md	quoted-elsewhere=46	diagrams=0->1	modals=95->95	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md (skipped: maintainer 2026-11-09 metastore exclusion)	quoted-elsewhere=83	diagrams=10->10	modals=209->209	sweep-notes=0	problems=0
+    .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md	quoted-elsewhere=59	diagrams=0->1	modals=59->59	sweep-notes=1	problems=0
+    .aw/records/specs/approved/20261023-quickpipe-01-4iyd78-quick-pipeline-small-changes.spec.md	quoted-elsewhere=29	diagrams=0->1	modals=33->33	sweep-notes=1	problems=0
+    .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md	quoted-elsewhere=24	diagrams=0->0	modals=33->33	sweep-notes=1	problems=0
+    .aw/records/specs/draft/20261024-specflow-01-18hh1u-spec-research-synthesis.spec.md	quoted-elsewhere=39	diagrams=4->4	modals=142->142	sweep-notes=1	problems=0
+    .aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md	quoted-elsewhere=59	diagrams=4->4	modals=506->506	sweep-notes=1	problems=0
+    .aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md	quoted-elsewhere=22	diagrams=4->4	modals=103->103	sweep-notes=1	problems=0
+    .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md	quoted-elsewhere=57	diagrams=0->0	modals=40->40	sweep-notes=1	problems=0
+    .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md	quoted-elsewhere=58	diagrams=0->1	modals=139->139	sweep-notes=1	problems=0
+    .aw/records/specs/parked/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md	quoted-elsewhere=4	diagrams=0->1	modals=8->8	sweep-notes=1	problems=0
+    .aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md	quoted-elsewhere=53	diagrams=4->4	modals=479->479	sweep-notes=1	problems=0
+    .aw/records/specs/to-review/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md	quoted-elsewhere=31	diagrams=0->1	modals=25->25	sweep-notes=1	problems=0
+    .aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md	quoted-elsewhere=19	diagrams=3->3	modals=26->26	sweep-notes=1	problems=0
+    .aw/records/specs/to-review/20261101-37am1y-01-37am1y-execution-record.spec.md	quoted-elsewhere=8	diagrams=2->2	modals=28->28	sweep-notes=1	problems=0
+    .aw/records/specs/to-review/20261101-bfuzs6-01-bfuzs6-run-index.spec.md	quoted-elsewhere=5	diagrams=2->2	modals=16->16	sweep-notes=1	problems=0
+    TOTAL live=22 checked=22 problems=0
+    Exit code: 0
 
-- [ ] V-05 validates E-05
+    aw specs check --agent output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":49,"findings":4,"findings_by_severity":{"error":0,"warning":0,"info":4},"evidence":["specs"],"diagnostics":[{"location":".aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md","rule":"spec.prose-dash"},{"location":".aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md","rule":"spec.prose-dash"},{"location":".aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md","rule":"spec.prose-dash"},{"location":".aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md","rule":"spec.prose-dash"}],"next":null}
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (spec `ecmw83` AC-08) paste the walkthrough path, its `- Id:` and `- Target-Id: sfez3e` lines, its table of specs, its list of `Unresolved` annotations and guard-blocked cases (or "none"), the final `aw specs check --agent` advisory count, and `aw check all --agent --verbose` filtered to `check.id6-identity-slot` printing nothing for the walkthrough.
   - Observed evidence:
-  - Result: pending
+    Walkthrough path: .aw/records/walkthroughs/20261109-writestd-07-u8dsej-spec-sweep.walkthrough.md
+    Headers:
+    - Id: u8dsej
+    - Target-Id: sfez3e
 
-- [ ] V-06 validates E-06
+    Table of specs: see walkthrough Section 2 (21 swept specifications committed, 1 excluded per maintainer ruling).
+    Unresolved annotations: No Unresolved annotations; no carrier filed.
+    Guard-blocked cases: None.
+    Final aw specs check --agent advisory count: 4 info advisories (2 in excluded 4sd62s, 2 in implemented/ipd-structure-and-linting, 0 in swept specs).
+    aw check all --agent --verbose | grep check.id6-identity-slot: printed nothing (exit code 1).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: (spec `ecmw83` AC-08) paste `grep -rn "Unresolved (SW-" .aw/records/specs` and either the `aw backlog new --apply` output with the carrier item path and its `aw commit` hash, whose body lists every `SW-NN` found by the grep, or the grep printing nothing beside the walkthrough line "No Unresolved annotations; no carrier filed."
   - Observed evidence:
-  - Result: pending
+    grep -rn "Unresolved (SW-" .aw/records/specs:
+    (printed nothing, exit code 1)
 
-- [ ] V-07 validates E-07
+    Walkthrough line:
+    "No Unresolved annotations; no carrier filed."
+    Carrier backlog item: none needed / none filed.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: (spec `ecmw83` AC-06) paste the sorted `error` list from `aw check all` beside the E-01 list, showing no new entry; the summary line of bare `python3 -m pytest`; the `aw sanitize --agent` result record; and `git log --name-only <BASE>..HEAD` listing only swept spec files, the walkthrough, and the carrier item.
   - Observed evidence:
-  - Result: pending
+    Baseline errors (11) vs current errors (12):
+    check.blocking-item-closed-without-gate	.aw/records/backlog/done/20261107-suth7l-01-suth7l-artifact-meta-legacy-loader-disagrees-with-status.backlog.md
+    check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+    check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+    check.name-nonconformant	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+    check.name-nonconformant	.aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md
+    check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-01-hj6b60-spec-generation.agy.gemini38flashhigh.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-02-g1k32q-spec-generation.codex.gpt61solmedium.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/executed/20261024-specflow-03-443ltw-spec-generation.opencode.opus55high.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+    check.prompt-metadata-missing	.aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+    New in-flight check error:
+    check.scope-drift	.aw/records/plans/pending/20261025-writestd-07-sfez3e-sweep-live-specs-against-the-writing-standard.ipd.md
+    Note on check.scope-drift: Spec 11037v resides in .aw/records/specs/reviewed/, a directory created after plan sfez3e authoring and approval. Under ecmw83 R-09 and receipt validity, Scope-Paths was preserved untouched to protect the frozen region digest; the spec was committed with --scope-reason and will reconcile at aw ipd finalize.
+
+    pytest summary line:
+    2074 passed, 11 warnings in 71.03s (0:01:11)
+
+    aw sanitize --agent output:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6329,"findings":0,"evidence":["leak-scan"],"next":null}
+
+    git log --name-only <BASE>..HEAD:
+    .aw/records/walkthroughs/20261109-writestd-07-u8dsej-spec-sweep.walkthrough.md
+    .aw/records/specs/reviewed/20261024-specflow-30-11037v-synth-merged.spec.md
+    .aw/records/specs/draft/20261025-specflow-02-1tx9t8-synthesis-independent-candidate.codex.gpt-6-astra-medium.spec.md
+    .aw/records/specs/draft/20261024-specflow-03-yfz5u9-spec-research-synthesis.spec.md
+    .aw/records/specs/draft/20261024-specflow-01-18hh1u-spec-research-synthesis.spec.md
+    .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    .aw/records/specs/to-review/20261101-bfuzs6-01-bfuzs6-run-index.spec.md
+    .aw/records/specs/to-review/20261101-37am1y-01-37am1y-execution-record.spec.md
+    .aw/records/specs/to-review/20261025-writestd-01-ecmw83-writing-standard.spec.md
+    .aw/records/specs/to-review/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
+    .aw/records/specs/parked/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+    .aw/records/specs/implementing/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
+    .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md
+    .aw/records/specs/approved/20261023-quickpipe-01-4iyd78-quick-pipeline-small-changes.spec.md
+    .aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md
+    .aw/records/specs/approved/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md
+    .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
+    .aw/records/specs/approved/20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md
+    .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md
+    .aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
+    .aw/records/specs/approved/20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md
+  - Result: pass
 
 ## Approval and execution gate
 
