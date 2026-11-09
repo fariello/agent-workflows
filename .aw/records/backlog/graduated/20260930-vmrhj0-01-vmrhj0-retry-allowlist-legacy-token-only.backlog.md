@@ -7,6 +7,7 @@
 - Summary: the turn-retry allowlist admits only the legacy token failed-safely while its canonical replacement fail-gate is non-retryable, so whether a host-failure turn is retryable depends on which vocabulary generation wrote the disposition
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: p47qfu
 - 2026-09-30 created (aw backlog): the turn-retry allowlist admits only the legacy token failed-safely while its canonical replacement fail-gate is non-retryable, so whether a host-failure turn is retryable depends on which vocabulary generation wrote the disposition
 
