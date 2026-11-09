@@ -9,4 +9,5 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-07 created (aw backlog): artifact_meta reviews table keys rows by (subject_id6, seq) with review_ref NULL for files named by the subject id6, so two such review files overwrite each other's rounds
