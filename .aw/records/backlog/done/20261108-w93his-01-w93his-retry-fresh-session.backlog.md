@@ -33,6 +33,10 @@ A correction or retry turn starts a FRESH host session by default, in the re-ado
 
 Acceptance: a test drives a failing execute turn with a fake host and asserts the correction turn's launch carries no resume-session argument and its prompt carries the failed predicates; with the opt-in, it carries the prior session id. The measured case above is the regression record.
 
+## Resolution
+
+Fixed in `eacd744f9` (2026-11-09): `runner_shared.try_adopt_fix_it_lane` still re-adopts the failed lane, but sets the session to a fresh one unless the run was started with `--resume-correction-session`; the attempt records `fix_it_session: fresh|resumed`. Spec `25kzda` 2.1 carries the flag row. Tests: `tests/test_turn_fix_it.py::TestTurnFixIt::test_10_correction_turn_reuses_lane_but_starts_a_fresh_session_by_default` (default) and `test_09` (opt-in), `tests/test_production_fix_it.py` e10_01. The close cited the calibration research `nj8zdp` as evidence because the close gate requires an in-tree artifact (a cited spec must be `implemented`, and `25kzda` is `approved`); the code commit is the substantive evidence.
+
 ## Related
 
 - The step-complexity split of the metastore Set (2026-11-07) attacks the other half of the same cost: single plan items that hid hundreds of steps and let one turn's context grow past 280K tokens.
