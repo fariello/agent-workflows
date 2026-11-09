@@ -6,6 +6,7 @@
 - Summary: Two slow-marked runner_stop trigger tests fail at HEAD: a stopped item is left 'running' with no stopped record
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-09-21 set (aw backlog): DUPLICATE of wqk5s2, parked rather than deleted so the independent confirmation survives. Filed by plan 2iye0e's execution turn before noticing that a concurrent lane had already filed the same two failing slow-marked stop-trigger tests as wqk5s2 (open, bug, Blocks-Release: next, same two node ids). The release gate is cleared here so the duplicate does not double-count wqk5s2's gate. WHAT THIS ITEM ADDS, and the reason it is parked rather than closed: an INDEPENDENT reproduction at a different HEAD (4baea3bc) in a pristine detached worktree both before and after unrelated comment-only edits, plus the measurement that the failures are NOT environmental (re-run with OPENCODE_CONFIG_CONTENT, AW_EXECUTION_ROLE, AW_PIN_KEEP_ROOT and AGENT all unset, and with -p no:randomly), plus the observation that @pytest.mark.slow plus the configured -m 'not slow' addopts is what hides this from the contracted bare run. Fold any of that into wqk5s2 if useful; otherwise this can be closed.
 
 Measured at HEAD 4baea3bc in an isolated lane worktree, BEFORE and AFTER the 2iye0e comment-only edits, so it is pre-existing and unrelated to that plan.
