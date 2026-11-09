@@ -7,6 +7,7 @@
 - Summary: aw completion install: verify shell loader prerequisites and guide activation
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-24 open (aw set): status set to open
 - 2026-10-23 created (aw backlog): aw completion install: verify shell loader prerequisites and guide activation
 
