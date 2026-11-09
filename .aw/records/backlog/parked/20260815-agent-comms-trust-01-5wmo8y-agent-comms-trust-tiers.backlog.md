@@ -6,4 +6,5 @@
 - Summary: Agent-comms trust tiers: distinguish sender origin/trust + escalate gating for shared/multi-operator environments
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-08-15 created (aw backlog): Agent-comms trust tiers: distinguish sender origin/trust + escalate gating for shared/multi-operator environments
