@@ -18,6 +18,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-10-07 note (aw specs): OQ-01 partially applied (plan l1xkrr): row grammar held as one datum in ipd_lint with _ORCH_ROW_RE, ORCH_ROW_CANONICAL and scaffold row derived from it; refusal message was already rendered from one place (F-03); prose copies (plan-review-long, spec r07vma R1a) and absent doc surface survive outside reach; OQ-01 remains open.
 - 2026-10-06 note (aw specs): AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R9's probe bullet records the quoted-evidence answer and named-child credit, and both controls now feed the 25kzda 2.5d review-readiness function; Section 3a limit 1 updated; limit 5 rewritten because the omitted-final-child case is now detected by 25kzda 2.5d.
 - 2026-09-28 note (aw specs): Section 3a limit 1 noted by 3brgb6: orchestrator coverage probe now actually reads Completion criteria and Cross-IPD validation prose sections
