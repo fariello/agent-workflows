@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` section 7 step 4 requires every metadata WRITER to change to write through `artifact_meta` in phase B, while `artifact_meta` still writes today's bullets and history lines, so that the cutover (Order 13) switches one writer and not dozens (C1, C10a). Order 06 (`2xwb9b`) moves the `status_set` engine. Every other writer still edits metadata text by hand. Measured 2026-11-02 at `0cbfcc706`: 12 writer modules in this plan's scope hold 99 hand-formatted `- Field: value` literals and 47 `## Workflow history` references (`specs` 14/8, `backlog` 29/18, `releases` 11/4, `ipd_authoring` 11/1, `artifact_rename` 11/0, `plans_refs` 4/0, `plan_readiness` 1/10, `coverage_record` 3/5, `set_records` 1/1, `review_sequence` 3/1, `runner_shared` writer helpers, `ipd_lifecycle` finalize), plus `prompts` comment writers. These modules use four different history-insertion rules (F-04), and three of them write the gitignored rename ledger (`record_history.record_rename`). Finalize writes `- Scope-Exceeded:` through `ipd_lifecycle._insert_scope_exceeded_metadata` (41 tracked plans carry it), which 4.2c and 4.4 replace with `scope_result`, `out_of_scope_paths` and `widened_paths` written in the executed append. No creating command can write `short_description` yet (AC-36 case 1). Section 7 and 3c require each phase-B plan to name each moved writer's behavior and the test that checks it, because a behavior that no test exercises can change unnoticed.
-- Scope: Phase B step 4, part 2 of 2 (`4sd62s` section 7), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule: the writer moves themselves now live in `7yr827` (Order 21), `g6tw94` (22), `n5sxxk` (23), `6e93gt` (24), `bsl45u` (25), `8q27jt` (26), and this plan keeps the integration work that needs all of them: the merge-independence test (AC-3 phase-B form, E-12), the AC-21 obligations and AC-6 phase-B diff test (E-13), and the finish (E-14: the raw-write audit F-09, the `docs/cli-output-contract.md` reconciliation and `CHANGELOG.md` line, the full gates and the commit). It still OWNS AC-21. EXCLUDES: every writer move (the six parts above); the `status_set` engine itself (`2xwb9b`); readers (`ffceq0`, `t4gl15`); deleting old parsers (`9o83cr`); the log format, `rename` and path events and sidecar retirement, which start at the cutover (`cxxmyv`).
-- Scope-Paths: tests/test_writers_merge_independence.py, tests/test_writers_obligations.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
-- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:6e93gt, executed:bsl45u, executed:8q27jt
+- Scope: Phase B step 4, part 2 of 2 (`4sd62s` section 7), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule into six writer parts (`7yr827` Order 21, `g6tw94` 22, `n5sxxk` 23, `6e93gt` 24, `bsl45u` 25, `8q27jt` 26), which round 3 (2026-11-09, research `nj8zdp`) split further into Orders 120 to 136; and round 3 moved the merge-independence test (E-12) to `b4y4ee` (Order 133). This plan keeps the integration work that needs all of them: the AC-21 obligations and AC-6 phase-B diff test (E-13), the raw-write audit F-09 in two halves (E-14, E-15), the `docs/cli-output-contract.md` reconciliation and `CHANGELOG.md` line (E-16), and the full gates and commit (E-17). It still OWNS AC-21. EXCLUDES: every writer move (the parts above); the `status_set` engine itself (`2xwb9b`); readers (`ffceq0`, `t4gl15`); deleting old parsers (`9o83cr`); the log format, `rename` and path events and sidecar retirement, which start at the cutover (`cxxmyv`).
+- Scope-Paths: tests/test_writers_obligations.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
+- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:6e93gt, executed:bsl45u, executed:8q27jt, executed:b4y4ee
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -13,12 +13,13 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 7
-- Highest E allocated: 14
+- Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xexn45
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-12 moved to b4y4ee; E-14 (the finish, 12 named units) redistributed in place into new items E-14 to E-17 (no obligation moved out); the six 2026-11-07 parts were themselves re-split into Orders 120 to 136.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-11 moved to 7yr827; E-02 (subset A), E-05 (subset A) moved to g6tw94; E-02 (subset B), E-05 (subset B) moved to n5sxxk; E-03, E-04 moved to 6e93gt; E-06 moved to bsl45u; E-07, E-08, E-09, E-10 moved to 8q27jt.
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
@@ -30,7 +31,7 @@
 
 ## Goal
 
-Every metadata write outside the `status_set` engine goes through `artifact_meta`, which validates it with the Order 02 rules and renders it, in phase B, into today's bullets and history lines through one legacy writer. The six parts listed in `- Scope:` perform the moves; this plan proves the combined result (merge independence, the AC-21 obligations, the AC-6 phase-B diff), audits the raw writes that remain, and runs the full gates once every part is executed.
+Every metadata write outside the `status_set` engine goes through `artifact_meta`, which validates it with the Order 02 rules and renders it, in phase B, into today's bullets and history lines through one legacy writer. The writer parts listed in `- Scope:` perform the moves and `b4y4ee` proves merge independence; this plan proves the AC-21 obligations and the AC-6 phase-B diff, audits the raw writes that remain, reconciles the documentation, and runs the full gates once every part is executed.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -38,21 +39,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 PIN-FIRST RULE for every "move" item: run the named existing test modules GREEN on the unmodified code and save the per-test outcome list under the gitignored `.aw/state/xexn45/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/xexn45/<E>-before.txt`; `-m ""` includes `slow` modules, `-p no:randomly -n 0` makes the list deterministic, and `-q` is not repeated because `addopts` is cleared); make the move; run the same command into `-after.txt`; `diff` of the two must print nothing, so a test that newly fails, errors or skips is caught, not only a lost PASSED line. An existing assertion may change only when the Behavior decisions D-1 to D-6 below name it. New tests set `pytestmark = pytest.mark.core`, build fixtures in `tmp_path`, drive the real CLI or function, and never read production source (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
 
-### Task group 1: merge, obligations and finish (after every part is executed)
+### Task group 1: obligations, audit and finish (after every part is executed)
 
-- [ ] E-12 Add `tests/test_writers_merge_independence.py` (AC-3, phase-B form; the commands it drives are moved by `g6tw94`, `6e93gt` and `8q27jt`): in a real git repository fixture, branch A runs `aw backlog note` and `aw describe` on backlog item X while branch B runs `aw specs note` and `aw ipd recheck-readiness` on a different spec and plan; `git merge` of B into A completes with no conflict, and `artifact_meta.read` on all three records afterwards shows both branches' changes. A second case changes the SAME record on both branches (one history line each) and asserts that `git merge` exits nonzero with that file in `git diff --name-only --diff-filter=U`: measured at review, two branches that each prepend one line directly under `## Workflow history` of the same file conflict, which is the phase-B limit that 4.7 removes at the cutover. The test pins that outcome; it does not accept either result.
+- [ ] E-13 Add to `tests/test_writers_obligations.py` (created by `d4w53g`) the AC-21 (4.4a) and AC-6 phase-B cases: (a) AC-21 rows: run and paste `tests/test_find_filters.py` (`wja06w`), the zero-match `aw find` exit code 2 (`zyj8io`, via `tests/test_cli_find.py`), `tests/test_graduation_forward_links.py` (`pw2ln3`: declarations alone, origin links alone, both), `tests/test_readiness_absence_invariant.py` (`l56tyz`) and the AC-15 tests of Order 06 (`fhinri`); a reference to this plan's commit closes the `63zo2f` row (its `Carrier: 4sd62s` deferral: "the setters change to use `artifact_meta`"); the `me227c` and `6tjye0` rows point at AC-1 (`9o83cr`) and AC-20 (`dcerjg`); (b) AC-6 phase-B form: a fixture `aw backlog set <id6> done` and a fixture finalize each produce a `git diff` whose metadata hunk is exactly the `- Status:` line, any owned unset, the scope bullet and ONE new history line (the phase-B form of "exactly one `transition`"); (c) the attestation refusals named in the original E-07 and E-08 are already in the module (since round 3: `d4w53g` E-02 and E-03); this item adds only (a) and (b).
   - Depends on: none
-  - Expected outcome: the different-artifacts merge has exit 0 and no conflict markers; the same-record merge exits nonzero naming the shared file.
-  - Execution state: pending
-
-- [ ] E-13 Add `tests/test_writers_obligations.py` for AC-21 (4.4a) and the AC-6 phase-B form: (a) AC-21 rows: run and paste `tests/test_find_filters.py` (`wja06w`), the zero-match `aw find` exit code 2 (`zyj8io`, via `tests/test_cli_find.py`), `tests/test_graduation_forward_links.py` (`pw2ln3`: declarations alone, origin links alone, both), `tests/test_readiness_absence_invariant.py` (`l56tyz`) and the AC-15 tests of Order 06 (`fhinri`); a reference to this plan's commit closes the `63zo2f` row (its `Carrier: 4sd62s` deferral: "the setters change to use `artifact_meta`"); the `me227c` and `6tjye0` rows point at AC-1 (`9o83cr`) and AC-20 (`dcerjg`); (b) AC-6 phase-B form: a fixture `aw backlog set <id6> done` and a fixture finalize each produce a `git diff` whose metadata hunk is exactly the `- Status:` line, any owned unset, the scope bullet and ONE new history line (the phase-B form of "exactly one `transition`"); (c) the attestation refusals named in E-07 and E-08 (since the split: `8q27jt` E-01 and E-02, which create `tests/test_writers_obligations.py`; this item extends that module).
-  - Depends on: E-12
   - Expected outcome: every listed module passes; the two `git diff` hunks contain exactly the listed lines.
   - Execution state: pending
 
-- [ ] E-14 Finish: run `rg -n "atomic_write\(|write_text\(" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/prompts.py agent_workflows/ipd_authoring.py agent_workflows/artifact_rename.py agent_workflows/plans_refs.py agent_workflows/plan_readiness.py agent_workflows/set_records.py agent_workflows/coverage_record.py` and record in `## Findings` (table F-09) every remaining hit with its reason (body text per N3, a generated index file, or a non-record file); update `docs/cli-output-contract.md` (the `aw describe` leaf and the two new `--summary` options) and add one `CHANGELOG.md` `2.0.0 (pending)` line; run every module named in E-02 to E-13 (since the split: every module named in the V-items of `7yr827` (Order 21), `g6tw94` (22), `n5sxxk` (23), `6e93gt` (24), `bsl45u` (25), `8q27jt` (26), plus E-12 and E-13 here), the bare core gate `python3 -m pytest` (within its 30 s budget), `make test-all`, `aw check --agent` (`(location, rule)` pairs compared with `.aw/state/xexn45/check-before.jsonl`, captured before E-01 by the PIN-FIRST rule's first run (since the split: `7yr827` E-01); no added pair), `aw ipd lint --all` on this repository (no new diagnostic) and `aw sanitize --agent`; commit through `aw commit xexn45 -- <each changed path>` (one commit per task group is allowed, each through `aw commit`). Never push.
-  - Depends on: E-12, E-13
-  - Expected outcome: all runs pass; F-09 lists every remaining raw write with a reason; every commit is path-scoped.
+- [ ] E-14 Audit the remaining raw writes, half A of F-09: run `rg -n "atomic_write\(|write_text\(" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/prompts.py agent_workflows/ipd_authoring.py` and record in `## Findings` (table F-09) every hit with its enclosing `def` and its reason (body text per N3, a generated index file, a non-record file, or a call into `artifact_meta`). A hit inside a writer that a part moved is a defect of that part: record it and stop rather than editing here.
+  - Depends on: none
+  - Expected outcome: F-09 has one row per hit in the five modules of half A, each with its enclosing `def` and reason.
+  - Execution state: pending
+
+- [ ] E-15 Audit the remaining raw writes, half B of F-09: run `rg -n "atomic_write\(|write_text\(" agent_workflows/artifact_rename.py agent_workflows/plans_refs.py agent_workflows/plan_readiness.py agent_workflows/set_records.py agent_workflows/coverage_record.py` and record in `## Findings` (table F-09) every hit with its enclosing `def` and its reason (body text per N3, a generated index file, a non-record file, or a call into `artifact_meta`). A hit inside a writer that a part moved is a defect of that part: record it and stop rather than editing here.
+  - Depends on: E-14
+  - Expected outcome: F-09 has one row per hit in the five modules of half B, each with its enclosing `def` and reason.
+  - Execution state: pending
+
+- [ ] E-16 Reconcile `docs/cli-output-contract.md` with the two new `--summary` options of `aw ipd scaffold` and `aw prompts new` (added by `py2vu9`) beside the `aw describe` leaf (added by `h06gs7`), and add one `CHANGELOG.md` `2.0.0 (pending)` line naming `--summary` at creation and `aw describe`.
+  - Depends on: none
+  - Expected outcome: the contract lists both options and the leaf; the changelog has one new line.
+  - Execution state: pending
+
+- [ ] E-17 Run the gates once every part is executed and commit: re-run every module named in the V-items of each part listed in `- Item-Dependencies:` (one PIN-FIRST outcome list per part, under `.aw/state/xexn45/`); the bare core gate `python3 -m pytest` (within its 30 s budget); `make test-all`; `aw check --agent`, comparing its `(location, rule)` pairs with `.aw/state/xexn45/check-before.jsonl` (captured by `7yr827` E-01 before the first writer edit; no added pair); `aw ipd lint --all` on this repository (no new diagnostic); `aw sanitize --agent`; then commit through `aw commit xexn45 -- <each changed path>` (one commit per task group is allowed, each through `aw commit`). Never push.
+  - Depends on: E-13, E-14, E-15, E-16
+  - Expected outcome: all runs pass; no added `(location, rule)` pair; every commit is path-scoped.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -83,7 +94,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | F-06 | 39 plans carry `- Coverage:` (`coverage_record.write`); 61 plan history lines contain `readiness re-check`; 3 plans carry `- Attended:` | Volume of the attestation and runner-field writers. |
 | F-07 | `aw prompts new --help` and `aw ipd scaffold --help` show no `--summary`; `aw adopt --help` does; no `aw describe` or walkthrough-creating verb exists (`aw walkthroughs` is an invalid choice) | AC-36 case 1 needs two new options and a setter (E-03, E-04). |
 | F-08 | Tests that call private writer helpers directly: `tests/test_plans_order_grammar.py` (`plans_refs._set_metadata`, 3 tests), `tests/test_spec_id6_filenames.py` (`artifact_rename._update_frontmatter_metadata`), `tests/test_prompts_set_surface.py` (`prompts.render_metadata_comment`), `tests/test_records_only_lane_rederive.py` (`runner_shared.rederive_front_matter`) | These functions keep their signatures as thin adapters over `artifact_meta`, so the pins stay valid without editing assertions; Order 11 (`9o83cr`) may delete the adapters. |
-| F-09 | (filled by E-14) remaining raw writes with reasons | Audit record for AC-1 (owned by `9o83cr`). |
+| F-09 | (filled by E-14 and E-15) remaining raw writes with reasons | Audit record for AC-1 (owned by `9o83cr`). |
 
 ## Behavior decisions (kept behavior where writers disagreed, 4.3)
 
@@ -96,13 +107,17 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Proposed changes (ordered, validatable)
 
-1. The writer moves, in the six parts: legacy writer and runner helpers (`7yr827`); specs, backlog, releases (`g6tw94`); prompts, scaffold, research, adopt, set_records (`n5sxxk`); `--summary` and `aw describe` (`6e93gt`); renames and archive moves (`bsl45u`); recheck, coverage, finalize scope, retirement (`8q27jt`).
-2. The merge-independence test (E-12).
+1. The writer moves, in the parts listed in `- Scope:`.
+2. The merge-independence test (`b4y4ee`).
 3. The obligations test (E-13).
-4. The finish: audit, documentation reconciliation, gates and commit (E-14).
+4. The raw-write audit in two halves (E-14, E-15).
+5. The documentation reconciliation (E-16).
+6. The gates and commit (E-17).
 
 ## Deferred / out of scope (with reason)
 
+- E-12 (the merge-independence test `tests/test_writers_merge_independence.py`, AC-3 phase-B form): Moved to b4y4ee (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: b4y4ee
 - E-01 (the phase-B legacy writer, and the `.aw/state/xexn45/` baselines) and E-11 (runner writer helpers), with OQ-04: Moved to 7yr827 (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: 7yr827
 - E-02 subset A (`specs.run_new`, `backlog.run_new`, `releases.create_release`/`plan_release`) and E-05 subset A (`specs.run_note`, `specs.run_migrate`, `backlog.run_note`, `backlog._reattach_history`, `releases.set_item_dependencies_line`, `set_graduated_to_line`): Moved to g6tw94 (split 2026-11-07 per maintainer step-complexity rule).
@@ -135,13 +150,13 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. Every writer move lives in exactly one of the six parts (see Deferred). Plan size after the split: 3 E-items in 1 task group.
+- Under-scope: none. Every writer move lives in exactly one part (see Deferred), and the merge test in `b4y4ee`. Round 3 redistributed the original E-14 in place into E-14 to E-17 without moving any obligation out: the ten-module audit is E-14 plus E-15 (five modules each, together the original list), the documentation and changelog are E-16, and the gates and commit are E-17. Plan size after the split: 5 E-items in 1 task group.
 
 ## Required tests / validation
 
-New core test modules created HERE: `tests/test_writers_merge_independence.py`; `tests/test_writers_obligations.py` is created by `8q27jt` and extended here. The other new modules (`tests/test_artifact_meta_legacy_writer.py`, `tests/test_writers_create_summary.py`, `tests/test_writers_scope_fields.py`) are created by `7yr827`, `6e93gt` and `8q27jt`. All use `tmp_path` fixtures and real git repositories where git is involved; none reads source code.
+No new test module is created here: `tests/test_writers_obligations.py` is created by `d4w53g` and extended here; `tests/test_writers_merge_independence.py` is created by `b4y4ee`; `tests/test_artifact_meta_legacy_writer.py`, `tests/test_writers_create_summary.py` and `tests/test_writers_scope_fields.py` are created by `7yr827`, `fekdwv` and `9qhtrc`. All use `tmp_path` fixtures and real git repositories where git is involved; none reads source code.
 
-Existing modules pinned before and after each move now live in the V-items of the six parts; E-14 re-runs every one of them once all parts are executed. `tests/test_specs_date_containment.py`, listed in this plan's original module list but in no original V-item, is pinned by `g6tw94` E-02.
+Existing modules pinned before and after each move now live in the V-items of the parts; E-17 re-runs every one of them once all parts are executed. `tests/test_specs_date_containment.py`, listed in this plan's original module list but in no original V-item, is pinned by `g6tw94` E-02.
 
 Acceptance criteria of `4sd62s` that this plan OWNS:
 
@@ -153,21 +168,21 @@ CONTRIBUTES to (owned or finally shown elsewhere):
 
 | AC | Proven by | Owner / final demonstration |
 |---|---|---|
-| AC-3 | E-12 (phase-B form: different artifacts merge without conflict through the moved writers) | `cxxmyv` re-demonstrates on logs |
+| AC-3 | `b4y4ee` E-01 (phase-B form: different artifacts merge without conflict through the moved writers) | `cxxmyv` re-demonstrates on logs |
 | AC-6 | E-13 (b) (phase-B form: status line plus one history line, and the finalize scope bullet) | `cxxmyv` shows the `transition` event diff |
-| AC-34 | `7yr827` E-01 and `bsl45u` E-01 keep path writes as moves only; the path rules are enforced by `validate_new_events` on every event this plan writes | `cxxmyv` (path-bearing events start at the cutover); `tve77h` owns the projection |
-| AC-36 case 1 | `6e93gt` E-01, E-02 | `cxxmyv` re-demonstrates the full criterion |
-| AC-39 (4) | `8q27jt` E-03 (writer side; phase-B rendering per D-3) | `tve77h` owns the projection; `cxxmyv` re-demonstrates on logs |
-| AC-15 | `8q27jt` E-01, E-02 (writer-side refusal of `set readiness` and `set coverage`) | `2xwb9b` |
-| AC-14a (1)-(2) | `8q27jt` E-01 (the recheck writes only a `gate` event with `readiness`) | `2xwb9b`, `dcerjg` |
-| AC-40 case 3 | `n5sxxk` E-01 and `bsl45u` E-01 (a prompt edit rewrites only its comment key) | `dcerjg`, `cxxmyv` |
-| AC-1b | E-14 (core and thorough tier lines at this merge) | `cxxmyv` |
+| AC-34 | `7yr827` E-01 and the `bsl45u` parts (`1hfmpb`, `fnu6kw`, `9gy5jk`) keep path writes as moves only; the path rules are enforced by `validate_new_events` on every event this plan writes | `cxxmyv` (path-bearing events start at the cutover); `tve77h` owns the projection |
+| AC-36 case 1 | `fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`; cross-checked by `6e93gt` E-03 | `cxxmyv` re-demonstrates the full criterion |
+| AC-39 (4) | `1dvb08` E-01, E-02 (writer side; phase-B rendering per D-3) | `tve77h` owns the projection; `cxxmyv` re-demonstrates on logs |
+| AC-15 | `d4w53g` E-02, E-03 (writer-side refusal of `set readiness` and `set coverage`) | `2xwb9b` |
+| AC-14a (1)-(2) | `d4w53g` E-01, E-02 (the recheck writes only a `gate` event with `readiness`) | `2xwb9b`, `dcerjg` |
+| AC-40 case 3 | `ernmom` E-03 and `1hfmpb` E-02 (a prompt edit rewrites only its comment key) | `dcerjg`, `cxxmyv` |
+| AC-1b | E-17 (core and thorough tier lines at this merge) | `cxxmyv` |
 
-Commands: the pin-first runs of each part's E-items, E-14's bare core gate, `make test-all`, `aw check`, `aw ipd lint --all`, `aw sanitize --agent`.
+Commands: the pin-first runs of each part's E-items, E-17's bare core gate, `make test-all`, `aw check`, `aw ipd lint --all`, `aw sanitize --agent`.
 
 ## Spec / documentation sync
 
-No spec amendment here: the `4sd62s` 4.2 path-root amendment for `out_of_scope_paths` and `widened_paths` moved with E-09 to `8q27jt` (OQ-03). Otherwise the work of this plan and its six parts implements `4sd62s` section 7 step 4 (second half), 4.2 SHORT DESCRIPTION, 4.4, 4.4a (AC-21) and 4.8. `docs/cli-output-contract.md` gains the `aw describe` leaf in `6e93gt`; E-14 here reconciles it with the two `--summary` options and adds one `CHANGELOG.md` line, because they are user-visible in phase B. Workflow bodies (`plan-review`, `spec-review`) are NOT changed here (C10a; carried by `90iqr1`).
+No spec amendment here: the `4sd62s` 4.2 path-root amendment for `out_of_scope_paths` and `widened_paths` moved with E-09 to `8q27jt` and in round 3 to `9qhtrc` (OQ-03). Otherwise the work of this plan and its parts implements `4sd62s` section 7 step 4 (second half), 4.2 SHORT DESCRIPTION, 4.4, 4.4a (AC-21) and 4.8. `docs/cli-output-contract.md` gains the `aw describe` leaf in `h06gs7`; E-16 here reconciles it with the two `--summary` options and adds one `CHANGELOG.md` line, because they are user-visible in phase B. Workflow bodies (`plan-review`, `spec-review`) are NOT changed here (C10a; carried by `90iqr1`).
 
 ## Open questions
 
@@ -183,16 +198,24 @@ Questions OQ-02, OQ-03 and OQ-04 moved with the items they decide, under the sam
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-12 validates E-12
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_writers_merge_independence.py` all PASSED, and from the test log the `git merge` exit code `0` and `git diff --name-only --diff-filter=U` empty for the different-artifacts case, plus the nonzero exit code and the `--diff-filter=U` file name for the same-record case.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-13 validates E-13
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_writers_obligations.py tests/test_find_filters.py tests/test_cli_find.py tests/test_graduation_forward_links.py tests/test_readiness_absence_invariant.py` all PASSED; the AC-21 row table with one evidence reference per 4.4a row (the `63zo2f` row citing this plan commit hash); and the two fixture `git diff -U0` metadata hunks (backlog `done`, finalize) showing exactly the lines listed in E-13 (b).
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_writers_obligations.py tests/test_find_filters.py tests/test_cli_find.py tests/test_graduation_forward_links.py tests/test_readiness_absence_invariant.py` with the per-module PASSED counts and, by name, the new AC-21 and AC-6 cases of `tests/test_writers_obligations.py`; the AC-21 row table with one evidence reference per 4.4a row (the `63zo2f` row citing this plan commit hash); and the two fixture `git diff -U0` metadata hunks (backlog `done`, finalize) showing exactly the lines listed in E-13 (b).
   - Observed evidence:
   - Result: pending
 - [ ] V-14 validates E-14
-  - Required evidence: paste: the E-14 `rg` output and the filled F-09 table; `git diff docs/cli-output-contract.md CHANGELOG.md`; the bare `python3 -m pytest` summary line with its wall time; the `make test-all` summary line; the `(location, rule)` comparison with `check-before.jsonl` showing no added pair; `aw ipd lint --all` summary with no new diagnostic; the `aw sanitize --agent` result record; and the `aw commit` output listing the committed paths.
+  - Required evidence: paste the E-14 `rg` command and its full output, and the F-09 rows for half A, one per hit, each with its enclosing `def` and reason; for each of `agent_workflows/specs.py`, `agent_workflows/backlog.py`, `agent_workflows/releases.py`, `agent_workflows/prompts.py`, `agent_workflows/ipd_authoring.py`, state its hit count.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-15 validates E-15
+  - Required evidence: paste the E-15 `rg` command and its full output, and the F-09 rows for half B, one per hit, each with its enclosing `def` and reason; for each of `agent_workflows/artifact_rename.py`, `agent_workflows/plans_refs.py`, `agent_workflows/plan_readiness.py`, `agent_workflows/set_records.py`, `agent_workflows/coverage_record.py`, state its hit count.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-16 validates E-16
+  - Required evidence: paste `git diff docs/cli-output-contract.md CHANGELOG.md` showing the `aw ipd scaffold --summary` and `aw prompts new --summary` entries, the `aw describe` leaf, and the one new changelog line.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-17 validates E-17
+  - Required evidence: paste: per part listed in `- Item-Dependencies:`, the part id6 with the PASSED count of its re-run outcome list and the `diff` against that part's own after-list (empty); the `(location, rule)` comparison with `.aw/state/xexn45/check-before.jsonl` showing no added pair; the `aw ipd lint --all` summary with no new diagnostic; the `aw sanitize --agent` result record; the `aw commit` output listing the committed paths; and, beside those, the bare `python3 -m pytest` summary line with its wall time and the `make test-all` summary line.
   - Observed evidence:
   - Result: pending
 
@@ -202,7 +225,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `tve77h`, `2xwb9b` and the six parts `7yr827` (Order 21), `g6tw94` (22), `n5sxxk` (23), `6e93gt` (24), `bsl45u` (25), `8q27jt` (26) are executed. All open questions are resolved.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed: `tve77h`, `2xwb9b`, the six parts `7yr827` (Order 21), `g6tw94` (22), `n5sxxk` (23), `6e93gt` (24), `bsl45u` (25), `8q27jt` (26), each of which waits for its own round-3 parts, and `b4y4ee` (133). All open questions are resolved.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every move is pin-first: the named existing modules run green on the unmodified code before the move, and an assertion may change only where D-1 to D-6 name it.
 

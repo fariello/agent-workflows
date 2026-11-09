@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` C5a requires every gate, hook and runner to read metadata through the cache, and 4.4 requires every reader of a HEAD, staged or branch revision to call `artifact_meta.read_at` instead of parsing git content. Measured 2026-11-02 at `0cbfcc706`: the runners and record modules outside Order 08's surfaces hold 27 reader modules (F-02 of `ffceq0`); `runner_shared` alone has 20 `^-` metadata regex sites and its own bullet parser `runner_shared._front_matter_bullets`; and 15 functions read metadata out of git blobs (`git show <rev>:<path>`, `git cat-file -p`, `:0:<path>`) and then apply a regex: `check_engine._blob_text`/`_status_meta` and their 6 callers, the four hooks in `agent_workflows/hooks/`, `status_set._prepare_status_change`, `plan_readiness.review_staleness_index`, five `runner_shared` functions and `ipd_lifecycle._release_own_plan_edit_before_landing`. Until they move, Order 11 (`9o83cr`) cannot delete the parsers, and a gate's verdict depends on which regex it happens to use.
-- Scope: Phase B readers, part 2 of 2 (`4sd62s` section 7 step 5), FINISHING PART after the 2026-11-07 split. The reader moves moved to four parts: (a) the 4.4 `read_at` gates, hooks, setter and merge-path readers, with the first rows of the re-run search and the `aw check` baseline, to `h58z9n` (Order 33); (b) the runner reads and own-log finalize scope to `y97k46` (Order 34); (c) the plans, research and prompts modules, the banner-blind research body test and the INDEX baseline to `jd7874` (Order 35); (d) the review, orchestration, production-check, work and adoption modules to `2zpw22` (Order 36). This plan keeps: the 4.8 hook that refuses a staged non-append change to `meta/*.jsonl` (E-05), the gate cache-parity test (E-13), the offline setter and gate proof (E-14), and the repository-wide residual audit, gates, `CHANGELOG.md` line and commit (E-15). EXCLUDES: the readers of Order 08 (`ffceq0`); writers (Orders 06/07); deleting parsers and INDEX code (Order 11); the event-ownership gate rules after the cutover (Order 13).
-- Scope-Paths: agent_workflows/hooks/meta_log_append_gate.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/engine.py, agent_workflows/artifact_meta.py, tests/conformance_matrix.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, tests/test_meta_log_append_gate.py, tests/test_readers_gate_cache_parity.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md
-- Item-Dependencies: executed:2zpw22, executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:jd7874, executed:tve77h, executed:xexn45, executed:y97k46
+- Scope: Phase B readers, part 2 of 2 (`4sd62s` section 7 step 5), FINISHING PART after the 2026-11-07 split. The reader moves moved to four parts: (a) the 4.4 `read_at` gates, hooks, setter and merge-path readers, with the first rows of the re-run search and the `aw check` baseline, to `h58z9n` (Order 33); (b) the runner reads and own-log finalize scope to `y97k46` (Order 34); (c) the plans, research and prompts modules, the banner-blind research body test and the INDEX baseline to `jd7874` (Order 35); (d) the review, orchestration, production-check, work and adoption modules to `2zpw22` (Order 36). Round 3 (2026-11-09, research `nj8zdp` guidance): the 4.8 hook that refuses a staged non-append change to `meta/*.jsonl` (formerly E-05) moved to `jq82as` (Order 141). This plan keeps: the gate cache-parity test (E-13), the offline setter and gate proof (E-14), and the repository-wide residual audit, gates, `CHANGELOG.md` line and commit (E-15). EXCLUDES: the readers of Order 08 (`ffceq0`); writers (Orders 06/07); deleting parsers and INDEX code (Order 11); the event-ownership gate rules after the cutover (Order 13).
+- Scope-Paths: tests/test_readers_gate_cache_parity.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md
+- Item-Dependencies: executed:2zpw22, executed:jq82as, executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:jd7874, executed:tve77h, executed:xexn45, executed:y97k46
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -19,6 +19,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-05 moved to jq82as.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-02, E-03, E-04 and the gate-file rows of E-01 moved to h58z9n; E-06, E-07, E-08 and the runner rows of E-01 moved to y97k46; E-09, E-10, E-16 and the remaining rows of E-01 moved to jd7874; E-11, E-12 moved to 2zpw22; each part also carries the E-15 residual-audit rows for its own modules.
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
@@ -32,7 +33,7 @@
 
 ## Goal
 
-Every gate, hook, runner and record module reads metadata only through `artifact_meta` (working tree) or `artifact_meta.read_at` (index, commit or branch), each moved reader keeps a named, tested behavior, and staged `meta/*.jsonl` changes are refused unless they only append valid events. After the 2026-11-07 split the reader moves are done by `h58z9n`, `y97k46`, `jd7874` and `2zpw22`; this plan adds the append hook, proves gate parity across cache states and offline use, and closes the residual audit.
+Every gate, hook, runner and record module reads metadata only through `artifact_meta` (working tree) or `artifact_meta.read_at` (index, commit or branch), each moved reader keeps a named, tested behavior, and staged `meta/*.jsonl` changes are refused unless they only append valid events. After the 2026-11-07 split the reader moves are done by `h58z9n`, `y97k46`, `jd7874` and `2zpw22`; `jq82as` adds the append hook; this plan proves gate parity across cache states and offline use, and closes the residual audit.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -40,12 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Split note (2026-11-07): the reader moves and their pin-first baselines now run in the four parts named in Scope; the rule below is kept because E-13 and E-14 follow it for their new module. The pin-first rule of `ffceq0` applies to every move here: BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of D-1 to D-4 below. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command, never combined with baseline module paths, because `-k` filters every path on the command line. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. A count measured at authoring (for example F-05's 1,719 records) is context, never the bar. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits, in which case they are marked `slow` and run in `make test-all`; none reads production source.
 
-### Task group 1: the staged metadata-log append hook (4.8)
-
-- [ ] E-05 Add `agent_workflows/hooks/meta_log_append_gate.py` (4.8 last bullet), wired as `aw meta-log-append-gate` in `cli` and `command_surface` and offered as an optional pre-commit hook beside the four existing ones in the `engine` hook template: for every staged `.aw/records/meta/*.jsonl`, call ONE additive `artifact_meta` function (`artifact_meta.check_staged_log_append(id6) -> list[str]`, refusal reasons, empty when acceptable) that reads the HEAD and staged log blobs through `read_at`'s blob path and the loader, because spec 4.3 says "No other code, inside or outside `artifact_meta`, opens a log", so the hook never reads log bytes itself (this plan adds the function to the spec `4sd62s` 4.3 function list, the same kind of additive amendment `ffceq0` makes for `read_text`; tests in `tests/test_meta_log_append_gate.py`); the function refuses unless the staged bytes are the HEAD bytes plus whole new lines that the loader accepts (valid events, consecutive `seq`, valid `append`); a deleted or rewritten line, a new invalid event, or a new file whose first event is not `create` seq 1 or `checkpoint` seq 0 is refused with a teaching message. In phase B no log exists in this repository, so the hook is a no-op here and is proven on fixtures in `tests/test_meta_log_append_gate.py`.
-  - Depends on: none
-  - Expected outcome: fixtures for a valid append (accepted), a rewritten earlier line, a deleted line, an invalid appended event and a bad first event (each refused, exit 1) pass; `aw meta-log-append-gate` exits 0 on this checkout.
-  - Execution state: pending
+Round-3 note (2026-11-09): Task group 1 (E-05, the staged `meta/*.jsonl` append hook) moved to `jq82as`, an `- Item-Dependencies:` edge of this plan, so E-15's former `Depends on: E-05` is carried by that edge.
 
 ### Task group 2: parity, offline proof and finish
 
@@ -59,8 +55,8 @@ Split note (2026-11-07): the reader moves and their pin-first baselines now run 
   - Expected outcome: both runs exit 0.
   - Execution state: pending
 
-- [ ] E-15 Record the residual audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows` and `rg -n "Workflow history" agent_workflows`, and write table F-04 in this plan. The split parts already wrote F-04 tables for their modules (`h58z9n`: the hooks, `plan_readiness`, `ipd_lifecycle`; `y97k46`: `runner_shared`, `oc_runipd`, `agy_runipd`; `jd7874`: the plans, research and prompts modules; `2zpw22`: the review, orchestration, production-check, work and adoption modules), and `ffceq0` F-12 covers its own modules (`check_engine`, `status_set`, `selectors`, `attention`, `ipd_lint` and the others in its Scope-Paths): cite each of those tables by plan id and re-verify only that their hit counts still match. Classify every hit in the REMAINING modules one row per function (measured at the split, `ac76110f4`: `backlog` 30 hits in 7 functions, `coverage_record` 9 in 2, `artifact_rename` 5 in 1, `ipd_authoring` 3 in 2, `record_history` 3 in 3, `run_viewer` 3 in 1, `set_records` 2 in 2, `engine` 2 in 2, `doctor`, `git_commit_helper`, `lane_containment` and `readiness_recheck` 1 each: 24 functions) with its owner: writer (Orders 06/07, named), body-prose bullet kept by N3 (named pattern), legacy grammar inside `artifact_meta.py`, or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Run every module named in E-05, E-13 and E-14, the bare core gate `python3 -m pytest`, `make test-all`, `aw check all --agent` (rule-id multiset equal to the F-10 table of `h58z9n`, any difference traced to a record changed in between), and `aw sanitize --agent`; add a `CHANGELOG.md` `2.0.0 (pending)` line for the new hook, with no em or en dashes in that user-facing prose; commit through `aw commit t4gl15 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
-  - Depends on: E-05, E-14
+- [ ] E-15 Record the residual audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows` and `rg -n "Workflow history" agent_workflows`, and write table F-04 in this plan. The split parts already wrote F-04 tables for their modules (`h58z9n`: the hooks, `plan_readiness`, `ipd_lifecycle`; `y97k46`: `runner_shared`, `oc_runipd`, `agy_runipd`; `jd7874`: the plans, research and prompts modules; `2zpw22`: the review, orchestration, production-check, work and adoption modules), and `ffceq0` F-12 covers its own modules (`check_engine`, `status_set`, `selectors`, `attention`, `ipd_lint` and the others in its Scope-Paths): cite each of those tables by plan id and re-verify only that their hit counts still match. Classify every hit in the REMAINING modules one row per function (measured at the split, `ac76110f4`: `backlog` 30 hits in 7 functions, `coverage_record` 9 in 2, `artifact_rename` 5 in 1, `ipd_authoring` 3 in 2, `record_history` 3 in 3, `run_viewer` 3 in 1, `set_records` 2 in 2, `engine` 2 in 2, `doctor`, `git_commit_helper`, `lane_containment` and `readiness_recheck` 1 each: 24 functions) with its owner: writer (Orders 06/07, named), body-prose bullet kept by N3 (named pattern), legacy grammar inside `artifact_meta.py`, or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Run every module named in E-13 and E-14, `tests/test_meta_log_append_gate.py` (from `jq82as`), the bare core gate `python3 -m pytest`, `make test-all`, `aw check all --agent` (rule-id multiset equal to the F-10 table of `snh19k` (written there since the round-3 split; formerly `h58z9n`), any difference traced to a record changed in between), and `aw sanitize --agent`; add a `CHANGELOG.md` `2.0.0 (pending)` line for the new hook, with no em or en dashes in that user-facing prose; commit through `aw commit t4gl15 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+  - Depends on: E-14
   - Expected outcome: F-04 has no unowned reader hit; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
   - Execution state: pending
 
@@ -91,7 +87,7 @@ Measured 2026-11-02 at `0cbfcc706`.
 | F-05 | `runner_shared.discover_plans(repo)` returns 1,719 records on this checkout | Baseline for E-07's parity check. |
 | F-06 | `aw oc run` sub-commands are `start, resume, status, report, stop, integrate, audit`; none has a dry-run option | E-07 compares `discover_plans` output instead of a queue preview. |
 | F-07 | Path-only git readers (no change): `work_cmd` (`diff --name-only --cached`), `git_commit_helper`, `commit_lock`, `clean_delta`, `cli`, `placement_switch`, `engine`, `layout_migration`; non-metadata readers: `leak_sanitizer.scan_working_tree_counted` (reads every tracked file as text, which will include `meta/*.jsonl`), `artifact_audit.FinalizeEvidenceIndex` (commit subjects), `project_context` (`ls-files -s` modes) | Matches 4.4's "not metadata readers"; recorded so the E-01 classification is checkable. |
-| F-08 | No hook inspects `meta/*.jsonl`; 4.8 requires one | E-05 adds it. |
+| F-08 | No hook inspects `meta/*.jsonl`; 4.8 requires one | `jq82as` adds it (formerly E-05 here). |
 | F-09 | Measured 2026-11-05: `research_index._doc_entry` sets `has_body` true for any non-blank text after the closing `---`, and `derive_pipeline_positions` uses it to place a Set `unrun`, `partial` or `synthesized`. `4sd62s` 4.1 puts the `aw-managed` banner after the front matter of every artifact. Re-running `derive_pipeline_positions` on this checkout's 164 research entries with every `has_body` forced true (the post-cutover state if the banner counts as body) moves Set `awclia` from `unrun` to `synthesized`, because its reconciliation report `v912ed` has no body today. Found by research `53jbi5` findings E-2/E-3. | A defect the cutover would introduce whether or not any other spec lands; E-16 fixes it before Order 13 (`cxxmyv`). |
 
 READER LEDGER: prior behavior, the pinning test, and the result. (Since the 2026-11-07 split each row is carried, with its moved item, by the part named in `## Deferred / out of scope`; kept here as the decision record.)
@@ -123,11 +119,12 @@ DECISIONS where readers disagreed (4.3):
 
 ## Proposed changes (ordered, validatable)
 
-1. Add the `meta/*.jsonl` append hook (E-05).
-2. Gate cache parity (AC-1a), offline setter (AC-12), residual audit, commit (E-13 to E-15).
+1. Gate cache parity (AC-1a), offline setter (AC-12), residual audit, commit (E-13 to E-15).
 
 ## Deferred / out of scope (with reason)
 
+- E-05 (the staged `meta/*.jsonl` append hook and `artifact_meta.check_staged_log_append` with its spec 4.3 entry). Moved to jq82as (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: jq82as
 - Moved to h58z9n (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for the gate, hook, readiness and lifecycle files plus the `aw check` baseline; E-02; E-03; E-04.
   - Carrier: h58z9n
 - Moved to y97k46 (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for `runner_shared`, `oc_runipd`, `agy_runipd`; E-06; E-07 (as a selection subset and an execution subset); E-08; the runner rows of E-15.
@@ -151,8 +148,8 @@ DECISIONS where readers disagreed (4.3):
 
 ## Scope check
 
-- Over-scope: none. `cli.py`, `command_surface.py`, `engine.py` and `tests/conformance_matrix.py` change only to register the new hook; `artifact_meta.py` changes only to add `check_staged_log_append` (E-05); the spec changes only by the E-05 function-list entry.
-- Under-scope: none known; E-15 exists to find what the measurement missed. Plan size after the split: 4 E-items in 2 task groups, 11 Scope-Paths; per-item units: E-05 1 hook, 1 function, 3 registrations, 6 fixtures; E-13 4 commands across 4 cache states plus 2 cases; E-14 2 runs; E-15 24 functions classified plus 5 cited tables and the gate runs.
+- Over-scope: none. Only the new parity module, `CHANGELOG.md` and this plan's own findings table change.
+- Under-scope: none known; E-15 exists to find what the measurement missed. Plan size after the round-3 split: 3 E-items in 1 task group, 2 work Scope-Paths; per-item units: E-13 4 commands across 4 cache states plus 2 cases; E-14 2 runs; E-15 24 functions classified plus 5 cited tables and the gate runs.
 
 ## Required tests / validation
 
@@ -168,11 +165,11 @@ Acceptance criteria of `4sd62s` this plan OWNS jointly with `ffceq0` (the split 
 
 CONTRIBUTES to: AC-16 (the hooks read through `read_at`, and the new append hook exists; final proof on the cutover commit by `cxxmyv`), AC-33 (gate-level `read_at` use after a rename; owned by `tve77h`), AC-21 row `l56tyz` (pasted `tests/test_readiness_absence_invariant.py`; AC-21 is owned by `xexn45`), AC-1 (residual audit F-04; owned by `9o83cr`), AC-3 and AC-17 (merge-path readers through `read_at`; owned by `xexn45` and `tve77h`).
 
-Commands: every module named in E-05, E-13 and E-14, the bare core gate `python3 -m pytest`, `make test-all`, `aw check`, `aw sanitize --agent`.
+Commands: every module named in E-13 and E-14, `tests/test_meta_log_append_gate.py`, the bare core gate `python3 -m pytest`, `make test-all`, `aw check`, `aw sanitize --agent`.
 
 ## Spec / documentation sync
 
-ONE spec amendment: `4sd62s` 4.3 gains `check_staged_log_append(id6) -> list[str]` in its function list (E-05). Reason: 4.3 says no code outside the loader opens a log, and 4.8 requires a hook that judges staged log bytes, so the judgement must be an `artifact_meta` function and the spec's interface list must name it. The amendment adds a function and changes no rule. Implements `4sd62s` 4.4 (`read_at` consumers, the re-run search, finalize own-log scope), 4.8 (the `meta/*.jsonl` append hook), C5a for gates, hooks and runners, and section 7 step 5 (second half). `CHANGELOG.md` gains a line for the new optional hook; the managed block and quickstarts describing hooks change only at the cutover (Order 12, `90iqr1`).
+No spec text changes in this plan after the round-3 split. The ONE spec amendment it used to carry moved to `jq82as` with E-05: `4sd62s` 4.3 gains `check_staged_log_append(id6) -> list[str]` in its function list. Reason: 4.3 says no code outside the loader opens a log, and 4.8 requires a hook that judges staged log bytes, so the judgement must be an `artifact_meta` function and the spec's interface list must name it. The amendment adds a function and changes no rule. Implements `4sd62s` 4.4 (`read_at` consumers, the re-run search, finalize own-log scope), 4.8 (the `meta/*.jsonl` append hook), C5a for gates, hooks and runners, and section 7 step 5 (second half). `CHANGELOG.md` gains a line for the new optional hook; the managed block and quickstarts describing hooks change only at the cutover (Order 12, `90iqr1`).
 
 ## Open questions
 
@@ -200,11 +197,6 @@ ONE spec amendment: `4sd62s` 4.3 gains `check_staged_log_append(id6) -> list[str
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_meta_log_append_gate.py` all PASSED with five named tests (valid append accepted; rewritten line, deleted line, invalid appended event and bad first event each refused with exit 1 and a message naming the log), a test asserting the hook delegates to `artifact_meta.check_staged_log_append` (a fixture whose staged log the loader refuses is refused by the hook with the loader's reason); and `aw meta-log-append-gate; echo $?` on this checkout printing 0.
-  - Observed evidence:
-  - Result: pending
-
 - [ ] V-13 validates E-13
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_readers_gate_cache_parity.py -k parity` with every (command x cache state) test PASSED for the setter and the three gate leaves across the four cache states, the staged external-edit test, and the invalid staged record test asserting a non-zero exit naming the record; and the module's marker (`core` or `slow` with the docstring reason).
   - Observed evidence:
@@ -216,7 +208,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-15 validates E-15
-  - Required evidence: paste the two `rg` commands of E-15 and the F-04 table (every remaining hit with its owner, none unowned); the bare `python3 -m pytest` summary line and wall time; the `make test-all` summary line; `aw check all --agent` rule-id counts diffed against the F-10 table of `h58z9n` (empty, or each difference traced); the four part F-04 tables and `ffceq0` F-12 cited by plan id with their re-verified hit counts; the `aw sanitize --agent` result with zero `fail`; and every `aw commit t4gl15` output listing only Scope-Paths (or paths justified at finalize).
+  - Required evidence: paste the two `rg` commands of E-15 and the F-04 table (every remaining hit with its owner, none unowned); the bare `python3 -m pytest` summary line and wall time; the `make test-all` summary line; `aw check all --agent` rule-id counts diffed against the F-10 table of `snh19k` (written there since the round-3 split; formerly `h58z9n`) (empty, or each difference traced); the four part F-04 tables and `ffceq0` F-12 cited by plan id with their re-verified hit counts; the `aw sanitize --agent` result with zero `fail`; and every `aw commit t4gl15` output listing only Scope-Paths (or paths justified at finalize).
   - Observed evidence:
   - Result: pending
 

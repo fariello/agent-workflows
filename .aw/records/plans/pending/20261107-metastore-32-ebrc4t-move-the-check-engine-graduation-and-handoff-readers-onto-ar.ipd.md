@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Split from `ffceq0` (Task group 3) under the maintainer's step-complexity rule. This part takes the graduation and handoff subset of the `ffceq0` E-07 site list (19 site lines in 6 functions) and `ffceq0` E-08, the one record skip list (4.4 last bullet), which must follow every check_engine move.
-- Scope: Pin then move the graduation and handoff readers of `check_engine` (`build_graduation_reverse_index`, `graduation_cluster` through it, `evaluate_handoff_ready`, `check_graduation_incomplete`, `graduated_closable_warnings` and their history-date readers) onto `artifact_meta` (`ffceq0` E-06 and E-07, partitioned), then replace the record skip-name copies with one list in `layout` (`ffceq0` E-08, unchanged). EXCLUDES: the other check_engine subsets (Orders 29 to 31) and git-content readers (`t4gl15`).
-- Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_graduation_forward_links.py, tests/test_handoff_ready_gate.py, agent_workflows/layout.py, agent_workflows/selectors.py, agent_workflows/artifact_refs.py, agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/ipd_lint.py, agent_workflows/artifact_core.py
-- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu
+- Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). E-01 and E-02 (the `check_engine` graduation and handoff readers) moved to `dbq57g` (Order 143); the `layout` constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` share of E-03 moved to `i16on1` (Order 144). This plan keeps the rest of E-03 (`ffceq0` E-08): point the inline skip-name copies in `specs`, `releases` and `ipd_lint` at the `layout` constants, and check that one definition remains. EXCLUDES: the other check_engine subsets (Orders 29 to 31) and git-content readers (`t4gl15` family).
+- Scope-Paths: agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/ipd_lint.py, .aw/records/plans/pending/20261107-metastore-32-ebrc4t-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
+- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:dbq57g, executed:i16on1
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,12 +21,13 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 moved to dbq57g; E-03 (constants and the check_engine, selectors, artifact_refs, artifact_core subset) moved to i16on1.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ffceq0 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-The `check_engine` graduation and handoff rules read cached fields with the same rule ids as before, and one skip list in `layout` replaces the six copies so no `meta/*.jsonl` file is ever walked as a record.
+After `dbq57g` moves the graduation and handoff readers and `i16on1` adds the `layout` constants, the last three skip-name copies (`specs`, `releases`, `ipd_lint`) use them, so exactly one skip list remains and no `meta/*.jsonl` file is walked as a record.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -36,21 +37,13 @@ Every E-item that moves a reader follows one rule, so a reviewer can check each 
 
 The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, because the split parent `ffceq0` keeps the final cache-parity, residual-audit and finishing items that compare against these saved files. Commit through `aw commit ebrc4t -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
-### Task group 1: check_engine graduation and handoff readers, and the shared skip list
+### Task group 1: the shared skip list, remaining modules
 
-- [ ] E-01 Pin the current behavior of THIS PART'S SUBSET of the `check_engine` working-tree readers (the original `ffceq0` E-06 list, partitioned across Orders 29 to 32) in `tests/test_readers_check_engine.py`: `build_graduation_reverse_index` and `graduation_cluster` (declarations alone, origin links alone, both; 4.4a row `pw2ln3`), `evaluate_handoff_ready`, `check_graduation_incomplete` (with `_item_graduated_date` and `_spec_implementing_date`) and `graduated_closable_warnings`, each on a `tmp_path` fixture through `aw check <type> --agent`. Run `tests/test_graduation_forward_links.py` and `tests/test_handoff_ready_gate.py` green as the baseline.
+Round-3 note (2026-11-09): E-01 and E-02 moved to `dbq57g`, and the first part of E-03 moved to `i16on1`; both are `- Item-Dependencies:` edges, so E-03's former `Depends on: E-02` is carried by them.
+
+- [ ] E-03 (remaining subset of the original; the constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` share are done by `i16on1`) Replace the remaining record skip-name copies with the ONE list `layout.RECORD_SCAN_SKIP_NAMES` and the ONE excluded records subdirectory constant `layout.RECORD_SCAN_EXCLUDED_DIRS` (both added by `i16on1`): the inline sets with the same three names in `specs` (`skip_names` in `specs._spec_files`), `releases` (the record walkers `count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog`) and `ipd_lint` (`_NON_IPD_BASENAMES` and the inline tuple in `_default_pending_files`). Those record walkers consult both constants. So a `meta/*.jsonl` log is never walked as a record.
   - Depends on: none
-  - Expected outcome: the new module passes on the unmodified code; the baseline outcome list is saved, and the sorted rule-id counts of `aw check all --agent` (one `rule` per diagnostic) are saved to `.aw/state/ffceq0/check-before.txt` if that file does not yet exist (the first check_engine part to run writes it; later parts keep it, because it is the parent's final comparison bar) and, always, to this part's own `.aw/state/ffceq0/check-before-32.txt`.
-  - Execution state: pending
-
-- [ ] E-02 Move the `check_engine` working-tree metadata readers onto `artifact_meta`: THIS PART'S SUBSET of the `ffceq0` E-07 site list (partitioned across Orders 29 to 32), namely every working-tree metadata read inside these functions, with its measured site-line count: `build_graduation_reverse_index` (5), `evaluate_handoff_ready` (6, working-tree reads only), `_item_graduated_date` (1), `_spec_implementing_date` (1), `check_graduation_incomplete` (4), `graduated_closable_warnings` (2); 19 site lines. In each function the reads to replace are the calls of `_read_declared_id`, `_read_item_id`, `_read_plan_status`, `_read_blocks_release`, `_parse_setid` and `_metadata_status`/`_status_meta` on working-tree text, the `_ITEM_*`/`_META_*`/`_PLAN_STATUS_RE`/`_ITEM_DEPENDENCIES_RE`/`_DATE_LINE_RE`/`_REVIEW_SUBJECT_TYPE_RE`/`_FROM_SPEC_LINE_RE`/`_CARRIER_DATE_RE` users, the inline `^- Kind:`/`^- Status:`/`^- Set:`/`^- Date:`/`^- Id:` searches, `backlog.parse_item` uses, the `prompts_index._parse_metadata_comment` use, and the `history_block`/`last_history_at` uses, all through `artifact_meta.read`/`query`/`history`. `_metadata_status(text)` keeps its text signature ONLY for the git-content callers that Order 09 moves to `read_at`; every working-tree call site passes through `artifact_meta.read` instead. Body-prose bullets kept by N3 (`_TARGET_BULLET_RE` over `Concern`/`Scope`/`Scope-Paths` body scanning for citations, open-question `Carrier*` rows) are NOT metadata reads and stay; each is listed in the `ffceq0` E-14 exclusion list.
-  - Depends on: E-01
-  - Expected outcome: E-01 and its baseline modules pass unchanged; `aw check all --agent` on this checkout reports the same rule-id multiset as `.aw/state/ffceq0/check-before-32.txt` (pasted sorted counts, empty diff), with any difference explained by a plan or record that changed between the two runs.
-  - Execution state: pending
-
-- [ ] E-03 Replace the record skip-name copies with ONE list, `layout.RECORD_SCAN_SKIP_NAMES` (`README.md`, `INDEX.md`, `STATUS.md`), and ONE excluded records subdirectory constant, `layout.RECORD_SCAN_EXCLUDED_DIRS` (`meta`), beside `layout.TRAVERSAL_EXCLUSIONS` (4.4 last bullet). The copies are the three `_SKIP_NAMES` definitions (`check_engine`, `selectors`, `artifact_refs`) and the inline sets with the same three names in `specs` (`skip_names`), `releases` (the record walkers) and `ipd_lint` (`_NON_IPD_BASENAMES` and the inline tuple in the plan walker). The record walkers (`selectors._iter_md`, `check_engine`'s walkers, `artifact_refs`'s target enumeration, `specs`, `releases`, `ipd_lint`) consult both constants. `artifact_core.iter_scan_files` consults only `RECORD_SCAN_EXCLUDED_DIRS`, because its callers (citation rewrite, research index, attention) deliberately scan `README.md` as a citing document (`artifact_refs` comment "`README.md` is scanned as a citing document (0u0ako)"). So a `meta/*.jsonl` log is never walked as a record. Tested behaviorally: a fixture with `.aw/records/meta/abc123.jsonl`, `.aw/records/meta/README.md` and `.aw/records/plans/pending/README.md` yields no `aw find`, `aw check` or `aw attention` row for any of them, and `aw rename` on a fixture still rewrites a citation inside a records `README.md`.
-  - Depends on: E-02
-  - Expected outcome: the fixture tests pass; `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=" agent_workflows` lists only `layout.py`; `tests/test_artifact_refs_rewrite.py` passes unchanged.
+  - Expected outcome: the `i16on1` fixture tests still pass; `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=" agent_workflows` lists only `layout.py` and the three `_SKIP_NAMES` alias lines of `i16on1`; `tests/test_artifact_refs_rewrite.py` passes unchanged.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -85,9 +78,8 @@ Step-complexity measurement for this part (2026-11-07, at the worktree HEAD of t
 
 - Measured with an `ast` walk of `agent_workflows/check_engine.py` over every top-level function, counting non-comment lines that call a metadata reader (`_read_declared_id(`, `_read_item_id(`, `_read_plan_status(`, `_read_blocks_release(`, `_parse_setid(`, `_identity_metadata_region(`, `_metadata_status(`, `_status_meta(`, `backlog.parse_item(`, `_parse_metadata_comment(`, `history_block(`, `last_history_at(`) or use a metadata regular expression (`_ITEM_*_RE`, `_META_*_RE`, `_PLAN_STATUS_RE`, `_ITEM_DEPENDENCIES_RE`, `_DATE_LINE_RE`, `_REVIEW_SUBJECT_TYPE_RE`, `_FROM_SPEC_LINE_RE`, `_CARRIER_DATE_RE`, `_ID_LINE_RE`, `_SET_LINE_RE`, `_IDENT_*_RE`, `_STATUS_META_RE`, or an inline `^-` literal). The whole working-tree population is 93 site lines in 50 functions, which `ffceq0` E-07 moved as one item; it is partitioned across Orders 29 to 32 by function, and the four subsets together equal it (no function unassigned).
 - Sites inside the git-content readers (`_status_meta`, `_check_untooled_plan_transition`, `check_staged_illegal_backlog_transition`, `_lane_carrier_is_executed`, and every site within four lines after a `_blob_text` call) are Order 09 `t4gl15`'s and are not counted. The reader definitions themselves (`_read_declared_id`, `_read_item_id`, `_read_plan_status`, `_read_blocks_release`, `_parse_setid`, `_identity_metadata_region`, `_metadata_status`) keep their text signatures for the git-content callers in this phase and are not moved by any part.
-- E-01 (pin): about 7 reader fixtures (three `graduation_cluster` shapes) plus 2 baseline modules (`test_graduation_forward_links` 9 tests, `test_handoff_ready_gate` 16). About 10 units.
-- E-02 (move): 19 site lines in 6 functions (listed in the item). About 19 units.
-- E-03 (skip list, `ffceq0` E-08): `rg -n '_SKIP_NAMES|_NON_IPD_BASENAMES|skip_names|"README.md", "INDEX.md"' agent_workflows` gives 3 `_SKIP_NAMES` definitions (`check_engine`, `selectors`, `artifact_refs`), 1 `skip_names` set (`specs._spec_files`), 3 inline tuples in `releases` (`count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog`), `ipd_lint._NON_IPD_BASENAMES` plus 1 inline tuple (`_default_pending_files`); 9 walker uses (`check_engine` 3, `selectors` 3, `artifact_refs` 1, `specs` 1, `ipd_lint` 2), 2 new constants, `artifact_core.iter_scan_files`, 1 fixture test and 1 rewrite test. About 22 units. Two more consumers import `check_engine._SKIP_NAMES` / `selectors._SKIP_NAMES` (`runner_shared`, `status_set`); they keep working because the old names stay as aliases of the `layout` constant until Order 11 (`9o83cr`) deletes them, and they are not edited here.
+- E-01 and E-02 (pin and move, about 10 and 19 units) moved to `dbq57g` in round 3.
+- E-03 (skip list, `ffceq0` E-08): `rg -n '_SKIP_NAMES|_NON_IPD_BASENAMES|skip_names|"README.md", "INDEX.md"' agent_workflows` gives 3 `_SKIP_NAMES` definitions (`check_engine`, `selectors`, `artifact_refs`), 1 `skip_names` set (`specs._spec_files`), 3 inline tuples in `releases` (`count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog`), `ipd_lint._NON_IPD_BASENAMES` plus 1 inline tuple (`_default_pending_files`); 9 walker uses (`check_engine` 3, `selectors` 3, `artifact_refs` 1, `specs` 1, `ipd_lint` 2), 2 new constants, `artifact_core.iter_scan_files`, 1 fixture test and 1 rewrite test. About 22 units, of which round 3 moved the `layout`, `check_engine`, `selectors`, `artifact_refs` and `artifact_core` share to `i16on1`; the `specs`, `releases` and `ipd_lint` share (3 modules, 3 walker uses) stays here. Two more consumers import `check_engine._SKIP_NAMES` / `selectors._SKIP_NAMES` (`runner_shared`, `status_set`); they keep working because the old names stay as aliases of the `layout` constant until Order 11 (`9o83cr`) deletes them, and they are not edited here.
 
 READER LEDGER rows this part moves (copied from `ffceq0`; the full ledger stays in `ffceq0`):
 
@@ -105,11 +97,14 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Proposed changes (ordered, validatable)
 
-1. Pin then move this subset of the `check_engine` working-tree readers (E-01, E-02).
-2. Unify the record skip list in `layout` (E-03).
+1. Point the remaining skip-name copies at the `layout` constants (E-03).
 
 ## Deferred / out of scope (with reason)
 
+- E-01, E-02 (the graduation and handoff readers of `check_engine`). Moved to dbq57g (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: dbq57g
+- E-03, the `layout` constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` subset with its `meta_dir` fixture test. Moved to i16on1 (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: i16on1
 - The git-content readers of `check_engine` (`_blob_text`/`_status_meta` callers).
   - Carrier: t4gl15
 - The other check_engine site subsets of `ffceq0` E-06/E-07 (split 2026-11-07 per maintainer step-complexity rule): see Orders 29 (w1cs3p), 30 (na188y), 31 (i3b5zu) and 32 (ebrc4t).
@@ -119,18 +114,18 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Scope check
 
-- Over-scope: none. `layout.py` gains only the two constants; `selectors.py`, `artifact_refs.py`, `specs.py`, `releases.py`, `ipd_lint.py` and `artifact_core.py` change only to consult them (E-03).
-- Under-scope: none known. This part carries its subset of E-06 and E-07, and E-08 of `ffceq0` unchanged except where its site list is partitioned, as named in each item.
+- Over-scope: none. `specs.py`, `releases.py` and `ipd_lint.py` change only to consult the `layout` constants (E-03).
+- Under-scope: none known. After round 3 this part carries only the `specs`, `releases` and `ipd_lint` subset of E-08 of `ffceq0`; `dbq57g` and `i16on1` carry the rest, and together they equal the original lists.
 
 ## Required tests / validation
 
-`tests/test_readers_check_engine.py` (core, `tmp_path` fixtures through `aw check <type> --agent`); this part adds only its own test class to the module, named after its Order, so the four check_engine parts never edit the same test. The baseline modules named in E-01 run before and after the move. E-03 adds the `meta_dir` fixture test to the same module and runs `tests/test_artifact_refs_rewrite.py` unchanged.
+No new test. E-03 re-runs the `meta_dir` fixture test that `i16on1` added to `tests/test_readers_check_engine.py`, plus `tests/test_artifact_refs_rewrite.py`, `tests/test_specs_recursive_read.py`, `tests/test_releases.py` and `tests/test_ipd_lint.py` unchanged.
 
 Commands: the named modules, the bare core gate `python3 -m pytest`, `aw check`, `aw sanitize --agent`. The thorough tier `make test-all` runs once, in `ffceq0`'s final item.
 
 ## Spec / documentation sync
 
-N/A: no spec text changes; implements `4sd62s` 4.4 last bullet (one exclusion list) and section 7 step 5 for this subset of `check_engine`.
+N/A: no spec text changes; implements `4sd62s` 4.4 last bullet (one exclusion list) for `specs`, `releases` and `ipd_lint`.
 
 ## Open questions
 
@@ -139,24 +134,14 @@ N/A: no spec text changes; implements `4sd62s` 4.4 last bullet (one exclusion li
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Yes. 3 E-items, 11 Scope-Paths entries, measured at about 10, 19 and 22 units (see `## Findings`). It depends on Orders 29 to 31 because the skip-list item must follow every check_engine move, as `ffceq0` E-08 followed E-07. Recommendation strength: strong.
+- Resolution or deferral rationale: Round 3 (2026-11-09): 1 E-item, 3 work Scope-Paths. It still depends on Orders 29 to 31 (and now on `dbq57g` and `i16on1`) because the skip-list item must follow every check_engine move, as `ffceq0` E-08 followed E-07. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste `git diff --stat agent_workflows/check_engine.py` empty, then `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py` all PASSED (one test per reader listed in E-01), and `wc -l` of the baseline modules' saved outcome list `.aw/state/ffceq0/E-06-before-32.txt`; also paste the sorted rule-id counts saved to `.aw/state/ffceq0/check-before-32.txt` (and `ls -l .aw/state/ffceq0/check-before.txt` showing the shared bar exists).
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-02 validates E-02
-  - Required evidence: paste `diff .aw/state/ffceq0/E-06-before-32.txt .aw/state/ffceq0/E-07-after-32.txt` printing nothing, and `aw check all --agent` sorted rule-id counts with `diff .aw/state/ffceq0/check-before-32.txt -` printing nothing (or each difference traced to a record changed between the runs).
-  - Observed evidence:
-  - Result: pending
-
 - [ ] V-03 validates E-03
-  - Required evidence: paste `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=|RECORD_SCAN_SKIP_NAMES\s*=|RECORD_SCAN_EXCLUDED_DIRS\s*=" agent_workflows` listing only `agent_workflows/layout.py`; `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py -k meta_dir` PASSED for the fixture with `.aw/records/meta/abc123.jsonl`, `.aw/records/meta/README.md` and `.aw/records/plans/pending/README.md`, asserting zero rows from `aw find`, `aw check` and `aw attention`; the `README.md` citation-rewrite test PASSED; and `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py` passing.
+  - Required evidence: paste `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=|RECORD_SCAN_SKIP_NAMES\s*=|RECORD_SCAN_EXCLUDED_DIRS\s*=" agent_workflows` listing only `agent_workflows/layout.py` and the three `_SKIP_NAMES` alias lines of `i16on1`, with no line in `specs.py`, `releases.py` or `ipd_lint.py`; `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py -k meta_dir` PASSED; and the summary lines of `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py`, `tests/test_specs_recursive_read.py`, `tests/test_releases.py` and `tests/test_ipd_lint.py`, each named with 0 failed.
   - Observed evidence:
   - Result: pending
 

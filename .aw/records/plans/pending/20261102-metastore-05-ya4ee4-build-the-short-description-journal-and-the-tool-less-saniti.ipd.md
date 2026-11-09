@@ -19,6 +19,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 review per research nj8zdp; within the guidance, no items moved; V-11 evidence now names its three test modules by node id.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-02, E-03, E-04, E-05, E-06 moved to odeo9z.
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
@@ -188,7 +189,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-11 validates E-11
-  - Required evidence: paste the `CHANGELOG.md` diff hunk; the summary lines of the three named modules and of bare `python3 -m pytest`; the `(location, rule)` comparison with `check-before.jsonl` showing no added error or warning pair; and every `aw commit ya4ee4` output with its `git show --stat`, listing only Scope-Paths files.
+  - Required evidence: paste the `CHANGELOG.md` diff hunk; `python3 -m pytest -o addopts="" -v tests/test_m0001_describe.py tests/test_m0001_roundtrip.py tests/test_m0001_conversion.py` with each module's node ids PASSED and 0 failed, and beside it the bare `python3 -m pytest` summary line; the `(location, rule)` comparison with `check-before.jsonl` showing no added error or warning pair; and every `aw commit ya4ee4` output with its `git show --stat`, listing only Scope-Paths files.
   - Observed evidence:
   - Result: pending
 

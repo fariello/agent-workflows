@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Split from `ffceq0` (Task groups 2 and 4) under the maintainer's step-complexity rule. `attention` holds 10 `^-` metadata regular expressions and 6 history-block reads across its six per-tree record builders, and `ipd_lint` parses plan metadata and history itself (5 `^-` literals and `ipd_schema.parse_metadata_block`); spec `4sd62s` C5 requires both to answer from `artifact_meta`. Both are status-and-history consumers of the same cached fields, which is why they share a part.
-- Scope: Pin then move the `attention` reads (`scan`, every per-tree `_*_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE`, `read_readiness` callers and the `attention_contract.history_block`/`last_history_at` calls) onto `artifact_meta.query` and `artifact_meta.history`, applying D-3 (`ffceq0` E-04, E-05 carried unchanged); then pin and move the `ipd_lint` metadata reads (`parse` metadata slice, `lint_text` `state` argument, `IPD-S405`/`IPD-M107`/`IPD-M112`/`IPD-M113`/`M105`, `run_lint` rows; `ffceq0` E-09 carried unchanged). EXCLUDES: `selectors` and `aw find` (Order 27 `r81uvz`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
-- Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_readers_attention.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, tests/test_readers_ipd_lint.py
-- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t
+- Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): the `ipd_lint` item E-03 moved to `1suzlp` (Order 151). Pin then move the `attention` reads (`scan`, every per-tree `_*_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE`, `read_readiness` callers and the `attention_contract.history_block`/`last_history_at` calls) onto `artifact_meta.query` and `artifact_meta.history`, applying D-3 (`ffceq0` E-04, E-05 carried unchanged). EXCLUDES: `ipd_lint` (`1suzlp`), `selectors` and `aw find` (Order 27 `r81uvz`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
+- Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_readers_attention.py, .aw/records/plans/pending/20261107-metastore-28-dqutt8-move-the-attention-and-ipd-lint-reads-onto-artifact-meta.ipd.md
+- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:1suzlp
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,12 +21,13 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-03 moved to 1suzlp.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ffceq0 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-Every `aw attention` item is built from one `artifact_meta.query` over the in-scope types, with the same items, drift and history dates as before the move, an `incomplete` record is reported as a violation rather than dropped, and `ipd_lint` gives the same verdict per plan from cached fields.
+Every `aw attention` item is built from one `artifact_meta.query` over the in-scope types, with the same items, drift and history dates as before the move, and an `incomplete` record is reported as a violation rather than dropped. (`ipd_lint` is moved by `1suzlp`.)
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -36,9 +37,9 @@ Every E-item that moves a reader follows one rule, so a reviewer can check each 
 
 The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, because the split parent `ffceq0` keeps the final cache-parity, residual-audit and finishing items that compare against these saved files. Commit through `aw commit dqutt8 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
-### Task group 1: attention and ipd_lint
+### Task group 1: attention
 
-- [ ] E-01 Pin the current `aw attention` behavior in `tests/test_readers_attention.py`: per-tree status mapping (`attention.missing-status`, `attention.unknown-status`, disposition mismatch), `id`, `priority`, `blocks_release`, `readiness`, `last_history_at` (newest record by `attention_contract.newest_history_record`), gate fields, open-question counts and `detail_kind`/`detail_text` for one fixture of each tree (plans, specs, backlog, research, releases, prompts), and the `aw attention --check --agent` exit code with one violation. If `.aw/state/ffceq0/att-before.json` (saved by Order 27 `r81uvz` E-01) is absent from this checkout, save `aw attention --all --format json` to it now, before any attention edit. Run `tests/test_attention.py`, `tests/test_attention_contract.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_readers.py` and `tests/test_prompts_attention.py` green as the baseline.
+- [ ] E-01 Pin the current `aw attention` behavior in `tests/test_readers_attention.py`: per-tree status mapping (`attention.missing-status`, `attention.unknown-status`, disposition mismatch), `id`, `priority`, `blocks_release`, `readiness`, `last_history_at` (newest record by `attention_contract.newest_history_record`), gate fields, open-question counts and `detail_kind`/`detail_text` for one fixture of each tree (plans, specs, backlog, research, releases, prompts), and the `aw attention --check --agent` exit code with one violation. If `.aw/state/ffceq0/att-before.json` (saved by Order 142 `cdglt1` E-02, which `r81uvz` depends on) is absent from this checkout, save `aw attention --all --format json` to it now, before any attention edit. Run `tests/test_attention.py`, `tests/test_attention_contract.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_readers.py` and `tests/test_prompts_attention.py` green as the baseline.
   - Depends on: none
   - Expected outcome: the new module passes on the unmodified code; the five existing modules' summary lines are recorded.
   - Execution state: pending
@@ -46,11 +47,6 @@ The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, becau
 - [ ] E-02 Move `attention` reads onto `artifact_meta.query`: `scan` builds `Item`s from one `query()` over the in-scope types instead of reading each file; `_plans_record`, `_spec_record`, `_backlog_record`, `_research_record`, `_release_record`, `_prompts_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE` and `read_readiness` callers read cached fields; `last_history_at` comes from `artifact_meta.history` through the unchanged `attention_contract.last_history_at` rule (phase B: same lines, same answer; the post-cutover `last_history_precision` key is Order 13's, see Deferred). Body-derived columns (open-question counts, E/V counts) still read the body (N3). `_extract_detail` stays as the fallback when `short_description` is absent (D-3). A cross-artifact `query()` `incomplete` list becomes an `attention.missing-status` violation for each named record, so an invalid record is reported, never silently dropped.
   - Depends on: E-01
   - Expected outcome: E-04 and its five baseline modules pass unchanged; `aw attention --all --format json` on this checkout yields the same item count and violation count as `.aw/state/ffceq0/att-before.json` (F-07 records 3,096 and 1 at authoring; the bar is equality with the saved baseline, not those numbers), and the diff of sorted `id`/`tree`/`native_status`/`last_history_at`/`detail_text` tuples is empty.
-  - Execution state: pending
-
-- [ ] E-03 Pin and move the `ipd_lint` metadata reads: `parse` takes `meta_fields`/`meta_errors` from `artifact_meta` for a tracked plan (the `ipd_schema.parse_metadata_block` grammar now runs only inside the legacy loader); `lint_text(text, *, state=None)` gains a `state` argument that carries the plan's `State` from `artifact_meta.read`, `artifact_meta.read_at` or `artifact_meta.read_text` (OQ-03), and uses `artifact_meta.read_text(text)` when the caller passes none, so the string callers in `review_sequence`, the runner and 58 test call sites keep working and no second parser exists; `IPD-S405` reads `artifact_meta.history` (4.4 bullet "Gate IPD-S405"); `IPD-M107`, `IPD-M113` and `IPD-M112` read cached `readiness`, `approval` and `coverage` fields and their history (their meaning is unchanged; the event-ownership form is Order 06's AC-15); `run_lint` row status, priority and `blocks_release` read cached fields; `_CITATION_PLAN_DATE_RE` reads cached `date`; `plans.read_status` is the shared status for `M105`. (The original's E-09 -> E-07 edge, on the check_engine move, is carried by this plan's `- Item-Dependencies:` edges on Orders 29 to 32.) Pin first in `tests/test_readers_ipd_lint.py` (one fixture per rule id above, conforming and refused), run `tests/test_ipd_lint.py`, `tests/test_readiness_absence_invariant.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_priority_required.py` green before and after.
-  - Depends on: none
-  - Expected outcome: every listed test passes before and after with an empty outcome-list diff; `aw ipd lint --all --agent` (every plan under `.aw/records/plans`, not only pending) reports the same per-plan disposition and rule ids as the baseline saved to `.aw/state/ffceq0/lint-before.jsonl` before the edit (pasted sorted diff, empty).
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -83,7 +79,6 @@ Step-complexity measurement for this part (2026-11-07, at the worktree HEAD of t
 
 - E-01 (pin, `ffceq0` E-04): 1 new module with one fixture per tree (6 trees) plus the `--check` exit code; 5 baseline modules (`test_attention` 76 tests, `test_attention_contract` 27, `test_history_consumers_shared_reader` 5, `test_history_date_clock_readers` 3, `test_prompts_attention` 5). About 13 units.
 - E-02 (move, `ffceq0` E-05): measured with an `ast` walk of `agent_workflows/attention.py` for `history_block(`, `last_history_at(`, `read_readiness(`, `_ITEM_DEPS_RE`, `_plans_id(`, `_extract_detail(`/`_frontmatter_block(` and `^-` literals outside comments: 31 site lines in 15 functions (`_plans_record` 6, `_spec_record` 4, `_release_record` 4, `_research_record` 3, `_backlog_record` 3, `_prompts_record` 2, `read_readiness` 2, and one each in `count_question_stats`, `_extract_detail`, `_extract_item_dependencies`, `_plans_id`, `scan`, `item_for_path`, `format_plan_detail_line`); `count_question_stats` (open-question body prose, N3) and `_extract_detail` (D-3 fallback) stay, so about 24 sites move. About 25 units.
-- E-03 (`ipd_lint`, `ffceq0` E-09): `rg -n 're\.(compile|search|match)\(\s*r?"(\(\?m\))?\^-' agent_workflows/ipd_lint.py` = 5 (`_LEAF_RE`, the E-leaf grammar, stays per N3; `_HISTORY_LINE_RE`, `_CITATION_PLAN_DATE_RE` and the two `run_lint` status/priority searches move); plus the `parse` metadata slice, the `lint_text` `state` argument, 5 rule readers (S405, M107, M112, M113, M105), the `run_lint` `blocks_release` read; 1 new module with a conforming and a refused fixture per rule (10); 4 baseline modules (`test_ipd_lint` 77 tests, `test_readiness_absence_invariant` 5, `test_orchestrator_readiness` 24, `test_plan_priority_required` 27) and the `aw ipd lint --all` baseline. The 65 `lint_text(` call sites (`rg -c 'lint_text\(' tests agent_workflows`, 58 in tests at authoring) are NOT edited: the `state=None` default keeps them. About 24 units.
 
 READER LEDGER rows this part moves (copied from `ffceq0`; the full ledger stays in `ffceq0`):
 
@@ -92,7 +87,6 @@ READER LEDGER rows this part moves (copied from `ffceq0`; the full ledger stays 
 | `attention._plans_record` and siblings | per-tree reads, drift on missing/unknown status | E-04 module, `tests/test_attention.py`, `tests/test_attention_degraded_item.py` | same Items and drift |
 | `attention._extract_detail` | Summary, Scope, Concern, Question, Title, H1 cascade | `tests/test_attention.py`, `tests/test_specs_releases_unsafe_field.py` | D-3 |
 | `attention_contract.last_history_at` callers | newest history record date | `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_readers.py` | same rule over `artifact_meta.history` |
-| `ipd_lint.parse` metadata, `IPD-S405`, `M107`, `M112`, `M113`, `run_lint` rows | `ipd_schema.parse_metadata_block` slice; history lines parsed in `ipd_lint` | E-09 module, `tests/test_ipd_lint.py`, `tests/test_readiness_absence_invariant.py`, `tests/test_orchestrator_readiness.py` | same verdict per plan |
 
 DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, which keeps the full D-1..D-6 table; a test that changes after a move must be one of these, never a silent change):
 
@@ -103,10 +97,11 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 ## Proposed changes (ordered, validatable)
 
 1. Pin then move `attention` and its history reads (E-01, E-02; `ffceq0` E-04, E-05).
-2. Pin and move `ipd_lint` (E-03; `ffceq0` E-09).
 
 ## Deferred / out of scope (with reason)
 
+- E-03 (`ipd_lint`, `ffceq0` E-09). Moved to 1suzlp (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: 1suzlp
 - The post-cutover `last_history_at` from the newest event `at` with `last_history_precision`.
   - Carrier: cxxmyv
 - `selectors` and `aw find` (`ffceq0` E-01 to E-03). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule).
@@ -118,18 +113,18 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Scope check
 
-- Over-scope: none. `attention_contract.py` changes only if a history reader must accept `artifact_meta.history` records; `ipd_schema.py` changes only so `parse_metadata_block` is reached through the legacy loader (E-03).
-- Under-scope: none known. This part carries E-04, E-05 and E-09 of `ffceq0` unchanged except where its site list is partitioned, as named in each item.
+- Over-scope: none. `attention_contract.py` changes only if a history reader must accept `artifact_meta.history` records.
+- Under-scope: none known. This part carries E-04 and E-05 of `ffceq0` unchanged; E-09 (this plan's E-03) moved to `1suzlp`.
 
 ## Required tests / validation
 
-New core modules `tests/test_readers_attention.py` and `tests/test_readers_ipd_lint.py`. The existing modules named in E-01 and E-03 run before and after each move with an empty outcome-list diff.
+New core module `tests/test_readers_attention.py`. The existing modules named in E-01 run before and after each move with an empty outcome-list diff.
 
 Commands: the named modules, the bare core gate `python3 -m pytest`, `aw check`, `aw sanitize --agent`. The thorough tier `make test-all` runs once, in `ffceq0`'s final item.
 
 ## Spec / documentation sync
 
-N/A: no spec text changes; this part implements `4sd62s` 4.4 (the `_extract_detail` fallback, D-3, and the bullet "Gate IPD-S405" through `history`) and section 7 step 5 for `attention` and `ipd_lint`. It uses `artifact_meta.read_text`, which Order 27 adds and amends into spec 4.3.
+N/A: no spec text changes; this part implements `4sd62s` 4.4 (the `_extract_detail` fallback, D-3, and the bullet "Gate IPD-S405" through `history`) and section 7 step 5 for `attention`. It uses `artifact_meta.read_text`, which Order 27 adds and amends into spec 4.3.
 
 ## Open questions
 
@@ -138,7 +133,7 @@ N/A: no spec text changes; this part implements `4sd62s` 4.4 (the `_extract_deta
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Yes. 3 E-items, 6 Scope-Paths entries, measured at about 13, 25 and 24 units (see `## Findings`). E-03 depends on every check_engine part through `- Item-Dependencies:`, which carries the original's E-09 -> E-07 edge. Recommendation strength: strong.
+- Resolution or deferral rationale: Round 3 (2026-11-09): 2 E-items, 3 work Scope-Paths; E-03 moved to `1suzlp`, which carries the original's E-09 -> E-07 edge on the check_engine parts. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -151,11 +146,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-02 validates E-02
   - Required evidence: paste `diff .aw/state/ffceq0/E-04-before.txt .aw/state/ffceq0/E-05-after.txt (file names keep the `ffceq0` item numbers so the parent's final items find them)` printing nothing, and the output of a `python3 -c` snippet that loads `.aw/state/ffceq0/att-before.json` (saved in E-01) and a fresh `aw attention --all --format json`, sorts `(id, tree, native_status, last_history_at, detail_text)` tuples, and prints `items N -> N, violations M -> M, diff 0` with equal before and after values; plus the test in `tests/test_readers_attention.py` asserting that an `incomplete` record becomes an `attention.missing-status` violation, PASSED.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-03 validates E-03
-  - Required evidence: paste the sorted `diff` of `.aw/state/ffceq0/lint-before.jsonl` against a fresh `aw ipd lint --all --agent` (per-plan disposition and rule ids) printing nothing, and `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` all PASSED (one conforming and one refused fixture each for IPD-S405, IPD-M107, IPD-M112, IPD-M113 and M105), plus `diff .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/E-09-after.txt` (outcome lists of `tests/test_ipd_lint.py tests/test_readiness_absence_invariant.py tests/test_orchestrator_readiness.py tests/test_plan_priority_required.py`) printing nothing.
   - Observed evidence:
   - Result: pending
 

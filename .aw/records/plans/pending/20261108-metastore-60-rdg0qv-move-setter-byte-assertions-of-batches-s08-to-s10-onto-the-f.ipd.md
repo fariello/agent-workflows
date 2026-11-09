@@ -2,10 +2,10 @@
 
 - Date: 2026-11-08
 - Kind: child
-- Concern: Spec `4sd62s` C10a requires `main` to read and write exactly one metadata format at every commit, so the cutover commit (Order 13, `cxxmyv`) must switch the format and every test that asserts on it at once. `cxxmyv` E-07 carried, as one item, "convert the setter-byte assertions to `artifact_meta.read` plus the in-file mirror" (`59aiyh` Deferred row). Measured 2026-11-07 at `ac76110f4`: `rg -n "assert.*['\"]- (Status|Priority|Blocks-Release|Work-Kind|From-Backlog|From-Spec|Readiness|Approval|Set|Order|Kind|Id|Gate-Kind|Gate-Ref|Item-Dependencies|Graduated-To|Close-Evidence|Release-Exempt-(Kind|Ref)):" tests`, minus lines over command output and minus the legacy-grammar test modules, prints 518 candidate lines in 81 test modules; the 7 modules that `k6jd6l` E-08 already retargets hold 51 of them, leaving 467 in 74 modules. Converting them inside the attended cutover would hide several hundred steps in one item of a plan that cannot be retried cheaply. This work CAN move earlier without changing `main`'s on-disk format: the helper asserts through the ACTIVE format, which is the legacy format until the cutover, so every converted test still checks the same bytes today and needs no edit when the cutover flips the builder. Part of the split of `iog3cw` (Order 44); the helper is `iog3cw` E-01.
-- Scope: `cxxmyv` E-07 (setter-byte half), batches S08, S09, S10 moved verbatim from `iog3cw` (module and class lists unchanged; 12 module entries, 71 candidate lines at the split); E-04 finishes. The helper is `iog3cw` E-01. EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code; every other batch.
-- Scope-Paths: tests/test_handoff_ready_gate.py, tests/test_implementing_spec_replan.py, tests/test_ipd_lifecycle_cli.py, tests/test_oc_runipd.py, tests/test_orchestrator_retirement.py, tests/test_orchestrator_status_gate.py, tests/test_plan_priority_required.py, tests/test_plans_archive.py, tests/test_plans_group_order_preservation.py, tests/test_plans_order_grammar.py, tests/test_plans_rename_selectors.py, tests/test_plan_transition_gate.py, .aw/records/plans/pending/20261108-metastore-60-rdg0qv-move-setter-byte-assertions-of-batches-s08-to-s10-onto-the-f.ipd.md
-- Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
+- Concern: Spec `4sd62s` C10a requires `main` to read and write exactly one metadata format at every commit, so the cutover commit (Order 13, `cxxmyv`) must switch the format and every test that asserts on it at once. `cxxmyv` E-07 carried, as one item, "convert the setter-byte assertions to `artifact_meta.read` plus the in-file mirror" (`59aiyh` Deferred row). Measured 2026-11-07 at `ac76110f4`: `rg -n "assert.*['\"]- (Status|Priority|Blocks-Release|Work-Kind|From-Backlog|From-Spec|Readiness|Approval|Set|Order|Kind|Id|Gate-Kind|Gate-Ref|Item-Dependencies|Graduated-To|Close-Evidence|Release-Exempt-(Kind|Ref)):" tests`, minus lines over command output and minus the legacy-grammar test modules, prints 518 candidate lines in 81 test modules; the 7 modules that `k6jd6l` E-08 already retargets hold 51 of them, leaving 467 in 74 modules. Converting them inside the attended cutover would hide several hundred steps in one item of a plan that cannot be retried cheaply. This work CAN move earlier without changing `main`'s on-disk format: the helper asserts through the ACTIVE format, which is the legacy format until the cutover, so every converted test still checks the same bytes today and needs no edit when the cutover flips the builder. Part of the split of `iog3cw` (Order 44); the helper is `j5fqax` E-01 (formerly `iog3cw` E-01).
+- Scope: `cxxmyv` E-07 (setter-byte half), batches S09 and S10 moved verbatim from `iog3cw` (module and class lists unchanged; 6 module entries, 47 candidate lines at the split; batch S08, E-01, moved to `wdz2l9` on 2026-11-09, round-3 split); E-04 finishes. The helper is `j5fqax` E-01 (formerly `iog3cw` E-01). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code; every other batch.
+- Scope-Paths: tests/test_plan_priority_required.py, tests/test_plans_archive.py, tests/test_plans_group_order_preservation.py, tests/test_plans_order_grammar.py, tests/test_plans_rename_selectors.py, tests/test_plan_transition_gate.py, .aw/records/plans/pending/20261108-metastore-60-rdg0qv-move-setter-byte-assertions-of-batches-s08-to-s10-onto-the-f.ipd.md
+- Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4, executed:wdz2l9
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,11 +21,12 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (S08) moved to wdz2l9.
 - 2026-11-08 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from iog3cw (batches S08, S09, S10) per maintainer step-complexity rule (no single E/V item hides hundreds of steps; at most 4 batch items per plan).
 
 ## Goal
 
-Every setter-byte assertion in batches S08, S09, S10 goes through the format-aware field helper of `iog3cw` E-01, with identical per-test outcomes before and after, so the cutover commit changes the helper and the builder and not these modules.
+Every setter-byte assertion in batches S09 and S10 goes through the format-aware field helper of `j5fqax` E-01, with identical per-test outcomes before and after, so the cutover commit changes the helper and the builder and not these modules.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -33,17 +34,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Batch rule, applied to every batch E-item of this plan:
 1. Record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/rdg0qv/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
-2. In each named module (or class), replace every SETTER-BYTE assertion with a call to the helper of `tests/record_builder.py` added by `iog3cw` E-01 (`assert_field(path, field, value)` and `assert_no_field(path, field)`). A setter-byte assertion is an `assertIn`/`assertNotIn`/`assert ... in` over the text of a RECORD FILE that names a front-matter bullet (`- Status:`, `- Priority:`, `- Blocks-Release:` and the other F-28 fields). An assertion over command OUTPUT (stdout, stderr, a rendered message) is a `displayed-output assertion` and is NOT converted; an assertion whose subject is the legacy grammar itself (a legacy-loader, migration or quoted-example test) is `legacy-format subject` and is NOT converted.
+2. In each named module (or class), replace every SETTER-BYTE assertion with a call to the helper of `tests/record_builder.py` added by `j5fqax` E-01, formerly `iog3cw` E-01 (`assert_field(path, field, value)` and `assert_no_field(path, field)`). A setter-byte assertion is an `assertIn`/`assertNotIn`/`assert ... in` over the text of a RECORD FILE that names a front-matter bullet (`- Status:`, `- Priority:`, `- Blocks-Release:` and the other F-28 fields). An assertion over command OUTPUT (stdout, stderr, a rendered message) is a `displayed-output assertion` and is NOT converted; an assertion whose subject is the legacy grammar itself (a legacy-loader, migration or quoted-example test) is `legacy-format subject` and is NOT converted.
 3. Re-run the same command into `<batch>-after.txt` and require `diff` to print nothing. A conversion that would change what a test checks (for example a test that asserts the exact bullet spelling, such as whitespace after the colon) stops and is reported with its node id; it is listed as `setter-byte, exact spelling` in F-28 for `cxxmyv`, not weakened.
 4. Count the remaining matches of the F-28 pattern in the batch's modules and give each remaining line one class: `converted` (none should remain), `displayed-output assertion`, `legacy-format subject` or `setter-byte, exact spelling`.
 5. The helper never reads production source, and no test gains a source-reading assertion.
 
 ### Task group 1: batches
-
-- [ ] E-01 Batch S08: convert the setter-byte assertions of `tests/test_handoff_ready_gate.py`, `tests/test_implementing_spec_replan.py`, `tests/test_ipd_lifecycle_cli.py`, `tests/test_oc_runipd.py`, `tests/test_orchestrator_retirement.py`, `tests/test_orchestrator_status_gate.py` (24 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S08`.
-  - Depends on: none
-  - Expected outcome: an empty before/after `diff` for the S08 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
 
 - [ ] E-02 Batch S09: convert the setter-byte assertions of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py` (19 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S09`.
   - Depends on: none
@@ -57,8 +53,8 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 2: finish
 
-- [ ] E-04 Finish this part: run the batch rule's command over every module of S08, S09, S10 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit rdg0qv -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
-  - Depends on: E-01, E-02, E-03
+- [ ] E-04 Finish this part: run the batch rule's command over every module of S09 and S10 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for S08 to S10 (one row per remaining match with its class; the S08 rows copied from `wdz2l9` F-28 with the source named) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit rdg0qv -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+  - Depends on: E-02, E-03
   - Expected outcome: the union comparison is empty; F-28 for this part is written; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
   - Execution state: pending
 
@@ -77,11 +73,13 @@ Batch rule, applied to every batch E-item of this plan:
 
 ## Proposed changes (ordered, validatable)
 
-1. Convert the batches (E-01 to E-03); the batches are independent.
+1. (Moved) S08: `wdz2l9`. Convert S09 and S10 (E-02, E-03); the batches are independent.
 2. Re-run the union, write F-28, run the core gate, commit (E-04).
 
 ## Deferred / out of scope (with reason)
 
+- Batch S08 (E-01). Moved to wdz2l9 (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: wdz2l9
 - Switching the builder to `RECORD_FORMAT = "log"`, adding the helper's log-format branch, and changing the `setter-byte, exact spelling` rows F-28 lists: they change the on-disk format and so belong to the cutover commit (C10a).
   - Carrier: cxxmyv
 - The helper and batches S01 to S04.
@@ -92,7 +90,7 @@ Batch rule, applied to every batch E-item of this plan:
 ## Scope check
 
 - Over-scope: none. No production module changes.
-- Under-scope: none known. Size: 4 E-items, 13 Scope-Paths entries; every batch item is at most about 30 one-line conversions.
+- Under-scope: none known. Size: 3 E-items, 6 work Scope-Paths entries; every batch item is at most about 30 one-line conversions.
 
 ## Required tests / validation
 
@@ -122,23 +120,18 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste the empty `diff .aw/state/rdg0qv/S08-before.txt .aw/state/rdg0qv/S08-after.txt`, the before and after F-28 `rg -c` totals over the batch's modules, and the class of every remaining match.
-  - Observed evidence:
-  - Result: pending
-
 - [ ] V-02 validates E-02
-  - Required evidence: paste the empty `diff .aw/state/rdg0qv/S09-before.txt .aw/state/rdg0qv/S09-after.txt`, the before and after F-28 `rg -c` totals over the batch's modules, and the class of every remaining match.
+  - Required evidence: paste the empty `diff .aw/state/rdg0qv/S09-before.txt .aw/state/rdg0qv/S09-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the empty `diff .aw/state/rdg0qv/S10-before.txt .aw/state/rdg0qv/S10-after.txt`, the before and after F-28 `rg -c` totals over the batch's modules, and the class of every remaining match.
+  - Required evidence: paste the empty `diff .aw/state/rdg0qv/S10-before.txt .aw/state/rdg0qv/S10-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_transition_gate.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `diff` of the concatenated, sorted `-before.txt` lists of S08, S09, S10 against the combined after-run list (empty), F-28 for this part as written, the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit rdg0qv` output listing only Scope-Paths.
+  - Required evidence: paste the `diff` of the concatenated, sorted `-before.txt` lists of S09 and S10 against the combined after-run list (empty), F-28 for this part as written with one row per remaining match and its class, the per-module F-28 `rg -c` count for each of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_transition_gate.py`, the bare `python3 -m pytest` summary line beside them and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit rdg0qv` output listing only Scope-Paths.
   - Observed evidence:
   - Result: pending
 

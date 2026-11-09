@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Spec `4sd62s` section 7 step 4 requires the rename, regroup and archive verbs to write their metadata edits through `artifact_meta` in phase B, while the file move itself stays a git move until the cutover (section 7: path-bearing events start at the cutover commit). Measured: `artifact_rename` holds 11 hand-built bullet literals; `plans_refs` 4. This is a part of `xexn45`, split 2026-11-07.
-- Scope: Move `artifact_rename._update_frontmatter_metadata`, `_update_or_inject_set_metadata`, `plans_refs._set_metadata`/`apply_renames`, the `research_refs.run_mv`/`run_set_assign` front-matter edits and the status edit in `research_archive.apply_moves` onto `artifact_meta.append` (`xexn45` E-06). `plans_archive.apply_shard_moves` stays a pure move and the rename ledger stays unchanged. EXCLUDES: `rename` and path events (`cxxmyv`).
-- Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/artifact_rename.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/research_archive.py, .aw/records/plans/pending/20261107-metastore-25-bsl45u-move-the-rename-regroup-and-archive-field-writers-onto-artif.ipd.md
-- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
+- Scope: FINISHING PART of the rename, regroup and archive field-writer move (`xexn45` E-06). Round-3 split 2026-11-09 per research `nj8zdp`: the moves now live in `1hfmpb` (Order 127, `artifact_rename`, which also captures the family baseline), `fnu6kw` (128, `plans_refs`, and the pure-move check of `plans_archive.apply_shard_moves`) and `9gy5jk` (129, `research_refs` and `research_archive`). This plan keeps the family close-out (E-02): the four modules that exercise all three writer modules at once, compared against the baseline `1hfmpb` captured, and the D-4 ledger check. EXCLUDES: `rename` and path events (`cxxmyv`).
+- Scope-Paths: .aw/records/plans/pending/20261107-metastore-25-bsl45u-move-the-rename-regroup-and-archive-field-writers-onto-artif.ipd.md
+- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:1hfmpb, executed:fnu6kw, executed:9gy5jk
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -13,7 +13,7 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 25
-- Highest E allocated: 01
+- Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: bsl45u
 
@@ -21,12 +21,13 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (split by writer module) moved to 1hfmpb, fnu6kw, 9gy5jk.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from xexn45 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-Every rename, regroup and shelf-move verb edits metadata only through `artifact_meta`, with its batch refusals and ledger behavior unchanged.
+After its three parts run, the rename, regroup and shelf-move verbs edit metadata only through `artifact_meta`, and the cross-module rename tests and the rename ledger behave exactly as before the first part.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -34,11 +35,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 PIN-FIRST RULE for every "move" item: run the named existing test modules GREEN on the unmodified code and save the per-test outcome list under the gitignored `.aw/state/bsl45u/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/bsl45u/<E>-before.txt`; `-m ""` includes `slow` modules, `-p no:randomly -n 0` makes the list deterministic, and `-q` is not repeated because `addopts` is cleared); make the move; run the same command into `-after.txt`; `diff` of the two must print nothing, so a test that newly fails, errors or skips is caught, not only a lost PASSED line. An existing assertion may change only when the Behavior decisions D-1 to D-6 below name it. New tests set `pytestmark = pytest.mark.core`, build fixtures in `tmp_path`, drive the real CLI or function, and never read production source (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
 
-### Task group 1: rename, regroup and archive field writers
+### Task group 1: family close-out
 
-- [ ] E-01 Move the rename, regroup and archive field writers onto `artifact_meta.append` in phase B: `artifact_rename._update_frontmatter_metadata` and `_update_or_inject_set_metadata` (Set, Order, injected Id), `plans_refs._set_metadata`/`apply_renames`, `research_refs.run_mv`/`run_set_assign` front-matter edits, and the status edit in `research_archive.apply_moves`. The file move itself stays `artifact_core.git_mv` and `plans_archive.apply_shard_moves` stays a pure move (phase B writes no `rename` or path event; section 7 "the writers of path-bearing events start at the cutover commit"). The gitignored rename ledger (`record_history.record_rename`) stays unchanged until the cutover (AC-31 is a post-cutover criterion). Behaviors kept: Set/Order/Id edit and the a88210 no-H1 rule (`tests/test_artifact_rename.py`, `tests/test_artifact_group.py`, `tests/test_spec_id6_filenames.py::test_to_id6_preview_then_apply_injects_and_rewrites`, `test_to_id6_idempotent_on_clustered_spec`); prompt id in the comment (`tests/test_artifact_rename.py::test_rename_prompts`); Order preservation and refusals (`tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`); research front matter (`tests/test_research_rename_frontmatter.py`, `tests/test_research_set_assign_date_containment.py`); shelf moves (`tests/test_research_archive.py::test_promote_to_reference_moves_to_weekly_shard_keeps_id`, `tests/test_plans_archive.py::test_move_is_tracked_git_rename`); ledger (`tests/test_rename_ledger.py`); machine output (`tests/test_rename_group_machine_output.py`, `tests/test_mutation_result_facts.py`); citation rewrite (`tests/test_artifact_refs_rewrite.py`).
+- [ ] E-02 Close out the rename family: run the PIN-FIRST command over `tests/test_rename_ledger.py`, `tests/test_rename_group_machine_output.py`, `tests/test_mutation_result_facts.py` and `tests/test_artifact_refs_rewrite.py` into `.aw/state/bsl45u/family-after.txt` and `diff` it against `.aw/state/bsl45u/family-before.txt` (captured by `1hfmpb` E-01 before any rename writer changed). These four modules drive `artifact_rename`, `plans_refs` and `research_refs` together (machine output, mutation facts, citation rewrite), so they are checked once, after all three parts. Also confirm D-4: `tests/test_rename_ledger.py::test_applied_plan_rename_appends_one_record` still passes, so `record_history.record_rename` is unchanged.
   - Depends on: none
-  - Expected outcome: every named module passes before and after with equal PASSED sets; each pre-pass batch refusal (`plans_refs` yqv6b7 E-03: an invalid plan raises before any file is touched) still holds because validation now runs for the whole batch before the first `write_legacy`.
+  - Expected outcome: the `diff` prints nothing; the ledger test passes.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -60,10 +61,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Findings
 
-| Id | Evidence (measured 2026-11-07 at `ac76110f4`) | Finding |
+| Id | Evidence (measured 2026-11-07 at `ac76110f4`; split counts 2026-11-09 at `3d0ddb845`) | Finding |
 |---|---|---|
-| F-01 | Hidden units of E-01: 7 writer functions (all exist: `rg -c "^def <name>\("` = 1 each), 4 edited files, 13 pinned modules (`test_artifact_rename` 7, `test_artifact_group` 8, `test_spec_id6_filenames` 21, `test_plans_group_order_preservation` 8, `test_plans_order_grammar` 12, `test_research_rename_frontmatter` 17, `test_research_set_assign_date_containment` 21, `test_research_archive` 26, `test_plans_archive` 15, `test_rename_ledger` 13, `test_rename_group_machine_output` 14, `test_mutation_result_facts` 8, `test_artifact_refs_rewrite` 25 tests): about 24 units | At the limit, kept as one item because every module pins the same batch-refusal-before-write and ledger contract. |
-| F-02 | `artifact_rename` raw writes attributed to the enclosing `def`: `_update_frontmatter_metadata` (2), `_update_or_inject_set_metadata` (1); `plans_refs.apply_renames` (1) | All in this item. |
+| F-01 | Hidden units of the original E-01: 7 writer functions, 4 edited files, 13 pinned modules: about 24 units, and 21 named units by `IPD-Z603` | Over the round-3 guidance of 8; split by writer module into `1hfmpb`, `fnu6kw` and `9gy5jk`. |
+| F-02 | `artifact_rename` raw writes attributed to the enclosing `def`: `_update_frontmatter_metadata` (2), `_update_or_inject_set_metadata` (1); `plans_refs.apply_renames` (1) | `1hfmpb` and `fnu6kw`. |
+| F-03 | `rg -o '"(rename|group|research)", "(plans|specs|backlog|prompts|mv|set-assign)"'` and the imports of the four shared modules: `test_mutation_result_facts` imports `artifact_rename`, `plans_refs` and `research_refs`; `test_artifact_refs_rewrite` drives `rename plans` and `rename specs`; `test_rename_group_machine_output` drives rename, group and research `mv`; `test_rename_ledger` drives `rename plans` and `group` | These modules span all three parts, so they are baselined before the first and compared after the last (E-02). |
 
 ## Behavior decisions (kept behavior where writers disagreed, 4.3)
 
@@ -72,10 +74,17 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Proposed changes (ordered, validatable)
 
-1. Move the rename, regroup and archive field writers (E-01).
+1. The moves, in three parts: `artifact_rename` with the baseline (`1hfmpb`), `plans_refs` (`fnu6kw`), research shelf (`9gy5jk`).
+2. The family close-out (E-02).
 
 ## Deferred / out of scope (with reason)
 
+- E-01 `artifact_rename` subset (`artifact_rename._update_frontmatter_metadata`, `_update_or_inject_set_metadata`; pins `tests/test_artifact_rename.py`, `tests/test_artifact_group.py`, `tests/test_spec_id6_filenames.py`) and the family baseline: Moved to 1hfmpb (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: 1hfmpb
+- E-01 `plans_refs` subset (`plans_refs._set_metadata`, `apply_renames`, the batch-refusal-before-write rule; pins `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`) and the `plans_archive.apply_shard_moves` pure-move check (`tests/test_plans_archive.py`): Moved to fnu6kw (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: fnu6kw
+- E-01 research subset (`research_refs.run_mv`, `run_set_assign`, the status edit in `research_archive.apply_moves`; pins `tests/test_research_rename_frontmatter.py`, `tests/test_research_set_assign_date_containment.py`, `tests/test_research_archive.py`): Moved to 9gy5jk (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: 9gy5jk
 - The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` and `CHANGELOG.md` lines, and the full-suite gates of the writer move.
   - Carrier: xexn45
 - `rename` and path-bearing events, retiring the sidecar writer and the rename ledger.
@@ -84,11 +93,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. `plans_archive.py` is deliberately NOT declared: it stays a pure move.
+- Under-scope: none. Each of the 13 originally pinned modules is pinned in exactly one plan: nine in the three parts and four (the cross-module ones) here. Plan size after the split: 1 E-item, no code path.
 
 ## Required tests / validation
 
-No new module. Pinned before and after (equal outcome lists): the thirteen modules of V-01.
+No new module and no code edit. Compared against the `1hfmpb` baseline: the four modules of V-02.
 
 Contributes to `4sd62s` AC-34 and AC-40 case 3 (owners named in `xexn45`).
 
@@ -104,10 +113,11 @@ None open. Every question this work raised was resolved in `xexn45` before the s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste the `diff` of `.aw/state/bsl45u/E-01-before.txt` and `-after.txt` (must print nothing; both files are the PIN-FIRST rule's sorted outcome lists) and both summary lines of `python3 -m pytest -o addopts="" -q -rA tests/test_artifact_rename.py tests/test_artifact_group.py tests/test_spec_id6_filenames.py tests/test_plans_group_order_preservation.py tests/test_plans_order_grammar.py tests/test_research_rename_frontmatter.py tests/test_research_set_assign_date_containment.py tests/test_research_archive.py tests/test_plans_archive.py tests/test_rename_ledger.py tests/test_rename_group_machine_output.py tests/test_mutation_result_facts.py tests/test_artifact_refs_rewrite.py`, and quote the PASSED line of `tests/test_plans_order_grammar.py::test_set_metadata_raises_on_unmatchable_order_line` (the batch-refusal-before-write behavior).
+- [ ] V-02 validates E-02
+  - Required evidence: paste the empty `diff .aw/state/bsl45u/family-before.txt .aw/state/bsl45u/family-after.txt`, the per-module PASSED counts from `family-after.txt` for each of `tests/test_rename_ledger.py`, `tests/test_rename_group_machine_output.py`, `tests/test_mutation_result_facts.py` and `tests/test_artifact_refs_rewrite.py`, and the PASSED line of `tests/test_rename_ledger.py::test_applied_plan_rename_appends_one_record`.
   - Observed evidence:
   - Result: pending
+
 
 ## Approval and execution gate
 

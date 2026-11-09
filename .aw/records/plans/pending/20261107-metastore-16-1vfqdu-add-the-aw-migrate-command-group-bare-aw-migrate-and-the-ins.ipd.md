@@ -21,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 review per research nj8zdp; within the guidance, no items moved; V-01 and V-04 evidence now name each module's node ids beside the summary lines.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dcerjg per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -128,7 +129,7 @@ No spec change; implements `4sd62s` 5.1 (naming, install question, `--migrate`).
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `aw migrate --help` output listing `metadata` and `layout`; `diff <(aw migrate layout status) <(aw migrate-layout status)` printing nothing; and `python3 -m pytest -o addopts="" tests/test_command_surface_declarations.py tests/test_completion.py` summary line with 0 failed.
+  - Required evidence: paste `aw migrate --help` output listing `metadata` and `layout`; `diff <(aw migrate layout status) <(aw migrate-layout status)` printing nothing; and `python3 -m pytest -o addopts="" -v tests/test_command_surface_declarations.py tests/test_completion.py` with each module's node ids PASSED and 0 failed, including the declaration check covering the `migrate metadata` and `migrate layout` leaves.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -140,7 +141,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste `python3 -m pytest -o addopts="" -n auto tests/test_migrate_cli.py tests/test_install_migrate_prompt.py tests/test_command_surface_declarations.py tests/test_completion.py --durations=10` summary with 0 failed and the durations table, naming any module marked `slow`; and the bare `python3 -m pytest` summary line inside the 30 s budget.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -n auto tests/test_migrate_cli.py tests/test_install_migrate_prompt.py tests/test_command_surface_declarations.py tests/test_completion.py --durations=10 -rA` PASSED node ids for each of the four modules, the summary with 0 failed and the durations table, naming any module marked `slow`; and the bare `python3 -m pytest` summary line inside the 30 s budget.
   - Observed evidence:
   - Result: pending
 

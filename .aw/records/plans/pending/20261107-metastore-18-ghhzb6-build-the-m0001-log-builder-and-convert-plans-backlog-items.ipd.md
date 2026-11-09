@@ -21,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 review per research nj8zdp; within the guidance, no items moved; V-03 evidence now names the per-type node ids beside the summary line.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dcerjg per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -128,7 +129,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py --durations=10` with every test PASSED and the durations table; and the bare `python3 -m pytest` summary line.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py --durations=10` with every test PASSED by node id, including one field-destination test each for plans, backlog items, releases, specs and staged prompts and the AC-40 case 1 and 2 tests, and the durations table; and, beside it, the bare `python3 -m pytest` summary line.
   - Observed evidence:
   - Result: pending
 

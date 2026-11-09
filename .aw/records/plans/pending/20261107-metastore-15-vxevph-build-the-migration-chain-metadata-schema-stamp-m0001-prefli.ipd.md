@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Spec `4sd62s` makes the cutover one scripted migration (5.1, 5.2), and none of it exists: `agent_workflows/migrations/` does not exist (`ls agent_workflows/migrations` fails), and `project_schema.parse_portable_policy` knows no `metadata_schema` key. Plan `dcerjg` owned this work in single items whose hidden work was too large for one agent turn, so it was split 2026-11-07 per the maintainer's step-complexity rule. This part is the foundation every other `m0001` part builds on.
-- Scope: Add the numbered migration chain (`agent_workflows/migrations/__init__.py`, `chain.py`), the `metadata_schema` stamp in the resolved `project.json` and its round trip through `project_schema` and `install_wizard`, the `require_current_schema` hook in `artifact_meta`'s read path (`dcerjg` E-01); the step-1 preflight and `--force`/`--force-worktree` (`dcerjg` E-04); the migration journal on the `layout_migration.MigrationManager` components (`dcerjg` E-05); and the step-2 sidecar import and orphan export (`dcerjg` E-06); plus the tests for those four items (a subset of `dcerjg` E-14). Everything runs only on test fixtures. EXCLUDES: the `aw migrate` CLI group and the install prompt (`1vfqdu`); renames and citations (`dky26u`); conversion (`ghhzb6`, `hpedmn`); census, round trip, clone proof and changelog (`dcerjg`); descriptions (`odeo9z`, `ya4ee4`).
-- Scope-Paths: agent_workflows/migrations/__init__.py, agent_workflows/migrations/chain.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_preflight.py, agent_workflows/artifact_meta.py, agent_workflows/project_schema.py, agent_workflows/install_wizard.py, tests/test_migrations_chain.py, tests/test_m0001_preflight.py, tests/test_m0001_sidecar.py, .aw/records/plans/pending/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
-- Item-Dependencies: executed:tve77h
+- Scope: On top of the migration chain and `metadata_schema` stamp built by `g8na48` (round-3 split of this plan's E-01): the step-1 preflight and `--force`/`--force-worktree` (`dcerjg` E-04); the migration journal on the `layout_migration.MigrationManager` components (`dcerjg` E-05); and the step-2 sidecar import and orphan export (`dcerjg` E-06); plus the tests for those three items (a subset of `dcerjg` E-14). Everything runs only on test fixtures. EXCLUDES: the chain, stamp and read-path hook and the stamp half of `tests/test_migrations_chain.py` (`g8na48`); the `aw migrate` CLI group and the install prompt (`1vfqdu`); renames and citations (`dky26u`); conversion (`ghhzb6`, `hpedmn`); census, round trip, clone proof and changelog (`dcerjg`); descriptions (`odeo9z`, `ya4ee4`).
+- Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_preflight.py, tests/test_m0001_preflight.py, tests/test_m0001_sidecar.py, .aw/records/plans/pending/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
+- Item-Dependencies: executed:tve77h, executed:g8na48
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,28 +21,24 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (and the stamp half of E-05) moved to g8na48.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dcerjg per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-The migration chain, the schema stamp, the preflight, the journal and the sidecar import exist and are proven on fixtures, so every later `m0001` part only adds steps to a journaled, preflighted run.
+The preflight, the journal and the sidecar import exist on the `g8na48` chain and are proven on fixtures, so every later `m0001` part only adds steps to a journaled, preflighted run.
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-### Task group 1: the migration chain and the stamp
-
-- [ ] E-01 Before any edit, save `aw check --agent` output to `.aw/state/dcerjg/check-before.jsonl` (the V-16 baseline). Create `agent_workflows/migrations/__init__.py` and `agent_workflows/migrations/chain.py`: a `Migration` record (`number`, `name`, `target_schema`, `is_pending(repo) -> bool`, `run(repo, *, apply, force, force_worktree, describer=None)`), an ordered `MIGRATIONS` tuple holding `m0001` (`metadata-v2`, target 2), the constant `CURRENT_METADATA_SCHEMA = 1` (Order 13 flips it to 2 in the cutover commit), `read_metadata_schema(repo)` and `write_metadata_schema(repo, value)` against the `project_context.resolve_project_context` `config_project` path (never a hard-coded `.aw/config/project.json`), `repo_has_legacy_records(repo)` (any record with a `- Field:` bullet block before the first `##` or a `## Workflow history` section, READMEs excluded), and `require_current_schema(repo)` that raises with the exact text "run `aw migrate metadata`" when the stamp, or 1 when absent on a repository with legacy records, is below `CURRENT_METADATA_SCHEMA`. Call it from `artifact_meta`'s one cache-refresh entry point (the freshness check that every public read runs first, `tve77h` E-13), so every metadata-reading command reaches it through the one interface (5.3, C5) and no command needs its own call; `aw migrate`, `aw install`, `aw setup`, `aw doctor` and `aw --help` do not read metadata through `artifact_meta` and so never refuse. This is a one-line hook in `artifact_meta.py`, which is in Scope-Paths. Make `metadata_schema` a documented member of the portable policy: add it to `known_keys` in `project_schema.parse_portable_policy` AND to the fallback `known_proj_keys` set in `install_wizard` (the copy used when `parse_portable_policy` raises), add an optional `metadata_schema: Optional[int]` field to `project_schema.ProjectPolicySchema` that `to_dict` writes when set, and carry the parsed value through the `ProjectPolicySchema(...)` rebuild in `install_wizard`, so a reinstall never drops the stamp. Moving the key from `unknown_fields` to a field without these three edits would silently delete it on the next `aw install`, because `install_wizard` rebuilds `project.json` from named fields plus `unknown_fields`. `write_metadata_schema` writes the file atomically (temporary file plus `os.replace`, as `config.stamp_cutovers` and `install_wizard` do), keeps every other key and its value, and keeps the trailing newline (`tests/test_install_config_trailing_newline.py`). `parse_local_binding` is not changed: the stamp lives only in the portable `project.json`.
-  - Depends on: none
-  - Expected outcome: in a tmp repository, `write_metadata_schema(repo, 2)` adds `"metadata_schema": 2` to the resolved `project.json` and leaves `schema_version` and every other key unchanged; a following `aw install` into the same repository keeps `"metadata_schema": 2`; `require_current_schema` raises the named message when `CURRENT_METADATA_SCHEMA` is 2 and the stamp is absent on a legacy fixture, and returns silently under the shipped value 1, so no command in this repository refuses before the cutover; with `chain.CURRENT_METADATA_SCHEMA` monkeypatched to 2, `artifact_meta.read(<id6>)` on a legacy fixture raises naming `aw migrate metadata` (AC-11 case 1 at the interface; in phase A no CLI command reads through `artifact_meta` yet, so the CLI-level refusal is demonstrated by `cxxmyv` after Orders 08 and 09 have moved the readers).
-  - Execution state: pending
+Item E-01 (baseline, chain, stamp, read-path hook) moved to `g8na48` (see Deferred).
 
 ### Task group 2: preflight, journal and sidecar
 
 - [ ] E-02 Create `agent_workflows/migrations/m0001_preflight.py` implementing 5.2 step 1 in this order: (1) WORKTREE: refuse when the absolute `git rev-parse --path-format=absolute --git-dir` differs from `ipd_lifecycle.checkout_git_common_dir(repo)` (in this review lane they are `.git/worktrees/<name>` and `.git`), naming `--force-worktree`; `--force` never overrides it, and `None` from `checkout_git_common_dir` refuses as "cannot establish the common directory". (2) UNCOMMITTED: `git status --porcelain -- <records root>` non-empty. (3) LOCK: `platform_lock.probe_free(runner_shared.integration_lock_path(repo))` is False; `None` (unanswerable) is reported as its own condition and refuses like False, because `probe_free` documents that `None` is not proof the lock is free. (4) LANES: each linked worktree from `git worktree list --porcelain` whose branch changes a path under the plans tree and for which `runner_shared.lane_work_has_landed` is not True, listed by worktree, with `None` shown as "unknown" rather than dropped. Each condition refuses and is named; `--force` continues past (2) to (4) and the report names each overridden condition and its 5.2 consequence; refusals write nothing (no journal, no scratch). When the lock is free, the apply holds `runner_shared.integration_lock(repo, holder_label="aw migrate metadata")` for its whole duration.
-  - Depends on: E-01
+  - Depends on: none
   - Expected outcome: every AC-27 case and AC-22 case (1) hold in tmp repositories; the tmp tree is byte-identical after each refusal.
   - Execution state: pending
 
@@ -58,9 +54,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: tests
 
-- [ ] E-05 Add the test modules for E-01 to E-04, moved here from `dcerjg` E-14 (subset: the stamp-and-schema half of `tests/test_migrations_chain.py`, all of `tests/test_m0001_preflight.py`, and the sidecar cases, which `dcerjg` E-14 had placed in `tests/test_m0001_conversion.py` and which move to a new `tests/test_m0001_sidecar.py` so that each part owns its own module), all on `tmp_path` fixture repositories built with real `git init`, calling the real functions and asserting on outputs, exit codes and file bytes (no source reading): `tests/test_migrations_chain.py` (E-01, AC-11 case 1 at the interface with `CURRENT_METADATA_SCHEMA` patched to 2, and the project-schema test that a reinstall keeps the stamp, PR-001); `tests/test_m0001_preflight.py` (AC-27 cases 1 to 4, AC-22 case 1, journal resume and rollback); `tests/test_m0001_sidecar.py` (AC-30 case 1 and the `.aw/.gitignore` part of case 2). Mark each `core`; any module whose slowest test exceeds 2 s in `--durations=10` is marked `slow` instead and named in V-05.
-  - Depends on: E-01, E-02, E-03, E-04
-  - Expected outcome: the three modules pass under `python3 -m pytest -o addopts="" -n auto <modules>`, and the bare core gate stays inside its 30 s budget.
+- [ ] E-05 Add the test modules for E-02 to E-04, moved here from `dcerjg` E-14 (subset: all of `tests/test_m0001_preflight.py`, and the sidecar cases, which `dcerjg` E-14 had placed in `tests/test_m0001_conversion.py` and which move to a new `tests/test_m0001_sidecar.py` so that each part owns its own module), all on `tmp_path` fixture repositories built with real `git init`, calling the real functions and asserting on outputs, exit codes and file bytes (no source reading): `tests/test_m0001_preflight.py` (AC-27 cases 1 to 4, AC-22 case 1, journal resume and rollback); `tests/test_m0001_sidecar.py` (AC-30 case 1 and the `.aw/.gitignore` part of case 2). Mark each `core`; any module whose slowest test exceeds 2 s in `--durations=10` is marked `slow` instead and named in V-05.
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: the two modules pass under `python3 -m pytest -o addopts="" -n auto <modules>`, and the bare core gate stays inside its 30 s budget.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -76,7 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Id | Evidence (measured 2026-11-07 in this worktree) | Finding |
 |---|---|---|
 | F-01 | `ls agent_workflows/migrations`: "No such file or directory" | The chain, journal and preflight are unbuilt; the hidden work is counted as deliverables. |
-| F-02 | `rg -n "known_keys\|known_proj_keys\|ProjectPolicySchema\(" agent_workflows/project_schema.py agent_workflows/install_wizard.py`: 8 hits (two `known_keys` sets in `project_schema`, the `install_wizard` fallback `known_proj_keys`, one `ProjectPolicySchema` class) | Stamp item (E-01, which also saves the `.aw/state/dcerjg/check-before.jsonl` baseline that `dcerjg` E-16 compares against, because this part runs first): files `chain.py`, `__init__.py`, `project_schema.py`, `install_wizard.py`, `artifact_meta.py` (one hook), 6 functions (`read_metadata_schema`, `write_metadata_schema`, `repo_has_legacy_records`, `require_current_schema`, `Migration`, `MIGRATIONS`), 3 schema edits: about 14 units. |
+| F-02 | `rg -n "known_keys\|known_proj_keys\|ProjectPolicySchema\(" agent_workflows/project_schema.py agent_workflows/install_wizard.py`: 8 hits (two `known_keys` sets in `project_schema`, the `install_wizard` fallback `known_proj_keys`, one `ProjectPolicySchema` class) | (Moved to `g8na48` in the round-3 split.) Stamp item (E-01, which also saves the `.aw/state/dcerjg/check-before.jsonl` baseline that `dcerjg` E-16 compares against, because this part runs first): files `chain.py`, `__init__.py`, `project_schema.py`, `install_wizard.py`, `artifact_meta.py` (one hook), 6 functions (`read_metadata_schema`, `write_metadata_schema`, `repo_has_legacy_records`, `require_current_schema`, `Migration`, `MIGRATIONS`), 3 schema edits: about 14 units. |
 | F-03 | `rg -n "def (checkout_git_common_dir\|probe_free\|integration_lock_path\|integration_lock\|lane_work_has_landed)\b" agent_workflows`: all 5 exist | Preflight item (E-02): 4 conditions, 2 flags, 1 lock hold, 1 file: about 8 units. |
 | F-04 | `rg -n "def (_acquire_lock\|_save_transaction\|_load_transaction\|resume_migration\|rollback_migration)" agent_workflows/layout_migration.py`: 5 | Journal item (E-03): reuse 5 components, 1 new path, 6 journal sections, dry-run scratch, backup apply: about 12 units. |
 | F-05 | `ls .aw/records/history.jsonl`: absent in this worktree; `rg -c "records/history.jsonl" .aw/.gitignore`: 1 | Sidecar item (E-04): read, expected-ness rule, classify, orphan export, apply move, 1 ignore-line removal: about 6 units; a fixture sidecar is required. |
@@ -84,12 +80,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: baseline, chain, stamp, read-path hook.
-2. E-02 to E-04: preflight, journal, sidecar.
-3. E-05: tests.
+1. E-02 to E-04: preflight, journal, sidecar (E-01 moved to `g8na48`).
+2. E-05: tests.
 
 ## Deferred / out of scope (with reason)
 
+- E-01 (the `aw check` baseline, `migrations/__init__.py`, `migrations/chain.py`, the `metadata_schema` stamp and its `project_schema`/`install_wizard` round trip, the `artifact_meta` read-path hook) and the stamp-and-schema half of `tests/test_migrations_chain.py` from E-05: Moved to g8na48 (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: g8na48
 - The `aw migrate` command group, bare `aw migrate`, and the install pending-migration prompt.
   - Carrier: 1vfqdu
 - Every later `m0001` step, the census, the round trip, the clone proof, the changelog, and the `dcerjg` E-16 gates.
@@ -99,12 +96,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. The `artifact_meta.py` edit is the one `require_current_schema` call in the read path.
-- Under-scope: none for `dcerjg` E-01, E-04, E-05 and E-06 and their tests; AC-11 case 1 (interface form), AC-22 case 1, AC-27 cases 1 to 4 and AC-30 case 1 are proven here.
+- Over-scope: none.
+- Under-scope: none for `dcerjg` E-04, E-05 and E-06 and their tests (E-01 is `g8na48`'s); AC-22 case 1, AC-27 cases 1 to 4 and AC-30 case 1 are proven here.
 
 ## Required tests / validation
 
-New modules (all `core` unless E-05's duration rule moves one to `slow`): `tests/test_migrations_chain.py`, `tests/test_m0001_preflight.py`, `tests/test_m0001_sidecar.py`. Existing: `tests/test_install_config_trailing_newline.py`, `tests/test_layout_migration.py`. Gate: bare `python3 -m pytest`.
+New modules (all `core` unless E-05's duration rule moves one to `slow`): `tests/test_m0001_preflight.py`, `tests/test_m0001_sidecar.py`. Existing: `tests/test_migrations_chain.py` (from `g8na48`), `tests/test_layout_migration.py`. Gate: bare `python3 -m pytest`.
 
 ## Spec / documentation sync
 
@@ -125,10 +122,6 @@ No spec change; implements `4sd62s` 5.1 (chain, stamp) and 5.2 steps 1 and 2. Th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_migrations_chain.py -k "stamp or schema"` with every selected test PASSED, including a test asserting the resolved `project.json` gains `"metadata_schema": 2` with `schema_version` unchanged and a test asserting the exact refusal text "run `aw migrate metadata`" under a patched `CURRENT_METADATA_SCHEMA = 2`; the `git diff` hunks adding `metadata_schema` in `project_schema.py` and `install_wizard.py`; the PASSED test showing `aw install` into a stamped repository keeps `"metadata_schema": 2`; and the PASSED test showing `artifact_meta.read` on a legacy fixture with the constant monkeypatched to 2 raises naming `aw migrate metadata`.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_preflight.py -k "preflight or worktree or sidecar_missing"` with one PASSED test per AC-27 case 1 (three conditions, refused and then forced, output naming the overridden condition), 2, 3, 4 and AC-22 case 1; each refusal test asserts a byte-identical tree.
   - Observed evidence:
@@ -142,7 +135,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest -o addopts="" -n auto tests/test_migrations_chain.py tests/test_m0001_preflight.py tests/test_m0001_sidecar.py --durations=10` summary with 0 failed and the durations table, naming any module marked `slow`; and the bare `python3 -m pytest` summary line inside the 30 s budget.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -n auto tests/test_m0001_preflight.py tests/test_m0001_sidecar.py --durations=10 -rA` PASSED node ids for both modules, the summary with 0 failed, and the durations table, naming any module marked `slow`; and the bare `python3 -m pytest` summary line inside the 30 s budget.
   - Observed evidence:
   - Result: pending
 

@@ -21,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 check per research nj8zdp: within the guidance, not split; V-02 evidence rewritten to name each pinned test.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from xexn45 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -123,7 +124,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `diff` of `.aw/state/7yr827/E-02-before.txt` and `-after.txt` (must print nothing; both files are the PIN-FIRST rule's sorted outcome lists) and both summary lines of `python3 -m pytest -o addopts="" -q -rA tests/test_run_proposal_channel.py tests/test_records_only_lane_rederive.py tests/test_review_sequence_runner.py tests/test_history_date_clock_residual.py tests/test_question_preflight.py tests/test_attended_session.py`, and quote the PASSED line of `tests/test_review_sequence_runner.py::test_ac07_readiness_written_before_s7_reverted_and_reasked`.
+  - Required evidence: paste the `diff` of `.aw/state/7yr827/E-02-before.txt` and `-after.txt` (must print nothing; both files are the PIN-FIRST rule's sorted outcome lists) and from `-after.txt` the PASSED lines of each named unit: `tests/test_run_proposal_channel.py::test_needs_attended_proposal_marks_plan_and_files_no_stub`, `test_attended_field_value_is_linted`, `tests/test_records_only_lane_rederive.py::test_the_anti_revert_control_holds_on_the_shipped_allow_list`, `tests/test_review_sequence_runner.py::test_ac07_readiness_written_before_s7_reverted_and_reasked`, `tests/test_history_date_clock_residual.py::test_proposal_fallback_record_records_utc_date`, `tests/test_question_preflight.py::test_record_oq_answer_appends_to_existing_rationale`, plus the per-module PASSED counts (equal before and after) of those six modules and `tests/test_attended_session.py`.
   - Observed evidence:
   - Result: pending
 

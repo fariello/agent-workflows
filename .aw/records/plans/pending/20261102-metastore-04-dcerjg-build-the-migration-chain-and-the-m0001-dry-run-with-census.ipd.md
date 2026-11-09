@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` makes the cutover one scripted migration (5.1, 5.2). After the 2026-11-07 split, the chain, preflight, journal, sidecar, CLI, renames and conversion are built by parts `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6` and `hpedmn`. What no part can prove alone is the END-TO-END result: the step-6 field census over every type, the round-trip verifier, the full module suite, and one complete dry run, apply, commit and second apply on a COPY of this repository (spec section 7 phase A step 3), which must succeed before Order 13 runs the one irreversible commit. Measured at authoring: 35 tracked legacy-timestamp records outside comms, 2,035 citation hits in 457 files over the widened roots (F-05), 70 distinct bullet names before the first `##` (F-07).
-- Scope: Integration and finishing part of the `m0001` build, after its parts (`vxevph` chain/stamp/preflight/journal/sidecar, `1vfqdu` CLI group, bare `aw migrate` and install prompt, `dky26u` renames and citations, `ghhzb6` and `hpedmn` conversion): the step-6 field census (E-12), the round-trip verifier (E-13), the end-of-family run of every `m0001` test module plus `tests/test_m0001_roundtrip.py` (`hpedmn` E-03), the proof on a disposable clone of this repository (E-15), and the CHANGELOG line and gates (E-16). Everything runs ONLY on test fixtures and on a disposable clone; this plan never migrates this checkout. EXCLUDES: every item moved to the parts above (see Deferred); the description journal and model generation (Order 05, `ya4ee4`, with `odeo9z`); switching the toolkit's loader and writer to logs, moving the legacy loader into `m0001`, the real cutover run, and flipping `CURRENT_METADATA_SCHEMA` to 2 (Order 13, `cxxmyv`); removing the sidecar writer and the `history.jsonl` lines from `engine.py` and `placement_switch.py` (Order 13); deleting INDEX/STATUS code (Order 11, `9o83cr`); `aw check meta` (Order 08, `ffceq0`).
-- Scope-Paths: agent_workflows/migrations/m0001_verify.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_m0001_roundtrip.py, tests/test_m0001_gate_marker.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md
-- Item-Dependencies: executed:tve77h, executed:vxevph, executed:1vfqdu, executed:dky26u, executed:ghhzb6, executed:hpedmn
+- Scope: Integration and finishing part of the `m0001` build, after its parts (`vxevph` chain/stamp/preflight/journal/sidecar, `1vfqdu` CLI group, bare `aw migrate` and install prompt, `dky26u` renames and citations, `ghhzb6` and `hpedmn` conversion, `o19353` terminal marker and cleanup): the step-6 field census (E-12), the round-trip verifier (E-13), the end-of-family run of every `m0001` test module plus `tests/test_m0001_roundtrip.py`, the proof on a disposable clone of this repository (E-15), and the CHANGELOG line and gates (E-16). Everything runs ONLY on test fixtures and on a disposable clone; this plan never migrates this checkout. EXCLUDES: every item moved to the parts above (see Deferred); the description journal and model generation (Order 05, `ya4ee4`, with `odeo9z`); switching the toolkit's loader and writer to logs, moving the legacy loader into `m0001`, the real cutover run, and flipping `CURRENT_METADATA_SCHEMA` to 2 (Order 13, `cxxmyv`); removing the sidecar writer and the `history.jsonl` lines from `engine.py` and `placement_switch.py` (Order 13); deleting INDEX/STATUS code (Order 11, `9o83cr`); `aw check meta` (Order 08, `ffceq0`).
+- Scope-Paths: agent_workflows/migrations/m0001_verify.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_roundtrip.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md
+- Item-Dependencies: executed:tve77h, executed:vxevph, executed:1vfqdu, executed:dky26u, executed:ghhzb6, executed:hpedmn, executed:o19353
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -19,6 +19,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-11 (and the gate-marker module of E-14) moved to o19353.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-04, E-05, E-06 moved to vxevph; E-02, E-03 moved to 1vfqdu (with the new bare `aw migrate` item); E-07, E-08 moved to dky26u; E-09, E-10 split by record type across ghhzb6 and hpedmn; E-11 kept; E-14's test modules split across the parts.
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
@@ -30,7 +31,7 @@
 
 ## Goal
 
-After its parts have built each step, finish the one-time `aw migrate metadata` cutover code with the field census, the round-trip verifier, the terminal-commit marker and the cleanup step, and prove the whole of it on a disposable clone, so that Order 13 runs code that has already produced a complete, verified, idempotent migration of a full copy of this repository.
+After its parts have built each step, finish the one-time `aw migrate metadata` cutover code with the field census and the round-trip verifier, and prove the whole of it on a disposable clone, so that Order 13 runs code that has already produced a complete, verified, idempotent migration of a full copy of this repository.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -50,12 +51,7 @@ Items E-01 to E-10 were moved to the parts named in `## Deferred / out of scope 
   - Carrier: hpedmn
 `; their ids are not reused.
 
-### Task group 4: terminal marker and cleanup (steps 4a, 5)
-
-- [ ] E-11 Implement steps 4a and 5 on the scratch result: step 5 deletes `plans/STATUS.md` and every `INDEX.json`/`INDEX.md` under plans, research and prompts, and removes the INDEX ignore lines from the target repository's `.aw/.gitignore`; step 4a writes, after the apply stages the migration's own path list, a positive marker into the journal holding the migration id and the `git write-tree` id of the staged index. In `hooks/executed_transition_gate.check` and `hooks/backlog_blocking_close_gate.check`, accept a staged change ONLY when such a marker exists at the journal path resolved from `project_context.resolve_project_context(repo).logical_roots` `state_durable` (never a literal path) and its tree id equals the current `git write-tree`; any other staged content, including the same paths with one extra edit, is judged by the existing rules. The hooks only READ the marker; `m0001` deletes it after the commit succeeds (and on rollback), so a stale marker can never admit a later commit, and a marker whose tree id no longer matches is ignored and reported once on stderr. `git write-tree` is the only git write the hooks perform, and it writes only tree objects that already describe the staged index. `--no-verify` is never used or suggested.
-  - Depends on: none
-  - Expected outcome: in a tmp repository holding an executed plan and a release-blocking `done` backlog item, a staged migration result is refused by each hook without the marker, accepted with a matching marker, refused again after one extra staged edit, and refused after the marker is consumed by a completed commit.
-  - Execution state: pending
+Item E-11 (steps 4a and 5, terminal-commit marker and hook acceptance) moved to `o19353` (see Deferred).
 
 ### Task group 5: census, round trip, real-copy proof and commit
 
@@ -69,17 +65,17 @@ Items E-01 to E-10 were moved to the parts named in `## Deferred / out of scope 
   - Expected outcome: a fixture holding a history line longer than `MAX_PROSE_DESCRIPTIVE_LEN` (4,300) and one with a control character round-trips both byte for byte, while the same long value given to `artifact_meta`'s writer validation is refused; a fixture with a planted home-directory path in a field value makes `--apply` refuse on the sanitizer.
   - Execution state: pending
 
-- [ ] E-14 Add `tests/test_m0001_roundtrip.py` and `tests/test_m0001_gate_marker.py` (the two modules of the original E-14 list whose items stay in this plan), all on `tmp_path` fixture repositories built with real `git init`, calling the real functions and the real `aw` CLI leaves and asserting on outputs, exit codes and file bytes (no source reading): `tests/test_m0001_roundtrip.py` (AC-10 fixture cases, AC-20 fixture census, idempotence), `tests/test_m0001_gate_marker.py` (E-11 hook cases). The other five modules of the original list (`tests/test_migrations_chain.py`, `tests/test_install_migrate_prompt.py`, `tests/test_m0001_preflight.py`, `tests/test_m0001_renames.py`, `tests/test_m0001_conversion.py`) and their split-out siblings `tests/test_m0001_sidecar.py`, `tests/test_migrate_cli.py` and `tests/test_m0001_review_conversion.py` are written by the parts `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6` and `hpedmn`; this item RUNS all ten together once, as the family gate. Mark each new module `core`; any module whose slowest test exceeds 2 s in `--durations=10` is marked `slow` instead and named in V-14.
-  - Depends on: E-11, E-12, E-13
+- [ ] E-14 Add `tests/test_m0001_roundtrip.py` (AC-10 fixture cases, AC-20 fixture census, idempotence), on `tmp_path` fixture repositories built with real `git init`, calling the real functions and the real `aw` CLI leaves and asserting on outputs, exit codes and file bytes (no source reading). Then RUN, once, as the family gate, the ten `m0001` test modules listed under `## Required tests / validation` ("New modules here" plus "Run as the family gate"): this one and nine written by the parts `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6`, `hpedmn` and `o19353` (which now writes the gate-marker module, round-3 split). Mark the new module `core`; any module whose slowest test exceeds 2 s in `--durations=10` is marked `slow` instead and named in V-14.
+  - Depends on: E-12, E-13
   - Expected outcome: all ten modules pass under `python3 -m pytest -o addopts="" -n auto <modules>`, and the bare core gate stays inside its 30 s budget.
   - Execution state: pending
 
-- [ ] E-15 Prove the migration on a COPY of this repository, never on this checkout: commit the E-11 to E-14 work first (every earlier step is already committed by the executed parts) (E-16 may be split so that this commit precedes the proof), then `git clone --no-hardlinks <this checkout> tmp/dcerjg-clone` (the gitignored `tmp/` inside this checkout, so a runner lane keeps the clone inside its workspace), copy the gitignored `.aw/records/history.jsonl` into the clone when this checkout has one (a runner lane has none: record that, run the sidecar half with a synthetic sidecar of at least one resolvable and one orphan record, and leave the real-sidecar line to `cxxmyv` E-02, which already owns AC-22 case 2), and in the clone run, with the clone's own package (`cd tmp/dcerjg-clone && python3 -m agent_workflows ...`, which the `checkout_pin` re-exec rule resolves to the clone) (a) `aw migrate metadata` (dry run), (b) `aw migrate metadata --apply` (must refuse on missing descriptions), (c) a short driver `python3 -c` calling `m0001_metadata_v2.run(copy, apply=True, describer=<fixed-text fake>)`, (d) the step-7 commit via `aw commit --no-plan` with the migration's path list, running `python3 -m agent_workflows ipd-executed-gate` and the backlog close gate first, (e) `aw migrate metadata --apply` again, then (f) `git status --porcelain --ignored` in the clone. Step (c) needs a describer, so it exercises the seam with a fixed-text fake and is NOT evidence about real descriptions. Record wall time and peak scratch size. Delete the clone afterwards. Before and after, `git status --porcelain` of THIS checkout must be identical.
+- [ ] E-15 Prove the migration on a COPY of this repository, never on this checkout: commit the E-12 to E-14 work first (every earlier step is already committed by the executed parts) (E-16 may be split so that this commit precedes the proof), then `git clone --no-hardlinks <this checkout> tmp/dcerjg-clone` (the gitignored `tmp/` inside this checkout, so a runner lane keeps the clone inside its workspace), copy the gitignored `.aw/records/history.jsonl` into the clone when this checkout has one (a runner lane has none: record that, run the sidecar half with a synthetic sidecar of at least one resolvable and one orphan record, and leave the real-sidecar line to `cxxmyv` E-02, which already owns AC-22 case 2), and in the clone run, with the clone's own package (`cd tmp/dcerjg-clone && python3 -m agent_workflows ...`, which the `checkout_pin` re-exec rule resolves to the clone) (a) `aw migrate metadata` (dry run), (b) `aw migrate metadata --apply` (must refuse on missing descriptions), (c) a short driver `python3 -c` calling `m0001_metadata_v2.run(copy, apply=True, describer=<fixed-text fake>)`, (d) the step-7 commit via `aw commit --no-plan` with the migration's path list, running `python3 -m agent_workflows ipd-executed-gate` and the backlog close gate first, (e) `aw migrate metadata --apply` again, then (f) `git status --porcelain --ignored` in the clone. Step (c) needs a describer, so it exercises the seam with a fixed-text fake and is NOT evidence about real descriptions. Record wall time and peak scratch size. Delete the clone afterwards. Before and after, `git status --porcelain` of THIS checkout must be identical.
   - Depends on: E-14
   - Expected outcome: the dry run prints the preflight (sidecar presence and record count, real or synthetic as recorded), the rename map (34 entries at authoring; the bar is that every `_LEGACY_TIMESTAMP_RE` artifact, walkthrough and roadmap of the clone is mapped except the OQ-02 templates), per-location citation counts with 0 warnings, the census and a passing round trip; (b) refuses naming the missing descriptions; (c) applies; (d) both hooks accept the marked commit; (e) changes nothing; (f) shows no `records/history.jsonl`, no `STATUS.md` and no INDEX file.
   - Execution state: pending
 
-- [ ] E-16 Add one `CHANGELOG.md` entry under `2.0.0 (pending)` (new `aw migrate metadata` dry-run command and `aw migrate layout` spelling; `aw install --migrate`; the migration does not yet run on any repository), with no em or en dashes. Run the named modules, the bare core gate `python3 -m pytest`, `make test-all` (not a phase end, but the migration touches many modules), and `aw check`; commit through `aw commit dcerjg -- <each changed path>` (E-15 needs the E-11 to E-14 code committed before it clones, so this is normally two commits: the code before E-15, the changelog and any E-15 fixes after it). Never push.
+- [ ] E-16 Add one `CHANGELOG.md` entry under `2.0.0 (pending)` (new `aw migrate metadata` dry-run command and `aw migrate layout` spelling; `aw install --migrate`; the migration does not yet run on any repository), with no em or en dashes. Run the named modules, the bare core gate `python3 -m pytest`, `make test-all` (not a phase end, but the migration touches many modules), and `aw check`; commit through `aw commit dcerjg -- <each changed path>` (E-15 needs the E-12 to E-14 code committed before it clones, so this is normally two commits: the code before E-15, the changelog and any E-15 fixes after it). Never push.
   - Depends on: E-14, E-15
   - Expected outcome: every run passes; `aw check` reports no error or warning that this plan introduced; each path-scoped commit's `git show --stat` lists only Scope-Paths files.
   - Execution state: pending
@@ -120,16 +116,17 @@ All values measured in this session at the current `HEAD` of this checkout.
 
 ## Proposed changes (ordered, validatable)
 
-1. E-11: terminal-commit marker and cleanup (steps 4a, 5).
-2. E-12, E-13: census and round trip.
-3. E-14: the round-trip and gate-marker modules, and one run of every `m0001` module.
-4. E-15: real-copy proof.
-5. E-16: changelog, gates and commit.
+1. E-12, E-13: census and round trip.
+2. E-14: the round-trip module, and one run of every `m0001` module.
+3. E-15: real-copy proof.
+4. E-16: changelog, gates and commit.
 
 Every earlier step is built by the parts in `- Item-Dependencies:`, which this plan waits for.
 
 ## Deferred / out of scope (with reason)
 
+- E-11 (steps 4a and 5: terminal-commit marker, STATUS/INDEX cleanup, read-only marker acceptance in both hooks) and its test module `tests/test_m0001_gate_marker.py` from E-14: Moved to o19353 (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: o19353
 - The description journal, the tracked generation prompt, the tool-less model call and the cost trial; this plan provides only the `describer` seam and the census and refusal accounting.
   - Carrier: ya4ee4
 - Switching `artifact_meta`'s loader and writer to logs, moving the legacy loader into `migrations/m0001_metadata_v2.py`, flipping `CURRENT_METADATA_SCHEMA` to 2, running the migration on this checkout, the real preflight sidecar line (AC-22 case 2), the real census orphan lines (AC-30 case 3), and final AC-10, AC-11, AC-16 and AC-41 evidence on the real repository, including AC-41 case 4's `aw show --history` display with the current name (the phase-A toolkit cannot read a v2 copy, C9).
@@ -147,12 +144,12 @@ Every earlier step is built by the parts in `- Item-Dependencies:`, which this p
 
 ## Scope check
 
-- Over-scope: none. The hook edits (E-11) are additive marker acceptance in `hooks/executed_transition_gate.py` and `hooks/backlog_blocking_close_gate.py` (in Scope-Paths below); `m0001_metadata_v2.py` is touched only to call steps 4a, 5 and 6 in the journaled run.
+- Over-scope: none. `m0001_metadata_v2.py` is touched only to call step 6 (census and round trip) in the journaled run; steps 4a and 5 and the hook edits moved to `o19353`.
 - Under-scope: none. Every item moved out is carried by a named part (Deferred); the cutover-only parts are carried by `cxxmyv`.
 
 ## Required tests / validation
 
-New modules here (all `core` unless E-14's duration rule moves one to `slow`): `tests/test_m0001_roundtrip.py`, `tests/test_m0001_gate_marker.py`. Run as the family gate (written by the parts): `tests/test_migrations_chain.py`, `tests/test_install_migrate_prompt.py`, `tests/test_m0001_preflight.py`, `tests/test_m0001_sidecar.py`, `tests/test_migrate_cli.py`, `tests/test_m0001_renames.py`, `tests/test_m0001_conversion.py`, `tests/test_m0001_review_conversion.py`. Existing: `tests/test_command_surface_declarations.py`, `tests/test_layout_migration.py`, `tests/test_migrate_layout_cli.py`, `tests/test_plans_rename_selectors.py`, `tests/test_date_reader_clock_parity.py`. Gates: bare `python3 -m pytest`, `make test-all`, `aw check`.
+New module here (`core` unless E-14's duration rule moves it to `slow`): `tests/test_m0001_roundtrip.py`. Run as the family gate (written by the parts): `tests/test_m0001_gate_marker.py` (`o19353`), `tests/test_migrations_chain.py`, `tests/test_install_migrate_prompt.py`, `tests/test_m0001_preflight.py`, `tests/test_m0001_sidecar.py`, `tests/test_migrate_cli.py`, `tests/test_m0001_renames.py`, `tests/test_m0001_conversion.py`, `tests/test_m0001_review_conversion.py`. Existing: `tests/test_command_surface_declarations.py`, `tests/test_layout_migration.py`, `tests/test_migrate_layout_cli.py`, `tests/test_plans_rename_selectors.py`, `tests/test_date_reader_clock_parity.py`. Gates: bare `python3 -m pytest`, `make test-all`, `aw check`.
 
 Acceptance criteria of spec `4sd62s` this plan OWNS (after the 2026-11-07 split, each fixture half is proven by the part named in parentheses, and this plan proves the clone half and pastes the final evidence; Order 13 re-demonstrates on the real repository where noted):
 
@@ -171,7 +168,7 @@ Acceptance criteria of spec `4sd62s` this plan OWNS (after the 2026-11-07 split,
 - AC-40 cases 1 and 2 (`ghhzb6` E-02).
 - AC-41 cases 1, 2, 3, 5 and the byte-for-byte half of case 4 (`dky26u` E-01, E-02, and E-13, E-15 here).
 
-CONTRIBUTES to: AC-16 case 1 (marker acceptance by both hooks and the sanitizer on the clone commit; `aw attention --check --agent` on the migrated tree is `cxxmyv`'s), AC-22 case 2, AC-29 case 2, AC-30 case 3, AC-34 case 5 (checkpoint at old path then `rename`), AC-36 case 6 (census counts with and without description), AC-13 (clone wall time as an input).
+CONTRIBUTES to: AC-16 case 1 (marker acceptance by both hooks, built and fixture-proven by `o19353`, and the sanitizer on the clone commit; `aw attention --check --agent` on the migrated tree is `cxxmyv`'s), AC-22 case 2, AC-29 case 2, AC-30 case 3, AC-34 case 5 (checkpoint at old path then `rename`), AC-36 case 6 (census counts with and without description), AC-13 (clone wall time as an input).
 
 ## Spec / documentation sync
 
@@ -225,10 +222,6 @@ No spec change; implements `4sd62s` sections 5.1 and 5.2 (steps 0 to 7 on a copy
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-11 validates E-11
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_gate_marker.py` all PASSED (refused without marker, accepted with matching tree id, refused after one extra staged edit, refused after the marker is consumed, for each of the two hooks); and the `git diff` hunks of both hook files.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-12 validates E-12
   - Required evidence: paste the census section of the E-15 clone dry run in full: field rows with destinations and counts, zero `unknown-field` refusals, the excluded templates by name, the orphan sidecar `id6` lines, and the with/without description counts; and the refusal text of the E-15 step (b) `--apply`.
   - Observed evidence:

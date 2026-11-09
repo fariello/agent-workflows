@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Spec `4sd62s` 4.2 SHORT DESCRIPTION and AC-36 case 1 require every creating command to accept `--summary` and write it as `short_description`, and require a setter for an existing record. Measured: `aw ipd scaffold --help` and `aw prompts new --help` show no `--summary`, and no `aw describe` verb exists (`rg -n "\"describe\"" agent_workflows/cli.py agent_workflows/command_surface.py`: no match). This is a part of `xexn45`, split 2026-11-07.
-- Scope: Add `--summary` to `aw ipd scaffold` and `aw prompts new`; make the seven creating commands write `short_description` in their `create` event; register `Short-Description` in `ipd_schema.META_RECOGNIZED` (`xexn45` E-03). Add `aw describe <id6> --summary|--clear [--apply]` (`xexn45` E-04). Depends on `g6tw94` and `n5sxxk`, which move the creating commands onto `artifact_meta.create`. EXCLUDES: the `CHANGELOG.md` line (`xexn45` E-14).
-- Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/ipd_schema.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/specs.py, agent_workflows/backlog.py, agent_workflows/releases.py, agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/ipd_authoring.py, agent_workflows/prompts.py, docs/cli-output-contract.md, tests/test_writers_create_summary.py, .aw/records/plans/pending/20261107-metastore-24-6e93gt-write-short-description-at-creation-and-add-the-aw-describe.ipd.md
-- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk
+- Scope: FINISHING PART of the short-description work (`xexn45` E-03 and E-04). Round-3 split 2026-11-09 per research `nj8zdp`: `--summary` at creation now lives in `fekdwv` (Order 124, backlog, specs, releases), `bir7xm` (125, research, adopt) and `py2vu9` (126, plan scaffold, prompts, `ipd_schema.META_RECOGNIZED`), and `aw describe` in `h06gs7` (136). This plan keeps the AC-36 case 1 cross-check (E-03): all seven creating commands and the setter, once, in one run. EXCLUDES: the `CHANGELOG.md` line (`xexn45` E-14).
+- Scope-Paths: .aw/records/plans/pending/20261107-metastore-24-6e93gt-write-short-description-at-creation-and-add-the-aw-describe.ipd.md
+- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:fekdwv, executed:bir7xm, executed:py2vu9, executed:h06gs7
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -13,7 +13,7 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 24
-- Highest E allocated: 02
+- Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6e93gt
 
@@ -21,12 +21,13 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (split by command), E-02 moved to fekdwv, bir7xm, py2vu9, h06gs7.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from xexn45 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-Every creating command can write a short description at creation, and `aw describe` sets or clears it on any existing record, all through `artifact_meta`.
+After its four parts run, every creating command writes a short description at creation and `aw describe` sets or clears it; this plan proves the whole of AC-36 case 1 in one run.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -34,16 +35,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 PIN-FIRST RULE for every "move" item: run the named existing test modules GREEN on the unmodified code and save the per-test outcome list under the gitignored `.aw/state/6e93gt/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/6e93gt/<E>-before.txt`; `-m ""` includes `slow` modules, `-p no:randomly -n 0` makes the list deterministic, and `-q` is not repeated because `addopts` is cleared); make the move; run the same command into `-after.txt`; `diff` of the two must print nothing, so a test that newly fails, errors or skips is caught, not only a lost PASSED line. An existing assertion may change only when the Behavior decisions D-1 to D-6 below name it. New tests set `pytestmark = pytest.mark.core`, build fixtures in `tmp_path`, drive the real CLI or function, and never read production source (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
 
-### Task group 1: short description at creation and the setter
+### Task group 1: AC-36 case 1 cross-check
 
-- [ ] E-01 Write `short_description` at creation (AC-36 case 1): add `--summary` to `aw ipd scaffold` and `aw prompts new` (registered in `cli` and `command_surface`); make every creating command (`aw backlog new --summary`, `aw specs new --summary`, `aw releases new --summary`, `aw research new --summary`, `aw adopt --summary`, `aw ipd scaffold --summary`, `aw prompts new --summary`) write the value as `short_description` in the `create` event when it passes `attention_contract.refuse_unsafe_descriptive` at `MAX_DESCRIPTIVE_LEN` (300); for `aw specs new`, a `--summary` over 300 characters (still accepted up to `MAX_PROSE_DESCRIPTIVE_LEN` today) is written only to the body summary and writes no `short_description` (4.2 SHORT DESCRIPTION). In phase B the legacy writer renders the field as a `- Short-Description:` bullet (a prompt: a `Short-Description:` comment key), registered in `ipd_schema.META_RECOGNIZED` (plans; otherwise `IPD-M103`). The other types have no unknown-bullet check today (`specs.validate_spec`, `backlog._render_item`, `releases.validate_release`; research validates only its required YAML keys in `research_contract.FRONTMATTER_FIELDS`), so for them the gate is a test: each `tests/test_writers_create_summary.py` case runs `aw check all --agent` on its fixture and asserts no diagnostic names the new field. Research writes the value as a `short-description:` YAML key, not a bullet (see OQ-02). Test module `tests/test_writers_create_summary.py`.
+- [ ] E-03 Cross-check AC-36 case 1 across all four parts: run `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` once and build a table in Findings (F-05) with one row per creating command (`aw backlog new`, `aw specs new`, `aw releases new`, `aw research new`, `aw adopt`, `aw ipd scaffold`, `aw prompts new`) and one row for `aw describe`, each naming its stored-value test and its refusal tests by id. A command with no stored-value test is a defect of the part that owns it (`fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`): stop and report it rather than editing here.
   - Depends on: none
-  - Expected outcome: for each of the seven commands, `--summary "Adds a widget."` then `artifact_meta.read(<id6>).fields["short_description"] == "Adds a widget."`; a 301-character value, a newline value and a control-character value each exit nonzero with no file written; a 400-character `aw specs new --summary` writes the body summary and no `short_description`.
-  - Execution state: pending
-
-- [ ] E-02 Add the short-description setter `aw describe <id6> --summary <text> [--apply]` and `aw describe <id6> --clear [--apply]` (preview by default), registered in `cli`, `command_surface` and `docs/cli-output-contract.md`. It appends one `set` (or `unset`) of `short_description` through `artifact_meta.append` with no status change and is accepted on a terminal record (OQ-30: a terminal log accepts a `set` or `unset` of `short_description`). It resolves the selector through `selectors.resolve` and refuses zero or several matches with exit 2 (the `zyj8io` convention). Test module `tests/test_writers_create_summary.py`.
-  - Depends on: E-01
-  - Expected outcome: `aw describe <id6> --summary X` previews and writes nothing; `--apply` writes the field and one history line; the same call on an executed plan succeeds; `--clear --apply` removes it; an unknown id6 exits 2.
+  - Expected outcome: F-05 has eight rows, each naming PASSED test ids; no row is empty.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -71,15 +67,25 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | F-02 | `rg -n "Short-Description" agent_workflows/ipd_schema.py`: no match; `agent_workflows/artifact_meta.py` already maps `Short-Description` to `short_description` | `ipd_schema.py` must be edited; `xexn45` did not declare it in `- Scope-Paths:`, so this part declares it. |
 | F-03 | Hidden units of E-01: 2 new CLI options, 7 command modules, `ipd_schema.META_RECOGNIZED`, `command_surface`, the legacy rendering in three forms (bullet, prompt comment key, research YAML key), 11 new test cases: about 24 units | At the limit, kept whole because the seven commands share one test module and one acceptance case (AC-36 case 1). |
 | F-04 | Hidden units of E-02: one new verb, `cli`, `command_surface`, `docs/cli-output-contract.md`, five transcript cases: about 9 units | Within the limit. |
+| F-05 | (filled by E-03) one row per creating command and `aw describe`, with its PASSED test ids | The AC-36 case 1 cross-check. |
 
 ## Proposed changes (ordered, validatable)
 
-1. `--summary` at creation (E-01).
-2. The `aw describe` setter (E-02).
+1. `--summary` at creation, in three parts (`fekdwv`, `bir7xm`, `py2vu9`).
+2. The `aw describe` setter (`h06gs7`).
+3. The AC-36 case 1 cross-check (E-03).
 
 ## Deferred / out of scope (with reason)
 
-- The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` and `CHANGELOG.md` lines, and the full-suite gates of the writer move.
+- E-01 backlog, specs and releases subset (`aw backlog new`, `aw specs new` with the over-300 rule, `aw releases new`) and the creation of `tests/test_writers_create_summary.py`: Moved to fekdwv (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: fekdwv
+- E-01 research and adopt subset (`aw research new` with the `short-description:` YAML key, `aw adopt`): Moved to bir7xm (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: bir7xm
+- E-01 scaffold and prompts subset (the two new `--summary` options in `cli` and `command_surface`, the `Short-Description` entry in `ipd_schema.META_RECOGNIZED`, the prompt comment key): Moved to py2vu9 (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: py2vu9
+- E-02 (`aw describe` with `docs/cli-output-contract.md`): Moved to h06gs7 (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: h06gs7
+- The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` reconciliation of the `--summary` options and the `CHANGELOG.md` line, and the full-suite gates of the writer move.
   - Carrier: xexn45
 - The walkthrough-creating command `aw walkthrough new` (named in `xexn45` Deferred), which lands with the documents that describe it.
   - Carrier: 90iqr1
@@ -87,17 +93,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. 14 Scope-Paths entries exceed the 12-entry guide; see the cohesion rationale.
+- Under-scope: none. Every command of the original E-01 and the whole of E-02 lives in exactly one of the four parts. Plan size after the split: 1 E-item, no code path.
 
 ## Required tests / validation
 
-New core test module: `tests/test_writers_create_summary.py` (fixtures in `tmp_path`, real CLI, never reads source).
-
-Contributes to `4sd62s` AC-36 case 1 (`cxxmyv` re-demonstrates the full criterion).
+No new module and no code edit; `tests/test_writers_create_summary.py` is created by `fekdwv` and extended by `bir7xm`, `py2vu9` and `h06gs7`. Contributes to `4sd62s` AC-36 case 1 (`cxxmyv` re-demonstrates the full criterion).
 
 ## Spec / documentation sync
 
-`docs/cli-output-contract.md` gains the `aw describe` leaf (E-02). `xexn45` E-14 reconciles it with the two `--summary` options and adds the `CHANGELOG.md` line. No spec change: this implements `4sd62s` 4.2 SHORT DESCRIPTION as written.
+None here. `h06gs7` adds the `aw describe` leaf to `docs/cli-output-contract.md`; `xexn45` E-14 reconciles it with the two `--summary` options and adds the `CHANGELOG.md` line. No spec change: the parts implement `4sd62s` 4.2 SHORT DESCRIPTION as written.
 
 ## Open questions
 
@@ -113,19 +117,16 @@ Contributes to `4sd62s` AC-36 case 1 (`cxxmyv` re-demonstrates the full criterio
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py -k "summary and not describe"` with one PASSED test per creating command (seven) asserting `artifact_meta.read(id6).fields["short_description"]`, the three refusal tests (301 characters, newline, control character) each asserting exit code nonzero and `git status --porcelain` empty, and the 400-character `aw specs new --summary` test asserting no `short_description` and the body summary present; plus `aw ipd scaffold --help` and `aw prompts new --help` lines showing `--summary`.
+- [ ] V-03 validates E-03
+  - Required evidence: paste the `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` output and the filled F-05 table: for each of the seven creating commands, its stored-value test id and its 301-character, newline and control-character refusal test ids, each PASSED; for `aw describe`, its preview, apply, executed-plan, clear and unknown-id6 test ids, each PASSED.
   - Observed evidence:
   - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: paste the transcript in a fixture repository: `aw describe <id6> --summary "Adds a widget."` (preview, exit 0, `git status --porcelain` empty), the same with `--apply` (exit 0, `git diff` shows one `- Short-Description:` line and one history line), the same on an executed plan (exit 0), `--clear --apply` (bullet removed), and `aw describe zzzzzz --summary x; echo $?` printing `2`; plus `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py -k describe` all PASSED.
-  - Observed evidence:
-  - Result: pending
+
 
 ## Approval and execution gate
 
-- Size assessment: exception
-- Cohesion rationale: 14 Scope-Paths entries against a guide of about 12: seven of them are the seven creating-command modules, each receiving the same one-field change (pass `--summary` into the `create` event) and all driven by one test module for one acceptance case (AC-36 case 1). Splitting them would put one acceptance case and one test module across plans with no smaller seam. E-count (2) and task groups (1) are well inside the thresholds.
+- Size assessment: standard
+- Cohesion rationale: not required
 
 Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed.
 

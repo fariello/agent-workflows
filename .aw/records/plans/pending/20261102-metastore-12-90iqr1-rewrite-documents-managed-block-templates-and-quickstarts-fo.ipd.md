@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` section 5.4 requires every document, template, workflow and managed-block text that describes metadata FIELD SYNTAX (`- Status:`, `- Readiness:`, `- From-Backlog:`, `- Blocks-Release:`, `- Coverage:`, `- Kind:`, `## Workflow history`) to describe COMMANDS instead, and C10a forbids that text from reaching `main` before the cutover commit, because on a pre-cutover `main` it would describe a format that does not exist yet. Measured 2026-11-02: 22 workflow files under `.aw/system/workflows/` contain bullet-field or `## Workflow history` text, plus `docs/artifact-lifecycles.md`, `docs/run-analytics.md`, 5 records READMEs and the `engine.py` managed block (`engine.agents_pointer_prose`). Two commands handed to this plan by `xexn45` (a review-round recorder and `aw walkthrough new`) and the managed-block rewording handed by `9o83cr` also need documentation.
-- Scope: Prepare, review and commit the complete post-cutover documentation change as ONE patch file owned by this plan; do not apply it to the live documents. Order 13 (`cxxmyv`) applies the patch inside the cutover commit.
-- Scope-Paths: .aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch, tests/test_metastore_cutover_patch.py
-- Item-Dependencies: executed:9o83cr
+- Scope: FINISHING part of the cutover documentation patch. The content of the ONE cumulative patch file `.aw/system/cutover/metastore-docs.cutover.patch` is written by `qhay6a`, `a49djh`, `y1zihp` and `ngc2a2` (round-3 split 2026-11-09); this plan adds the guard test that keeps the patch applying, checks the patched tree with the sanitizer and the text-asserting tests, and commits. It does not apply the patch to the live documents. Order 13 (`cxxmyv`) applies the patch inside the cutover commit.
+- Scope-Paths: .aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md, tests/test_metastore_cutover_patch.py
+- Item-Dependencies: executed:9o83cr, executed:qhay6a, executed:a49djh, executed:y1zihp, executed:ngc2a2
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -19,6 +19,7 @@
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 moved to qhay6a (plus a new patch-writing step), E-03, E-04, E-07 moved to a49djh, E-05 split across y1zihp (READMEs, docs, ipd_schema, reference and prompt documents) and ngc2a2 (Kind renames, cli.py help), E-06 moved to ngc2a2, E-08 (package the patch) replaced by the cumulative patch-writing step in each of the four parts; E-09 and E-10 kept.
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
 - 2026-11-06 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
@@ -29,64 +30,20 @@
 
 ## Goal
 
-Produce a reviewed, applicable patch that rewrites every document, template, workflow, README and managed-block text for the post-cutover command-based metadata model, so that Order 13 can land it in the same commit as the format change and `main` never describes a format it does not have (C10a).
+Guard and check the reviewed, applicable patch (written by `qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`) that rewrites every document, template, workflow, README and managed-block text for the post-cutover command-based metadata model, so that Order 13 can land it in the same commit as the format change and `main` never describes a format it does not have (C10a).
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-### Task group 1: inventory
+### Task group 1: guard the patch
 
-- [ ] E-01 Re-measure the documentation surface at execution time: run `rg -l -e '^- (Status|Readiness|Approval|From-Backlog|From-Spec|Blocks-Release|Coverage|Work-Kind|Kind|Release-Exempt-Kind|Release-Exempt-Ref|Gate-Kind|Gate-Ref|Scope-Exceeded|Review-Depth|Pipeline):' -e '## Workflow history' -e '`- (Status|Readiness|From-Backlog|Blocks-Release|Coverage|Kind|From-Spec)' -e 'aw-prompt' -e '--kind' .aw/system/workflows docs .aw/records/*/README.md AGENTS.md README.md CONTRIBUTING.md agent_workflows/engine.py agent_workflows/ipd_schema.py agent_workflows/cli.py .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` (39 files at review before the added roots; the bar is a disposition for every listed file, not that count). The two specs are the "ipd-spec reference documents" that spec 5.4 names; `aw-prompt` covers the staged-prompt comment form (AC-40; `docs/artifact-lifecycles.md`, `.aw/records/prompts/README.md`, `.aw/system/workflows/templates/prompts-README.md`, `.aw/system/workflows/research-prompt/research-prompt.md` at review); `--kind` and `cli.py` cover the `Kind` to `plan_role`/`research_kind`/`prompt_kind` help-text renames of spec 5.4 (`aw ipd scaffold --kind`, `aw research mv --kind` at review). A spec is a record: it gets a `rewrite` disposition only where its text instructs agents to write field syntax; its own front matter and history are migrated by `m0001`, not by this patch. and record the file list with one disposition per file (rewrite, unchanged because the text quotes legacy history, or out of scope with reason) in this plan's `## Findings`.
+- [ ] E-09 Add `tests/test_metastore_cutover_patch.py` (marked `core`): it runs `git apply --check` of the patch against HEAD without a clone (a temporary `GIT_INDEX_FILE` filled by `git read-tree HEAD`, then `git apply --cached --check`; measured at review: 26 ms, so it fits the core budget) and asserts exit 0; asserts that the patch touches every file the `qhay6a` F-03 table marks `rewrite` (the test holds that list as data in the test module, copied from that table, because reading a plan file would couple a test to a record that `cxxmyv` retires); and asserts that no file outside the documentation set listed in this plan's F-08 is touched. Placing the patch under `.aw/system/` ships it in the wheel and sdist (`pyproject.toml` force-includes `.aw/system`), while the installer copies `.aw/system/workflows/` but not `.aw/system/cutover/`; E-09 also runs the installer and installed-text test modules (named in V-09) so a packaging or install-set change is caught, and `cxxmyv` E-08 deletes the file. The test reads the patch and applies it; it does not read production source.
   - Depends on: none
-  - Expected outcome: a complete per-file disposition table; no file in the `rg` output lacks a disposition.
-  - Execution state: pending
-
-### Task group 2: write the post-cutover text in a scratch worktree
-
-- [ ] E-02 Create a scratch git worktree from the executing checkout's HEAD inside the gitignored state root (`git worktree add --detach .aw/state/90iqr1/scratch HEAD`; measured at review: 1 s, and it leaves `git status` clean) and, in it only, rewrite the managed block produced by `engine.agents_pointer_prose` and the repo-local `AGENTS.md` text below the managed block so that attestations, `Status`, `From-Backlog`, `From-Spec`, `Blocks-Release`, `Work-Kind`, `Release-Exempt-*` and `Coverage` are described as the commands that write them (`aw ipd set`, `aw specs set`, `aw backlog set`, `aw set`, `aw show <id6> --history`, `aw check meta`, `aw meta repair`), and so that the close-legitimacy rule, the `aw index plans [--check]` sentence handed by `9o83cr`, and the executed-plan rule name the post-cutover forms (spec 5.2 step 4a amendment to the AGENTS.md executed-plan rule). Regenerate the AGENTS.md managed block from the edited generator with `python3 tools/regen_agents_block.py` inside the scratch worktree, so the patch carries the matching `.aw/system/managed-sections.json` section hashes and `tests/test_agents_section_records.py::test_live_agents_md_section_records_are_current` passes on the patched tree.
-  - Depends on: E-01
-  - Expected outcome: in the scratch worktree, `rg -n '^- (Status|Readiness|Blocks-Release|From-Backlog):' AGENTS.md` returns only quoted legacy examples marked as such.
-  - Execution state: pending
-
-- [ ] E-03 In the scratch worktree, rewrite the review workflows: `.aw/system/workflows/plan-review/steps/s7-finalize.md` and `s5-questions.md`, `s6-rereview.md`, `r2-executability.md`, `.aw/system/workflows/spec-review/spec-review.md` and its `README.md`, and `.aw/system/workflows/plan-review-long/*.md`, replacing "write `- Readiness:` into the plan" with the review-round recorder command that `xexn45` hands here (named in E-07 as `aw reviews record`), and replacing every hand edit of status or history with the setter.
-  - Depends on: E-01
-  - Expected outcome: no review workflow instructs an agent to hand-write a metadata bullet or a history line.
-  - Execution state: pending
-
-- [ ] E-04 In the scratch worktree, rewrite the remaining workflow and template files from the E-01 table (`ipd-lifecycle.md`, `askme.md`, `.aw/system/workflows/assess/templates/ipd.md` and `orchestrator-ipd.md`, `.aw/system/workflows/templates/*README.md`) so templates carry the two-key front matter (`id`, `status`) and the banner of spec 4.1 instead of bullet blocks, and instructions name commands.
-  - Depends on: E-01
-  - Expected outcome: `aw ipd scaffold --apply` run in the scratch worktree after the Order 13 code change produces a file whose head matches the 4.1 shape (verified in Order 13; here the template text is reviewed).
-  - Execution state: pending
-
-- [ ] E-05 In the scratch worktree, rewrite the records READMEs (`.aw/records/plans/README.md`, `specs/README.md`, `backlog/README.md`, `releases/README.md`, `walkthroughs/README.md`), `docs/artifact-lifecycles.md` and `docs/run-analytics.md` field-syntax passages, the `ipd_schema.py` section-schema docstrings and help text, and every E-01 row marked `rewrite` among the ipd-spec reference documents and the `aw-prompt` documents (the prompts README and its template, `research-prompt.md`: the staged-prompt comment becomes the single leading `aw-managed-prompt` comment of spec 4.1 and OQ-25), so they describe the log and the commands. Rename `Kind` (plan role), research `kind` and prompt `Kind` to `plan_role`, `research_kind` and `prompt_kind` in every document and in the `cli.py` help strings (spec 5.4 last bullet). Renaming an OPTION (for example `aw ipd scaffold --kind`) is a CLI contract change that this documentation patch does not make: the help text describes the value as the plan role, and any option rename is Order 13's code change (Carrier `cxxmyv`).
-  - Depends on: E-01
-  - Expected outcome: `rg -n -w 'Kind' --type md` in the scratch worktree finds only quoted legacy examples and `Work-Kind`/`Gate-Kind` spellings that 4.5c keeps as log names `work_kind`/`gate_kind` described as such.
-  - Execution state: pending
-
-- [ ] E-06 In the scratch worktree, write the two quickstarts the installer creates (spec 4.1): `.aw/AGENT_QUICKSTART.md` (for agents: where metadata lives, `aw show`, never hand-edit logs or front matter, which commands write which field) and `.aw/QUICKSTART.md` (for people), and the installer template text in `engine.py` that emits them. Both are new files, so E-08 must capture them (see E-08).
-  - Depends on: E-02
-  - Expected outcome: both files exist in the scratch worktree and are referenced by the banner text of spec 4.1.
-  - Execution state: pending
-
-- [ ] E-07 In the scratch worktree, document the two commands handed by `xexn45`: the review-round recorder (`aw reviews record <subject-id6> --round <n> --kind gate|refinement --verdict <v> [--readiness ...] [--review-depth ...]`, which appends one `review` event per spec 4.1a and replaces hand-written `- Readiness:`) and `aw walkthrough new --set <set> --order <nn> --target <id6> --slug <slug> [--summary ...]`. Document them as Order 13 deliverables in the reference text; Order 13 builds them (Carrier `cxxmyv`).
-  - Depends on: E-03
-  - Expected outcome: the review workflows and the walkthroughs README name both commands with their arguments.
-  - Execution state: pending
-
-### Task group 3: package the patch
-
-- [ ] E-08 From the scratch worktree, run `git add -A` (scratch only, so new files such as the two quickstarts are included; measured at review: `git diff HEAD` alone omits an untracked new file) and write `git diff --cached --binary HEAD` to `.aw/system/cutover/metastore-docs.cutover.patch` in the executing checkout, then remove the scratch worktree with `git worktree remove --force .aw/state/90iqr1/scratch`. The live documents in the executing checkout are NOT changed by this plan.
-  - Depends on: E-02, E-03, E-04, E-05, E-06, E-07
-  - Expected outcome: the patch file exists and its `git apply --stat` lists both quickstart files as new; `git status --short` in the executing checkout shows only the patch file, this plan and the test module; `git worktree list` no longer lists the scratch worktree.
-  - Execution state: pending
-
-- [ ] E-09 Add `tests/test_metastore_cutover_patch.py` (marked `core`): it runs `git apply --check` of the patch against HEAD without a clone (a temporary `GIT_INDEX_FILE` filled by `git read-tree HEAD`, then `git apply --cached --check`; measured at review: 26 ms, so it fits the core budget) and asserts exit 0; asserts that the patch touches every file the E-01 table marks `rewrite` (the test holds that list as data in the test module, copied from the E-01 table, because reading the plan file would couple a test to a record that `cxxmyv` retires); and asserts that no file outside the documentation set (`.aw/system/workflows/`, `.aw/system/cutover/`, `docs/`, `.aw/records/*/README.md`, `AGENTS.md`, `agent_workflows/engine.py`, `agent_workflows/ipd_schema.py`, `.aw/AGENT_QUICKSTART.md`, `.aw/QUICKSTART.md`, `.aw/system/managed-sections.json`, the two ipd-spec reference documents, `README.md`, `CONTRIBUTING.md`, `agent_workflows/cli.py` help text) is touched. Placing the patch under `.aw/system/` ships it in the wheel and sdist (`pyproject.toml` force-includes `.aw/system`), while the installer copies `.aw/system/workflows/` but not `.aw/system/cutover/`; E-09 also runs `tests/test_installer.py` and `tests/test_installed_text_current.py` so a packaging or install-set change is caught, and `cxxmyv` E-08 deletes the file. The test reads the patch and applies it; it does not read production source.
-  - Depends on: E-08
   - Expected outcome: the test passes on HEAD and fails if the patch stops applying, so a later documentation edit that conflicts is caught before the cutover.
   - Execution state: pending
 
-- [ ] E-10 Run `aw sanitize --agent` in a scratch worktree with the patch applied (`.aw/state/90iqr1/check`, created like E-02 and removed afterwards) and confirm no `fail` that the unpatched tree does not also have; in that same patched worktree run `python3 -m pytest -o addopts="" tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_technical_writing_delivery.py tests/test_askme_command_delivery.py tests/test_authoring_coverage_guidance.py` and record which tests pass and which fail only because they assert pre-cutover text (each such failure is a test Order 13 must update, listed in `## Findings` as F-07 for `cxxmyv`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_patch.py` and the bare core gate `python3 -m pytest` in the executing checkout; commit through `aw commit 90iqr1 -- <this plan> <the patch> tests/test_metastore_cutover_patch.py`; never `git add -A` in the executing checkout, a bare `git add` or `git commit -a`. Never push.
+- [ ] E-10 Run `aw sanitize --agent` in a scratch worktree with the patch applied (`.aw/state/90iqr1/check`, created with `git worktree add --detach` like the parts' scratch worktrees and removed afterwards) and confirm no `fail` that the unpatched tree does not also have; in that same patched worktree run `python3 -m pytest -o addopts="" tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_technical_writing_delivery.py tests/test_askme_command_delivery.py tests/test_authoring_coverage_guidance.py` and record which tests pass and which fail only because they assert pre-cutover text (each such failure is a test Order 13 must update, listed in `## Findings` as F-07 for `cxxmyv`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_patch.py` and the bare core gate `python3 -m pytest` in the executing checkout; commit through `aw commit 90iqr1 -- <this plan> tests/test_metastore_cutover_patch.py`; never `git add -A` in the executing checkout, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-09
   - Expected outcome: the sanitizer adds no `fail`; the patched-tree test run is recorded with F-07; both executing-checkout test runs pass; one path-scoped commit.
   - Execution state: pending
@@ -108,13 +65,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | `xexn45` Deferred rows with `Carrier: 90iqr1` | Two commands (review-round recorder, `aw walkthrough new`) must be documented here; both are built by Order 13. |
 | F-05 | `9o83cr` Deferred row with `Carrier: 90iqr1` | The managed-block sentence "`aw index plans [--check]`/`aw find plans` for the manifest" must be reworded. |
 | F-06 | `ya4ee4` E-01 | The description-generation prompt file is owned by Order 05, not this plan. |
+| F-08 | Documentation set the patch may touch (E-09 asserts nothing outside it) | `.aw/system/workflows/`, `.aw/system/cutover/`, `docs/`, `.aw/records/*/README.md`, `AGENTS.md`, `agent_workflows/engine.py`, `agent_workflows/ipd_schema.py`, `.aw/AGENT_QUICKSTART.md`, `.aw/QUICKSTART.md`, `.aw/system/managed-sections.json`, the two ipd-spec reference documents, `README.md`, `CONTRIBUTING.md`, `agent_workflows/cli.py` help text. |
+| F-09 | Round-3 split 2026-11-09 | The patch content is written cumulatively by `qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`; the per-file disposition table is `qhay6a` F-03. |
 | F-07 | (written by E-10) tests that fail on the patched tree only because they assert pre-cutover text | Input to `cxxmyv`, which applies the patch and must update them in the same commit. |
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: inventory with dispositions.
-2. E-02 to E-07: rewrite text in a scratch worktree only.
-3. E-08 to E-10: package the patch, guard it with a test, commit.
+1. (Moved) inventory, rewrites and patch writing: `qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`.
+2. E-09: guard the patch with a core test.
+3. E-10: sanitizer and patched-tree test run, commit.
 
 ## Deferred / out of scope (with reason)
 
@@ -124,13 +83,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: ya4ee4
 - Documentation for the execution record and the run index.
   - Carrier: nq1src
+- Inventory (old E-01), managed block and AGENTS.md (old E-02), and writing the first version of the patch (part of old E-08). Moved to qhay6a (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: qhay6a
+- Review workflows (old E-03), templates (old E-04), the two `xexn45` commands' documentation (old E-07), and regenerating the patch. Moved to a49djh (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: a49djh
+- READMEs, docs, `ipd_schema.py` text, reference and `aw-prompt` documents (old E-05 except its `Kind` renames), and regenerating the patch. Moved to y1zihp (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: y1zihp
+- The `Kind` renames in documents and `cli.py` help strings (rest of old E-05), the quickstarts (old E-06), and the final patch regeneration (rest of old E-08). Moved to ngc2a2 (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: ngc2a2
 - Renaming any CLI option that carries the legacy `Kind` name (for example `aw ipd scaffold --kind`), and updating tests that assert pre-cutover text (F-07): both are code changes in the cutover commit.
   - Carrier: cxxmyv
 
 ## Scope check
 
 - Over-scope: none. The plan edits no live document.
-- Under-scope: none. Every item handed to `90iqr1` (F-04, F-05) is covered by E-02 and E-07; spec 5.4 bullets map to E-02 (managed block, AGENTS.md), E-03 and E-04 (workflows, templates), E-05 (READMEs, docs, `ipd_schema`, `Kind` renames) and E-06 (quickstarts).
+- Under-scope: none. Every item handed to `90iqr1` (F-04, F-05) and every spec 5.4 bullet is now carried by `qhay6a`, `a49djh`, `y1zihp` or `ngc2a2` (see Deferred); this plan keeps the guard test (E-09) and the patched-tree check and commit (E-10).
 
 ## Required tests / validation
 
@@ -168,44 +135,12 @@ No spec change. This plan prepares the documentation that spec `4sd62s` section 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-01 validates E-01
-  - Required evidence: paste the `rg -l` command and its full file list, and the `## Findings` disposition table with one row per listed file; a file in the list with no row is a failure.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: paste `rg -n '^- (Status|Readiness|Blocks-Release|From-Backlog):' AGENTS.md` run in the scratch worktree (only quoted legacy examples), the `git diff` hunk of `engine.agents_pointer_prose` showing the command-based wording and the reworded `aw index plans` sentence, and `python3 -m pytest -o addopts="" tests/test_agents_section_records.py` passing in the scratch worktree after `tools/regen_agents_block.py`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
-  - Required evidence: paste `rg -n -e 'Readiness:' -e '## Workflow history' .aw/system/workflows/plan-review .aw/system/workflows/spec-review .aw/system/workflows/plan-review-long` in the scratch worktree with each remaining hit shown to be a quoted legacy example, and one diff hunk showing `aw reviews record` in `s7-finalize.md`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
-  - Required evidence: paste the diff hunks of `assess/templates/ipd.md` and `orchestrator-ipd.md` showing the two-key front matter and banner, and `rg -c '^- (Status|Kind|Set):' .aw/system/workflows/assess/templates .aw/system/workflows/templates` in the scratch worktree returning 0 for every template file.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
-  - Required evidence: paste the diff stat for the five READMEs, `docs/artifact-lifecycles.md`, `docs/run-analytics.md` and `ipd_schema.py`, `rg -n -w 'Kind' --type md` in the scratch worktree with each hit classified (quoted legacy, `Work-Kind`, `Gate-Kind`), the diff hunks of each ipd-spec reference document and `aw-prompt` document marked `rewrite` in E-01, and the `cli.py` help-string hunks.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
-  - Required evidence: paste the content of both quickstart files from the scratch worktree and the `engine.py` diff hunk that emits them.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
-  - Required evidence: paste the diff hunks in the review workflows and the walkthroughs README that name `aw reviews record` and `aw walkthrough new` with their arguments, each marked as delivered by Order 13.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
-  - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-docs.cutover.patch` (file list, with both quickstarts shown as new and `.aw/system/managed-sections.json` included), `ls -l` of the patch file, `git worktree list` showing the scratch worktree removed, and `git status --short` in the executing checkout listing only the three Scope-Paths files.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-09 validates E-09
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_metastore_cutover_patch.py` with every test PASSED and its wall time; the output of the same run after deliberately corrupting one hunk of a scratch copy of the patch, showing the apply test FAILED; and the summary lines of `tests/test_installer.py` and `tests/test_installed_text_current.py` passing in the executing checkout.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_metastore_cutover_patch.py` with every test PASSED and its wall time; the output of the same run after deliberately corrupting one hunk of a scratch copy of the patch, showing the apply test FAILED; and the per-module `N passed` lines of `tests/test_installer.py` and of `tests/test_installed_text_current.py`, each run on its own in the executing checkout.
   - Observed evidence:
   - Result: pending
 - [ ] V-10 validates E-10
-  - Required evidence: paste the `aw sanitize --agent` result on the patched scratch worktree beside the unpatched result (no added `fail`), the patched-tree test run with its pass and fail lines and the F-07 table, the executing-checkout named test run summary, the bare core gate summary line, and the `aw commit` output naming the commit hash.
+  - Required evidence: paste the `aw sanitize --agent` result on the patched scratch worktree beside the unpatched result (no added `fail`), the patched-tree run with one pass or fail line per named module (`tests/test_agents_section_records.py`, `tests/test_installed_text_current.py`, `tests/test_technical_writing_delivery.py`, `tests/test_askme_command_delivery.py`, `tests/test_authoring_coverage_guidance.py`) and the F-07 table naming each failing node id, the executing-checkout `tests/test_metastore_cutover_patch.py` result line, the bare core gate summary line beside them, and the `aw commit` output naming the commit hash.
   - Observed evidence:
   - Result: pending
 
@@ -215,7 +150,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after `9o83cr` is `executed` and this plan is `approved`. Open questions: OQ-01 to OQ-03 are resolved and none is blocking. The executor edits documents ONLY in a scratch worktree under `.aw/state/90iqr1/`; the executing checkout changes only by the three Scope-Paths files.
+Execute only after `9o83cr`, `qhay6a`, `a49djh`, `y1zihp` and `ngc2a2` are `executed` and this plan is `approved`. Open questions: OQ-01 to OQ-03 are resolved and none is blocking. The patched-tree check runs ONLY in a scratch worktree under `.aw/state/90iqr1/`; the executing checkout changes only by this plan and the test module.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 

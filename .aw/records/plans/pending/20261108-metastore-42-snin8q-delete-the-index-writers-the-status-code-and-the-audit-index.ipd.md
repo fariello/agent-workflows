@@ -3,9 +3,9 @@
 - Date: 2026-11-08
 - Kind: child
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache REPLACES the `INDEX.{json,md}` files, `plans/STATUS.md` and `artifact_audit._INDEX_CACHE`. Once Order 41 (`q6epwc`) has removed every caller of the INDEX write path, the writers themselves, the dead STATUS renderer and the in-process audit cache are still in the package. Measured 2026-11-07 at `ac76110f4`: `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched" agent_workflows` prints 50 lines in 7 files; 11 test modules import one of those symbols or `run_index`; `rg -n "render_status_index|write_index" agent_workflows` prints 6 lines; `rg -n "_INDEX_CACHE" agent_workflows tests` prints 29 lines (10 in `artifact_audit`, 19 in three test modules). Part 2 of the split of `9o83cr` (Order 11).
-- Scope: `9o83cr` E-03 (INDEX writers), E-06 (STATUS code) and E-07 (`_INDEX_CACHE`), carried verbatim with their original ids, plus a baseline item E-01 and a finishing item E-17 that are new to this part. EXCLUDES: the aliases, regeneration calls and stale-index rules (Order 41, `q6epwc`); value writers, adapters and parsers (Orders 43 to 46); the AC-1 test, audit and documents (`9o83cr`); on-disk INDEX files and skip names (`cxxmyv`).
-- Scope-Paths: agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/prompts_index.py, agent_workflows/artifact_core.py, agent_workflows/record_producers.py, agent_workflows/plans_archive.py, agent_workflows/research_archive.py, agent_workflows/ipd_lifecycle.py, agent_workflows/plans.py, agent_workflows/cli.py, agent_workflows/artifact_audit.py, tests/test_plans_index.py, tests/test_research_index.py, tests/test_prompts_index.py, tests/test_index_write_agent_records.py, tests/test_index_check_agent_records.py, tests/test_drift_rule_registration.py, tests/test_model_vocab.py, tests/test_research_priority.py, tests/test_research_unsafe_field.py, tests/test_research_set_assign_date_containment.py, tests/test_plans_board.py, tests/test_support_section.py, tests/test_artifact_audit_cache_eviction.py, tests/test_artifact_audit_index_cache.py, tests/test_artifact_audit_identity_staleness.py, .aw/records/plans/pending/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.ipd.md
-- Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
+- Scope: FINISHING PART after the round-3 split (2026-11-09). `9o83cr` E-03 (INDEX writers), E-06 (STATUS code), E-07 (`_INDEX_CACHE`) and this plan's baseline E-01 now run in eight earlier parts: baseline `54a80m` (Order 230); test retargets `f6y2yy` (231) and `6966zq` (232); plans, research and prompts writers `uopi8z` (233), `s6k01k` (234), `drav0u` (235); STATUS renderer `3v2ew2` (236); audit cache `h3jp4e` (237). This plan keeps the one E-03 member shared by all three index modules, the `artifact_core.emit_index_write_result` and `emit_index_check_result` helpers (new id E-18), and the family-wide finish E-17. EXCLUDES: the aliases, regeneration calls and stale-index rules (Order 41, `q6epwc`); value writers, adapters and parsers (Orders 43 to 46); the AC-1 test, audit and documents (`9o83cr`); on-disk INDEX files and skip names (`cxxmyv`).
+- Scope-Paths: agent_workflows/artifact_core.py, .aw/records/plans/pending/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.ipd.md
+- Item-Dependencies: executed:1ajqaa, executed:3v2ew2, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:drav0u, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:h3jp4e, executed:q6epwc, executed:s6k01k, executed:t4gl15, executed:uopi8z
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -13,7 +13,7 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 42
-- Highest E allocated: 17
+- Highest E allocated: 18
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snin8q
 
@@ -21,47 +21,31 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to 54a80m; E-03 split across f6y2yy, 6966zq, uopi8z, s6k01k, drav0u, with its shared `artifact_core.emit_index_*` member kept here as new E-18; E-06 moved to 3v2ew2; E-07 moved to h3jp4e.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9o83cr per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
 ## Goal
 
-No INDEX writer, STATUS renderer or audit index cache remains in the package: `aw find` and the content drift rules keep working from `scan_*`/`query`/`check_drift`, and `artifact_audit.build_index` answers from the metadata cache on every call.
+After the eight split parts, delete the last shared INDEX helpers in `artifact_core` and prove the family left no INDEX writer, STATUS renderer or audit index cache: `aw find` and the content drift rules keep working, and `aw check <type> --all` matches the `54a80m` baseline.
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Item ids E-03, E-06 and E-07 are the ids these items had in `9o83cr`; they are kept so cross-references in sibling plans still point at the right item. E-01 and E-17 are new to this part: E-01 is this part's own baseline (a subset of `9o83cr` E-01), because `.aw/state/` does not travel between lane worktrees; "the E-01 baseline" in the carried text means this plan's E-01.
+Item ids E-01, E-03, E-06 and E-07 moved to the split parts named in `## Deferred` (round-3 split 2026-11-09). E-17 is kept; E-18 is new and carries E-03's `artifact_core` member. "The E-01 baseline" now means table F-29 of `54a80m`, committed there because `.aw/state/` does not travel between lane worktrees.
 
-PIN RULE for every deletion or retarget (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/snin8q/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor. A test whose only subject is a deleted INDEX byte or the removed LRU is deleted, and the evidence names it.
+PIN RULE (carried from `9o83cr`): E-18 deletes two helpers whose only callers were the three `run_index` functions; no test calls them directly (measured: `rg -n "emit_index_(write|check)_result" tests` prints nothing), so no module is pinned here.
 
-### Task group 1: baseline and deletions
+### Task group 1: shared helpers and finish
 
-- [ ] E-01 Record this part's baseline before any edit, under the gitignored `.aw/state/snin8q/before/`: the stdout and exit code of `aw check plans --all --agent`, `aw check research --all --agent`, `aw check prompts --all --agent` (rule-id multisets, `jq -r '.diagnostics[].rule' | sort | uniq -c`), `aw find plans --agent`, `aw ipd board` (as `board.txt`), and the bare core gate summary line of `python3 -m pytest`.
+- [ ] E-18 In `agent_workflows/artifact_core.py`, delete `artifact_core.emit_index_write_result` and `artifact_core.emit_index_check_result`, whose only callers were the three `run_index` functions deleted by `uopi8z`, `s6k01k` and `drav0u`. Keep `artifact_core.emit_index_missing_dir_refusal` only if `rg -n "emit_index_missing_dir_refusal" agent_workflows` still shows a caller; otherwise delete it too.
   - Depends on: none
-  - Expected outcome: the saved outputs and a core gate summary exist under `.aw/state/snin8q/before/`.
+  - Expected outcome: `rg -n "emit_index_(write|check)_result" agent_workflows tests` prints nothing.
   - Execution state: pending
 
-- [ ] E-03 Delete the INDEX writers and their result helpers: `build_index_json`, `build_index_md`, `_set_last_touched` and the write path of `run_index` in `plans_index`, `research_index` and `prompts_index`; `DEFAULT_INDEX_LIMIT`; `artifact_core.emit_index_write_result` and `emit_index_check_result`; the `plans_index` and `research_index` (and any prompts) entries in `record_producers`. Keep `scan_*`, `query`, `run_find` and the non-INDEX drift classes of each `check_drift` (F-04), which `check_engine.check_content` still reaches. Delete or retarget the tests that assert INDEX bytes (`tests/test_plans_index.py`, `tests/test_research_index.py`, `tests/test_prompts_index.py`, `tests/test_index_write_agent_records.py`, `tests/test_index_check_agent_records.py`), keeping every assertion about `aw find` results and non-INDEX drift findings. `prompts_index` has no `run_find` (it has `scan_prompts` and `check_drift`); keep those. Measured at `ac76110f4` and added at the split: the two direct writers outside the index modules, `plans_archive._refresh_index` and the post-move refresh in `research_archive` (each writes `INDEX_JSON`/`INDEX_MD` with `build_index_json`/`build_index_md`), are deleted here too, and the `DEFAULT_INDEX_LIMIT` reference in `ipd_lifecycle._refresh_plans_index_fail_loud` goes with that function in Order 41; the other test modules that call a deleted symbol (`tests/test_drift_rule_registration.py`, `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_unsafe_field.py`, `tests/test_research_set_assign_date_containment.py`) are retargeted to `check_drift` or `aw find`. Measured units: 14 definitions in 4 production files, 2 archive writers, 2 `record_producers` entries, 10 test modules: about 28.
-  - Depends on: E-01
-  - Expected outcome: `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT" agent_workflows` prints nothing; `aw check plans --all --agent`, `aw check research --all --agent` and `aw check prompts --all --agent` report the same non-INDEX rule multiset as the E-01 baseline.
-  - Execution state: pending
-
-- [ ] E-06 Delete the STATUS code: `plans.render_status_index` and the unreachable `write_index` branch of `cli._run_plans` (no parser defines `--write-index`, F-02). Retarget `tests/test_plans_board.py` and `tests/test_support_section.py` from `render_status_index` to the observable `aw ipd board` output. Measured units: 1 function, 1 branch, 2 test modules: 4.
-  - Depends on: E-01
-  - Expected outcome: `rg -n "render_status_index|write_index" agent_workflows` prints only `run_cli.write_index` (the run ledger, unrelated); `aw ipd board` output is byte-identical to the E-01 baseline.
-  - Execution state: pending
-
-- [ ] E-07 Delete `artifact_audit._INDEX_CACHE` and `_INDEX_CACHE_MAX` (4.5: the cache replaces it): `artifact_audit.build_index` answers from `artifact_meta.query`/`resolve` on every call. Delete `tests/test_artifact_audit_cache_eviction.py` (it tests the removed LRU) and retarget the freshness assertions of `tests/test_artifact_audit_index_cache.py` and `tests/test_artifact_audit_identity_staleness.py` to the behavior: a record added, deleted or moved after a first `build_index` call is reflected by the second call. Measured units: 10 lines in `artifact_audit`, 3 test modules (19 lines): about 6 edits.
-  - Depends on: E-01
-  - Expected outcome: `rg -n "_INDEX_CACHE" agent_workflows tests` prints nothing; the retargeted tests pass.
-  - Execution state: pending
-
-### Task group 2: finish
-
-- [ ] E-17 Finish: run every test module named in E-03, E-06 and E-07, the bare core gate `python3 -m pytest`, `aw check plans --all --agent`, `aw check research --all --agent` and `aw check prompts --all --agent` (rule multisets equal the E-01 baselines; any difference traced to a record changed in between), `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit snin8q -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
-  - Depends on: E-03, E-06, E-07
-  - Expected outcome: all runs pass; every commit's `git show --stat` lists only Scope-Paths files (or paths justified at finalize).
+- [ ] E-17 Finish: run `aw check plans --all --agent`, `aw check research --all --agent` and `aw check prompts --all --agent` (rule multisets equal the `54a80m` F-29 baselines; any difference traced to a record changed in between), the family search `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched|render_status_index|_INDEX_CACHE" agent_workflows tests`, the bare core gate `python3 -m pytest`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit snin8q -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
+  - Depends on: E-18
+  - Expected outcome: all runs pass; the family search prints nothing; every commit's `git show --stat` lists only Scope-Paths files (or paths justified at finalize).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -85,12 +69,27 @@ Measured 2026-11-07 at `ac76110f4`. F-02, F-04 and F-10 are copied from `9o83cr`
 
 ## Proposed changes (ordered, validatable)
 
-1. Baseline (E-01).
-2. Delete the INDEX writers (E-03), the STATUS code (E-06) and the audit cache (E-07); E-06 and E-07 are independent of E-03.
-3. Validate and commit (E-17).
+1. After the eight split parts, delete the shared `artifact_core` helpers (E-18).
+2. Validate the family against the `54a80m` baseline and commit (E-17).
 
 ## Deferred / out of scope (with reason)
 
+- Moved to 54a80m (round-3 split 2026-11-09 per research nj8zdp guidance): E-01 (baseline), committed as table F-29.
+  - Carrier: 54a80m
+- Moved to f6y2yy (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 1, `tests/test_index_write_agent_records.py` and `tests/test_index_check_agent_records.py`.
+  - Carrier: f6y2yy
+- Moved to 6966zq (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 2, `tests/test_drift_rule_registration.py`, `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_unsafe_field.py`, `tests/test_research_set_assign_date_containment.py`.
+  - Carrier: 6966zq
+- Moved to uopi8z (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 plans subset, `build_index_json`, `build_index_md`, `_set_last_touched`, `DEFAULT_INDEX_LIMIT` and `run_index` in `plans_index`, `plans_archive._refresh_index`, the `plans_index` `record_producers` entry, `tests/test_plans_index.py`.
+  - Carrier: uopi8z
+- Moved to s6k01k (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 research subset, the same five symbols in `research_index`, the post-move refresh in `research_archive`, the `research_index` `record_producers` entry, `tests/test_research_index.py`.
+  - Carrier: s6k01k
+- Moved to drav0u (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 prompts subset, the same five symbols in `prompts_index`, `tests/test_prompts_index.py`. With the two test subsets, the three module subsets and E-18 here, this equals E-03's list.
+  - Carrier: drav0u
+- Moved to 3v2ew2 (round-3 split 2026-11-09 per research nj8zdp guidance): E-06 (STATUS code).
+  - Carrier: 3v2ew2
+- Moved to h3jp4e (round-3 split 2026-11-09 per research nj8zdp guidance): E-07 (`_INDEX_CACHE`).
+  - Carrier: h3jp4e
 - Aliases, regeneration calls and stale-index rules.
   - Carrier: q6epwc
 - The residual inventory, the AC-1 test and audit, and the INDEX documents.
@@ -101,11 +100,11 @@ Measured 2026-11-07 at `ac76110f4`. F-02, F-04 and F-10 are copied from `9o83cr`
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known. Size: 5 E-items, 27 Scope-Paths entries (11 production modules, 15 test modules, this plan); the largest item (E-03) hides about 28 units.
+- Under-scope: none known. Size after the round-3 split: 2 E-items, 1 work Scope-Path; the deletions live in the eight parts named in `## Deferred`.
 
 ## Required tests / validation
 
-Retargeted modules: those named in E-03, E-06 and E-07. Commands: `python3 -m pytest` (core gate), `aw check <type> --all --agent`, `aw ipd board`, `aw sanitize --agent`. CONTRIBUTES to AC-9 (owned by `9o83cr`; final proof `cxxmyv`).
+No module is retargeted here; the parts own their modules. Commands: `aw check <type> --all --agent`, the E-17 family search, `python3 -m pytest` (core gate), `aw sanitize --agent`. CONTRIBUTES to AC-9 (owned by `9o83cr`; final proof `cxxmyv`).
 
 ## Spec / documentation sync
 
@@ -124,34 +123,19 @@ No spec change; implements part of `4sd62s` 4.5 and section 7 step 7.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste `ls -l .aw/state/snin8q/before/` showing each saved output with its exit code, the three `aw check <type> --all` rule multisets, and the core gate `N passed` summary line.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-03 validates E-03
-  - Required evidence: paste the empty output of `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT" agent_workflows`; paste `aw check plans --all --agent`, `aw check research --all --agent` and `aw check prompts --all --agent` rule-id multisets (`jq -r '.diagnostics[].rule' | sort | uniq -c`) beside the E-01 baselines, equal; and the summary lines of `python3 -m pytest -o addopts="" tests/test_plans_index.py tests/test_research_index.py tests/test_prompts_index.py tests/test_index_check_agent_records.py tests/test_drift_rule_registration.py tests/test_model_vocab.py tests/test_research_priority.py tests/test_research_unsafe_field.py tests/test_research_set_assign_date_containment.py` (or the note that a module was deleted, with the `git diff --stat` line), with the PIN-rule before/after lists and each removed test name mapped to its successor or named as an INDEX-byte-only test.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-06 validates E-06
-  - Required evidence: paste `rg -n "render_status_index|write_index" agent_workflows` showing only `run_cli.write_index`; `diff <(aw ipd board) .aw/state/snin8q/before/board.txt` empty (board saved in E-01); and the summary lines of `python3 -m pytest -o addopts="" tests/test_plans_board.py tests/test_support_section.py` passing.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-07 validates E-07
-  - Required evidence: paste the empty output of `rg -n "_INDEX_CACHE" agent_workflows tests`, the `git diff --stat` line deleting `tests/test_artifact_audit_cache_eviction.py`, and `python3 -m pytest -o addopts="" -v tests/test_artifact_audit_index_cache.py tests/test_artifact_audit_identity_staleness.py` with the add, delete and move freshness cases PASSED.
+- [ ] V-18 validates E-18
+  - Required evidence: paste `rg -n "emit_index_(write|check)_result" agent_workflows tests` printing nothing, `rg -n "emit_index_missing_dir_refusal" agent_workflows` with its result (callers listed, or nothing and the function deleted), and the `git diff` hunk of `agent_workflows/artifact_core.py`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-17 validates E-17
-  - Required evidence: paste the bare `python3 -m pytest` summary line, the three `aw check <type> --all --agent` rule multiset diffs against E-01 (empty, or each difference traced), `aw sanitize --agent` with zero `fail`, and `git show --stat` of every `aw commit snin8q` commit listing only Scope-Paths files.
+  - Required evidence: paste the output of `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched|render_status_index|_INDEX_CACHE" agent_workflows tests` (empty); the three `aw check <type> --all --agent` rule multiset diffs against `54a80m` F-29 (empty, or each difference traced); beside those, the bare `python3 -m pytest` summary line; `aw sanitize --agent` with zero `fail`; and `git show --stat` of every `aw commit snin8q` commit listing only Scope-Paths files.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
-- Size assessment: exception
-- Cohesion rationale: 27 Scope-Paths entries against a guide of about 12, because the INDEX writers are imported by 15 test modules. The production change is one concern (no code can write an INDEX file, a STATUS file or an in-process index cache) and each test module only loses or retargets the assertions on a deleted symbol, under the PIN rule. Splitting the writers from their tests would leave a commit whose tests import deleted symbols, which fails the core gate (C10a). Every E-item stays at about 25 units (E-03 about 28).
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion is pin-first (PIN RULE above). Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit snin8q -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit snin8q -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.

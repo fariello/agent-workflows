@@ -3,9 +3,9 @@
 - Date: 2026-11-02
 - Kind: child
 - Concern: Spec `4sd62s` C5 and C5a require that every metadata read goes through `artifact_meta` and its SQLite cache, and section 7 step 5 moves the readers while the bullet format is still on disk. Measured 2026-11-02 at `0cbfcc706`: 59 of 211 package modules contain a legacy bullet pattern, a `^-` metadata regular expression or a `## Workflow history` reference; 200 metadata regular-expression call sites start with `^-`; the four read surfaces this plan owns (`selectors`, `check_engine`, the `attention` modules, `ipd_lint`, plus the `aw find` and `aw ipd board` paths in `cli` that consume them) hold 52 of those call sites and every one of the 17 `history_block` and `last_history_at` reader calls outside the setters. Two readers of the same field disagree today: `selectors._read_status` (single token) and `plans_index.plan_entry` (whole line) return different statuses for 24 tracked plans, so `aw find plans executed` lists 1,610 plans while `aw find plans --status executed` lists 1,635. Until these readers move, Order 11 (`9o83cr`) cannot delete the parsers and AC-1 cannot hold.
-- Scope: Phase B readers, part 1 of 2 (`4sd62s` section 7 step 5), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule: the reader moves now live in six child plans, Order 27 `r81uvz` (`selectors`, `aw find`/`aw search`/`aw ipd board`, `artifact_meta.read_text` with its spec 4.3 entry, and the `status_set` reads), Order 28 `dqutt8` (`attention` and `ipd_lint`), and Orders 29 to 32 `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t` (the `check_engine` working-tree readers in four site partitions, and the one record skip list). THIS plan keeps the reader ledger and decisions D-1 to D-6 that govern all of them, and the finishing work: `aw check meta` (4.6) and `aw meta repair` (4.3, 4.7) as the CLI over the Order 02 functions, the cache-parity test (AC-1a), the offline proof (AC-12), the AC-1 partial residual audit (F-12), the docs and CHANGELOG lines, and the final gates. EXCLUDES: every reader of HEAD, staged or branch content and the runner, plans/research/prompts index, `artifact_audit` and `review_findings` modules (Order 09, `t4gl15`); deleting the old parsers and INDEX code (Order 11, `9o83cr`); writers (Orders 06 and 07).
-- Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/artifact_meta.py, tests/conformance_matrix.py, tests/test_check_meta.py, tests/test_meta_repair_cli.py, tests/test_readers_cache_parity.py, tests/test_readers_offline.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md
-- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:dqutt8, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t
+- Scope: Phase B readers, part 1 of 2 (`4sd62s` section 7 step 5), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule: the reader moves now live in six child plans, Order 27 `r81uvz` (`selectors`, `aw find`/`aw search`/`aw ipd board`, `artifact_meta.read_text` with its spec 4.3 entry, and the `status_set` reads), Order 28 `dqutt8` (`attention` and `ipd_lint`), and Orders 29 to 32 `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t` (the `check_engine` working-tree readers in four site partitions, and the one record skip list). Round 3 (2026-11-09, research `nj8zdp` guidance): `aw check meta` (4.6) and `aw meta repair` (4.3, 4.7), formerly E-10 and E-11 here, moved to `a5ijjx` (Order 140); `r81uvz` and `dqutt8` were themselves re-split (into `cdglt1` and `1suzlp`) and each still finishes after its new part, so the `executed:r81uvz` and `executed:dqutt8` edges keep their meaning. THIS plan keeps the reader ledger and decisions D-1 to D-6 that govern all of them, and the finishing work: the cache-parity test (AC-1a), the offline proof (AC-12), the AC-1 partial residual audit (F-12), the docs and CHANGELOG lines, and the final gates. EXCLUDES: every reader of HEAD, staged or branch content and the runner, plans/research/prompts index, `artifact_audit` and `review_findings` modules (Order 09, `t4gl15`); deleting the old parsers and INDEX code (Order 11, `9o83cr`); writers (Orders 06 and 07).
+- Scope-Paths: agent_workflows/artifact_meta.py, tests/test_readers_cache_parity.py, tests/test_readers_offline.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md
+- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:dqutt8, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:a5ijjx
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -19,6 +19,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-10, E-11 moved to a5ijjx.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-02, E-03, E-15, E-16 moved to r81uvz; E-04, E-05, E-09 moved to dqutt8; E-06 and E-07 (site list partitioned by function) moved to w1cs3p, na188y, i3b5zu and ebrc4t; E-08 moved to ebrc4t. Kept: E-10 to E-14, the reader ledger and D-1 to D-6.
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
@@ -31,7 +32,7 @@
 
 ## Goal
 
-With every reader move done by the six split parts (`r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t`), `aw check meta` and `aw meta repair` exist, the moved readers are proven to give byte-identical answers across cold, warm, deleted and corrupt caches and with no network, and the residual `^-` and history hits in the moved modules are each listed with a reason. The reader ledger and decisions D-1 to D-6 below remain the single record of what each moved consumer kept or lost.
+With every reader move done by the six split parts (`r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t`) and `aw check meta` and `aw meta repair` added by `a5ijjx`, the moved readers are proven to give byte-identical answers across cold, warm, deleted and corrupt caches and with no network, and the residual `^-` and history hits in the moved modules are each listed with a reason. The reader ledger and decisions D-1 to D-6 below remain the single record of what each moved consumer kept or lost.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -41,22 +42,12 @@ Every E-item that moves a reader follows one rule, so a reviewer can check each 
 
 Split note (2026-11-07): the items this plan keeps used to depend on moved items (E-10 on E-07, E-12 on E-03/E-05/E-07/E-09, E-13 on E-03/E-05/E-07, E-14 on E-08/E-15/E-16). Those edges are carried by the `- Item-Dependencies:` edges on the six split parts, which must all be executed before this plan starts, so the in-plan `Depends on` rows name only the items this plan still holds. The reader-move rule above still governs the parts; each part copies it and the decision rows that apply to it.
 
-### Task group 4: the new meta commands
-
-- [ ] E-10 Add `aw check meta` (4.6) in `agent_workflows/meta_cli.py`, registered in `cli`, `command_surface` and `tests/conformance_matrix.py`: in phase B it runs every 4.6 row that the legacy format can express, reading only `artifact_meta.query` (in-file `status` and `id` mirror against cached state; filename Set, `NN`, `id6`, date and D177 facets through `artifact_naming`; research filename facets; disposition directory against status; review rounds against review rows; orphans: a `meta/*.jsonl` file with no record, and, once logs exist, a record with no log). Rows that need a log (logged path, and the "artifact with no log" orphan half) report `not-applicable (legacy format)` so the output names them instead of skipping them; in phase B the in-file `status` and `id` rows compare each record's in-file value with its cached state and so mostly confirm the loader, and they become real drift checks once logs exist (Order 13). `meta` is a reserved word of `aw check`'s `type` positional, dispatched by `cli._run_check` before type validation in the way `1ajqaa` E-05 routes `rebuild` for `aw index`; `aw check all` does not include it in phase B, so the `aw check all` rule-id baselines of E-06, E-07 and E-14 stay comparable. Exit 0 clean, 1 findings, 2 cannot-run; `--agent` emits `aw.agent/v1` records with `{location, rule}`. Test module `tests/test_check_meta.py`: one fixture per drift kind, each detected (AC-7 phase-B form), plus a clean fixture with zero findings.
-  - Depends on: none
-  - Expected outcome: each drift fixture produces exactly its rule id; the clean fixture exits 0; `aw check meta --agent` on this checkout runs to completion and its finding count by rule is pasted (not required to be zero before the cutover).
-  - Execution state: pending
-
-- [ ] E-11 Add `aw meta repair <id6> [--apply] [--confirm]` in `meta_cli.py` over the Order 02 `artifact_meta.repair` function: preview by default; `--apply` performs mirror and move repair (no event, log byte-identical, idempotent); a divergent-tail repair requires `--confirm` and prints every resulting field change first (4.7). In phase B no log exists, so the command reports `nothing to repair (legacy format)` on a legacy record and is exercised on synthetic log fixtures. A synthetic fixture writes its `meta/<id6>.jsonl` from `artifact_meta.encode_event` lines and a two-key `---` front-matter mirror directly, NOT through `artifact_meta.create`/`append`, because in phase B those write the legacy format (the same rule as `1ajqaa` E-04 (b)); the fixture is its own `git init` repository so `git status --porcelain` in V-11 observes only the fixture. Registered in `cli`, `command_surface` and `tests/conformance_matrix.py`. Test module `tests/test_meta_repair_cli.py`.
-  - Depends on: E-10
-  - Expected outcome: on a synthetic log fixture with a stale front-matter `status`, `aw meta repair <id6>` previews one mirror change and exits 0 with no file change, `--apply` rewrites the mirror and a second `--apply` changes nothing; on a legacy record it reports the legacy message.
-  - Execution state: pending
+Round-3 note (2026-11-09): Task group 4 (E-10 `aw check meta`, E-11 `aw meta repair`) moved to `a5ijjx`, an `- Item-Dependencies:` edge of this plan, so E-12's former `Depends on: E-10` is carried by that edge.
 
 ### Task group 5: cache parity, offline proof and finish
 
 - [ ] E-12 Add `tests/test_readers_cache_parity.py` (AC-1a, phase B form): for a fixture corpus with one record of each type, run `aw find` (all types), `aw attention --format json`, `aw check meta --agent`, `aw check all --agent` and `aw ipd lint` with (a) a cold cache, (b) a warm cache, (c) `.aw/state/index.db` deleted, (d) `index.db` overwritten with random bytes; assert byte-identical normalized outputs. Then edit one record's `- Status:` bullet outside `artifact_meta` (as a pull does) and assert the next `aw find` and `aw attention` show it with no rebuild; then replace a record with an unparseable one and assert it is REPORTED (`incomplete`/violation), not silently omitted and not served stale. Also covers AC-8 at the command level (with and without `index.db`, empty diff). Also cover the legacy `.agents/` record root, which `selectors`, `attention._TREE_TO_SCAN_ROOTS` and `check_engine` read today (measured at review: a repository holding only `.agents/plans/pending/<plan>` is listed by `aw find plans <id6>` and `aw attention --all`): a fixture with one plan under `.agents/plans/pending/` must give the same `aw find` and `aw attention` rows after the move as before it. If `artifact_meta.query` does not scan that root, the executor either extends the legacy loader's scan roots or records the loss as a named decision in the reader ledger; it never drops the rows silently.
-  - Depends on: E-10
+  - Depends on: none
   - Expected outcome: every case passes; the module is marked `core`, and its wall time from `--durations=0` is pasted (each case spawns the CLI, so keep the fixture small enough that the module adds no more than a few seconds to the 30 s core budget).
   - Execution state: pending
 
@@ -65,8 +56,8 @@ Split note (2026-11-07): the items this plan keeps used to depend on moved items
   - Expected outcome: three successful runs; the `dependencies` list reads `["filelock>=3"]`.
   - Execution state: pending
 
-- [ ] E-14 Record the AC-1 partial audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/selectors.py agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/ipd_lint.py agent_workflows/plans.py` and `rg -n "history_block\(|last_history_at\(" agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/ipd_lint.py`; every remaining hit must be in the written exclusion list (the check_engine parts `w1cs3p`, `na188y`, `i3b5zu` and `ebrc4t` each name the N3 sites they leave) (body-prose bullets per N3, git-content readers carried by Order 09, or the plan's own `- [ ] E-` leaf grammar), which this item writes into the plan's `## Findings` as table F-12. Update `docs/cli-output-contract.md` with the two new leaves and add a `CHANGELOG.md` `2.0.0 (pending)` line, with no em or en dashes in that user-facing prose. Run the named modules of E-01 to E-13 (the E-01 to E-09, E-15 and E-16 modules now live in the split parts `r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu` and `ebrc4t`, all executed before this item; re-run them here as the final check), the bare core gate `python3 -m pytest`, `make test-all`, `aw check all --agent` (rule-id multiset equal to `.aw/state/ffceq0/check-before.txt`, any difference explained by a record changed in between) and `aw sanitize --agent`; commit through `aw commit ffceq0 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
-  - Depends on: E-11, E-12, E-13
+- [ ] E-14 Record the AC-1 partial audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/selectors.py agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/ipd_lint.py agent_workflows/plans.py` and `rg -n "history_block\(|last_history_at\(" agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/ipd_lint.py`; every remaining hit must be in the written exclusion list (the check_engine parts `w1cs3p`, `na188y`, `i3b5zu` and `ebrc4t` each name the N3 sites they leave) (body-prose bullets per N3, git-content readers carried by Order 09, or the plan's own `- [ ] E-` leaf grammar), which this item writes into the plan's `## Findings` as table F-12. Update `docs/cli-output-contract.md` with the two new leaves that `a5ijjx` added (`aw check meta`, `aw meta repair`) and add a `CHANGELOG.md` `2.0.0 (pending)` line, with no em or en dashes in that user-facing prose. Run the named modules of E-01 to E-13 (the E-01 to E-11, E-15 and E-16 modules now live in the split parts `r81uvz`, `cdglt1`, `dqutt8`, `1suzlp`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t` and their round-3 parts, and `a5ijjx`, all executed before this item; re-run them here as the final check), the bare core gate `python3 -m pytest`, `make test-all`, `aw check all --agent` (rule-id multiset equal to `.aw/state/ffceq0/check-before.txt`, any difference explained by a record changed in between) and `aw sanitize --agent`; commit through `aw commit ffceq0 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+  - Depends on: E-12, E-13
   - Expected outcome: every residual hit is listed with its reason; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
   - Execution state: pending
 
@@ -99,14 +90,13 @@ Measured 2026-11-02 at `0cbfcc706` (211 package modules under `agent_workflows/`
 | F-07 | `aw attention --all --format json`: 3,096 items (plans 1,719, backlog 1,133, research 165, specs 48, prompts 30, releases 1), 1 violation, `valid: true` | Baseline for E-05. |
 | F-08 | `history_block(` call sites: `attention` 6, `check_engine` 3; `last_history_at(` and `history_block(` together 10 sites in `attention` and `check_engine` | All history reads in this plan's modules go through `artifact_meta.history`. |
 | F-09 | `_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}` is defined identically in `check_engine`, `selectors` and `artifact_refs`; `layout.TRAVERSAL_EXCLUSIONS` holds 7 directory names | 4.4 asks for one list; E-08 places it in `layout`. |
-| F-10 | No `aw check meta` and no `aw meta` command exist (`aw check --help` lists plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases, all). Order 02 defers the `aw meta repair` CLI here; Orders 03, 04 and 05 defer `aw check meta` and the `short_description` display in `aw find`/`aw attention --details` here | E-10, E-11, E-03 and E-05 own them. |
+| F-10 | No `aw check meta` and no `aw meta` command exist (`aw check --help` lists plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases, all). Order 02 defers the `aw meta repair` CLI here; Orders 03, 04 and 05 defer `aw check meta` and the `short_description` display in `aw find`/`aw attention --details` here | `a5ijjx` (E-10, E-11) and the split parts (E-03, E-05) own them. |
 | F-11 | `aw find plans zzzzzz` exits 2 today (4.4a `zyj8io`) | Pinned by E-01, re-checked after E-03. |
 | F-12 | (written by E-14) residual `^-` and history hits in this plan's modules after the move, each with its exclusion reason | Input to Order 11's AC-1 audit. |
 
 Step-complexity measurement of the items this plan keeps (2026-11-07, maintainer rule: no E-item hides more than about 25 units of work):
 
-- E-10 (`aw check meta`): 11 drift kinds, one fixture each, plus a clean fixture (12 tests); 3 registration files (`cli`, `command_surface`, `tests/conformance_matrix.py`); 1 reserved-word dispatch in `cli._run_check`. About 17 units.
-- E-11 (`aw meta repair`): 1 command over the existing `artifact_meta.repair`, 3 registration files, 4 fixture cases (preview, apply, idempotent apply, legacy). About 8 units.
+- E-10 and E-11 (the meta commands, about 17 and 8 units) moved to `a5ijjx` in round 3.
 - E-12 (cache parity): 5 commands x 4 cache states (20 cases), plus external edit, invalid replacement and the `.agents/` root case. About 23 units.
 - E-13 (offline proof): 3 commands and the `pyproject.toml` check. About 4 units.
 - E-14 (audit and finish): the residual-hit table F-12, estimated from `rg -n '_LEAF_RE|_TARGET_BULLET_RE|_SCOPE_PATHS_LINE_RE|_OQ_STATUS_RE' agent_workflows/{ipd_lint,check_engine,attention}.py` (5 N3 definitions: `ipd_lint._LEAF_RE`, `attention._OQ_STATUS_RE`, `attention._EV_LEAF_RE`, `check_engine._TARGET_BULLET_RE`, `check_engine._SCOPE_PATHS_LINE_RE`) plus the git-content reader definitions that stay in `check_engine` for Order 09 (about 6), so about 12 rows; 2 documentation files; 5 gate runs; path-scoped commits. About 22 units.
@@ -142,11 +132,12 @@ DECISIONS where readers disagreed (4.3: "record which behavior each consumer of 
 
 ## Proposed changes (ordered, validatable)
 
-1. Add `aw check meta` and `aw meta repair` (E-10, E-11).
-2. Cache parity (AC-1a), offline proof (AC-12), residual audit, docs, commit (E-12 to E-14), after the six split parts are executed.
+1. Cache parity (AC-1a), offline proof (AC-12), residual audit, docs, commit (E-12 to E-14), after the six split parts are executed.
 
 ## Deferred / out of scope (with reason)
 
+- E-10, E-11 (`aw check meta`, `aw meta repair`). Moved to a5ijjx (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: a5ijjx
 - E-01, E-02, E-03 (selectors, `aw find`, `read_text` and its spec 4.3 entry) and E-15, E-16 (the `status_set` reads). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: r81uvz
 - E-04, E-05 (attention) and E-09 (ipd_lint). Moved to dqutt8 (split 2026-11-07 per maintainer step-complexity rule).
@@ -176,19 +167,19 @@ DECISIONS where readers disagreed (4.3: "record which behavior each consumer of 
 
 ## Scope check
 
-- Over-scope: none. `meta_cli.py`, `cli.py`, `command_surface.py` and `tests/conformance_matrix.py` change only to add the two leaves this plan owns; `artifact_meta.py` changes only if E-12 must extend the legacy loader's scan roots to the `.agents/` record root (or to fix an interface defect a parity test exposes), which the finalize scope reconciliation records.
-- Under-scope: none known. Plan size after the split: 5 E-items in 2 task groups; the reader moves of the first half of F-02 are carried by the six split parts named in `## Deferred`.
+- Over-scope: none. `artifact_meta.py` changes only if E-12 must extend the legacy loader's scan roots to the `.agents/` record root (or to fix an interface defect a parity test exposes), which the finalize scope reconciliation records.
+- Under-scope: none known. Plan size after the round-3 split: 3 E-items in 1 task group, 5 work Scope-Paths; the reader moves of the first half of F-02 are carried by the six split parts named in `## Deferred`.
 
 ## Required tests / validation
 
-New core test modules of this plan: `tests/test_check_meta.py`, `tests/test_meta_repair_cli.py`, `tests/test_readers_cache_parity.py`, `tests/test_readers_offline.py`. All build `tmp_path` fixture repositories, call real functions or the `aw` CLI, assert on outputs and exit codes, and never read production source. The reader pin modules (`tests/test_readers_selectors_find.py`, `tests/test_readers_attention.py`, `tests/test_readers_check_engine.py`, `tests/test_readers_ipd_lint.py`) are created by the split parts and re-run by E-14.
+New core test modules of this plan: `tests/test_readers_cache_parity.py`, `tests/test_readers_offline.py` (`tests/test_check_meta.py` and `tests/test_meta_repair_cli.py` moved to `a5ijjx`). All build `tmp_path` fixture repositories, call real functions or the `aw` CLI, assert on outputs and exit codes, and never read production source. The reader pin modules (`tests/test_readers_selectors_find.py`, `tests/test_readers_attention.py`, `tests/test_readers_check_engine.py`, `tests/test_readers_ipd_lint.py`) are created by the split parts and re-run by E-14.
 
 Acceptance criteria of `4sd62s` this plan OWNS jointly with Order 09 (`t4gl15`), the phase-B reader pair. Each case has exactly one owner:
 
 | AC | This plan's part | Order 09's part |
 |---|---|---|
 | AC-1a | `aw find`, `aw attention --format json`, `aw check meta`, `aw check all`, `aw ipd lint` across cold, warm, deleted and corrupt caches; external edit visible; invalid replacement reported (E-12) | the setter and the pre-commit gate cases |
-| AC-7 | every 4.6 row the legacy format can express, one fixture per drift kind (E-10) | none; Order 13 shows zero findings on the migrated corpus |
+| AC-7 | every 4.6 row the legacy format can express, one fixture per drift kind (`a5ijjx` E-01, formerly E-10 here) | none; Order 13 shows zero findings on the migrated corpus |
 | AC-9 (reader parts) | none of this plan's readers consults an INDEX file (checked in E-14) | the `plans_index`/`research_index`/`prompts_index` readers; deletion is Order 11 |
 | AC-12 | `aw find` and `aw attention` with no model launcher and no network; `dependencies` unchanged (E-13) | the setter case |
 
@@ -198,7 +189,7 @@ Commands: the named modules, the bare core gate `python3 -m pytest`, `make test-
 
 ## Spec / documentation sync
 
-The ONE spec amendment of the original plan is now carried by Order 27 `r81uvz` (split 2026-11-07): `4sd62s` 4.3 gains `read_text(text, *, record_type=None) -> State` in its function list (OQ-03). Reason: the spec's function list is the C5 contract, and without the entry an in-memory text reader (the public `selectors.read_front_matter_*(text)` readers, `ipd_lint.lint_text`, `review_sequence` snapshots, Order 09's merge-stage text) would need either a second grammar or a function the spec does not name. The amendment adds a function; it changes no existing rule, and before the cutover nothing else depends on it. Implements `4sd62s` 4.3 (one reader; the D-1 record), 4.4 (IPD-S405 through `history`, the shared exclusion list, the `_extract_detail` replacement), 4.6 (`aw check meta`), 4.7 and 4.8 (`aw meta repair`), and section 7 step 5 (first half). This plan itself changes no spec text. `docs/cli-output-contract.md` gains the two new leaves, and a `CHANGELOG.md` line records the D-1 matching change, because `aw find plans executed` returns more rows than before.
+The ONE spec amendment of the original plan is now carried by Order 27 `r81uvz` (split 2026-11-07): `4sd62s` 4.3 gains `read_text(text, *, record_type=None) -> State` in its function list (OQ-03). Reason: the spec's function list is the C5 contract, and without the entry an in-memory text reader (the public `selectors.read_front_matter_*(text)` readers, `ipd_lint.lint_text`, `review_sequence` snapshots, Order 09's merge-stage text) would need either a second grammar or a function the spec does not name. The amendment adds a function; it changes no existing rule, and before the cutover nothing else depends on it. Implements `4sd62s` 4.3 (one reader; the D-1 record), 4.4 (IPD-S405 through `history`, the shared exclusion list, the `_extract_detail` replacement), 4.6 (`aw check meta`) and 4.7/4.8 (`aw meta repair`) through `a5ijjx`, and section 7 step 5 (first half). This plan itself changes no spec text. `docs/cli-output-contract.md` gains the two new leaves, and a `CHANGELOG.md` line records the D-1 matching change, because `aw find plans executed` returns more rows than before.
 
 ## Open questions
 
@@ -214,7 +205,7 @@ The ONE spec amendment of the original plan is now carried by Order 27 `r81uvz` 
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Superseded 2026-11-07 by the maintainer step-complexity rule (no single E/V item may hide hundreds of steps): `ffceq0` E-07 alone measured 93 working-tree metadata-read site lines in 50 `check_engine` functions, so the plan was split into six child plans (Orders 27 to 32) and keeps 5 finishing E-items in 2 task groups. Recommendation strength: strong.
+- Resolution or deferral rationale: Superseded 2026-11-07 by the maintainer step-complexity rule (no single E/V item may hide hundreds of steps): `ffceq0` E-07 alone measured 93 working-tree metadata-read site lines in 50 `check_engine` functions, so the plan was split into six child plans (Orders 27 to 32) and kept 5 finishing E-items; round 3 (2026-11-09) moved E-10 and E-11 to `a5ijjx`, leaving 3. Recommendation strength: strong.
 
 ### OQ-03: How does a reader get metadata for TEXT that is not a tracked working-tree file?
 
@@ -226,16 +217,6 @@ The ONE spec amendment of the original plan is now carried by Order 27 `r81uvz` 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-10 validates E-10
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_check_meta.py` all PASSED with one named test per drift kind (status mirror, id mirror, filename Set, NN, id6, date, D177 facet, research facet, disposition, review rounds, orphan log) and the clean fixture exiting 0; paste `aw check meta --agent` on this checkout ending with its `summary` record and a per-rule count, with the not-applicable rows named; paste `aw check --help` or `aw check meta --help` output naming `meta`; and paste `aw check all --agent` rule-id counts showing no `meta` rule id (the reserved word is not part of `all` in phase B).
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-11 validates E-11
-  - Required evidence: paste the transcript of the synthetic-log fixture (its own `git init` repository, log written from `artifact_meta.encode_event` lines): `aw meta repair <id6>` preview text and exit 0 with `git status --porcelain` empty, `aw meta repair <id6> --apply` exit 0 with the mirror line changed in `git diff`, a second `--apply` with `git status --porcelain` unchanged; and the legacy-record run printing `nothing to repair (legacy format)`; plus `python3 -m pytest -o addopts="" -v tests/test_meta_repair_cli.py` all PASSED.
-  - Observed evidence:
-  - Result: pending
-
 - [ ] V-12 validates E-12
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_readers_cache_parity.py` with every test PASSED: one per (command x cache state) pair for the five commands and four cache states, the external-edit test, the invalid-replacement test asserting the record is named in a violation, and the legacy `.agents/` root test (rows equal before and after, or the ledger decision that records the loss); the module's total wall time from the `--durations=0` output.
   - Observed evidence:
@@ -257,7 +238,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `xexn45` and the six split parts `r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu` and `ebrc4t` are executed. Open questions: OQ-01 to OQ-03 are resolved and none is blocking.
+Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `xexn45`, the six split parts `r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu` and `ebrc4t`, and `a5ijjx` are executed. Open questions: OQ-01 to OQ-03 are resolved and none is blocking.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move (now in the split parts) is pin-first, and a test edited after a move must be one that D-1 to D-6 name; this plan compares against the baselines those parts saved under `.aw/state/ffceq0/`.
 

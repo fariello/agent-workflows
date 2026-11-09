@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Spec `4sd62s` (4.2 SHORT DESCRIPTION, OQ-22, OQ-31, AC-36) has the cutover write a model-generated `short_description` through a reusable gitignored journal and a tool-less, sanitized model call. Plan `ya4ee4` owned all of it in 11 items; it was split 2026-11-07 per the maintainer's step-complexity rule so that one turn builds the self-contained module and another wires it into `m0001` and runs the real trial.
-- Scope: Add `agent_workflows/migrations/m0001_describe.py` and the tracked prompt `agent_workflows/data/short-description-prompt.md`: the prompt and its loader (`ya4ee4` E-01), the description journal (E-02), the tool-less argv and env (E-03), the scratch directory and guarded call (E-04), validation (E-05), and the regenerate-once rule (E-06), each with its tests in `tests/test_m0001_describe.py`. EXCLUDES: wiring into `m0001`, the CLI options, the full fake-host test module, the real trial and the changelog (`ya4ee4`).
+- Scope: Add `agent_workflows/migrations/m0001_describe.py` and the tracked prompt `agent_workflows/data/short-description-prompt.md`: the prompt and its loader (`ya4ee4` E-01), the description journal (E-02), the tool-less argv and env (E-03), the scratch directory and guarded call (E-04), and the regenerate-once rule (E-06) over the `validate` function built by `830wku`, each with its tests in `tests/test_m0001_describe.py`. EXCLUDES: `validate` and its tests (`830wku`, round-3 split of this plan's E-05); wiring into `m0001`, the CLI options, the full fake-host test module, the real trial and the changelog (`ya4ee4`).
 - Scope-Paths: agent_workflows/migrations/m0001_describe.py, agent_workflows/data/short-description-prompt.md, pyproject.toml, tests/test_m0001_describe.py, .aw/records/plans/pending/20261107-metastore-20-odeo9z-build-the-m0001-description-journal-tool-less-model-call-and.ipd.md
-- Item-Dependencies: executed:dcerjg
+- Item-Dependencies: executed:dcerjg, executed:830wku
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-05 moved to 830wku.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ya4ee4 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -56,15 +57,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: with a fake runner, a reply carrying a `tool_use` event is a failure; a reply with text and a `step_finish` event returns the text, cost and tokens; exit 124 returns `could-not-ask`; the scratch directory is mode `0o500` during the call and absent afterwards.
   - Execution state: pending
 
-### Task group 3: validation and the regenerate-once rule
+### Task group 3: the regenerate-once rule
 
-- [ ] E-05 Add `validate(text, repo) -> str | None` returning the first refusal reason: `attention_contract.refuse_unsafe_descriptive("aw migrate metadata", "short_description", text)` (300-character bound, newline and control characters), then `leak_sanitizer.scan_text(text, "short_description", ruleset, include_warn=True)` over `ruleset = leak_sanitizer.build_ruleset(repo, include_warn=True)` (built once per run) with ANY finding, `fail` or `warn`, refused naming its rule, matching `tve77h` E-03 (b) so the migration's own writer cannot refuse a value this step accepted; then, because the sanitizer flags only THIS machine's home directory, user name and host name (measured at review: `see /home/alice/secret` produces no finding under either ruleset, while the machine's own home path produces `home-path` and `handle` `fail` findings and its host name a `derived:<host>` `warn`), also refuse any whitespace-separated token that is an absolute POSIX path of two or more segments or a Windows drive path, the same extra rule `tve77h` E-03 (b) applies to `message`, so a planted path from another machine is refused too. Strip one pair of surrounding quotes and surrounding whitespace before validating; never truncate, never rewrite inner text.
-  - Depends on: none
-  - Expected outcome: a 301-character value, a value with `\n`, a value with `\x07`, a value containing this machine's home directory (sanitizer `home-path`), a value containing another machine's home path such as `/home/alice/x` (absolute-path rule) and a value containing this machine's host name (sanitizer `warn`) are each refused with a distinct reason; a 300-character plain sentence and a sentence mentioning the slash command `/plan-review` pass.
-  - Execution state: pending
+Item E-05 (`validate`) moved to `830wku` (see Deferred).
 
-- [ ] E-06 Add `describe_record(key, record_bytes, *, journal, host, model, runner)`: reuse a matching journal entry with no call; otherwise generate, validate, and on refusal or failure regenerate ONCE with the same prompt; journal the first passing value, or journal `text: null` with the last `failure` reason and `attempts: 2`; journal each result as soon as it arrives. A `could-not-ask` result is NOT journaled, so a later run retries it. A journaled failure is reused (no third call) until the record's source or the prompt changes.
-  - Depends on: E-02, E-04, E-05
+- [ ] E-06 Add `describe_record(key, record_bytes, *, journal, host, model, runner)` (it calls `validate`, built by `830wku`): reuse a matching journal entry with no call; otherwise generate, validate, and on refusal or failure regenerate ONCE with the same prompt; journal the first passing value, or journal `text: null` with the last `failure` reason and `attempts: 2`; journal each result as soon as it arrives. A `could-not-ask` result is NOT journaled, so a later run retries it. A journaled failure is reused (no third call) until the record's source or the prompt changes.
+  - Depends on: E-02, E-04
   - Expected outcome: with a fake runner whose first reply is 400 characters and second is valid, exactly two calls happen and the second text is journaled; with two invalid replies, two calls happen, the entry is `text: null`, and a rerun makes zero calls.
   - Execution state: pending
 
@@ -90,17 +88,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 1. E-01, E-02: prompt file and journal.
 2. E-03, E-04: tool-less argv and env, scratch directory, guarded spawn.
-3. E-05, E-06: validation and regenerate-once.
+3. E-06: regenerate-once (E-05 validation moved to `830wku`).
 
 ## Deferred / out of scope (with reason)
 
+- E-05 (`validate(text, repo)`: descriptive-value refusal, leak-sanitizer refusal, absolute-path rule) and its `-k validate` tests: Moved to 830wku (round-3 split 2026-11-09 per research nj8zdp guidance).
+  - Carrier: 830wku
 - Wiring into `m0001`, the `--describe-*` and `--no-describe` options, the full fake-host test module, the real trial on a copy and the changelog.
   - Carrier: ya4ee4
 
 ## Scope check
 
 - Over-scope: none. `pyproject.toml` is edited only if V-01's wheel listing shows the prompt file missing.
-- Under-scope: none for `ya4ee4` E-01 to E-06; the AC-36 cases are proven end to end by `ya4ee4` E-09.
+- Under-scope: none for `ya4ee4` E-01 to E-04 and E-06 (E-05 is `830wku`'s); the AC-36 cases are proven end to end by `ya4ee4` E-09.
 
 ## Required tests / validation
 
@@ -148,10 +148,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 - [ ] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_describe.py -k "generate or scratch or spawn_refused"` all PASSED, naming the `tool_use`-is-failure, exit-124-is-could-not-ask, scratch-mode-0o500 and real-spawn-refuses-under-pytest tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_describe.py -k validate` all PASSED with the six refusal reasons (length, newline, control character, sanitizer `home-path`, absolute path, sanitizer `derived:<host>` warn) printed by `-rA` or quoted from the assertions.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06

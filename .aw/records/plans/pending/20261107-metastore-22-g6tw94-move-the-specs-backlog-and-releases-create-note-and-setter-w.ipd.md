@@ -3,9 +3,9 @@
 - Date: 2026-11-07
 - Kind: child
 - Concern: Spec `4sd62s` section 7 step 4 requires every metadata writer to write through `artifact_meta` in phase B. The specs, backlog and releases modules still build their `- Field:` bullets and `## Workflow history` lines by hand (measured: `specs` 14 bullet literals and 8 history references, `backlog` 29 and 18, `releases` 11 and 4). This is a part of `xexn45`, split 2026-11-07 because its create and note items each spanned seven modules and 17 or 9 test modules.
-- Scope: Move `specs.run_new`, `backlog.run_new`, `releases.create_release`/`plan_release` onto `artifact_meta.create` (`xexn45` E-02 subset A) and `specs.run_note`, `specs.run_migrate`, `backlog.run_note`, `backlog._reattach_history`, `releases.set_item_dependencies_line`, `set_graduated_to_line` onto `artifact_meta.append` (`xexn45` E-05 subset A), through the legacy writer of `7yr827`. EXCLUDES: the prompts, scaffold, research, adopt and set_records writers (`n5sxxk`), `--summary` (`6e93gt`).
-- Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/specs.py, agent_workflows/backlog.py, agent_workflows/releases.py, .aw/records/plans/pending/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.ipd.md
-- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
+- Scope: FINISHING PART of the specs, backlog and releases writer move (`xexn45` E-02 subset A and E-05 subset A). Round-3 split 2026-11-09 per research `nj8zdp`: the moves now live in `b3l7y6` (Order 120, specs), `jlwedt` (121, backlog) and `3466h8` (134, releases); this plan keeps the family audit (E-03) that proves no module of the family still builds history text by hand. EXCLUDES: the prompts, scaffold, research, adopt and set_records writers (`n5sxxk`), `--summary` (`6e93gt`).
+- Scope-Paths: .aw/records/plans/pending/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.ipd.md
+- Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:b3l7y6, executed:jlwedt, executed:3466h8
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -13,7 +13,7 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 22
-- Highest E allocated: 02
+- Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g6tw94
 
@@ -21,12 +21,13 @@
 
 ## Workflow history
 
+- 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (split by module), E-02 (split by module) moved to b3l7y6, jlwedt, 3466h8.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from xexn45 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-The specs, backlog and releases create, note and field-setter paths write through `artifact_meta`, each keeping a named, tested behavior, so no module of this family builds metadata text by hand.
+After its three parts run, no create, note or field-setter path of the specs, backlog and releases modules builds metadata text by hand; this plan proves it with one audit.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -34,16 +35,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 PIN-FIRST RULE for every "move" item: run the named existing test modules GREEN on the unmodified code and save the per-test outcome list under the gitignored `.aw/state/g6tw94/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/g6tw94/<E>-before.txt`; `-m ""` includes `slow` modules, `-p no:randomly -n 0` makes the list deterministic, and `-q` is not repeated because `addopts` is cleared); make the move; run the same command into `-after.txt`; `diff` of the two must print nothing, so a test that newly fails, errors or skips is caught, not only a lost PASSED line. An existing assertion may change only when the Behavior decisions D-1 to D-6 below name it. New tests set `pytestmark = pytest.mark.core`, build fixtures in `tmp_path`, drive the real CLI or function, and never read production source (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
 
-### Task group 1: specs, backlog and releases writers
+### Task group 1: family audit
 
-- [ ] E-01 Move the creating commands of the specs, backlog and releases family onto `artifact_meta.create`, pinned first (`xexn45` E-02, subset A of its writer list; subset B is `n5sxxk` E-01): `specs.run_new`, `backlog.run_new`, `releases.create_release`/`plan_release`. Each passes its fields and its created-history message as events; the body text stays the command's own rendering. Behaviors kept: preview prints the exact bytes `--apply` writes (`tests/test_releases.py::test_plan_release_previews_exactly_what_create_writes`); conformant output (`tests/test_backlog.py::test_new_creates_conformant_item_that_checks_clean`, `tests/test_spec_id6_filenames.py::test_new_preview_then_apply_conformant`, `tests/test_releases_cli.py::test_apply_creates_a_record_that_check_releases_passes`); the UTC history date (`tests/test_history_date_clock.py`); descriptive refusals before any write (`tests/test_specs_releases_descriptive_safety.py`, `tests/test_backlog_descriptive_safety.py`, `tests/test_descriptive_refusal_hoist.py`); and the sidecar is written only after the durable write (`tests/test_history_write_order.py`).
+- [ ] E-03 Audit the specs, backlog and releases family after its three parts: run `rg -n "Workflow history" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py` and `rg -n "f\"- \{(date|today|hdate)\} " agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py`, label every hit with its enclosing `def`, and add a Findings row (F-05) that names each hit and its reason (a reader, a body-text edit per N3, or a call into `artifact_meta`). Any hit inside a writer named in `b3l7y6`, `jlwedt` or `3466h8` is a defect of that part: stop and report it rather than editing here.
   - Depends on: none
-  - Expected outcome: every named module passes before and after with equal PASSED sets; `rg -n "Workflow history" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py` shows no remaining text-building of the history section in a create path.
-  - Execution state: pending
-
-- [ ] E-02 Move the note and field-setter writers of the specs, backlog and releases family onto `artifact_meta.append`, pinned first (`xexn45` E-05, subset A of its writer list; subset B is `n5sxxk` E-02): `specs.run_note`, `specs.run_migrate`, `backlog.run_note`, `backlog._reattach_history` (used by `set_records.close_on_answer`, which `n5sxxk` moves), `releases.set_item_dependencies_line` and `set_graduated_to_line` (called by the `status_set` engine; Order 06 keeps the call site). Behaviors kept: one record per note, identical note deduplicated (`tests/test_specs_verbs.py::test_note_appends_one_record_only`, `test_note_deduplicates_identical_call`; `tests/test_backlog.py::test_note_records_history_without_changing_status_or_moving_the_file`, `test_a_second_note_preserves_the_first`); migrate folds prose into one history record (`tests/test_specs_verbs.py::test_migrate_free_form_to_bare_enum`, `test_migrate_to_deferred_with_gate`, `test_migrate_folds_implemented_line`); unknown backlog bullets kept in order through `_reattach_history` (`tests/test_backlog.py`, whose close-on-answer tests `n5sxxk` also pins); graduation lines (`tests/test_graduation_forward_links.py`); history bounding (`tests/test_history_block_bounding.py::test_e2_writer_round_trip_wrapped_and_quoted`); newest-first order (`tests/test_history_order.py`, the D-1 named test); note date containment (`tests/test_specs_date_containment.py`, which drives `specs.run_note`; named in `xexn45`'s pinned-module list but in no `xexn45` V-item, so pinned here).
-  - Depends on: none
-  - Expected outcome: every named module passes before and after with equal PASSED sets; `rg -n "f\"- \{(date|today|hdate)\} " agent_workflows/specs.py agent_workflows/backlog.py` shows no hand-built history line outside `artifact_meta`.
+  - Expected outcome: F-05 lists every hit with its enclosing `def` and reason; no hit is inside `specs.run_new`, `specs._render_new_spec`, `specs.run_note`, `specs.run_migrate`, `backlog.run_new`, `backlog._render_item`, `backlog.run_note`, `backlog._reattach_history`, `releases.create_release` or `releases.plan_release`.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -71,6 +67,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | F-02 | Hidden units of E-01: 4 writer functions, 3 files, 9 pinned modules (`test_releases` 21, `test_releases_cli` 37, `test_backlog` 47, `test_spec_id6_filenames` 21, `test_history_date_clock` 5, `test_specs_releases_descriptive_safety` 19, `test_backlog_descriptive_safety` 19, `test_descriptive_refusal_hoist` 3, `test_history_write_order` 8 tests, counted with `rg -c "^\s*def test_"`): about 16 units | Within the 25-unit limit. |
 | F-03 | Hidden units of E-02: 6 writer functions, 3 files, 6 pinned modules (`test_specs_verbs` 20, `test_backlog` 47, `test_graduation_forward_links` 9, `test_history_block_bounding` 9, `test_history_order` 7, `test_specs_date_containment` 15 tests): about 15 units | Within the limit. |
 | F-04 | `tests/test_descriptive_refusal_hoist.py` exercises `specs`, `backlog`, `releases` and `research_cmd` (`rg -o` over the module: 8, 8, 7 and 4 references) | It is pinned in both this part and `n5sxxk`; a re-run is harmless and each part sees its own family green. |
+| F-05 | (filled by E-03) family audit hits with their enclosing `def` and reason | Proof that the family writes no hand-built history. |
 
 ## Behavior decisions (kept behavior where writers disagreed, 4.3)
 
@@ -79,11 +76,17 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Proposed changes (ordered, validatable)
 
-1. Move the create commands (E-01).
-2. Move the note and field setters (E-02).
+1. The moves, in three parts: specs (`b3l7y6`), backlog (`jlwedt`), releases (`3466h8`).
+2. The family audit (E-03).
 
 ## Deferred / out of scope (with reason)
 
+- E-01 specs subset (`specs.run_new`) and E-02 specs subset (`specs.run_note`, `specs.run_migrate`): Moved to b3l7y6 (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: b3l7y6
+- E-01 backlog subset (`backlog.run_new`) and E-02 backlog subset (`backlog.run_note`, `backlog._reattach_history`): Moved to jlwedt (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: jlwedt
+- E-01 releases subset (`releases.create_release`, `releases.plan_release`) and E-02 releases subset (`releases.set_item_dependencies_line`, `releases.set_graduated_to_line`): Moved to 3466h8 (round-3 split 2026-11-09 per research nj8zdp guidance)
+  - Carrier: 3466h8
 - The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` and `CHANGELOG.md` lines, and the full-suite gates of the writer move.
   - Carrier: xexn45
 - The other writer families of `xexn45` (subset B of E-02 and E-05).
@@ -92,11 +95,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. `artifact_meta.py` is declared in case a field mapping must be added; leave it unmodified and acknowledge it at finalize when none is needed.
+- Under-scope: none. Every writer and every pinned module of the original E-01 and E-02 lives in exactly one of `b3l7y6`, `jlwedt` and `3466h8` (shared modules are pinned in each part that touches one of their modules). `tests/test_releases_sibling_line_writers_bounding.py` was added to the releases pin list by `3466h8`. Plan size after the split: 1 E-item.
 
 ## Required tests / validation
 
-No new module. Pinned before and after (equal outcome lists): the nine modules of V-01 and the six of V-02.
+No new module and no code edit. The pinned modules now live in the V-items of `b3l7y6`, `jlwedt` and `3466h8`; V-03 here is a search audit.
 
 ## Spec / documentation sync
 
@@ -110,14 +113,11 @@ None open. Every question this work raised was resolved in `xexn45` before the s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
-  - Required evidence: paste the `diff` of `.aw/state/g6tw94/E-01-before.txt` and `-after.txt` (must print nothing; both files are the PIN-FIRST rule's sorted outcome lists) and both summary lines of `python3 -m pytest -o addopts="" -q -rA tests/test_releases.py tests/test_releases_cli.py tests/test_backlog.py tests/test_spec_id6_filenames.py tests/test_history_date_clock.py tests/test_specs_releases_descriptive_safety.py tests/test_backlog_descriptive_safety.py tests/test_descriptive_refusal_hoist.py tests/test_history_write_order.py`, plus the `rg -n "Workflow history"` output of E-01 showing no create-path text building.
+- [ ] V-03 validates E-03
+  - Required evidence: paste both `rg` commands of E-03 with their full output, and the filled F-05 row naming each hit's enclosing `def` and reason; for each of the ten writer functions named in the E-03 expected outcome, state that no hit falls inside it.
   - Observed evidence:
   - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: paste the `diff` of `.aw/state/g6tw94/E-02-before.txt` and `-after.txt` (must print nothing; both files are the PIN-FIRST rule's sorted outcome lists) and both summary lines of `python3 -m pytest -o addopts="" -q -rA tests/test_specs_verbs.py tests/test_backlog.py tests/test_graduation_forward_links.py tests/test_history_block_bounding.py tests/test_history_order.py tests/test_specs_date_containment.py`, plus the E-02 `rg` output showing no hand-built history line in the two modules.
-  - Observed evidence:
-  - Result: pending
+
 
 ## Approval and execution gate
 
