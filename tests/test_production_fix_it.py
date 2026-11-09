@@ -349,7 +349,7 @@ class TestProductionFixIt(unittest.TestCase):
     """Test suite validating IPD ob7aq9."""
 
     def test_e10_01_backlog_production_stall_then_success(self) -> None:
-        """E-10 (1): Backlog production stall then success in same lane and session."""
+        """E-10 (1): Backlog production stall then success in the same lane, with a fresh session (w93his)."""
         for host_label, mod in _HOSTS:
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
@@ -377,8 +377,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -424,12 +425,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-p1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -449,7 +454,9 @@ class TestProductionFixIt(unittest.TestCase):
                     self.assertEqual(attempts[1]["fix_it_lane"], "resumed")
                     self.assertEqual(attempts[1]["worktree"], attempts[0]["worktree"])
                     self.assertEqual(received_sessions[0], None)
-                    self.assertEqual(received_sessions[1], "ses-p1")
+                    # w93his: the correction re-adopts the LANE but starts a FRESH session by default.
+                    self.assertEqual(attempts[1].get("fix_it_session"), "fresh")
+                    self.assertEqual(received_sessions[1], None)
 
                     # Backlog item graduated
                     bkl_files = list(
@@ -487,8 +494,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -532,12 +540,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-p2", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -607,8 +619,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -645,12 +658,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-spc1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -697,8 +714,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -732,12 +750,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-bkl5", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -782,8 +804,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -791,9 +814,10 @@ class TestProductionFixIt(unittest.TestCase):
                         raise rs.StallTimeout("stalled", session_id="ses-b6")
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -833,8 +857,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -892,12 +917,17 @@ class TestProductionFixIt(unittest.TestCase):
                                 check=True,
                             )
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
-                    ), mock.patch.object(rs, "append_jsonl", hook_append_jsonl):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
+                        mock.patch.object(rs, "append_jsonl", hook_append_jsonl),
+                    ):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -939,8 +969,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -994,12 +1025,16 @@ class TestProductionFixIt(unittest.TestCase):
                             )
                         return 0, "ses-set8", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1045,8 +1080,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1083,12 +1119,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-pr1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     prompts_dir = run_dir / "prompts"
@@ -1137,8 +1177,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1188,12 +1229,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-stop1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     # Inspect events: lane-kept-for-fix-it must be present, NO lane-reclaimed-* for stall_lane_wt
@@ -1241,12 +1286,16 @@ class TestProductionFixIt(unittest.TestCase):
 
                     # Now resume the run: clear the stop-request record so resume can proceed
                     (run_dir / "stop-request.json").unlink(missing_ok=True)
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1289,8 +1338,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1298,9 +1348,10 @@ class TestProductionFixIt(unittest.TestCase):
                         raise rs.StallTimeout("review stall", session_id="ses-rev1")
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1341,8 +1392,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1403,12 +1455,16 @@ class TestProductionFixIt(unittest.TestCase):
                             )
                             return 0, "ses-corr-stall", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1466,8 +1522,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1509,12 +1566,16 @@ class TestProductionFixIt(unittest.TestCase):
                         )
                         return 0, "ses-sh1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1593,8 +1654,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1602,9 +1664,10 @@ class TestProductionFixIt(unittest.TestCase):
                         raise rs.StallTimeout("stall", session_id="ses-r13")
 
                     with _patch_host_agent(mod, fake_agent_stall):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     report_text = (run_dir / "execution-report.md").read_text(
@@ -1644,8 +1707,9 @@ class TestProductionFixIt(unittest.TestCase):
                     ]
                     args2 = mod.build_parser().parse_args(cmd2)
                     buf2 = io.StringIO()
-                    with contextlib.redirect_stdout(buf2), contextlib.redirect_stderr(
-                        buf2
+                    with (
+                        contextlib.redirect_stdout(buf2),
+                        contextlib.redirect_stderr(buf2),
                     ):
                         run_dir2 = mod.initialize_run(args2)
 
@@ -1674,9 +1738,10 @@ class TestProductionFixIt(unittest.TestCase):
                         raise rs.StallTimeout("stall", session_id="ses-r14")
 
                     with _patch_host_agent(mod, fake_agent_dirty):
-                        with contextlib.redirect_stdout(
-                            buf2
-                        ), contextlib.redirect_stderr(buf2):
+                        with (
+                            contextlib.redirect_stdout(buf2),
+                            contextlib.redirect_stderr(buf2),
+                        ):
                             mod.run_queue(run_dir2, retry_incomplete=False)
 
                     report_text2 = (run_dir2 / "execution-report.md").read_text(

@@ -16810,6 +16810,25 @@ RUN_POLICY_FLAGS: tuple = (
             "needs no flag"
         ),
     ),
+    # w93his (2026-11-09): a correction turn re-adopts the failed attempt's LANE but, by default, starts
+    # a FRESH host session. Resuming the failed session made the correction turn carry the whole prior
+    # conversation (measured, plan 2xwb9b attempt 2: started at 324K tokens of context, ended at 436K),
+    # so every step re-read it. The lane's commits and files are the durable state; the correction
+    # prompt carries the failed predicates. This flag restores the old resume behavior when the prior
+    # conversation holds reasoning that is not in the lane.
+    RunPolicyFlag(
+        flag="--resume-correction-session",
+        dest="resume_correction_session",
+        kind="bool",
+        implemented=True,
+        owner="runner_shared.try_adopt_fix_it_lane",
+        help=(
+            "On a correction turn, RESUME the failed attempt's host session instead of starting a "
+            "fresh one. The default is a fresh session in the same lane, because a resumed session "
+            "brings the whole failed conversation into every step (backlog w93his). The lane is "
+            "re-adopted either way"
+        ),
+    ),
     RunPolicyFlag(
         flag="--unattended",
         dest="unattended",
@@ -41848,7 +41867,13 @@ def try_adopt_fix_it_lane(
             base_commit=wt_handle.base_commit,
             disposition="adopted",
         )
-        session_id = prior_session_id
+        # w93his: the LANE is re-adopted; the SESSION is resumed only when the operator opted in.
+        if bool((state.get("options") or {}).get("resume_correction_session")):
+            session_id = prior_session_id
+            attempt["fix_it_session"] = "resumed"
+        else:
+            session_id = None
+            attempt["fix_it_session"] = "fresh"
         use_continue = False
         attempt["fix_it_lane"] = "resumed"
         attempt["worktree"] = work_dir

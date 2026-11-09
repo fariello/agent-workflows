@@ -296,13 +296,17 @@ class TestTurnFixIt(unittest.TestCase):
                         _write_outcome_file(rd, itm, disposition="executed")
                         return 0, "ses-1", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 self.assertEqual(rc, 0)
@@ -358,13 +362,17 @@ class TestTurnFixIt(unittest.TestCase):
                         _write_outcome_file(rd, itm, disposition="executed")
                         return 0, "ses-1", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 self.assertEqual(rc, 0)
@@ -404,13 +412,17 @@ class TestTurnFixIt(unittest.TestCase):
                         _write_outcome_file(rd, itm, disposition="executed")
                         return 0, "stalled-ses-42", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 self.assertEqual(rc, 0)
@@ -453,13 +465,17 @@ class TestTurnFixIt(unittest.TestCase):
                         _write_outcome_file(rd, itm, disposition="executed")
                         return 0, "ses-1", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 self.assertEqual(rc, 0)
@@ -512,13 +528,17 @@ class TestTurnFixIt(unittest.TestCase):
                         _write_outcome_file(rd, itm, disposition="executed")
                         return 0, "ses-2", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 # Queue ran normally; rc 1 due to failed item, but without crashing
@@ -561,13 +581,17 @@ class TestTurnFixIt(unittest.TestCase):
                     call_count[0] += 1
                     return 1, "ses-1", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 self.assertEqual(rc, 1)
@@ -596,13 +620,17 @@ class TestTurnFixIt(unittest.TestCase):
                 ) -> tuple[int, str | None, Path, list[str]]:
                     raise runner_stop.StopNowForce(level=4, requester="operator-test")
 
-                with _patch_host_launcher(mod, fake_turn), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     with self.assertRaises(runner_stop.StopNowForce):
                         mod.execute_item(run_dir, state, item, recovery=False)
 
@@ -630,12 +658,123 @@ class TestTurnFixIt(unittest.TestCase):
         self.assertIn("REFUSED VERIFICATION", why)
 
     def test_09_session_and_lane_resume_including_fallback(self) -> None:
-        """Scenario 9: Fix-it recovery resumes lane and session, and falls back if lane missing or no session."""
+        """Scenario 9: Fix-it recovery resumes lane and (opted-in) session, and falls back if lane missing or no session."""
         for host_label, mod in _HOSTS:
             with self.subTest(host=host_label):
-                # Part A: Resume case
+                # Part A: Resume case (session resume is the w93his opt-in)
                 run_dir, state, item = self._setup_run(
                     mod, id6=f"res{host_label}", budget=2, isolate=True
+                )
+                state["options"]["resume_correction_session"] = True
+                mod.save_state(run_dir, state)
+                log_file = run_dir / "logs" / "attempt.log"
+                log_file.write_text("log\n", encoding="utf-8")
+
+                recorded_work_dirs: list[str | None] = []
+                recorded_sessions: list[str | None] = []
+
+                def fake_turn_resume(
+                    st: Any,
+                    rd: Any,
+                    itm: Any,
+                    plan_p: Any,
+                    prompt_p: Any,
+                    att_no: Any,
+                    **kw: Any,
+                ) -> tuple[int, str | None, Path, list[str]]:
+                    recorded_work_dirs.append(kw.get("work_dir"))
+                    recorded_sessions.append(
+                        kw.get("session_id") or kw.get("resume_session")
+                    )
+                    if len(recorded_work_dirs) == 1:
+                        # Attempt 1: fail
+                        return 1, "session-shared-99", log_file, ["cmd"]
+                    else:
+                        # Attempt 2: succeed
+                        _write_outcome_file(rd, itm, disposition="executed")
+                        return 0, "session-shared-99", log_file, ["cmd"]
+
+                with (
+                    _patch_host_launcher(mod, fake_turn_resume),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
+                    rc = mod.run_queue(run_dir, retry_incomplete=False)
+
+                self.assertEqual(rc, 0)
+                final_state = mod.load_state(run_dir)
+                final_item = final_state["queue"][0]
+                self.assertEqual(final_item["status"], "executed")
+                self.assertEqual(len(final_item["attempts"]), 2)
+                att2 = final_item["attempts"][1]
+                self.assertEqual(att2.get("fix_it_lane"), "resumed")
+                # Both attempts ran in the SAME worktree directory. The SESSION is resumed only
+                # because this case opts in with `resume_correction_session` (w93his: the default
+                # is a fresh session; see test_10).
+                self.assertEqual(recorded_work_dirs[0], recorded_work_dirs[1])
+                self.assertEqual(att2.get("fix_it_session"), "resumed")
+                self.assertEqual(recorded_sessions[1], "session-shared-99")
+
+                # Part B: Fallback case (missing prior session id)
+                run_dir_fb, state_fb, item_fb = self._setup_run(
+                    mod, id6=f"fbk{host_label}", budget=2, isolate=True
+                )
+                call_fb = [0]
+                fb_work_dirs: list[str | None] = []
+
+                def fake_turn_fallback(
+                    st: Any,
+                    rd: Any,
+                    itm: Any,
+                    plan_p: Any,
+                    prompt_p: Any,
+                    att_no: Any,
+                    **kw: Any,
+                ) -> tuple[int, str | None, Path, list[str]]:
+                    call_fb[0] += 1
+                    fb_work_dirs.append(kw.get("work_dir"))
+                    if call_fb[0] == 1:
+                        # Attempt 1: fail with NO session id
+                        return 1, None, log_file, ["cmd"]
+                    else:
+                        _write_outcome_file(rd, itm, disposition="executed")
+                        return 0, "new-session", log_file, ["cmd"]
+
+                with (
+                    _patch_host_launcher(mod, fake_turn_fallback),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
+                    rc_fb = mod.run_queue(run_dir_fb, retry_incomplete=False)
+
+                self.assertEqual(rc_fb, 0)
+                final_state_fb = mod.load_state(run_dir_fb)
+                final_item_fb = final_state_fb["queue"][0]
+                self.assertEqual(final_item_fb["status"], "executed")
+                att2_fb = final_item_fb["attempts"][1]
+                self.assertTrue(str(att2_fb.get("fix_it_lane")).startswith("fresh:"))
+
+    def test_10_correction_turn_reuses_lane_but_starts_a_fresh_session_by_default(
+        self,
+    ) -> None:
+        """w93his: a correction turn re-adopts the failed lane and does NOT resume its session."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                # Default: no opt-in
+                run_dir, state, item = self._setup_run(
+                    mod, id6=f"frs{host_label}", budget=2, isolate=True
                 )
                 log_file = run_dir / "logs" / "attempt.log"
                 log_file.write_text("log\n", encoding="utf-8")
@@ -664,13 +803,17 @@ class TestTurnFixIt(unittest.TestCase):
                         _write_outcome_file(rd, itm, disposition="executed")
                         return 0, "session-shared-99", log_file, ["cmd"]
 
-                with _patch_host_launcher(mod, fake_turn_resume), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                with (
+                    _patch_host_launcher(mod, fake_turn_resume),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch("sys.stderr", new_callable=io.StringIO),
+                ):
                     rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                 self.assertEqual(rc, 0)
@@ -680,50 +823,10 @@ class TestTurnFixIt(unittest.TestCase):
                 self.assertEqual(len(final_item["attempts"]), 2)
                 att2 = final_item["attempts"][1]
                 self.assertEqual(att2.get("fix_it_lane"), "resumed")
-                # Both attempts ran in the SAME worktree directory and resumed session
+                # w93his DEFAULT: same lane, FRESH session (the failed conversation is not resumed).
                 self.assertEqual(recorded_work_dirs[0], recorded_work_dirs[1])
-                self.assertEqual(recorded_sessions[1], "session-shared-99")
-
-                # Part B: Fallback case (missing prior session id)
-                run_dir_fb, state_fb, item_fb = self._setup_run(
-                    mod, id6=f"fbk{host_label}", budget=2, isolate=True
-                )
-                call_fb = [0]
-                fb_work_dirs: list[str | None] = []
-
-                def fake_turn_fallback(
-                    st: Any,
-                    rd: Any,
-                    itm: Any,
-                    plan_p: Any,
-                    prompt_p: Any,
-                    att_no: Any,
-                    **kw: Any,
-                ) -> tuple[int, str | None, Path, list[str]]:
-                    call_fb[0] += 1
-                    fb_work_dirs.append(kw.get("work_dir"))
-                    if call_fb[0] == 1:
-                        # Attempt 1: fail with NO session id
-                        return 1, None, log_file, ["cmd"]
-                    else:
-                        _write_outcome_file(rd, itm, disposition="executed")
-                        return 0, "new-session", log_file, ["cmd"]
-
-                with _patch_host_launcher(mod, fake_turn_fallback), mock.patch.object(
-                    mod, "driver_begin", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "driver_finalize", lambda *a, **k: (0, "ok")
-                ), mock.patch.object(
-                    mod, "assert_child_tool_identity", lambda *a, **k: None
-                ), mock.patch("sys.stderr", new_callable=io.StringIO):
-                    rc_fb = mod.run_queue(run_dir_fb, retry_incomplete=False)
-
-                self.assertEqual(rc_fb, 0)
-                final_state_fb = mod.load_state(run_dir_fb)
-                final_item_fb = final_state_fb["queue"][0]
-                self.assertEqual(final_item_fb["status"], "executed")
-                att2_fb = final_item_fb["attempts"][1]
-                self.assertTrue(str(att2_fb.get("fix_it_lane")).startswith("fresh:"))
+                self.assertEqual(att2.get("fix_it_session"), "fresh")
+                self.assertIsNone(recorded_sessions[1])
 
 
 if __name__ == "__main__":
