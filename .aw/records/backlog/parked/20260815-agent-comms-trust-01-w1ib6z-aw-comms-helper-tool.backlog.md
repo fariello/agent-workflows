@@ -6,4 +6,5 @@
 - Summary: Inter-agent-comms helper (aw comms check/send/archive/sweep/promote) - discuss scope/shape with maintainer before any IPD
 
 ## Workflow history
+- 2026-11-09 note (aw backlog): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-08-15 created (aw backlog): Inter-agent-comms helper (aw comms check/send/archive/sweep/promote) - discuss scope/shape with maintainer before any IPD
