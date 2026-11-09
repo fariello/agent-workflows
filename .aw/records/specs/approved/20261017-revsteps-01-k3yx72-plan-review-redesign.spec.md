@@ -109,6 +109,23 @@ After each prompt, the runner checks that prompt's postcondition (Section 6) bef
 next. If a postcondition fails, the runner re-asks once in the same session, naming what is missing.
 If the re-ask also fails, the review invocation ends as `incomplete` (Section 9.1).
 
+```mermaid
+flowchart TD
+    Pre["Runner Pre-pass (Section 4.1)"] --> P1["Prompt 1: Checks P + T"]
+    P1 --> Tier{"Rate tier (Section 5.2)"}
+    Tier --> Prompts["Send Tier Prompts in Session (Section 5.3)"]
+    Prompts --> PostCheck{"Postcondition met? (Section 6)"}
+    PostCheck -->|No: 1st fail| ReAsk["Re-ask once in session"]
+    ReAsk --> PostCheck
+    PostCheck -->|No: 2nd fail| Inc["Exit: incomplete (Section 9.1)"]
+    PostCheck -->|Yes| S6["Check S6: AW-REVIEW marker"]
+    S6 --> Loop{"Marker AGAIN or runner triggers? (Section 8)"}
+    Loop -->|Yes: <= 2 passes| ReRev["Targeted re-review pass"]
+    ReRev --> Prompts
+    Loop -->|No: DONE or pass limit| S7["Send Prompt S7: Finalize (MD-15)"]
+    S7 --> End["Verdict outputs and final commit (Section 7.2)"]
+```
+
 ### 4.1 Runner pre-pass (no agent)
 
 The runner:
@@ -874,6 +891,7 @@ five of MD-9.
 
 ## Workflow history
 
+- 2026-11-09 note (aw specs): proofread per the technical writing standard (spec ecmw83 R-08); meaning unchanged
 - 2026-11-07 note (aw specs): N5 and the two proofreading rows amended to the shipped writing standard (plan e4n4p3, spec ecmw83)
 - 2026-10-26 note (aw specs): MD-20 gate: OTHERWISE; maintainer decision via /askme: BUILD THE REST; complex default: single-12; report: .aw/records/research/20261017-revsteps-06-2m4i0o-review-pilot-results.findings.md
 - 2026-10-25 approved (aw set): status set to approved
