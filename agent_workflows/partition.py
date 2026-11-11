@@ -1343,7 +1343,16 @@ def collect(
 
 
 def run_partition(args: Any, term: Any, context: Any = None) -> int:
-    """CLI execution entrypoint for 'aw partition'."""
+    """CLI execution entrypoint for 'aw partition'.
+
+    `aw partition` only READS records, so the whole command runs inside `selectors.scan_once()`:
+    the records tree is walked and its headers read once, not once per dependency edge (measured
+    2026-11-11: 539 s for 209 plans and 1,449 edges before this; see `selectors.scan_once`)."""
+    with _selectors.scan_once():
+        return _run_partition_impl(args, term, context)
+
+
+def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     repo_root = Path(getattr(args, "dir", None) or Path.cwd())
 
     artifact_type = getattr(args, "artifact_type", None)

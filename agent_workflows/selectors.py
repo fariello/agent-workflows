@@ -57,7 +57,7 @@ import functools
 import os
 import re
 from pathlib import Path
-from typing import List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -707,6 +707,48 @@ def search_limits(include_ignored: bool = False, max_depth: Optional[int] = None
         _INCLUDE_IGNORED_DIRS, _MAX_DEPTH = prev_inc, prev_depth
 
 
+# READ-ONLY SCAN SCOPE. `resolve` walks the records tree and reads every record header on EACH call.
+# That is right for one lookup and badly wrong for a command that makes thousands: measured
+# 2026-11-11, `aw partition -t plan` over the 209-plan metastore Set called `resolve` 1,451 times
+# (once per dependency edge) and spent 530 of its 539 seconds re-walking and re-reading the same
+# files (2.8 million reads, 25 million `lstat` calls). Inside `scan_once()`, `resolve` builds the
+# candidate list and the header reads ONCE per (repo, record type, traversal settings) and reuses
+# them. ONLY for commands that do not change records while the scope is open: a record written
+# inside the scope is not seen by a later lookup in the same scope.
+_SCAN_CACHE: Optional[
+    Dict[
+        Tuple[str, str, bool, Optional[int]],
+        Tuple[List[Path], Optional[List[Tuple[Path, str]]]],
+    ]
+] = None
+# Declared `- Id:` -> paths, built once per scan key inside `scan_once()` (lives and dies with it).
+_SCAN_ID_INDEX: Dict[Tuple[str, str, bool, Optional[int]], Dict[str, List[Path]]] = {}
+
+
+@contextlib.contextmanager
+def scan_once():
+    """Within this block, `resolve` reuses one directory walk and one header read per record type.
+
+    Use only around READ-ONLY work (see the note above). Nested scopes share the outer cache."""
+    global _SCAN_CACHE
+    if _SCAN_CACHE is not None:
+        yield
+        return
+    _SCAN_CACHE = {}
+    _SCAN_ID_INDEX.clear()
+    try:
+        yield
+    finally:
+        _SCAN_CACHE = None
+        _SCAN_ID_INDEX.clear()
+
+
+def _scan_key(
+    repo_root: Path, record_type: str
+) -> Tuple[str, str, bool, Optional[int]]:
+    return (str(Path(repo_root)), record_type, bool(_INCLUDE_IGNORED_DIRS), _MAX_DEPTH)
+
+
 @contextlib.contextmanager
 def include_ignored_dirs(enabled: bool = True):
     """Scope the traversal guard off (or on) for the duration of the block.
@@ -910,11 +952,21 @@ def resolve(
     paths = None  # lazy: the single enumeration
     files = None  # lazy: (path, header-text) pairs derived from `paths`
 
+    cache_entry = (
+        _SCAN_CACHE.get(_scan_key(repo_root, record_type))
+        if _SCAN_CACHE is not None
+        else None
+    )
+    if cache_entry is not None:
+        paths, files = cache_entry[0], cache_entry[1]
+
     def _paths():
         """Candidate paths with NO file read at all - for the path/stem/substring rules."""
         nonlocal paths
         if paths is None:
             paths = list(_iter_paths(repo_root, record_type))
+            if _SCAN_CACHE is not None:
+                _SCAN_CACHE[_scan_key(repo_root, record_type)] = (paths, None)
         return paths
 
     def _files():
@@ -932,6 +984,8 @@ def resolve(
                 if text is not None:
                     out.append((p, text))
             files = out
+            if _SCAN_CACHE is not None:
+                _SCAN_CACHE[_scan_key(repo_root, record_type)] = (_paths(), files)
         return files
 
     def _hits_for(kind: str) -> List[Path]:
@@ -951,6 +1005,17 @@ def resolve(
         if kind == MATCH_ID6:
             if not _core.ID6_RE.match(tok):
                 return []
+            if _SCAN_CACHE is not None:
+                key = _scan_key(repo_root, record_type)
+                index = _SCAN_ID_INDEX.get(key)
+                if index is None:
+                    index = {}
+                    for p, text in _files():
+                        rid = _read_id(text)
+                        if rid:
+                            index.setdefault(rid, []).append(p)
+                    _SCAN_ID_INDEX[key] = index
+                return list(index.get(tok, []))
             return [p for p, text in _files() if _read_id(text) == tok]
         if kind == MATCH_SETID:
             return [p for p, text in _files() if _read_setid(text) == tok]
