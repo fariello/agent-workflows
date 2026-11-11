@@ -113,7 +113,7 @@ No spec change. Spec 5.2 and C10a are kept: nothing here changes `main`'s format
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Yes. C10a requires `main` to read exactly one format at every commit; an unapplied patch file is data, not code that runs, so `main` still reads only the legacy format until `cxxmyv`'s single commit applies it. It is the same design `90iqr1` OQ-01 uses for the documentation. Recommendation strength: strong.
+- Resolution or deferral rationale: Yes. C10a requires `main` to read exactly one format at every commit; an unapplied patch file is data, not code that runs, so `main` still reads only the legacy format until `cxxmyv`'s single commit applies it. It is the same design `90iqr1` OQ-01 uses for the documentation. Recommendation strength: strong. RESOLVED 2026-11-11 by the user via /askme: accept the patch design (the code switch is prepared in advance as an unapplied patch and applied at the attended cutover). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
