@@ -95,7 +95,7 @@ N/A: this plan records measurements only.
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Both families run after `k6jd6l` and before `9o83cr` and compare the same commands; one committed baseline taken before either starts is the honest reference for both. Recommendation strength: strong.
+- Resolution or deferral rationale: Both families run after `k6jd6l` and before `9o83cr` and compare the same commands; one committed baseline taken before either starts is the honest reference for both. Recommendation strength: strong. RESOLVED 2026-11-11 by the user via /askme: one shared baseline for both groups (e8420v and 0xsx2n). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
