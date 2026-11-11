@@ -62,9 +62,6 @@ facet (F-09).
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 _GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}
 
-# The legacy old-style plan stem prefix: YYYYMMDD-HHMM-NN.
-_LEGACY_PREFIX_RE = re.compile(r"\A(\d{8}-\d{4}-\d{2})-")
-
 
 class RefEdit(NamedTuple):
     """A planned reference rewrite in one file.
@@ -106,8 +103,7 @@ def _facetless_stem(name: str) -> Optional[str]:
 def _legacy_prefix_stem(name: str):
     """The legacy ``YYYYMMDD-HHMM-NN`` prefix of ``name`` if it has one, else None."""
 
-    m = _LEGACY_PREFIX_RE.match(name)
-    return m.group(1) if m else None
+    return _naming.legacy_stem_prefix(name)
 
 
 def _boundaried(stem: str) -> "re.Pattern[str]":

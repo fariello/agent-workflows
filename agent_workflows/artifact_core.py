@@ -204,6 +204,16 @@ def kebab(text: str) -> str:
     return _KEBAB_STRIP_RE.sub("-", text.strip().lower()).strip("-")
 
 
+def kebab_slug(text: str, max_len: int, default: str) -> str:
+    """The ONE slug builder for record filenames: kebab-case ``text``, cut to ``max_len`` characters,
+    and never start or end with a hyphen (the filename grammar rejects that; maintainer ruling
+    2026-11-09). Returns ``default`` when nothing is left. Cutting first and stripping after is the
+    point: a cut can land on a separator, which is how 8 tracked backlog names gained a trailing
+    hyphen before this existed."""
+
+    return kebab(text or "")[:max_len].strip("-") or default
+
+
 # --------------------------------------------------------------------------------------
 # Monthly-shard date math (YYYYMM)
 # --------------------------------------------------------------------------------------

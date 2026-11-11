@@ -396,6 +396,51 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             rules = [d.rule for d in findings]
             self.assertIn("check.blocking-item-closed-without-gate", rules)
 
+    def test_renaming_an_already_done_item_is_not_judged_as_a_close(self) -> None:
+        """A staged RENAME within `backlog/done/` closes nothing, so it yields no close finding,
+        while a staged move INTO `done/` (a real close) still does (2026-11-09: renaming 7
+        historical items to drop a trailing slug hyphen was refused as if each were closed now)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            git = lambda *a: subprocess.run(  # noqa: E731
+                ["git", "-C", str(repo), *a], check=True, capture_output=True
+            )
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@test.com")
+            body = (
+                "- Id: item02\n- Status: done\n- Blocks-Release: next\n- Set: item02\n"
+                "- Priority: medium\n- Work-Kind: feature\n- Summary: old close\n"
+            )
+            done = repo / ".aw" / "records" / "backlog" / "done"
+            old = done / "20260920-item02-01-item02-old-slug-.backlog.md"
+            old.write_text(body, encoding="utf-8")
+            git("add", "--", ".aw")
+            git("commit", "-qm", "seed")
+            git(
+                "mv",
+                str(old),
+                str(done / "20260920-item02-01-item02-old-slug.backlog.md"),
+            )
+            rules = [d.rule for d in check_engine.check_release_gates(repo)]
+            self.assertNotIn("check.blocking-item-closed-without-gate", rules)
+
+            open_dir = repo / ".aw" / "records" / "backlog" / "open"
+            open_dir.mkdir(parents=True, exist_ok=True)
+            src = open_dir / "20260920-item03-01-item03-x.backlog.md"
+            src.write_text(
+                body.replace("item02", "item03").replace("done", "open"),
+                encoding="utf-8",
+            )
+            git("add", "--", ".aw")
+            git("commit", "-qm", "open item")
+            dst = done / "20260920-item03-01-item03-x.backlog.md"
+            git("mv", str(src), str(dst))
+            dst.write_text(body.replace("item02", "item03"), encoding="utf-8")
+            git("add", "--", ".aw")
+            rules = [d.rule for d in check_engine.check_release_gates(repo)]
+            self.assertIn("check.blocking-item-closed-without-gate", rules)
+
     def test_rule_blocking_item_closed_pending_plan_yields_finding(self) -> None:
         """closescope 2a6phj E-06: a staged done gated item whose only carrier is a PENDING plan yields check.blocking-item-closed-without-gate."""
         with TemporaryDirectory() as tmp:

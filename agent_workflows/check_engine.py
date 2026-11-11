@@ -6095,6 +6095,14 @@ def _staged_backlog_done_items(repo_root: Path) -> List[str]:
         if code.startswith("D"):
             continue  # a deletion carries no new done state
         new_path = parts[-1].strip()
+        if code.startswith("R") and len(parts) >= 3:
+            # A RENAME whose source was ALREADY in a `backlog/done/` dir closes nothing: the item was
+            # done before this commit, so this commit is not a close and must not be judged as one.
+            # Measured 2026-11-09: renaming 7 historical done items to drop a trailing slug hyphen
+            # made this guard re-judge a September close that predates the gate rule.
+            old_path = parts[1].strip().replace("\\", "/")
+            if _BACKLOG_DONE_RE.search(old_path):
+                continue
         if (
             _BACKLOG_DONE_RE.search(new_path.replace("\\", "/"))
             and new_path not in paths

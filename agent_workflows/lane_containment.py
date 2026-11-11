@@ -3434,6 +3434,13 @@ class LaneInventory(NamedTuple):
         }
 
 
+def _is_artifact_meta_lock(path: str) -> bool:
+    """Is ``path`` an `artifact_meta` per-record write lock (see `artifact_meta.is_meta_lock_relpath`)?"""
+    from agent_workflows import artifact_meta as _am
+
+    return _am.is_meta_lock_relpath(path)
+
+
 def _is_driver_written_history_sidecar(path: str) -> bool:
     """Is ``path`` (lane-relative, porcelain-style) the GLOBAL history sidecar?
 
@@ -3728,6 +3735,12 @@ def inventory_lane(
             # never work. Matched by BASENAME rather than by ignore status on purpose, because a fresh
             # test repo has no installed ignore file and reports them UNTRACKED while this repository
             # reports them IGNORED - and the rule must hold in both.
+            discardable.append(path)
+        elif _is_artifact_meta_lock(path):
+            # An `artifact_meta` write lock (`.aw/state/locks/meta-<key>.lock`). Since 2xwb9b every
+            # setter in a lane writes through `artifact_meta`, which takes this per-record lock, so a
+            # lane that changed a status holds one. It is an empty coordination file, never work, so
+            # it is discardable; matched on exactly that shape, owned by `artifact_meta`.
             discardable.append(path)
         elif _is_driver_written_history_sidecar(path):
             # THE GLOBAL HISTORY SIDECAR is driver-written too, for the same MEASURED reason the index

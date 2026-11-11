@@ -841,7 +841,6 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     PlanRecord as PlanRecord,
     _KIND_RE as _KIND_RE,
-    _PLAN_FILENAME_RE as _PLAN_FILENAME_RE,
     _read_from_backlog as _read_from_backlog,
     _read_item_dependencies as _read_item_dependencies,
     _read_kind as _read_kind,

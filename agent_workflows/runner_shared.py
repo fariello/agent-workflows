@@ -260,9 +260,6 @@ _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 # `tests/test_runner_item_dependencies.py` (a code pin deleted in `19313eed` under P16; will not return).
 _KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
 
-_PLAN_FILENAME_RE = re.compile(
-    r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
-)
 
 #: pe7g6r (gvf2sq) E-01: sentinel token for an unrequested force stop.
 #: Included in KeyboardInterrupt messages raised by the terminal SIGINT ladder rung
@@ -4108,7 +4105,15 @@ def commit_spec_transition_output(
             status_paths.append(entry.strip().strip('"'))
     status_paths = sorted({p for p in status_paths if p})
 
-    allowed = [p for p in status_paths if spec_id6 in p and p.endswith(".spec.md")]
+    # Only RECORD paths can be the spec's own file. A lane-input copy (`.aw/state/lane-inputs/...
+    # plan-<spec>.spec.md`) also carries the id6 and the facet; once the setter's move was staged
+    # (2xwb9b), git's rename detection paired the old spec path with that untracked copy and this
+    # commit recorded the spec as MOVED INTO `.aw/state/`, which left the lane holding unmerged work.
+    allowed = [
+        p
+        for p in status_paths
+        if spec_id6 in p and p.endswith(".spec.md") and not p.startswith(".aw/state/")
+    ]
     if not allowed:
         return None, ()
 
@@ -14683,14 +14688,17 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     deps, dep_err = _read_item_dependencies(text)
     kind = _read_kind(text)
     from_backlog = _read_from_backlog(text)
-    m = _PLAN_FILENAME_RE.match(path.name)
-    if m:
+    # The ONE file-name library reads the filename identity (maintainer ruling 2026-11-09).
+    from agent_workflows import artifact_naming as _an_id
+
+    _fn_parts = _an_id.identity_parts(path.name)
+    if _fn_parts:
         if not setid:
-            setid = m.group(1)
+            setid = _fn_parts[1]
         if order is None:
-            order = int(m.group(2))
+            order = int(_fn_parts[2])
         if not id6:
-            id6 = m.group(3)
+            id6 = _fn_parts[3]
     if not id6:
         for part in path.name.split("-"):
             if ID6_RE.fullmatch(part):
@@ -41663,7 +41671,7 @@ def _close_already_complete_backlog_item(
             wt_handle,
             state=state,
             holder_label=integration_lock_holder_label(state),
-            integrate=lambda _item, _handle: (integ_fn(repo, _handle, _item["id6"])),
+            integrate=lambda _item, _handle: integ_fn(repo, _handle, _item["id6"]),
             progress=integration_lock_progress_reporter(),
             run_checked=run_checked,
         )
@@ -50486,7 +50494,7 @@ def perform_coordinator_proposal_file(
     paths_str = "\n".join(f"- {p}" for p in paths) if paths else "- None declared"
     body_text = f"""## Agent Proposal from {item_id6}
 
-- Run-Id: {run_id or 'unspecified'}
+- Run-Id: {run_id or "unspecified"}
 - Proposing-Item: {item_id6}
 - Lane-Branch: {lane_branch}
 - Blocked-By: {blocked_by}

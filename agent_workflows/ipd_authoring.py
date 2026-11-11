@@ -585,7 +585,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         # it did not even cover `executed/`; a fresh plan id6 could equal an executed plan's, which is
         # the exact shape of the measured `uyeko5` case.
         plan_id = _core.mint_id6(repo_root, _existing_plan_ids(pending))
-        slug = _refs._core.kebab(title)[:60] or "ipd"
+        slug = _refs._core.kebab_slug(title, 60, "ipd")
         name = _refs.clustered_name(
             date=date.today().strftime("%Y%m%d"),
             set_id=set_name,

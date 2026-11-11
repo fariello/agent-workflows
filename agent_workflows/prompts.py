@@ -76,10 +76,8 @@ _METADATA_TRAILER = (
 # grandfathered corpus still uses it (17 files at the 20260920 measurement) and `_existing_id6s`
 # below must recognize such a name to skip it rather than mis-parse it. Nothing BUILDS one any more;
 # `artifact_naming.build_clustered_name` is the only assembler (IPD ubac5n E-01).
-_STAGED_NAME_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<hhmm>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9-]+)"
-    r"(?:\.(?P<facet>[a-z0-9.-]+))?\.md\Z"
-)
+# The legacy staged name YYYYMMDD-HHMM-NN-<slug>.prompt.md is read by THE ONE file-name library.
+_STAGED_NAME_RE = _naming._LEGACY_TIMESTAMP_RE
 
 # The `Id: <id6>` pair INSIDE the one `<!-- aw-prompt: ... -->` comment. This is where a prompt's id6
 # lives in-file (IPD ubac5n E-02/E-04); there is deliberately no `- Id:` bullet form for a prompt,
@@ -509,7 +507,7 @@ def run_new(args) -> int:
     slug_arg = (getattr(args, "slug", None) or "").strip()
     if not slug_arg:
         return _refuse("aw prompts new: --slug is required")
-    slug = core.kebab(slug_arg)[:60].strip("-")
+    slug = core.kebab_slug(slug_arg, 60, "")
     if not slug:
         return _refuse(
             "aw prompts new: --slug must contain at least one alphanumeric character"

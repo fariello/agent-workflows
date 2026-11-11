@@ -97,42 +97,37 @@ def _resolve_records_base(repo_root):
         return aw_base
     return repo_root / AGENTS_DIR
 
+
 # Default exclusions: only README.md (the sole framework-owned file that must never be
 # renamed). We deliberately do NOT hardcode personal-layout globs like */sources/* (D50).
 DEFAULT_EXCLUDES = ("*/README.md", "README.md")
 
-# Canonical form: YYYYMMDD-HHMM-NN-<slug>.md
-_NEW_RE = re.compile(
-    r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
-    r"(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms|release))?\.md$"
-)
-# The Set-clustering grammar for plans (plans-adopter Order 06, spec 20260808-0004-01):
-# YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md, where <id6> is a 6-char base36 stable handle. This
-# is the current plan-name convention; the older HHMM-NN form above is accepted for compatibility.
-# The optional `.<type>` facet (spec 20260817-2147-01, uniform artifact-naming grammar) is a CLOSED
-# enum so a dotted slug is never mis-parsed as a facet; a bare `.md` remains conformant (dual-read).
-_ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms", "release", "review", "other")
-_FACET_ALT = "|".join(_ARTIFACT_TYPE_FACETS)
-# `NN` is two or three digits (maintainer ruling 2026-11-09; mirrors `artifact_naming` ORDER WIDTH).
-_CLUSTERED_RE = re.compile(
-    r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
-    r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md$"
-)
-# Legacy shapes (ordered; first match wins). Each yields date + optional time/nn + slug.
-_LEGACY_RES = (
-    # YYYYMMDD-HHMM-<slug>  (time, no NN): 4-digit group
-    re.compile(r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<slug>.+)\.md$"),
-    # YYYYMMDD-NN-<slug>    (NN, no time): 2-digit group
-    re.compile(r"^(?P<date>\d{8})-(?P<nn>\d{2})-(?P<slug>.+)\.md$"),
-    # YYYY-MM-DD-NN-<slug>  (hyphenated date + NN)
-    re.compile(
-        r"^(?P<y>\d{4})-(?P<mo>\d{2})-(?P<d>\d{2})-(?P<nn>\d{2})-(?P<slug>.+)\.md$"
-    ),
-    # YYYY-MM-DD-<slug>     (hyphenated date)
-    re.compile(r"^(?P<y>\d{4})-(?P<mo>\d{2})-(?P<d>\d{2})-(?P<slug>.+)\.md$"),
-    # YYYYMMDD-<slug>       (date only)
-    re.compile(r"^(?P<date>\d{8})-(?P<slug>.+)\.md$"),
-)
+# The Set-clustering grammar and the facet list come from THE ONE file-name library,
+# `agent_workflows.artifact_naming` (maintainer ruling 2026-11-09: one parser, no private copies).
+# This script therefore requires the toolkit package, which every supported install provides: the
+# `aw` command itself is that package, and `aw install` is how this file reaches a repository.
+# Run it with the same Python that runs `aw` (for example `aw` is on PATH; `python3 -m pip show
+# agent-workflows` names the environment). A missing package is reported with that instruction
+# rather than guessed around, because a second copy of the grammar is how the linter and the board
+# came to disagree with the library.
+try:
+    from agent_workflows import artifact_naming as _naming
+except (
+    ImportError
+) as _exc:  # pragma: no cover - environment error, reported to the user
+    raise SystemExit(
+        "normalize_plan_names.py needs the agent-workflows package (the `aw` command). Run it with "
+        "the Python environment that runs `aw`, or install the toolkit there. "
+        f"(import error: {_exc})"
+    )
+
+_ARTIFACT_TYPE_FACETS = tuple(_naming.ARTIFACT_TYPE_FACETS)
+_FACET_ALT = _naming._FACET_ALT
+_CLUSTERED_RE = _naming._CLUSTERED_RE
+# Canonical legacy form YYYYMMDD-HHMM-NN-<slug>.md, the plan-name conformance rule (library-owned).
+_NEW_RE = _naming._LEGACY_TIMESTAMP_CONFORMANT_RE
+# Pre-standard legacy shapes (renamable inputs), owned by the library.
+_LEGACY_RES = _naming.LEGACY_RENAMABLE_RES
 # A parseable YYYYMMDD embedded anywhere in a name (for non-numeric renaming, D50/OQ2).
 _EMBEDDED_DATE_RE = re.compile(r"(?<!\d)(\d{8})(?!\d)")
 
@@ -188,7 +183,7 @@ def parse_name(filename: str) -> Optional[Parsed]:
     m = _NEW_RE.match(filename)
     if m:
         return Parsed(
-            m.group("date"), m.group("time"), m.group("nn"), m.group("slug"), True
+            m.group("date"), m.group("hhmm"), m.group("nn"), m.group("slug"), True
         )
     for rx in _LEGACY_RES:
         m = rx.match(filename)
@@ -223,14 +218,9 @@ def is_conformant(
     only for specs dated at/after the configured cutover. The legacy ``_NEW_RE`` is deliberately NOT
     removed: other types and pre-cutover artifacts still rely on it."""
 
-    cm = _CLUSTERED_RE.match(filename)
-    if cm is not None:
-        facet = cm.groupdict().get("type")
-        return facet is None or facet == expected_type
-    if require_id6:
-        # Clustered form is required; the legacy HHMM-NN form does not carry an id6.
-        return False
-    return _NEW_RE.match(filename) is not None
+    return _naming.is_plan_name_conformant(
+        filename, expected_type=expected_type, require_id6=require_id6
+    )
 
 
 # --------------------------------------------------------------------------------------

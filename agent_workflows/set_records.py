@@ -348,7 +348,7 @@ def promote_question_to_backlog(
     # Validate BEFORE writing (fail-closed): the promoted item must pass backlog validation.
     root = _backlog._resolve_backlog_root(repo_root)
     today = datetime.date.today().strftime("%Y%m%d")
-    slug = _core.kebab(summary or "question")[:50].strip("-") or "question"
+    slug = _core.kebab_slug(summary or "question", 50, "question")
     filename = "{0}-{1}-01-{2}-{3}.backlog.md".format(today, item.set, item.id, slug)
     dest = root / "blocked" / filename
     drift = _backlog.validate_item(dest, rendered)

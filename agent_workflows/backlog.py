@@ -1294,11 +1294,8 @@ def run_new(args) -> int:
             return _refuse(_msg_err)
 
     today = datetime.date.today().strftime("%Y%m%d")
-    slug = (
-        core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50].strip(
-            "-"
-        )
-        or "item"
+    slug = core.kebab_slug(
+        getattr(args, "slug", None) or item.summary or "item", 50, "item"
     )
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
     dest = (

@@ -169,15 +169,10 @@ def _extract_plan_id(plan_path: Path) -> Optional[str]:
                 return pid
         except Exception:
             pass
-    try:
-        from agent_workflows.runner_shared import _PLAN_FILENAME_RE
+    from agent_workflows import artifact_naming as _naming
 
-        m = _PLAN_FILENAME_RE.match(plan_path.name)
-        if m:
-            return m.group(3)
-    except Exception:
-        pass
-    return None
+    parts = _naming.identity_parts(plan_path.name)
+    return parts[3] if parts else None
 
 
 def _format_plan_holder_refusal(verb_label: str, plan_id: str, res: Any) -> str:
@@ -4404,12 +4399,20 @@ def _reconciliation_history_note(
     even when it is both (the committed-cohesive case), so one supplied reason reads as one record.
     """
     widened_set = set(widened or [])
+
+    def _one_line(text: object) -> str:
+        # A history record is ONE line, so an operator-supplied reason with a line break is
+        # collapsed here (as `_format_scope_exceeded_value` already does for the metadata field).
+        # Without it the reason broke the history line, and since 2xwb9b the metadata writer
+        # refuses such a message outright, which rolled the whole finalize back.
+        return re.sub(r"\s+", " ", str(text or "")).strip()
+
     bits: List[str] = []
     for p in sorted(reasons):
         label = "widened-scope" if p in widened_set else "out-of-scope"
-        bits.append(f"{label} {p}: {reasons[p]}")
+        bits.append(f"{label} {p}: {_one_line(reasons[p])}")
     for p in sorted(acks):
-        bits.append(f"in-scope-unmodified {p}: {acks[p]}")
+        bits.append(f"in-scope-unmodified {p}: {_one_line(acks[p])}")
     if not bits:
         return ""
     return "Scope reconciliation - " + "; ".join(bits)

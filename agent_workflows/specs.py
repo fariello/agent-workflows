@@ -1125,7 +1125,7 @@ def run_new(args) -> int:
         )
         if _summary_err:
             return _refuse(_summary_err)
-    slug = core.kebab(slug_arg or title)[:60] or "spec"
+    slug = core.kebab_slug(slug_arg or title, 60, "spec")
 
     # E-01 (IPD ribg85): Validate --date format and calendar validity before minting an id6.
     # Ported from prompts.run_new: the regex check validates the YYYY-MM-DD lexical format.

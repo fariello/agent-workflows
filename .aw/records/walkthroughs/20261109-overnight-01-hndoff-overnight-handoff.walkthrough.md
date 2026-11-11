@@ -1,5 +1,7 @@
 # Walkthrough: overnight session 2026-11-08 to 2026-11-09 (handoff)
 
+- Id: hndoff
+
 What was done while the maintainer was away, what it changed, and what still needs a human. Each item names its commit on `main`.
 
 ## Done

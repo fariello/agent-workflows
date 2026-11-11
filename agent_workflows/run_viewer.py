@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_workflows import agent_schema as _agent_schema
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
 from agent_workflows import lifecycle_style as _LS
@@ -1860,10 +1861,6 @@ def format_step_line(
     return f"- {lead}{status_padded}  {type_prefix}{stem_padded}{badge_txt}{disp_txt}"
 
 
-_IDENTITY_PARTS_RE = re.compile(
-    r"^(\d{8})-([a-z0-9-]+?)-(\d{2})-([0-9a-z]{6})(?:-|\.|$)"
-)
-_LEGACY_SPEC_RE = re.compile(r"^(\d{8})-\d{4}-(\d{2})-([a-z0-9-]+)")
 _SHORT_STEM_RE = re.compile(r"^([a-z0-9-]+?)-([0-9a-z]{6})$")
 _FACET_STRIP_RE = re.compile(r"(\.[a-z0-9-]+)*\.md$")
 
@@ -1876,17 +1873,18 @@ def extract_identity_parts(
 ) -> tuple[str, str, str, str]:
     """Extract (Date, SetID, Num, ID6) from raw string, path, and metadata."""
     base = (path or raw_str or "").replace("\\", "/").rsplit("/", 1)[-1]
-    m_leg = _LEGACY_SPEC_RE.match(base)
-    if m_leg:
-        return m_leg.group(1), m_leg.group(3), m_leg.group(2), id6 or "-"
-    m = _IDENTITY_PARTS_RE.match(base)
-    if m:
-        return m.group(1), m.group(2), m.group(3), id6 or m.group(4)
+    # The ONE file-name library reads the identity (maintainer ruling 2026-11-09: no private grammar).
+    leg = _naming.legacy_identity_parts(base)
+    if leg:
+        return leg[0], leg[2], leg[1], id6 or "-"
+    parts = _naming.identity_parts(base)
+    if parts:
+        return parts[0], parts[1], parts[2], id6 or parts[3]
     if raw_str and raw_str != base:
         raw_base = raw_str.replace("\\", "/").rsplit("/", 1)[-1]
-        m_raw = _IDENTITY_PARTS_RE.match(raw_base)
-        if m_raw:
-            return m_raw.group(1), m_raw.group(2), m_raw.group(3), id6 or m_raw.group(4)
+        raw_parts = _naming.identity_parts(raw_base)
+        if raw_parts:
+            return raw_parts[0], raw_parts[1], raw_parts[2], id6 or raw_parts[3]
         m_raw_short = _SHORT_STEM_RE.match(raw_base)
         if m_raw_short:
             return "-", setid or m_raw_short.group(1), "-", id6 or m_raw_short.group(2)

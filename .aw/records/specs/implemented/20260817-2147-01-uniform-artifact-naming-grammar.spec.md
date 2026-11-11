@@ -46,6 +46,8 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
   `IPD-M109` on a plan) and is NOT a `check.name-nonconformant` violation; do not "tighten" the regex to
   enforce it, which would refuse the 36 grandfathered setids the cutover exists to protect.
 - `NN` - order within the Set, two digits (`00` reserved for an orchestrator, `01+` otherwise), or three digits for Order 100 to 999 (amended 2026-11-09 by maintainer ruling: a Set split by step complexity can exceed 99 plans; every two-digit name is unchanged and parses identically);
+- `<set-id>` and `<slug>` are strict kebab-case: lowercase letters and digits in runs joined by single hyphens, never starting or ending with a hyphen (amended 2026-11-09, maintainer ruling; this was always the rule the plan-name tool enforced, and the library now enforces the same one).
+- ONE PARSER (amended 2026-11-09, maintainer ruling): `agent_workflows/artifact_naming.py` is the only code that defines this grammar. Every reader (the linter's filename check, `aw check`, the attention board, the run viewer, the runners, prompts and reference rewriting, and the shipped `normalize_plan_names.py`, which therefore requires the toolkit package) calls it. `tests/test_one_filename_parser.py` checks that each consumer gives the library's answer on every tracked record name.
   `01` for a standalone singleton.
 - `<id6>` - the stable 6-char base36 id (the artifact's `- Id:`), in the filename.
 - `<slug>` - lowercase kebab-case.

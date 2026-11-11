@@ -659,6 +659,25 @@ _ABSOLUTE_POSIX_PATH_RE = re.compile(r"/(?:[^/\s]+/)+[^/\s]+")
 _WINDOWS_DRIVE_RE = re.compile(r"\b[a-zA-Z]:[/\\]")
 
 
+#: Where `artifact_meta` puts its per-record write locks, relative to the repository's state root.
+#: Named so the runner's lane inventory can recognize them as driver-written (a lock file is an empty
+#: coordination artifact holding no work) without a second hardcoded path.
+META_LOCK_SUBDIR = "locks"
+META_LOCK_PREFIX = "meta-"
+
+
+def is_meta_lock_relpath(path: str) -> bool:
+    """True for a repository-relative `.aw/state/locks/meta-<key>.lock` path (an `artifact_meta` lock)."""
+
+    p = (path or "").strip().strip('"').removeprefix("./")
+    head, _, name = p.rpartition("/")
+    return (
+        head == f".aw/state/{META_LOCK_SUBDIR}"
+        and name.startswith(META_LOCK_PREFIX)
+        and name.endswith(".lock")
+    )
+
+
 def _check_string_safety(
     field_name: str,
     value: str,

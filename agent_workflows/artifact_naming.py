@@ -68,7 +68,7 @@ available and not an oversight.
 from __future__ import annotations
 
 import re
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 
@@ -122,9 +122,13 @@ TYPE_FACET = {
 # --------------------------------------------------------------------------------------
 
 # The CANONICAL clustered grammar: YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md with a CLOSED
-# facet enum, and a bare `.md` remains valid (permanent dual-read).
+# facet enum, and a bare `.md` remains valid (permanent dual-read). The set id and the slug are STRICT
+# kebab-case: no leading, trailing or doubled hyphen (maintainer ruling 2026-11-09). That is the rule
+# `normalize_plan_names` always enforced; this grammar used to be looser, so 8 tracked records with a
+# trailing-hyphen slug were valid here and invalid to `aw ipd lint`. They were renamed in the same
+# change, and `artifact_core.kebab_slug` now prevents a cut from producing one.
 _CLUSTERED_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
     r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md\Z"
 )
 
@@ -241,6 +245,105 @@ def parse_clustered(name: str):
     """
 
     return _CLUSTERED_RE.match(name)
+
+
+#: The legacy timestamp form as the PLAN-NAME conformance rule reads it: strict kebab slug and the
+#: CLOSED facet set (no `review`/`other` facet), exactly the rule `normalize_plan_names` always
+#: applied. `_LEGACY_TIMESTAMP_RE` above stays OPEN (it must also read comms message names such as
+#: `<date>-<hhmm>-NN-<sender>--to--<recipient>...md`), so conformance and recognition are two named
+#: rules here rather than two private copies elsewhere.
+_LEGACY_TIMESTAMP_CONFORMANT_RE = re.compile(
+    r"\A(?P<date>\d{8})-(?P<hhmm>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
+    r"(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms|release))?\.md\Z"
+)
+
+
+#: PRE-STANDARD legacy shapes that `normalize_plan_names --apply` can rename into the canonical form
+#: (ordered; first match wins). Each yields a date (or y/mo/d), an optional time or NN, and a slug.
+LEGACY_RENAMABLE_RES = (
+    # YYYYMMDD-HHMM-<slug>  (time, no NN): 4-digit group
+    re.compile(r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<slug>.+)\.md$"),
+    # YYYYMMDD-NN-<slug>    (NN, no time): 2-digit group
+    re.compile(r"^(?P<date>\d{8})-(?P<nn>\d{2})-(?P<slug>.+)\.md$"),
+    # YYYY-MM-DD-NN-<slug>  (hyphenated date + NN)
+    re.compile(
+        r"^(?P<y>\d{4})-(?P<mo>\d{2})-(?P<d>\d{2})-(?P<nn>\d{2})-(?P<slug>.+)\.md$"
+    ),
+    # YYYY-MM-DD-<slug>     (hyphenated date)
+    re.compile(r"^(?P<y>\d{4})-(?P<mo>\d{2})-(?P<d>\d{2})-(?P<slug>.+)\.md$"),
+    # YYYYMMDD-<slug>       (date only)
+    re.compile(r"^(?P<date>\d{8})-(?P<slug>.+)\.md$"),
+)
+
+
+def parse_legacy_timestamp(name: str):
+    """Return the ``re.Match`` for a legacy ``YYYYMMDD-HHMM-NN-<slug>[.<facet>].md`` name, or None.
+
+    Groups: ``date``, ``hhmm``, ``nn``, ``slug``, ``facet``. Recognition only (open facet)."""
+
+    return _LEGACY_TIMESTAMP_RE.match(name)
+
+
+def is_legacy_timestamp_conformant(name: str) -> bool:
+    """True for a legacy timestamp name that the plan-name rules accept as conformant."""
+
+    return _LEGACY_TIMESTAMP_CONFORMANT_RE.match(name) is not None
+
+
+_LEGACY_STEM_PREFIX_RE = re.compile(r"\A(\d{8}-\d{4}-\d{2})-")
+
+
+def legacy_stem_prefix(name: str) -> Optional[str]:
+    """The ``YYYYMMDD-HHMM-NN`` stem a legacy timestamp name starts with, or None."""
+
+    m = _LEGACY_STEM_PREFIX_RE.match(name or "")
+    return m.group(1) if m else None
+
+
+def identity_parts(name: str) -> Optional[Tuple[str, str, str, str]]:
+    """``(date, set, order, id6)`` from the leading identity of a clustered name, or None.
+
+    Reads only the identity prefix ``YYYYMMDD-<set>-<NN>-<id6>-``, so it also works for names whose
+    tail is not the canonical closed facet (research `.<model>.<kind>.md`, attributed names). The
+    one reader every display surface (attention board, run viewer) uses for its Set/Order/id6
+    columns, so a grammar change reaches them with no second edit."""
+
+    m = _CLUSTERED_PREFIX_RE.match(name or "") or _IDENTITY_NO_SLUG_RE.match(name or "")
+    if m is None:
+        return None
+    return m.group("date"), m.group("set"), m.group("nn"), m.group("id6")
+
+
+#: The identity with NO slug: `YYYYMMDD-<set>-<NN>-<id6>` followed by a facet or the end (a display
+#: surface is handed such stems, and a short record name may omit the slug).
+_IDENTITY_NO_SLUG_RE = re.compile(
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2,3})-(?P<id6>[0-9a-z]{6})(?=\.|\Z)"
+)
+
+
+def legacy_identity_parts(name: str) -> Optional[Tuple[str, str, str]]:
+    """``(date, order, slug)`` of a legacy ``YYYYMMDD-HHMM-NN-<slug>`` name (no id6, no Set), or None."""
+
+    m = re.match(r"\A(\d{8})-\d{4}-(\d{2})-([a-z0-9-]+)", name or "")
+    if m is None:
+        return None
+    return m.group(1), m.group(2), m.group(3)
+
+
+def is_plan_name_conformant(
+    name: str, expected_type: str = "ipd", require_id6: bool = False
+) -> bool:
+    """THE filename-conformance rule `aw ipd lint` (`IPD-N001`) and `aw check` apply.
+
+    True for a CLOSED-facet clustered name whose facet (if any) equals ``expected_type``, or, unless
+    ``require_id6``, for a legacy ``YYYYMMDD-HHMM-NN-<slug>`` name (its facet is not type-checked,
+    which is the compatibility rule this check always had)."""
+
+    if is_clustered_conformant(name, expected_type=expected_type):
+        return True
+    if _CLUSTERED_RE.match(name) is not None or require_id6:
+        return False
+    return is_legacy_timestamp_conformant(name)
 
 
 def parse_uniform_permissive(name: str):

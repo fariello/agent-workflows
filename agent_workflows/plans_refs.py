@@ -440,8 +440,7 @@ RefEdit = _refs.RefEdit
 def _old_stem(old_name: str) -> Optional[str]:
     """The old-style YYYYMMDD-HHMM-NN stem of an old plan filename, if it has one."""
 
-    m = re.match(r"\A(\d{8}-\d{4}-\d{2})-", old_name)
-    return m.group(1) if m else None
+    return _naming.legacy_stem_prefix(old_name)
 
 
 def plan_reference_rewrites(

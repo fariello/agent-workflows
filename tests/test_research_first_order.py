@@ -339,7 +339,7 @@ class TestResearchFirstOrder(unittest.TestCase):
         self.assertEqual(parsed_report.kind, "research-report")
 
     def test_order_out_of_range_exits_two(self):
-        """Out of range order (e.g. 100) exits 2."""
+        """Out of range order (e.g. 1000; three-digit Orders are valid since 2026-11-09) exits 2."""
         rc, out, err = self._run_cli(
             [
                 "research",
@@ -354,11 +354,11 @@ class TestResearchFirstOrder(unittest.TestCase):
                 "--summary",
                 "doc summary",
                 "--order",
-                "100",
+                "1000",
             ]
         )
         self.assertEqual(rc, 2)
-        self.assertIn("--order must be between 0 and 99", out + err)
+        self.assertIn("--order must be between 0 and 999", out + err)
 
     def test_adopt_order_override_and_occupied_refusal(self):
         """Adopt honors --order and refuses occupied slot."""
@@ -409,7 +409,7 @@ class TestResearchFirstOrder(unittest.TestCase):
         self.assertIn("already occupied", out2 + err2)
         self.assertIn(matches1[0].name, out2 + err2)
 
-        # Adopt with --order 100 exits 2
+        # Adopt with --order 1000 exits 2 (three-digit Orders are valid)
         rc3, out3, err3 = self._run_cli(
             [
                 "adopt",
@@ -423,9 +423,9 @@ class TestResearchFirstOrder(unittest.TestCase):
                 "--slug",
                 "ad2",
                 "--order",
-                "100",
+                "1000",
                 "--apply",
             ]
         )
         self.assertEqual(rc3, 2)
-        self.assertIn("--order must be between 0 and 99", out3 + err3)
+        self.assertIn("--order must be between 0 and 999", out3 + err3)

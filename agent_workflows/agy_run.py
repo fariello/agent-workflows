@@ -472,10 +472,12 @@ def resolve_prompt_file(root: Path, value: str) -> Path:
 
 
 def stable_id_from_filename(path: Path) -> str:
-    match = re.match(r"^\d{8}-[^-]+-\d{2}-([a-z0-9]{6})-", path.name)
-    if match is None:
+    from agent_workflows import artifact_naming as _naming
+
+    parts = _naming.identity_parts(path.name)
+    if parts is None:
         raise ScriptError(f"Cannot determine six-character plan ID from {path.name}.")
-    return match.group(1)
+    return parts[3]
 
 
 def relative_posix(root: Path, path: Path) -> str:

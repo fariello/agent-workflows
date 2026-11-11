@@ -152,3 +152,35 @@ def test_three_digit_order_round_trips_and_two_digit_names_are_unchanged() -> No
         "abc123",
     )
     assert n.parse_clustered("20261109-s-1000-abc123-x.ipd.md") is None
+
+
+def test_board_and_run_viewer_read_three_digit_order_names() -> None:
+    """The attention board and the run viewer keep private copies of the clustered-name grammar; a
+    plan with Order 100+ must show its real Set, Order and id6 there too (regression: SetID showed
+    the whole filename and Order showed `-` for every Order-100+ plan)."""
+    from agent_workflows import attention, run_viewer
+
+    path = ".aw/records/plans/pending/20261109-metastore-100-o19353-build-the-marker.ipd.md"
+    item = attention.Item(
+        id="o19353",
+        path=path,
+        tree="plans",
+        native_status="to-review",
+        attention_class="ready",
+        gate=None,
+        last_history_at=None,
+    )
+    assert attention._extract_identity_parts(item) == (
+        "20261109",
+        "metastore",
+        "100",
+        "o19353",
+    )
+    assert attention._identity_stem(path) == "20261109-metastore-100-o19353"
+    assert run_viewer.extract_identity_parts(path=path)[1:] == (
+        "metastore",
+        "100",
+        "o19353",
+    )
+    two = path.replace("-100-", "-07-")
+    assert attention._identity_stem(two) == "20261109-metastore-07-o19353"

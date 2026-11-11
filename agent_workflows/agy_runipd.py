@@ -669,7 +669,6 @@ from agent_workflows import runner_shared, runner_stop, suite_cache
 # The full rationale sits at each removed definition's old site further down this file.
 from agent_workflows.runner_shared import (
     PlanRecord as PlanRecord,
-    _PLAN_FILENAME_RE as _PLAN_FILENAME_RE,
     _read_from_backlog as _read_from_backlog,
     _read_item_dependencies as _read_item_dependencies,
     _read_kind as _read_kind,

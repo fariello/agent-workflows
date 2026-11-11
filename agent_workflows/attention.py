@@ -2476,7 +2476,6 @@ def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
     return out
 
 
-_STEM_RE = re.compile(r"^(\d{8}-[a-z0-9-]+?-\d{2}-[0-9a-z]{6})")
 _FACET_STRIP_RE = re.compile(r"(\.[a-z0-9-]+)*\.md$")
 
 
@@ -2485,9 +2484,9 @@ def _identity_stem(path: str) -> str:
     `YYYYMMDD-<setid>-NN-<id6>` when the basename matches the clustering grammar, else the basename
     with its trailing `.md` / `.<type>.md` facet(s) stripped (e.g. `setup-repo-v1`)."""
     base = path.replace("\\", "/").rsplit("/", 1)[-1]
-    m = _STEM_RE.match(base)
-    if m:
-        return m.group(1)
+    parts = _naming.identity_parts(base)
+    if parts:
+        return "-".join(parts)
     return _FACET_STRIP_RE.sub("", base)
 
 
@@ -2707,10 +2706,6 @@ PRIORITY_RANK = {"": 0, "-": 0, "none": 0, "low": 1, "medium": 2, "med": 2, "hig
 
 
 _ID6_IN_NAME_RE = re.compile(r"-([0-9a-z]{6})-")
-_IDENTITY_PARTS_RE = re.compile(
-    r"^(\d{8})-([a-z0-9-]+?)-(\d{2})-([0-9a-z]{6})(?:-|\.|$)"
-)
-_LEGACY_SPEC_RE = re.compile(r"^(\d{8})-\d{4}-(\d{2})-([a-z0-9-]+)")
 
 
 def extract_id6(it: Item) -> Optional[str]:
@@ -2726,12 +2721,13 @@ def extract_id6(it: Item) -> Optional[str]:
 def _extract_identity_parts(it: Item) -> Tuple[str, str, str, str]:
     """Extract (Date, SetID, Num, ID6) from an Item's path and metadata."""
     base = it.path.replace("\\", "/").rsplit("/", 1)[-1]
-    m_leg = _LEGACY_SPEC_RE.match(base)
-    if m_leg:
-        return m_leg.group(1), m_leg.group(3), m_leg.group(2), it.id or "-"
-    m = _IDENTITY_PARTS_RE.match(base)
-    if m:
-        return m.group(1), m.group(2), m.group(3), it.id or m.group(4)
+    # The ONE file-name library reads the identity (maintainer ruling 2026-11-09: no private grammar).
+    leg = _naming.legacy_identity_parts(base)
+    if leg:
+        return leg[0], leg[2], leg[1], it.id or "-"
+    parts = _naming.identity_parts(base)
+    if parts:
+        return parts[0], parts[1], parts[2], it.id or parts[3]
     date = base[:8] if len(base) >= 8 and base[:8].isdigit() else "-"
     raw_stem = _FACET_STRIP_RE.sub("", base)
     set_id = raw_stem if raw_stem else "-"
