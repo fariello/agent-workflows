@@ -101,7 +101,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: No: E-10 already allows a public `artifact_meta` wrapper for the migration, and several readers (`plan_readiness.newest_verdict`, `status_set.same_status_message_is_duplicate`) hold staged text with no id6, so they need a text entry point; it keeps the one grammar inside `artifact_meta`. Recommendation strength: medium.
+- Resolution or deferral rationale: No: E-10 already allows a public `artifact_meta` wrapper for the migration, and several readers (`plan_readiness.newest_verdict`, `status_set.same_status_message_is_duplicate`) hold staged text with no id6, so they need a text entry point; it keeps the one grammar inside `artifact_meta`. Recommendation strength: medium. RESOLVED 2026-11-11 by the user via /askme: public now, private later (the function is public in artifact_meta so every caller uses the one copy; the cutover may make it private once no outside caller remains). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
