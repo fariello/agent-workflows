@@ -83,7 +83,9 @@ class TestInstallStateRecords(unittest.TestCase):
         self.assertTrue(durable_history.is_file())
 
         snap1 = json.loads(durable_install.read_text(encoding="utf-8"))
-        self.assertEqual(snap1.get("installed_version"), agent_workflows.__version__)
+        self.assertEqual(
+            snap1.get("installed_version"), agent_workflows._resolve_own_version()
+        )
 
         home_str = str(self.home)
         install_text1 = durable_install.read_text(encoding="utf-8")
@@ -109,7 +111,9 @@ class TestInstallStateRecords(unittest.TestCase):
         )
 
         snap2 = json.loads(durable_install.read_text(encoding="utf-8"))
-        self.assertEqual(snap2.get("installed_version"), agent_workflows.__version__)
+        self.assertEqual(
+            snap2.get("installed_version"), agent_workflows._resolve_own_version()
+        )
 
         install_text2 = durable_install.read_text(encoding="utf-8")
         history_text2 = durable_history.read_text(encoding="utf-8")

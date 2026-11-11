@@ -3541,21 +3541,25 @@ class DiscardedUserConfigRunViewerTests(TestCase):
         term_plain = Term(color=False)
         term_color = Term(color=True)
 
-        h_default = run_viewer.format_run_human(s1, term_plain)
+        h_default = run_viewer.format_run_human(s1, term_plain, repo_root=self.root)
         self.assertIn(
             "Agent user-config changes discarded: 2 (9y27t2: config.json ['color_depth']; orphan: extra.txt)",
             h_default,
         )
         self.assertNotIn("! user-config discarded:", h_default)
 
-        h_short = run_viewer.format_run_human(s1, term_plain, short=True)
+        h_short = run_viewer.format_run_human(
+            s1, term_plain, short=True, repo_root=self.root
+        )
         self.assertIn("Agent user-config changes discarded: 2", h_short)
 
-        h_detail = run_viewer.format_run_human(s1, term_plain, detail=True)
+        h_detail = run_viewer.format_run_human(
+            s1, term_plain, detail=True, repo_root=self.root
+        )
         self.assertIn("Agent user-config changes discarded: 2", h_detail)
         self.assertIn("! user-config discarded: config.json ['color_depth']", h_detail)
 
-        h_color = run_viewer.format_run_human(s1, term_color)
+        h_color = run_viewer.format_run_human(s1, term_color, repo_root=self.root)
         self.assertIn("\x1b[38;5;214m", h_color)
         self.assertEqual(strip_ansi(h_color), h_default)
 
@@ -3566,7 +3570,7 @@ class DiscardedUserConfigRunViewerTests(TestCase):
         self.assertEqual(s2.discarded_user_config, [])
         self.assertEqual(s2.steps[0].discarded_user_config_count, 0)
 
-        h2_plain = run_viewer.format_run_human(s2, term_plain)
+        h2_plain = run_viewer.format_run_human(s2, term_plain, repo_root=self.root)
         self.assertNotIn("Agent user-config changes discarded", h2_plain)
         self.assertNotIn("user-config discarded", h2_plain)
 
@@ -3592,7 +3596,10 @@ class DiscardedUserConfigRunViewerTests(TestCase):
             runtime_seconds=s2.runtime_seconds,
             runtime_str=s2.runtime_str,
         )
-        self.assertEqual(h2_plain, run_viewer.format_run_human(s2_defaults, term_plain))
+        self.assertEqual(
+            h2_plain,
+            run_viewer.format_run_human(s2_defaults, term_plain, repo_root=self.root),
+        )
 
     def test_multi_run_summary_aggregation_and_no_cost_runs(self):
         r1 = self._create_run_with_events()

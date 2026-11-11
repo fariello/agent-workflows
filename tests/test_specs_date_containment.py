@@ -368,6 +368,7 @@ class TestFabricatedDatesAndNonRegressions(_ContainmentRepoTestCase):
             "- Id: 8rt43x\n"
             "- Author: aw specs new\n"
             "- Scope: Conforming summary text.\n\n"
+            f"{specs.core.writing_standard_pointer('spec')}\n\n"
             "## Workflow history\n\n"
             "- 2026-09-29 created (aw specs): Conforming summary text.\n"
         )

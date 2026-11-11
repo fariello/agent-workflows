@@ -97,7 +97,7 @@ def test_case_2_combined_shape_dry_runs_cleanly(tmp_path: Path) -> None:
 def test_case_3_applied_migration_preserves_paths_and_creates_aw_system(
     tmp_path: Path,
 ) -> None:
-    """Case 3: applied migration leaves all three paths byte-identical and creates .aw/system/."""
+    """Case 3: applied migration preserves all three paths and creates .aw/system/."""
     skills_bytes = b"# Skill Assess Payload\n"
     gitignore_bytes = b"# .aw/.gitignore Payload\n"
     marker_bytes = b"# Setup Marker Payload\n"
@@ -124,9 +124,12 @@ def test_case_3_applied_migration_preserves_paths_and_creates_aw_system(
     ), "Expected skills file to be byte-identical"
 
     assert gitignore_path.exists(), "Expected .aw/.gitignore to be skipped in place"
+    assert gitignore_path.read_bytes().startswith(
+        gitignore_bytes
+    ), "Expected .aw/.gitignore to preserve existing content"
     assert (
-        gitignore_path.read_bytes() == gitignore_bytes
-    ), "Expected .aw/.gitignore to be byte-identical"
+        b"records/*/untracked/" in gitignore_path.read_bytes()
+    ), "Expected standard ignore patterns to be ensured"
 
     assert (
         marker_path.exists()
@@ -248,9 +251,9 @@ def test_case_6_rollback_leaves_all_three_paths_present(tmp_path: Path) -> None:
     assert (
         gitignore_path.exists()
     ), "Expected .aw/.gitignore to remain present after rollback"
-    assert (
-        gitignore_path.read_bytes() == gitignore_bytes
-    ), "Expected .aw/.gitignore to be byte-identical after rollback"
+    assert gitignore_path.read_bytes().startswith(
+        gitignore_bytes
+    ), "Expected .aw/.gitignore to preserve existing content after rollback"
 
     assert (
         marker_path.exists()
