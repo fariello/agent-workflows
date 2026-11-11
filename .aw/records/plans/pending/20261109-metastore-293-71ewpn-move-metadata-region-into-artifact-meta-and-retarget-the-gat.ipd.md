@@ -107,7 +107,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Yes: it keeps the region bound inside `artifact_meta`, and the callers that use it are exactly the regex-literal sites that later plans delete; once those run, its only callers are inside `artifact_meta` and the cutover (`cxxmyv`) may make it private. Recommendation strength: medium.
+- Resolution or deferral rationale: Yes: it keeps the region bound inside `artifact_meta`, and the callers that use it are exactly the regex-literal sites that later plans delete; once those run, its only callers are inside `artifact_meta` and the cutover (`cxxmyv`) may make it private. Recommendation strength: medium. RESOLVED 2026-11-11 by the user via /askme: public now, private later (the function is public in artifact_meta so every caller uses the one copy; the cutover may make it private once no outside caller remains). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
