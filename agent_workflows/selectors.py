@@ -743,6 +743,15 @@ def scan_once():
         _SCAN_ID_INDEX.clear()
 
 
+def drop_scan() -> None:
+    """Forget what the open `scan_once()` scope has read, after a write inside it.
+
+    The scope stays open; the next `resolve` walks and reads afresh. A no-op outside a scope."""
+    if _SCAN_CACHE is not None:
+        _SCAN_CACHE.clear()
+    _SCAN_ID_INDEX.clear()
+
+
 def _scan_key(
     repo_root: Path, record_type: str
 ) -> Tuple[str, str, bool, Optional[int]]:

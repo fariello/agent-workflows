@@ -37081,281 +37081,301 @@ def initialize_run_core(
     # dependency evaluator and must therefore see PLANS ONLY, while the mixed-type gate must see EVERY
     # path, because judging the mix is its entire job. For the IPD-only default both lists are
     # identical and identical to what the single list held before, so no existing run's behavior moves.
-    selection = resolve_selected_artifact_paths(repo, manifest, queue_ids, run_types)
-    selected_plan_paths = list(selection.plan_paths)
-    enforce_dependency_preflight_fn(repo, selected_plan_paths)
+    # THE PRE-QUEUE GATES AND THE QUEUE BUILD RUN INSIDE `selectors.scan_once()`. Each of them
+    # resolves plan paths per item or per dependency edge through `resolve_plan_path`, and outside
+    # the scope every such call re-walks the records tree and re-reads every header. Measured
+    # 2026-11-11: a 209-plan review run spent well over an hour here before printing anything. The
+    # one write in this region (`set_plan_approved_fn`) drops the scan right after it, so a later
+    # lookup sees the updated record.
+    from agent_workflows import selectors as _scan_selectors
 
-    requested_action = getattr(args, "action", None)
-    rereview_ids: set[str] = set()
-    if requested_action is not None:
-        # artdispatch 8l8dgb E-06: Preflight reads each id's status and action from its own typed map,
-        # so legality agrees with dispatch and `--action review` on a spec or backlog item checks its real
-        # action rather than fabricating `approved` -> `execute`.
-        from agent_workflows import run_selection_policy as _policy
+    with _scan_selectors.scan_once():
+        selection = resolve_selected_artifact_paths(
+            repo, manifest, queue_ids, run_types
+        )
+        selected_plan_paths = list(selection.plan_paths)
+        enforce_dependency_preflight_fn(repo, selected_plan_paths)
 
-        preflight_items: list[tuple[str, str, str]] = []
-        rereview_candidates: list[tuple[str, str, str]] = []
-        for id6 in queue_ids:
+        requested_action = getattr(args, "action", None)
+        rereview_ids: set[str] = set()
+        if requested_action is not None:
+            # artdispatch 8l8dgb E-06: Preflight reads each id's status and action from its own typed map,
+            # so legality agrees with dispatch and `--action review` on a spec or backlog item checks its real
+            # action rather than fabricating `approved` -> `execute`.
+            from agent_workflows import run_selection_policy as _policy
+
+            preflight_items: list[tuple[str, str, str]] = []
+            rereview_candidates: list[tuple[str, str, str]] = []
+            for id6 in queue_ids:
+                atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
+                if atype == "ipd":
+                    st = item_info.get("status")
+                    probe_path = None
+                    try:
+                        probe_path = resolve_plan_path(
+                            repo, item_info.get("file", ""), id6
+                        )
+                    except Exception:
+                        probe_path = None
+                    if not st and probe_path is not None:
+                        try:
+                            rec_probe = parse_plan_file(probe_path, repo)
+                            st = rec_probe.status if rec_probe else None
+                        except Exception:
+                            st = None
+                    st = st or "approved"
+                    kind = resolve_manifest_kind(item_info, probe_path)
+                    act = action_for(
+                        kind,
+                        st,
+                        for_legality=True,
+                    )
+                    if (
+                        st in ("reviewed", "approved", "auto-approved")
+                        and kind != "orchestrator"
+                    ):
+                        rereview_candidates.append((id6, st, kind))
+                else:
+                    st = item_info.get("status") or (
+                        "to-review" if atype == "spec" else "open"
+                    )
+                    uncited = (
+                        _policy.implementing_spec_needs_plan(repo, id6)
+                        if atype == "spec" and st == "implementing"
+                        else None
+                    )
+                    act = _policy.runner_action(
+                        atype, st, for_legality=True, uncited_trace_ids=uncited
+                    )
+                preflight_items.append((id6, st, act))
+
+            if requested_action == "review" and not is_status_selector(args.selectors):
+                if rereview_candidates:
+                    interactive = is_interactive_run(args)
+                    assume_yes = bool(getattr(args, "yes", False))
+                    response = None
+                    if interactive and not assume_yes:
+                        cand_details = ", ".join(
+                            f"{c[0]} (status {c[1]!r})" for c in rereview_candidates
+                        )
+                        question = (
+                            f"Re-review requested for {len(rereview_candidates)} plan(s): {cand_details}.\n"
+                            f"Approval will be withdrawn for approved plan(s) and must be given again.\n"
+                            f"Type '{_policy.REREVIEW_CONFIRM_PHRASE}' to confirm re-review, anything else to abort: "
+                        )
+                        response = prompt_for_gate_phrase(question, timeout=None)
+
+                    verdict = _policy.decide_rereview_admission(
+                        rereview_candidates,
+                        interactive=interactive,
+                        assume_yes=assume_yes,
+                        response=response,
+                    )
+                    if verdict.refused:
+                        raise DriverError(verdict.message or verdict.reason)
+                    rereview_ids = set(verdict.admitted)
+                    preflight_items = [
+                        (id6, st, "review") if id6 in rereview_ids else (id6, st, act)
+                        for id6, st, act in preflight_items
+                    ]
+
+            action_labels = (
+                labels
+                if labels is not None
+                else (AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS)
+            )
+            enforce_requested_action(
+                requested_action, preflight_items, labels=action_labels
+            )
+
+        # specsweep-01 (`ui8b9b`) E-04: THE FULL TYPED PATH SET, not the plan subset. Until `--type`
+        # existed this gate was reached on every run and correctly never applied, because no invocation
+        # could produce a mixed selection - a limit `uyeko5` pinned deliberately. Handing it
+        # `selected_plan_paths` now would keep that limit permanently true by construction: a spec would be
+        # filtered out before the gate could see it, so `--type ipd --type spec` would look single-type and
+        # the shipped `[RUN-MIXED-TYPES]` refusal would stay dead with no test able to notice.
+        mixed_verdict = enforce_mixed_type_gate(
+            repo,
+            list(selection.all_paths),
+            allow_mixed=bool(getattr(args, "allow_mixed", False)),
+            interactive=is_interactive_run(args),
+            host=host,
+            selector=" ".join(str(s) for s in args.selectors),
+        )
+        # AFTER the mixed-type gate, DELIBERATELY (DECISION D4). That gate asks about the operator's
+        # INTENT ("did you mean to span two types?"); this refusal states the runner's CAPABILITY. Sited
+        # earlier it would pre-empt the intent question with an implementation limit, and an operator who
+        # genuinely mistyped a mixed selection would be told the wrong thing first.
+        refuse_unrunnable_selected_types(run_types, selection)
+        queue_ids, selected_plan_paths = enforce_no_active_runner_conflict(
+            repo,
+            queue_ids,
+            selected_plan_paths,
+            manifest=manifest,
+            args=args,
+        )
+
+        initial_session = getattr(args, "session", None)
+        set_sessions: dict[str, str] = {}
+        queue: list[dict[str, Any]] = []
+        full_auto = getattr(args, "full_auto", False)
+        unresolvable_ipds: list[tuple[str, str, str]] = []
+        for position, id6 in enumerate(queue_ids, start=1):
             atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
             if atype == "ipd":
-                st = item_info.get("status")
-                probe_path = None
+                plan = item_info
+                setid = plan.get("set", "")
+                if initial_session and setid:
+                    set_sessions[setid] = initial_session
+
+                status = plan.get("status")
+                p_path = None
+                rec = None
+                resolve_err: Exception | None = None
                 try:
-                    probe_path = resolve_plan_path(repo, item_info.get("file", ""), id6)
-                except Exception:
-                    probe_path = None
-                if not st and probe_path is not None:
+                    p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
+                except Exception as exc:
+                    resolve_err = exc
+
+                if p_path is not None:
                     try:
-                        rec_probe = parse_plan_file(probe_path, repo)
-                        st = rec_probe.status if rec_probe else None
-                    except Exception:
-                        st = None
-                st = st or "approved"
-                kind = resolve_manifest_kind(item_info, probe_path)
-                act = action_for(
-                    kind,
-                    st,
-                    for_legality=True,
-                )
-                if (
-                    st in ("reviewed", "approved", "auto-approved")
-                    and kind != "orchestrator"
-                ):
-                    rereview_candidates.append((id6, st, kind))
-            else:
-                st = item_info.get("status") or (
-                    "to-review" if atype == "spec" else "open"
-                )
-                uncited = (
-                    _policy.implementing_spec_needs_plan(repo, id6)
-                    if atype == "spec" and st == "implementing"
-                    else None
-                )
-                act = _policy.runner_action(
-                    atype, st, for_legality=True, uncited_trace_ids=uncited
-                )
-            preflight_items.append((id6, st, act))
-
-        if requested_action == "review" and not is_status_selector(args.selectors):
-            if rereview_candidates:
-                interactive = is_interactive_run(args)
-                assume_yes = bool(getattr(args, "yes", False))
-                response = None
-                if interactive and not assume_yes:
-                    cand_details = ", ".join(
-                        f"{c[0]} (status {c[1]!r})" for c in rereview_candidates
-                    )
-                    question = (
-                        f"Re-review requested for {len(rereview_candidates)} plan(s): {cand_details}.\n"
-                        f"Approval will be withdrawn for approved plan(s) and must be given again.\n"
-                        f"Type '{_policy.REREVIEW_CONFIRM_PHRASE}' to confirm re-review, anything else to abort: "
-                    )
-                    response = prompt_for_gate_phrase(question, timeout=None)
-
-                verdict = _policy.decide_rereview_admission(
-                    rereview_candidates,
-                    interactive=interactive,
-                    assume_yes=assume_yes,
-                    response=response,
-                )
-                if verdict.refused:
-                    raise DriverError(verdict.message or verdict.reason)
-                rereview_ids = set(verdict.admitted)
-                preflight_items = [
-                    (id6, st, "review") if id6 in rereview_ids else (id6, st, act)
-                    for id6, st, act in preflight_items
-                ]
-
-        action_labels = (
-            labels
-            if labels is not None
-            else (AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS)
-        )
-        enforce_requested_action(
-            requested_action, preflight_items, labels=action_labels
-        )
-
-    # specsweep-01 (`ui8b9b`) E-04: THE FULL TYPED PATH SET, not the plan subset. Until `--type`
-    # existed this gate was reached on every run and correctly never applied, because no invocation
-    # could produce a mixed selection - a limit `uyeko5` pinned deliberately. Handing it
-    # `selected_plan_paths` now would keep that limit permanently true by construction: a spec would be
-    # filtered out before the gate could see it, so `--type ipd --type spec` would look single-type and
-    # the shipped `[RUN-MIXED-TYPES]` refusal would stay dead with no test able to notice.
-    mixed_verdict = enforce_mixed_type_gate(
-        repo,
-        list(selection.all_paths),
-        allow_mixed=bool(getattr(args, "allow_mixed", False)),
-        interactive=is_interactive_run(args),
-        host=host,
-        selector=" ".join(str(s) for s in args.selectors),
-    )
-    # AFTER the mixed-type gate, DELIBERATELY (DECISION D4). That gate asks about the operator's
-    # INTENT ("did you mean to span two types?"); this refusal states the runner's CAPABILITY. Sited
-    # earlier it would pre-empt the intent question with an implementation limit, and an operator who
-    # genuinely mistyped a mixed selection would be told the wrong thing first.
-    refuse_unrunnable_selected_types(run_types, selection)
-    queue_ids, selected_plan_paths = enforce_no_active_runner_conflict(
-        repo,
-        queue_ids,
-        selected_plan_paths,
-        manifest=manifest,
-        args=args,
-    )
-
-    initial_session = getattr(args, "session", None)
-    set_sessions: dict[str, str] = {}
-    queue: list[dict[str, Any]] = []
-    full_auto = getattr(args, "full_auto", False)
-    unresolvable_ipds: list[tuple[str, str, str]] = []
-    for position, id6 in enumerate(queue_ids, start=1):
-        atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
-        if atype == "ipd":
-            plan = item_info
-            setid = plan.get("set", "")
-            if initial_session and setid:
-                set_sessions[setid] = initial_session
-
-            status = plan.get("status")
-            p_path = None
-            rec = None
-            resolve_err: Exception | None = None
-            try:
-                p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-            except Exception as exc:
-                resolve_err = exc
-
-            if p_path is not None:
-                try:
-                    rec = parse_plan_file(p_path, repo)
-                    if rec and not status:
-                        status = rec.status
-                except Exception:
-                    pass
-
-            if not status:
-                status = "approved"
-
-            kind = resolve_manifest_kind(plan, p_path)
-            if id6 in rereview_ids:
-                action = "review"
-            else:
-                if status == "reviewed" and full_auto and p_path:
-                    try:
-                        if is_plan_review_approved_fn(p_path):
-                            set_plan_approved_fn(repo, id6)
-                            status = "auto-approved"
+                        rec = parse_plan_file(p_path, repo)
+                        if rec and not status:
+                            status = rec.status
                     except Exception:
                         pass
 
-                norm_st = (status or "approved").strip().lower()
-                complete = None
-                if norm_st == "draft":
-                    complete = plan_authoring_complete(repo, str(plan.get("file", "")))
-                action = action_for(
-                    kind, status or "approved", authoring_complete=complete
-                )
-            if (
-                action in ("review", "execute", "orchestrate")
-                and resolve_err is not None
-            ):
-                unresolvable_ipds.append((id6, plan.get("file", ""), str(resolve_err)))
-            q_entry: dict[str, Any] = {
-                "position": position,
-                "id6": id6,
-                "setid": setid,
-                "configured_file": plan["file"],
-                "artifact_type": "ipd",
-                "dependencies": plan.get("dependencies", []),
-                "kind": kind,
-                "order": plan.get("order"),
-                "from_backlog": plan.get("from_backlog")
-                or (getattr(rec, "from_backlog", None) if p_path else None),
-                "initial_status": status or "approved",
-                "action": action,
-                "status": initial_queue_status(status, action=action),
-                "review_handler": "plan-review" if action == "review" else None,
-                "attempts": [],
-                # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
-                # rather than left implicit in the queue status. It was already implicit here (an item
-                # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
-                # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
-                # reported differently by each surface. Children 02/03 of this Set print and count it,
-                # so it is named once, here, under the token the package already ships for this
-                # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
-                NEEDS_INPUT_KEY: item_needs_approval(status, action),
-            }
-            if id6 in rereview_ids:
-                q_entry["rereview"] = True
-            hold_attended_plan(q_entry, p_path, interactive=is_interactive_run(args))
-            queue.append(q_entry)
-        else:
-            # artdispatch 8l8dgb E-03: Typed non-plan artifact (spec or backlog)
-            status = item_info.get("status") or (
-                "to-review" if atype == "spec" else "open"
-            )
-            setid = item_info.get("set", "")
-            if initial_session and setid:
-                set_sessions[setid] = initial_session
-            from agent_workflows import run_selection_policy as _policy
+                if not status:
+                    status = "approved"
 
-            uncited = (
-                _policy.implementing_spec_needs_plan(repo, id6)
-                if atype == "spec" and status == "implementing"
-                else None
-            )
-            action = _policy.runner_action(atype, status, uncited_trace_ids=uncited)
-            queue.append(
-                {
+                kind = resolve_manifest_kind(plan, p_path)
+                if id6 in rereview_ids:
+                    action = "review"
+                else:
+                    if status == "reviewed" and full_auto and p_path:
+                        try:
+                            if is_plan_review_approved_fn(p_path):
+                                set_plan_approved_fn(repo, id6)
+                                _scan_selectors.drop_scan()
+                                status = "auto-approved"
+                        except Exception:
+                            pass
+
+                    norm_st = (status or "approved").strip().lower()
+                    complete = None
+                    if norm_st == "draft":
+                        complete = plan_authoring_complete(
+                            repo, str(plan.get("file", ""))
+                        )
+                    action = action_for(
+                        kind, status or "approved", authoring_complete=complete
+                    )
+                if (
+                    action in ("review", "execute", "orchestrate")
+                    and resolve_err is not None
+                ):
+                    unresolvable_ipds.append(
+                        (id6, plan.get("file", ""), str(resolve_err))
+                    )
+                q_entry: dict[str, Any] = {
                     "position": position,
                     "id6": id6,
                     "setid": setid,
-                    "configured_file": item_info.get("file", ""),
-                    "artifact_type": atype,
-                    "dependencies": [],
-                    "kind": None,
-                    "order": None,
-                    "from_backlog": None,
-                    "initial_status": status,
+                    "configured_file": plan["file"],
+                    "artifact_type": "ipd",
+                    "dependencies": plan.get("dependencies", []),
+                    "kind": kind,
+                    "order": plan.get("order"),
+                    "from_backlog": plan.get("from_backlog")
+                    or (getattr(rec, "from_backlog", None) if p_path else None),
+                    "initial_status": status or "approved",
                     "action": action,
                     "status": initial_queue_status(status, action=action),
-                    "review_handler": (
-                        "spec-review"
-                        if (atype == "spec" and action == "review")
-                        else None
-                    ),
+                    "review_handler": "plan-review" if action == "review" else None,
                     "attempts": [],
-                    NEEDS_INPUT_KEY: False,
+                    # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
+                    # rather than left implicit in the queue status. It was already implicit here (an item
+                    # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
+                    # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
+                    # reported differently by each surface. Children 02/03 of this Set print and count it,
+                    # so it is named once, here, under the token the package already ships for this
+                    # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
+                    NEEDS_INPUT_KEY: item_needs_approval(status, action),
                 }
-            )
+                if id6 in rereview_ids:
+                    q_entry["rereview"] = True
+                hold_attended_plan(
+                    q_entry, p_path, interactive=is_interactive_run(args)
+                )
+                queue.append(q_entry)
+            else:
+                # artdispatch 8l8dgb E-03: Typed non-plan artifact (spec or backlog)
+                status = item_info.get("status") or (
+                    "to-review" if atype == "spec" else "open"
+                )
+                setid = item_info.get("set", "")
+                if initial_session and setid:
+                    set_sessions[setid] = initial_session
+                from agent_workflows import run_selection_policy as _policy
 
-    # orchtyped-03 (`0xmk4e`) E-01/E-02: THE PRE-QUEUE ORCHESTRATOR SHAPE GATE, sited HERE ahead
-    # of run directory creation, sessions, worktrees, and ahead of the semantic coverage probe.
-    #
-    # SITED EARLY, WITH THE THREE PRE-QUEUE GATES (draft admission, dependency preflight, and
-    # mixed-type gate, each called above), and that siting is a DECISION (OQ-01 / PR-301) resting
-    # on repository facts rather than invariant-tidiness taste:
-    #
-    # 1. NO DURABLE WRITE: raising before `run_dir` is created ensures no run directory, events.jsonl,
-    #    state.json, or prompt logs are created on a shape refusal.
-    # 2. `--prepare-only` INTEGRATION: `--prepare-only` returns early between run directory creation
-    #    and the probe gate. Siting this deterministic, free check before the run directory ensures
-    #    `--prepare-only` evaluates orchestrator shape conformance and refuses invalid queues rather
-    #    than printing a non-runnable queue.
-    # artdispatch jdn790: THE FREEZE-TIME WHOLE-RUN REFUSAL GATE (spec z7nbn1 1.3, 1.4, 1.7)
-    # Refuses before any durable state (run_dir, sessions, leases, worktrees) if any item has:
-    # 1. Undetermined action (spec 5.1, 1.7)
-    # 2. Non-conformant artifact structure (spec 5.2, 1.3)
-    # 3. Provably unsatisfiable dependency in this run (spec 5.3, 1.4)
-    # Sited immediately ahead of enforce_orchestrator_shape_gate.
-    enforce_freeze_time_refusal(
-        queue,
-        repo=repo,
-        full_auto=full_auto,
-        host=host,
-        color=getattr(args, "color", None),
-    )
+                uncited = (
+                    _policy.implementing_spec_needs_plan(repo, id6)
+                    if atype == "spec" and status == "implementing"
+                    else None
+                )
+                action = _policy.runner_action(atype, status, uncited_trace_ids=uncited)
+                queue.append(
+                    {
+                        "position": position,
+                        "id6": id6,
+                        "setid": setid,
+                        "configured_file": item_info.get("file", ""),
+                        "artifact_type": atype,
+                        "dependencies": [],
+                        "kind": None,
+                        "order": None,
+                        "from_backlog": None,
+                        "initial_status": status,
+                        "action": action,
+                        "status": initial_queue_status(status, action=action),
+                        "review_handler": (
+                            "spec-review"
+                            if (atype == "spec" and action == "review")
+                            else None
+                        ),
+                        "attempts": [],
+                        NEEDS_INPUT_KEY: False,
+                    }
+                )
 
-    enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
+        # orchtyped-03 (`0xmk4e`) E-01/E-02: THE PRE-QUEUE ORCHESTRATOR SHAPE GATE, sited HERE ahead
+        # of run directory creation, sessions, worktrees, and ahead of the semantic coverage probe.
+        #
+        # SITED EARLY, WITH THE THREE PRE-QUEUE GATES (draft admission, dependency preflight, and
+        # mixed-type gate, each called above), and that siting is a DECISION (OQ-01 / PR-301) resting
+        # on repository facts rather than invariant-tidiness taste:
+        #
+        # 1. NO DURABLE WRITE: raising before `run_dir` is created ensures no run directory, events.jsonl,
+        #    state.json, or prompt logs are created on a shape refusal.
+        # 2. `--prepare-only` INTEGRATION: `--prepare-only` returns early between run directory creation
+        #    and the probe gate. Siting this deterministic, free check before the run directory ensures
+        #    `--prepare-only` evaluates orchestrator shape conformance and refuses invalid queues rather
+        #    than printing a non-runnable queue.
+        # artdispatch jdn790: THE FREEZE-TIME WHOLE-RUN REFUSAL GATE (spec z7nbn1 1.3, 1.4, 1.7)
+        # Refuses before any durable state (run_dir, sessions, leases, worktrees) if any item has:
+        # 1. Undetermined action (spec 5.1, 1.7)
+        # 2. Non-conformant artifact structure (spec 5.2, 1.3)
+        # 3. Provably unsatisfiable dependency in this run (spec 5.3, 1.4)
+        # Sited immediately ahead of enforce_orchestrator_shape_gate.
+        enforce_freeze_time_refusal(
+            queue,
+            repo=repo,
+            full_auto=full_auto,
+            host=host,
+            color=getattr(args, "color", None),
+        )
+
+        enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
 
     # kqb9ok E-02: refuse at the queue-build seam ahead of durable state any IPD
     # queue entry whose configured file cannot be resolved by resolve_plan_path.
@@ -52555,9 +52575,36 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
     already refused by preflight, but a hand-edited state.json must not hang the scheduler here).
     """
 
+    # MEMOIZED. Without it this walks every PATH, not every node, which is exponential in chain
+    # depth: measured 2026-11-11, a 209-plan review queue with a 71-deep chain spent over 15 minutes
+    # here before the run printed anything. A result is cached only when its walk never met a node
+    # already on the current path, so an acyclic queue (preflight refuses cycles) gets the exact
+    # answer the unmemoized walk gave, and a hand-edited cyclic state keeps the old, seen-relative
+    # answer instead of an order-dependent one.
+    memo: dict[str, int] = {}
+    touched_cycle = [False]
+
     def _depth(node: str, seen: frozenset[str]) -> int:
         if node in seen:
+            touched_cycle[0] = True
             return 0
+        if node in memo:
+            return memo[node]
+        outer_touched = touched_cycle[0]
+        touched_cycle[0] = False
+        result = _depth_uncached(node, seen)
+        if not touched_cycle[0]:
+            memo[node] = result
+        touched_cycle[0] = touched_cycle[0] or outer_touched
+        return result
+
+    def _not_on_path(other_id: str, seen: frozenset[str]) -> bool:
+        if other_id in seen:
+            touched_cycle[0] = True
+            return False
+        return True
+
+    def _depth_uncached(node: str, seen: frozenset[str]) -> int:
         entry = by_id.get(node)
         if entry is None:
             return 0
@@ -52574,7 +52621,7 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
                     other_id != node
                     and other.get("setid") == setid
                     and other.get("action") != "orchestrate"
-                    and other_id not in seen
+                    and _not_on_path(other_id, seen)
                 ):
                     best = max(best, 1 + _depth(other_id, seen | {node}))
         elif entry.get("action") == "review" and (
@@ -52588,7 +52635,7 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
                     and other.get("action") == "review"
                     and other.get("kind") != "orchestrator"
                     and other.get("order") != 0
-                    and other_id not in seen
+                    and _not_on_path(other_id, seen)
                 ):
                     best = max(best, 1 + _depth(other_id, seen | {node}))
         return best
