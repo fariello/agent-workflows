@@ -9,10 +9,24 @@ OpenCode v2 changed three things the runner relies on (measured against `opencod
   `provider/model#variant`.
 - `opencode export <id>` moved to `opencode session export <id>`.
 
-The JSON event stream (`--format json`) is unchanged, so nothing else needs adapting.
-
 Every launch site builds its argv in the v1 shape and passes it through `adapt_run_argv`, so there
 is ONE place that knows the difference.
+
+The JSON event stream (`--format json`) keeps its envelope (`type`, `part`, `part.state`), but the
+TOOL PARTS inside it changed shape in v2 (measured on v2.2.7 session logs, 2026-11-12):
+
+- the shell tool is named `shell` (v1: `bash`);
+- `state.title` is just the tool name (v1: the command or the file path);
+- file tools take `input.path` (v1: `input.filePath`);
+- `state.metadata` wraps the tool's own metadata one level down as `metadata.metadata`, beside
+  `content`/`rawInput`/`providerCall`/`providerResult`;
+- `edit` reports `metadata.metadata.files[]` entries (v1: `metadata.filediff`), `write` carries no
+  `filepath`/`exists`, and `read` carries no `display` line range (only the `output` text names it).
+
+`normalize_tool_part` maps a v2 tool part onto the v1 shape so every reader (the live renderer,
+the corroboration reader, the dashboard) keeps one v1-shaped code path. A v1 part is returned
+unchanged. It is defined in `verifier_corroboration` (which must not import first-party modules)
+and re-exported here.
 """
 
 from __future__ import annotations
@@ -24,6 +38,28 @@ import subprocess
 from typing import List, Optional, Sequence
 
 _VERSION_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+
+# The v2 -> v1 tool-part normalizer lives in `verifier_corroboration`, which must stay free of
+# first-party imports; it is re-exported here as part of this module's v1/v2 surface.
+from agent_workflows.verifier_corroboration import (  # noqa: E402
+    V2_TOOL_RENAMES,
+    is_v2_tool_part,
+    normalize_event,
+    normalize_tool_part,
+)
+
+__all__ = [
+    "V2_TOOL_RENAMES",
+    "adapt_embedded_run_argv",
+    "adapt_run_argv",
+    "export_argv",
+    "is_v2",
+    "is_v2_tool_part",
+    "major_version",
+    "normalize_event",
+    "normalize_tool_part",
+    "parse_major",
+]
 
 
 def parse_major(version_text: str) -> Optional[int]:

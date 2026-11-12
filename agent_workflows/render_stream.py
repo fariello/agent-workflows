@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any, Callable, TextIO
 
 from agent_workflows import lifecycle_style as _LS
+from agent_workflows import opencode_cli as _opencode_cli
 
 # b7oicl (4po0sc) E-01: import run_selection_policy for summarize_dispositions.
 # This import is safe and does not create an import cycle: run_selection_policy's
@@ -955,6 +956,7 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
         return prefix + pal(_one_line(body, 300), "red")
 
     if etype == "tool_use":
+        part = _opencode_cli.normalize_tool_part(part)
         state = part.get("state") or {}
         tool = part.get("tool") or "tool"
         status = state.get("status") or ""

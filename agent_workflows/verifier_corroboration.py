@@ -103,6 +103,8 @@ __all__ = [
     "match_claims_to_observed",
     "match_single_claim",
     "normalize_command",
+    "normalize_event",
+    "normalize_tool_part",
     "session_event_host",
     "split_command_segments",
     "tool_call_from_event",
@@ -295,6 +297,132 @@ class CorroborationVerdict:
 
 
 # --- Log Extraction (E-01, E-02) -----------------------------------------------------
+
+
+# --- OpenCode v2 tool-part normalization ----------------------------------------------------------
+# See `opencode_cli`'s module docstring for the measured v1/v2 differences. Defined here so this
+# stdlib-only reader can use it without importing another first-party module.
+
+#: v2 tool name -> v1 tool name, for tools that were renamed.
+V2_TOOL_RENAMES: dict[str, str] = {"shell": "bash"}
+
+_V2_READ_RANGE_RE = re.compile(r"^Read file (?P<path>.+?), lines (?P<a>\d+)-(?P<b>\d+)")
+
+
+def _is_v2_metadata(metadata: Any) -> bool:
+    return (
+        isinstance(metadata, Mapping)
+        and isinstance(metadata.get("metadata"), Mapping)
+        and any(
+            k in metadata
+            for k in ("content", "rawInput", "providerCall", "providerResult")
+        )
+    )
+
+
+def is_v2_tool_part(part: Any) -> bool:
+    """True when a `tool_use` event's `part` has the OpenCode v2 shape."""
+    if not isinstance(part, Mapping):
+        return False
+    if part.get("tool") in V2_TOOL_RENAMES:
+        return True
+    state = part.get("state")
+    return isinstance(state, Mapping) and _is_v2_metadata(state.get("metadata"))
+
+
+def normalize_tool_part(part: Any) -> Any:
+    """Return a v1-shaped copy of an OpenCode v2 tool part; return anything else unchanged.
+
+    Only fields a v1 reader consumes are synthesized; nothing is removed except that `metadata` is
+    replaced by the flattened inner metadata. The input object is never mutated.
+    """
+    if not is_v2_tool_part(part):
+        return part
+    out = dict(part)
+    tool = str(out.get("tool") or "")
+    tool = V2_TOOL_RENAMES.get(tool, tool)
+    out["tool"] = tool
+    raw_state = out.get("state")
+    state: dict[str, Any] = dict(raw_state) if isinstance(raw_state, Mapping) else {}
+    raw_inp = state.get("input")
+    inp: dict[str, Any] = dict(raw_inp) if isinstance(raw_inp, Mapping) else {}
+    if "filePath" not in inp and isinstance(inp.get("path"), str):
+        inp["filePath"] = inp["path"]
+    state["input"] = inp
+
+    raw_meta = state.get("metadata")
+    if _is_v2_metadata(raw_meta):
+        meta: dict[str, Any] = dict(raw_meta["metadata"])  # type: ignore[index]
+    elif isinstance(raw_meta, Mapping):
+        meta = dict(raw_meta)
+    else:
+        meta = {}
+    output = state.get("output")
+    output_text = output if isinstance(output, str) else ""
+    path = inp.get("filePath") if isinstance(inp.get("filePath"), str) else ""
+
+    if tool == "edit" and "filediff" not in meta:
+        files = meta.get("files")
+        if isinstance(files, list) and files and isinstance(files[0], Mapping):
+            first = files[0]
+            adds = [f.get("additions") for f in files if isinstance(f, Mapping)]
+            dels = [f.get("deletions") for f in files if isinstance(f, Mapping)]
+            diff: dict[str, Any] = {
+                "file": first.get("file") or path,
+                "patch": "\n".join(
+                    str(f.get("patch") or "") for f in files if isinstance(f, Mapping)
+                ),
+            }
+            if all(isinstance(a, int) for a in adds) and all(
+                isinstance(d, int) for d in dels
+            ):
+                diff["additions"] = sum(adds)  # type: ignore[arg-type]
+                diff["deletions"] = sum(dels)  # type: ignore[arg-type]
+            meta["filediff"] = diff
+    elif tool == "write":
+        if path and "filepath" not in meta:
+            meta["filepath"] = path
+        if "exists" not in meta and output_text:
+            # v2 answers "Created file ..." for a new file and "Wrote file ..." for an overwrite.
+            meta["exists"] = not output_text.startswith("Created file")
+    elif tool == "read" and "display" not in meta:
+        m = _V2_READ_RANGE_RE.match(output_text)
+        if m:
+            meta["display"] = {
+                "path": path or m.group("path"),
+                "lineStart": int(m.group("a")),
+                "lineEnd": int(m.group("b")),
+            }
+    elif tool == "bash":
+        if "output" not in meta and output_text:
+            meta["output"] = output_text
+    state["metadata"] = meta
+
+    title = state.get("title")
+    original_tool = str(part.get("tool") or "")
+    if not title or title in (tool, original_tool):
+        if tool == "bash" and isinstance(inp.get("command"), str):
+            state["title"] = inp["command"]
+        elif path:
+            state["title"] = path
+        else:
+            # The v2 title is only the tool name; an empty title lets readers fall back to the
+            # input summary instead of repeating the name.
+            state["title"] = ""
+    out["state"] = state
+    return out
+
+
+def normalize_event(event: Any) -> Any:
+    """`normalize_tool_part` applied to a whole `tool_use` event; any other event is unchanged."""
+    if not isinstance(event, Mapping) or event.get("type") != "tool_use":
+        return event
+    part = event.get("part")
+    if not is_v2_tool_part(part):
+        return event
+    out = dict(event)
+    out["part"] = normalize_tool_part(part)
+    return out
 
 
 def session_event_host(obj: Any) -> str:
@@ -503,7 +631,7 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
     if "type" in obj and "part" in obj:
         if obj.get("type") != "tool_use":
             return None
-        part = obj.get("part")
+        part = normalize_tool_part(obj.get("part"))
         part_dict = part if isinstance(part, (dict, Mapping)) else {}
         tool_name = str(part_dict.get("tool") or "").strip()
         state = part_dict.get("state")
