@@ -51,8 +51,14 @@ class _Repo(unittest.TestCase):
         (self.root / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
         self._old_cwd = os.getcwd()
         os.chdir(self.root)
-        self.addCleanup(os.chdir, self._old_cwd)
-        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(self._cleanup_tmp)
+
+    def _cleanup_tmp(self) -> None:
+        os.chdir(self._old_cwd)
+        try:
+            self._tmp.cleanup()
+        except OSError:
+            pass
 
     def stamp(self, **cutovers: str) -> None:
         p = self.root / ".aw/config/project.json"

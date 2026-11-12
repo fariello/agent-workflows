@@ -121,6 +121,6 @@ AW-TIER: complex
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | One legacy renderer or two? | Extract and extend `2xwb9b`'s | A separate `write_legacy` beside it | C1, C10a; `2xwb9b` E-03 to E-05 | yes |
-| D-2 | Which root validates `out_of_scope_paths` and `widened_paths`? | The repository root (relative, no `..`, not absolute); spec 4.2 amended | Records root as written (refuses code paths); leave it to `tve77h` (already reviewed, and it would execute the wrong rule) | F-05; `runner_shared.compute_scope_reconciliation`; AGENTS.md "A plan may amend a spec" | yes (no log carries these keys before the cutover) |
+| D-2 | Which root validates `out_of_scope_paths` and `widened_paths`? | The repository root (relative, no `..`, not absolute); spec 4.2 amended | Records root as written (refuses code paths); leave it to `tve77h` (already reviewed, and it would execute the wrong rule) | F-05; `runner_shared.compute_scope_reconciliation`; AGENTS.md "A plan may amend a spec"; no log carries these keys before the cutover | yes |
 | D-3 | Split into 07a and 07b? | No | Split at the OQ-01 seam | Each E-item is one concern with a named pin set | yes |
 | D-4 | Accept either outcome for the same-record merge? | No; pin the measured conflict | Accept either | Measured `merge=1` at review | yes |

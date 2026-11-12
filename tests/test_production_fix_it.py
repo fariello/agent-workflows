@@ -1272,7 +1272,10 @@ class TestProductionFixIt(unittest.TestCase):
                         text=True,
                         check=True,
                     )
-                    self.assertIn(stall_lane_wt[0], res.stdout)
+                    self.assertIn(
+                        Path(stall_lane_wt[0]).as_posix(),
+                        res.stdout.replace("\\", "/"),
+                    )
 
                     # Snapshot commit exists on the lane branch
                     branch_log = subprocess.run(

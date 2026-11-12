@@ -20,7 +20,7 @@ env:
 jobs:
   unittest:
     name: unittest (${{ matrix.os }}, py${{ matrix.python-version }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on || matrix.os }}
     timeout-minutes: 300
     strategy:
       fail-fast: false
@@ -33,6 +33,12 @@ jobs:
         # provisioned; the code uses `from __future__ import annotations` and no runtime
         # 3.9+-only feature, so 3.8 is expected to work but is not CI-verified.
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          # ubuntu-latest (Ubuntu 26.04) has no prebuilt Python 3.9 binaries in actions/setup-python.
+          # Run Python 3.9 on ubuntu-24.04 where 3.9 is fully supported and cached.
+          - os: ubuntu-latest
+            python-version: "3.9"
+            runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -238,7 +244,7 @@ jobs:
 
   output-conformance:
     name: CLI output-conformance harness (fail-closed)
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on || matrix.os }}
     # awcliux Order 05 (e8hu4s) / cmdsurf (0yrtne): the whole-CLI declaration test runs as a
     # NAMED fail-closed gate so an undeclared parser leaf blocks the merge visibly. Runs across
     # every supported Python minor so the parser leaves are proven declared across versions.
@@ -248,6 +254,12 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          # ubuntu-latest (Ubuntu 26.04) has no prebuilt Python 3.9 binaries in actions/setup-python.
+          # Run Python 3.9 on ubuntu-24.04 where 3.9 is fully supported and cached.
+          - os: ubuntu-latest
+            python-version: "3.9"
+            runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4

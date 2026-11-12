@@ -1,6 +1,6 @@
 - Id: suth7l
 - Status: done
-- Close-Evidence: .aw/records/backlog/open/20261107-suth7l-01-suth7l-artifact-meta-legacy-loader-disagrees-with-status.backlog.md
+- Close-Evidence: .aw/records/backlog/done/20261107-suth7l-01-suth7l-artifact-meta-legacy-loader-disagrees-with-status.backlog.md
 - Blocks-Release: next
 - Set: suth7l
 - Priority: high

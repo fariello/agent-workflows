@@ -18,6 +18,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from tests import support
@@ -26,10 +27,8 @@ import tools.review_pilot as review_pilot
 
 class ReviewPilotTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temp_dir = Path(support.REPO_ROOT) / "tmp" / "test-review-pilot"
-        if self.temp_dir.exists():
-            shutil.rmtree(self.temp_dir)
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.temp_dir = Path(self._tmp.name)
 
         # Initialize a test git repository
         self.repo = support.init_repo(self.temp_dir / "repo")
@@ -108,8 +107,10 @@ class ReviewPilotTests(unittest.TestCase):
         self.recorded_launches: list[list[str]] = []
 
     def tearDown(self) -> None:
-        if self.temp_dir.exists():
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
+        try:
+            self._tmp.cleanup()
+        except OSError:
+            pass
 
     def fake_launch(self, argv: list[str], cwd: Path | None = None) -> int:
         self.recorded_launches.append(list(argv))
