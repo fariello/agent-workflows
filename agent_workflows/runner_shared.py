@@ -21210,7 +21210,9 @@ def probe_argv(
     if options.get("agent"):
         argv.extend(["--agent", str(options["agent"])])
     argv.extend(["--", prompt])
-    return argv
+    from agent_workflows import opencode_cli
+
+    return opencode_cli.adapt_run_argv(argv)
 
 
 #: The environment variable that names an ACTIVE pytest test, set by pytest itself for every test it

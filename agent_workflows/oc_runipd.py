@@ -73,7 +73,7 @@ from agent_workflows.run_selection_policy import (
 # runprofile-03 (`3cm15q`) execution contract item 2 forbids: "Use their resolver; do not fork profile
 # parsing/storage inside oc_runipd.py". Module-level import also lets a test monkeypatch
 # `runner_profiles.store_path` and have this driver see it.
-from agent_workflows import runner_profiles
+from agent_workflows import opencode_cli, runner_profiles
 
 # wtiso-07 (1o4eif): the OPTIONAL hardened OS-sandbox profile. Imported for the dispatch
 # seam in `run_opencode` only; when no `execution_profile` is requested the default launch
@@ -3080,6 +3080,16 @@ def run_opencode(
 
     popen_kwargs["env"] = child_env
 
+    # OpenCode v2 dropped `run --dir` and `run --variant` (see `opencode_cli`). The argv above is
+    # built in the v1 shape and adapted HERE, using the version the policy probe just read under the
+    # child's own environment, so detecting the generation costs no extra spawn. Applied to the
+    # `opencode run` segment only, so a hardened-profile sandbox prefix is left intact.
+    argv = opencode_cli.adapt_embedded_run_argv(
+        argv,
+        opencode,
+        opencode_cli.parse_major(getattr(observation, "host_version", None) or ""),
+    )
+
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
     queue = state.get("queue", [])
@@ -3762,7 +3772,7 @@ def observe_host_model(
     # This ensures custom host binaries pinned via --opencode are interrogated rather than
     # falling back to an unpinned PATH binary.
     binary = opts.get("opencode") or "opencode"
-    cmd = [binary, "export", session_id]
+    cmd = opencode_cli.export_argv(binary, session_id)
 
     try:
         if launcher is not None:
