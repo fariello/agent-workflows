@@ -19480,10 +19480,48 @@ class PreflightQuestion(NamedTuple):
     blocking: bool
     line: int
     artifact_hash: str
+    # The question's BODY: every field the author wrote under the heading except bookkeeping
+    # (`Status`, `Owner`, `Blocking`), most importantly the context, options and recommendation in
+    # `Resolution or deferral rationale`. Measured 2026-11-12: the prompt showed the heading alone
+    # ("old untracked data under Research/"), which is a title, not a question anyone can answer.
+    detail: str = ""
 
     @property
     def text(self) -> str:
-        return self.heading
+        return question_display_text(self.heading, self.detail)
+
+
+#: OQ fields that are bookkeeping, not part of what the human is asked.
+_OQ_PROMPT_SKIP_FIELDS = frozenset(
+    {"Status", "Owner", "Blocking", "id", "line", "heading", "title"}
+)
+
+
+def question_display_text(heading: str, detail: str) -> str:
+    """The full text a human sees for one open question: its title and body.
+
+    Deliberately carries nothing artifact-specific (no path, no OQ id): grouping merges questions
+    whose text is IDENTICAL, so the same question raised by 20 plans must render identically to be
+    asked once. The prompt names the raising plans separately.
+    """
+    parts = [heading.strip()]
+    if detail.strip():
+        parts.append(detail.strip())
+    return "\n\n".join(parts)
+
+
+def _oq_detail(oq: Mapping[str, Any]) -> str:
+    lines = []
+    for key, value in oq.items():
+        if key in _OQ_PROMPT_SKIP_FIELDS or not isinstance(value, str):
+            continue
+        val = value.strip()
+        if not val:
+            continue
+        lines.append(
+            val if key == "Resolution or deferral rationale" else f"{key}: {val}"
+        )
+    return "\n\n".join(lines)
 
 
 def collect_preflight_questions(
@@ -19571,6 +19609,7 @@ def collect_preflight_questions(
                     blocking=is_blocking,
                     line=line_num,
                     artifact_hash=art_hash,
+                    detail=_oq_detail(oq),
                 )
             )
 
@@ -19618,17 +19657,21 @@ def prompt_for_free_text(
             opts_str = "\n" + "\n".join(opts_lines)
         members_len = len(getattr(question, "members", []))
         unblock_cnt = getattr(question, "unblock_count", 0)
+        asked_by = ", ".join(
+            f"{getattr(m, 'artifact_id6', '')} {getattr(m, 'question_id', '')}".strip()
+            for m in getattr(question, "members", [])
+        )
+        asked_line = f"Asked by: {asked_by}\n" if asked_by else ""
         prompt_str = (
             f"\n[{question.group_id}] ({members_len} raiser(s), unblocks {unblock_cnt}):\n"
-            f"{clean_text}{opts_str}\nAnswer: "
+            f"{asked_line}\n{clean_text}{opts_str}\n\nAnswer: "
         )
     elif hasattr(question, "heading"):
         art_id = getattr(question, "artifact_id6", "")
         oq_id = getattr(question, "oq_id", "")
-        heading = getattr(question, "heading", "")
         blocking = getattr(question, "blocking", False)
         block_lbl = " [blocking]" if blocking else ""
-        prompt_str = f"\n[{art_id}] {oq_id}{block_lbl}: {heading}\n> "
+        prompt_str = f"\n[{art_id}] {oq_id}{block_lbl}: {question.text}\n> "
     else:
         prompt_str = str(question)
 
@@ -37442,7 +37485,7 @@ def initialize_run_core(
                         "artifact_id6": q.artifact_id6,
                         "action": "preflight",
                         "blocking": q.blocking,
-                        "text": q.heading,
+                        "text": q.text,
                         "options": [],
                         "allow_free_text": True,
                         "artifact_path": q.artifact_path,
@@ -37652,7 +37695,7 @@ def initialize_run_core(
                     has_blocking = True
                 q_payload = {
                     "question_id": q.oq_id,
-                    "text": q.heading,
+                    "text": q.text,
                     "artifact_id6": q.artifact_id6,
                     "artifact_path": q.artifact_path,
                     "artifact_hash": q.artifact_hash,

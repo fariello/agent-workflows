@@ -859,3 +859,60 @@ def test_host_flag_parity():
         opts = run_parser.format_help()
         assert "--blocking-only" in opts
         assert "--question-timeout" in opts
+
+
+def test_preflight_prompt_shows_the_whole_question(tmp_path: Path):
+    """The prompt a human answers carries the question's context, options and source, not its title alone.
+
+    Measured 2026-11-12: a run asked "old untracked data under Research/" and nothing else, while the
+    plan's OQ held the sizes, three lettered options and a recommendation."""
+    repo = _create_test_repo(tmp_path)
+    body = (
+        "Research/ holds 1.7 GB of old data. Options: (a) move it to tmp/; "
+        "(b) archive part in git; (c) leave it. Recommendation: (a)."
+    )
+    p1 = _create_plan_with_oqs(
+        repo,
+        "art010",
+        oqs=[{"id": "OQ-01", "title": "old data under Research/", "rationale": body}],
+    )
+    queue = [
+        {"position": 1, "id6": "art010", "configured_file": str(p1.relative_to(repo))}
+    ]
+    (q,) = runner_shared.collect_preflight_questions(repo, queue)
+
+    assert q.heading == "old data under Research/"
+    assert body in q.text
+    assert (
+        "test author" not in q.text
+    )  # bookkeeping (Owner) is not part of the question
+
+    groups = question_inbox.group_questions(
+        [
+            {
+                "question_id": q.oq_id,
+                "artifact_id6": q.artifact_id6,
+                "action": "preflight",
+                "text": q.text,
+                "options": [],
+                "artifact_hash": q.artifact_hash,
+            }
+        ],
+        state={"queue": queue},
+    )
+    err = io.StringIO()
+    fake_tty_in = mock.MagicMock()
+    fake_tty_in.isatty.return_value = True
+    err.isatty = lambda: True  # type: ignore[method-assign]
+    with mock.patch("select.select", return_value=([], [], [])):
+        assert (
+            runner_shared.prompt_for_free_text(
+                groups[0], timeout=0.01, stdin=fake_tty_in, stderr=err
+            )
+            is None
+        )
+    shown = err.getvalue()
+    assert "Options: (a) move it to tmp/" in shown
+    assert "Recommendation: (a)." in shown
+    assert "Asked by: art010 OQ-01" in shown
+    assert shown.rstrip().endswith("Answer:")
