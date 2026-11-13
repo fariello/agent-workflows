@@ -16837,6 +16837,24 @@ RUN_POLICY_FLAGS: tuple = (
             "re-adopted either way"
         ),
     ),
+    # 2026-11-13 (spec 25kzda 2.9): a review consumer may accept a `to-review` prerequisite, so a long
+    # dependency chain can be reviewed in parallel shards instead of one plan at a time. The cost is
+    # that a prerequisite's own review can later change the design the dependent was reviewed
+    # against, so every such review records its basis and the runner reports stale ones
+    # (`review_basis`).
+    RunPolicyFlag(
+        flag="--review-unreviewed-deps",
+        dest="review_unreviewed_deps",
+        kind="bool",
+        implemented=True,
+        owner="runner_shared.edge_satisfied",
+        help=(
+            "Let a REVIEW turn start while a prerequisite plan is still 'to-review' (default: the "
+            "prerequisite must be reviewed, approved or executed). Execute turns are unaffected. "
+            "Each such review records the prerequisite text it saw; when that prerequisite's steps "
+            "or scope later change, the run end prints the dependents to re-review"
+        ),
+    ),
     RunPolicyFlag(
         flag="--unattended",
         dest="unattended",
@@ -22084,6 +22102,7 @@ def enforce_freeze_time_refusal(
     full_auto: bool = False,
     host: str = "oc",
     color: bool | None = None,
+    review_unreviewed_deps: bool = False,
 ) -> None:
     """Freeze-time whole-run refusal gate (spec `z7nbn1` 1.3, 1.4, 1.7; plan `jdn790`).
 
@@ -22262,7 +22281,11 @@ def enforce_freeze_time_refusal(
             if edge is None:
                 continue
             consumer_item = dict(entry)
-            state = {"repo": repo, "queue": queue}
+            state = {
+                "repo": repo,
+                "queue": queue,
+                "options": {"review_unreviewed_deps": review_unreviewed_deps},
+            }
             satisfied, edge_reason = edge_satisfied(
                 edge, consumer_item, state, queue_by_id
             )
@@ -37418,6 +37441,7 @@ def initialize_run_core(
             full_auto=full_auto,
             host=host,
             color=getattr(args, "color", None),
+            review_unreviewed_deps=bool(getattr(args, "review_unreviewed_deps", False)),
         )
 
         enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
@@ -42636,6 +42660,18 @@ def execute_item_core(
         else (session_id is None)
     )
 
+    # `--review-unreviewed-deps` (`review_basis`): the prerequisite TEXT this review is about to read,
+    # captured BEFORE the turn so a prerequisite reviewed concurrently cannot be mis-recorded as the
+    # version this review saw. Written only once the review succeeds (below, after reconcile).
+    review_basis_targets: list[dict[str, str]] | None = None
+    if is_review and queue_entry_type(item) == "ipd":
+        try:
+            from agent_workflows import review_basis as _basis
+
+            review_basis_targets = _basis.provisional_targets(repo, item, state)
+        except Exception:
+            review_basis_targets = None
+
     exec_model, exec_model_source = launch_model_for_role(options, role="execute")
     attempt: dict[str, Any] = {  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
         "number": attempt_no,
@@ -44360,6 +44396,26 @@ def execute_item_core(
             exit_code,
             plan_repo=Path(work_dir) if work_dir else None,
         )
+
+        if review_basis_targets is not None and disposition in (
+            "reviewed",
+            "approved",
+            "auto-approved",
+        ):
+            try:
+                from agent_workflows import review_basis as _basis
+
+                _basis.record_basis(
+                    repo,
+                    str(item["id6"]),
+                    review_basis_targets,
+                    run_id=str(state.get("run_id") or ""),
+                    at=utc_now(),
+                )
+                if review_basis_targets:
+                    attempt["review_basis"] = [t["id6"] for t in review_basis_targets]
+            except Exception:
+                pass
 
         if is_review and queue_entry_type(item) == "ipd":
             from agent_workflows import ipd_schema as _schema
@@ -51266,6 +51322,12 @@ def _artifact_owners(repo: Path, record_type: str, id6: str) -> list[tuple[str, 
     ]
 
 
+def review_accepts_unreviewed_deps(state: Mapping[str, Any]) -> bool:
+    """True when this run was started with `--review-unreviewed-deps` (spec 25kzda 2.9)."""
+    opts = state.get("options") if isinstance(state, Mapping) else None
+    return bool(isinstance(opts, Mapping) and opts.get("review_unreviewed_deps"))
+
+
 def edge_satisfied(
     edge: Any,
     item: dict[str, Any],
@@ -51339,7 +51401,13 @@ def edge_satisfied(
         except DriverError as exc:
             return False, f"{tok}: {exc}"
         bucket = plan_bucket(dep_path)
-        allowed = ("executed",) if is_exec else ("executed", "reviewed", "approved")
+        allowed: tuple[str, ...] = (
+            ("executed",) if is_exec else ("executed", "reviewed", "approved")
+        )
+        if not is_exec and review_accepts_unreviewed_deps(state):
+            from agent_workflows import review_basis as _basis
+
+            allowed = allowed + tuple(_basis.PROVISIONAL_STATUSES)
         # PRECEDENCE (depreview 03ie04 E-01, OQ-01): A TERMINAL DIRECTORY IS AUTHORITATIVE; for a
         # NON-TERMINAL directory the `- Status:` FIELD carries the readiness. The two signals answer
         # different halves of one question and only one of them carries information in each case.
@@ -51623,8 +51691,14 @@ def cascade_dependency_blocked(
     while True:
         by_id = {entry["id6"]: entry for entry in state["queue"]}
         progressed = False
+        relaxed_reviews = review_accepts_unreviewed_deps(state)
         for item in state["queue"]:
             if item.get("status") != "queued":
+                continue
+            if relaxed_reviews and item.get("action") == "review":
+                # `--review-unreviewed-deps`: a review consumer needs only its prerequisite's TEXT,
+                # which a failed prerequisite review leaves in place (still `to-review`), so
+                # `edge_satisfied` decides from disk and nothing here may contradict it (F-7).
                 continue
             dead: list[str] = []
             reasons: dict[str, str] = {}

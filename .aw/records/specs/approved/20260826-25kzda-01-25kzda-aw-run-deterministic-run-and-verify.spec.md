@@ -222,6 +222,7 @@ aw <host> run <selector>
     [--allow-red-ci <justification>]
     [--allow-failed-checks <justification>]
     [--resume-correction-session]
+    [--review-unreviewed-deps]
     [--action <review|plan|execute>]
 
 aw <host> review [<selector>] [<any run flag>]...
@@ -254,6 +255,7 @@ Rules:
 - `--allow-red-ci` is the override half of the red-CI run-start gate defined in Section 2.5f, and it TAKES A JUSTIFICATION STRING rather than being a bare boolean, for the same reason `--allow-uncovered-orchestrator-work`, `--allow-concurrent-driver`, and `--ack-spec-edits` do: the risk it accepts is starting new run work while CI on the tracked branch has not passed in more than `ci_checkup_interval_commits` first-parent commits, so the record must say WHY that was accepted and not merely that somebody accepted it. An empty or whitespace-only justification is refused at parse time, and the flag is refused on `resume` (`RESUME_REFUSE`) because `resume` does not re-run `initialize_run_core`. The justification is recorded in the run's `events.jsonl` (`red-ci-override`) and rendered in the run summary and `execution-report.md`. It acknowledges only that one risk, and it waives no other gate. Added 2026-10-13 by plan `s4z5n8`.
 - `--allow-failed-checks` is the override half of the main-typecheck run-start gate defined in Section 2.5g, and it TAKES A JUSTIFICATION STRING for the same reason its sibling `str` flags do: the risk it accepts is launching a run whose lanes will all branch from a commit that already fails its static type check. An empty or whitespace-only justification is refused at parse time, it is refused on `resume` (`RESUME_REFUSE`), `--full-auto` does not imply it, and it waives no other gate. Added 2026-11-07 after `run-20261107T023507Z-1895321`.
 - `--resume-correction-session` makes a correction turn RESUME the failed attempt's host session. By default a correction turn re-adopts the failed attempt's lane (its commits and files are the durable state) but starts a FRESH session, so the failed conversation is not re-read at every step; the correction prompt carries the failed predicates. Measured before this default (backlog `w93his`, plan `2xwb9b`): a resumed correction turn started at 324K tokens of context. The attempt records `fix_it_session` as `fresh` or `resumed`. Added 2026-11-09.
+- `--review-unreviewed-deps` lets a REVIEW turn accept a `to-review` prerequisite (Section 2.9, the flagged review row), so a long dependency chain can be reviewed in parallel shards instead of one plan at a time. It changes nothing for execute turns or `draft` prerequisites. Each such review records the prerequisite text it saw, and the run end reports dependents whose prerequisite's steps or scope later changed (`[REVIEW-BASIS-STALE]`), with the command that re-reviews them. `aw partition --review-unreviewed-deps` splits such a chain across shards and adds the flag to each emitted command. Added 2026-11-13 at the maintainer's request, to make the 209-plan metastore Set reviewable in parallel.
 - `--allow-drafts` is the unattended half of the draft admission gate defined in Section 2.5a. It acknowledges only that complete `draft` items may be promoted and reviewed in this run. It waives no other gate, and it never converts an INCOMPLETE draft into a runnable item: an incomplete draft is skipped with findings at every setting of this flag.
 - `--allow-dirty-base` acknowledges that the target checkout has uncommitted changes to TRACKED files and that this run may launch anyway. Without it, a turn whose base holds dirty tracked paths is refused before anything is spawned, and the refusal names the paths. Consent covers THIS run's base and nothing else: it does not waive the approval gate, the scope gate, the Section 4.2 V-evidence checks, or the integration-time dirty-overlap refusal, and a lane whose changed files OVERLAP a dirty path is still refused at integration. It never applies to UNTRACKED content, which is reported once at run start and refuses on no path, so there is nothing for this flag to consent to there. The consent is recorded in the run ledger with the paths it covered.
 - No flag may cause a run to CLAIM verified success while the deterministic V-evidence checks of Section 4.2 have not passed. That guarantee is enforced by reading repository artifacts, so no flag can reach it. TODAY the enforcer is `ipd_lint --phase pre-transition` plus the `ipd_lifecycle` finalize gates (see the Section 1.3 row for exact symbols); Section 4.2's `IPD-EXEC-V-EVIDENCE` and siblings SPECIFY the same guarantee but are unbound names as of 2026-09-05. A flag that merely selects whether an ADDITIONAL independent verifier turn runs is not a bypass of it, and an item whose V-evidence is incomplete is failed regardless of any flag. There is no `--skip-audit` flag and no GIT hook-bypass flag on `run`: `--no-verify` in its git sense is forbidden and no flag on `run` offers it, and the commit-gateway interception that would prove no bypass occurred is unbuilt, so `RUN-COMMIT-GATEWAY` (Section 4.2) is `UNBOUND-BY-DEPENDENCY` and `supports_commit_gateway` is declared-never-probed and fails closed (see Section 5.2 guarantee row 3, "Hooks are not bypassed and a hook refusal remains a failure"), and a hook-bypass attempt receives a fix-it turn instructing the agent to undo the bypass commit and recommit through the hooks, failing the item if uncorrected.
@@ -639,6 +641,7 @@ importing nothing, so it needs only that the prerequisite's DESIGN is settled.
 | --- | --- | --- |
 | `executed:<id6>` | `execute` | The target resolves uniquely to an IPD, is in `executed/` with status `executed`, passes terminal lint, and has valid deterministic execution/finalization evidence. If it is in this run, its current outcome is `verified`. |
 | `executed:<id6>` | `review` | The target resolves uniquely to an IPD whose state is `executed`, `reviewed`, or `approved`. Terminal execution evidence is NOT required, because a review turn writes no code and therefore cannot be invalidated by an unexecuted prerequisite. |
+| `executed:<id6>` | `review`, run with `--review-unreviewed-deps` | As the row above, and additionally `to-review`. The review records the target's reviewed contract (`ipd_lifecycle.frozen_region_digest`) under `.aw/state/review-basis/<consumer-id6>.json`; see the recheck below. |
 | `exists:<type>:<id6>` | any | Exactly one target of the named type exists and passes that type's structural checker. |
 | `state:<type>:<status>:<id6>` | any | Exactly one target of the named type exists, passes its structural checker, and has exactly the required status. |
 
@@ -650,7 +653,20 @@ state", making a review-mode Set run impossible to complete. Requiring terminal 
 for a review turn would permanently serialize plan review behind plan execution, which is backwards:
 review is what QUALIFIES a plan to execute.
 
-THE RELAXATION APPLIES TO THE REVIEW ACTION ONLY, AND WIDENING IT FURTHER IS PROHIBITED. An
+THE OPT-IN `to-review` ROW AND ITS RECHECK (added 2026-11-13, maintainer decision). Without it a
+dependency chain is reviewed strictly one plan at a time, which for the 209-plan metastore Set meant
+days of serial review. Accepting a `to-review` prerequisite has one cost: that prerequisite's own
+review may later change the design the dependent was reviewed against. The recheck bounds that cost.
+At run end the runner compares each recorded digest with the prerequisite's current text, and
+reports every dependent whose prerequisite's steps or scope changed (`[REVIEW-BASIS-STALE]`) along
+with an `aw <host> run --action review <id6>...` command. A record is deleted when its prerequisites
+are all reviewed with an unchanged contract, or when the dependent is re-reviewed against settled
+prerequisites. Under the flag the dependency cascade does not mark a review consumer blocked when a
+prerequisite review fails, because that prerequisite stays `to-review` on disk and still satisfies
+the edge. The flag never admits `draft`, and never applies to an execute turn.
+
+THE RELAXATION APPLIES TO THE REVIEW ACTION ONLY, AND WIDENING IT FURTHER (beyond the opt-in
+`to-review` row above, which is also review-only) IS PROHIBITED. An
 `execute` action MUST keep requiring a genuinely `executed/` prerequisite with its evidence; a
 `reviewed` or `approved` target NEVER satisfies an edge consumed by an execute turn. The two rows
 must stay distinguishable by the consuming action and by nothing else: not by queue membership, not
@@ -1393,7 +1409,7 @@ Rules:
 6. When a prerequisite fails, is capability-refused, ends `needs_input`, is skipped in a state that does not satisfy the edge, or becomes unsatisfied after freeze, the direct dependent becomes `skipped` / `dependency_not_met` without a session. (A prerequisite outside the queue that is provably unsatisfied at freeze refuses the whole run before any session per 3.1 gate 1; spec `z7nbn1` OQ-04).
 7. Propagate `dependency_not_met` over reverse edges to a fixed point. Preserve immediate blocker, all root causes, and complete chains. Independent nodes continue.
 8. For an edge consumed by an `execute` turn, `executed` status text alone does not satisfy an `executed:` edge. Terminal structure and deterministic execution/finalization evidence must pass. For an edge consumed by a `review` turn, section 2.9's review-action row applies instead: `executed`, `reviewed`, or `approved` satisfies it and no execution evidence is required. The two readings are distinguished by the consuming action and by nothing else.
-9. A `superseded`, `not-executed`, `blocked`, `parked`, or `deferred` target satisfies only an explicit `exists:` edge or a matching `state:` edge. It never satisfies `executed:`, under either consuming action. The review-action relaxation in section 2.9 widens the satisfying set to `reviewed` and `approved` only; it does not admit any state in this rule.
+9. A `superseded`, `not-executed`, `blocked`, `parked`, or `deferred` target satisfies only an explicit `exists:` edge or a matching `state:` edge. It never satisfies `executed:`, under either consuming action. The review-action relaxation in section 2.9 widens the satisfying set to `reviewed` and `approved` only (plus `to-review` under `--review-unreviewed-deps`); it does not admit any state in this rule.
 10. Newly generated IPDs are recorded in the result as generated next actions and never join the frozen run. A generated IPD must still resolve `Item-Dependencies` before review-readiness.
 11. The queue never incorporates unrelated files discovered after freezing.
 12. An orchestrator whose action is `review` is ordered after the Set's children whose action is also `review`, as it already is for action `orchestrate`.

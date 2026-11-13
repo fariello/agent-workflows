@@ -122,11 +122,16 @@ def is_edge_satisfied_on_disk(
     repo_root: Path,
     edge: Any,
     consumer_action: str = "execute",
+    review_unreviewed_deps: bool = False,
 ) -> Tuple[bool, str]:
     """Check if a declared ItemDependency edge is satisfied against current disk state."""
     from agent_workflows import runner_shared
 
-    state = {"repo": repo_root, "queue": []}
+    state = {
+        "repo": repo_root,
+        "queue": [],
+        "options": {"review_unreviewed_deps": review_unreviewed_deps},
+    }
     consumer_item = {"action": consumer_action}
     try:
         satisfied, reason = runner_shared.edge_satisfied(edge, consumer_item, state, {})
@@ -144,6 +149,7 @@ def expand_candidates_with_dependencies(
     action: Optional[str] = None,
     include_active: bool = False,
     run_map: Optional[Dict[str, str]] = None,
+    review_unreviewed_deps: bool = False,
 ) -> List[_att.Item]:
     """Expand candidates with declared prerequisites that are not yet executed on disk.
 
@@ -177,7 +183,10 @@ def expand_candidates_with_dependencies(
                 continue
 
             sat_disk, _ = is_edge_satisfied_on_disk(
-                repo_root, edge, consumer_action=action or "execute"
+                repo_root,
+                edge,
+                consumer_action=action or "execute",
+                review_unreviewed_deps=review_unreviewed_deps,
             )
             if sat_disk:
                 continue
@@ -279,6 +288,10 @@ def _is_active_member(
     return bool(st and st != "-")
 
 
+#: Statuses at which a plan needs no further review (see `classify_sets`).
+_REVIEW_SETTLED_STATUSES = frozenset({"reviewed", "approved", "auto-approved"})
+
+
 def classify_sets(
     repo_root: Path,
     candidates: Sequence[_att.Item],
@@ -287,6 +300,7 @@ def classify_sets(
     action_flag: Optional[str] = None,
     include_active: bool = False,
     run_map: Optional[Dict[str, str]] = None,
+    review_unreviewed_deps: bool = False,
 ) -> Dict[str, SetClassification]:
     """Classify every distinct Set that has a selected member and an orchestrator on disk."""
     if not include_active and run_map is None:
@@ -373,6 +387,16 @@ def classify_sets(
 
             m_status = (m.status or "").lower()
             if m_status in terminal_statuses:
+                finished.append(m.id6)
+                continue
+            if (
+                review_unreviewed_deps
+                and batch_action == _run_selection_policy.ACTION_REVIEW
+                and m_status in _REVIEW_SETTLED_STATUSES
+            ):
+                # `--review-unreviewed-deps`: a review batch has nothing to do for a member that is
+                # already reviewed, and no orchestrator retires in a review run, so it neither blocks
+                # the Set nor needs approval first.
                 finished.append(m.id6)
                 continue
 
@@ -582,7 +606,10 @@ def classify_sets(
             edges = member_edges.get(mid, [])
             for edge in edges:
                 sat_disk, _ = is_edge_satisfied_on_disk(
-                    repo_root, edge, consumer_action=action_flag or "execute"
+                    repo_root,
+                    edge,
+                    consumer_action=action_flag or "execute",
+                    review_unreviewed_deps=review_unreviewed_deps,
                 )
                 if sat_disk:
                     continue
@@ -975,6 +1002,7 @@ def format_shard(
     profile: Optional[str] = None,
     model: Optional[str] = None,
     variant: Optional[str] = None,
+    extra_flags: Sequence[str] = (),
 ) -> str:
     """Format shard IDs into an executable command line string."""
     if not ids:
@@ -991,6 +1019,7 @@ def format_shard(
             parts.extend(["--model", shlex.quote(model)])
         if variant:
             parts.extend(["--variant", shlex.quote(variant)])
+        parts.extend(extra_flags)
         return " ".join(parts)
 
     if run == "none":
@@ -1004,6 +1033,7 @@ def format_shard(
             parts.extend(["--model", shlex.quote(model)])
         if variant:
             parts.extend(["--variant", shlex.quote(variant)])
+        parts.extend(extra_flags)
         return " ".join(parts)
     else:
         raise ValueError(f"Unknown runner format: {run!r}")
@@ -1394,6 +1424,14 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     model = getattr(args, "model", None)
     variant = getattr(args, "variant", None)
     action_flag = getattr(args, "action", None)
+    if getattr(args, "review_unreviewed_deps", False):
+        if action_flag not in (None, "review"):
+            print(
+                "Error: --review-unreviewed-deps applies to review runs only",
+                file=sys.stderr,
+            )
+            return 2
+        action_flag = "review"
     order_by_flag = getattr(args, "order_by", None)
     is_json = bool(getattr(args, "json", False))
     is_agent = bool(getattr(args, "agent", False))
@@ -1472,6 +1510,9 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                 action=action_flag,
                 include_active=include_active,
                 run_map=run_map,
+                review_unreviewed_deps=bool(
+                    getattr(args, "review_unreviewed_deps", False)
+                ),
             )
 
         pre_max_candidates = apply_max_count(raw_candidates, None, effective_order_by)
@@ -1485,6 +1526,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             action_flag=action_flag,
             include_active=include_active,
             run_map=run_map,
+            review_unreviewed_deps=bool(getattr(args, "review_unreviewed_deps", False)),
         )
 
         # Action homogeneity check for plans performed AFTER Set classification.
@@ -1624,6 +1666,16 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             print(f"{err_label} {e}", file=sys.stderr)
             return 2
 
+    # `--review-unreviewed-deps` (spec 25kzda 2.9): a review consumer then accepts a `to-review`
+    # prerequisite, so nothing forces a chain into one shard. Dropping the Set-cohesion edges lets an
+    # oversized component split across shards like any other; the emitted commands carry the flag so
+    # each shard's run applies the same rule.
+    relax_reviews = bool(getattr(args, "review_unreviewed_deps", False))
+    shard_flags: Tuple[str, ...] = ()
+    if relax_reviews:
+        extra_edges = None
+        shard_flags = ("--review-unreviewed-deps",)
+
     part_res = partition(
         candidates,
         shards_val,
@@ -1660,6 +1712,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                 profile=profile,
                 model=model,
                 variant=variant,
+                extra_flags=shard_flags if effective_action == "review" else (),
             )
             commands.append(cmd)
 

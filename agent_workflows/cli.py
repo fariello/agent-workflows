@@ -4898,6 +4898,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter by priority (high, medium, low).",
     )
     p_partition.add_argument(
+        "--review-unreviewed-deps",
+        dest="review_unreviewed_deps",
+        action="store_true",
+        default=False,
+        help=(
+            "For review runs: let dependent plans be reviewed while their prerequisites are still "
+            "'to-review', so a dependency chain can split across shards. Adds the same flag to each "
+            "emitted 'aw oc run' command."
+        ),
+    )
+    p_partition.add_argument(
         "--action",
         dest="action",
         choices=("execute", "plan", "review"),
