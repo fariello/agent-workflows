@@ -2,15 +2,16 @@
 
 - Date: 2026-11-02
 - Kind: orchestrator
-- Concern: Spec `4sd62s` (artifact metadata store, approved 2026-11-02, `Blocks-Release: next`) replaces hand-editable bullet metadata and `## Workflow history` sections with tracked per-artifact event logs, a SQLite read cache and one interface, `artifact_meta`, ending with a one-commit attended cutover (spec section 7). None of it exists yet.
-- Scope: Orchestration only: sequence the thirteen children below and confirm each reaches `executed`. No code, test or record work of its own.
+- Concern: Spec `4sd62s` (artifact metadata store, approved 2026-11-02, amended 2026-11-07 for C12 generic prior-format migration, `Blocks-Release: next`) replaces hand-editable bullet metadata and `## Workflow history` sections with tracked per-artifact event logs, a SQLite read cache and one interface, `artifact_meta`, ending with a one-commit attended cutover (spec `4sd62s` section 7). Four early children (`7ehv8l`, `tve77h`, `1ajqaa`, `2xwb9b`) are `executed`; the remaining 208 children are `pending`.
+- Scope: Orchestration only: sequence the 212 children below (14 top-level families and their split parts) in dependency order and confirm each reaches `executed`. No code, test or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: a27fb86976ecb104044785af9100e2be85e55fc1b10ae16c228a2d2bcdbd57e4
-- Coverage-Checked: 2026-11-09 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 702f3b688c5bf2c711f8495a0280ebebc638afcf1a8dfc63fe9ca3cc0a232c66
+- Coverage-Checked: 2026-11-13 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
@@ -21,7 +22,12 @@
 - Id: 63ib9r
 - Review-Depth: orchestrator
 
+> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+
 ## Workflow history
+- 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED
+- 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED; review record .aw/records/reviews/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.review.md
+- 2026-11-13 coverage pass (aw oc run): fingerprint 702f3b688c5b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-09 coverage pass (aw oc run): fingerprint a27fb86976ec, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): child table and checklist regenerated for the round-3 split (212 children; research nj8zdp followability guidance).
 - 2026-11-08 coverage pass (aw oc run): fingerprint 5ee2b9b89d8c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -33,14 +39,13 @@
 - 2026-11-06 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.review.md
 - 2026-11-06 coverage pass (aw oc run): fingerprint 96fe24cd857b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-05 to-review (aw set): authored review-ready: orchestrates spec 4sd62s across 13 children; coverage pass
-
 - 2026-11-05 coverage pass (aw oc run): fingerprint b5e3d8673f4a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-05 coverage fail (aw oc run): fingerprint c66561f7c8ed, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-02 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-Build spec `4sd62s` as thirteen independently executable children in the facade-first order of spec section 7, ending with the attended cutover commit.
+Deliver spec `4sd62s` across 212 independently executable children (14 top-level families and their split parts) in the facade-first dependency order of spec `4sd62s` section 7, proving generic prior-format migration before cutover (`g5hpbb`) and ending with the attended pre-cutover dry run (`tub3ir`), clone rehearsal (`5qyba0`) and real cutover commit (`cxxmyv`).
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -1329,9 +1334,65 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 298 | `po3o1c` | `20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.ipd.md` | Move the backlog parse_item metadata callers onto artifact_meta. | `executed:1ajqaa`, `executed:59aiyh`, `executed:dcerjg`, `executed:ffceq0`, `executed:g5hpbb`, `executed:t4gl15`, `executed:um2kvx` |
 | 299 | `vw88h0` | `20261109-metastore-299-vw88h0-remove-the-metadata-part-of-backlog-parse-item-and-verify-th.ipd.md` | Remove the metadata part of backlog parse_item and verify the subset-2 deletions. | `executed:1ajqaa`, `executed:59aiyh`, `executed:dcerjg`, `executed:ffceq0`, `executed:g5hpbb`, `executed:po3o1c`, `executed:t4gl15` |
 
-SPLIT 2026-11-07 and again 2026-11-09 (maintainer step-complexity rule, then research `nj8zdp` followability guidance: a modest agent must be able to execute each plan). Orders 15 to 299 are parts split out of Orders 04, 05, 07, 08, 09, 10, 11 and 13; each original keeps its id6 as its family's LAST part and depends on every part, so an `executed:<original>` edge still means the whole family is done. Order numbers past 14 are only the next free numbers: the runner orders by the dependency edges in this table (dependency depth first), not by Order.
+SPLIT 2026-11-07 and again 2026-11-09 (maintainer step-complexity rule, then research `nj8zdp` followability guidance: a modest agent must be able to execute each plan). Orders 15 to 299 are parts split out of Orders 04, 05, 07, 08, 09, 10, 11, 12, 13 and 14; each original keeps its id6 as its family's final capstone and depends on every part in its family, so an `executed:<original>` edge still means the whole family is done. Order numbers past 14 are only the next free numbers: the runner orders by the dependency edges in this table (`dependency_depth` first), not by `Order`.
 
-Phase A (Orders 01 to 05, plus Order 14 added 2026-11-07 for spec C12, and their split parts) adds code on today's format and moves no caller; Order 01 is records only. Phase B (Orders 06 to 11) moves every writer and reader onto `artifact_meta` while the on-disk format stays the legacy bullet block, so `main` has one format at every merge (spec C10a). Order 12 prepares the post-cutover documentation as a patch file that never reaches the live documents before the cutover. Order 13 is `Attended: required`: it runs in the maintainer's main checkout, which holds the history sidecar, so an `--unattended` run holds it `not-run` and this orchestrator cannot retire until Order 13 has been run attended.
+Phase A (Orders 01 to 05, plus Order 14 `g5hpbb` added 2026-11-07 for spec `4sd62s` C12, and their split parts) adds code on today's format and moves no caller; Order 01 (`7ehv8l`) is records only. Phase B (Orders 06 to 11 and their split parts) moves every writer and reader onto `artifact_meta` while the on-disk format stays the legacy bullet block, so `main` has one format at every merge (spec `4sd62s` C10a). Order 12 (`90iqr1` and Orders 250 to 253) prepares the post-cutover documentation as a patch file that never reaches the live documents before the cutover. Three plans in the Order 13 cutover family carry `- Attended: required` (`tub3ir` at Order 254, `5qyba0` at Order 260, and `cxxmyv` at Order 13) because they run against or clone from the maintainer's main checkout, which holds `.aw/records/history.jsonl`; an `--unattended` run holds all three `not-run`, so this orchestrator cannot retire until `tub3ir`, `5qyba0` and `cxxmyv` have been run attended.
+
+```mermaid
+flowchart TD
+  subgraph PhaseA["Phase A: Additive code and C12 migration on legacy format"]
+    P01["01 7ehv8l: supersede 2vev8j and carry ms06pi gate"]
+    P02["02 tve77h: artifact_meta core, cache and legacy loader"]
+    P03["03 1ajqaa: aw show and aw index rebuild"]
+    P04["04 dcerjg family: m0001 migration on copy"]
+    P05["05 ya4ee4 family: tool-less description journal"]
+    P14["14 g5hpbb family: C12 five-shape generic migration (AC-42)"]
+    P02 -->|executed| P03
+    P02 -->|executed| P04
+    P04 -->|executed| P05
+    P04 -->|executed| P14
+  end
+
+  subgraph PhaseB["Phase B: Facade-first caller migration on legacy format"]
+    P06["06 2xwb9b: status_set writer"]
+    P07["07 xexn45 family: remaining writers"]
+    P08["08 ffceq0 family: selectors, check, attention and lint readers"]
+    P09["09 t4gl15 family: runner, gate, hook and module readers"]
+    P10["10 59aiyh family: shared test record builder"]
+    P48["48 clors0 family: dormant log-format gates, readers and commit seam"]
+    P11["11 9o83cr family: delete legacy parsers and INDEX/STATUS code"]
+    P01 -->|executed| P06
+    P02 -->|executed| P06
+    P06 -->|executed| P07
+    P07 -->|executed| P08
+    P14 -->|executed| P08
+    P08 -->|executed| P09
+    P07 -->|executed| P10
+    P14 -->|executed| P10
+    P03 -->|executed| P48
+    P05 -->|executed| P48
+    P09 -->|executed| P48
+    P10 -->|executed| P11
+    P48 -->|executed| P11
+  end
+
+  subgraph PhaseC["Phase C: Post-cutover patches and attended cutover"]
+    P12["12 90iqr1 family: post-cutover documentation patch"]
+    P254["254 tub3ir (Attended: required): model record and pre-cutover dry run"]
+    P258["255-259 2k5t16..0zylig and 33vxoi: code-switch patch and demo script"]
+    P260["260 5qyba0 (Attended: required): full cutover rehearsal on clone"]
+    P13["13 cxxmyv (Attended: required): real metadata cutover commit"]
+    P11 -->|executed| P12
+    P12 -->|executed| P254
+    P05 -->|executed| P254
+    P48 -->|executed| P254
+    P12 -->|executed| P258
+    P254 -->|executed| P258
+    P254 -->|executed| P260
+    P258 -->|executed| P260
+    P260 -->|executed| P13
+  end
+```
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -1339,36 +1400,37 @@ Phase A (Orders 01 to 05, plus Order 14 added 2026-11-07 for spec C12, and their
 - `artifact_meta` provides the registry, event schema, `append` key, path rule, cache and legacy loader (AC-4, AC-5, AC-8, AC-17, AC-18, AC-23, AC-24, AC-26, AC-33, AC-39). Owner: `tve77h`.
 - `aw show --history`, `aw show --format json` and `aw index rebuild` exist (AC-2 on a fixture). Owner: `1ajqaa`.
 - Migration `m0001` is built and proven on a copy (AC-10, AC-11, AC-14, AC-14a(5), AC-19, AC-20, AC-22(1), AC-27, AC-28, AC-29, AC-30, AC-32, AC-40, AC-41). Owner: `dcerjg`.
+- `aw migrate metadata` and the phase-A cache handle every prior repository format (C12 shapes (a) to (e), section 5.2a chained layout stage, records-root resolution through `project_context`, id minting and sidecar-free operation) with zero repository-specific constants (AC-42, AC-10 per fixture repository, AC-18 on non-default records roots). Owners: `g5hpbb`, `9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`.
 - Short descriptions are generated tool-less and sanitized through the journal (AC-36 cases 3, 4, 5, 7). Owner: `ya4ee4`.
 - Every writer goes through `artifact_meta` (AC-15, AC-14a(1-4), AC-21, and the phase-B forms of AC-3, AC-6 and AC-31). Owners: `2xwb9b`, `xexn45`.
 - Every reader goes through `artifact_meta` or `read_at` (AC-1a, AC-7, AC-9 reader part, AC-12). Owners: `ffceq0`, `t4gl15`.
 - Test data uses one shared record builder. Owner: `59aiyh`.
 - No legacy parser or INDEX/STATUS code remains outside `artifact_meta` (AC-1, AC-9). Owner: `9o83cr`.
-- The post-cutover documentation is ready as an applicable patch. Owner: `90iqr1`.
-- The cutover commit has landed and the real-repository criteria are demonstrated (AC-1b, AC-13, AC-16, and the real forms of AC-1, AC-2, AC-3, AC-6, AC-7, AC-9, AC-10, AC-11, AC-22(2), AC-30(2), AC-30(3), AC-31, AC-34, AC-36(6), AC-41). Owner: `cxxmyv`.
+- The post-cutover documentation is ready as an applicable patch (`qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`). Owner: `90iqr1`.
+- The attended pre-cutover dry run (`tub3ir`), full clone rehearsal (`5qyba0`) and real cutover commit (`cxxmyv`) have landed and the real-repository criteria are demonstrated (AC-1b, AC-13, AC-16, and the real forms of AC-1, AC-2, AC-3, AC-6, AC-7, AC-9, AC-10, AC-11, AC-22(2), AC-30(2), AC-30(3), AC-31, AC-34, AC-36(6), AC-41). Owners: `tub3ir`, `5qyba0`, `cxxmyv`.
 
 ## Cross-IPD validation
 
-- Interface consistency is owned by the phase-B children themselves: `2xwb9b`, `xexn45`, `ffceq0`, `t4gl15` and `59aiyh` each call the `artifact_meta` names `tve77h` defines, and each of their `V-*` items runs its moved consumers' existing tests against that interface.
-- The migration `cxxmyv` runs is the one `dcerjg` proved on a copy, with the description journal of `ya4ee4`.
-- The documentation `cxxmyv` lands is `90iqr1`'s patch, guarded until then by `90iqr1`'s apply test.
-- Post-merge revalidation of each child is the runner's merge-and-revalidate gate, not work of this plan.
+- Interface consistency is owned by the phase-B children themselves: `2xwb9b`, `xexn45`, `ffceq0`, `t4gl15` and `59aiyh` each call the `artifact_meta` names `tve77h` and `bv4kkj` define, and each of their `V-*` items runs its moved consumers' existing tests against that interface.
+- The migration `cxxmyv` runs is the one `dcerjg` proved on a copy and `g5hpbb` (`9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`) proved generic across all five C12 prior-format shapes (AC-42), using the description journal of `ya4ee4` and the attended pre-cutover dry run and baseline timings of `tub3ir`.
+- The dormant log-format gates, readers, commands and extra-path commit seam that `cxxmyv` activates are built by `clors0` (`6jd6mh`, `wilgfy`, `724acb`, `v45j1n`); the code-switch patch is assembled by `2k5t16`, `g45vyv`, `x1mmdp` and `0zylig`; the documentation patch is assembled and apply-tested by `90iqr1` (`qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`); and `5qyba0` rehearses applying both patches and running `33vxoi`'s demonstration script on a clone before `cxxmyv` touches `main`.
+- Post-merge revalidation of each child is the runner's merge-and-revalidate gate, not work of this plan (`63ib9r` runs no step of its own; each child in `## Child IPDs` validates its own deliverables).
 
 ## Deferred / out of scope (with reason)
 
-- The execution record (`finalize` and `turn` events, per-item cost) and the run index were split out of `4sd62s` on 2026-11-01 and are implemented after this Set's cutover.
+- The execution record (`finalize` and `turn` events, per-item cost; spec `37am1y`, AC-35, AC-37) was split out of `4sd62s` on 2026-11-01 so it lands after this Set's cutover.
   - Carrier: nq1src
-- The run index.
+- The run index (spec `bfuzs6`, AC-25, AC-38) was split out of `4sd62s` on 2026-11-01 so it lands after this Set's cutover.
   - Carrier: f4p4vn
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. Every step of spec section 7 has a child: step 1 `tve77h`, step 2 `1ajqaa`, step 3 `dcerjg` and `ya4ee4`, step 4 `2xwb9b` and `xexn45`, step 5 `ffceq0` and `t4gl15`, step 6 `59aiyh`, step 7 `9o83cr`, step 8 `90iqr1`, step 9 `cxxmyv`, and the OQ-4 supersede step `7ehv8l`.
+- Under-scope: none. Every step of spec `4sd62s` section 7 has a child family: step 1 `tve77h`, step 2 `1ajqaa`, step 3 `dcerjg` and `ya4ee4`, step 3a `g5hpbb` (`9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`), step 4 `2xwb9b` and `xexn45`, step 5 `ffceq0` and `t4gl15`, step 6 `59aiyh`, step 7 `9o83cr`, step 8 `90iqr1`, step 9 `cxxmyv` (with `clors0`, `tub3ir`, `2k5t16`, `g45vyv`, `x1mmdp`, `0zylig`, `33vxoi` and `5qyba0`), and the OQ-4 supersede step `7ehv8l`.
 
 ## Required tests / validation
 
-This plan runs no tests. Each child runs its own suites; `cxxmyv` performs the whole-repository demonstration at the cutover.
+This plan runs no tests of its own: each child in `## Child IPDs` (`7ehv8l` through `vw88h0`) runs its own suites, `g5hpbb` proves generic five-shape migration (AC-42) before cutover, `5qyba0` rehearses the full cutover and `33vxoi` acceptance script on a clone, and `cxxmyv` performs the whole-repository demonstration at the cutover.
 
 ## Open questions
 
@@ -1377,11 +1439,11 @@ This plan runs no tests. Each child runs its own suites; `cxxmyv` performs the w
 - Blocking: no
 - Status: resolved
 - Owner: plan author
-- Resolution or deferral rationale: Not now. Both are within the size limits (18 and 16 E-items, 5 task groups), and each records a concrete split point; `/plan-review` of each child decides. A split adds rows to this table before approval, so it cannot leave an unauthored row. Recommendation strength: medium. Confirmed 2026-11-06: the `/plan-review` of `tve77h` (decision D-1) and of `dcerjg` (decision D-2) each declined the split.
+- Resolution or deferral rationale: Not now. Both are within the size limits (18 and 16 E-items, 5 task groups), and each records a concrete split point; `/plan-review` of each child decides. A split adds rows to this table before approval, so it cannot leave an unauthored row. Recommendation strength: medium. Confirmed 2026-11-06: the `/plan-review` of `tve77h` (decision D-1) and of `dcerjg` (decision D-2) each declined the split (`tve77h` executed intact; `dcerjg` was later split alongside Orders 05, 07 to 14 in the 2026-11-07 and 2026-11-09 Set-wide splits).
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) (as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste `aw find plans 7ehv8l` output showing the plan under `.aw/records/plans/executed/`.
@@ -2448,4 +2510,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: exception
 - Cohesion rationale: An orchestrator's items are one CONFIRM-executed check per child and carry no work of their own; the item count equals the child count (212 after the 2026-11-09 round-3 split). Splitting the orchestrator would not shrink any unit of work, only scatter the Set's completion checklist.
 
-Execute only after explicit human approval (`Status: approved`) of this plan and of each child. This plan performs no work of its own; each child carries its own scope fence, test evidence and path-scoped `aw commit`. Each `V-*` item MUST paste the actual `aw find plans <id6>` output. Under `aw oc run` / `aw agy run` the runner retires this plan once every child is `executed` on disk. When executing by hand, run the children in table order (Order 13 attended), then confirm each, run `aw ipd lint --phase pre-transition` and `aw ipd finalize` on this plan. Commit only through `aw commit 63ib9r -- <paths>`; never push.
+Execute only after explicit human approval (`Status: approved`) of this plan and of each child. This plan performs no work of its own; each child carries its own scope fence, test evidence and path-scoped `aw commit`. Each `V-*` item MUST paste the actual `aw find plans <id6>` output. Under `aw oc run` / `aw agy run` the runner retires this plan once every child is `executed` on disk (`tub3ir`, `5qyba0` and `cxxmyv` carry `- Attended: required` and are held `not-run` under `--unattended`). When executing by hand, run the children in `- Item-Dependencies:` topological order (never table row order, because rows 04 to 13 depend on split parts at Orders 14 to 299), running `tub3ir`, `5qyba0` and `cxxmyv` attended in the main checkout, then confirm each child, run `aw ipd lint --phase pre-transition` and `aw ipd finalize` on this plan. Commit only through `aw commit 63ib9r -- <paths>`; never push.
