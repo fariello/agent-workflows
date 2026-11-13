@@ -9,13 +9,22 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
-from typing import Any
+from typing import Any, Iterator
 from unittest import mock
 
 import pytest
 
 from agent_workflows import runner_shared
 from tests import support
+
+
+@pytest.fixture(autouse=True)
+def _private_suite_lock_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Path]:
+    lock_dir = tmp_path / ".suite-locks"
+    monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(lock_dir))
+    yield lock_dir
 
 
 @pytest.fixture
@@ -351,6 +360,7 @@ def test_case_f_end_to_end_run_suite_check_budget_only(tmp_path: Path) -> None:
         "AW_CORE_BUDGET_SECONDS": "0.01",
         "AW_TEST_CPU_COUNT": "12",
         "AW_NO_REEXEC": "1",
+        "AW_SUITE_LOCK_DIR": str(tmp_path / ".suite-locks"),
     }
     with mock.patch.dict(os.environ, env_overrides, clear=False):
         for k in (

@@ -17,12 +17,24 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Iterator
 from unittest import mock
 
+import pytest
 
 from agent_workflows import runner_shared
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _private_suite_lock_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Path]:
+    lock_dir = tmp_path / ".suite-locks"
+    monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(lock_dir))
+    yield lock_dir
+
 
 FIXTURE_CONFTEST = """\
 import os
@@ -68,6 +80,8 @@ def _fixture_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env["PYTHONPATH"] = str(REPO_ROOT)
     env["AW_CORE_BUDGET_SECONDS"] = "0.01"
     env["AW_TEST_CPU_COUNT"] = "12"
+    if "AW_SUITE_LOCK_DIR" in os.environ:
+        env["AW_SUITE_LOCK_DIR"] = os.environ["AW_SUITE_LOCK_DIR"]
     for key in (
         "PYTEST_ADDOPTS",
         "PYTEST_CURRENT_TEST",

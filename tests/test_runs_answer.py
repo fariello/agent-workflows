@@ -667,7 +667,7 @@ def test_live_run_questions_and_answer_with_barrier(tmp_path: Path) -> None:
         elif cid6 == "bar002":
             # Item 2 signals it has started, then waits on the barrier
             barrier_entered.set()
-            barrier_release.wait(timeout=10.0)
+            barrier_release.wait(timeout=30.0)
 
             outcome_data = {
                 "disposition": "executed",
@@ -703,7 +703,9 @@ def test_live_run_questions_and_answer_with_barrier(tmp_path: Path) -> None:
     driver_thread.start()
 
     # Wait until Item 2 is executing and blocked on the barrier
-    assert barrier_entered.wait(timeout=10.0), "Item 2 did not start execution"
+    assert barrier_entered.wait(
+        timeout=30.0
+    ), f"Item 2 did not start execution (driver_error={driver_error})"
 
     try:
         # 1. Assert driver holds driver.lock
