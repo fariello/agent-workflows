@@ -6,7 +6,9 @@
 - Scope: delete or rewrite the 8 `stale-index` lines in `agent_workflows/doctor.py` in one edit and update `tests/test_doctor.py`. EXCLUDES every other module (Orders 224 and 229).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py, .aw/records/plans/pending/20261109-metastore-225-f1yjlx-delete-the-stale-index-remediation-from-doctor.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6qh68x, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: f1yjlx
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `q6epwc` E-05's site list is split across Orders 224, 229 and 225; this plan takes "the `"stale-index" in rule` remediation branch of `doctor.build_remediation`, the priority-4 stale-index case of `doctor.resolve_next_actions` and the other `stale-index` substring sites in `doctor`" and the test module `tests/test_doctor.py` from E-05's list. Keep the `doctor.index-` prefix match if a `doctor.index-*` rule still exists after `rg -n "doctor.index-" agent_workflows`; today it occurs only in that same branch.
 
-PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/f1yjlx/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
+PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`mkdir -p .aw/state/f1yjlx && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/f1yjlx/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_doctor.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Pin `tests/test_doctor.py` (PIN RULE, `mkdir -p .aw/state/f1yjlx && ` capture to `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/f1yjlx/E-01-before.txt` exists.
   - Execution state: pending
@@ -72,6 +75,14 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "stale-index" agent_workflows/doctor.
 2. Delete the remediation branch (E-02) and the other sites (E-03).
 3. Retarget and commit (E-04).
 
+```mermaid
+flowchart TD
+    A["E-01: Pin baseline test outcomes (E-01-before.txt)"] --> B["E-02: Delete stale-index branch in doctor.build_remediation"]
+    B --> C["E-03: Delete priority-4 case & cleanup substring tests in doctor.py"]
+    C --> D["E-04: Retarget tests/test_doctor.py & verify clean doctor output"]
+    D --> E["V-01..V-04: Validate evidence, pass core gate, commit"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - The `engine.py` `.aw/.gitignore` template comment: removed with the ignore lines at the cutover.
@@ -96,7 +107,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from q6epwc)
 - Resolution or deferral rationale: The executor follows `rg -n "stale-index" agent_workflows/doctor.py`; the expected outcome (no line) is what counts, whichever function holds the substring test at execution time. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -128,4 +139,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 229 first, so no emitter still produces a rule this plan stops remediating). Every deletion is pin-first (PIN RULE above). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit f1yjlx -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 229 first, so no emitter still produces a rule this plan stops remediating). A narrow safety stop applies if prerequisite metastore symbols from `1ajqaa`, `59aiyh`, `6qh68x`, `dcerjg`, `ffceq0`, `g5hpbb`, `sdzcur`, `t4gl15`, or `tqknnc` are absent. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit f1yjlx -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize f1yjlx` itself.
