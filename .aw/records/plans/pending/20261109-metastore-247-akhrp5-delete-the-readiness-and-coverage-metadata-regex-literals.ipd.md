@@ -6,7 +6,9 @@
 - Scope: delete the 12 literals in four modules, each use reading through `artifact_meta`; `plan_readiness._OQ_FIELD_RE` stays (body prose, N3). EXCLUDES the ipd modules (Order 246).
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/readiness_recheck.py, agent_workflows/coverage_record.py, agent_workflows/orchestrator_readiness.py, tests/test_coverage_record.py, tests/test_orchestrator_readiness.py, tests/test_plan_readiness_recheck.py, .aw/records/plans/pending/20261109-metastore-247-akhrp5-delete-the-readiness-and-coverage-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:nx7fws, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, LIT searches, execution gate, and PIN rule; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 0xsx2n (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `0xsx2n` E-22's site list is split across Orders 246 and 247; this plan takes "`plan_readiness` (6: `_READINESS_FIELD_PRESENT_RE`, `_READINESS_LINE_SUB_RE`, `_STATUS_RE`, the two `id6_match` literals in `approval_refusals` and `recheck_conditions`; `_OQ_FIELD_RE` is body prose, N3, and stays), `readiness_recheck` (1, in `_run_stale_findings`), `coverage_record` (4: `_COVERAGE_LINE_RE`, `_STATUS_LINE_RE`, `_READINESS_LINE_RE`, `_ID_LINE_RE`), `orchestrator_readiness` (1, `_BATCH_META_RE`). ... Update `tests/test_coverage_record.py` where a test names a deleted pattern."
 
-PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of the named test modules (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/akhrp5/before.txt`); after the last edit, the same into `after.txt`. A retargeted test keeps every input case; a test edited because it names a deleted pattern is justified at finalize (`--scope-reason`) if it is outside Scope-Paths.
+PIN RULE (carried from `9o83cr`): before E-01, create directory `mkdir -p .aw/state/akhrp5/` and save the per-test outcome list of the named test modules (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/akhrp5/before.txt`); after the last edit, the same into `after.txt`. A retargeted test keeps every input case; a test edited because it names a deleted pattern is justified at finalize (`--scope-reason`) if it is outside Scope-Paths.
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 In `agent_workflows/plan_readiness.py`, delete `plan_readiness._READINESS_FIELD_PRESENT_RE`, `_READINESS_LINE_SUB_RE`, `_STATUS_RE` and the `id6_match` literals in `plan_readiness.approval_refusals` and `recheck_conditions`; keep `_OQ_FIELD_RE`.
+- [ ] E-01 Ensure `.aw/state/akhrp5/` exists (`mkdir -p .aw/state/akhrp5/`) and save the three PIN modules baseline to `.aw/state/akhrp5/before.txt`; then in `agent_workflows/plan_readiness.py`, delete `plan_readiness._READINESS_FIELD_PRESENT_RE`, `_READINESS_LINE_SUB_RE`, `_STATUS_RE` and the `id6_match` literals in `plan_readiness.approval_refusals` and `recheck_conditions`; keep `_OQ_FIELD_RE`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/plan_readiness.py` prints only `_OQ_FIELD_RE`.
   - Execution state: pending
@@ -75,6 +78,20 @@ Measured at `ac76110f4` (`0xsx2n` F-27): `plan_readiness` 6 plus 1 body prose, `
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Delete plan_readiness literals (E-01)<br/>agent_workflows/plan_readiness.py"]
+    E02["2. Delete readiness_recheck literal (E-02)<br/>agent_workflows/readiness_recheck.py"]
+    E03["3. Delete coverage_record literals (E-03)<br/>agent_workflows/coverage_record.py"]
+    E04["4. Delete orchestrator_readiness literal (E-04)<br/>agent_workflows/orchestrator_readiness.py"]
+    E05["5. Update tests, verify & commit (E-05)<br/>tests/, aw commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
+
 1. Delete the `plan_readiness` literals (E-01).
 2. Delete the `readiness_recheck` literal (E-02).
 3. Delete the `coverage_record` literals (E-03).
@@ -105,7 +122,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Record it in the V-item evidence and move on; a site an earlier reader plan removed needs no edit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -142,4 +159,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit akhrp5 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed or required metastore symbols from `t4gl15`, `ffceq0`, or `k6jd6l` are absent, stop and report rather than proceeding. Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit akhrp5 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize akhrp5` itself.
