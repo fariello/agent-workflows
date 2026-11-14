@@ -6,7 +6,9 @@
 - Scope: Part of the round-3 split of `9rgn2w` E-10 (2026-11-09, research `nj8zdp` guidance): generate `support.CONFORMING_ORCHESTRATOR` from the builder (E-32), prove the two consumers unchanged (E-33), delete the tracked fixture (E-34), finish (E-35). EXCLUDES: the attnview fixtures (`7fpc8v`, `z4x192`, `9zcuyh`); production code.
 - Scope-Paths: tests/support.py, tests/fixtures/conforming-orchestrator.md, .aw/records/plans/pending/20261109-metastore-217-b3eilr-generate-the-conforming-orchestrator-fixture-from-the-shared.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 653ndz (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -35,7 +38,7 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
 
 ### Task group 1: generate and prove
 
-- [ ] E-32 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/support.py`, make `support.CONFORMING_ORCHESTRATOR` a builder-generated file: because the orchestrator fixture is a `Path` used by name, it becomes a file written once per test session under a temporary directory by `RecordBuilder.plan(...)` (orchestrator kind, the same fields and sections as `tests/fixtures/conforming-orchestrator.md`), so its consumers stay unchanged.
+- [ ] E-32 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/support.py`, make `support.CONFORMING_ORCHESTRATOR` a builder-generated file: because the orchestrator fixture is a `Path` used by name and evaluated at import time in test consumers, it becomes a file written once per test session under a process-isolated temporary directory by `RecordBuilder.plan(kind="orchestrator", text_only=True, ...)` (with orchestrator headings, matching the fields and sections of `tests/fixtures/conforming-orchestrator.md`), written via a helper with `atexit` cleanup to avoid xdist worker collisions, so its consumers stay unchanged.
   - Depends on: none
   - Expected outcome: `support.CONFORMING_ORCHESTRATOR` names an existing file whose `aw ipd lint` disposition equals that of `tests/fixtures/conforming-orchestrator.md`.
   - Execution state: pending
@@ -45,7 +48,7 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
   - Expected outcome: an empty before/after `diff` for each of the two modules.
   - Execution state: pending
 
-- [ ] E-34 Delete `tests/fixtures/conforming-orchestrator.md` with `git rm` after `rg -n "conforming-orchestrator" tests tools agent_workflows` shows no reader other than the old constant, then re-run E-33's after-list.
+- [ ] E-34 Delete `tests/fixtures/conforming-orchestrator.md` with `git rm` after `rg -n "\bconforming-orchestrator\b" tests tools agent_workflows` shows no reader other than the old constant in `tests/support.py` (avoiding collisions with `nonconforming-orchestrator-rows`), then re-run E-33's after-list.
   - Depends on: E-33
   - Expected outcome: the file is gone; the two modules' outcome lists are unchanged.
   - Execution state: pending
@@ -69,6 +72,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - `tests/fixtures/review-pilot/` is the input corpus of `tools/review_pilot.py` (`manifest.json` names each plan file, `defects.json` quotes exact text to plant), and `tests/test_review_pilot.py` copies the whole directory into its fixture repository.
 - Filenames come from `artifact_naming.build_clustered_name` and parse with `artifact_naming.parse_clustered`.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- `tests/test_ipd_lint.py` and `tests/test_ipd_schema.py` evaluate `support.CONFORMING_ORCHESTRATOR` at import/class definition time, so the generated file must exist when the module is imported.
 
 ## Findings
 
@@ -77,12 +81,22 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 | Id | Evidence | Finding |
 |---|---|---|
 | F-42 | `rg -n "FIX\b|specs-valid|violations/|CONFORMING_ORCHESTRATOR|ORCH_IPD"` per module at `3d0ddb845`: `test_attention_contract` 5, `test_specs_verbs` 4, `test_specs_releases_unsafe_field` 5, `test_attention` 0, `test_attention_stem` 0, `test_ipd_lint` 17, `test_ipd_schema` 24 (all `CONFORMING_ORCHESTRATOR`/`ORCH_IPD`); `git ls-files tests/fixtures | grep attnview` lists 9 `specs-valid` and 8 `violations` files plus `README.md` | The attnview `specs-valid` set is read by three modules; `violations/` stays literal (`9rgn2w` E-10 rule 2); `test_attention` and `test_attention_stem` read no fixture file. |
+| F-43 | `tests/test_ipd_lint.py::IpdLintCliTests.EXITS`, `tests/test_ipd_lint.py::test_agent_output_is_agent_v1_jsonl_no_prose`, `tests/test_ipd_schema.py::ORCH_IPD` | `CONFORMING_ORCHESTRATOR` and `ORCH_IPD` are bound at class/module definition time; the target file must exist when `tests.support` is imported. |
+| F-44 | `tests/support.py::CONFORMING_ORCHESTRATOR`; `agent_workflows/ipd_lifecycle.py::ROLLUP_REFUSED_NONCONFORMING_ROWS`; `tests/test_orchestrator_retirement.py` "nonconforming-orchestrator-rows" | Bare `rg -n "conforming-orchestrator"` matches `nonconforming-orchestrator-rows`; word-bounded pattern `\bconforming-orchestrator\b` targets only the fixture. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Generate the fixture from the builder (E-32).
-2. Prove both consumers unchanged (E-33).
-3. Delete the tracked file (E-34), run, commit (E-35).
+1. Generate the fixture from the builder in a session tempdir with `atexit` cleanup (E-32).
+2. Prove both consumers unchanged in per-test outcome lists (E-33).
+3. Delete the tracked file with `git rm` after confirming no surviving readers via bounded search (E-34).
+4. Run core gate and commit within declared Scope-Paths (E-35).
+
+```mermaid
+flowchart TD
+    A["E-32: Generate orchestrator fixture via RecordBuilder.plan(text_only=True)"] --> B["E-33: Verify test_ipd_lint.py and test_ipd_schema.py outcome lists"]
+    B --> C["E-34: Verify no readers with word-bounded rg and git rm tracked fixture"]
+    C --> D["E-35: Run core test gate (python3 -m pytest) and path-scoped commit"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -118,7 +132,7 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-32 validates E-32
-  - Required evidence: paste the `git diff tests/support.py` for `support.CONFORMING_ORCHESTRATOR`, and `python3 -c` output printing the generated path and `ipd_lint.lint_text` dispositions of the generated file and of the tracked fixture side by side (equal).
+  - Required evidence: paste the `git diff tests/support.py` for `support.CONFORMING_ORCHESTRATOR`, and `python3 -c` output printing the generated path and `ipd_lint.lint_file` dispositions of the generated file and of the tracked fixture side by side (both conforming).
   - Observed evidence:
   - Result: pending
 
@@ -128,7 +142,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-34 validates E-34
-  - Required evidence: paste `rg -n "conforming-orchestrator" tests tools agent_workflows` (no reader), `git status --short tests/fixtures/conforming-orchestrator.md` showing it deleted, and the two modules' after-lists `diff` (empty).
+  - Required evidence: paste `rg -n "\bconforming-orchestrator\b" tests tools agent_workflows` (no reader outside `tests/support.py`), `git status --short tests/fixtures/conforming-orchestrator.md` showing it deleted, and the two modules' after-lists `diff` (empty).
   - Observed evidence:
   - Result: pending
 
@@ -142,12 +156,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `xexn45`, `j6o96i` are executed. Every open question is resolved.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (`g5hpbb`, `tve77h`, `xexn45`, `j6o96i`). All open questions are resolved.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if the work cannot be done without a production change, stop and report the missing capability.
+Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose.
+
+Safety: if prerequisite module `tests/record_builder.py` from `j6o96i` is missing or lacks `RecordBuilder.plan(kind="orchestrator", ...)`, stop and report immediately: that is an unsafe condition, not a scope question.
 
 Honesty rule: run every command a V-item names and paste the ACTUAL output; never claim a result you did not run.
 
 Commits: commit only through `aw commit b3eilr -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize b3eilr` itself.
