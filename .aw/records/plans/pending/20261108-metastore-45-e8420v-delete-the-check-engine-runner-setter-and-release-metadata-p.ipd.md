@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). The `check_engine`, runner and setter/release subsets of `9o83cr` E-12 and this plan's baseline now run in six earlier parts: shared baseline and site table F-26 `786w7r` (Order 238); `check_engine` parsers and their external callers `7uq6xg` (239), named patterns `js35bz` (240), inline literals `bcrko1` (241); runner `k6nukd` (242); setter and release `kmf6w4` (243). This plan keeps only E-17 (split into E-17 and new E-21): the family re-run, a final sweep of comments citing a deleted symbol, and the comparison against the `786w7r` baseline. EXCLUDES: every other module's literals (Order 46, `0xsx2n`), the record text readers and grammars (Order 43, `k6jd6l`), and the AC-1 audit (`9o83cr`).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/runner_shared.py, agent_workflows/status_set.py, agent_workflows/releases.py, .aw/records/plans/pending/20261108-metastore-45-e8420v-delete-the-check-engine-runner-setter-and-release-metadata-p.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:bcrko1, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:js35bz, executed:k6jd6l, executed:k6nukd, executed:kmf6w4, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: e8420v
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261108-metastore-45-e8420v-delete-the-check-engine-runner-setter-and-release-metadata-p.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to 786w7r; E-12 split across 7uq6xg, js35bz, bcrko1; E-19 moved to k6nukd; E-20 moved to kmf6w4 (its `tools/gate_drop_audit.py` `_status_meta` retarget to 7uq6xg); E-17 kept and split in place into E-17 and E-21.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9o83cr per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
@@ -38,7 +41,7 @@ This plan deletes nothing; the PIN RULE lives in each part.
 
 ### Task group 1: finish
 
-- [ ] E-17 Finish, part 1: update code comments in `check_engine`, `runner_shared`, `status_set` and `releases` that still cite a deleted symbol (`rg -n "_blob_text|_status_meta|_metadata_status|_front_matter_bullets|_STATUS_RE|_STATUS_META_RE" agent_workflows/check_engine.py agent_workflows/runner_shared.py agent_workflows/status_set.py agent_workflows/releases.py`), then run the `LIT` search of `786w7r` over those four modules.
+- [ ] E-17 Finish, part 1: update code comments in `check_engine`, `runner_shared`, `status_set` and `releases` that still cite a deleted symbol (`rg -n "_blob_text|_status_meta|_metadata_status|_front_matter_bullets|_STATUS_RE|_STATUS_META_RE" agent_workflows/check_engine.py agent_workflows/runner_shared.py agent_workflows/status_set.py agent_workflows/releases.py`), then run the `LIT` search of `786w7r` (using `LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'`) over those four modules.
   - Depends on: none
   - Expected outcome: the comment search prints nothing; the `LIT` search shows only F-26 `body prose` rows.
   - Execution state: pending
@@ -63,7 +66,13 @@ This plan deletes nothing; the PIN RULE lives in each part.
 
 ## Proposed changes (ordered, validatable)
 
-1. After the six parts, sweep comments (E-17), re-run the family's tests and compare against the `786w7r` baseline (E-21).
+```mermaid
+flowchart TD
+    E17["E-17: Sweep comments citing deleted symbols & run LIT search across the 4 modules"] --> E21["E-21: Run test suite, compare rule multisets with 786w7r F-30, verify core gates, and commit"]
+```
+
+1. Comment sweep and literal check (E-17): Update obsolete code comments in `agent_workflows/check_engine.py`, `agent_workflows/runner_shared.py`, `agent_workflows/status_set.py`, and `agent_workflows/releases.py` that still cite deleted symbols (`_blob_text`, `_status_meta`, `_metadata_status`, `_front_matter_bullets`, `_STATUS_RE`, `_STATUS_META_RE`), ensuring the search returns clean, and run the `LIT` regex pattern over those modules to confirm only F-26 `body prose` rows remain.
+2. Verification, baseline comparison, and commit (E-21): Run the relevant unit tests (`tests/test_check_engine_status_meta.py`, `tests/test_gate_drop_audit.py`, `tests/test_runner_shared.py`, `tests/test_status_set.py`, `tests/test_releases.py`, and `tests/test_check_engine*.py`), compare `aw check all --agent` and `aw check all --all --agent` rule multisets against `786w7r` F-30, pass the core test gate (`python3 -m pytest`), `aw ipd lint`, and `aw sanitize --agent`, then commit Scope-Paths changes through `aw commit e8420v`.
 
 ## Deferred / out of scope (with reason)
 
@@ -103,7 +112,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. Each literal is private to its module (none of the 62 sites here is imported elsewhere except `_status_meta`, `_blob_text`, `_metadata_status` and `_front_matter_bullets`, whose external callers this plan retargets), so the two parts can merge in either order and each leaves `main` green. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -125,4 +134,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit e8420v -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if any prerequisite plan in `- Item-Dependencies:` is unexecuted, or prerequisite metastore reader symbols or baseline F-30 tables are missing, or tests fail, stop and report rather than continuing. Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit e8420v -- <paths>`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` through `aw ipd finalize <id6>` (invoked by the runner in automated execution, or by the operator when executing standalone; never a hand `git mv`), only after `aw ipd lint --phase pre-transition` conforms and every `V-*` item reads `pass` with pasted evidence.
