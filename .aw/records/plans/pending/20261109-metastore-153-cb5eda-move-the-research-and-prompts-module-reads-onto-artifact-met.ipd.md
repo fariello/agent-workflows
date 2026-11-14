@@ -6,7 +6,9 @@
 - Scope: `jd7874` E-03 (research and prompts modules), divided into a research step (E-01) and a prompts step (E-02), and `jd7874` E-04 (banner-blind research body test, E-03), carried unchanged. EXCLUDES: the plans modules and the INDEX baseline (`kyl3m4`); the residual audit (kept in `jd7874`); deleting the INDEX writers and parsers (Order 11).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/prompts_index.py, tests/test_readers_record_modules.py, .aw/records/plans/pending/20261109-metastore-153-cb5eda-move-the-research-and-prompts-module-reads-onto-artifact-met.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:kyl3m4
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, pinning rules, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from jd7874 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -85,6 +88,16 @@ DECISIONS (copied from `t4gl15` through `jd7874`, whose text is authoritative): 
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Pin & move research modules onto artifact_meta (E-01)<br/>agent_workflows/research_index.py<br/>agent_workflows/research_archive.py"]
+    E02["2. Pin & move prompts module onto artifact_meta (E-02)<br/>agent_workflows/prompts_index.py"]
+    E03["3. Banner-blind research body test (E-03)<br/>tests/test_readers_record_modules.py"]
+
+    E01 --> E02
+    E01 --> E03
+```
+
 1. Pin then move the research modules (E-01) and the prompts module (E-02).
 2. Banner-blind research body test (E-03).
 
@@ -114,7 +127,7 @@ No spec change. Implements the research and prompts part of `4sd62s` C5a, and pr
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: The banner test reads the moved `research_index` reader (E-01); the prompts move (E-02) does not touch `has_body`. Carried from `jd7874`, where E-04 followed E-03 as a whole. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -149,4 +162,4 @@ Honesty rule: run the named modules and `python3 -m pytest` (core gate), and pas
 
 Commits: commit only through `aw commit cb5eda -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize cb5eda` itself.
