@@ -4,9 +4,11 @@
 - Kind: child
 - Concern: Split from `ffceq0` (Order 08, its Task group 4) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 5 E-items, 8 work Scope-Paths and about 8 named units per item). Spec `4sd62s` 4.6 requires an `aw check meta` drift check and 4.3/4.7 require an `aw meta repair` command over the Order 02 `artifact_meta.repair` function; neither exists today (`ffceq0` F-10: `aw check --help` lists plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases, all, and there is no `aw meta` command).
 - Scope: Add the two CLI leaves `aw check meta` and `aw meta repair` in `agent_workflows/meta_cli.py`, register them in `cli`, `command_surface` and `tests/conformance_matrix.py`, and test each in its own core module (`ffceq0` E-10 and E-11 carried unchanged). EXCLUDES: every reader move (the other `ffceq0` parts), the cache-parity and offline tests, the residual audit, `docs/cli-output-contract.md` and `CHANGELOG.md` (all kept in `ffceq0`).
-- Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_check_meta.py, tests/test_meta_repair_cli.py
+- Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_check_meta.py, tests/test_meta_repair_cli.py, .aw/records/plans/pending/20261109-metastore-140-a5ijjx-add-aw-check-meta-and-aw-meta-repair-over-artifact-meta.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:dqutt8, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,7 +22,9 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261109-metastore-140-a5ijjx-add-aw-check-meta-and-aw-meta-repair-over-artifact-meta.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ffceq0 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -67,7 +71,19 @@ Carried from `ffceq0` `## Findings` (measured 2026-11-02 at `0cbfcc706`):
 
 Size (round 3, research `nj8zdp` guidance): E-01 is one command with 11 drift fixtures plus a clean fixture and 3 registration files; E-02 is one command over an existing function, 3 registrations and 4 fixture cases. Both items name at most 6 distinct units (measured with `ipd_schema.count_named_units`).
 
+## Behavior decisions (spec `4sd62s` 4.6, 4.7)
+
+- D-1 (Conservative dependency chain). This plan retains the reader-move dependencies (`r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t`) carried from `ffceq0` to preserve conservative ordering across the Set.
+- D-2 (CLI dispatch of `aw check meta`). `meta` is dispatched as a reserved word by `cli._run_check` before standard type validation, mirroring `1ajqaa`'s `rebuild` routing in `aw index`. In Phase B, `aw check all` does not include `meta`, keeping baseline rule-id counts stable.
+- D-3 (Repair confirmation and preview). `aw meta repair <id6>` previews changes by default without mutating files; `--apply` performs mirror and layout repairs; and diverged-tail repairs require `--confirm` with explicit diff output.
+- D-4 (Phase B legacy reporting). When executed against a legacy repository without log sidecars, `aw meta repair` reports `nothing to repair (legacy format)` without failing. Tests validate full behavior using synthetic log fixtures.
+
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["1. Add aw check meta in meta_cli.py & register in cli (E-01)"] --> E02["2. Add aw meta repair <id6> over artifact_meta.repair & test (E-02)"]
+```
 
 1. Add `aw check meta` (E-01).
 2. Add `aw meta repair` (E-02).
@@ -98,8 +114,8 @@ N/A: no spec text changes; implements `4sd62s` 4.6 (`aw check meta`) and 4.7/4.8
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: The round-3 rules give each new part the original plan's own dependencies; `ffceq0`'s edges include the six round-1 reader parts. `aw check meta` reads only `artifact_meta.query`, so the edges are conservative ordering, not a data need. Recommendation strength: medium.
+- Owner: plan author
+- Resolution or deferral rationale: The round-3 rules give each new part the original plan's own dependencies; `ffceq0`'s edges include the six round-1 reader parts. `aw check meta` reads only `artifact_meta.query`, so the edges are conservative ordering, not a data need. Carried from `ffceq0`. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -120,10 +136,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
+Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. Every open question is resolved.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate) and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit a5ijjx -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize a5ijjx` itself.
