@@ -6,7 +6,9 @@
 - Scope: Record the host and model choice with the `ya4ee4` trial figures; in the maintainer's main checkout, run the dry run, paste its report, and record the AC-13 before values. Edits only this plan.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-254-tub3ir-record-the-description-model-and-run-the-attended-pre-cutove.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -22,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -60,6 +63,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Apply cxxmyv OQ-02 Decision &<br/>Record Host, Model, & Cost Figures in F-01"] --> E02["E-02: Attended aw migrate metadata Dry Run<br/>in Main Checkout & Record AC-13 in F-02"]
+    E02 --> V01["V-01 & V-02: Verify Pasted Dry-Run Log,<br/>Census, Rename Map, & Review Status"]
+```
+
 1. E-01: record the model decision.
 2. E-02: dry run and AC-13 before values.
 
@@ -83,11 +92,23 @@ No spec change.
 
 ## Open questions
 
-None open; `cxxmyv` OQ-02 is resolved and applied by E-01.
+### OQ-01: How is the description-generation model selection decided and recorded?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: `cxxmyv` OQ-02 was resolved 2026-11-02 by the maintainer via /askme: the cutover uses the cheapest model whose `ya4ee4` 40-record trial output the maintainer judges accurate (default candidate `google/gemini-3.1-flash-lite` on opencode). E-01 records the chosen host, model, per-record mean cost, and extrapolated full-run figures in F-01 with maintainer confirmation. Recommendation strength: very strong.
+
+### OQ-02: Why does this dry run execute in the main checkout rather than an isolated runner lane worktree?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: Spec `4sd62s` section 5.2 steps 1 and 3c requires `.aw/records/history.jsonl` to verify the sidecar census and record count (AC-22 case 2). A runner lane worktree does not contain the history sidecar. Executing with `- Attended: required` in the maintainer's main checkout ensures pre-cutover verification without modifying tracked files. Recommendation strength: very strong.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: quote F-01 (host, model, per-record mean cost, extrapolated full-run cost and duration) with the `ya4ee4` E-10 trial row it rests on and the maintainer's confirmation.
@@ -103,12 +124,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only with the maintainer present, in the main checkout that holds the history sidecar, after every plan in `- Item-Dependencies:` is `executed`. The runner must not dispatch this plan unattended (`- Attended: required`).
+Execute only with the maintainer present, in the main checkout that holds the history sidecar, after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is `executed`. The runner must not dispatch this plan unattended (`- Attended: required`). Safety stop: stop and report without editing files or executing commands if prerequisite metastore symbols from dependencies are absent on HEAD, if `.aw/records/history.jsonl` is absent or corrupt, or if concurrent edits in a shared checkout conflict with `- Scope-Paths:`.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`).
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
-Honesty rule: paste the ACTUAL dry-run output; never claim a result you did not run.
+Honesty rule: paste the ACTUAL dry-run output and summary metrics; never claim a result you did not run.
 
-Commits: commit only through `aw commit tub3ir -- <this plan>`; never push.
+Commits: commit only through `aw commit tub3ir -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle: the attending executor runs `aw ipd finalize tub3ir` after every `V-*` is `pass`; never `git mv` the plan by hand.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through finalize, never a hand `git mv` to `executed/`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the attending executor runs `aw ipd finalize tub3ir`.
