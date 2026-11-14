@@ -6,7 +6,9 @@
 - Scope: delete the 13 literals in four modules, reads going through `artifact_meta.read`/`read_text` and the writer through `artifact_meta.append`. `ipd_schema`'s E/V checklist and section grammar stays (N3). EXCLUDES the readiness and coverage modules of E-22 (Order 247).
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_authoring.py, tests/test_ipd_lint.py, tests/test_ipd_schema.py, tests/test_ipd_authoring.py, .aw/records/plans/pending/20261109-metastore-246-nx7fws-delete-the-ipd-module-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nx7fws
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 0xsx2n (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `0xsx2n` E-22's site list ("`ipd_lint` (4: `_HISTORY_LINE_RE`, `_CITATION_PLAN_DATE_RE`, and the `m_stat`/`m_prio` literals in `run_lint`), `ipd_lifecycle` (4, in `_insert_scope_exceeded_metadata`, a WRITER that moves to `artifact_meta.append`), `ipd_schema` (3: the literal in `plan_requires_attended`, `_META_LINE_RE`, `_READINESS_LINE_RE`), `ipd_authoring` (2: `_ID_LINE_RE`, `_WATERMARK_RE`), `plan_readiness` (6 ...), `readiness_recheck` (1 ...), `coverage_record` (4 ...), `orchestrator_readiness` (1 ...). `ipd_schema`'s E/V checklist and section grammar stays (N3).") is split across Orders 246 and 247; this plan takes the `ipd_lint`, `ipd_lifecycle`, `ipd_schema` and `ipd_authoring` sites.
 
-PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of the named test modules (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/nx7fws/before.txt`); after the last edit, the same into `after.txt`. A retargeted test keeps every input case; a test edited because it names a deleted pattern is justified at finalize (`--scope-reason`) if it is outside Scope-Paths.
+PIN RULE (carried from `9o83cr`): before E-01, create directory `mkdir -p .aw/state/nx7fws/` and save the per-test outcome list of the named test modules (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/nx7fws/before.txt`); after the last edit, the same into `after.txt`. A retargeted test keeps every input case; a test edited because it names a deleted pattern is justified at finalize (`--scope-reason`) if it is outside Scope-Paths.
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 In `agent_workflows/ipd_lint.py`, delete `ipd_lint._HISTORY_LINE_RE`, `_CITATION_PLAN_DATE_RE` and the `m_stat`/`m_prio` literals in `ipd_lint.run_lint`.
+- [ ] E-01 Ensure `.aw/state/nx7fws/` exists (`mkdir -p .aw/state/nx7fws/`) and save the three PIN modules baseline to `.aw/state/nx7fws/before.txt`; then in `agent_workflows/ipd_lint.py`, delete `ipd_lint._HISTORY_LINE_RE`, `_CITATION_PLAN_DATE_RE` and the `m_stat`/`m_prio` literals in `ipd_lint.run_lint`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/ipd_lint.py` prints nothing.
   - Execution state: pending
@@ -75,11 +78,25 @@ Measured at `ac76110f4` (`0xsx2n` F-27): `ipd_lint` 4, `ipd_lifecycle` 4, `ipd_s
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Delete ipd_lint literals (E-01)<br/>agent_workflows/ipd_lint.py"]
+    E02["2. Route ipd_lifecycle writer through append (E-02)<br/>agent_workflows/ipd_lifecycle.py"]
+    E03["3. Delete ipd_schema literals (E-03)<br/>agent_workflows/ipd_schema.py"]
+    E04["4. Delete ipd_authoring literals (E-04)<br/>agent_workflows/ipd_authoring.py"]
+    E05["5. Update tests, verify & commit (E-05)<br/>tests/, aw commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
+
 1. Delete the `ipd_lint` literals (E-01).
 2. Route the `ipd_lifecycle` writer through `artifact_meta.append` (E-02).
 3. Delete the `ipd_schema` literals (E-03).
 4. Delete the `ipd_authoring` literals (E-04).
-5. Verify and commit (E-05).
+5. Update tests, verify and commit (E-05).
 
 ## Deferred / out of scope (with reason)
 
@@ -105,7 +122,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Record it in the V-item evidence and move on; a site an earlier reader plan removed needs no edit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -142,4 +159,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit nx7fws -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed or required metastore symbols from `t4gl15`, `ffceq0`, or `k6jd6l` are absent, stop and report rather than proceeding. Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit nx7fws -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize nx7fws` itself.
