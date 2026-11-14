@@ -6,7 +6,9 @@
 - Scope: `clors0` E-05, split by surface: the two `check_engine` rules, the `executed_transition_gate` branch, and the OQ-30 terminal-log rules of `meta_log_append_gate`, each with its cases in the new `tests/test_cutover_log_gates.py`. The SR-601 `->reviewed` rule is NOT here (`2xwb9b` E-12).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/meta_log_append_gate.py, tests/test_cutover_log_gates.py, .aw/records/plans/pending/20261109-metastore-266-6jd6mh-build-the-dormant-post-cutover-gates-for-log-format-records.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6jd6mh
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from clors0 (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -35,7 +38,7 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 1: work
 
-- [ ] E-01 Before the first edit, save the dormancy baseline: run `aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/6jd6mh/before/` (this is this plan's share of `clors0` E-20's baseline).
+- [ ] E-01 Before the first edit, save the dormancy baseline: run `mkdir -p .aw/state/6jd6mh/before/ && aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/6jd6mh/before/` (this is this plan's share of `clors0` E-20's baseline).
   - Depends on: none
   - Expected outcome: two baseline files exist under `.aw/state/6jd6mh/before/`.
   - Execution state: pending
@@ -77,6 +80,29 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    subgraph S1["Task group 1: Dormant post-cutover gates"]
+        E1["E-01: Capture baseline dormancy rule multisets under .aw/state/6jd6mh/before/"]
+        E2["E-02: Add check_engine rules for mirrored status drift and staged log append violations"]
+        E3["E-03: Update executed_transition_gate to restrict log-format executed transitions to finalize/rollup"]
+        E4["E-04: Add OQ-30 terminal-log append rules to meta_log_append_gate"]
+        E5["E-05: Verify tests, dormancy multiset equivalence, bare core gate, sanitizer, and commit"]
+    end
+    subgraph V["Verification"]
+        V1["V-01: Verify saved baseline rule counts"]
+        V2["V-02: Verify check_engine rules on log and legacy fixtures"]
+        V3["V-03: Verify executed_transition_gate accept/refuse cases"]
+        V4["V-04: Verify terminal log append accept/refuse cases"]
+        V5["V-05: Verify test modules, empty dormancy multiset diff, and clean commit"]
+    end
+    E1 --> V1
+    E2 --> V2
+    E3 --> V3
+    E4 --> V4
+    E5 --> V5
+```
+
 1. E-01: baseline.
 2. E-02 to E-04: one gate surface each.
 3. E-05: dormancy check, commit.
@@ -105,7 +131,7 @@ No spec change.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from clors0)
 - Resolution or deferral rationale: `90iqr1` writes a documentation patch whose hunks include `agent_workflows/cli.py` help strings and guards it with a core test that the patch still applies to HEAD. This plan edits `cli.py` (E-06, E-14); running it AFTER the patch exists would make the patch stop applying and fail the core gate at this plan's merge. So this plan omits the `90iqr1` edge, and `9o83cr` (which `90iqr1` depends on) carries `executed:clors0`, which orders this plan before the patch is generated. Every other `cxxmyv` dependency is kept, plus `ffceq0`, `t4gl15` and `xexn45`, whose code these items extend. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -142,4 +168,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 6jd6mh -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. A narrow safety stop applies if prerequisite metastore symbols from `t4gl15`, `ffceq0`, or `xexn45` are absent. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 6jd6mh -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 6jd6mh` itself.
