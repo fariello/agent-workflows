@@ -43,6 +43,10 @@ def _make_git_repo(repo_dir: Path, extra_files: Dict[str, bytes]) -> Path:
         ["git", "-C", str(repo_dir), "config", "user.email", "test@example.com"],
         check=True,
     )
+    subprocess.run(
+        ["git", "-C", str(repo_dir), "config", "core.autocrlf", "false"],
+        check=True,
+    )
 
     base_files = {
         ".agents/workflows/VERSION": b"1.0.0\n",
@@ -124,8 +128,8 @@ def test_case_3_applied_migration_preserves_paths_and_creates_aw_system(
     ), "Expected skills file to be byte-identical"
 
     assert gitignore_path.exists(), "Expected .aw/.gitignore to be skipped in place"
-    assert gitignore_path.read_bytes().startswith(
-        gitignore_bytes
+    assert (
+        gitignore_path.read_bytes().replace(b"\r\n", b"\n").startswith(gitignore_bytes)
     ), "Expected .aw/.gitignore to preserve existing content"
     assert (
         b"records/*/untracked/" in gitignore_path.read_bytes()
@@ -251,8 +255,8 @@ def test_case_6_rollback_leaves_all_three_paths_present(tmp_path: Path) -> None:
     assert (
         gitignore_path.exists()
     ), "Expected .aw/.gitignore to remain present after rollback"
-    assert gitignore_path.read_bytes().startswith(
-        gitignore_bytes
+    assert (
+        gitignore_path.read_bytes().replace(b"\r\n", b"\n").startswith(gitignore_bytes)
     ), "Expected .aw/.gitignore to preserve existing content after rollback"
 
     assert (

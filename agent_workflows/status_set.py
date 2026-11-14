@@ -1635,6 +1635,19 @@ def _prepare_status_change(
                 "close_evidence"
             )
             if accepted_evidence:
+                val_str = str(accepted_evidence).strip()
+                if Path(val_str).is_absolute() or val_str.startswith(("/", "\\")):
+                    try:
+                        accepted_evidence = (
+                            Path(val_str)
+                            .resolve()
+                            .relative_to(effective_gate_root.resolve())
+                            .as_posix()
+                        )
+                    except ValueError:
+                        accepted_evidence = val_str.replace("\\", "/")
+                else:
+                    accepted_evidence = val_str.replace("\\", "/")
                 _set("close_evidence", accepted_evidence)
                 if is_same_status:
                     events.append(

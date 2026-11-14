@@ -494,7 +494,7 @@ class TestPromptContents(unittest.TestCase):
         prompt = runner_shared.build_review_prompt(
             item, self.state, self.run_dir, self.plan_path, Path("."), lane_root=None
         )
-        self.assertEqual(prompt, f"/plan-review {self.plan_path}")
+        self.assertEqual(prompt, f"/plan-review {self.plan_path.as_posix()}")
         self.assertEqual(len(prompt.splitlines()), 1)
 
     def test_review_prompt_contains_carrier_when_isolated(self) -> None:

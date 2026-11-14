@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -107,9 +108,13 @@ class AdaptRunArgvTests(unittest.TestCase):
 
 class MajorVersionProbeTests(unittest.TestCase):
     def _fake(self, tmp: Path, text: str) -> str:
-        p = tmp / "opencode"
-        p.write_text(f"#!/bin/sh\necho '{text}'\n", encoding="utf-8")
-        p.chmod(p.stat().st_mode | stat.S_IEXEC)
+        if sys.platform == "win32":
+            p = tmp / "opencode.cmd"
+            p.write_text(f"@echo {text}\n", encoding="utf-8")
+        else:
+            p = tmp / "opencode"
+            p.write_text(f"#!/bin/sh\necho '{text}'\n", encoding="utf-8")
+            p.chmod(p.stat().st_mode | stat.S_IEXEC)
         return str(p)
 
     def test_reads_real_binary_version_outside_pytest(self) -> None:
