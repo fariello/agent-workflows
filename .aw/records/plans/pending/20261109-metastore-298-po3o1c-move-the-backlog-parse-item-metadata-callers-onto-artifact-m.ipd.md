@@ -6,7 +6,9 @@
 - Scope: The caller half of `k6jd6l` E-18's `backlog.parse_item` work. Callers in `check_engine`, `runner_shared`, `status_set` and `production_checks` are in phase-B Scope-Paths (`ffceq0`, `t4gl15`) and expected moved; a live one in Order 280's F-25 is retargeted here with `--scope-reason`. EXCLUDES changing `parse_item` itself (Order 299).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/set_records.py, tools/gate_drop_audit.py, agent_workflows/backlog.py, tests/test_gate_drop_audit.py, .aw/records/plans/pending/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:um2kvx
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: po3o1c
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@ Every caller that reads a metadata field of a backlog item reads it from `artifa
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-18: "the metadata part of `backlog.parse_item`; their remaining callers use `artifact_meta.read`, `read_text` or `read_at` ... Retarget `tools/gate_drop_audit.py`'s `backlog.parse_item` call to `artifact_meta.read`/`read_at`, keeping `tests/test_gate_drop_audit.py` green." Save the before-list of `tests/test_attention.py`, `tests/test_gate_drop_audit.py`, `tests/test_backlog.py` and `tests/test_backlog_duplicate_guard.py` to `.aw/state/9o83cr/E-18b-before.txt`.
+Carried from `k6jd6l` E-18: "the metadata part of `backlog.parse_item`; their remaining callers use `artifact_meta.read`, `read_text` or `read_at` ... Retarget `tools/gate_drop_audit.py`'s `backlog.parse_item` call to `artifact_meta.read`/`read_at`, keeping `tests/test_gate_drop_audit.py` green." Ensure directory `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`), and save the before-list of `tests/test_attention.py`, `tests/test_gate_drop_audit.py`, `tests/test_backlog.py` and `tests/test_backlog_duplicate_guard.py` to `.aw/state/9o83cr/E-18b-before.txt`.
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one module per item
 
-- [ ] E-01 In `attention._backlog_record`, read the item's metadata through `artifact_meta.read_text(text, record_type="backlog")` instead of `backlog_mod.parse_item`.
+- [ ] E-01 Capture the baseline PIN list (`mkdir -p .aw/state/9o83cr/` and save `.aw/state/9o83cr/E-18b-before.txt`); then in `attention._backlog_record`, read the item's metadata through `artifact_meta.read_text(text, record_type="backlog")` instead of `backlog_mod.parse_item`.
   - Depends on: none
   - Expected outcome: `attention` calls no `parse_item`.
   - Execution state: pending
@@ -70,10 +73,22 @@ Measured 2026-11-09 at `f83159217` with `rg -n "parse_item\(" agent_workflows to
 
 ## Proposed changes (ordered, validatable)
 
-1. Retarget `attention` (E-01).
-2. Retarget `set_records` (E-02).
-3. Retarget `gate_drop_audit` (E-03).
-4. Retarget the `backlog` internals and commit (E-04).
+```mermaid
+flowchart TD
+    E01["1. Retarget attention (E-01)<br/>Capture PIN baseline, read metadata via artifact_meta.read_text"]
+    E02["2. Retarget set_records (E-02)<br/>Read id and metadata via artifact_meta, keep body re-rendering"]
+    E03["3. Retarget gate_drop_audit (E-03)<br/>Replace parse_item with artifact_meta.read/read_at"]
+    E04["4. Retarget backlog internals & commit (E-04)<br/>Read metadata via artifact_meta, verify PIN after-list, aw commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+```
+
+1. Retarget `attention` (E-01): Capture baseline PIN test outcomes to `.aw/state/9o83cr/E-18b-before.txt`, then update `attention._backlog_record` to read backlog metadata through `artifact_meta.read_text(text, record_type="backlog")`.
+2. Retarget `set_records` (E-02): Update `set_records.promote_question_to_backlog` and `set_records.close_on_answer` to read item IDs and metadata through `artifact_meta`, preserving `parse_item` only where body sections are re-rendered.
+3. Retarget `gate_drop_audit` (E-03): In `tools/gate_drop_audit.census`, replace `backlog.parse_item` with `artifact_meta.read`/`read_at` while keeping `tests/test_gate_drop_audit.py` passing.
+4. Retarget the `backlog` internals and commit (E-04): Update internal callers in `backlog.py` (`find_duplicate_candidates`, `validate_item`, `existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `run_new`, `run_note`, `run_check`) to read metadata via `artifact_meta.read_text`, verify after-list PIN outcomes match before-list, and commit via `aw commit po3o1c`.
 
 ## Deferred / out of scope (with reason)
 
@@ -99,7 +114,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `k6jd6l` OQ-02: no; `9o83cr` E-11 deletes only "the metadata part of `backlog.parse_item`". Body sections are Markdown prose that N3 keeps, so a body-only parser may survive; Order 299 decides by whether any caller still needs body sections. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -131,4 +146,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit po3o1c -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Safety stop: if prerequisite metastore reader symbols from `t4gl15`, `ffceq0`, or `1ajqaa` are absent, stop and report rather than proceeding. Shared-checkout safety: this plan edits only its Scope-Paths; do not stage, edit, or commit any other file.
+
+Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit po3o1c -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize po3o1c` itself.
