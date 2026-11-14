@@ -180,3 +180,95 @@ def test_registry_and_default_companion_are_surveyed(tmp_path: Path) -> None:
         "found_via": "user-config:installed",
         "reason": "not a directory",
     } in doc["skipped"]
+
+
+def _run_full(tmp_path: Path, *args: str) -> tuple[dict, str]:
+    out = tmp_path / "survey-out" / "out.json"
+    env = dict(os.environ, HOME=str(tmp_path / "home"))
+    for k in ("AW_CONFIG_DIR", "XDG_CONFIG_HOME", "AW_HOME"):
+        env.pop(k, None)
+    (tmp_path / "home").mkdir(exist_ok=True)
+    res = subprocess.run(
+        [sys.executable, str(SCRIPT), *args, "-o", str(out)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr
+    return json.loads(out.read_text(encoding="utf-8")), res.stderr
+
+
+def _with_worktree(tmp_path: Path) -> tuple[Path, Path]:
+    main = _repo(tmp_path / "src" / "m")
+    (main / ".aw").mkdir()
+    (main / ".aw" / "x.md").write_text("x\n", encoding="utf-8")
+    _commit(main)
+    wt = tmp_path / "src" / "m-wt"
+    _git(main, "worktree", "add", "-q", str(wt), "-b", "side")
+    return main, wt
+
+
+def test_linked_worktree_skipped_by_default(tmp_path: Path) -> None:
+    main, wt = _with_worktree(tmp_path)
+
+    doc, _ = _run_full(tmp_path, "--scan", str(tmp_path / "src"), "--no-registry")
+
+    assert [r["path"] for r in doc["repos"]] == [str(main.resolve())]
+    [skip] = doc["skipped"]
+    assert skip["path"] == str(wt.resolve())
+    assert skip["reason"].startswith("linked worktree of ")
+    assert "--include-worktrees" in skip["reason"]
+
+
+def test_include_worktrees_surveys_them(tmp_path: Path) -> None:
+    main, wt = _with_worktree(tmp_path)
+
+    doc, _ = _run_full(
+        tmp_path,
+        "--scan",
+        str(tmp_path / "src"),
+        "--no-registry",
+        "--include-worktrees",
+    )
+
+    assert sorted(r["path"] for r in doc["repos"]) == sorted(
+        [str(main.resolve()), str(wt.resolve())]
+    )
+    assert doc["skipped"] == []
+
+
+def test_config_search_roots_are_scanned_and_relative_ones_ignored(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "elsewhere"
+    repo = _repo(root / "r")
+    (repo / ".agents").mkdir()
+    (repo / ".agents" / "y.md").write_text("y\n", encoding="utf-8")
+    cfg = tmp_path / "home" / ".config" / "agent-workflows"
+    cfg.mkdir(parents=True)
+    (cfg / "config.json").write_text(
+        json.dumps({"repos": {"search": [str(root), "rel/dir"]}}), encoding="utf-8"
+    )
+
+    doc, _ = _run_full(tmp_path, "--scan", str(tmp_path / "home"))
+
+    assert [r["path"] for r in doc["repos"]] == [str(repo.resolve())]
+    assert any(
+        s["root"] == str(root.resolve()) and s["found"] == 1 and "search" in s["source"]
+        for s in doc["scans"]
+    )
+    [ign] = doc["ignored_search_roots"]
+    assert ign["entry"] == "rel/dir" and ign["reason"] == "relative path"
+
+
+def test_stderr_lists_created_files(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "src" / "r")
+    (repo / ".aw").mkdir()
+
+    _, err = _run_full(tmp_path, str(repo), "--no-registry")
+
+    out = tmp_path / "survey-out" / "out.json"
+    assert "Files created (UNMASKED; do not commit or share):" in err
+    assert f"{tmp_path / 'survey-out'}/ (directory)" in err
+    assert f"{out} (" in err and "bytes)" in err

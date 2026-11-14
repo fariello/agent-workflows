@@ -133,6 +133,28 @@ def _git(repo: Path, *args: str) -> tuple[int, str]:
     return res.returncode, res.stdout
 
 
+def linked_worktree_of(path: Path) -> str | None:
+    """The main repository's git dir when `path` is a linked worktree, else None.
+
+    A linked worktree's `.git` is a FILE reading `gitdir: <main>/.git/worktrees/<name>`. A submodule
+    also has a `.git` file, but its gitdir is under `.git/modules/`, so it is not treated as one.
+    """
+    git = path / ".git"
+    if not git.is_file():
+        return None
+    try:
+        line = git.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    if not line.startswith("gitdir:"):
+        return None
+    gitdir = line[len("gitdir:") :].strip().replace("\\", "/")
+    marker = "/.git/worktrees/"
+    if marker in gitdir:
+        return gitdir.split(marker, 1)[0]
+    return None
+
+
 def _is_candidate(path: Path) -> bool:
     return (path / ".git").exists() and (
         (path / ".aw").is_dir() or (path / ".agents").is_dir()
@@ -143,8 +165,14 @@ def _expand(p: str) -> Path:
     return Path(os.path.expanduser(os.path.expandvars(p))).resolve()
 
 
-def registry_paths(home: Path) -> list[tuple[Path, str]]:
-    """Repository paths the toolkit's user config and registry list on this machine."""
+def registry_paths(
+    home: Path, search_roots: list[tuple[str, str]] | None = None
+) -> list[tuple[Path, str]]:
+    """Repository paths the toolkit's user config and registry list on this machine.
+
+    The config's `repos.search` entries are appended to `search_roots` (when given) as
+    `(entry, source)` pairs, for the caller to scan.
+    """
     out: list[tuple[Path, str]] = []
     cfg_dirs = []
     if os.environ.get("AW_CONFIG_DIR"):
@@ -163,6 +191,12 @@ def registry_paths(home: Path) -> list[tuple[Path, str]]:
                 for p in repos.get(key) or []:
                     if isinstance(p, str):
                         out.append((_expand(p), f"user-config:{key}"))
+            if search_roots is not None:
+                for p in repos.get("search") or []:
+                    if isinstance(p, str):
+                        search_roots.append(
+                            (p, f"user-config:search ({d / 'config.json'})")
+                        )
     try:
         reg = json.loads(
             (home / ".aw" / "config" / "registry.json").read_text(encoding="utf-8")
@@ -185,6 +219,11 @@ def registry_paths(home: Path) -> list[tuple[Path, str]]:
 
 
 def scan_for_repos(root: Path, max_depth: int) -> list[Path]:
+    """Repositories under `root`: a directory with `.git` and `.aw/` or `.agents/`.
+
+    The walk does not descend into a repository it found. Linked worktrees are returned too; the
+    caller decides whether to survey them.
+    """
     found: list[Path] = []
     root = root.resolve()
     stack = [(root, 0)]
@@ -525,9 +564,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--max-depth", type=int, default=4, help="--scan depth (default 4)")
     ap.add_argument(
+        "--include-worktrees",
+        action="store_true",
+        help="also survey linked git worktrees (skipped by default: each is a second checkout "
+        "of a repository that is surveyed already, so its records would be counted twice)",
+    )
+    ap.add_argument(
         "--no-registry",
         action="store_true",
-        help="do not add repositories from the toolkit's config and registry",
+        help="do not add repositories or search roots from the toolkit's config and registry",
     )
     ap.add_argument(
         "-o",
@@ -539,21 +584,55 @@ def main(argv: list[str] | None = None) -> int:
     home = Path.home()
     host = socket.gethostname()
     now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    scans = list(args.scan)
+    scans = [(s, "--scan") for s in args.scan]
     if not args.paths and not scans:
-        scans = [str(home)]
+        scans = [(str(home), "default (no paths or --scan given)")]
 
     candidates: dict[Path, list[str]] = {}
     missing: list[dict[str, str]] = []
+    ignored_search_roots: list[dict[str, str]] = []
     for p in args.paths:
         rp = _expand(p)
         candidates.setdefault(rp, []).append("argument")
     if not args.no_registry:
-        for rp, src in registry_paths(home):
+        config_search: list[tuple[str, str]] = []
+        for rp, src in registry_paths(home, config_search):
             candidates.setdefault(rp, []).append(src)
-    for s in scans:
-        for rp in scan_for_repos(_expand(s), args.max_depth):
-            candidates.setdefault(rp, []).append(f"scan:{s}")
+        for entry, src in config_search:
+            # A relative entry would resolve against whatever directory the script runs from,
+            # which is not what the config author meant; record it instead of guessing.
+            if not os.path.isabs(os.path.expanduser(os.path.expandvars(entry))):
+                ignored_search_roots.append(
+                    {"entry": entry, "source": src, "reason": "relative path"}
+                )
+                continue
+            scans.append((entry, src))
+    scanned: list[dict[str, Any]] = []
+    by_root: dict[Path, dict[str, Any]] = {}
+    for s, src in scans:
+        root = _expand(s)
+        if root in by_root:
+            by_root[root]["source"] += f"; {src}"
+            continue
+        if not root.is_dir():
+            by_root[root] = {
+                "root": str(root),
+                "source": src,
+                "exists": False,
+                "found": 0,
+            }
+            scanned.append(by_root[root])
+            continue
+        found = scan_for_repos(root, args.max_depth)
+        by_root[root] = {
+            "root": str(root),
+            "source": src,
+            "exists": True,
+            "found": len(found),
+        }
+        scanned.append(by_root[root])
+        for rp in found:
+            candidates.setdefault(rp, []).append(f"scan:{root}")
 
     repos: list[dict[str, Any]] = []
     for rp in sorted(candidates):
@@ -564,6 +643,16 @@ def main(argv: list[str] | None = None) -> int:
                     "path": str(rp),
                     "found_via": ",".join(sorted(set(srcs))),
                     "reason": "not a directory",
+                }
+            )
+            continue
+        main_repo = linked_worktree_of(rp)
+        if main_repo is not None and not args.include_worktrees:
+            missing.append(
+                {
+                    "path": str(rp),
+                    "found_via": ",".join(sorted(set(srcs))),
+                    "reason": f"linked worktree of {main_repo} (use --include-worktrees)",
                 }
             )
             continue
@@ -613,7 +702,9 @@ def main(argv: list[str] | None = None) -> int:
         "python": platform.python_version(),
         "argv": sys.argv,
         "home": str(home),
-        "scans": scans,
+        "scans": scanned,
+        "ignored_search_roots": ignored_search_roots,
+        "include_worktrees": args.include_worktrees,
         "aw_home": str(aw_home),
         "repos": repos,
         "home_projects": home_projects,
@@ -622,12 +713,24 @@ def main(argv: list[str] | None = None) -> int:
     out = (
         Path(args.output) if args.output else home / "aw-survey" / f"{host}-{now}.json"
     )
+    created: list[str] = []
+    missing_dirs = [d for d in [out.parent, *out.parent.parents] if not d.exists()]
     out.parent.mkdir(parents=True, exist_ok=True)
+    created += [f"{d}/ (directory)" for d in reversed(missing_dirs)]
+    existed = out.exists()
     out.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    created.append(
+        f"{out}{' (overwritten)' if existed else ''} ({out.stat().st_size:,} bytes)"
+    )
+    worktrees = sum(1 for m in missing if m["reason"].startswith("linked worktree"))
     print(
-        f"wrote {out} ({len(repos)} repositories, {len(missing)} skipped)",
+        f"\n{len(repos)} repositories surveyed, {len(missing)} skipped "
+        f"({worktrees} linked worktrees), {len(home_projects)} home projects.",
         file=sys.stderr,
     )
+    print("Files created (UNMASKED; do not commit or share):", file=sys.stderr)
+    for c in created:
+        print(f"  {c}", file=sys.stderr)
     return 0
 
 
