@@ -6,7 +6,9 @@
 - Scope: The `parse_metadata_block` and `_parse_metadata_comment` part of `k6jd6l` E-10. Keep `ipd_schema.parse_item_dependencies` (it parses a VALUE, not a block) and the E/V checklist and section grammar of `ipd_schema` (N3). EXCLUDES `ipd_schema._META_LINE_RE` and `_READINESS_LINE_RE`, which Order 246 (`nx7fws`) deletes after `k6jd6l`: `artifact_meta` gets its own private line grammar and `ipd_schema._META_LINE_RE` stays for `ipd_lint.parse`'s other use until Order 246.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/prompts_index.py, agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_ipd_schema.py, tests/test_from_backlog_cardinality.py, .aw/records/plans/pending/20261109-metastore-287-ad86ym-move-parse-metadata-block-and-parse-metadata-comment-into-ar.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:8fxic1, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ad86ym
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007; review record .aw/records/reviews/20261109-metastore-287-ad86ym-move-parse-metadata-block-and-parse-metadata-comment-into-ar.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-10: "Move into `artifact_meta` (private, unchanged behavior) every grammar its legacy loader or legacy writer still borrows, and delete the originals: `ipd_schema.parse_metadata_block` (...), `prompts_index._parse_metadata_comment` ... Non-loader callers (`ipd_lint.parse`, ...) read through `artifact_meta.read`, `history`, `read_text` or `read_at`." A non-loader caller that needs the parser's error list (duplicate and unknown fields) may call a public `artifact_meta` wrapper, as E-10 allows for the migration. Save the before-list of `tests/test_ipd_schema.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_ipd_lint.py` and `tests/test_prompts_index.py` to `.aw/state/9o83cr/E-10a-before.txt`, and `aw ipd lint --all` dispositions to `.aw/state/k6jd6l/lint-all-before.txt`.
+Carried from `k6jd6l` E-10: "Move into `artifact_meta` (private, unchanged behavior) every grammar its legacy loader or legacy writer still borrows, and delete the originals: `ipd_schema.parse_metadata_block` (...), `prompts_index._parse_metadata_comment` ... Non-loader callers (`ipd_lint.parse`, ...) read through `artifact_meta.read`, `history`, `read_text` or `read_at`." A non-loader caller that needs the parser's error list (duplicate and unknown fields) may call a public `artifact_meta` wrapper, as E-10 allows for the migration. Ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`). Save the before-list of `tests/test_ipd_schema.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_ipd_lint.py` and `tests/test_prompts_index.py` to `.aw/state/9o83cr/E-10a-before.txt`, and `aw ipd lint --all` dispositions to `.aw/state/k6jd6l/lint-all-before.txt`.
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one parser per pair of items, then verify
 
-- [ ] E-01 Move `ipd_schema.parse_metadata_block` into `artifact_meta` (private, with a public wrapper only if `ipd_lint.parse` needs the error list) and change `ipd_lint.parse` to call it; delete the original.
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`) and capture baseline test PIN list to `.aw/state/9o83cr/E-10a-before.txt` and lint baseline to `.aw/state/k6jd6l/lint-all-before.txt`. Move `ipd_schema.parse_metadata_block` into `artifact_meta` (private, with a public wrapper only if `ipd_lint.parse` needs the error list) and change `ipd_lint.parse` to call it; delete the original.
   - Depends on: none
   - Expected outcome: `ipd_schema` no longer defines `parse_metadata_block`; `ipd_lint.parse` calls `artifact_meta`.
   - Execution state: pending
@@ -74,6 +77,14 @@ Measured 2026-11-09 at `f83159217` with `rg -n "\b(parse_metadata_block|_parse_m
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Move parse_metadata_block to artifact_meta"] --> E02["E-02: Retarget test_ipd_schema & test_from_backlog_cardinality"]
+    E02 --> E03["E-03: Move _parse_metadata_comment to artifact_meta"]
+    E03 --> E04["E-04: Retarget validate_prompt_content & _find_prompt_setid"]
+    E04 --> E05["E-05: Verify PIN lists, lint dispositions & commit"]
+```
+
 1. Move `parse_metadata_block` (E-01).
 2. Retarget its tests (E-02).
 3. Move `_parse_metadata_comment` (E-03).
@@ -106,7 +117,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It must not: the move is behavior-preserving, and E-05 compares every plan's disposition. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -114,7 +125,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `rg -n "parse_metadata_block" agent_workflows` listing only `artifact_meta.py` and the `ipd_lint.parse` call through `artifact_meta`, and `rg -n "def parse_item_dependencies" agent_workflows/ipd_schema.py` still one hit.
+  - Required evidence: paste `rg -n "def parse_metadata_block" agent_workflows` listing only `artifact_meta.py`, `rg -n "parse_metadata_block" agent_workflows` listing `artifact_meta.py`, `ipd_lint.parse`, and the comment in `ipd_authoring.py`, and `rg -n "def parse_item_dependencies" agent_workflows/ipd_schema.py` still one hit.
   - Observed evidence:
   - Result: pending
 
@@ -143,4 +154,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit ad86ym -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Stop safely if prerequisite metastore symbols from `59aiyh`, `ffceq0`, `t4gl15`, or `8fxic1` are absent.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL output; never claim a result you did not run.
+
+Commits: only through `aw commit ad86ym -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize ad86ym` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize ad86ym itself.
