@@ -224,6 +224,67 @@ class AgyEventRenderTests(unittest.TestCase):
         self.assertNotIn("(+", plain)
         self.assertNotIn("-0)", plain)
 
+    def test_edit_file_and_write_file_with_path_render_shared_prefix(self):
+        """Path parameter renders with prefix and omits bare tool name."""
+        edit_line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 1.25,
+                    "tool_info": {
+                        "name": "edit_file",
+                        "parameters": {
+                            "Path": "/repo/agent_workflows/core.py",
+                            "Target": "a",
+                            "Replacement": "b",
+                        },
+                    },
+                },
+            }
+        )
+        rendered_edit = driver.render_agy_event(edit_line, self.pal, repo_root="/repo")
+        self.assertIsNotNone(rendered_edit)
+        plain_edit = render_stream._strip_ansi(rendered_edit)
+        self.assertTrue(
+            plain_edit.startswith(render_stream.EVENT_PREFIXES["edit"].ljust(self.pad)),
+            plain_edit,
+        )
+        self.assertIn("agent_workflows/core.py", plain_edit)
+        self.assertNotIn("edit_file", plain_edit)
+
+        write_line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.45,
+                    "tool_info": {
+                        "name": "write_file",
+                        "parameters": {
+                            "Path": "/repo/tests/test_new.py",
+                            "Content": "pass\n",
+                        },
+                    },
+                },
+            }
+        )
+        rendered_write = driver.render_agy_event(
+            write_line, self.pal, repo_root="/repo"
+        )
+        self.assertIsNotNone(rendered_write)
+        plain_write = render_stream._strip_ansi(rendered_write)
+        self.assertTrue(
+            plain_write.startswith(
+                render_stream.EVENT_PREFIXES["write"].ljust(self.pad)
+            ),
+            plain_write,
+        )
+        self.assertIn("tests/test_new.py", plain_write)
+        self.assertNotIn("write_file", plain_write)
+
     def test_the_subagent_line_uses_the_shared_prefix(self):
         line = json.dumps(
             {

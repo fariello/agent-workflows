@@ -923,7 +923,9 @@ _AGY_STATE_TO_STATUS: dict[str, str] = {
 _AGY_TOOL_PREFIX_KIND: dict[str, str] = {
     "run_command": "bash",
     "write_to_file": "write",
+    "write_file": "write",
     "replace_file_content": "edit",
+    "multi_replace_file_content": "edit",
     "edit_file": "edit",
     "view_file": "read",
     "read_file": "read",
@@ -933,6 +935,7 @@ _AGY_TOOL_PREFIX_KIND: dict[str, str] = {
     "codebase_search": "find",
     "find_by_name": "find",
     "glob_file_search": "find",
+    "search_web": "find",
 }
 
 
@@ -951,6 +954,20 @@ def agy_prefix_kind(tool_name: str, params: dict[str, Any] | None = None) -> str
         return "bash"
     if "Query" in params or "Pattern" in params:
         return "find"
+    if "Target" in params and "Replacement" in params:
+        return "edit"
+    if "Content" in params and any(
+        k in params
+        for k in (
+            "Path",
+            "path",
+            "filePath",
+            "file_path",
+            "AbsolutePath",
+            "TargetFile",
+        )
+    ):
+        return "write"
     return "tool"
 
 
@@ -1155,10 +1172,21 @@ def render_agy_event(
             if tracker is not None and state == "DONE":
                 if tool_name in (
                     "write_to_file",
+                    "write_file",
                     "replace_file_content",
                     "multi_replace_file_content",
-                ):
-                    p = params.get("TargetFile") or params.get("AbsolutePath")
+                    "edit_file",
+                ) or kind in ("edit", "write"):
+                    p = (
+                        params.get("TargetFile")
+                        or params.get("AbsolutePath")
+                        or params.get("Path")
+                        or params.get("path")
+                        or params.get("filePath")
+                        or params.get("file_path")
+                        or params.get("File")
+                        or params.get("file")
+                    )
                     if p:
                         tracker.note_modified_file(
                             _relativize_path(str(p), repo_root, work_dir=work_dir)
@@ -1178,17 +1206,38 @@ def render_agy_event(
                 cmd = str(params["cmd"])
             elif "Query" in params:
                 cmd = f"grep {params['Query']}"
-            elif "AbsolutePath" in params:
-                # Was `Path(...).name`, a BARE BASENAME, which told an operator `runner_shared.py`
-                # was touched without saying which of several trees it lived in. Repo-relative is
-                # both more informative and what the leak-sanitizer prefers over an absolute path.
-                cmd = _relativize_path(
-                    str(params["AbsolutePath"]), repo_root, work_dir=work_dir
+            elif any(
+                k in params
+                for k in (
+                    "AbsolutePath",
+                    "TargetFile",
+                    "Path",
+                    "path",
+                    "filePath",
+                    "file_path",
+                    "File",
+                    "file",
                 )
-            elif "TargetFile" in params:
-                cmd = _relativize_path(
-                    str(params["TargetFile"]), repo_root, work_dir=work_dir
+            ):
+                raw_p = (
+                    params.get("AbsolutePath")
+                    or params.get("TargetFile")
+                    or params.get("Path")
+                    or params.get("path")
+                    or params.get("filePath")
+                    or params.get("file_path")
+                    or params.get("File")
+                    or params.get("file")
                 )
+                rel = _relativize_path(str(raw_p), repo_root, work_dir=work_dir)
+                if kind == "read":
+                    start = params.get("StartLine") or params.get("start_line")
+                    end = params.get("EndLine") or params.get("end_line")
+                    if start is not None and end is not None:
+                        rel = f"{rel} (lines {start}-{end})"
+                    elif start is not None:
+                        rel = f"{rel} (from line {start})"
+                cmd = rel
             elif "Pattern" in params:
                 cmd = str(params["Pattern"])
             elif tool_name == "manage_task" or "TaskId" in params or "Action" in params:

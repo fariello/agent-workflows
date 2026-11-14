@@ -615,7 +615,14 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
                 else:
                     command = s_cmd
 
-        fpath = params_dict.get("AbsolutePath") or params_dict.get("TargetFile")
+        fpath = (
+            params_dict.get("AbsolutePath")
+            or params_dict.get("TargetFile")
+            or params_dict.get("Path")
+            or params_dict.get("path")
+            or params_dict.get("filePath")
+            or params_dict.get("file_path")
+        )
         path = str(fpath) if fpath else None
         return ToolCall(
             tool_name,

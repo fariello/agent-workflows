@@ -1199,6 +1199,28 @@ class TestSharedToolCallExtraction:
             assert len(res.commands) == 1
             assert res.commands[0].command == "python3 -m pytest"
 
+    def test_agy_path_extraction_from_file_tools(self) -> None:
+        """Verify agy Path extraction for edit_file, write_file, and read_file."""
+        for tool_name in ("edit_file", "write_file", "read_file"):
+            ev = {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": tool_name,
+                    "duration_seconds": 1.0,
+                    "tool_info": {
+                        "name": tool_name,
+                        "parameters": {"Path": "/repo/agent_workflows/foo.py"},
+                    },
+                },
+            }
+            tc = vc.tool_call_from_event(ev)
+            assert tc is not None
+            assert tc.tool == tool_name
+            assert tc.host == "agy"
+            assert tc.path == "/repo/agent_workflows/foo.py"
+
     def test_agy_conflict_and_reverse_conflict_delegation_verdict(self) -> None:
         """E-10 (n8we3u): CONFLICT and REVERSE-CONFLICT logs yield indeterminate delegation-present."""
         conflict_ev = {

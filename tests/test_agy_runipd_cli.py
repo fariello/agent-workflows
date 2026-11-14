@@ -2077,6 +2077,96 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         self.assertIn("tests/test_spec.py", rendered_write)
         self.assertNotIn("write_to_file", rendered_write)
 
+        # Edit / edit_file with Path renders path, preserves worktree in display, and updates tracker
+        edit_file_evt = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 12.34,
+                    "tool_info": {
+                        "name": "edit_file",
+                        "parameters": {
+                            "Path": "/mock/repo/.aw/worktrees/lane1/agent_workflows/foo.py",
+                            "Target": "old",
+                            "Replacement": "new",
+                        },
+                    },
+                },
+            }
+        )
+        tr = render_stream.StreamTracker()
+        rendered_edit_file = agy_runipd.render_agy_event(
+            edit_file_evt,
+            pal,
+            repo_root=repo_root,
+            work_dir="/mock/repo/.aw/worktrees/lane1",
+            tracker=tr,
+        )
+        self.assertIsNotNone(rendered_edit_file)
+        self.assertIn(".aw/worktrees/lane1/agent_workflows/foo.py", rendered_edit_file)
+        self.assertNotIn("edit_file", rendered_edit_file)
+        self.assertIn("12.34s", rendered_edit_file)
+        self.assertIn("agent_workflows/foo.py", tr.modified_files)
+
+        # Write / write_file with Path renders path and updates tracker
+        write_file_evt = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 1.5,
+                    "tool_info": {
+                        "name": "write_file",
+                        "parameters": {
+                            "Path": "/mock/repo/agent_workflows/bar.py",
+                            "Content": "hello\n",
+                        },
+                    },
+                },
+            }
+        )
+        rendered_write_file = agy_runipd.render_agy_event(
+            write_file_evt, pal, repo_root=repo_root, tracker=tr
+        )
+        self.assertIsNotNone(rendered_write_file)
+        self.assertIn("agent_workflows/bar.py", rendered_write_file)
+        self.assertNotIn("write_file", rendered_write_file)
+        self.assertIn("agent_workflows/bar.py", tr.modified_files)
+
+        # Read / read_file with StartLine/EndLine
+        read_file_evt = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.5,
+                    "tool_info": {
+                        "name": "read_file",
+                        "parameters": {
+                            "Path": "/mock/repo/agent_workflows/bar.py",
+                            "StartLine": 10,
+                            "EndLine": 50,
+                        },
+                    },
+                },
+            }
+        )
+        self.assertIsNone(
+            agy_runipd.render_agy_event(
+                read_file_evt, pal, repo_root=repo_root, verbosity=0
+            )
+        )
+        rendered_read = agy_runipd.render_agy_event(
+            read_file_evt, pal, repo_root=repo_root, verbosity=1
+        )
+        self.assertIsNotNone(rendered_read)
+        self.assertIn("agent_workflows/bar.py (lines 10-50)", rendered_read)
+        self.assertNotIn("read_file", rendered_read)
+
         # manage_task extracts Action and TaskId
         done_task = json.dumps(
             {
