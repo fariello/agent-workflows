@@ -5,8 +5,10 @@
 - Concern: Spec `4sd62s` section 6 requires ONE shared record builder for test data in phase B; it must itself be proved by behavioral tests before any test module moves onto it. `9rgn2w` E-02 held six test groups in one item. Research `nj8zdp` guidance (at most 5 E-items, about 8 named units per item) splits them here into one item per group cluster.
 - Scope: Part 2 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-02 (`tests/test_record_builder.py`), split into E-02 (groups (a), (b), (f)), E-18 (c), E-19 (d) and E-20 (e), plus the finishing item E-21 that applies the 10 s bound. EXCLUDES: the builder itself (`j6o96i`); the fixture conversion; production code; the switch-point test (`59aiyh` E-11).
 - Scope-Paths: tests/test_record_builder.py, tests/slow_allowlist.txt, .aw/records/plans/pending/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.ipd.md
-- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i
-- Status: to-review
+- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45, executed:j6o96i
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ijpay0
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9rgn2w (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -43,17 +47,17 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
   - Expected outcome: every (a), (b) and (f) test passes.
   - Execution state: pending
 
-- [ ] E-18 (test group (c) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the visibility test: ) VISIBILITY. One fixture repository holds one record of each type. ONE call each of `aw find`, `aw attention --format json` and `aw check all --agent` sees every built record.
+- [ ] E-18 (test group (c) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the visibility test: (c) VISIBILITY. One fixture repository holds one record of each type. ONE call each of `aw find`, `aw attention --format json` and `aw check all --agent` sees every built record.
   - Depends on: E-02
   - Expected outcome: the test passes; its duration under `-n 0` is recorded for E-21's 10 s bound.
   - Execution state: pending
 
-- [ ] E-19 (test group (d) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the golden test: ) GOLDEN. `support.ready_plan_text` reproduces the E-13 golden bytes for every captured argument set (30 call expressions at review).
+- [ ] E-19 (test group (d) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the golden test: (d) GOLDEN. `support.ready_plan_text` reproduces the E-13 golden bytes for every captured argument set (30 call expressions at review).
   - Depends on: E-02
   - Expected outcome: the test passes for every argument set in `tests/fixtures/record_builder/ready_plan_text_golden.json`.
   - Execution state: pending
 
-- [ ] E-20 (test group (e) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the parity test: ) PARITY. For plan, spec, backlog, research, release and prompt, the builder's file and the file the production creating command writes (`aw ipd scaffold`, `aw specs new`, `aw backlog new`, `aw research new`, `aw releases new`, `aw prompts new`, each with `--apply`) for the same fields give equal `artifact_meta.read` states, so a builder record is a record the toolkit itself would write. Review is excluded because no CLI creates review records; its rounds are checked by (a) through `review_findings.parse_review_text`.
+- [ ] E-20 (test group (e) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the parity test: (e) PARITY. For plan, spec, backlog, research, release and prompt, the builder's file and the file the production creating command writes (`aw ipd scaffold`, `aw specs new`, `aw backlog new`, `aw research new`, `aw releases new`, `aw prompts new`, each with `--apply`) for the same fields give equal `artifact_meta.read` states, so a builder record is a record the toolkit itself would write. Review is excluded because no CLI creates review records; its rounds are checked by (a) through `review_findings.parse_review_text`.
   - Depends on: E-02
   - Expected outcome: the six-type parity test passes; its duration under `-n 0` is recorded for E-21.
   - Execution state: pending
@@ -69,7 +73,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
+- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `7yr827` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`7yr827` E-01) as the same renderer over a string (finishing in `xexn45`). In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
 - `review_findings.render_review` (pure) and `review_findings.write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
 - The existing shared plan builder is `support.ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`ipd_authoring.build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
 - Shared test plumbing lives in `tests/support.py` (`init_repo`, `git`, `run_cli`, `pinned_env`, `ready_plan_text`, `scope_drift_repo`); `tests/repo_template.py` (`copy_template_repo`) gives a pre-built repository; there is no `tests/conftest.py`, and the root `conftest.py` owns tier selection.
@@ -88,6 +92,22 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 | F-09 | At review, in an empty installed fixture repository: `aw find plans` 0.47 s, `aw attention --format json` 2.4 s, `aw check all --agent` 0.9 s; `aw install` into a fresh repository 4.6 s | E-02's bound is 10 s with a stated fallback. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E02["E-02: Add tests/test_record_builder.py with test groups (a), (b), (f)"]
+    E18["E-18: Add visibility test (c) across all eight record types"]
+    E19["E-19: Add golden test (d) reproducing ready_plan_text_golden.json"]
+    E20["E-20: Add parity test (e) against production creating commands"]
+    E21["E-21: Validate 10 s wall time bound and run core gate"]
+
+    E02 --> E18
+    E02 --> E19
+    E02 --> E20
+    E18 --> E21
+    E19 --> E21
+    E20 --> E21
+```
 
 1. Write test groups (a), (b), (f) (E-02).
 2. Write the visibility, golden and parity tests (E-18, E-19, E-20).
@@ -119,8 +139,8 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 
 - Blocking: no
 - Status: resolved
-- Owner: plan-review (round 1 of `59aiyh`, decision D-1)
-- Resolution or deferral rationale: `tve77h` and `xexn45` (and `g5hpbb`, added 2026-11-07), carried from `59aiyh` OQ-02: only `xexn45` gives `artifact_meta.create` a phase-B legacy branch (`write_legacy`) and adds `render_legacy_text`, so depending only on `tve77h` would force the builder to carry its own renderer. Recommendation strength: strong.
+- Owner: plan author
+- Resolution or deferral rationale: `tve77h`, `7yr827` and `xexn45` (and `g5hpbb`), carried from `59aiyh` OQ-02 and `j6o96i`: `7yr827` E-01 gives `artifact_meta.create` and `append` their phase-B legacy branch (`write_legacy`) and adds `render_legacy_text`, so depending on `7yr827` and `xexn45` avoids duplicate renderers. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -156,12 +176,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `xexn45`, `j6o96i` are executed. Every open question is resolved.
+Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `7yr827`, `xexn45`, and `j6o96i` are executed. `OQ-01` is resolved and non-blocking. Safety stop: if any prerequisite in `- Item-Dependencies:` is not executed, or `tests/record_builder.py` is absent, stop and report rather than recording test failures for missing builder capabilities.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if the work cannot be done without a production change, stop and report the missing capability.
 
 Honesty rule: run every command a V-item names and paste the ACTUAL output; never claim a result you did not run.
 
-Commits: commit only through `aw commit ijpay0 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+Commits: commit only through `aw commit ijpay0 -- <paths>`; never run `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs `aw ipd finalize`; a hand executor runs `aw ipd finalize ijpay0` itself.
