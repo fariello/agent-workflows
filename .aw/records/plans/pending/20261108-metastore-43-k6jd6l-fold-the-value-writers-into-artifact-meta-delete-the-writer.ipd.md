@@ -6,7 +6,9 @@
 - Scope: The finishing gate of `9o83cr` E-08, E-09, E-10, E-11 and E-18 (originally carried here verbatim with their ids): E-17 checks, on the whole family's result, every expected outcome those items stated, then runs the gates. Every work item moved in the round-3 split (2026-11-09, research `nj8zdp` guidance) to Orders 280 to 299; see Deferred. EXCLUDES: every other parser and regex literal (`9o83cr` E-12, Orders 45, 46 and 238 to 249); the INDEX and STATUS code (Orders 41 and 42); switching `write_legacy` off and removing the folded value writers again at the cutover (`cxxmyv`).
 - Scope-Paths: .aw/records/plans/pending/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:5lgpix, executed:6bxlzb, executed:6v4uao, executed:71ewpn, executed:8fxic1, executed:8ysz6b, executed:ad86ym, executed:ay6sxp, executed:bxupy8, executed:csobg7, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:h1kfyp, executed:hrbbhy, executed:iup4lp, executed:po3o1c, executed:sq6v7i, executed:t4gl15, executed:tfvby1, executed:um2kvx, executed:v0ucnz, executed:vw88h0, executed:zs7a45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, finishing gate targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-08, E-09, E-10, E-11, E-18 moved to 6bxlzb, h1kfyp, tfvby1, 6v4uao, zs7a45, v0ucnz, 8fxic1, ad86ym, sq6v7i, 5lgpix, bxupy8, ay6sxp, csobg7, 71ewpn, 8ysz6b, iup4lp, hrbbhy, um2kvx, po3o1c, vw88h0.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 check per research nj8zdp: over guidance (7 E-items, 58 work Scope-Paths, E-08/E-09/E-10/E-11/E-18 over 8 units each) but NOT split, because the Orders assigned for new plans (220 to 249) were used up by the q6epwc, snin8q, e8420v and 0xsx2n splits; V-17 evidence now names units. Needs a further split with new Orders.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9o83cr per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
@@ -33,11 +36,11 @@ Confirm, after Orders 280 to 299 have run, that every bullet-line value writer a
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Item ids E-01, E-08, E-09, E-10, E-11 and E-18 moved to Orders 280 to 299 in the round-3 split; E-17 keeps its id, and `- Highest E allocated:` stays 18. The baseline files under `.aw/state/k6jd6l/` are written by Order 280 (`6bxlzb`).
+Item ids E-01, E-08, E-09, E-10, E-11 and E-18 moved to Orders 280 to 299 in the round-3 split; E-17 keeps its id, and `- Highest E allocated:` stays 18. The baseline files under `.aw/state/k6jd6l/` are written by Order 280 (`6bxlzb`) (ensure `.aw/state/k6jd6l/` exists via `mkdir -p .aw/state/k6jd6l/before/`).
 
 ### Task group 5: finish
 
-- [ ] E-17 Finish: run the four family searches (`rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows`, `rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests`, `rg -n "def (parse_metadata_block|parse_frontmatter|_parse_metadata_comment|history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows`, and the subset-1 and subset-2 reader searches of Orders 296 and 299), `python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport` unchanged, the bare core gate `python3 -m pytest` (compare with `.aw/state/k6jd6l/core-before.txt`), `aw check all --agent`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit this plan's own record update through `aw commit k6jd6l -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [ ] E-17 Finish: before running checks, ensure `.aw/state/k6jd6l/` exists (`mkdir -p .aw/state/k6jd6l/before/`). Run the four family searches (`rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows`, `rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests`, `rg -n "def (parse_metadata_block|parse_frontmatter|_parse_metadata_comment|history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows`, and the subset-1 and subset-2 reader searches of Orders 296 and 299), `python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport` unchanged, the bare core gate `python3 -m pytest` (compare with `.aw/state/k6jd6l/core-before.txt`), `aw check all --agent`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit this plan's own record update through `aw commit k6jd6l -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: none
   - Expected outcome: the first two searches list only `agent_workflows/artifact_meta.py` or print nothing, the grammar search lists only `artifact_meta.py`, the reader searches print nothing; all runs pass.
   - Execution state: pending
@@ -64,6 +67,12 @@ Measured 2026-11-07 at `ac76110f4`. F-08 and F-09 are copied from `9o83cr`.
 | F-32 | Round-3 split (2026-11-09) per research `nj8zdp`: 7 E-items, 58 work Scope-Paths and five items naming 11 to 15 units each were over guidance. | E-01 and E-08 to E-18 moved to Orders 280 to 299 (see Deferred); each new part has at most 5 E-items and 8 work Scope-Paths. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    SUB["Orders 280-299: split child plans<br/>fold value writers, remove adapters & text readers"] --> E17["E-17: Finishing family verification & gate run (k6jd6l)<br/>run 4 family searches, test suite, aw check, aw sanitize"]
+    E17 --> PASS["Verify core test gate & commit"]
+```
 
 1. After Orders 280 to 299, verify the family and run the gates (E-17).
 
@@ -137,14 +146,14 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Orders 27 to 36 move the readers of 85 of the 102 measured references onto `artifact_meta` before this plan runs (each lists the module in its Scope-Paths); the parts at Orders 280 to 299 edit only the references Order 280 finds still live. Recommendation strength: strong.
 
 ### OQ-02: Does `backlog.parse_item` disappear entirely?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: `9o83cr` E-11 deletes only "the metadata part of `backlog.parse_item`". Body sections are Markdown prose that N3 keeps, so a body-only parser may survive under the same or a narrower name; Order 299 (`vw88h0`) decides by whether any caller still needs body sections, and records the choice. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -161,4 +170,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit k6jd6l -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from any of the child plans or dependencies in `- Item-Dependencies:` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit k6jd6l -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize k6jd6l` itself; never a hand `git mv` to `executed/`.
