@@ -14,5 +14,6 @@ User documentation (README and reference docs) for `aw migrate`, `aw migrate lay
 Decision for the maintainer: which plan carries it. Both reviews recommend adding it to the `y1zihp` cutover docs patch, because documenting `aw migrate metadata` before the Order 13 cutover would invite users to convert repositories into a format phase-A readers cannot load.
 
 ## Workflow history
+- 2026-11-14 note (aw backlog): maintainer decided 2026-11-14 via /askme: carrier is y1zihp (cutover docs patch); y1zihp to be widened, gain executed:1vfqdu and executed:ya4ee4 dependencies, and return to review
 - 2026-11-14 created (aw backlog): Document the aw migrate family (aw migrate, aw migrate layout, bare aw migrate, aw install --migrate) for users; decide which metastore plan carries it (1vfqdu OQ-08, recommended: y1zihp cutover docs patch)
 - 2026-11-14 widened: also carries ya4ee4 OQ-05 (aw migrate metadata user docs), the same gap 1vfqdu OQ-08 names
