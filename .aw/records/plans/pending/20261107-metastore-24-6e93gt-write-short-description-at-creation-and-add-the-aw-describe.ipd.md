@@ -6,7 +6,9 @@
 - Scope: FINISHING PART of the short-description work (`xexn45` E-03 and E-04). Round-3 split 2026-11-09 per research `nj8zdp`: `--summary` at creation now lives in `fekdwv` (Order 124, backlog, specs, releases), `bir7xm` (125, research, adopt) and `py2vu9` (126, plan scaffold, prompts, `ipd_schema.META_RECOGNIZED`), and `aw describe` in `h06gs7` (136). This plan keeps the AC-36 case 1 cross-check (E-03): all seven creating commands and the setter, once, in one run. EXCLUDES: the `CHANGELOG.md` line (`xexn45` E-14).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-24-6e93gt-write-short-description-at-creation-and-add-the-aw-describe.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:fekdwv, executed:bir7xm, executed:py2vu9, executed:h06gs7
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: simple
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,7 +22,9 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 reviewed (antigravity/claude-opus-5.5): plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
+- 2026-11-14 /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261107-metastore-24-6e93gt-write-short-description-at-creation-and-add-the-aw-describe.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (split by command), E-02 moved to fekdwv, bir7xm, py2vu9, h06gs7.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from xexn45 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -33,11 +37,11 @@ After its four parts run, every creating command writes a short description at c
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-PIN-FIRST RULE for every "move" item: run the named existing test modules GREEN on the unmodified code and save the per-test outcome list under the gitignored `.aw/state/6e93gt/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/6e93gt/<E>-before.txt`; `-m ""` includes `slow` modules, `-p no:randomly -n 0` makes the list deterministic, and `-q` is not repeated because `addopts` is cleared); make the move; run the same command into `-after.txt`; `diff` of the two must print nothing, so a test that newly fails, errors or skips is caught, not only a lost PASSED line. An existing assertion may change only when the Behavior decisions D-1 to D-6 below name it. New tests set `pytestmark = pytest.mark.core`, build fixtures in `tmp_path`, drive the real CLI or function, and never read production source (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
+No move item and no code edit: this plan has one read-only cross-check item (E-03), so the pin-first rule of the parent `xexn45` does not apply here; the four parts (`fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`) carry their own pin-first steps and write every test this plan reads.
 
 ### Task group 1: AC-36 case 1 cross-check
 
-- [ ] E-03 Cross-check AC-36 case 1 across all four parts: run `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` once and build a table in Findings (F-05) with one row per creating command (`aw backlog new`, `aw specs new`, `aw releases new`, `aw research new`, `aw adopt`, `aw ipd scaffold`, `aw prompts new`) and one row for `aw describe`, each naming its stored-value test and its refusal tests by id. A command with no stored-value test is a defect of the part that owns it (`fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`): stop and report it rather than editing here.
+- [ ] E-03 Cross-check AC-36 case 1 across all four parts: run `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` once and build a table in Findings (F-05) with one row per creating command (`aw backlog new`, `aw specs new`, `aw releases new`, `aw research new`, `aw adopt`, `aw ipd scaffold`, `aw prompts new`) and one row for `aw describe`, each naming its stored-value test and its refusal tests by id. The refusal tests differ for `aw specs new` by design (`fekdwv` E-02): a 301-character `--summary` succeeds and stores no `short_description`, and the refusals are the 4301-character, newline and control-character values; every other creating command refuses a 301-character, newline and control-character value. A command with no stored-value test is a defect of the part that owns it (`fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`): stop and report it rather than editing here.
   - Depends on: none
   - Expected outcome: F-05 has eight rows, each naming PASSED test ids; no row is empty.
   - Execution state: pending
@@ -46,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- The `artifact_meta` interface names come from Order 02 (`tve77h`) and are used exactly: `artifact_meta.read(id6) -> State`, `history`, `query`, `resolve`, `read_at`, `append(id6, events, *, expect_seq)`, `create(...)`, `validate_new_events(type, events, *, records_root, migration_import=False)`, `repair`. Order 02's `append`/`create` are log-format and "switched on at the cutover"; this plan adds the phase-B branch (`write_legacy`) that Order 13 removes.
+- The `artifact_meta` interface names come from Order 02 (`tve77h`) and are used exactly: `artifact_meta.read(id6) -> State`, `history`, `query`, `resolve`, `read_at`, `append(id6, events, *, expect_seq)`, `create(...)`, `validate_new_events(type, events, *, records_root, migration_import=False)`, `repair`. Order 02's `append`/`create` are log-format and "switched on at the cutover"; Order 21 (`7yr827`) adds the phase-B branch (`write_legacy`) that Order 13 removes.
 - Atomic replacement is `artifact_core.atomic_write(path, text, *, prefix)`; the lock is `platform_lock.held`; UTC history days come from `artifact_core.utc_history_date` (spec `2vev8j` 4.4).
 - Today's history-insertion rules differ (F-04): `status_set._prepend_workflow_history_entry` and `backlog.run_note` insert DIRECTLY under the heading; `specs._append_history` normalizes to exactly one blank line then the record; `plan_readiness._prepend_history_entry` keeps an existing blank line and inserts after it; `coverage_record.write` inserts directly under the heading.
 - The newest-history reader is `attention_contract.newest_history_record` over `attention_contract.history_block`, which drops blank lines; so the blank-line difference changes no reader result.
@@ -64,9 +68,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | Id | Evidence (measured 2026-11-07 at `ac76110f4`) | Finding |
 |---|---|---|
 | F-01 | `rg -n "\"--summary\"" agent_workflows/cli.py`: research new, research comparison, backlog new, specs new, releases new and adopt carry it; scaffold and prompts new do not | Two new options, five existing ones rewired. |
-| F-02 | `rg -n "Short-Description" agent_workflows/ipd_schema.py`: no match; `agent_workflows/artifact_meta.py` already maps `Short-Description` to `short_description` | `ipd_schema.py` must be edited; `xexn45` did not declare it in `- Scope-Paths:`, so this part declares it. |
-| F-03 | Hidden units of E-01: 2 new CLI options, 7 command modules, `ipd_schema.META_RECOGNIZED`, `command_surface`, the legacy rendering in three forms (bullet, prompt comment key, research YAML key), 11 new test cases: about 24 units | At the limit, kept whole because the seven commands share one test module and one acceptance case (AC-36 case 1). |
-| F-04 | Hidden units of E-02: one new verb, `cli`, `command_surface`, `docs/cli-output-contract.md`, five transcript cases: about 9 units | Within the limit. |
+| F-02 | `rg -n "Short-Description" agent_workflows/ipd_schema.py`: no match; `agent_workflows/artifact_meta.py` already maps `Short-Description` to `short_description` | `ipd_schema.py` must be edited; `xexn45` did not declare it in `- Scope-Paths:`, so `py2vu9` declares it. |
+| F-03 | Historical (pre-split; E-01 now lives in `fekdwv`, `bir7xm` and `py2vu9`). Hidden units of E-01: 2 new CLI options, 7 command modules, `ipd_schema.META_RECOGNIZED`, `command_surface`, the legacy rendering in three forms (bullet, prompt comment key, research YAML key), 11 new test cases: about 24 units | At the limit, kept whole because the seven commands share one test module and one acceptance case (AC-36 case 1). |
+| F-04 | Historical (pre-split; E-02 now lives in `h06gs7`). Hidden units of E-02: one new verb, `cli`, `command_surface`, `docs/cli-output-contract.md`, five transcript cases: about 9 units | Within the limit. |
 | F-05 | (filled by E-03) one row per creating command and `aw describe`, with its PASSED test ids | The AC-36 case 1 cross-check. |
 
 ## Proposed changes (ordered, validatable)
@@ -110,7 +114,7 @@ None here. `h06gs7` adds the `aw describe` leaf to `docs/cli-output-contract.md`
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: As a `- Short-Description:` bullet (a `Short-Description:` key inside a prompt's comment; a `short-description:` YAML key in research front matter), registered as a recognized field in `ipd_schema.META_RECOGNIZED` and proven unflagged for the other types by `aw check all --agent` (E-03). Evidence: phase B has one on-disk format (C10a), the legacy loader reads bullets (tve77h E-11) so the value survives a cache rebuild, and an unregistered bullet is lint error `IPD-M103` on plans. The alternative (no on-disk form until the cutover) would make AC-36 case 1 untestable through `read()` after a cache deletion. The migration (dcerjg) maps the bullet to `short_description` with `description_source` absent (written by a command, not generated), and the census lists it. Recommendation strength: strong.
+- Resolution or deferral rationale: As a `- Short-Description:` bullet (a `Short-Description:` key inside a prompt's comment; a `short-description:` YAML key in research front matter), registered as a recognized field in `ipd_schema.META_RECOGNIZED` and proven unflagged for the other types by `aw check all --agent` (`bir7xm` E-01 and E-02; `py2vu9` E-01 for `IPD-M103` on plans). Evidence: phase B has one on-disk format (C10a), the legacy loader reads bullets (tve77h E-11) so the value survives a cache rebuild, and an unregistered bullet is lint error `IPD-M103` on plans. The alternative (no on-disk form until the cutover) would make AC-36 case 1 untestable through `read()` after a cache deletion. The migration (dcerjg) maps the bullet to `short_description` with `description_source` absent (written by a command, not generated), and the census lists it. Recommendation strength: strong.
 - Note: carried unchanged from `xexn45` with its id, so the item text that cites it still resolves.
 
 ## Validation and cross-check (verify before reporting done)
@@ -118,7 +122,7 @@ None here. `h06gs7` adds the `aw describe` leaf to `docs/cli-output-contract.md`
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` output and the filled F-05 table: for each of the seven creating commands, its stored-value test id and its 301-character, newline and control-character refusal test ids, each PASSED; for `aw describe`, its preview, apply, executed-plan, clear and unknown-id6 test ids, each PASSED.
+  - Required evidence: paste the `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` output and the filled F-05 table: for each of the seven creating commands, its stored-value test id and its 301-character, newline and control-character refusal test ids, each PASSED (for `aw specs new`, instead its 301-character accepted-without-`short_description` test id and its 4301-character, newline and control-character refusal test ids, per `fekdwv` E-02); for `aw describe`, its preview, apply, executed-plan, clear and unknown-id6 test ids, each PASSED.
   - Observed evidence:
   - Result: pending
 
@@ -130,7 +134,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every move is pin-first: the named existing modules run green on the unmodified code before the move, and an assertion may change only where the Behavior decisions name it.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
 Honesty rule: run the named modules and the bare core gate `python3 -m pytest`, and paste the ACTUAL summary lines; never claim a result you did not run.
 
