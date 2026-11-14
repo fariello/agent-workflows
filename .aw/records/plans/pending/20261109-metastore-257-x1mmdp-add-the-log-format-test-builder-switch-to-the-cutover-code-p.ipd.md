@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with both cutover patches applied, set the builder's `RECORD_FORMAT = "log"`, add the log-format branch of `assert_field`/`assert_no_field`, update the exact-spelling rows, keep the literal-input legacy tests pointing at `m0001`, and settle the `review-pilot` corpus; list the tests that are refused until the migration; regenerate `.aw/system/cutover/metastore-code.cutover.patch`.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,13 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x1mmdp
-
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+- Readiness: go-pending-approval
+- Review-Depth: standard
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -57,7 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: package
 
-- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree, run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit x1mmdp -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree (`git worktree remove --force .aw/state/x1mmdp/scratch`), run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit x1mmdp -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: the regenerated code patch holds the earlier changes plus this plan's; the guard test passes; one path-scoped commit.
   - Execution state: pending
@@ -81,6 +83,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 1. E-01: scratch worktree with both patches.
 2. E-02 to E-04: builder and helper; exact-spelling rows and legacy tests; review-pilot and refusal list.
 3. E-05: regenerate the code patch and commit.
+
+```mermaid
+flowchart TD
+    E01["E-01: Create scratch worktree and apply patches"] --> E02["E-02: Switch builder to log format and add helper branch"]
+    E02 --> E03["E-03: Update exact-spelling rows and point legacy tests to m0001"]
+    E03 --> E04["E-04: Settle review-pilot corpus and record expected refusals"]
+    E04 --> E05["E-05: Regenerate cutover code patch, verify guard test, commit"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -106,7 +116,7 @@ None open.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the worktree and both `git apply --index` commands with exit status 0, and F-01.
@@ -134,12 +144,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after `g45vyv` is `executed` and this plan is `approved`. Code and tests are edited ONLY in the scratch worktree.
-
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
-
-Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
-
-Commits: commit only through `aw commit x1mmdp -- <paths>`; never push.
-
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (specifically prerequisite `g45vyv`). Code and tests are edited ONLY in the scratch worktree. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Stop and report rather than editing production code outside the scratch worktree or weakening test assertions if an unexpected failure occurs on unmodified code, if a patch hunk rejects, or if an unresolvable concurrent-edit conflict occurs. Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run. Commits: commit only through `aw commit x1mmdp -- <paths>`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
