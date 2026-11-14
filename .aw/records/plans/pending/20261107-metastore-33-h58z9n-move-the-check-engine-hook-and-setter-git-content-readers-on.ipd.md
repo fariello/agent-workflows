@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). The baseline, the 4.4 search rows and the `check_engine` and hook moves (former E-01 baseline and gate-file rows, E-02, E-03) moved to `snh19k` (Order 145); the remaining 4.4 search rows and the setter, staleness, lifecycle and runner merge-path moves (former E-01 remaining rows, E-04) moved to `iqhzse` (Order 146). This plan keeps E-05: the residual-audit rows of `t4gl15` E-15 for the hook, readiness and lifecycle modules, the re-run of every moved module, and the gates. EXCLUDES: every other runner read (Order 34 `y97k46`), the record, review and orchestration modules (Orders 35 `jd7874` and 36 `2zpw22`), the new `meta/*.jsonl` append hook (`jq82as`), the cache-parity and offline tests and the repo-wide finish (`t4gl15`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-33-h58z9n-move-the-check-engine-hook-and-setter-git-content-readers-on.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:snh19k, executed:iqhzse
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 moved to snh19k; E-01 (remaining search rows) and E-04 moved to iqhzse.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from t4gl15 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
@@ -82,7 +85,18 @@ DECISIONS (copied from `t4gl15`; authoritative text stays there): D-1 multi-word
 
 ## Proposed changes (ordered, validatable)
 
-1. Residual audit for this plan's modules, gates, commit (E-05).
+1. Run residual audit across hook, readiness, and lifecycle modules, populating table F-04 (E-05).
+2. Re-run test suites across all moved modules, verify gates, and commit (E-05).
+
+```mermaid
+flowchart TD
+    A["E-05: Run regex scans across target modules"] --> B["E-05: Populate table F-04 with hit owners"]
+    B --> C{"Any unowned reader defect?"}
+    C -->|Yes| D["Repair unowned reader via artifact_meta.read_at"]
+    C -->|No| E["Re-run baseline suites for moved modules"]
+    D --> E
+    E --> F["Verify core test gate and commit path-scoped"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -137,10 +151,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after `ffceq0`, `g5hpbb`, `tve77h`, `xexn45`, `snh19k` and `iqhzse` are executed. OQ-01 is resolved and not blocking.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code is not modified unless E-05 uncovers an unowned reader defect.
+
+Safety: if prerequisite modules or `artifact_meta.read_at` reader implementations from `snh19k` or `iqhzse` are absent, stop and report immediately: that is an unsafe condition, not a scope question.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit h58z9n -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize h58z9n` itself.
