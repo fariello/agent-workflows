@@ -6,7 +6,9 @@
 - Scope: delete the 8 literals in four modules, each use reading through `artifact_meta`; update `tests/test_artifact_audit.py` where a test names a deleted pattern. EXCLUDES the plans modules of E-21 (Order 244).
 - Scope-Paths: agent_workflows/artifact_rename.py, agent_workflows/artifact_refs.py, agent_workflows/artifact_adopt.py, agent_workflows/artifact_audit.py, tests/test_artifact_audit.py, tests/test_artifact_rename.py, .aw/records/plans/pending/20261109-metastore-245-qttoyc-delete-the-artifact-family-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15, executed:tbvx4r
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, regex literal deletions, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 0xsx2n (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -70,6 +73,18 @@ Measured at `ac76110f4` (`0xsx2n` F-27): `artifact_rename` 5, `artifact_refs` 1,
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Delete artifact_rename literals (E-01)<br/>agent_workflows/artifact_rename.py"]
+    E02["2. Delete artifact_refs literal (E-02)<br/>agent_workflows/artifact_refs.py"]
+    E03["3. Delete artifact_adopt & artifact_audit literals (E-03)<br/>artifact_adopt.py<br/>artifact_audit.py"]
+    E04["4. Update tests, verify & commit (E-04)<br/>tests/test_artifact_audit.py<br/>tests/test_artifact_rename.py"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+```
+
 1. Delete the `artifact_rename` literals (E-01).
 2. Delete the `artifact_refs` literal (E-02).
 3. Delete the `artifact_adopt` and `artifact_audit` literals (E-03).
@@ -99,7 +114,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Record it in the V-item evidence and move on; a site an earlier reader plan removed needs no edit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -131,4 +146,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit qttoyc -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit qttoyc -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize qttoyc` itself.
