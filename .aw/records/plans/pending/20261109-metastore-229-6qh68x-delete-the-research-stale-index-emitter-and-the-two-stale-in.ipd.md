@@ -6,7 +6,9 @@
 - Scope: delete the last emitter and the two registry entries together, rewrite the `check_engine` comments that cite them, and update `tests/test_drift_rule_registration.py` plus the stale-index cases of `tests/test_research_index.py` and `tests/test_index_check_agent_records.py`. EXCLUDES: `doctor` (Order 225), the plans and prompts emitters (Order 224), and INDEX-byte assertions (`snin8q`).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/check_engine.py, tests/test_drift_rule_registration.py, tests/test_research_index.py, tests/test_index_check_agent_records.py, .aw/records/plans/pending/20261109-metastore-229-6qh68x-delete-the-research-stale-index-emitter-and-the-two-stale-in.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc, executed:w819as
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6qh68x
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-229-6qh68x-delete-the-research-stale-index-emitter-and-the-two-stale-in.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@ After this plan, no `check_drift` emits a `check.stale-index-*` rule and `check_
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-`q6epwc` E-05's site list is split across Orders 224, 229 and 225; this plan takes: the 2 `check_engine.RULE_REGISTRY` entries, the 2 emitter lines of `research_index.check_drift`, the 16 `check_engine` comment lines, the test module `tests/test_drift_rule_registration.py` from E-05's list, and the stale-index cases of `tests/test_research_index.py` and `tests/test_index_check_agent_records.py`. "Deleting the registry entry and the emitters together matters: an unregistered rule falls through to `check_engine._DEFAULT_RULESPEC` (severity `error`)" (carried from `q6epwc` E-05): E-02 and E-03 land in ONE commit.
+`q6epwc` E-05's site list is split across Orders 224, 229 and 225; this plan takes: the 2 `check_engine.RULE_REGISTRY` entries, the 2 emitter lines of `research_index.check_drift`, the 16 `check_engine` comment lines, the test module `tests/test_drift_rule_registration.py` from E-05's list, and the stale-index cases of `tests/test_research_index.py` and `tests/test_index_check_agent_records.py`. Ensure `.aw/state/6qh68x/` exists (`mkdir -p .aw/state/6qh68x/`). "Deleting the registry entry and the emitters together matters: an unregistered rule falls through to `check_engine._DEFAULT_RULESPEC` (severity `error`)" (carried from `q6epwc` E-05): E-02 and E-03 land in ONE commit.
 
 PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/6qh68x/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor. A test whose only subject is a deleted rule is deleted, and the mapping says "subject removed".
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_drift_rule_registration.py`, `tests/test_research_index.py` and `tests/test_index_check_agent_records.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Create `.aw/state/6qh68x/` (`mkdir -p .aw/state/6qh68x/`) and pin `tests/test_drift_rule_registration.py`, `tests/test_research_index.py` and `tests/test_index_check_agent_records.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/6qh68x/E-01-before.txt` exists.
   - Execution state: pending
@@ -64,14 +67,28 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ## Project conventions discovered (Step 0)
 
-- Severities come from `check_engine.RULE_REGISTRY` (`RuleSpec`); an unregistered rule falls through to `check_engine._DEFAULT_RULESPEC` (severity `error`).
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
+- Severities come from `agent_workflows/check_engine.py::RULE_REGISTRY` (`RuleSpec`); an unregistered rule falls through to `agent_workflows/check_engine.py::_DEFAULT_RULESPEC` (severity `error`).
+- Cite code by SYMBOL (`agent_workflows/module.py::function_or_symbol`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
 
 Measured 2026-11-09 at `3d0ddb845`: `rg -n "stale-index" agent_workflows/check_engine.py` prints 18 lines (2 registry keys, 16 comments); `agent_workflows/research_index.py` 2 lines in `check_drift`. `rg -c "stale-index"`: `tests/test_research_index.py` 4, `tests/test_index_check_agent_records.py` 6.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["1. Pin test modules (E-01)<br/>tests/test_drift_rule_registration.py<br/>tests/test_research_index.py<br/>tests/test_index_check_agent_records.py"]
+    E02["2. Delete research_index stale-index emitter (E-02)<br/>agent_workflows/research_index.py"]
+    E03["3. Delete check_engine registry entries & rewrite comments (E-03)<br/>agent_workflows/check_engine.py"]
+    E04["4. Retarget test cases (E-04)<br/>tests/test_drift_rule_registration.py<br/>tests/test_research_index.py<br/>tests/test_index_check_agent_records.py"]
+    E05["5. Verify & commit in one atomic commit (E-05)<br/>agent_workflows/research_index.py<br/>agent_workflows/check_engine.py"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
 
 1. Pin (E-01).
 2. Delete the research emitter (E-02) and the registry entries with their comments (E-03).
@@ -103,7 +120,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Its substring branches stay dead but harmless until Order 225 deletes them; no emitter produces the rule. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -140,4 +157,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 224 first, so this plan removes the LAST emitter with the registry entries). Every deletion is pin-first (PIN RULE above). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 6qh68x -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 224 first, so this plan removes the LAST emitter with the registry entries). Every deletion is pin-first (PIN RULE above). Stop safely if prerequisite metastore symbols or comments from `w819as` (specifically `plans_index` and `prompts_index` stale-index emitter removals) or `sdzcur` (F-28 baseline) are absent.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit 6qh68x -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize 6qh68x` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize 6qh68x itself.
