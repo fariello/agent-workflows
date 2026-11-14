@@ -1,5 +1,6 @@
 - Id: pay4hs
-- Status: open
+- Status: done
+- Close-Evidence: .aw/records/walkthroughs/20261114-revgate-01-pay4hs-review-gate-fixes.walkthrough.md
 - Blocks-Release: next
 - Set: revgate
 - Priority: high
@@ -9,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 done (aw set): status set to done
 - 2026-11-14 created (aw backlog): plan-review's own lint (--phase review-finalize) passes an uncarried open question that the review-lane integration gate then refuses, so the review is wasted as fail-merge
 
 ## Observed
