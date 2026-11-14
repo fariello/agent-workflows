@@ -6,7 +6,9 @@
 - Scope: delete the eight inline literals, each use reading the value through `artifact_meta.read`, `read_text` or `read_at`; confirm the two `body prose` rows stay; update comments in `check_engine` that cite a deleted literal. EXCLUDES the parsers (Order 239) and named patterns (Order 240).
 - Scope-Paths: agent_workflows/check_engine.py, .aw/records/plans/pending/20261109-metastore-241-bcrko1-delete-the-inline-check-engine-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:js35bz, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: bcrko1
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-241-bcrko1-delete-the-inline-check-engine-metadata-regex-literals.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from e8420v (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `e8420v` E-12's list is split across Orders 239, 240 and 241; this plan takes "the inline literals in `_artifact_compact_date`, `evaluate_handoff_ready`, `check_spec_review_attestation`, `find_obligations_carried_by`, `check_ipd_lint_reach` and `check_orchestrator_not_review_ready` (three). Classed `body prose` (kept, N3) unless E-01 shows otherwise: `_TARGET_BULLET_RE` (Concern/Scope/Scope-Paths prose targets), the `parse_spec_acceptance_criteria` table-rule literal (`^-+$`, a Markdown table divider)." The search is `LIT` from `786w7r`.
 
-PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of every `tests/test_check_engine*.py` module to `.aw/state/bcrko1/before.txt` (command as in `js35bz`); after E-03, the same into `after.txt`.
+PIN RULE (carried from `9o83cr`): before E-01, ensure `.aw/state/bcrko1/` exists (`mkdir -p .aw/state/bcrko1/`) and save the per-test outcome list of every `tests/test_check_engine*.py` module to `.aw/state/bcrko1/before.txt` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_check_engine*.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/bcrko1/before.txt`); after E-03, the same into `after.txt`.
 
 ### Task group 1: inline literals, then verify
 
-- [ ] E-01 Delete the inline literals in the three date and handoff rules: `check_engine._artifact_compact_date`, `check_engine.evaluate_handoff_ready`, `check_engine.check_spec_review_attestation`.
+- [ ] E-01 Before the first edit, ensure `.aw/state/bcrko1/` exists (`mkdir -p .aw/state/bcrko1/`) and save the baseline test PIN list to `.aw/state/bcrko1/before.txt`. Delete the inline literals in the three date and handoff rules: `check_engine._artifact_compact_date`, `check_engine.evaluate_handoff_ready`, and `check_engine.check_spec_review_attestation`.
   - Depends on: none
   - Expected outcome: the `LIT` search over those three functions prints nothing.
   - Execution state: pending
@@ -68,8 +71,17 @@ Measured at `ac76110f4` (`e8420v` F-26): 8 inline literals in 6 functions, 2 `bo
 
 ## Proposed changes (ordered, validatable)
 
-1. Delete the inline literals in three passes (E-01 to E-03).
-2. Verify and commit (E-04).
+```mermaid
+flowchart TD
+    E01["E-01: Delete date and handoff inline literals"] --> E02["E-02: Delete obligations & reach literals"]
+    E02 --> E03["E-03: Delete orchestrator readiness literals"]
+    E03 --> E04["E-04: Verify LIT search, PIN diffs & commit"]
+```
+
+1. Delete the inline literals in `_artifact_compact_date`, `evaluate_handoff_ready`, and `check_spec_review_attestation` (E-01).
+2. Delete the inline literals in `find_obligations_carried_by` and `check_ipd_lint_reach` (E-02).
+3. Delete the three inline literals in `check_orchestrator_not_review_ready` (E-03).
+4. Verify LIT search, PIN test diffs, multisets against baseline, and commit (E-04).
 
 ## Deferred / out of scope (with reason)
 
@@ -95,7 +107,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. It matches Concern/Scope/Scope-Paths prose targets inside the body, which N3 keeps outside `artifact_meta`; `9o83cr` E-14 lists it in the exclusion file. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -127,4 +139,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit bcrko1 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Stop safely if prerequisite metastore symbols from `59aiyh`, `786w7r`, `ffceq0`, `js35bz`, `k6jd6l`, or `t4gl15` are absent, or if table F-26 in `786w7r` has not been populated.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit bcrko1 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize bcrko1` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize bcrko1 itself.
