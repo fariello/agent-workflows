@@ -5,8 +5,10 @@
 - Concern: Spec `4sd62s` section 6 requires that test data be written by ONE shared record builder in phase B, so that the cutover (Order 13) changes the builder and not hundreds of test files. Research `nj8zdp` and the maintainer's ruling ("plans that obtuse and not-too-smart agents won't mess up") set the guidance of at most 5 E-items and 8 work Scope-Paths per plan and about 8 named units per item; `9rgn2w` held the baselines, the builder, its tests and the fixture conversion in one plan with a builder item of eight methods. This part, split from `9rgn2w`, captures every baseline and writes the builder.
 - Scope: Part 1 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-13 (baselines, with F-10) and E-01 (the builder), E-01 split into E-01 (class, rules, four methods), E-15 (the other four methods) and E-16 (the `support.ready_plan_text` supersession), plus the finishing item E-17. EXCLUDES: the builder's test module (`ijpay0`); the tracked-fixture conversion (`7fpc8v`, `z4x192`, `9zcuyh`, `9rgn2w`); every test-module batch; production code; the log format (Order 13).
 - Scope-Paths: tests/record_builder.py, tests/support.py, tests/fixtures/record_builder/ready_plan_text_golden.json, .aw/records/plans/pending/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
-- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,7 +22,9 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9rgn2w (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -35,24 +39,24 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
 
 ### Task group 1: baselines and the builder
 
-- [ ] E-13 Capture every baseline BEFORE any edit, under the gitignored `.aw/state/59aiyh/`:
+- [ ] E-13 Capture every baseline BEFORE any edit, under the gitignored `.aw/state/59aiyh/` (and `.aw/state/j6o96i/` for worktree isolation):
   - the bare `python3 -m pytest` summary line and wall time (`core-before.txt`);
-  - the full-suite outcome list (`full-before.txt`), using the E-12 command;
+  - the full-suite outcome list (`full-before.txt`), using the `59aiyh` E-12 command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/full-before.txt`);
   - `aw check --agent` output (`check-before.jsonl`);
   - the F-01 `rg` count over `tests/` (`legacy-before.txt`);
   - the E-09 helper count (`helpers-before.txt`);
-  - the golden bytes of `support.ready_plan_text(**kwargs)` for every distinct argument set its call sites use at HEAD, plus the default call. They go in `tests/fixtures/record_builder/ready_plan_text_golden.json`, a tracked generated file whose generating command E-02 writes in its module docstring.
+  - the golden bytes of `support.ready_plan_text(**kwargs)` for every distinct argument set its call sites use at HEAD, plus the default call. They go in `tests/fixtures/record_builder/ready_plan_text_golden.json`, a tracked generated file whose generating command is documented in `tests/record_builder.py`'s module docstring.
   - Depends on: none
   - Split addition (2026-11-07): because `.aw/state/` is gitignored and does not travel between lane worktrees, also paste into this plan, as table F-10, the first line of `core-before.txt` with its wall time, the `legacy-before.txt` count, the `helpers-before.txt` count, the line count of `full-before.txt` and of `check-before.jsonl`, and the commit id at which all of them were taken; `59aiyh` E-11 and E-12 compare against F-10, and regenerate `full-before.txt` and `check-before.jsonl` at that commit (in a temporary `git worktree add` under `.aw/state/59aiyh/`) when they run in a different worktree.
   - Expected outcome: all six files exist with modification times earlier than the first edit to `tests/support.py` or `tests/record_builder.py`; F-10 is written.
   - Execution state: pending
 
-- [ ] E-01 Create `tests/record_builder.py` with one `RecordBuilder(repo_root)` and one method per type; THIS item writes the class, its shared rules below, and the first four methods `plan(...)`, `spec(...)`, `backlog(...)` and `research(...)` (round-3 split 2026-11-09: the other four methods `release(...)`, `prompt(...)`, `walkthrough(...)` and `review(subject, rounds=...)` are E-15, and the SUPERSESSION rule is E-16). Each method takes registry field names (`status`, `set`, `order`, `plan_role`, `item_dependencies`, `blocks_release`, `from_backlog`, `readiness`, `approval`, `gate_kind`, `gate_ref`, `short_description`, ...), `history=[...]` events, `body=` prose (and, for plans, `open_questions=`), `disposition=` (a non-default lifecycle directory) and `raw_fields={legacy_name: text}` (inserted verbatim into the metadata block after the validated write and never validated; ONLY for tests whose input is deliberately invalid, F-08). Each method returns the created `Path`. Rules:
+- [ ] E-01 Create `tests/record_builder.py` with one `RecordBuilder(repo_root=None)` and one method per type; THIS item writes the class, its shared rules below, and the first four methods `plan(...)`, `spec(...)`, `backlog(...)` and `research(...)` (round-3 split 2026-11-09: the other four methods `release(...)`, `prompt(...)`, `walkthrough(...)` and `review(subject, rounds=...)` are E-15, and the SUPERSESSION rule is E-16). Each method takes registry field names (`status`, `set`, `order`, `plan_role`, `item_dependencies`, `blocks_release`, `from_backlog`, `readiness`, `approval`, `gate_kind`, `gate_ref`, `short_description`, ...), `history=[...]` events, `body=` prose (and, for plans, `open_questions=`), `disposition=` (a non-default lifecycle directory) and `raw_fields={legacy_name: text}` (inserted verbatim into the metadata block after the validated write and never validated; ONLY for tests whose input is deliberately invalid, F-08). Each method returns the created `Path` (or `str` when `text_only=True`). Rules:
   - VALIDATION. Every field name and value outside `raw_fields` is validated through the `artifact_meta` registry (`artifact_meta.registry_fields`, `artifact_meta.validate_new_events`), so a misspelled field fails the test at build time.
-  - WRITING (phase B). The builder writes through `artifact_meta`, as spec `4sd62s` section 7 step 6 requires: the file form calls `artifact_meta.create` (whose phase-B branch renders through `write_legacy`, `xexn45` E-01) and `artifact_meta.append` for `history=` events, with the fixture repository as the project that `artifact_meta` resolves (the fixture repository carries `.aw/`, without which `project_context` finds no project). The text form calls `artifact_meta.render_legacy_text(text, events)` (`xexn45` E-11). The builder has NO renderer of its own, so the cutover changes the format by changing `artifact_meta` and `RECORD_FORMAT`, never by editing a second copy of the format in the tests. Plans start from `ipd_authoring.build_skeleton`, as `support.ready_plan_text` does today; other types start from the minimal heading and body that today's creating command emits.
-  - PLACEMENT. The file goes at `artifact_naming.build_clustered_name` under the type's records directory and default disposition: `pending/` for a plan, `artifact_types.TYPE_BACKENDS` for the other types.
+  - WRITING (phase B). The builder writes through `artifact_meta`, as spec `4sd62s` section 7 step 6 requires: the file form calls `artifact_meta.create` (whose phase-B branch renders through `write_legacy`, `7yr827` E-01) and `artifact_meta.append` for `history=` events, with the fixture repository as the project that `artifact_meta` resolves (the fixture repository carries `.aw/`, without which `project_context` finds no project). The text form calls `artifact_meta.render_legacy_text(text, events)` (`7yr827` E-01). The builder has NO renderer of its own, so the cutover changes the format by changing `artifact_meta` and `RECORD_FORMAT`, never by editing a second copy of the format in the tests. Plans start from `ipd_authoring.build_skeleton`, as `support.ready_plan_text` does today; other types start from the minimal heading and body that today's creating command emits.
+  - PLACEMENT. The file goes at `artifact_naming.build_clustered_name` under each type's records directory using the layout model default disposition: `pending/` for plans and prompts, status subdirectories for specs and backlog, and records root for research, releases, walkthroughs, and reviews, or explicit `disposition=` when provided.
   - DETERMINISM. `when=` defaults to the fixed day `2026-08-24` (the `support.ready_plan_text` default) and is never read from the clock, so built bytes are reproducible.
-  - TEXT FORM. `text_only=True` returns the string without writing, for tests that pass text (`ipd_lint.lint_text`, merge-stage helpers).
+  - TEXT FORM. `text_only=True` returns the string without writing, for tests that pass text (`ipd_lint.lint_text`, merge-stage helpers). `repo_root=None` is allowed for text-only calls.
   - SWITCH. One module-level constant, `RECORD_FORMAT`, names the format: `"legacy"` now; Order 13 adds `"log"`.
   - Depends on: E-13
   - Expected outcome: `RecordBuilder(tmp).plan(status="approved", set="demo", order=1)` writes a plan that `aw ipd lint` and `artifact_meta.read` accept; `plan(stauts="approved")` raises naming `stauts`; `plan(raw_fields={"Status": "EXECUTED"})` writes the literal line; `spec(...)`, `backlog(...)` and `research(...)` each write a record `artifact_meta.read` accepts.
@@ -79,7 +83,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
+- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `7yr827` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`7yr827` E-01) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
 - `review_findings.render_review` (pure) and `review_findings.write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
 - The existing shared plan builder is `support.ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`ipd_authoring.build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
 - Shared test plumbing lives in `tests/support.py` (`init_repo`, `git`, `run_cli`, `pinned_env`, `ready_plan_text`, `scope_drift_repo`); `tests/repo_template.py` (`copy_template_repo`) gives a pre-built repository; there is no `tests/conftest.py`, and the root `conftest.py` owns tier selection.
@@ -94,12 +98,27 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | `rg -c --glob '*.py' -e '- (Id\|Status\|Set\|Kind\|Blocks-Release\|Readiness\|Item-Dependencies\|Scope-Paths\|From-Backlog\|From-Spec\|Work-Kind\|Priority\|Order\|Date\|Gate-Kind\|Gate-Ref\|Approval\|Subject-Id\|Verdict\|Graduated-To):\|## Workflow history' tests` lists 323 files with 6,820 lines (318 batch files after the 5 EXCLUDED `tests/test_artifact_meta_*.py` files) | Batch input for Orders 38 to 40 and `59aiyh` E-09. |
+| F-01 | `rg -c --glob '*.py' -e '- (Id\|Status\|Set\|Kind\|Blocks-Release\|Readiness\|Item-Dependencies\|Scope-Paths\|From-Backlog\|From-Spec\|Work-Kind\|Priority\|Order\|Date\|Gate-Kind\|Gate-Ref\|Approval\|Subject-Id\|Verdict\|Graduated-To):\|## Workflow history' tests` lists 323 files with 6,820 lines (318 batch files after the 5 EXCLUDED `tests/test_artifact_meta_*.py` files; 326 files at review) | Batch input for Orders 38 to 40 and `59aiyh` E-09. |
 | F-04 | 92 matches of the E-09 helper pattern in 62 modules at `ac76110f4` (89 at review); `support.ready_plan_text` has 30 calls in 15 modules | E-13 captures the helper count; E-02 (d) covers every captured `ready_plan_text` argument set. |
 | F-05 | 26 tracked `.md` fixtures carry `^- (Id\|Status):` (`fixtures/attnview/specs-valid` 9, `fixtures/attnview/violations` 7, `fixtures/review-pilot/plans` 9, `fixtures/conforming-orchestrator.md` 1; unchanged at `ac76110f4`); 8 test modules contain `aw-prompt` (7 at review); 60 `ipd_lint.lint_text(` calls in 11 test modules | The builder needs a text form and a prompt form; the review-pilot corpus stays literal (E-10). |
 | F-10 | (written by E-13) baseline summary for later parts | Read by `59aiyh` E-11 and E-12. |
 
+## Behavior decisions (spec `4sd62s` section 6, section 7 step 6)
+
+- D-1 (Renderer provider). The builder relies on `7yr827` E-01 for `write_legacy` and `render_legacy_text` in Phase B (with `xexn45` completing the full writer migration), keeping zero duplicate formatting code in test utilities.
+- D-2 (Text form without repository root). `RecordBuilder` allows `repo_root=None` (or `RecordBuilder.plan(..., text_only=True)`), rendering text via `artifact_meta.render_legacy_text` directly so callers like `support.ready_plan_text` require no temporary filesystem repository.
+- D-3 (Record placement across types). Record placement follows each type's layout definition (`agent_workflows.layout.build_default_layout().record_classes`), placing plans and prompts in `pending/`, specs in status subdirectories (`to-review` or `draft`), backlog in `open`, and research/releases/walkthroughs/reviews at their records root, with override via `disposition=`.
+- D-4 (Golden fixture documentation). The generation command and procedure for `tests/fixtures/record_builder/ready_plan_text_golden.json` is documented in `tests/record_builder.py`'s module docstring, keeping all builder documentation self-contained before `ijpay0` runs.
+
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E13["1. Capture Baselines and F-10 (E-13)"] --> E01["2. Write RecordBuilder Class & 4 Methods (E-01)"]
+    E01 --> E15["3. Add Remaining 4 Methods (E-15)"]
+    E15 --> E16["4. Supersede support.ready_plan_text (E-16)"]
+    E16 --> E17["5. Run Caller Modules & Gate, Path-Scoped Commit (E-17)"]
+```
 
 1. Capture the baselines and F-10 (E-13).
 2. Write the builder class and its first four methods, then the other four (E-01, E-15).
@@ -137,7 +156,7 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 - Blocking: no
 - Status: resolved
 - Owner: plan-review (round 1 of `59aiyh`, decision D-1)
-- Resolution or deferral rationale: `tve77h` and `xexn45` (and `g5hpbb`, added 2026-11-07), carried from `59aiyh` OQ-02: only `xexn45` gives `artifact_meta.create` a phase-B legacy branch (`write_legacy`) and adds `render_legacy_text`, so depending only on `tve77h` would force the builder to carry its own renderer. Recommendation strength: strong.
+- Resolution or deferral rationale: `g5hpbb`, `tve77h`, `7yr827`, and `xexn45` (carried from `59aiyh` OQ-02 and updated 2026-11-14): `7yr827` (split from `xexn45` on 2026-11-07) gives `artifact_meta.create` a phase-B legacy branch (`write_legacy`) and adds `render_legacy_text`, and `xexn45` completes the remaining writer moves, so depending on `7yr827` and `xexn45` guarantees the shared renderer is available without the builder carrying a duplicate implementation. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -173,7 +192,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `xexn45` are executed. Every open question is resolved.
+Execute only after human approval (`Status: approved`) and after `g5hpbb`, `tve77h`, `7yr827`, `xexn45` are executed. Every open question is resolved.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if the work cannot be done without a production change, stop and report the missing capability.
 
@@ -181,4 +200,4 @@ Honesty rule: run every command a V-item names and paste the ACTUAL output; neve
 
 Commits: commit only through `aw commit j6o96i -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize j6o96i` itself.
