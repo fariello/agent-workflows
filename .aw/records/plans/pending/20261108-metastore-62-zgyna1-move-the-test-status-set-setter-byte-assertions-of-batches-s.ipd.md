@@ -6,7 +6,9 @@
 - Scope: `cxxmyv` E-07 (setter-byte half), batches S18, S19, S20 moved verbatim from `w13bkp` (module and class lists unchanged; 3 module entries, 82 candidate lines at the split); E-04 finishes. The helper is `j5fqax` E-01 (formerly `iog3cw` E-01). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code; every other batch.
 - Scope-Paths: tests/test_status_set.py, tests/test_walkthrough_id6.py, tests/test_work_begin_plan_path_outside_root.py, .aw/records/plans/pending/20261108-metastore-62-zgyna1-move-the-test-status-set-setter-byte-assertions-of-batches-s.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: zgyna1
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
 - 2026-11-08 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from w13bkp (batches S18, S19, S20) per maintainer step-complexity rule (no single E/V item hides hundreds of steps; at most 4 batch items per plan).
 
 ## Goal
@@ -32,7 +35,7 @@ Every setter-byte assertion in batches S18, S19, S20 goes through the format-awa
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
 Batch rule, applied to every batch E-item of this plan:
-1. Record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/zgyna1/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
+1. Before the batch, ensure directory existence (`mkdir -p .aw/state/zgyna1`) and record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/zgyna1/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
 2. In each named module (or class), replace every SETTER-BYTE assertion with a call to the helper of `tests/record_builder.py` added by `j5fqax` E-01, formerly `iog3cw` E-01 (`assert_field(path, field, value)` and `assert_no_field(path, field)`). A setter-byte assertion is an `assertIn`/`assertNotIn`/`assert ... in` over the text of a RECORD FILE that names a front-matter bullet (`- Status:`, `- Priority:`, `- Blocks-Release:` and the other F-28 fields). An assertion over command OUTPUT (stdout, stderr, a rendered message) is a `displayed-output assertion` and is NOT converted; an assertion whose subject is the legacy grammar itself (a legacy-loader, migration or quoted-example test) is `legacy-format subject` and is NOT converted.
 3. Re-run the same command into `<batch>-after.txt` and require `diff` to print nothing. A conversion that would change what a test checks (for example a test that asserts the exact bullet spelling, such as whitespace after the colon) stops and is reported with its node id; it is listed as `setter-byte, exact spelling` in F-28 for `cxxmyv`, not weakened.
 4. Count the remaining matches of the F-28 pattern in the batch's modules and give each remaining line one class: `converted` (none should remain), `displayed-output assertion`, `legacy-format subject` or `setter-byte, exact spelling`.
@@ -40,7 +43,7 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-01 Batch S18: convert the setter-byte assertions of `tests/test_status_set.py` (class `TestStatusSetCommands`) (29 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S18`.
+- [ ] E-01 Batch S18: convert the setter-byte assertions of `tests/test_status_set.py` (class `TestStatusSetCommands`) (29 candidate assertion lines at `ac76110f4`, F-28). Ensure directory existence (`mkdir -p .aw/state/zgyna1`) and apply the batch rule with `<batch>` = `S18`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S18 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
   - Execution state: pending
@@ -64,9 +67,9 @@ Batch rule, applied to every batch E-item of this plan:
 
 ## Project conventions discovered (Step 0)
 
-- Test data comes from ONE builder, `tests/record_builder.py` (`9rgn2w`/`59aiyh`), which writes through `artifact_meta`; `cxxmyv` E-07 switches it to `RECORD_FORMAT = "log"` in the cutover commit.
+- Test data comes from ONE builder, `tests/record_builder.py::RecordBuilder` (`9rgn2w`/`59aiyh`), which writes through `artifact_meta`; `cxxmyv` E-07 switches it to `RECORD_FORMAT = "log"` in the cutover commit.
 - Tests are behavioral (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); core modules set `pytestmark = pytest.mark.core`; `pyproject.toml` `addopts` deselects `slow` and `livecorpus`, so a complete comparison passes `-m ""`, and `pytest-randomly` is installed, so a deterministic order needs `-p no:randomly`.
-- `artifact_meta.read_text(text, *, record_type=None) -> State` parses a record's text in either format (phase-B legacy loader), so the helper's legacy branch needs no new parser.
+- `agent_workflows/artifact_meta.py::read_text` parses a record's text in either format (phase-B legacy loader), so the helper's legacy branch needs no new parser.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
@@ -74,11 +77,20 @@ Batch rule, applied to every batch E-item of this plan:
 | Id | Evidence | Finding |
 |---|---|---|
 | F-28 | Copied from `w13bkp` F-28 (measured at `ac76110f4`): 467 candidate setter-byte lines in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines. This part: S18, S19, S20, 82 lines. | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-04) lists every remaining match with its class. |
+| F-29 | Pre-conversion test suite baseline for the 3 target modules: `tests/test_status_set.py` (110 passed), `tests/test_walkthrough_id6.py` (4 passed), `tests/test_work_begin_plan_path_outside_root.py` (3 passed); 117 passed in 13.04s at HEAD `cc9a3a3e1`. | Baseline context for step 1 outcome preservation and E-04 finishing gate. |
 
 ## Proposed changes (ordered, validatable)
 
 1. Convert the batches (E-01 to E-03); the batches are independent.
 2. Re-run the union, write F-28, run the core gate, commit (E-04).
+
+```mermaid
+flowchart TD
+    E01["E-01: Batch S18: Convert test_status_set TestStatusSetCommands"] --> E04["E-04: Finish union outcome comparison and gate verification"]
+    E02["E-02: Batch S19: Convert test_status_set approval, blocks-release, and gate clearing classes"] --> E04
+    E03["E-03: Batch S20: Convert test_status_set remaining classes, test_walkthrough_id6, test_work_begin_plan_path_outside_root"] --> E04
+    E04 --> V04["V-04: Validate union diff empty, F-28 table, core gate pass, clean sanitize"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -96,7 +108,7 @@ Batch rule, applied to every batch E-item of this plan:
 
 ## Required tests / validation
 
-Each batch is validated by an identical per-test result list before and after (the batch rule), which is behavioral by construction: the same tests, the same inputs, the same outcomes, with each assertion at least as strict as before. Commands: the batch rule's command per batch, the bare core gate `python3 -m pytest`, `aw sanitize --agent`. CONTRIBUTES to AC-1b (owned by `cxxmyv`).
+Each batch is validated by an identical per-test result list before and after (the batch rule), which is behavioral by construction: the same tests, the same inputs, the same outcomes, with each assertion at least as strict as before. Commands: the batch rule's command per batch, the bare core gate `python3 -m pytest`, `aw sanitize --agent`. CONTRIBUTES to spec `4sd62s` AC-1b (owned by `cxxmyv`). Baseline context: 117 total passed tests across the 3 modules (`tests/test_status_set.py`: 110, `tests/test_walkthrough_id6.py`: 4, `tests/test_work_begin_plan_path_outside_root.py`: 3) at HEAD `cc9a3a3e1`.
 
 ## Spec / documentation sync
 
@@ -108,14 +120,14 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It carries `cxxmyv`'s own dependencies (rule of the 2026-11-07 split), including `90iqr1`, which depends on `9o83cr` and so on every phase-B deletion part. Running after them means the deletion parts' test retargets (for example `k6jd6l` E-08 and E-09, which already move several of these modules onto `artifact_meta.read`) land first, so no assertion is converted twice. Recommendation strength: strong.
 
 ### OQ-01: Can this run before the cutover without breaking C10a?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The helper reads through the ACTIVE format and, in the legacy format, also asserts the exact bullet line, so each converted test checks at least what it checked before on the same legacy bytes; `main` keeps one on-disk format. Only the format switch, the log branch of the helper and the exact-spelling rows wait for the cutover commit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -147,4 +159,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit zgyna1 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Safety: if prerequisite field helper (`tests/record_builder.py::assert_field`) or builder interfaces from `j5fqax` or `59aiyh` are absent or incomplete, or if an unresolvable concurrent-edit conflict occurs, stop and report immediately: that is an unsafe condition, not a scope question.
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit zgyna1 -- <paths>`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize zgyna1` itself.
