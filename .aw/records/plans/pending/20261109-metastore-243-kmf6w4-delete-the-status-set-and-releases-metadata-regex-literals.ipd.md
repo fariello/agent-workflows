@@ -6,7 +6,9 @@
 - Scope: delete the 16 literals, each of their uses reading through `artifact_meta.read`, `read_text` or `read_at`; update `tests/test_status_set.py` and `tests/test_releases.py` only where a test names a deleted pattern. EXCLUDES every other module.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/releases.py, tests/test_status_set.py, tests/test_releases.py, .aw/records/plans/pending/20261109-metastore-243-kmf6w4-delete-the-status-set-and-releases-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from e8420v (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `e8420v` E-20 ("Delete `status_set._STATUS_RE` and its `finditer` loop and `releases._STATUS_RE`, and every other `^-` metadata regex literal in `status_set` and `releases`. Sites at the split: `status_set` (10) `_ID_RE`, `_STATUS_RE`, `_SET_RE`, `_GATE_KIND_RE`, `_GATE_REF_RE`, `_GATE_SUMMARY_RE`, the three inline searches in `_format_status_transition_line` and the `finditer` loop in `plan_priority_work_kind_problems`; `releases` (6) `_ID_RE`, `_STATUS_RE`, `_VERSION_RE`, `_SUMMARY_RE`, `_ITEM_FROM_BACKLOG_RE`, `_ITEM_GRADUATED_TO_RE` ... Update `tests/test_status_set.py` and `tests/test_releases.py` only where a test names a deleted pattern.") is split across E-01 to E-04 here. The search is `LIT` from `786w7r`.
 
-PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of `tests/test_status_set.py` and `tests/test_releases.py` to `.aw/state/kmf6w4/before.txt`; after E-03, the same into `after.txt`.
+PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of `tests/test_status_set.py` and `tests/test_releases.py` to `.aw/state/kmf6w4/before.txt` (ensure `.aw/state/kmf6w4/` exists via `mkdir -p .aw/state/kmf6w4/`); after E-03, the same into `after.txt`.
 
 ### Task group 1: two modules
 
-- [ ] E-01 In `agent_workflows/status_set.py`, delete the named patterns `status_set._ID_RE`, `_STATUS_RE` (and its `finditer` loop in `status_set.plan_priority_work_kind_problems`), `_SET_RE`, `_GATE_KIND_RE`, `_GATE_REF_RE`, `_GATE_SUMMARY_RE`.
+- [ ] E-01 Before the first edit, ensure `.aw/state/kmf6w4/` exists (`mkdir -p .aw/state/kmf6w4/`) and save baseline test PIN list to `.aw/state/kmf6w4/before.txt`. In `agent_workflows/status_set.py`, delete the named patterns `status_set._ID_RE`, `_STATUS_RE` (and its `finditer` loop in `status_set.plan_priority_work_kind_problems`), `_SET_RE`, `_GATE_KIND_RE`, `_GATE_REF_RE`, `_GATE_SUMMARY_RE`.
   - Depends on: none
   - Expected outcome: `rg -n "\b(_ID_RE|_STATUS_RE|_SET_RE|_GATE_KIND_RE|_GATE_REF_RE|_GATE_SUMMARY_RE)\b" agent_workflows/status_set.py` prints nothing.
   - Execution state: pending
@@ -67,6 +70,13 @@ PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of
 Measured at `ac76110f4` (`e8420v` F-26): `status_set` 10 literals with their internal uses, `releases` 6. `786w7r` F-26 re-derives them.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Save Baseline PIN & Delete<br/>status_set Named Regex Patterns"] --> E02["E-02: Delete status_set Inline Searches"]
+    E03["E-03: Delete releases Regex Patterns"] --> E04["E-04: Update Tests, Save PIN after.txt<br/>Run Gate & Commit"]
+    E02 --> E04
+```
 
 1. `status_set` named patterns (E-01) and inline literals (E-02).
 2. `releases` (E-03).
@@ -98,7 +108,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No: "the `releases` line-writer patterns go with the writers in Order 43" (carried from `e8420v` E-20). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -130,4 +140,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 239 first: it also edits `status_set`). Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit kmf6w4 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 239 first: it also edits `status_set`). Pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `59aiyh`, `786w7r`, `7uq6xg`, `ffceq0`, `k6jd6l`, or `t4gl15` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit kmf6w4 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize kmf6w4` itself; never a hand `git mv` to `executed/`.
