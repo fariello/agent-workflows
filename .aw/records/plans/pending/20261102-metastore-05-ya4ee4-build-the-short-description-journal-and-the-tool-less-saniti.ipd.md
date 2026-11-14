@@ -210,6 +210,7 @@ No spec change; implements `4sd62s` 4.2 SHORT DESCRIPTION (HOW THE MIGRATION FIL
 - Blocking: no
 - Status: open
 - Owner: maintainer
+- Carrier: a6s7na
 - Finding: PR-012
 - Resolution or deferral rationale: `Spec / documentation sync` previously named `90iqr1`, which does not document `aw migrate metadata` or its `--describe-*` options (nor do its split parts `qhay6a`, `a49djh`, `y1zihp`, or `ngc2a2`, matching `1vfqdu` `OQ-08`). Documenting `aw migrate metadata` in live README or reference docs before the Order 13 cutover would invite users to convert repositories into a format phase-A readers cannot load, so carrier selection and timing are a maintainer scope decision. Recommended answer: add `aw migrate metadata` and its `--describe-*` / `--no-describe` options to the `y1zihp` cutover docs patch alongside `1vfqdu` `OQ-08`, while this plan ships `--help` (E-08) and `CHANGELOG.md` (E-11). Recommendation strength: medium.
 
