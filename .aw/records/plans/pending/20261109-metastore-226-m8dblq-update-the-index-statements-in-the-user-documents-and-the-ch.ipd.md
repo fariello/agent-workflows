@@ -6,7 +6,9 @@
 - Scope: edit the named INDEX sentences of `docs/cli-output-contract.md`, `docs/cli-agent-protocol.md`, `CONTRIBUTING.md` and `README.md`, and add one `CHANGELOG.md` line. EXCLUDES the plans and research READMEs and the installed template (Order 227).
 - Scope-Paths: docs/cli-output-contract.md, docs/cli-agent-protocol.md, CONTRIBUTING.md, README.md, CHANGELOG.md, .aw/records/plans/pending/20261109-metastore-226-m8dblq-update-the-index-statements-in-the-user-documents-and-the-ch.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: m8dblq
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-226-m8dblq-update-the-index-statements-in-the-user-documents-and-the-ch.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -71,6 +75,14 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "INDEX\.(json|md)|STATUS\.md" README.
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Update docs/cli-output-contract.md"] --> E05["E-05: Update CHANGELOG.md & commit"]
+    E02["E-02: Update docs/cli-agent-protocol.md"] --> E05
+    E03["E-03: Update CONTRIBUTING.md"] --> E05
+    E04["E-04: Update README.md"] --> E05
+```
+
 1. One edit per document (E-01 to E-04).
 2. Changelog line and commit (E-05).
 
@@ -100,7 +112,7 @@ No spec change; this plan IS the documentation sync for `4sd62s` 4.5 in these fo
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. On-disk files are removed by `m0001` at the cutover (`cxxmyv`); these documents say only what the commands do now. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -137,4 +149,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 220 first, so the documents change only once the behavior has). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL outputs; never claim a result you did not run. Commits: only through `aw commit m8dblq -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 220 first, so the documents change only once the behavior has).
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`).
+
+Honesty rule: paste the ACTUAL outputs; never claim a result you did not run.
+
+Commits: only through `aw commit m8dblq -- <paths>`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize m8dblq` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize m8dblq itself.
