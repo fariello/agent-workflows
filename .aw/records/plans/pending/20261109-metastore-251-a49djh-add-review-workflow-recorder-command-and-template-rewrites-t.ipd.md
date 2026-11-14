@@ -2,11 +2,13 @@
 
 - Date: 2026-11-09
 - Kind: child
-- Concern: Spec `4sd62s` section 5.4 requires the review workflows, lifecycle workflows and templates to describe metadata commands instead of field syntax, and C10a keeps that text off `main` until the cutover commit. This is the second of three parts that build the cumulative cutover documentation patch (split from `90iqr1`, round 3, research `nj8zdp`).
+- Concern: Spec `4sd62s` section 5.4 requires the review workflows, lifecycle workflows and templates to describe metadata commands instead of field syntax, and C10a keeps that text off `main` until the cutover commit. This is the second of four parts that build the cumulative cutover documentation patch (split from `90iqr1`, round 3, research `nj8zdp`).
 - Scope: In a scratch worktree with the committed patch applied, rewrite the review workflows (replacing hand-written `- Readiness:` with the review-round recorder), document the two commands handed by `xexn45`, and rewrite the lifecycle workflows and templates; regenerate `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch
 - Item-Dependencies: executed:9o83cr, executed:qhay6a
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: a49djh
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 90iqr1 (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create a scratch git worktree (`git worktree add --detach .aw/state/a49djh/scratch HEAD`) and apply the committed cumulative patch in it (`git apply --index` of `.aw/system/cutover/metastore-docs.cutover.patch`, as written by `qhay6a`). If it does not apply, stop and report.
+- [ ] E-01 Create a scratch git worktree (`mkdir -p .aw/state/a49djh && git worktree add --detach .aw/state/a49djh/scratch HEAD`) and apply the committed cumulative patch in it (`git apply --index` of `.aw/system/cutover/metastore-docs.cutover.patch`, as written by `qhay6a`). If it does not apply, stop and report.
   - Depends on: none
   - Expected outcome: the scratch worktree shows the `qhay6a` changes staged; the executing checkout is unchanged.
   - Execution state: pending
@@ -50,14 +54,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the review workflows and the walkthroughs README name both commands with their arguments.
   - Execution state: pending
 
-- [ ] E-04 (was `90iqr1` E-04.) In the scratch worktree, rewrite the remaining workflow and template files from the `qhay6a` F-03 table owned by this part (`ipd-lifecycle.md`, `askme.md`, the assess templates `ipd.md` and `orchestrator-ipd.md`, and every `*README.md` template under the shared templates directory) so templates carry the two-key front matter (`id`, `status`) and the banner of spec 4.1 instead of bullet blocks, and instructions name commands.
+- [ ] E-04 (was `90iqr1` E-04.) In the scratch worktree, rewrite the remaining workflow and template files from the `qhay6a` F-03 table owned by this part (`.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`, `.aw/system/workflows/askme/askme.md`, the assess templates `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`, and every `*README.md` template under `.aw/system/workflows/templates/`) so templates carry the two-key front matter (`id`, `status`) and the banner of spec 4.1 instead of bullet blocks, and instructions name commands.
   - Depends on: E-01
   - Expected outcome: `aw ipd scaffold --apply` run after the Order 13 code change produces a file whose head matches the 4.1 shape (verified in Order 13; here the template text is reviewed).
   - Execution state: pending
 
 ### Task group 3: package
 
-- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary HEAD` over the patch file in the executing checkout (the new patch contains `qhay6a`'s changes plus this plan's), remove the scratch worktree with `git worktree remove --force .aw/state/a49djh/scratch`, and commit through `aw commit a49djh -- <this plan> .aw/system/cutover/metastore-docs.cutover.patch`. Never `git add -A` in the executing checkout; never push.
+- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary HEAD` over the patch file in the executing checkout (the new patch contains `qhay6a`'s changes plus this plan's), remove the scratch worktree with `git worktree remove --force .aw/state/a49djh/scratch`, and commit through `aw commit a49djh -- .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`. Never `git add -A`, a bare `git add`, or `git commit -a` in the executing checkout; never push.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the regenerated patch lists the `qhay6a` files plus every file edited by E-02 to E-04; one path-scoped commit.
   - Execution state: pending
@@ -75,6 +79,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | `90iqr1` F-04 (`xexn45` Deferred rows) | The review-round recorder and `aw walkthrough new` are documented here and built by `cxxmyv`. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Create scratch worktree and apply qhay6a cumulative patch"]
+    E02["E-02: Rewrite review workflows replacing - Readiness: with recorder"]
+    E03["E-03: Document aw reviews record and aw walkthrough new commands"]
+    E04["E-04: Rewrite lifecycle workflows and assess/shared templates"]
+    E05["E-05: Regenerate cumulative patch in scratch and commit in lane"]
+    DOWN["Downstream cumulative patch extension in y1zihp, ngc2a2, and 90iqr1"]
+
+    E01 --> E02
+    E02 --> E03
+    E01 --> E04
+    E03 --> E05
+    E04 --> E05
+    E05 --> DOWN
+```
 
 1. E-01: scratch worktree with the patch applied.
 2. E-02 to E-04: rewrite review workflows, document the two commands, rewrite templates.
@@ -100,15 +121,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-No spec change; the documents change in `cxxmyv`'s cutover commit.
+No spec change; cutover documentation patch implements spec `4sd62s` section 5.4 requirements for review workflows, lifecycle workflows, and template rewrites, applied to live documents in `cxxmyv` cutover commit (C10a).
 
 ## Open questions
 
-None open. Patch design questions are resolved in `90iqr1` OQ-01 to OQ-03 and `qhay6a` OQ-01.
+### OQ-01: Why build documentation changes in a cumulative patch rather than editing live documents?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: Spec `4sd62s` invariant C10a requires that documentation describing post-cutover metadata commands and the log format must not reach `main` before the atomic cutover commit (`cxxmyv`). Committing live document changes across intermediate plans would expose unreleased command syntax on `main` before the commands exist and break existing text-asserting tests. Packaging rewrites into `.aw/system/cutover/metastore-docs.cutover.patch` preserves C10a and allows downstream plans (`y1zihp`, `ngc2a2`, `90iqr1`) to extend and guard the patch. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the `git apply --index` command and its exit status, and `git -C .aw/state/a49djh/scratch diff --cached --stat` listing the `qhay6a` files.
@@ -136,12 +162,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after `qhay6a` is `executed` and this plan is `approved`. Documents are edited ONLY in the scratch worktree; the executing checkout changes only by this plan and the patch file.
-
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
-
-Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
-
-Commits: commit only through `aw commit a49djh -- <paths>`; never push.
-
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`), after `qhay6a` and `9o83cr` are `executed`, and before `y1zihp`, `ngc2a2`, `90iqr1`, and `cxxmyv`. Documents are edited ONLY in the scratch worktree; the executing checkout changes only by this plan and the patch file. `OQ-01` is resolved and non-blocking. Safety stop: if prerequisite `qhay6a` or `9o83cr` is not executed, or if `.aw/system/cutover/metastore-docs.cutover.patch` is missing or fails to apply in E-01, stop and report rather than recording a broken cumulative patch. Scope fence: `- Scope-Paths:` declares only this plan file and `.aw/system/cutover/metastore-docs.cutover.patch`; if an out-of-scope edit is genuinely needed, make it and justify it at finalize with `--scope-reason`, and acknowledge any declared path left unmodified with `--scope-ack`. Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run. Commits: commit only through `aw commit a49djh -- <paths>`; never run `git add -A`, a bare `git add`, or `git commit -a` in the executing checkout; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs `aw ipd finalize`; a hand executor runs `aw ipd finalize a49djh` itself.
