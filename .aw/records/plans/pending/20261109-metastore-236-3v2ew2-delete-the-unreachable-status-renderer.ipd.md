@@ -6,7 +6,9 @@
 - Scope: delete `plans.render_status_index` and the `write_index` branch, and retarget `tests/test_plans_board.py` and `tests/test_support_section.py`. EXCLUDES this repository's tracked `.aw/records/plans/STATUS.md` file and the skip names that protect scans from it (cutover, `cxxmyv`), and `run_cli.write_index` (the run ledger projection, unrelated).
 - Scope-Paths: agent_workflows/plans.py, agent_workflows/cli.py, tests/test_plans_board.py, tests/test_support_section.py, .aw/records/plans/pending/20261109-metastore-236-3v2ew2-delete-the-unreachable-status-renderer.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, renderer removal, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -68,6 +71,18 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "render_status_index|write_index" age
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Pin test outcome lists (E-01)<br/>tests/test_plans_board.py<br/>tests/test_support_section.py"]
+    E02["2. Delete write_index branch in cli._run_plans (E-02)<br/>agent_workflows/cli.py"]
+    E03["3. Delete plans.render_status_index (E-03)<br/>agent_workflows/plans.py"]
+    E04["4. Retarget test assertions & commit (E-04)<br/>tests/test_plans_board.py<br/>tests/test_support_section.py"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+```
+
 1. Pin (E-01).
 2. Delete the branch (E-02) and the renderer (E-03).
 3. Retarget and commit (E-04).
@@ -96,7 +111,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The renderer was unreachable, so no user ever saw that section through the board; adding it would be a feature, not a deletion. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -128,4 +143,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit 3v2ew2 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 3v2ew2 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 3v2ew2` itself.
