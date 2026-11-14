@@ -6,7 +6,9 @@
 - Scope: run the read-only baseline commands and write their results into this plan's Findings table F-28, then commit this plan file. EXCLUDES every code or test edit (Orders 220 to 227 and 229 of the split).
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-228-sdzcur-record-the-baseline-for-the-index-alias-and-stale-index-fami.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: sdzcur
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-228-sdzcur-record-the-baseline-for-the-index-alias-and-stale-index-fami.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -35,28 +39,39 @@ The text of `q6epwc` E-01 is split across E-01 and E-02 here; together they equa
 
 ### Task group 1: baseline
 
-- [ ] E-01 Run, on the unedited tree, and save to the gitignored `.aw/state/sdzcur/before/` (never `/tmp`, which a lane integration discards) the stdout and exit code of: `aw index plans --agent`, `aw index research --check --agent`, `aw check plans --all --agent`, `aw check research --all --agent`, `aw check prompts --all --agent`, `aw doctor --agent`, and the rule-id multisets of `aw check all --agent` and `aw check all --all --agent` (`jq -r '.diagnostics[].rule' | sort | uniq -c`; `--all` matters because `check_engine.check_content` reaches the `check_drift` functions only when `include_retired` is set), plus the bare core gate summary line of `python3 -m pytest`.
+- [ ] E-01 Create `.aw/state/sdzcur/before/` (`mkdir -p .aw/state/sdzcur/before/`, never `/tmp`, which a lane integration discards) on the unedited tree, then run each baseline command and save its stdout and exit code there: `aw index plans --agent` (`index-plans.txt`), `aw index research --check --agent` (`index-research.txt`), `aw check plans --all --agent` (`check-plans.jsonl`), `aw check research --all --agent` (`check-research.jsonl`), `aw check prompts --all --agent` (`check-prompts.jsonl`), `aw doctor --agent` (`doctor.txt`), the rule-id multisets of `aw check all --agent` and `aw check all --all --agent` (`jq -r '(.diagnostics // [])[].rule' | sort | uniq -c` saved as `check-all.multiset.txt` and `check-all-all.multiset.txt`; `--all` matters because `check_engine.check_content` reaches the `check_drift` functions only when `include_retired` is set), the bare core gate summary line of `python3 -m pytest` (`pytest-core.txt`), and all eight exit codes (`exit-codes.txt`).
   - Depends on: none
-  - Expected outcome: the saved outputs exist under `.aw/state/sdzcur/before/`.
+  - Expected outcome: all saved files exist under `.aw/state/sdzcur/before/`, and no file outside `.aw/state/` is modified.
   - Execution state: pending
 
-- [ ] E-02 Copy into table F-28 of this plan: each command's exit code, the two rule-id multisets in full, the `check.stale-index-*` count in each, and the core gate summary line. Commit this plan file through `aw commit sdzcur -- <this plan's path>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [ ] E-02 Populate table F-28 in `## Findings` with each command's exit code, the `check.stale-index-*` counts in `aw check all` and `aw check all --all`, and the core gate summary line; directly beneath table F-28 under `### F-28 rule-id multisets`, insert the two full rule-id multisets inside fenced `text` code blocks (copied from `check-all.multiset.txt` and `check-all-all.multiset.txt`). Run bare `aw sanitize --agent` (repo-root scan; takes no file argument), then commit this plan file through `aw commit sdzcur -- .aw/records/plans/pending/20261109-metastore-228-sdzcur-record-the-baseline-for-the-index-alias-and-stale-index-fami.ipd.md`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-01
-  - Expected outcome: F-28 holds every value; the commit lists only this plan file.
+  - Expected outcome: table F-28 and its `### F-28 rule-id multisets` fenced blocks hold every baseline value verbatim; `aw sanitize --agent` reports `"outcome":"clean"` and `"findings":0`; the commit lists only this plan file.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- `check_engine.check_content` calls `plans_index.check_drift` and `research_index.check_drift` only when `include_retired` is set (the `--all` path).
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
+- `agent_workflows/check_engine.py::check_content` calls `agent_workflows/plans_index.py::check_drift` and `agent_workflows/research_index.py::check_drift` only when `include_retired` is set (the `--all` path).
+- When `aw check <type> --agent` reports zero findings, the JSON envelope omits `"diagnostics"`, so `jq -r '(.diagnostics // [])[].rule'` is required instead of `.diagnostics[].rule`.
+- Cite code by symbol (`path::Symbol`) or by a quoted content string, with a line number only appended as a hint (advisory `IPD-C801`).
 
 ## Findings
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | (written by E-02) exit codes, the two rule-id multisets, the `check.stale-index-*` counts and the core gate summary line, measured before any edit of the family | `q6epwc` E-17 compares against this table. |
+| F-28 | (written by E-02) per-command exit codes, the `check.stale-index-*` counts and the core gate summary line in this table, with the two full rule-id multisets under `### F-28 rule-id multisets`, measured before any edit of the family | `q6epwc` E-17 compares against this table and its subsections. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Create .aw/state/sdzcur/before/ and save baseline outputs and exit codes"]
+    E02["E-02: Populate table F-28 and rule-id multisets, run aw sanitize, and commit sdzcur"]
+    DOWN["Downstream comparisons in Orders 220-227, 229, and q6epwc E-17"]
+
+    E01 --> E02
+    E02 --> DOWN
+```
 
 1. Run and save the baseline (E-01).
 2. Write F-28 and commit (E-02).
@@ -77,7 +92,7 @@ No test is written. The baseline commands are read-only.
 
 ## Spec / documentation sync
 
-N/A: this plan records measurements only.
+No spec or documentation change; records the pre-edit baseline supporting spec `4sd62s` section 4.5 and section 7 step 7.
 
 ## Open questions
 
@@ -85,20 +100,20 @@ N/A: this plan records measurements only.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: `.aw/state/` does not travel between lane worktrees, and after the round-3 split the edits run in eight separate plans; a baseline committed in a plan file is the only one every later part and `q6epwc` can read. Recommendation strength: strong.
+- Owner: plan author
+- Resolution or deferral rationale: `.aw/state/` is gitignored and does not travel between isolated lane worktrees, and after the round-3 split the edits run across eight separate child plans (Orders 220 to 227 and 229) plus `q6epwc`; committing `F-28` in this plan provides a single tracked baseline that every downstream lane can read. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `ls -l .aw/state/sdzcur/before/` showing one saved file per named command (eight commands plus the core gate line), and `git status --porcelain` printing nothing outside `.aw/state/` (no edit was made).
+  - Required evidence: paste `ls -l .aw/state/sdzcur/before/` showing `index-plans.txt`, `index-research.txt`, `check-plans.jsonl`, `check-research.jsonl`, `check-prompts.jsonl`, `doctor.txt`, `check-all.multiset.txt`, `check-all-all.multiset.txt`, `pytest-core.txt`, and `exit-codes.txt`, plus `git status --porcelain` printing empty output (confirming no tracked or untracked changes outside gitignored `.aw/state/`).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste table F-28 as committed, with an exit code per command, both rule-id multisets and both `check.stale-index-*` counts, and `git show --stat` of the `aw commit sdzcur` commit listing only this plan file.
+  - Required evidence: paste table F-28 as committed, paste the committed `### F-28 rule-id multisets` fenced blocks in full, paste `aw sanitize --agent` showing `"outcome":"clean"` and `"findings":0`, and paste `git show --stat` of the `aw commit sdzcur` commit listing only this plan file.
   - Observed evidence:
   - Result: pending
 
@@ -107,4 +122,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed, and before any other part of the `q6epwc` family. Honesty rule: paste the ACTUAL outputs; never claim a result you did not run. Commits: only through `aw commit sdzcur -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`), after every plan in `- Item-Dependencies:` (`1ajqaa`, `59aiyh`, `dcerjg`, `ffceq0`, `g5hpbb`, `t4gl15`) is executed, and before any other part of the `q6epwc` family (Orders 220 to 227 and 229). `OQ-01` is resolved and non-blocking. Safety stop: if any prerequisite in `- Item-Dependencies:` is not executed, stop and report rather than recording a premature baseline. Scope fence: `- Scope-Paths:` declares only this plan file; if an out-of-scope edit is genuinely needed, make it and justify it at finalize with `--scope-reason`, and acknowledge any declared path left unmodified with `--scope-ack`. Honesty rule: paste the ACTUAL outputs; never claim a result you did not run. Commits: commit only through `aw commit sdzcur -- <paths>`; never run `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs `aw ipd finalize`; a hand executor runs `aw ipd finalize sdzcur` itself.
