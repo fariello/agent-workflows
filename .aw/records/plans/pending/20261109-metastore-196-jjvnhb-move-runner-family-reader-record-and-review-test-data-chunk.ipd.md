@@ -6,7 +6,9 @@
 - Scope: Chunk 5 of 11 of `nbfg7w` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `nbfg7w`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_cli_find.py, tests/test_cli.py, tests/test_cli_search.py, tests/test_cli_show.py, tests/test_find_agent_stream.py, tests/test_find_filters.py, tests/test_find_human_limit.py, tests/test_find_prompts_lane_status.py, .aw/records/plans/pending/20261109-metastore-196-jjvnhb-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jjvnhb
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from nbfg7w (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -32,7 +35,7 @@ Every hand-built record in the 8 test modules named below comes from `tests/reco
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
 Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule, restructured 2026-11-08 for the Order-49 fixture codemod `653ndz` per maintainer decision 2026-11-07 "Codemod first, then small runs": the tool performs the mechanical rewrite, and the hand work is bounded by its measured refusals). In it, "E-13's `full-before.txt`" and "the builder's `raw_fields=` escape (E-01)" are items of Order 37 (`9rgn2w`), carried by the round-3 split into Order 170 (`j6o96i`) with the same ids; because `.aw/state/` does not travel between lane worktrees, step 2 always records a fresh before list here. Step 1's partition is restricted to the modules each batch item names (round-3 split 2026-11-09: a subset is now spread over several plans of at most 8 modules each): a module that the partition now places in the item's subset but that no plan names is NOT added here; it is reported, and the finishing item of `nbfg7w` converts it; a named module that no longer matches F-01 is reported and skipped:
-1. Before the batch, re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
+1. Before the batch, ensure directory existence (`mkdir -p .aw/state/59aiyh`) and re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
 2. Record the unmodified per-test outcome list (a batch whose files a previous batch did not touch may reuse the matching lines of E-13's `full-before.txt`): `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA $(cat .aw/state/59aiyh/<batch>-files.txt) | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/<batch>-before.txt`. `-p no:randomly` and `-n 0` make the list deterministic; `-m ""` includes `slow` and `livecorpus` modules.
 3. Run the codemod: `python3 tools/fixture_codemod.py --apply --format json $(cat .aw/state/59aiyh/<batch>-files.txt) > .aw/state/59aiyh/<batch>-codemod.json`. It rewrites only the sites whose module outcome list it proved identical (`653ndz` E-03, carried with the same id into Order 172, `y3uowx`, by the round-3 split) and lists every other site as a refusal with a reason code and a disposition (`hand` or `legacy-kept`, the `653ndz` reason-code table).
 4. Hand-convert ONLY the refusals with disposition `hand`: the static count is the sum of the `653ndz` F-30 rows of the item's modules (round-3 split 2026-11-09: an item now carries part of a subset, so the subset's F-31 row is context only), and the codemod report adds any apply-time `not-equivalent` refusals; the item's hand count is their sum. If the hand count exceeds 25, stop after step 3 (the proved codemod rewrites may be committed), convert nothing by hand, and report the subset for re-splitting. A hand conversion uses builder calls; a test that deliberately writes an INVALID value (an unknown status, `- Status: EXECUTED`, `- Priority: bogus`, a malformed gate) gets it through the builder's `raw_fields=` escape (E-01) and is listed with reason class `invalid-input`. A refusal with disposition `legacy-kept` stays in legacy form on purpose and is listed with its F-06 reason class.
@@ -61,7 +64,7 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ## Project conventions discovered (Step 0)
 
-- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
+- Interface names from Order 02 (`tve77h`): `agent_workflows/artifact_meta.py::registry_fields`, `agent_workflows/artifact_meta.py::validate_event`, `agent_workflows/artifact_meta.py::validate_new_events`, `agent_workflows/artifact_meta.py::read`, `agent_workflows/artifact_meta.py::create` and `agent_workflows/artifact_meta.py::append`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `7yr827` (split from `xexn45`) routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
 - `review_findings.render_review` (pure) and `review_findings.write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
 - The existing shared plan builder is `support.ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`ipd_authoring.build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
 - Shared test plumbing lives in `tests/support.py` (`init_repo`, `git`, `run_cli`, `pinned_env`, `ready_plan_text`, `scope_drift_repo`); `tests/repo_template.py` (`copy_template_repo`) gives a pre-built repository; there is no `tests/conftest.py`, and the root `conftest.py` owns tier selection.
@@ -81,6 +84,7 @@ Measured 2026-11-09 at `3d0ddb845` for F-40; F-01, F-03, F-06 and F-08 copied fr
 | F-06 | (written by E-11) remaining legacy strings in `tests/` after the batches, each with one reason class: `legacy-format subject`, `displayed-output assertion`, `setter-byte assertion`, `invalid-input`, `body prose` | Order 13 changes the builder plus the F-06 rows of class `setter-byte assertion`; `invalid-input` rows already go through `raw_fields=` and need a decision at the cutover (an invalid bullet has no log-format equivalent); every other class is either a legacy-format test (moved to the migration tests at the cutover) or prose. |
 | F-08 | At review, 15 test modules write a deliberately invalid metadata value (for example `tests/test_releases.py` "`- Status: bogus`", `tests/test_check_engine.py` "`- Status: EXECUTED`", `tests/test_specs_set_adapter.py` "`- Priority: bogus`") | A builder that validates every field cannot build these; E-01 adds `raw_fields=` and the batch rule lists them as `invalid-input`. |
 | F-40 | `rg -c` with the F-01 pattern over this part's modules at `3d0ddb845`; subset by the F-03 first-match rule; helpers as listed by `nbfg7w` at the 2026-11-07 split | See the table below; every module is named in exactly one item. |
+| F-41 | Pre-conversion test suite baseline for the 8 target modules: `tests/test_cli_find.py` (12 passed), `tests/test_cli.py` (65 passed), `tests/test_cli_search.py` (16 passed), `tests/test_cli_show.py` (8 passed), `tests/test_find_agent_stream.py` (14 passed), `tests/test_find_filters.py` (18 passed), `tests/test_find_human_limit.py` (10 passed), `tests/test_find_prompts_lane_status.py` (8 passed); 151 total collected, 86 passed in core gate in 8.37s at HEAD `28e2fd6d0`. | Baseline context for step 2 outcome preservation and E-03 finishing gate. |
 
 | Module | Subset | F-01 lines | Helpers at the split | Item |
 |---|---|---|---|---|
@@ -97,6 +101,13 @@ Measured 2026-11-09 at `3d0ddb845` for F-40; F-01, F-03, F-06 and F-08 copied fr
 
 1. Convert each item's modules under the batch rule (E-01 to E-02).
 2. Re-run the union, the core gate, commit (E-03).
+
+```mermaid
+flowchart TD
+    E01["E-01: Batch G6a-jjvnhb-1: Convert CLI find, search, and show tests"] --> E02["E-02: Batch G6a-jjvnhb-2: Convert find stream, filter, limit, and status tests"]
+    E02 --> E03["E-03: Finish union outcome comparison and gate verification"]
+    E03 --> V03["V-03: Validate union diff empty, core gate pass, clean sanitize"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -118,7 +129,7 @@ Measured 2026-11-09 at `3d0ddb845` for F-40; F-01, F-03, F-06 and F-08 copied fr
 
 ## Required tests / validation
 
-Each item is validated by an identical per-test result list before and after (the batch rule), which is behavioral by construction: the same tests, unchanged assertions, the same outcomes. Commands: the batch rule's command per item, the codemod's `--apply` report, the bare core gate `python3 -m pytest`, `aw sanitize --agent`. CONTRIBUTES to AC-1b (owned by `cxxmyv`).
+Each item is validated by an identical per-test result list before and after (the batch rule), which is behavioral by construction: the same tests, unchanged assertions, the same outcomes. Commands: the batch rule's command per item, the codemod's `--apply` report, the bare core gate `python3 -m pytest`, `aw sanitize --agent`. CONTRIBUTES to spec `4sd62s` AC-1b (owned by `cxxmyv`). Baseline context: 151 total collected tests across the 8 modules (86 passed in core gate at HEAD `28e2fd6d0`).
 
 ## Spec / documentation sync
 
@@ -130,7 +141,7 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The module lists of all chunk plans are disjoint, each needs the builder (`9rgn2w`) and the codemod (`653ndz`), and none edits `tests/support.py` (that is `59aiyh` E-09, which runs last). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -138,12 +149,12 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `.aw/state/59aiyh/G6a-jjvnhb-1-files.txt` and the empty `diff .aw/state/59aiyh/G6a-jjvnhb-1-before.txt .aw/state/59aiyh/G6a-jjvnhb-1-after.txt`; then, for each of `tests/test_cli_find.py`, `tests/test_cli.py`, `tests/test_cli_search.py`, `tests/test_cli_show.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6a-jjvnhb-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
+  - Required evidence: paste `.aw/state/59aiyh/G6a-jjvnhb-1-files.txt` and the empty `diff .aw/state/59aiyh/G6a-jjvnhb-1-before.txt .aw/state/59aiyh/G6a-jjvnhb-1-after.txt`; then, for each of `tests/test_cli_find.py`, `tests/test_cli.py`, `tests/test_cli_search.py`, `tests/test_cli_show.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6a-jjvnhb-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the `59aiyh` V-09 `rg` pattern (`rg -n "(def _(plan|review|backlog|spec|research)[a-z_]*\()|(def (write|ready)_(plan|review)[a-z_]*\()"`) over these modules with each deleted and surviving helper and its reason (F-40 records none at the split).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `.aw/state/59aiyh/G6a-jjvnhb-2-files.txt` and the empty `diff .aw/state/59aiyh/G6a-jjvnhb-2-before.txt .aw/state/59aiyh/G6a-jjvnhb-2-after.txt`; then, for each of `tests/test_find_agent_stream.py`, `tests/test_find_filters.py`, `tests/test_find_human_limit.py`, `tests/test_find_prompts_lane_status.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6a-jjvnhb-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
+  - Required evidence: paste `.aw/state/59aiyh/G6a-jjvnhb-2-files.txt` and the empty `diff .aw/state/59aiyh/G6a-jjvnhb-2-before.txt .aw/state/59aiyh/G6a-jjvnhb-2-after.txt`; then, for each of `tests/test_find_agent_stream.py`, `tests/test_find_filters.py`, `tests/test_find_human_limit.py`, `tests/test_find_prompts_lane_status.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6a-jjvnhb-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the `59aiyh` V-09 `rg` pattern (`rg -n "(def _(plan|review|backlog|spec|research)[a-z_]*\()|(def (write|ready)_(plan|review)[a-z_]*\()"`) over these modules with each deleted and surviving helper and its reason (F-40 records none at the split).
   - Observed evidence:
   - Result: pending
 
@@ -161,8 +172,10 @@ Execute only after human approval (`Status: approved`) and after `653ndz`, `9rgn
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if a module cannot keep its outcome list identical without a production change, stop that item and report the missing capability rather than changing production code or an assertion.
 
+Safety: if prerequisite builder or codemod interfaces (`tests/record_builder.py`, `tools/fixture_codemod.py`) are absent or incomplete, or if an unresolvable concurrent-edit conflict occurs, stop and report immediately: that is an unsafe condition, not a scope question.
+
 Honesty rule: run every command a V-item names and paste the ACTUAL output; never claim a result you did not run.
 
 Commits: commit only through `aw commit jjvnhb -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize jjvnhb` itself.
