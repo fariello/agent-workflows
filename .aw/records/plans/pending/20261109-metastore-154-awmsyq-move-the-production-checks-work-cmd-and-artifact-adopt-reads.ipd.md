@@ -6,7 +6,9 @@
 - Scope: The production-check, work and adoption subset of `2zpw22` E-02, carried unchanged and divided into one item per module. EXCLUDES: the review findings, audit and reviews modules (`y4spqy`); the review sequence, tier, re-review and orchestrator readiness modules (`0i0zsg`); the residual audit (kept in `2zpw22`).
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/work_cmd.py, agent_workflows/artifact_adopt.py, tests/test_readers_review_modules.py, .aw/records/plans/pending/20261109-metastore-154-awmsyq-move-the-production-checks-work-cmd-and-artifact-adopt-reads.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:0i0zsg
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: awmsyq
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED; review record .aw/records/reviews/20261109-metastore-154-awmsyq-move-the-production-checks-work-cmd-and-artifact-adopt-reads.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 2zpw22 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +36,7 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-The pin-first rule of `ffceq0` applies (carried from `t4gl15` through `2zpw22`): BEFORE the edit, a behavioral test pins the reader's current observable behavior and runs green on the unmodified code; AFTER the edit, the same test runs unchanged except where a decision copied below names it. Save each item's per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<file>`) before the move and into the matching after file after it. Run a new module's `-k` selection as its own command. Tests go in `tests/test_readers_review_modules.py` (created by `y4spqy`); none reads production source.
+The pin-first rule of `ffceq0` applies (carried from `t4gl15` through `2zpw22`): BEFORE the edit, a behavioral test pins the reader's current observable behavior and runs green on the unmodified code; AFTER the edit, the same test runs unchanged except where a decision copied below names it. Save each item's per-test outcome list under the gitignored `.aw/state/t4gl15/` (`mkdir -p .aw/state/t4gl15 && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<file>`) before the move and into the matching after file after it. Run a new module's `-k` selection as its own command. Tests go in `tests/test_readers_review_modules.py` (created by `y4spqy`); none reads production source.
 
 Commit through `aw commit awmsyq -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -43,12 +47,12 @@ Commit through `aw commit awmsyq -- <each changed path>`, one commit per item al
   - Expected outcome: both modules pass before and after; `production_checks` contains no `^-` metadata regex call.
   - Execution state: pending
 
-- [ ] E-02 (carried from `2zpw22` E-02, `work_cmd` subset) Pin, then move, `work_cmd` (`_plan_id6`, `_plan_status`) onto `artifact_meta.read`; its 11 reader functions read through those two helpers. Pin in `tests/test_readers_review_modules.py` and run `tests/test_scope_match.py` green before and after (outcome lists `E-12d-before.txt`/`E-12d-after.txt`).
+- [ ] E-02 (carried from `2zpw22` E-02, `work_cmd` subset) Pin, then move, `work_cmd` (`_plan_id6`, `_plan_status`, and the `- Date:` regex read in `_warn_if_begin_skipped`) onto `artifact_meta.read`; its 11 reader functions read through those helpers. Pin in `tests/test_readers_review_modules.py` and run `tests/test_scope_match.py` green before and after (outcome lists `E-12d-before.txt`/`E-12d-after.txt`).
   - Depends on: E-01
   - Expected outcome: the module passes before and after; `work_cmd` contains no `^-` metadata regex call.
   - Execution state: pending
 
-- [ ] E-03 (carried from `2zpw22` E-02, `artifact_adopt` subset) Pin, then move, `artifact_adopt` (`_BULLET_ID_RE` in the adoption id inventory) onto `artifact_meta.query` (D-3: the bullet `- Id:` inventory reads the cached `id` for plans, specs, backlog and releases). Pin in `tests/test_readers_review_modules.py` and run `tests/test_artifact_adopt.py` green before and after (outcome lists `E-12e-before.txt`/`E-12e-after.txt`).
+- [ ] E-03 (carried from `2zpw22` E-02, `artifact_adopt` subset) Pin, then move, `artifact_adopt` (`_BULLET_ID_RE` in the adoption id inventory) onto `artifact_meta.query` (D-3: the bullet `- Id:` inventory reads the cached `id` for plans, specs, backlog and releases). Pin in `tests/test_readers_review_modules.py` and run `tests/test_artifact_adopt.py` and `tests/test_id6_global_mint.py` green before and after (outcome lists `E-12e-before.txt`/`E-12e-after.txt`).
   - Depends on: E-02
   - Expected outcome: the module passes before and after; `artifact_adopt` contains no `^-` metadata regex call.
   - Execution state: pending
@@ -68,7 +72,7 @@ Carried from `2zpw22` (measured 2026-11-07 at `ac76110f4`):
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-02 | AST pass over `rg` hits of each module's reader symbols (`_PLAN_ID_RE`, `_ITEM_DEPS_RE`, `_SCOPE_PATHS_RE`, `_ITEM_FROM_BACKLOG_RE`, `_SET_RE`, `parse_item(`, `_plan_id6(`, `_plan_status(`, `_BULLET_ID_RE`, plus the `^-` regex pattern): `production_checks` 28 sites in 11 functions, `work_cmd` 16 in 11, `artifact_adopt` 5 in 2 | 22 of the 36 `2zpw22` E-02 sites go through 4 helper functions (`2zpw22` OQ-01), which is why each module is one step. |
+| F-02 | AST pass over `rg` hits of each module's reader symbols (`_PLAN_ID_RE`, `_ITEM_DEPS_RE`, `_SCOPE_PATHS_RE`, `_ITEM_FROM_BACKLOG_RE`, `_SET_RE`, `parse_item(`, `_plan_id6(`, `_plan_status(`, `_warn_if_begin_skipped` date read, `_BULLET_ID_RE`, plus the `^-` regex pattern): `production_checks` 28 sites in 11 functions, `work_cmd` 17 in 11, `artifact_adopt` 5 in 2 | 22 of the 36 `2zpw22` E-02 sites go through helper functions (`2zpw22` OQ-01), which is why each module is one step. |
 
 Size (round 3): measured with `ipd_schema.count_named_units`, each item names at most 4 distinct units; 4 work Scope-Paths.
 
@@ -81,6 +85,12 @@ READER LEDGER (this part's subset of the `2zpw22` row, copied from `t4gl15`):
 DECISIONS (copied from `t4gl15` through `2zpw22`, whose text is authoritative): D-1 PLAN records return the canonical normalized status; every other type keeps its raw single-token status. D-3 the bullet `- Id:` inventory of `artifact_adopt` reads the cached `id` for plans, specs, backlog and releases, so each consumer gets the answer it gets today.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Pin & move production_checks onto artifact_meta.read/query/history"] --> E02["E-02: Pin & move work_cmd onto artifact_meta.read"]
+    E02 --> E03["E-03: Pin & move artifact_adopt onto artifact_meta.query"]
+```
 
 1. Pin then move `production_checks` (E-01), `work_cmd` (E-02), `artifact_adopt` (E-03).
 
@@ -110,7 +120,7 @@ No spec change. Implements the production-check, work and adoption part of `4sd6
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `2zpw22` OQ-01: if execution finds that `production_checks` or `work_cmd` reads metadata at many sites outside its helpers, the executor records the count and moves the excess to a new plan rather than growing the item. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -128,7 +138,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `diff .aw/state/t4gl15/E-12e-before.txt .aw/state/t4gl15/E-12e-after.txt` (outcome list of `tests/test_artifact_adopt.py`) printing nothing, `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k adopt` all PASSED, and the empty output of `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/artifact_adopt.py`.
+  - Required evidence: paste `diff .aw/state/t4gl15/E-12e-before.txt .aw/state/t4gl15/E-12e-after.txt` (outcome list of `tests/test_artifact_adopt.py` and `tests/test_id6_global_mint.py`) printing nothing, `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k adopt` all PASSED, and the empty output of `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/artifact_adopt.py`.
   - Observed evidence:
   - Result: pending
 
@@ -139,10 +149,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
 
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit awmsyq -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize awmsyq` (never a hand git mv), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize awmsyq itself.
