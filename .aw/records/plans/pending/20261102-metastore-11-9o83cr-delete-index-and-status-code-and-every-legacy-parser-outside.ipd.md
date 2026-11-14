@@ -6,7 +6,8 @@
 - Scope: Phase B, section 7 step 7 of `4sd62s`, FINISHING PART after the 2026-11-07 split. The deletions themselves now run in five earlier parts: aliases, regeneration calls, stale-index rules and the INDEX documents (`q6epwc`); INDEX writers, STATUS code and `_INDEX_CACHE` (`snin8q`); value writers, adapters, borrowed grammars and record text readers (`k6jd6l`); `check_engine`, runner, setter and release parsers (`e8420v`); every other metadata regex literal (`0xsx2n`). This plan keeps: (1) the residual audit F-20 after all five parts (E-01); (2) the AC-1 behavioral test (E-13); (3) the AC-1 audit F-21 with its exclusion file (E-14); (4) the final validation and commit (E-16). EXCLUDES: anything that needs the log format or the migrated tree (cutover, `cxxmyv`), and document rewrites for log-based commands (`90iqr1`).
 - Scope-Paths: tests/test_metadata_single_owner.py, .aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:1ajqaa, executed:clors0, executed:59aiyh, executed:dcerjg, executed:e8420v, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:q6epwc, executed:snin8q, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -19,6 +20,8 @@
 - Review-Depth: complex
 
 ## Workflow history
+
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 check per research nj8zdp; already within guidance (0 IPD-Z603), no items moved; V-16 evidence now names the E-13 module and the F-21 recount.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-02, E-04, E-05, E-15 moved to q6epwc; E-03, E-06, E-07 to snin8q; E-08, E-09, E-10, E-11 to k6jd6l; E-12 split across e8420v and 0xsx2n.
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
@@ -42,7 +45,7 @@ PIN RULE for every deletion or retarget: before the edit, save the named test mo
 
 ### Task group 1: baseline and residual audit
 
-- [ ] E-01 Record the baseline and the residual inventory: save to the gitignored `.aw/state/9o83cr/before/` (never `/tmp`, which a lane integration discards) the stdout and exit code of `aw index plans --agent`, `aw index research --check --agent`, `aw check plans --all --agent`, `aw check research --all --agent`, `aw check prompts --all --agent`, `aw find plans --agent`, `aw attention --format json`, `aw doctor --agent`, `aw ipd board` (as `board.txt`) and `aw check all --agent` and `aw check all --all --agent` (rule-id multisets, `jq -r '.diagnostics[].rule' | sort | uniq -c`), plus the core gate summary line of `python3 -m pytest`. `--all` matters: `check_engine.check_content` reaches `plans_index.check_drift` and `research_index.check_drift` only when `include_retired` is set, so without it the INDEX rules and the F-04 content rules never appear (measured at review: `aw check all --agent` has 0 `check.stale-index-*` findings and `aw check all --all --agent` has 2). Re-run the four AC-1 searches of E-14 and `rg -n "INDEX\.(json|md)|STATUS\.md|stale-index|_INDEX_CACHE|run_index|check_drift" agent_workflows`, merge in the residual tables F-12 of `ffceq0`, F-04 of `t4gl15` and F-09 of `xexn45`, and write table F-20 in this plan: one row per hit, classed `delete (E-nn)`, `body prose (N3)`, `comms (N4)`, `user prose (90iqr1)` or `cutover (cxxmyv)`. Any hit not in F-06 gets a row. After the split, every `delete` row is expected to be gone already (deleted by `q6epwc`, `snin8q`, `k6jd6l`, `e8420v` or `0xsx2n`, which all execute before this plan); a surviving `delete` row is a defect of the part that owned it and is reported as `delete (follow-on)` with that part's id rather than fixed here. Also search `tools/` for callers of every symbol this plan deletes (measured at review: `tools/gate_drop_audit.py` calls `check_engine._status_meta` and `backlog.parse_item`, pinned by `tests/test_gate_drop_audit.py`), and give each a row; a `tools/` caller should already be retargeted by the part that deleted its symbol (`k6jd6l` E-18, `e8420v` E-20).
+- [ ] E-01 Record the baseline and the residual inventory: ensure `.aw/state/9o83cr/before/` exists (`mkdir -p .aw/state/9o83cr/before/`), and save to the gitignored `.aw/state/9o83cr/before/` (never `/tmp`, which a lane integration discards) the stdout and exit code of `aw index plans --agent`, `aw index research --check --agent`, `aw check plans --all --agent`, `aw check research --all --agent`, `aw check prompts --all --agent`, `aw find plans --agent`, `aw attention --format json`, `aw doctor --agent`, `aw ipd board` (as `board.txt`) and `aw check all --agent` and `aw check all --all --agent` (rule-id multisets, `jq -r '.diagnostics[].rule' | sort | uniq -c`), plus the core gate summary line of `python3 -m pytest`. `--all` matters: `check_engine.check_content` reaches `plans_index.check_drift` and `research_index.check_drift` only when `include_retired` is set, so without it the INDEX rules and the F-04 content rules never appear (measured at review: `aw check all --agent` has 0 `check.stale-index-*` findings and `aw check all --all --agent` has 2). Re-run the four AC-1 searches of E-14 and `rg -n "INDEX\.(json|md)|STATUS\.md|stale-index|_INDEX_CACHE|run_index|check_drift" agent_workflows`, merge in the residual tables F-12 of `ffceq0`, F-04 of `t4gl15` and F-09 of `xexn45`, and write table F-20 in this plan: one row per hit, classed `delete (E-nn)`, `body prose (N3)`, `comms (N4)`, `user prose (90iqr1)` or `cutover (cxxmyv)`. Any hit not in F-06 gets a row. After the split, every `delete` row is expected to be gone already (deleted by `q6epwc`, `snin8q`, `k6jd6l`, `e8420v` or `0xsx2n`, which all execute before this plan); a surviving `delete` row is a defect of the part that owned it and is reported as `delete (follow-on)` with that part's id rather than fixed here. Also search `tools/` for callers of every symbol this plan deletes (measured at review: `tools/gate_drop_audit.py` calls `check_engine._status_meta` and `backlog.parse_item`, pinned by `tests/test_gate_drop_audit.py`), and give each a row; a `tools/` caller should already be retargeted by the part that deleted its symbol (`k6jd6l` E-18, `e8420v` E-20).
   - Depends on: none
   - Expected outcome: the saved outputs and a core gate summary exist under `.aw/state/9o83cr/before/`; F-20 exists with no unclassed row and covers `agent_workflows` and `tools`.
   - Execution state: pending
@@ -103,9 +106,17 @@ Measured 2026-11-02 at `0cbfcc706` (before phase B; E-01 re-measures, because Or
 
 ## Proposed changes (ordered, validatable)
 
-1. Baseline and residual inventory F-20 after the five split parts (E-01).
-2. The AC-1 behavioral test (E-13) and audit (E-14).
-3. Full validation and commit (E-16).
+1. Create baseline directory and capture baseline outputs and residual inventory F-20 after the five split parts (E-01).
+2. Author single-owner behavioral test `tests/test_metadata_single_owner.py` (E-13).
+3. Execute AC-1 regex audit with exclusion list and record table F-21 (E-14).
+4. Run full test suites, verify multisets, run validation gates, and commit path-scoped (E-16).
+
+```mermaid
+flowchart TD
+    A["E-01: mkdir -p .aw/state/9o83cr/before/, capture baselines, compile residual table F-20"] --> B["E-13: Author tests/test_metadata_single_owner.py proving single reader/writer"]
+    B --> C["E-14: Run AC-1 audit against exclusion list, producing table F-21"]
+    C --> D["E-16: Run test suites, verify multisets, run gates, and commit path-scoped"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -164,21 +175,21 @@ No spec change; implements `4sd62s` 4.3 (delete every section 1 parser and the r
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It runs the non-INDEX drift classes that the same `check_drift` reported before (F-04) and exits as `aw check <type>` would, after printing the alias information line. Reason: those classes were part of what `--check` gated, so silently passing would weaken a check a user may rely on, while refusing the flag would break scripts; no CI in this repository uses it (F-05). Recommendation strength: strong.
 
 ### OQ-02: Should `plans_index`, `research_index` and `prompts_index` be renamed once they write no index?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. They still host `aw find` backends (`run_find`, `query`) and the F-04 content rules; renaming is churn the spec does not ask for and would widen this plan's diff across 17 importing modules. Recommendation strength: strong.
 
 ### OQ-03: Is the plan too large?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes, by hidden steps: measured 2026-11-07 at `ac76110f4`, E-12 alone hid 168 regex sites and E-10 102 grammar references. RESOLVED 2026-11-07 by the maintainer's step-complexity rule: the deletions were split into five parts (`q6epwc`, `snin8q`, `k6jd6l`, `e8420v`, `0xsx2n`), each item at about 25 units; this plan keeps the residual audit, the AC-1 test and audit and the final validation. Recommendation strength: strong.
 
 ### OQ-05: Which plans must execute before this one?
@@ -192,12 +203,12 @@ No spec change; implements `4sd62s` 4.3 (delete every section 1 parser and the r
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Not fully: user-facing help and managed-block text (`90iqr1`) and the legacy loader location (`cxxmyv`) change only at the cutover. AC-1 allows explicit exclusions; E-14 lists every one, and `cxxmyv` re-runs the audit when the loader moves into `m0001`. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition, as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste `ls -l .aw/state/9o83cr/before/` showing the saved outputs with their exit codes (including both `aw check all` rule multisets), the core gate `N passed` summary line, and the F-20 table written into this plan with one row per hit of the E-01 searches and a non-empty class column on every row (`grep -c` of F-20 rows equal to the pasted search hit count minus duplicates), including the `tools/` rows.
@@ -227,7 +238,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (the five split parts plus `ffceq0`, `t4gl15`, `59aiyh`, `1ajqaa`, `dcerjg` and `g5hpbb`, and `clors0`: an ordering edge added at the split because `clors0` edits `agent_workflows/cli.py` and must merge before `90iqr1`, which depends on this plan, generates its documentation patch with `cli.py` help-string hunks). Open questions: OQ-01 to OQ-05 are resolved and none is blocking; OQ-01 and OQ-02 now govern `q6epwc` and `snin8q`. If F-20 holds a surviving `delete` row, record it as `delete (follow-on)` naming the part that owned it and report it; do not delete it here.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). This plan deletes nothing; the PIN RULE above applies only if E-13 retargets an existing test.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code is not modified by this plan; only `tests/test_metadata_single_owner.py` and this plan are edited. This plan deletes nothing; the PIN RULE above applies only if E-13 retargets an existing test.
+
+Safety: if prerequisite modules from `0xsx2n`, `e8420v`, `k6jd6l`, `q6epwc`, `snin8q`, or `artifact_meta` are absent, stop and report immediately: that is an unsafe condition, not a scope question.
 
 Honesty rule: run the named modules, `python3 -m pytest` (core gate) and `make test-all`, and paste the ACTUAL summary lines; never claim a result you did not run.
 
