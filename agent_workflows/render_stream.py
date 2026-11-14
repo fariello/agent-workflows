@@ -3524,6 +3524,48 @@ def outcome_class_of_item(item: Mapping[str, Any]) -> str:
     return OUTCOME_CLASS_BLOCKED
 
 
+def _host_error_text(item: Mapping[str, Any]) -> str:
+    """The recorded host error as one readable phrase, dropping a generic `ERROR` name."""
+    h_err = item.get("host_error")
+    if not isinstance(h_err, Mapping):
+        return str(h_err or "")
+    h_name = str(h_err.get("name") or "").strip()
+    h_msg = str(h_err.get("message") or "").strip()
+    if h_msg and h_name.lower() in ("", "error"):
+        return h_msg
+    if h_msg:
+        return f"{h_name}: {h_msg}"
+    return h_name or "unknown error"
+
+
+def format_host_error_bullet(item: Mapping[str, Any]) -> list[str]:
+    """Diagnostics lines for an item whose session log ended with a host (AI service) error.
+
+    The host error is scraped from the LAST error event of the session log, so it can be the very
+    last thing a turn emitted AFTER the agent finished: measured on run-20261114T011406Z-590956,
+    where z8hu7r's session ended with a 503 `result` event whose `response` held the complete
+    review, and the driver then collected the outcome, merged the lane and scored it `reviewed`.
+    So the wording is decided by the item's OUTCOME, not by the presence of the error: a
+    successful item says the error came after the work and that nothing is needed, and any other
+    item says the turn failed and what to do.
+    """
+    id6 = item.get("id6")
+    st = item.get("status")
+    err = _host_error_text(item)
+    if outcome_class_of_item(item) == OUTCOME_CLASS_SUCCESS:
+        merged = bool(item.get("review_integrated") or item.get("integrated"))
+        done = f"{st} and merged" if merged else str(st)
+        return [
+            f"  • {id6}: {done}. The AI service reported an error at the end of the turn, "
+            f"after the work was complete ({err}). No action needed."
+        ]
+    return [
+        f"  • {id6}: {st}. The turn failed with an AI service error ({err}).",
+        f"    → remedy: read the session log for {id6}; if the service was unavailable, "
+        f"re-run this item once it is back.",
+    ]
+
+
 def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
     """True when this run dispatched nothing AND at least one artifact carries an actionable remedy.
 
@@ -5131,11 +5173,7 @@ def render_run_summary_table(
                 diag_lines.append(f"    host error: {h_body}")
         elif it.get("host_error"):
             # ckxypc E-03: own bullet when the item has none
-            h_err = it["host_error"]
-            h_name = h_err.get("name", "error")
-            h_msg = h_err.get("message", "")
-            h_body = f"{h_name}: {h_msg}" if h_msg else str(h_name)
-            diag_lines.append(f"  • {id6}: {st} (host {h_body})")
+            diag_lines.extend(format_host_error_bullet(it))
 
     dr_refusal = state.get("driver_restart_refusal")
     if isinstance(dr_refusal, dict):

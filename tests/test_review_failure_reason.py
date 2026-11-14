@@ -210,7 +210,11 @@ class HostErrorHelpersUnitTests(unittest.TestCase):
             ],
         }
         summary = render_stream.render_run_summary_table(state, "test")
-        self.assertIn("• err001: fail-gate (host TestError: A test failure)", summary)
+        self.assertIn(
+            "• err001: fail-gate. The turn failed with an AI service error "
+            "(TestError: A test failure).",
+            summary,
+        )
 
     def test_render_run_summary_table_host_error_under_bullet(self) -> None:
         from agent_workflows.render_stream import record_refusal

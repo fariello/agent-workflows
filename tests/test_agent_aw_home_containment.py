@@ -457,11 +457,14 @@ def test_report_discarded_aw_home_output_and_silence():
 
         buf = io.StringIO()
         res = runner_shared.report_discarded_aw_home(run_dir, stream=buf)
-        assert len(res) == 1
+        assert len(res) == 2
         output = buf.getvalue().strip()
-        assert output.startswith("Agent AW_HOME changes discarded: 2")
-        assert "1vwjdl: config/registry.json ['agent_key']" in output
-        assert "1vwjdl: projects/scratch-abc ['records']" in output
+        assert output.startswith(
+            "Discarded 2 changes agents made to their private per-run AW_HOME copy"
+        )
+        assert "1vwjdl modified config/registry.json (agent_key)" in output
+        assert "1vwjdl added projects/scratch-abc (records)" in output
+        assert "was NOT applied" in output
 
 
 def test_incident_end_to_end_per_host(capsys):

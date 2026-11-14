@@ -7612,10 +7612,7 @@ def integration_lock(
             holder = read_integration_lock_holder(repo) or "an unrecorded holder"
             if first_busy:
                 first_busy = False
-                _say(
-                    f"waiting for the repository integration lock held by {holder} "
-                    f"(bound {limit:.0f}s)"
-                )
+                _say(format_integration_lock_wait_message(holder, limit))
             return False, None
 
     def _holder_fn() -> Optional[str]:
@@ -7626,8 +7623,8 @@ def integration_lock(
         h = read_integration_lock_holder(repo) or holder or "an unrecorded holder"
         waited_secs = _now() - started
         _say(
-            f"waiting for the repository integration lock held by {h} "
-            f"({waited_secs:.0f}s of {limit:.0f}s)"
+            f"still waiting for the repository integration lock {_lock_holder_phrase(h)} "
+            f"(waited {_plain_duration(waited_secs)} of {_plain_duration(limit)})"
         )
 
     started = _now()
@@ -7648,7 +7645,7 @@ def integration_lock(
         holder = read_integration_lock_holder(repo) or holder or "an unrecorded holder"
         detail = (
             f"the repository integration lock at {lock_path} is held by {holder}; waited "
-            f"{elapsed:.0f}s (bound {limit:.0f}s) and gave up. The integration is DEFERRED "
+            f"{_plain_duration(elapsed)} (limit {_plain_duration(limit)}) and gave up. The integration is DEFERRED "
             f"with its lane preserved, not failed."
         )
         _say(detail)
@@ -7874,11 +7871,63 @@ def integrate_under_repository_lock(
         }
         if lock_outcome.waited_seconds > 0 and lock_outcome.holder:
             _say(
-                "acquired the repository integration lock after waiting "
-                f"{lock_outcome.waited_seconds:.0f}s for {lock_outcome.holder}; main is at "
-                f"{tip or 'an unresolvable tip'}"
+                format_integration_lock_acquired_message(
+                    lock_outcome.waited_seconds, lock_outcome.holder, tip
+                )
             )
         return integrate(item, handle)
+
+
+_UNRECORDED_LOCK_HOLDER = "an unrecorded holder"
+
+
+def _plain_duration(seconds: float) -> str:
+    """`1800` -> `30m`, `90` -> `1m30s`, `5` -> `5s`: a bound an operator reads at a glance."""
+    total = max(0, int(round(seconds)))
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if secs or not parts:
+        parts.append(f"{secs}s")
+    return "".join(parts)
+
+
+def _lock_holder_phrase(holder: str) -> str:
+    """`held by run=... pid=...`, or a plain statement that the holder left no record."""
+    if not holder or holder == _UNRECORDED_LOCK_HOLDER:
+        return "held by another process that did not record who it is"
+    return f"held by {holder}"
+
+
+def format_integration_lock_wait_message(holder: str, limit: float) -> str:
+    """The FIRST line a driver prints when it must wait for the integration lock."""
+    return (
+        f"waiting for the repository integration lock {_lock_holder_phrase(holder)} "
+        f"(will give up after {_plain_duration(limit)} and retry the merge later)"
+    )
+
+
+def format_integration_lock_acquired_message(
+    waited: float, holder: str, tip: str
+) -> str:
+    """The line printed once a WAITED-FOR integration lock is finally held.
+
+    The main tip is shown only when it was read. An unread tip is not actionable here: it is a
+    record of which base the merge used, and the merge itself re-reads main and gates on it, so
+    printing "an unresolvable tip" told an operator something sounded wrong without saying what.
+    """
+    if not holder or holder == _UNRECORDED_LOCK_HOLDER:
+        who = "(the previous holder did not record who it was)"
+    else:
+        who = f"for {holder}"
+    message = f"acquired the repository integration lock after waiting {_plain_duration(waited)} {who}"
+    if tip:
+        message += f"; merging onto main at {tip[:12]}"
+    return message
 
 
 def describe_integration_lock_status(repo: Path) -> str:
@@ -7927,11 +7976,21 @@ def _resolved_main_tip(repo: Path, *, run_checked: Callable[..., str] | None) ->
     `run_checked` to pass, and the value is a record rather than a gate either way.
     """
 
+    # FALL BACK TO `_run_git` WHEN THE INJECTED CALLABLE FAILS, not to "". Measured on
+    # run-20261114T011406Z-590956: every caller passed the module-level `run_checked`, whose
+    # keyword-only `env_builder` this call does not supply, so it raised TypeError on every
+    # integration and all 25 items recorded `main_tip_in_lock: ''`. A plain `git rev-parse` needs
+    # no pinned child environment, so the fallback reads the same value.
+    if run_checked is not None:
+        try:
+            tip = str(run_checked(["git", "rev-parse", "HEAD"], cwd=repo)).strip()
+            if tip:
+                return tip
+        except Exception:
+            pass
     try:
-        if run_checked is not None:
-            return str(run_checked(["git", "rev-parse", "HEAD"], cwd=repo)).strip()
-        _rc, out, _err = _run_git(repo, ["rev-parse", "HEAD"])
-        return out.strip()
+        rc, out, _err = _run_git(repo, ["rev-parse", "HEAD"])
+        return out.strip() if rc == 0 else ""
     except Exception:
         return ""
 
@@ -54384,6 +54443,49 @@ def reconcile_agent_aw_home(
                 shutil.rmtree(sandbox_dir, ignore_errors=True)
 
 
+def format_discarded_aw_home_lines(events: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Operator-facing lines for the AW_HOME writes a run threw away.
+
+    WHAT HAPPENED: each agent turn runs with AW_HOME pointed at a private copy under the run
+    directory, so nothing it writes there can change the operator's real aw configuration. At turn
+    end the driver compares the copy with what it seeded, records each difference as an
+    `agent-aw-home-discarded` event, and deletes the copy. The common case is harmless: tests the
+    agent runs create throwaway project state (`projects/<tmp...>`). A change to
+    `config/registry.json` is the one an operator may want to look at, because it means the agent
+    tried to change real aw settings and that change did not take effect.
+    """
+    count = len(events)
+    details: list[str] = []
+    registry_touched = False
+    for ev in events:
+        id6 = ev.get("id6", "unknown")
+        f = str(ev.get("file", "unknown"))
+        change = str(ev.get("change") or "changed")
+        keys = ev.get("keys")
+        if f == "config/registry.json":
+            registry_touched = True
+        entry = f"{id6} {change} {f}"
+        if keys:
+            entry += " (" + ", ".join(str(k) for k in keys) + ")"
+        details.append(entry)
+    noun = "change" if count == 1 else "changes"
+    lines = [
+        f"Discarded {count} {noun} agents made to their private per-run AW_HOME copy "
+        f"(your real AW_HOME was not touched): " + "; ".join(details) + "."
+    ]
+    if registry_touched:
+        lines.append(
+            "  An agent tried to change your aw settings (config/registry.json) and that change "
+            "was NOT applied. If the change was intended, make it yourself; details are in "
+            "events.jsonl (event agent-aw-home-discarded)."
+        )
+    else:
+        lines.append(
+            "  This is usually scratch state from tests the agent ran. No action needed."
+        )
+    return lines
+
+
 def report_discarded_aw_home(
     run_dir: Any,
     *,
@@ -54391,9 +54493,8 @@ def report_discarded_aw_home(
 ) -> list[str]:
     """Print summary of discarded AW_HOME changes at run end (E-03).
 
-    Reads `agent-aw-home-discarded` events from `<run_dir>/events.jsonl` and prints:
-      Agent AW_HOME changes discarded: <n> (<id6>: <file> <keys>; ...)
-    or nothing when there are none. Advisory posture: never raises.
+    Reads `agent-aw-home-discarded` events from `<run_dir>/events.jsonl` and prints the lines
+    :func:`format_discarded_aw_home_lines` builds, or nothing when there are none. Advisory posture: never raises.
     """
     out = stream if stream is not None else sys.stdout
     lines: list[str] = []
@@ -54420,18 +54521,7 @@ def report_discarded_aw_home(
                     except Exception:
                         continue
         if events:
-            count = len(events)
-            details = []
-            for ev in events:
-                id6 = ev.get("id6", "unknown")
-                f = ev.get("file", "unknown")
-                keys = ev.get("keys")
-                if keys:
-                    details.append(f"{id6}: {f} {keys}")
-                else:
-                    details.append(f"{id6}: {f}")
-            details_str = "; ".join(details)
-            lines.append(f"Agent AW_HOME changes discarded: {count} ({details_str})")
+            lines.extend(format_discarded_aw_home_lines(events))
     except Exception as exc:
         lines.append(f"error: failed to summarize discarded AW_HOME changes: {exc}")
     for line in lines:
