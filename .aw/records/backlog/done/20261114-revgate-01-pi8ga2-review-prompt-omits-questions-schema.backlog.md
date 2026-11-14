@@ -1,5 +1,6 @@
 - Id: pi8ga2
-- Status: open
+- Status: done
+- Close-Evidence: .aw/records/walkthroughs/20261114-revgate-02-pi8ga2-review-questions-schema.walkthrough.md
 - Blocks-Release: next
 - Set: revgate
 - Priority: high
@@ -9,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 done (aw set): fixed in 2d0ccf156
 - 2026-11-14 created (aw backlog): build_review_prompt tells reviewers to write questions[] without giving questions_schema_literal, so escalated review blockers fail validate_questions and hit fail-merge instead of parking awaiting-human
 
 ## Observed
