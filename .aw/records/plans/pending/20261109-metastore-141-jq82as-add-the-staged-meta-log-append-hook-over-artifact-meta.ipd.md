@@ -6,7 +6,9 @@
 - Scope: Add `artifact_meta.check_staged_log_append` with its spec 4.3 function-list entry, add the hook module `agent_workflows/hooks/meta_log_append_gate.py`, and wire it as the `aw meta-log-append-gate` leaf and an optional pre-commit hook (`t4gl15` E-05, carried and divided into two steps). EXCLUDES: the gate cache-parity and offline tests, the residual audit and the `CHANGELOG.md` line (kept in `t4gl15`); the post-cutover gate rules (`cxxmyv`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/hooks/meta_log_append_gate.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/engine.py, tests/conformance_matrix.py, tests/test_meta_log_append_gate.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261109-metastore-141-jq82as-add-the-staged-meta-log-append-hook-over-artifact-meta.ipd.md
 - Item-Dependencies: executed:2zpw22, executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:jd7874, executed:tve77h, executed:xexn45, executed:y97k46
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, hook specification, execution gate, and tests; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from t4gl15 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -69,6 +72,12 @@ Size (round 3): measured with `ipd_schema.count_named_units`, each item names at
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Add check_staged_log_append<br/>artifact_meta.py function & spec 4sd62s 4.3 entry"] --> E02["2. Add & wire pre-commit hook<br/>meta_log_append_gate.py, cli, command_surface & engine"]
+    E02 --> V01["3. Validation & test coverage<br/>tests/test_meta_log_append_gate.py & core test suite"]
+```
+
 1. Add the judging function and its spec entry (E-01).
 2. Add and wire the hook (E-02).
 
@@ -98,7 +107,7 @@ ONE spec amendment, carried from `t4gl15`: `4sd62s` 4.3 gains `check_staged_log_
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: The round-3 rules give each new part the original plan's own dependencies. The function needs only `read_at` (`tve77h`); the other edges are conservative ordering, and they keep the hook's registration edits in `cli.py` and `engine.py` from overlapping the reader parts' edits in time. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -120,10 +129,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
+Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. OQ-01 is resolved.
+
+Safety stop: if prerequisite metastore symbols from `tve77h` (`artifact_meta.read_at`) or dependencies are absent upon starting, stop and report rather than proceeding. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
 Honesty rule: run the named module and `python3 -m pytest` (core gate) and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit jq82as -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize jq82as` itself.
