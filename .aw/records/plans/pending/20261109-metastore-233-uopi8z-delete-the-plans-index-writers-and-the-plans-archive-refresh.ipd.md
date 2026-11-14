@@ -6,7 +6,9 @@
 - Scope: delete those plans symbols and the `plans_index` entry of `record_producers`, keep `plans_index.scan_plans`, `query`, `run_find` and the non-INDEX rules of `plans_index.check_drift`, and retarget the INDEX-byte cases of `tests/test_plans_index.py`. EXCLUDES the research and prompts writers (Orders 234 and 235), the shared `artifact_core.emit_index_*` helpers (`snin8q` itself), and the on-disk files (`cxxmyv`).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/plans_archive.py, agent_workflows/record_producers.py, tests/test_plans_index.py, .aw/records/plans/pending/20261109-metastore-233-uopi8z-delete-the-plans-index-writers-and-the-plans-archive-refresh.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `snin8q` E-03's site list is split across Orders 231 to 235 and `snin8q`; this plan takes the plans members: "`build_index_json`, `build_index_md`, `_set_last_touched` and the write path of `run_index` in `plans_index`; `DEFAULT_INDEX_LIMIT`; ... the `plans_index` ... entr[y] in `record_producers`", the archive writer `plans_archive._refresh_index`, and `tests/test_plans_index.py`. "Keep `scan_*`, `query`, `run_find` and the non-INDEX drift classes of each `check_drift` (F-04), which `check_engine.check_content` still reaches."
 
-PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_plans_index.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/uopi8z/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; a test whose only subject is a deleted INDEX writer is deleted and named "INDEX-byte-only" in the mapping.
+PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_plans_index.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/uopi8z/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; a test whose only subject is a deleted INDEX writer is deleted and named "INDEX-byte-only" in the mapping. Ensure `.aw/state/uopi8z/` exists via `mkdir -p .aw/state/uopi8z/`.
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_plans_index.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Before the first edit, ensure `.aw/state/uopi8z/` exists (`mkdir -p .aw/state/uopi8z/`) and pin `tests/test_plans_index.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/uopi8z/E-01-before.txt` exists.
   - Execution state: pending
@@ -73,6 +76,15 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "build_index_(json|md)|_set_last_touc
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Save Baseline PIN List<br/>tests/test_plans_index.py"] --> E02["E-02: Delete plans_index Writers<br/>& Update Drift Check"]
+    E02 --> E03["E-03: Delete plans_archive Refresh<br/>in apply_shard_moves"]
+    E02 --> E04["E-04: Delete RecordProducerEntry<br/>plans_index in record_producers.py"]
+    E03 --> E05["E-05: Retarget tests/test_plans_index.py<br/>& Commit"]
+    E04 --> E05
+```
+
 1. Pin (E-01).
 2. Delete the plans writers (E-02), the archive refresh (E-03) and the producer entry (E-04).
 3. Retarget and commit (E-05).
@@ -101,7 +113,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `snin8q` OQ-01: no; it still hosts `aw find` and the content rules. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -138,4 +150,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Orders 231 and 232 first, so no other test imports a symbol this plan deletes). Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit uopi8z -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Orders 231 and 232 first, so no other test imports a symbol this plan deletes). Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `f6y2yy` or `6966zq` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit uopi8z -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize uopi8z` itself; never a hand `git mv` to `executed/`.
