@@ -2,11 +2,13 @@
 
 - Date: 2026-11-07
 - Kind: child
-- Concern: Spec `4sd62s` section 7 step 4 requires every metadata writer to write through `artifact_meta` in phase B. The specs, backlog and releases modules still build their `- Field:` bullets and `## Workflow history` lines by hand (measured: `specs` 14 bullet literals and 8 history references, `backlog` 29 and 18, `releases` 11 and 4). This is a part of `xexn45`, split 2026-11-07 because its create and note items each spanned seven modules and 17 or 9 test modules.
-- Scope: FINISHING PART of the specs, backlog and releases writer move (`xexn45` E-02 subset A and E-05 subset A). Round-3 split 2026-11-09 per research `nj8zdp`: the moves now live in `b3l7y6` (Order 120, specs), `jlwedt` (121, backlog) and `3466h8` (134, releases); this plan keeps the family audit (E-03) that proves no module of the family still builds history text by hand. EXCLUDES: the prompts, scaffold, research, adopt and set_records writers (`n5sxxk`), `--summary` (`6e93gt`).
+- Concern: Spec `4sd62s` (artifact metadata store) section 7 step 4 requires every metadata writer to write through `agent_workflows/artifact_meta.py` in phase B. Before this family's three move parts run, `agent_workflows/specs.py`, `agent_workflows/backlog.py`, and `agent_workflows/releases.py` still build `- Field:` bullets and `## Workflow history` lines by hand (re-measured at `01c564538`: `specs.py` has 15 bullet literals, 3 history-line builders, and 8 `Workflow history` references; `backlog.py` has 29 bullet literals, 4 history-line builders, and 14 `Workflow history` references; `releases.py` has 11 bullet literals, 1 history-line builder, and 4 `Workflow history` references). This plan is a split part of `xexn45` (the phase-B remaining-writers plan), split 2026-11-07 so no single item spans seven modules and up to 17 test modules.
+- Scope: Finishing audit of the `specs`, `backlog`, and `releases` writer move (`xexn45` E-02 subset A and E-05 subset A). After the 2026-11-09 round-3 split per research `nj8zdp` (plan-size calibration), the code moves live in `b3l7y6` (Order 120, `specs`), `jlwedt` (Order 121, `backlog`), and `3466h8` (Order 134, `releases`). This plan runs the family audit (`E-03`) proving that none of the 18 moved writer functions in `agent_workflows/specs.py`, `agent_workflows/backlog.py`, or `agent_workflows/releases.py` still builds metadata bullets or `## Workflow history` lines by hand. EXCLUDES: the `prompts`, `ipd_authoring`, `research_cmd`, `artifact_adopt`, and `set_records` writer family (`n5sxxk`), creation-time `short_description` and `aw describe` (`6e93gt` and `fekdwv`), and retiring the thin compatibility adapters (`9o83cr`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:b3l7y6, executed:jlwedt, executed:3466h8
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,101 +22,116 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 (split by module), E-02 (split by module) moved to b3l7y6, jlwedt, 3466h8.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from xexn45 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
-After its three parts run, no create, note or field-setter path of the specs, backlog and releases modules builds metadata text by hand; this plan proves it with one audit.
+After `b3l7y6` (`specs`), `jlwedt` (`backlog`), and `3466h8` (`releases`) execute, no create, note, migrate, or field-setter path of `agent_workflows/specs.py`, `agent_workflows/backlog.py`, or `agent_workflows/releases.py` builds metadata bullets or `## Workflow history` lines by hand. This plan proves that invariant with a three-query family audit (`E-03`) recorded in `F-05`.
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-PIN-FIRST RULE for every "move" item: run the named existing test modules GREEN on the unmodified code and save the per-test outcome list under the gitignored `.aw/state/g6tw94/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/g6tw94/<E>-before.txt`; `-m ""` includes `slow` modules, `-p no:randomly -n 0` makes the list deterministic, and `-q` is not repeated because `addopts` is cleared); make the move; run the same command into `-after.txt`; `diff` of the two must print nothing, so a test that newly fails, errors or skips is caught, not only a lost PASSED line. An existing assertion may change only when the Behavior decisions D-1 to D-6 below name it. New tests set `pytestmark = pytest.mark.core`, build fixtures in `tmp_path`, drive the real CLI or function, and never read production source (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
+Audit-only scope note: the pin-first code and test moves originally drafted as `E-01` and `E-02` moved in the 2026-11-09 round-3 split to `b3l7y6` (`specs`), `jlwedt` (`backlog`), and `3466h8` (`releases`), where each part pins its own test modules under `.aw/state/<id6>/`. This plan modifies no Python or test file; it runs the post-move family audit (`E-03`), records the audit table in `F-05` of this IPD, and runs the bare core test gate `python3 -m pytest` (`4sd62s` AC-1b).
 
 ### Task group 1: family audit
 
-- [ ] E-03 Audit the specs, backlog and releases family after its three parts: run `rg -n "Workflow history" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py` and `rg -n "f\"- \{(date|today|hdate)\} " agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py`, label every hit with its enclosing `def`, and add a Findings row (F-05) that names each hit and its reason (a reader, a body-text edit per N3, or a call into `artifact_meta`). Any hit inside a writer named in `b3l7y6`, `jlwedt` or `3466h8` is a defect of that part: stop and report it rather than editing here.
+- [ ] E-03 Audit the `specs`, `backlog`, and `releases` writer family after `b3l7y6`, `jlwedt`, and `3466h8` execute: (1) run `rg -n "Workflow history" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py`; (2) run `rg -n 'f"- \{[^}]+\} (created|migrated|note|\{label\})|f"- \{(date|today|hdate)\} ' agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py` (must print nothing; `rg` exits `1` on zero matches); (3) run `rg -n 'f"- [A-Z][A-Za-z-]+:|"- [A-Z][A-Za-z-]+: ' agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py`; (4) fill `F-05` in `## Findings` by labeling every hit from queries (1)-(3) with its enclosing `def` (or `<module>` / class name when outside a `def`) and its reason (reader, validator, module/class docstring or regex constant, body-text edit per `4sd62s` N3, or `agent_workflows/artifact_meta.py::_render_field` value delegate per `D-3`), and run the bare core gate `python3 -m pytest` (`4sd62s` AC-1b). Stop and report a prerequisite defect without editing code here if any hit falls inside the 18 writers moved by `b3l7y6`, `jlwedt`, and `3466h8` (`specs`: `run_new`, `_render_new_spec`, `run_note`, `run_migrate`; `backlog`: `run_new`, `_render_item`, `run_note`, `_reattach_history`; `releases`: `plan_release`, `create_release`, `run_new`, `set_item_dependencies_line`, `set_graduated_to_line`, `set_blocks_release_line`, `set_priority_line`, `set_work_kind_line`, `set_from_backlog_line`, `set_from_spec_line`).
   - Depends on: none
-  - Expected outcome: F-05 lists every hit with its enclosing `def` and reason; no hit is inside `specs.run_new`, `specs._render_new_spec`, `specs.run_note`, `specs.run_migrate`, `backlog.run_new`, `backlog._render_item`, `backlog.run_note`, `backlog._reattach_history`, `releases.create_release` or `releases.plan_release`.
+  - Expected outcome: Query (2) prints nothing (`0` matches, `rg` exit `1`); query (3) prints `0` matches in `agent_workflows/specs.py` and `agent_workflows/releases.py` and matches only the three `artifact_meta._render_field` value delegates (`set_release_exempt_kind_line`, `set_release_exempt_ref_line`, `set_close_evidence_line`) in `agent_workflows/backlog.py` (`D-3`); `F-05` lists every hit from queries (1) and (3) with its enclosing scope and reason, with zero hits inside any of the 18 moved writer functions; and `python3 -m pytest` passes.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Project conventions discovered (Step 0)
 
-- The `artifact_meta` interface names come from Order 02 (`tve77h`) and are used exactly: `artifact_meta.read(id6) -> State`, `history`, `query`, `resolve`, `read_at`, `append(id6, events, *, expect_seq)`, `create(...)`, `validate_new_events(type, events, *, records_root, migration_import=False)`, `repair`. Order 02's `append`/`create` are log-format and "switched on at the cutover"; this plan adds the phase-B branch (`write_legacy`) that Order 13 removes.
-- Atomic replacement is `artifact_core.atomic_write(path, text, *, prefix)`; the lock is `platform_lock.held`; UTC history days come from `artifact_core.utc_history_date` (spec `2vev8j` 4.4).
-- Today's history-insertion rules differ (F-04): `status_set._prepend_workflow_history_entry` and `backlog.run_note` insert DIRECTLY under the heading; `specs._append_history` normalizes to exactly one blank line then the record; `plan_readiness._prepend_history_entry` keeps an existing blank line and inserts after it; `coverage_record.write` inserts directly under the heading.
-- The newest-history reader is `attention_contract.newest_history_record` over `attention_contract.history_block`, which drops blank lines; so the blank-line difference changes no reader result.
-- Descriptive refusals: `attention_contract.refuse_unsafe_descriptive` with `MAX_DESCRIPTIVE_LEN` 300 and `MAX_PROSE_DESCRIPTIVE_LEN` 4300; `specs._refuse_unsafe_descriptive(..., prose=True)` is the spec `--summary` path.
-- Recognized plan bullets are `ipd_schema.META_RECOGNIZED`; an unrecognized bullet is lint error `IPD-M103` (`ipd_lint.C_META_UNKNOWN`). Backlog keeps unknown bullets in order (`backlog._render_item`, rendrop 2yqt0a).
-- The prompt mirror is the single `aw-prompt` comment (`prompts.render_metadata_comment`, `inject_metadata_id6`, `update_metadata_status`); nothing visible may precede the prompt body (spec `20260808-1958-01-prompt-purity-lint` R1/P4).
-- Finalize scope evidence is `evidence["scope_reconciliation"]` with `reasons` and `widened_paths` (`ipd_lifecycle._finalize_transaction`, `runner_shared.compute_scope_reconciliation`).
-- Rollup retirement is `ipd_lifecycle.retire_orchestrator` -> `_finalize_transaction` with `evidence["transition"] == "orchestrator-rollup"`.
-- The rename ledger is `record_history.record_rename`, written by `artifact_rename` and `plans_refs`; the sidecar is gitignored (`.aw/.gitignore` `records/history.jsonl`).
-- Core tier: `pyproject.toml` marker `core`; modules set `pytestmark = pytest.mark.core`.
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, never by a line number alone (advisory `IPD-C801`).
+- The `agent_workflows/artifact_meta.py` entry points come from Order 02 (`tve77h`, `artifact_meta` core) and Order 21 (`7yr827`, phase-B legacy writer): `artifact_meta.read`, `append`, `create`, `validate_new_events`, `write_legacy`, `render_legacy_text`, and (added by `3466h8` E-03) `set_legacy_bullet_line`. Order 13 (`cxxmyv`, attended metadata cutover) switches `append` and `create` from legacy bullet/history rendering to event logs.
+- Atomic file replacement uses `agent_workflows/artifact_core.py::atomic_write`; per-record locking uses `agent_workflows/platform_lock.py::held`; UTC history dates use `agent_workflows/artifact_core.py::utc_history_date` (spec `2vev8j` section 4.4, folded into `4sd62s` section 4.2b).
+- Pre-move history-insertion rules differed across modules (`xexn45` F-04): `agent_workflows/status_set.py::_prepend_workflow_history_entry` and `agent_workflows/backlog.py::run_note` inserted directly under `## Workflow history`, whereas `agent_workflows/specs.py::_append_history` normalized to one blank line before the entry. The newest-history reader `agent_workflows/attention_contract.py::newest_history_record` reads through `agent_workflows/attention_contract.py::history_block`, which ignores blank lines, so `D-1` changes no reader outcome.
+- Writer-side descriptive string validation uses `agent_workflows/attention_contract.py::refuse_unsafe_descriptive` (`MAX_DESCRIPTIVE_LEN = 300`, `MAX_PROSE_DESCRIPTIVE_LEN = 4300`) at CLI boundaries and `agent_workflows/artifact_meta.py::validate_new_events` inside `artifact_meta` (`4sd62s` section 4.2 and AC-15).
+- `agent_workflows/backlog.py::_render_item` preserves unknown metadata bullets in source order when `source_text` is supplied (plan `2yqt0a`), and `agent_workflows/artifact_meta.py::_render_field` (`2xwb9b`) delegates `release_exempt_kind`, `release_exempt_ref`, and `close_evidence` value formatting to `backlog.set_release_exempt_kind_line`, `backlog.set_release_exempt_ref_line`, and `backlog.set_close_evidence_line` until cutover (`D-3`).
+- Core test tier: `pyproject.toml` marker `core`; run the routine gate bare as `python3 -m pytest` (`4sd62s` AC-1b).
+- Cite code by `path::Symbol` or by a backticked path with a quoted string, never by a bare line number (`IPD-C801`).
 
 ## Findings
 
-| Id | Evidence (measured 2026-11-07 at `ac76110f4`) | Finding |
+| Id | Evidence (measured 2026-11-07 at `ac76110f4` and re-verified 2026-11-14 at `01c564538`) | Finding |
 |---|---|---|
-| F-01 | `rg -n "f\"- \{(date|today|hdate)\} " agent_workflows/specs.py agent_workflows/backlog.py`, attributed to the enclosing `def`: `specs.run_migrate`, `specs.run_note`, `specs._render_new_spec`, `backlog._render_item` (2), `backlog.run_note`, `backlog._reattach_history` | Seven hand-built history-line sites, all in this part. `_render_new_spec` and `_render_item` are the create renderers that E-01 replaces. |
-| F-02 | Hidden units of E-01: 4 writer functions, 3 files, 9 pinned modules (`test_releases` 21, `test_releases_cli` 37, `test_backlog` 47, `test_spec_id6_filenames` 21, `test_history_date_clock` 5, `test_specs_releases_descriptive_safety` 19, `test_backlog_descriptive_safety` 19, `test_descriptive_refusal_hoist` 3, `test_history_write_order` 8 tests, counted with `rg -c "^\s*def test_"`): about 16 units | Within the 25-unit limit. |
-| F-03 | Hidden units of E-02: 6 writer functions, 3 files, 6 pinned modules (`test_specs_verbs` 20, `test_backlog` 47, `test_graduation_forward_links` 9, `test_history_block_bounding` 9, `test_history_order` 7, `test_specs_date_containment` 15 tests): about 15 units | Within the limit. |
-| F-04 | `tests/test_descriptive_refusal_hoist.py` exercises `specs`, `backlog`, `releases` and `research_cmd` (`rg -o` over the module: 8, 8, 7 and 4 references) | It is pinned in both this part and `n5sxxk`; a re-run is harmless and each part sees its own family green. |
-| F-05 | (filled by E-03) family audit hits with their enclosing `def` and reason | Proof that the family writes no hand-built history. |
+| F-01 | `rg -n 'f"- \{[^}]+\} (created|migrated|note|\{label\})|f"- \{(date|today|hdate)\} ' agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/releases.py`: 8 hand-built history-line sites across `specs.py::run_migrate`, `specs.py::run_note`, `specs.py::_render_new_spec`, `backlog.py::_render_item` (2), `backlog.py::run_note`, `backlog.py::_reattach_history`, and `releases.py::plan_release` (`{_core.utc_history_date()}`); plus 55 `- Field:` bullet literals (`specs.py` 15, `backlog.py` 29, `releases.py` 11) across the 18 family writer functions and the 3 `backlog` value delegates | `b3l7y6`, `jlwedt`, and `3466h8` replace all 8 hand-built history-line sites and 52 of the 55 bullet literals (leaving only the 3 `backlog` value delegates of `D-3`); `E-03` verifies both history and bullet invariants across all three modules. |
+| F-02 | Historical split-sizing measurement for former `E-01` (create moves, now distributed across `b3l7y6`, `jlwedt`, and `3466h8`; non-binding `def test_` counts at split time): `test_releases` 21, `test_releases_cli` 37, `test_backlog` 47, `test_spec_id6_filenames` 21, `test_history_date_clock` 5, `test_specs_releases_descriptive_safety` 19, `test_backlog_descriptive_safety` 19, `test_descriptive_refusal_hoist` 3, `test_history_write_order` 8 | Splitting former `E-01` by module into `b3l7y6` (`specs`), `jlwedt` (`backlog`), and `3466h8` (`releases`) keeps each part within single-module, single-concern step bounds (`nj8zdp`). |
+| F-03 | Historical split-sizing measurement for former `E-02` (note, migrate, and line-setter moves, now distributed across `b3l7y6`, `jlwedt`, and `3466h8`; non-binding `def test_` counts at split time): `test_specs_verbs` 20, `test_backlog` 47, `test_graduation_forward_links` 9, `test_history_block_bounding` 9, `test_history_order` 7, `test_specs_date_containment` 15, plus `test_releases_sibling_line_writers_bounding` 9 and `test_releases_line_writers` 23 added in `3466h8` | Every writer and pinned module of former `E-01` and `E-02` is owned and pin-tested by `b3l7y6`, `jlwedt`, or `3466h8`; `g6tw94` retains only the cross-module `E-03` audit. |
+| F-04 | `tests/test_descriptive_refusal_hoist.py` exercises `specs` (8 references), `backlog` (8), `releases` (7), and `research_cmd` (4) | `b3l7y6`, `jlwedt`, and `3466h8` each pin `tests/test_descriptive_refusal_hoist.py` for this family, and `s95hj6` (`n5sxxk` research part) pins it for `research_cmd`. |
+| F-05 | (filled at execution by `E-03`) every hit from `E-03` queries (1)-(3) with its module, line, enclosing `def` (or `<module>` / class scope), and reason | Proves that none of the 18 moved writer functions in `specs.py`, `backlog.py`, or `releases.py` builds `## Workflow history` lines or `- Field:` metadata bullets by hand. |
 
-## Behavior decisions (kept behavior where writers disagreed, 4.3)
+## Behavior decisions (kept behavior where writers disagreed, spec `4sd62s` 4.3)
 
-- D-1 (blank line under the history heading). KEPT per file: the legacy writer inserts the new line after an existing blank line when one is present and directly under the heading otherwise; it never adds or removes a blank line. This keeps every existing file's shape (F-04) and matches `attention_contract.history_block`, which ignores blank lines. CHANGED: `specs._append_history`'s normalization of a missing blank line (19 specs) no longer adds one, and `specs._append_history` and `status_set._prepend_workflow_history_entry` create a missing section differently today (specs at end of file, plans before the first `##`); the legacy writer uses the `status_set` rule for every type except prompts, which keep end-of-file (pinned by `2xwb9b` E-02). Named tests: `tests/test_specs_verbs.py::test_note_appends_one_record_only` (asserts the record count, not the blank line), `tests/test_history_order.py::test_fixture_a_newest_first`, and a new `tests/test_artifact_meta_legacy_writer.py` case per insertion rule (with blank line, without, section absent) that compares full file bytes. Any existing test that pins the OLD specs normalization fails this plan's E-02 pin diff; it is then listed here by name with its changed assertion, as the PIN-FIRST RULE allows, and in no other case.
-- D-2 (new bullet position). KEPT: in place when present; otherwise after `- Status:`, else after `- Id:`, else end of block; never in the body (a88210). The few writers with a different anchor (`coverage_record` after `- Readiness:`, `runner_shared.mark_plan_attended` at block end, `perform_coordinator_proposal_file` after `- Priority:`) change position only; no reader depends on bullet order (`ipd_schema.parse_metadata_block` is order-free). Named tests: `tests/test_coverage_record.py`, `tests/test_run_proposal_channel.py`.
+- D-1 (blank line under the history heading, inherited by `b3l7y6`, `jlwedt`, and `3466h8`). KEPT per file: `agent_workflows/artifact_meta.py::write_legacy` (`7yr827` D-1) inserts the new history entry after an existing blank line when one is present and directly under `## Workflow history` otherwise, without adding or removing blank lines; `agent_workflows/attention_contract.py::history_block` ignores blank lines. CHANGED in `b3l7y6`: `specs._append_history`'s blank-line normalization and end-of-file missing-section fallback are replaced by the shared `write_legacy` rule (with intentional assertion updates named in `b3l7y6` D-1 and D-4).
+- D-2 (new bullet position, inherited by `b3l7y6`, `jlwedt`, and `3466h8`). KEPT: existing bullets update in place; new bullets insert after `- Status:`, else after `- Id:`, else at the end of the metadata bullet block, and never in the Markdown body (plan `a88210`). In `3466h8` D-2, `agent_workflows/artifact_meta.py::set_legacy_bullet_line` preserves `agent_workflows/selectors.py::metadata_region` bounding and `Item-Dependencies` anchor precedence (`- Scope-Paths:`, then before `- Status:`, then after `- Id:`).
+- D-3 (`backlog` value delegates in `E-03` query 3). KEPT until cutover: `agent_workflows/backlog.py::set_release_exempt_kind_line`, `agent_workflows/backlog.py::set_release_exempt_ref_line`, and `agent_workflows/backlog.py::set_close_evidence_line` remain as pure value-formatting delegates called by `agent_workflows/artifact_meta.py::_render_field` (`2xwb9b`, `jlwedt` F-01), rather than independent bypass writers. `E-03` records those three `- Field:` hits in `F-05` with reason `artifact_meta._render_field value delegate` (`9o83cr` retires legacy adapters after readers and writers finish moving).
 
 ## Proposed changes (ordered, validatable)
 
-1. The moves, in three parts: specs (`b3l7y6`), backlog (`jlwedt`), releases (`3466h8`).
-2. The family audit (E-03).
+1. Prerequisite family moves (executed before this plan): `b3l7y6` (`agent_workflows/specs.py`), `jlwedt` (`agent_workflows/backlog.py`), and `3466h8` (`agent_workflows/releases.py`).
+2. Family audit (`E-03`): run the three `rg` checks across `agent_workflows/specs.py`, `agent_workflows/backlog.py`, and `agent_workflows/releases.py`, record every remaining hit and its non-writer reason in `F-05` (stopping to report if any of the 18 moved writers still matches), and run `python3 -m pytest`.
+
+```mermaid
+flowchart TD
+    B3["b3l7y6 (Order 120): move specs writers"] --> E03["g6tw94 E-03: run 3 rg audits across specs.py, backlog.py, releases.py"]
+    JL["jlwedt (Order 121): move backlog writers"] --> E03
+    R34["3466h8 (Order 134): move releases writers"] --> E03
+    E03 --> Q{"Any hit inside the 18 moved writers?"}
+    Q -->|"Yes"| STOP["Stop and report prerequisite defect (do not edit code here)"]
+    Q -->|"No"| F05["Record remaining reader/validator/delegate hits in F-05 and run python3 -m pytest"]
+    F05 --> NEXT["Unblock n5sxxk, 6e93gt, b4y4ee, and xexn45"]
+```
 
 ## Deferred / out of scope (with reason)
 
-- E-01 specs subset (`specs.run_new`) and E-02 specs subset (`specs.run_note`, `specs.run_migrate`): Moved to b3l7y6 (round-3 split 2026-11-09 per research nj8zdp guidance)
+- `specs` create, note, and migrate writer moves (`agent_workflows/specs.py::_render_new_spec`, `run_new`, `run_note`, `run_migrate`, plus deletion of unused private writer helpers): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: b3l7y6
-- E-01 backlog subset (`backlog.run_new`) and E-02 backlog subset (`backlog.run_note`, `backlog._reattach_history`): Moved to jlwedt (round-3 split 2026-11-09 per research nj8zdp guidance)
+- `backlog` create, note, and history-reattach writer moves (`agent_workflows/backlog.py::_render_item`, `run_new`, `run_note`, `_reattach_history`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: jlwedt
-- E-01 releases subset (`releases.create_release`, `releases.plan_release`) and E-02 releases subset (`releases.set_item_dependencies_line`, `releases.set_graduated_to_line`): Moved to 3466h8 (round-3 split 2026-11-09 per research nj8zdp guidance)
+- `releases` create and line-setter writer moves (`agent_workflows/releases.py::plan_release`, `create_release`, `run_new`, `set_item_dependencies_line`, `set_graduated_to_line`, `set_blocks_release_line`, `set_priority_line`, `set_work_kind_line`, `set_from_backlog_line`, `set_from_spec_line`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: 3466h8
-- The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` and `CHANGELOG.md` lines, and the full-suite gates of the writer move.
+- Phase-B merge-independence test (`tests/test_writers_merge_independence.py`, `4sd62s` AC-3 phase-B form): split out of `xexn45` in round 3.
+  - Carrier: b4y4ee
+- AC-21 obligations test (`tests/test_writers_obligations.py`), raw-write audit (`F-09` in `xexn45` E-14 and E-15), `docs/cli-output-contract.md` and `CHANGELOG.md` updates, and full-suite writer-move gates.
   - Carrier: xexn45
-- The other writer families of `xexn45` (subset B of E-02 and E-05).
+- The other writer family of `xexn45` (`prompts`, `ipd_authoring`, `research_cmd`, `artifact_adopt`, and `set_records`).
   - Carrier: n5sxxk
+- Creation-time `short_description` (`--summary`) for `backlog`, `specs`, and `releases`, and `aw describe`.
+  - Carrier: fekdwv, 6e93gt
+- Retiring thin compatibility adapters and legacy parsers (`4sd62s` AC-1).
+  - Carrier: 9o83cr
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. Every writer and every pinned module of the original E-01 and E-02 lives in exactly one of `b3l7y6`, `jlwedt` and `3466h8` (shared modules are pinned in each part that touches one of their modules). `tests/test_releases_sibling_line_writers_bounding.py` was added to the releases pin list by `3466h8`. Plan size after the split: 1 E-item.
+- Under-scope: none. All 18 writer functions and every pinned test module of former `E-01` and `E-02` live in `b3l7y6` (4 writers), `jlwedt` (4 writers), and `3466h8` (10 writers), and `E-03` audits both history lines and `- Field:` metadata bullets across all three modules. Plan size after the split: 1 `E-*` item editing only this IPD (`- Scope-Paths:`).
 
 ## Required tests / validation
 
-No new module and no code edit. The pinned modules now live in the V-items of `b3l7y6`, `jlwedt` and `3466h8`; V-03 here is a search audit.
+No new test module and no Python code edit. Module-level PIN-FIRST test diffs run in the `V-*` checklists of `b3l7y6`, `jlwedt`, and `3466h8`; `V-03` here verifies the three-query `rg` family audit, the populated `F-05` audit table, and the bare core gate `python3 -m pytest` (`4sd62s` AC-1b).
 
 ## Spec / documentation sync
 
-None. Implements `4sd62s` section 7 step 4 for this module family; no documented behavior changes.
+None. Implements the verification finish of `4sd62s` section 7 step 4 for the `specs`, `backlog`, and `releases` module family; no user-facing CLI flags or documented contracts change here.
 
 ## Open questions
 
-None open. Every question this work raised was resolved in `xexn45` before the split; the decisions above carry the answers.
+None open. Every question this work raised was resolved in `xexn45` and the reviewed split parts (`7yr827`, `b3l7y6`, `jlwedt`, `3466h8`); `D-1` through `D-3` record the governing behavior decisions.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste both `rg` commands of E-03 with their full output, and the filled F-05 row naming each hit's enclosing `def` and reason; for each of the ten writer functions named in the E-03 expected outcome, state that no hit falls inside it.
+  - Required evidence: paste all three `rg` commands of `E-03` with their full output and exit codes (showing `0` matches and exit `1` for query (2), and `0` matches in `agent_workflows/specs.py` and `agent_workflows/releases.py` plus only the three `D-3` `backlog` value-delegate matches for query (3)); paste the filled `F-05` row naming each hit's module, line, enclosing `def` (or `<module>` / class scope), and reason; state explicitly for each of the 18 moved writer functions named in `E-03` (`specs.run_new`, `specs._render_new_spec`, `specs.run_note`, `specs.run_migrate`, `backlog.run_new`, `backlog._render_item`, `backlog.run_note`, `backlog._reattach_history`, `releases.plan_release`, `releases.create_release`, `releases.run_new`, `releases.set_item_dependencies_line`, `releases.set_graduated_to_line`, `releases.set_blocks_release_line`, `releases.set_priority_line`, `releases.set_work_kind_line`, `releases.set_from_backlog_line`, `releases.set_from_spec_line`) that zero hits fall inside it; and paste the actual summary line of bare `python3 -m pytest` (`4sd62s` AC-1b).
   - Observed evidence:
   - Result: pending
 
@@ -124,11 +141,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` (`tve77h`, `2xwb9b`, `7yr827`, `b3l7y6`, `jlwedt`, and `3466h8`) is executed. Stop and report without editing production code if any prerequisite in `- Item-Dependencies:` is not yet `executed`, if any `E-03` audit query matches inside one of the 18 writers moved by `b3l7y6`, `jlwedt`, or `3466h8`, or if concurrent edits in a shared checkout conflict with this plan file.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every move is pin-first: the named existing modules run green on the unmodified code before the move, and an assertion may change only where the Behavior decisions name it.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
-Honesty rule: run the named modules and the bare core gate `python3 -m pytest`, and paste the ACTUAL summary lines; never claim a result you did not run.
+Honesty rule: run the exact `rg` audit commands of `E-03` and the bare core gate `python3 -m pytest`, and paste the ACTUAL outputs and summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit g6tw94 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
