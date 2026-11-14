@@ -6,7 +6,9 @@
 - Scope: (a) The 4.4 search rows for `plan_readiness`, `ipd_lifecycle` and `artifact_meta` (the rest of `h58z9n` E-01's file subset; `snh19k` writes the `check_engine` and hook rows). (b) `h58z9n` E-04, divided into the setter, staleness and lifecycle readers (E-02) and the five `runner_shared` merge-path readers (E-03). EXCLUDES: the `check_engine` git readers and the hooks (`snh19k`), every other runner read (`y97k46` and its round-3 part), the residual audit (kept in `h58z9n`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/plan_readiness.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/artifact_meta.py, tests/test_readers_read_at_gates.py, .aw/records/plans/pending/20261109-metastore-146-iqhzse-move-the-setter-staleness-lifecycle-and-runner-merge-path-gi.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:snh19k
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iqhzse
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-146-iqhzse-move-the-setter-staleness-lifecycle-and-runner-merge-path-gi.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from h58z9n (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +36,7 @@ The setter's HEAD read, the review-staleness index, the lifecycle landing check 
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15` through `h58z9n`): BEFORE the edit, a behavioral test pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of the decisions copied below (D-1). For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it, where `<E>` is the file name each item gives; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command. New test cases go in `tests/test_readers_read_at_gates.py` (created by `snh19k`); none reads production source.
+The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15` through `h58z9n`): BEFORE the edit, a behavioral test pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of the decisions copied below (D-1). For every existing module named as a baseline, ensure directory existence (`mkdir -p .aw/state/t4gl15 .aw/state/iqhzse`), save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it, where `<E>` is the file name each item gives; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command. New test cases go in `tests/test_readers_read_at_gates.py` (created by `snh19k`); none reads production source.
 
 Commit through `aw commit iqhzse -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -61,9 +65,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Carried from `h58z9n` Step 0:
 
-- Interface names from Order 02 (`tve77h`), used exactly: `artifact_meta.read(id6) -> State`, `artifact_meta.history(id6)`, `artifact_meta.read_at(id6, rev)` (index via `git ls-files -s`, commit via `git rev-parse <rev>:<path>`, cached by blob sha, fails closed on a validation error). From `ffceq0` (now added by `cdglt1`): `artifact_meta.read_text(text, *, record_type=None) -> State` and decision D-1.
-- Today's git-content helpers: `check_engine._blob_text(repo_root, ref, path)`, `runner_shared.read_merge_stage` (`git cat-file -p :<stage>:<path>`), `runner_shared._run_git`.
-- Cite code by SYMBOL (`module.function`), never a bare line number (advisory `IPD-C801`).
+- Interface names from Order 02 (`tve77h`), used exactly: `agent_workflows/artifact_meta.py::read`, `agent_workflows/artifact_meta.py::history`, `agent_workflows/artifact_meta.py::read_at` (index via `git ls-files -s`, commit via `git rev-parse <rev>:<path>`, cached by blob sha, fails closed on a validation error). From `ffceq0` (added by `cdglt1`): `agent_workflows/artifact_meta.py::read_text` and decision D-1.
+- Today's git-content helpers: `agent_workflows/check_engine.py::_blob_text`, `agent_workflows/runner_shared.py::read_merge_stage`, `agent_workflows/runner_shared.py::_run_git`.
+- Cite code by repo-relative `path::Symbol` identifiers, never a bare line number (advisory `IPD-C801`, Technical Writing Standard Requirement 7).
 
 ## Findings
 
@@ -85,11 +89,27 @@ READER LEDGER (this part's rows, copied from `t4gl15` through `h58z9n`):
 | `runner_shared` git readers | backlog id from commit blob, review-lane plan checks, merge-stage keys, conflict status | `tests/test_runner_backlog_close_behavior.py`, `tests/test_records_only_lane_rederive.py`, `tests/test_merge_conflict_sendback.py` | `read_at` or `read_text` |
 | `ipd_lifecycle._release_own_plan_edit_before_landing` | byte equality of landed blob vs mirrored bytes | `tests/test_ipd_lifecycle_cli.py` | unchanged (not a metadata read); recorded in F-03 |
 
-DECISIONS that govern this part (copied from `t4gl15`, whose text is authoritative):
+### Behavior decisions
 
-- D-1 (multi-word status). PLAN records return the canonical normalized status (`plans.normalize_status` of the first token); every other type keeps its raw single-token status, because `plans.normalize_status` maps `open`, `implemented`, `planned` and similar non-plan values to `legacy/unknown`, and the runner (`discover_specs`, `resolve_backlog_item`, `edge_satisfied` `state:` edges) reads specs and backlog items too.
+Decisions that govern this part (carried from `t4gl15` and `h58z9n`):
+
+- D-1 (multi-word status). PLAN records return the canonical normalized status (`agent_workflows/plans.py::normalize_status` of the first token); every other type keeps its raw single-token status, because `plans.normalize_status` maps `open`, `implemented`, `planned` and similar non-plan values to `legacy/unknown`, and the runner (`discover_specs`, `resolve_backlog_item`, `edge_satisfied` `state:` edges) reads specs and backlog items too.
+- D-2 (merge-stage blob resolution; carried from `t4gl15` OQ-02). A merge stage is an index entry with a stage number (`:<stage>:<path>`). E-03 first attempts `read_at(id6, ":<stage>:")`; if `artifact_meta.read_at` rejects the stage revision syntax, it passes the stage blob text to `artifact_meta.read_text`, keeping C5a with the same loader and recording the chosen path in F-03.
+- D-3 (frozen-region digest in review staleness). In `agent_workflows/plan_readiness.py::review_staleness_index`, plan status moves to `read_at(id6, <commit>)`, while the batched `git cat-file --batch` body read stays for the frozen-region digest, which is body prose (N3).
+- D-4 (landing check byte equality). In `agent_workflows/ipd_lifecycle.py::_release_own_plan_edit_before_landing`, the byte equality check of a landed blob vs mirrored bytes is not a metadata read and stays; status or id validations use `read_at`.
+- D-5 (state directory initialization). Ensure `.aw/state/t4gl15/` and `.aw/state/iqhzse/` exist (`mkdir -p .aw/state/t4gl15 .aw/state/iqhzse`) before saving baseline outcome lists in isolated lane worktrees.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["1. Re-run remaining 4.4 search rows (E-01)<br/>plan_readiness.py, ipd_lifecycle.py, artifact_meta.py, status_set.py"]
+    E02["2. Move setter, staleness and lifecycle readers (E-02)<br/>status_set._prepare_status_change, plan_readiness.review_staleness_index, ipd_lifecycle._release_own_plan_edit_before_landing"]
+    E03["3. Move runner merge-path readers (E-03)<br/>runner_shared backlog, review-lane, merge-stage, conflict rederivation and integration readers"]
+
+    E01 --> E02
+    E02 --> E03
+```
 
 1. The remaining 4.4 search rows (E-01).
 2. The setter, staleness and lifecycle readers (E-02).
@@ -123,7 +143,7 @@ No spec change. Implements the setter, staleness, lifecycle and merge-path part 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `t4gl15` OQ-02. A merge stage is an index entry with a stage number, which `git ls-files -s` already lists, so E-03 first tries `read_at(id6, ":<stage>:")`; if `tve77h`'s implementation rejects a stage spelling, E-03 passes the stage blob text to `artifact_meta.read_text`, which uses the same loader. Either path keeps C5a. The chosen path is recorded in F-03. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -150,12 +170,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
+Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed (`executed:ffceq0`, `executed:g5hpbb`, `executed:tve77h`, `executed:xexn45`, `executed:snh19k`). Stop and report without editing production code or weakening assertions if prerequisite symbols from `executed:tve77h` (`artifact_meta.read_at`), `executed:xexn45`, `executed:g5hpbb`, or `executed:snh19k` (`tests/test_readers_read_at_gates.py`) are absent on HEAD, if unmodified baseline tests fail on HEAD before starting, or if concurrent edits in a shared checkout conflict unresolvably with `- Scope-Paths:`.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code outside declared `- Scope-Paths:` is out of this plan's purpose: if a reader cannot answer from `artifact_meta.read_at` or `artifact_meta.read_text` without an out-of-scope production change, stop that item and report the missing capability rather than changing out-of-scope code. Every reader move is pin-first.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit iqhzse -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs `aw ipd finalize iqhzse`.
