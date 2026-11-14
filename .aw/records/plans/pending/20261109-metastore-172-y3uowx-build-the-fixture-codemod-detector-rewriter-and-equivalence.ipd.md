@@ -6,7 +6,9 @@
 - Scope: Part 1 of the round-3 split of `653ndz` (2026-11-09, research `nj8zdp` guidance): `653ndz` E-01 (detector and dry run), E-02 (rewriter) and E-03 (equivalence proof) carried verbatim with their ids, plus the finishing item E-07. EXCLUDES: the tool's test module (`j2xjtt`, `n0li9v`); the pilot, census and README (`653ndz`); converting any test module; production code under `agent_workflows/`.
 - Scope-Paths: tools/fixture_codemod.py, .aw/records/plans/pending/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.ipd.md
 - Item-Dependencies: executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,7 +22,9 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 653ndz (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Item ids E-01 to E-04 are the ids these items had in `653ndz`; they are kept so every cross-reference (for example "`653ndz` E-03" in the batch rule) still resolves. New ids added by the round-3 split start at E-07.
 
-Terms used below. A SITE is one Python string literal (a constant or an f-string, found with `ast`) in a test module whose text matches the F-01 pattern. A REWRITE replaces the site's expression in place, and nothing else in the module, with the builder's text form (`RecordBuilder(...).<type>(..., text_only=True)`, `9rgn2w` E-01). A REFUSAL is a site the tool leaves untouched, with one reason code. Each reason code has one DISPOSITION: `hand` (a batch item converts it by hand) or `legacy-kept` (the site stays in legacy form on purpose and is listed with its F-06 reason class).
+Terms used below. A SITE is one Python string literal (a constant or an f-string, found with `ast`) in a test module whose text matches the F-01 pattern. A REWRITE replaces the site's expression in place, and nothing else in the module, with the builder's text form (`tests/record_builder.py::RecordBuilder(...).<type>(..., text_only=True)`, `9rgn2w` E-01). A REFUSAL is a site the tool leaves untouched, with one reason code. Each reason code has one DISPOSITION: `hand` (a batch item converts it by hand) or `legacy-kept` (the site stays in legacy form on purpose and is listed with its F-06 reason class).
 
 | Reason code | Disposition | Meaning |
 |---|---|---|
@@ -49,19 +53,21 @@ A deliberately invalid value (F-08, for example `- Status: EXECUTED`) is NOT a r
 
 ### Task group 1: the tool
 
-- [ ] E-01 Create `tools/fixture_codemod.py` with the site detector and the dry run. `python3 tools/fixture_codemod.py --dry-run [--format table|json] <paths>` parses each module with `ast`, finds every site, and classifies each as a planned rewrite (with the target type, the keyword arguments it would emit, and any `raw_fields=` entries) or a refusal with one reason code from the table above. The record type comes from the heading (`# IPD:`, `# Spec:`, `# Release:`, ...) or from the records directory in the written path; f-string placeholders that stand for one field value become keyword arguments (`f"- Status: {status}\n"` becomes `status=status`); field names map to registry names through `artifact_meta.registry_fields` (no second table). The output lists, per module, every site with its line, its planned rewrite or refusal reason, and totals of rewrites and refusals by reason and by disposition. The dry run writes nothing. (Measured units: 1 tool module, 7 reason codes, 8 record types, 1 output format pair.)
+Scratch directory rule: verification of `--apply` in E-02 and equivalence bisection in E-03 uses scratch fixture files created under gitignored `.aw/state/y3uowx/` (`mkdir -p .aw/state/y3uowx`), ensuring repository test modules remain unmutated ahead of pilot plan `653ndz`.
+
+- [ ] E-01 Create `tools/fixture_codemod.py` with the site detector and the dry run. `python3 tools/fixture_codemod.py --dry-run [--format table|json] <paths>` parses each module with `ast`, finds every site, and classifies each as a planned rewrite (with the target type, the keyword arguments it would emit, and any `raw_fields=` entries) or a refusal with one reason code from the table above. The record type comes from the heading (`# IPD:`, `# Spec:`, `# Release:`, ...) or from the records directory in the written path; f-string placeholders that stand for one field value become keyword arguments (`f"- Status: {status}\n"` becomes `status=status`); field names map to registry names through `agent_workflows/artifact_meta.py::registry_fields` (no second table). The output lists, per module, every site with its line, its planned rewrite or refusal reason, and totals of rewrites and refusals by reason and by disposition. The dry run writes nothing. (Measured units: 1 tool module, 7 reason codes, 8 record types, 1 output format pair.)
   - Depends on: none
   - Expected outcome: `--dry-run --format json tests/test_backlog_handoff_close.py` prints one entry per site with a rewrite or a reason code, and `git status --short` is unchanged afterwards.
   - Execution state: pending
 
-- [ ] E-02 Add the rewriter: `python3 tools/fixture_codemod.py --apply <paths>` replaces each planned-rewrite site's expression in place using the `ast` node's start and end offsets, adds one `from tests.record_builder import RecordBuilder` import when the module lacks it, and touches no refused site and no other byte of the module. A second `--apply` over the same files makes no change (idempotent). (Measured units: 1 rewrite routine, 1 import routine, 1 idempotence rule.)
+- [ ] E-02 Add the rewriter: `python3 tools/fixture_codemod.py --apply <paths>` replaces each planned-rewrite site's expression in place using the `ast` node's start and end offsets, adds one `from tests.record_builder import RecordBuilder` import (`tests/record_builder.py::RecordBuilder`) when the module lacks it, and touches no refused site and no other byte of the module. A second `--apply` over the same files makes no change (idempotent). (Measured units: 1 rewrite routine, 1 import routine, 1 idempotence rule.)
   - Depends on: E-01
-  - Expected outcome: on a fixture module, the diff of an `--apply` run touches only the planned sites and the import line, and a second run prints zero rewrites.
+  - Expected outcome: on a scratch fixture module in `.aw/state/y3uowx/`, the diff of an `--apply` run touches only the planned sites and the import line, and a second run prints zero rewrites.
   - Execution state: pending
 
 - [ ] E-03 Add the equivalence proof to `--apply`; it cannot be turned off. Before rewriting a module, the tool records its per-test outcome list with the batch-rule command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`, run in-process with `subprocess`), rewrites, and records it again. If the two lists differ, it restores the module, re-applies the rewrites by halving (each half kept only when the list stays identical) until the sites that change the outcome are isolated, keeps the proved rewrites, and reports each isolated site as a refusal `not-equivalent`. The report ends with the before and after outcome-list hashes per module. (Measured units: 1 proof routine, 1 bisection routine, 1 report section.)
   - Depends on: E-02
-  - Expected outcome: on a fixture module whose test asserts the exact bytes of one literal, `--apply` keeps every other rewrite, reports that one site `not-equivalent`, and the module's outcome list is identical before and after.
+  - Expected outcome: on a scratch fixture module in `.aw/state/y3uowx/` whose test asserts the exact bytes of one literal, `--apply` keeps every other rewrite, reports that one site `not-equivalent`, and the module's outcome list is identical before and after.
   - Execution state: pending
 
 ### Task group 2: finish
@@ -76,21 +82,46 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Project conventions discovered (Step 0)
 
 - Standalone maintenance tools live in `tools/` and are described in `tools/README.md`; their behavioral tests drive them as subprocesses by path (for example `tests/test_gate_drop_audit.py` sets `AUDITOR_PATH` to `tools/gate_drop_audit.py`).
-- The builder interface (`9rgn2w` E-01): `RecordBuilder(repo_root)` with one method per record type, registry-named keyword fields, `raw_fields={legacy_name: text}` for deliberately invalid input, and `text_only=True` returning the string.
-- `artifact_meta.registry_fields(type)` names each type's fields; `artifact_meta.read_text(text, *, record_type=None)` parses a record's text.
+- The builder interface (`9rgn2w` E-01): `tests/record_builder.py::RecordBuilder(repo_root)` with one method per record type, registry-named keyword fields, `raw_fields={legacy_name: text}` for deliberately invalid input, and `text_only=True` returning the string.
+- `agent_workflows/artifact_meta.py::registry_fields(type)` names each type's fields; `agent_workflows/artifact_meta.py::read_text(text, *, record_type=None)` parses a record's text.
 - Tests are behavioral (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); the codemod reads TEST source because rewriting it is its job, and no test of the codemod reads production source. Core modules set `pytestmark = pytest.mark.core`; `slow` tests are listed in `tests/slow_allowlist.txt`; a complete comparison passes `-m ""`, and a deterministic order needs `-p no:randomly`.
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
+- Cite code by SYMBOL (`path::Symbol`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
 
-Measured 2026-11-08 at `ac76110f4`; carried from `653ndz`.
+Measured 2026-11-08 at `ac76110f4`; carried from `653ndz`. The site and module counts below are non-binding context and do not constrain runtime execution.
 
 | Id | Evidence | Finding |
 |---|---|---|
 | F-01 | `rg -c --glob '*.py' -e '- (Id\|Status\|Set\|Kind\|Blocks-Release\|Readiness\|Item-Dependencies\|Scope-Paths\|From-Backlog\|From-Spec\|Work-Kind\|Priority\|Order\|Date\|Gate-Kind\|Gate-Ref\|Approval\|Subject-Id\|Verdict\|Graduated-To):\|## Workflow history' tests`: 323 files; minus the 5 EXCLUDED `tests/test_artifact_meta_*.py` files, 318 modules with 6,747 matching lines | The census input. It includes `tests/support.py` and `tests/conformance_matrix.py` (subset G7b, `59aiyh` E-09). |
 | F-29 | An `ast` walk over the 318 modules (string constants and f-strings whose text matches F-01, nested f-string parts not double-counted): 3,272 sites in 313 modules; by context: `write_text` argument 867, assigned or returned 882, argument of another call 930, inside an assertion 535, other 58 | About 1,750 sites sit in a write or an assignment, the shapes a rewrite handles; the 535 assertion sites are refusals by construction (`displayed-output` or `setter-byte`). The number of `dynamic-construction` refusals is unknown until E-05. |
 
+### Behavior decisions
+
+- D-1 (equivalence proof granularity, `4sd62s` Section 6, OQ-01). Per-module proof with bisection: `--apply` runs pytest per module before and after rewrites, halving rewrites on outcome discrepancy to isolate breaking sites (`not-equivalent`), avoiding per-site pytest runs.
+- D-2 (invalid input handling, line 48, `9rgn2w` E-01). Deliberately invalid values (such as `- Status: EXECUTED`) are written via `RecordBuilder`'s `raw_fields=` escape argument rather than refused, categorizing them as `invalid-input` planned rewrites.
+- D-3 (AST literal replacement boundary). Source replacement targets exact node character spans (`lineno`, `col_offset`, `end_lineno`, `end_col_offset`) in UTF-8 source text without full AST unparsing, preserving surrounding indentation, whitespace, and comments.
+- D-4 (scratch fixture isolation for verification). Validation of `--apply` and equivalence bisection in V-02 and V-03 runs against scratch fixture modules under `.aw/state/y3uowx/`, keeping repository test modules unmutated.
+- D-5 (idempotence). A second `--apply` execution over an already rewritten module detects existing `RecordBuilder` calls and makes zero changes, exiting 0.
+
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    A["Parse test module AST"] --> B{"Matches fixture pattern (F-01)?"}
+    B -->|No| C["Ignore site"]
+    B -->|Yes| D{"Refusal condition met?"}
+    D -->|Yes| E["Classify refusal (hand / legacy-kept)"]
+    D -->|No| F["Plan rewrite (RecordBuilder call)"]
+    F --> G{"Mode: --apply?"}
+    G -->|No (dry-run)| H["Output table/JSON summary"]
+    G -->|Yes| I["Record baseline outcome list"]
+    I --> J["Apply AST rewrite in-place"]
+    J --> K["Record post-rewrite outcome list"]
+    K --> L{"Outcome identical?"}
+    L -->|Yes| M["Keep rewrite"]
+    L -->|No| N["Halve/bisect to isolate breaking sites; mark not-equivalent"]
+```
 
 1. Build the detector and dry run, the rewriter, and the proof (E-01 to E-03).
 2. Run, commit (E-07).
@@ -141,12 +172,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `git diff` of one fixture module after `--apply` (only planned sites and the import line changed) and the second `--apply` run's output reporting zero rewrites.
+  - Required evidence: paste the `git diff` of one scratch fixture module in `.aw/state/y3uowx/` after `--apply` (only planned sites and the import line changed) and the second `--apply` run's output reporting zero rewrites.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `--apply` report for the `not-equivalent` fixture module showing the isolated site, the kept rewrites, and identical before and after outcome-list hashes.
+  - Required evidence: paste the `--apply` report for the `not-equivalent` scratch fixture module in `.aw/state/y3uowx/` showing the isolated site, the kept rewrites, and identical before and after outcome-list hashes.
   - Observed evidence:
   - Result: pending
 
@@ -160,7 +191,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `9rgn2w`, `g5hpbb`, `tve77h`, `xexn45` are executed. Every open question is resolved.
+Execute only after human approval (`Status: approved`) and after `9rgn2w`, `g5hpbb`, `tve77h`, `xexn45` are executed. Every open question is resolved. Stop and report without editing production code or tests if prerequisite symbols from `9rgn2w` (`tests/record_builder.py::RecordBuilder`) or `artifact_meta` (`agent_workflows/artifact_meta.py::registry_fields`, `agent_workflows/artifact_meta.py::read_text`) are absent on HEAD, if `tests/test_backlog_handoff_close.py` fails on unmodified HEAD before starting, or if concurrent edits in a shared checkout conflict with `- Scope-Paths:`.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if the builder's text form cannot express a shape, the site is refused, and the builder is not changed here.
 
