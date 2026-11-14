@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). The four module-family subsets of `9o83cr` E-12 and this plan's baseline now run in seven earlier parts: shared baseline and site table F-27 `786w7r` (Order 238); plans modules `tbvx4r` (244); artifact modules `qttoyc` (245); ipd modules `nx7fws` (246); readiness modules `akhrp5` (247); attention, review and research `tdhav3` (248); remaining modules `n2cvf0` (249). This plan keeps only E-17 (split into E-17 and new E-25): the family-wide search and comment sweep, and the comparison with the `786w7r` baseline. EXCLUDES: `check_engine`, `runner_shared`, `status_set` and `releases` (Order 45, `e8420v`), the record text readers and grammars (Order 43, `k6jd6l`), and the AC-1 audit (`9o83cr`).
 - Scope-Paths: .aw/records/plans/pending/20261108-metastore-46-0xsx2n-delete-the-remaining-plans-family-ipd-family-and-module-meta.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:akhrp5, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:n2cvf0, executed:nx7fws, executed:qttoyc, executed:t4gl15, executed:tbvx4r, executed:tdhav3
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0xsx2n
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to 786w7r; E-21 split across tbvx4r, qttoyc; E-22 split across nx7fws, akhrp5; E-23 moved to tdhav3; E-24 moved to n2cvf0; E-17 kept and split in place into E-17 and E-25.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9o83cr per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
@@ -61,6 +64,14 @@ This plan deletes nothing; the PIN RULE lives in each part.
 | F-27 | Site census at `ac76110f4` (method in `e8420v` F-26): 106 literals in 30 modules outside Order 45's four. Families: plans and artifact 24; ipd and readiness 27 (2 of them body prose); attention, review and research 18 (1 body prose); remaining modules 37 (24 expected gone with Order 43, 6 non-metadata). Re-derived by E-01. | Four items, each at or under about 25 delete sites. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    A["E-17: Run LIT search over Order 244-249 modules"] --> B["Compare hits against 786w7r F-27 table"]
+    B --> C["E-25: Compare aw check all, aw find, aw attention with F-30 baseline"]
+    C --> D["Execute test suite & linters: pytest, aw ipd lint, aw sanitize"]
+    D --> E["Commit finishing verification record via aw commit 0xsx2n"]
+```
 
 1. After the seven parts, re-run the site search against F-27 (E-17).
 2. Compare with the F-30 baseline and commit (E-25).
@@ -105,7 +116,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. `run_viewer.load_run_summary` parses a run report's `Created:`/`Updated:`/`Selectors:` lines and `git_commit_helper._DIVIDER_RE` parses a commit-message divider; neither is artifact metadata in the sense of spec 4.3 section 1, so both are classed `non-metadata` and listed in the `9o83cr` E-14 exclusion file, which is where AC-1 allows explicit exclusions. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -127,4 +138,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 0xsx2n -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed, required metastore symbols from dependencies are absent, or table F-27 in `786w7r` has not been populated, stop and report rather than proceeding. Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 0xsx2n -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 0xsx2n` itself.
