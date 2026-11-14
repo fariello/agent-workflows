@@ -3625,16 +3625,23 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
                 return ReadAtResult(kind="corrupt", error=str(exc))
 
         # Phase B legacy check: search for artifact .md containing id6 at revision
+        # `-e` is required: the pattern starts with `-`, so without it git reads it as an option and
+        # exits 129, which made every phase-B record read `absent`.
+        grep_cmd = ["git", "grep", "-l", "-E", "-e", f"^- Id:[ \t]*{id6}[ \t]*$", rev]
+        if rel_repo and rel_repo != ".":
+            grep_cmd += ["--", rel_repo]
         find_md = subprocess.run(
-            ["git", "grep", "-l", f"- Id: {id6}", rev],
+            grep_cmd,
             cwd=repo_dir,
             capture_output=True,
             text=True,
         )
         if find_md.returncode == 0 and find_md.stdout.strip():
             md_entry = find_md.stdout.strip().splitlines()[0]
-            # format: <rev>:<path>
-            md_file_path = md_entry.split(":", 1)[1] if ":" in md_entry else md_entry
+            # format: <rev>:<repo-relative path>
+            md_file_path = (
+                md_entry[len(rev) + 1 :] if md_entry.startswith(f"{rev}:") else md_entry
+            )
             cat_md = subprocess.run(
                 ["git", "show", f"{rev}:{md_file_path}"],
                 cwd=repo_dir,
@@ -3644,8 +3651,13 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
             if cat_md.returncode != 0:
                 return ReadAtResult(kind="corrupt", error="failed to read md blob")
             try:
+                in_records = (
+                    md_file_path[len(rel_repo) + 1 :]
+                    if rel_repo and rel_repo != "."
+                    else md_file_path
+                )
                 art_row, _ = load_legacy_artifact(
-                    Path(md_file_path), records_root, text=cat_md.stdout
+                    records_root / in_records, records_root, text=cat_md.stdout
                 )
                 st = State(
                     id6=art_row["id6"],

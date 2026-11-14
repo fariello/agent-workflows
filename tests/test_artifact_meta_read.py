@@ -522,3 +522,65 @@ def test_read_at_corrupt_blob(tmp_path: Path):
     cached_rows = conn.execute("SELECT * FROM rev_log_states").fetchall()
     conn.close()
     assert len(cached_rows) == 0
+
+
+def _legacy_repo(tmp_path: Path) -> tuple[Path, object]:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    _init_git_repo(repo_dir)
+    records_root = repo_dir / ".aw" / "records"
+    state_root = repo_dir / ".aw" / "state"
+    (records_root / "plans" / "pending").mkdir(parents=True)
+    state_root.mkdir(parents=True)
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+    return repo_dir, ctx
+
+
+def _legacy_plan_text(id6: str, status: str) -> str:
+    return (
+        f"# IPD: Legacy plan {id6}\n\n- Id: {id6}\n- Status: {status}\n"
+        "- Set: legacy\n\n## Concern\n\nA phase-B record with no meta log.\n"
+    )
+
+
+def test_read_at_finds_a_phase_b_legacy_record(tmp_path: Path):
+    """A record with no meta log is read from its Markdown file at the revision."""
+    repo_dir, ctx = _legacy_repo(tmp_path)
+    plan = (
+        repo_dir
+        / ".aw/records/plans/pending/20261101-legacy-01-lg0001-legacy-plan.ipd.md"
+    )
+    plan.write_text(_legacy_plan_text("lg0001", "approved"), encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-qm", "legacy"], cwd=repo_dir, check=True)
+
+    plan.write_text(_legacy_plan_text("lg0001", "executed"), encoding="utf-8")
+
+    res = meta.read_at("lg0001", "HEAD", project_context=ctx)
+    assert res.kind == "ok", res.error
+    assert res.state is not None
+    assert res.state.id6 == "lg0001"
+    assert res.state.status == "approved"
+    assert res.state.path == (
+        "plans/pending/20261101-legacy-01-lg0001-legacy-plan.ipd.md"
+    )
+
+
+def test_read_at_ignores_quoted_ids_and_files_outside_the_records_root(
+    tmp_path: Path,
+):
+    """Only a records file whose own `- Id:` line is the id6 counts as the record."""
+    repo_dir, ctx = _legacy_repo(tmp_path)
+    (repo_dir / "NOTES.md").write_text("- Id: lg0002\n", encoding="utf-8")
+    quoting = repo_dir / ".aw/records/plans/pending/20261101-legacy-02-qt0001-q.ipd.md"
+    quoting.write_text(
+        _legacy_plan_text("qt0001", "draft") + "\n  - Id: lg0002\n- Id: lg00021\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-qm", "quotes"], cwd=repo_dir, check=True)
+
+    res = meta.read_at("lg0002", "HEAD", project_context=ctx)
+    assert res.kind == "absent"
