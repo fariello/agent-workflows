@@ -524,6 +524,9 @@ class TestPromptContents(unittest.TestCase):
             self.assertIn("Required JSON outcome:", prompt)
             self.assertIn("When a material question is the HUMAN'S to decide", prompt)
             self.assertIn(".aw/system/workflows/askme/askme.md", prompt)
+            # t1uuxl: the review turn is told to wait in the foreground, not poll.
+            self.assertIn("FOREGROUND", prompt)
+            self.assertIn("do not check on a background task repeatedly", prompt)
 
             # Assert directory created
             m = re.search(r"Required JSON outcome: (\S+)", prompt)

@@ -34165,8 +34165,21 @@ def build_review_prompt(
         f"When a material question is the HUMAN'S to decide under the askme three-way sort "
         f"(see `.aw/system/workflows/askme/askme.md` 'Establish facts before asking'), "
         f"record it in `questions[]` in {paths.prompt_outcome} and exit normally; "
-        f"never prompt and never wait."
+        f"never prompt and never wait.\n\n" + REVIEW_FOREGROUND_RULE
     )
+
+
+#: Backlog `t1uuxl`: review agents pushed long commands (`aw check plans`, pytest) into the
+#: background and then polled them, and every poll replays the whole context. Waiting in the
+#: foreground is safe for the stall watchdog, which counts command output and the `aw suite`
+#: heartbeat as progress.
+REVIEW_FOREGROUND_RULE = (
+    "Run every command you need the result of in the FOREGROUND and wait for it to finish, "
+    "even when it takes minutes (`aw check plans`, test runs). Do not start it as a background "
+    "or scheduled task, and do not check on a background task repeatedly with status, list or "
+    "timer calls: each check costs a full turn of context. If you did start one, end your turn "
+    "and let it finish rather than polling it."
+)
 
 
 def _append_continue_handoff_section(
