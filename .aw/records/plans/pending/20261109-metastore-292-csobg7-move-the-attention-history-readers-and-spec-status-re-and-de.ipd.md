@@ -6,7 +6,9 @@
 - Scope: The rest of `k6jd6l` E-10: these readers, `SPEC_STATUS_RE`, and deleting `attention_contract.history_block`, `newest_history_record`, `last_history_at` and `SPEC_STATUS_RE`. EXCLUDES `attention_contract.GATE_KIND_RE`, `GATE_REF_RE`, `GATE_SUMMARY_RE` and `HISTORY_RECORD_RE` (Order 248, `tdhav3`), and the `specs._read_*` readers (Order 297).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/specs.py, agent_workflows/research_index.py, agent_workflows/attention_contract.py, tests/test_attention_contract.py, tests/test_history_block_bounding.py, .aw/records/plans/pending/20261109-metastore-292-csobg7-move-the-attention-history-readers-and-spec-status-re-and-de.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:ay6sxp, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, deletion targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-10 (quoted in Order 291). Save the before-list of `tests/test_attention.py`, `tests/test_check_engine.py`, `tests/test_specs_status_dirs.py`, `tests/test_attention_contract.py` and `tests/test_history_block_bounding.py` to `.aw/state/9o83cr/E-10f-before.txt`, and `aw attention --format json` to `.aw/state/k6jd6l/attention-292-before.json`.
+Carried from `k6jd6l` E-10 (quoted in Order 291). Save the before-list of `tests/test_attention.py`, `tests/test_check_engine.py`, `tests/test_specs_status_dirs.py`, `tests/test_attention_contract.py` and `tests/test_history_block_bounding.py` to `.aw/state/9o83cr/E-10f-before.txt`, and `aw attention --format json` to `.aw/state/k6jd6l/attention-292-before.json` (ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist via `mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`).
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one module per item
 
-- [ ] E-01 In the six `attention` record builders (`attention._prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`), replace `A.last_history_at(A.history_block(text).records)` with the `artifact_meta` history functions.
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`), save the baseline test PIN list to `.aw/state/9o83cr/E-10f-before.txt`, and save baseline attention json to `.aw/state/k6jd6l/attention-292-before.json`. In the six `attention` record builders (`attention._prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`), replace `A.last_history_at(A.history_block(text).records)` with the `artifact_meta` history functions.
   - Depends on: none
   - Expected outcome: `attention` calls no `A.history_block` or `A.last_history_at`.
   - Execution state: pending
@@ -74,6 +77,14 @@ Measured 2026-11-09 at `f83159217` with `rg -n "history_block|last_history_at|ne
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Retarget attention record builders<br/>replace A.last_history_at(A.history_block(text).records)"] --> E02["E-02: Retarget check_engine date helpers<br/>replace _ac.history_block & _ac.last_history_at"]
+    E02 --> E03["E-03: Move SPEC_STATUS_RE<br/>retarget specs & research_index to artifact_meta"]
+    E03 --> E04["E-04: Delete attention_contract originals<br/>retarget test_attention_contract & test_history_block_bounding"]
+    E04 --> E05["E-05: Verify test suites & commit<br/>verify PIN lists, test_artifact_meta_legacy, test_ipd_lint"]
+```
+
 1. Retarget `attention` (E-01).
 2. Retarget `check_engine` (E-02).
 3. Move `SPEC_STATUS_RE` (E-03).
@@ -104,7 +115,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: E-03 must remove the `SPEC_STATUS_RE` use before E-04 deletes the pattern; Order 297 then deletes the reader function. The edits are serial (Order 297 depends on this plan). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -141,4 +152,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit csobg7 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `1ajqaa`, `59aiyh`, `ay6sxp`, `dcerjg`, `ffceq0`, `g5hpbb`, or `t4gl15` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit csobg7 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize csobg7` itself; never a hand `git mv` to `executed/`.
