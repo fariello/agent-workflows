@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): confirm the tracked-fixture conversion (E-10, reduced) and run, commit (E-14). The baselines and builder moved to `j6o96i`, the builder tests to `ijpay0`, the fixture conversions to `7fpc8v`, `z4x192`, `9zcuyh` and `b3eilr`. Before the round-3 split: `59aiyh` E-13 (baselines), E-01 (the builder), E-02 (its tests) and E-10 (tracked `.md` fixtures), carried verbatim with their original ids so their cross-references stay valid, plus a finishing commit item E-14. EXCLUDES: every test-module batch (Orders 38 to 40 and `59aiyh` E-09); the switch-point proof, the F-06 census and the full-suite comparison (`59aiyh` E-11, E-12); changing production code; the review-pilot corpus (`tests/fixtures/review-pilot/plans/`, kept literal); the log format (Order 13).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i, executed:ijpay0, executed:7fpc8v, executed:z4x192, executed:9zcuyh, executed:b3eilr
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,9 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9rgn2w
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
-
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-13, E-01, E-02 and the conversions of E-10 moved to j6o96i, ijpay0, 7fpc8v, z4x192, 9zcuyh, b3eilr; E-10 reduced to the completeness check; Highest E allocated kept at 14.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 59aiyh per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
@@ -75,6 +76,25 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement); F-04, F-05 and F-09 
 
 1. Confirm only the kept-literal fixture sets still carry record bullets (E-10).
 2. Run the builder tests, the consumers and the core gate, commit (E-14).
+
+```mermaid
+flowchart TD
+    subgraph PreReqs["Prerequisite Child Plans"]
+        B1["j6o96i: Test Baselines & Shared Record Builder"]
+        B2["ijpay0: Shared Record Builder Test Suite"]
+        B3["7fpc8v: attnview Spec Fixture Consumers"]
+        B4["z4x192: Retire 5 Converted attnview Fixtures"]
+        B5["9zcuyh: Retire 4 Converted attnview Fixtures"]
+        B6["b3eilr: Generate Conforming Orchestrator Fixture"]
+    end
+    B1 --> E10["E-10: Confirm Tracked-Fixture Conversion Complete"]
+    B2 --> E10
+    B3 --> E10
+    B4 --> E10
+    B5 --> E10
+    B6 --> E10
+    E10 --> E14["E-14: Run Builder Tests, Consumers & Core Gate, Commit"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -146,4 +166,4 @@ Honesty rule: run `tests/test_record_builder.py`, the consuming modules and the 
 
 Commits: commit only through `aw commit 9rgn2w -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 9rgn2w` itself.
