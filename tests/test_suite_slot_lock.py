@@ -58,8 +58,15 @@ _WORKER_SCRIPT = textwrap.dedent("""
     hold_duration = float(sys.argv[3])
     started_file = Path(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else None
     release_file = Path(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else None
+    waiting_file = Path(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6] else None
 
-    with suite_cache.suite_slot() as slot:
+    def _progress(msg):
+        sys.stderr.write(f"{msg}\\n")
+        sys.stderr.flush()
+        if waiting_file is not None and not waiting_file.exists():
+            waiting_file.write_text("waiting\\n", encoding="utf-8")
+
+    with suite_cache.suite_slot(progress=_progress if waiting_file is not None else None) as slot:
         enter_mono = time.monotonic()
         enter_wall = time.time()
         if started_file is not None:
@@ -148,6 +155,8 @@ def test_two_subprocesses_serialize_and_print_waiting_line(tmp_path: Path):
     lock_dir.mkdir(mode=0o700)
     log_file = tmp_path / "log.jsonl"
     started1 = tmp_path / "p1.started"
+    release1 = tmp_path / "p1.release"
+    waiting2 = tmp_path / "p2.waiting"
 
     env_base = os.environ.copy()
     env_base["AW_SUITE_LOCK_DIR"] = str(lock_dir)
@@ -156,7 +165,7 @@ def test_two_subprocesses_serialize_and_print_waiting_line(tmp_path: Path):
     env_base["PYTHONPATH"] = str(_REPO_ROOT)
     env_base.pop("AW_SUITE_SLOT_HELD", None)
 
-    # Subprocess 1: holds slot for 2.0s
+    # Subprocess 1: holds slot until release1 is touched (or 15.0s timeout)
     p1 = subprocess.Popen(
         [
             sys.executable,
@@ -164,8 +173,9 @@ def test_two_subprocesses_serialize_and_print_waiting_line(tmp_path: Path):
             _WORKER_SCRIPT,
             str(log_file),
             "w1",
-            "2.0",
+            "15.0",
             str(started1),
+            str(release1),
         ],
         env=env_base,
         stdout=subprocess.PIPE,
@@ -173,19 +183,37 @@ def test_two_subprocesses_serialize_and_print_waiting_line(tmp_path: Path):
         text=True,
     )
 
-    deadline = time.monotonic() + 5.0
+    deadline = time.monotonic() + 10.0
     while not started1.exists() and time.monotonic() < deadline:
         time.sleep(0.02)
     assert started1.exists(), "p1 did not start in time"
 
     # Subprocess 2: attempts to acquire slot, must wait until p1 releases
     p2 = subprocess.Popen(
-        [sys.executable, "-c", _WORKER_SCRIPT, str(log_file), "w2", "0.2"],
+        [
+            sys.executable,
+            "-c",
+            _WORKER_SCRIPT,
+            str(log_file),
+            "w2",
+            "0.2",
+            "",
+            "",
+            str(waiting2),
+        ],
         env=env_base,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+
+    try:
+        deadline = time.monotonic() + 10.0
+        while not waiting2.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert waiting2.exists(), "p2 did not start waiting in time"
+    finally:
+        release1.write_text("release", encoding="utf-8")
 
     out1, err1 = p1.communicate(timeout=15)
     out2, err2 = p2.communicate(timeout=15)
@@ -218,6 +246,9 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
     log_file = tmp_path / "log.jsonl"
     started1 = tmp_path / "p1.started"
     started2 = tmp_path / "p2.started"
+    release1 = tmp_path / "p1.release"
+    release2 = tmp_path / "p2.release"
+    waiting3 = tmp_path / "p3.waiting"
 
     env_base = os.environ.copy()
     env_base["AW_SUITE_LOCK_DIR"] = str(lock_dir)
@@ -233,8 +264,9 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
             _WORKER_SCRIPT,
             str(log_file),
             "w1",
-            "2.0",
+            "15.0",
             str(started1),
+            str(release1),
         ],
         env=env_base,
         stdout=subprocess.PIPE,
@@ -248,8 +280,9 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
             _WORKER_SCRIPT,
             str(log_file),
             "w2",
-            "2.0",
+            "15.0",
             str(started2),
+            str(release2),
         ],
         env=env_base,
         stdout=subprocess.PIPE,
@@ -257,7 +290,7 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
         text=True,
     )
 
-    deadline = time.monotonic() + 5.0
+    deadline = time.monotonic() + 10.0
     while (
         not started1.exists() or not started2.exists()
     ) and time.monotonic() < deadline:
@@ -265,12 +298,31 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
     assert started1.exists() and started2.exists(), "p1 or p2 did not start in time"
 
     p3 = subprocess.Popen(
-        [sys.executable, "-c", _WORKER_SCRIPT, str(log_file), "w3", "0.2"],
+        [
+            sys.executable,
+            "-c",
+            _WORKER_SCRIPT,
+            str(log_file),
+            "w3",
+            "0.2",
+            "",
+            "",
+            str(waiting3),
+        ],
         env=env_base,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+
+    try:
+        deadline = time.monotonic() + 10.0
+        while not waiting3.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert waiting3.exists(), "p3 did not start waiting in time"
+    finally:
+        release1.write_text("release", encoding="utf-8")
+        release2.write_text("release", encoding="utf-8")
 
     out1, err1 = p1.communicate(timeout=15)
     out2, err2 = p2.communicate(timeout=15)
