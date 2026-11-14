@@ -6,7 +6,9 @@
 - Scope: `cxxmyv` E-07 (setter-byte half), split: batch S14 converts a named module subset (6 modules, 23 candidate lines at the split); E-11 finishes and assembles the S11 to S14 F-28 table. Batches S11 to S13 (E-01 to E-03) moved to `qtvk2q`, `cxylsu` and `810kpy` on 2026-11-09 (round-3 split). Batches S15 to S20 moved to `aqc3m6` (Order 61) and `zgyna1` (Order 62) on 2026-11-08. The helper is in `iog3cw` (Order 44). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code.
 - Scope-Paths: tests/test_set_dispatch_parity.py, tests/test_set_refuses_review_record.py, tests/test_spec_id6_filenames.py, tests/test_spec_production.py, tests/test_spec_review_gate_kind.py, tests/test_specs_evidence_gate_parity.py, .aw/records/plans/pending/20261108-metastore-47-w13bkp-move-the-remaining-setter-byte-test-assertions-onto-the-form.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4, executed:qtvk2q, executed:cxylsu, executed:810kpy
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 (S11 to S13) moved to qtvk2q (S11 first eight modules), cxylsu (S12 first eight modules) and 810kpy (`tests/test_question_visibility.py`, the last two S12 modules, and S13).
 - 2026-11-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule (at most 4 batch items per plan); items E-05, E-06, E-07 (S15 to S17) moved to aqc3m6; E-08, E-09, E-10 (S18 to S20) moved to zgyna1.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
@@ -34,7 +37,7 @@ Every setter-byte assertion in the six S14 modules goes through the format-aware
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
 Batch rule, applied to every batch E-item of this plan:
-1. Record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/w13bkp/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
+1. Ensure the output directory exists (`mkdir -p .aw/state/w13bkp`) and record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/w13bkp/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
 2. In each named module (or class), replace every SETTER-BYTE assertion with a call to the helper of `tests/record_builder.py` added by `j5fqax` E-01, formerly `iog3cw` E-01 (`assert_field(path, field, value)` and `assert_no_field(path, field)`). A setter-byte assertion is an `assertIn`/`assertNotIn`/`assert ... in` over the text of a RECORD FILE that names a front-matter bullet (`- Status:`, `- Priority:`, `- Blocks-Release:` and the other F-28 fields). An assertion over command OUTPUT (stdout, stderr, a rendered message) is a `displayed-output assertion` and is NOT converted; an assertion whose subject is the legacy grammar itself (a legacy-loader, migration or quoted-example test) is `legacy-format subject` and is NOT converted.
 3. Re-run the same command into `<batch>-after.txt` and require `diff` to print nothing. A conversion that would change what a test checks (for example a test that asserts the exact bullet spelling, such as whitespace after the colon) stops and is reported with its node id; it is listed as `setter-byte, exact spelling` in F-28 for `cxxmyv`, not weakened.
 4. Count the remaining matches of the F-28 pattern in the batch's modules and give each remaining line one class: `converted` (none should remain), `displayed-output assertion`, `legacy-format subject` or `setter-byte, exact spelling`.
@@ -42,7 +45,7 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-04 Batch S14: convert the setter-byte assertions of `tests/test_set_dispatch_parity.py`, `tests/test_set_refuses_review_record.py`, `tests/test_spec_id6_filenames.py`, `tests/test_spec_production.py`, `tests/test_spec_review_gate_kind.py`, `tests/test_specs_evidence_gate_parity.py` (23 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S14`.
+- [ ] E-04 Batch S14: Ensure `.aw/state/w13bkp` exists (`mkdir -p .aw/state/w13bkp`) and convert the setter-byte assertions of `tests/test_set_dispatch_parity.py`, `tests/test_set_refuses_review_record.py`, `tests/test_spec_id6_filenames.py`, `tests/test_spec_production.py`, `tests/test_spec_review_gate_kind.py`, `tests/test_specs_evidence_gate_parity.py` (23 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S14`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S14 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
   - Execution state: pending
@@ -68,6 +71,14 @@ Batch rule, applied to every batch E-item of this plan:
 | F-28 | Candidate setter-byte lines at `ac76110f4` with the pattern in the Concern, minus lines whose subject is command output (`stdout`, `stderr`, `output`, `result.`, `proc.`, `captured`, `msg`, `message`) and minus legacy-grammar modules (`*legacy*`, `*m0001*`, `*migrat*`, `test_front_matter_loose*`, `test_selector_two_dialect*`, `test_history_block_bounding*`): 518 in 81 modules; minus the 7 modules `k6jd6l` E-08 retargets (51 lines): 467 in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines (`tests/test_status_set.py`, 79 lines, is split by test class into S18 to S20). This part: S11, S12, S13, S14, 103 lines (S15 to S20, 144 lines, moved to `aqc3m6` and `zgyna1`). | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-11) lists every remaining match with its class. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E04["E-04: Batch S14: Convert setter-byte assertions in 6 modules (tests/test_set_dispatch_parity.py, test_set_refuses_review_record.py, test_spec_id6_filenames.py, test_spec_production.py, test_spec_review_gate_kind.py, test_specs_evidence_gate_parity.py)"]
+    E11["E-11: Re-run union, assemble S11-S14 F-28 table, run bare core gate and aw sanitize, commit Scope-Paths"]
+
+    E04 --> E11
+```
 
 1. (Moved) S11 to S13: `qtvk2q`, `cxylsu`, `810kpy`. Convert S14 (E-04).
 2. Re-run the union, write F-28, run the core gate, commit (E-11).
@@ -112,14 +123,14 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It carries `cxxmyv`'s own dependencies (rule of the 2026-11-07 split), including `90iqr1`, which depends on `9o83cr` and so on every phase-B deletion part. Running after them means the deletion parts' test retargets (for example `k6jd6l` E-08 and E-09, which already move several of these modules onto `artifact_meta.read`) land first, so no assertion is converted twice. Recommendation strength: strong.
 
 ### OQ-01: Can this run before the cutover without breaking C10a?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The helper reads through the ACTIVE format and, in the legacy format, also asserts the exact bullet line, so each converted test checks at least what it checked before on the same legacy bytes; `main` keeps one on-disk format. Only the format switch, the log branch of the helper and the exact-spelling rows wait for the cutover commit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -141,4 +152,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit w13bkp -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets (Batch rule above). Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore helper symbols from `j5fqax` or `iog3cw` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit w13bkp -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize w13bkp` itself after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence; never a hand `git mv` to `executed/`.
