@@ -6,7 +6,9 @@
 - Scope: Add `agent_workflows/migrations/m0001_discover.py` with `discover(repo) -> Inventory` and replace every repository-specific constant in the `m0001_*` modules with values computed from it (E-01, from `g5hpbb` E-04); mint ids, statuses, titles and Set/order for id-less records and list unclassifiable files untouched (E-02, from `g5hpbb` E-05). EXCLUDES: the cache changes (`6oi2nu`), layout stage and sidecar expectation (`bv4kkj`), the AC-42 test module and changelog (`g5hpbb`).
 - Scope-Paths: agent_workflows/migrations/m0001_discover.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_renames.py, agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_verify.py, .aw/records/plans/pending/20261109-metastore-104-3g20ms-make-m0001-discover-its-inputs-and-convert-id-less-records.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv, executed:6oi2nu
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3g20ms
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from g5hpbb (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -58,6 +61,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    subgraph S1["Task group 1: Universal repository discovery & id-less conversion"]
+        E1["E-01: Add m0001_discover.py and replace hardcoded repo constants with discovered inventory"]
+        E2["E-02: Convert id-less records (shape c) and list unclassifiable files untouched"]
+    end
+    subgraph V["Verification"]
+        V1["V-01: Verify zero id6 literals or filename constants in migrations and verify discovery on repo"]
+        V2["V-02: Verify dry-run census and applied log for idless_prose fixture with unclassifiable file check"]
+    end
+    E1 --> V1
+    E2 --> V2
+```
+
 1. E-01: discovery and constant removal.
 2. E-02: id-less conversion.
 
@@ -85,7 +102,7 @@ None.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) (as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the `rg` over `agent_workflows/migrations/` for id6 literals, record filenames and corpus counts (no hits), and `discover(<this repo>)` reporting 34 legacy-name renames and 28 mints; and `python3 -m pytest -o addopts="" -v tests/test_m0001_renames.py tests/test_m0001_conversion.py tests/test_m0001_roundtrip.py` with 0 failed (each module's node ids PASSED).
@@ -101,7 +118,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. All open questions are resolved.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. A narrow safety stop applies if prerequisite metastore symbols from `dcerjg`, `9vf2iv`, or `6oi2nu` are absent. All open questions are resolved.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
