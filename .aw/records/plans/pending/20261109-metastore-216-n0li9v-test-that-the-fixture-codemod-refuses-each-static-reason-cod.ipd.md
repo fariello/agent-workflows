@@ -6,7 +6,9 @@
 - Scope: Part 3 of the round-3 split of `653ndz` (2026-11-09, research `nj8zdp` guidance): `653ndz` E-04 case (d) for the six static reason codes (E-11, E-12), plus the finishing item E-13. EXCLUDES: the `not-equivalent` code (apply-time, Order 173 case (g)); the tool (`y3uowx`); production code.
 - Scope-Paths: tests/test_fixture_codemod.py, tests/fixtures/fixture_codemod/**, .aw/records/plans/pending/20261109-metastore-216-n0li9v-test-that-the-fixture-codemod-refuses-each-static-reason-cod.ipd.md
 - Item-Dependencies: executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j2xjtt
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,7 +22,8 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
-
+- 2026-11-14 reviewed (antigravity/claude-opus-5.5): plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-216-n0li9v-test-that-the-fixture-codemod-refuses-each-static-reason-cod.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 653ndz (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,7 +34,9 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Item ids E-01 to E-04 are the ids these items had in `653ndz`; they are kept so every cross-reference (for example "`653ndz` E-03" in the batch rule) still resolves. New ids added by the round-3 split start at E-07.
+Item ids: E-11 to E-13 were allocated by the round-3 split of `653ndz`; the ids E-01 to E-05 cited below (E-03 equivalence proof, E-05 census) are items of `y3uowx` and `653ndz`. The Terms paragraph and the reason-code table are identical to `y3uowx`'s, which owns them; F-01, F-03 and F-06 are the `59aiyh` Findings rows those terms cite.
+
+FIXTURE RULES (shared by E-11 and E-12). (1) Tool path: define `CODEMOD_PATH = Path(__file__).resolve().parent.parent / "tools" / "fixture_codemod.py"` (reuse the constant if `j2xjtt` already defined it) and run it with `sys.executable`. (2) Fixture names: store each fixture under `tests/fixtures/fixture_codemod/` with a name pytest does NOT collect (for example `refuse_dynamic_construction.py.txt`), because `pyproject.toml` `testpaths = ["tests"]` would otherwise collect a `test_*.py` fixture in every `-m ""` run, and copy it into the temporary repository as `tests/test_<name>.py` before invoking the tool. The `legacy-format subject` fixture is copied under a name matching `*legacy*` (for example `tests/test_legacy_subject_fixture.py`), since that code is decided by module name. (3) One site per fixture: each fixture holds exactly one F-01 site, so "exactly that reason code" means the JSON lists one site and it carries that code and disposition. (4) Byte identity: compare the whole copied module's bytes before and after `--apply`.
 
 Terms used below. A SITE is one Python string literal (a constant or an f-string, found with `ast`) in a test module whose text matches the F-01 pattern. A REWRITE replaces the site's expression in place, and nothing else in the module, with the builder's text form (`RecordBuilder(...).<type>(..., text_only=True)`, `9rgn2w` E-01). A REFUSAL is a site the tool leaves untouched, with one reason code. Each reason code has one DISPOSITION: `hand` (a batch item converts it by hand) or `legacy-kept` (the site stays in legacy form on purpose and is listed with its F-06 reason class).
 
@@ -49,21 +54,21 @@ A deliberately invalid value (F-08, for example `- Status: EXECUTED`) is NOT a r
 
 ### Task group 1: one test per reason code
 
-- [ ] E-11 (case (d) of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` one fixture module under `tests/fixtures/fixture_codemod/` per static refusal reason code `dynamic-construction` (hand), `unsupported-shape` (hand), `legacy-format subject` (legacy-kept), and one test per fixture asserting that `--dry-run --format json` reports exactly that reason code with that disposition for the fixture's site and that `--apply` leaves the site byte-identical. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
+- [ ] E-11 (case (d) of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` one fixture module under `tests/fixtures/fixture_codemod/` per static refusal reason code `dynamic-construction` (hand), `unsupported-shape` (hand), `legacy-format subject` (legacy-kept), and one test per fixture asserting that `--dry-run --format json` reports exactly that reason code with that disposition for the fixture's site and that `--apply` leaves the site byte-identical. Follow the FIXTURE RULES above. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
   - Depends on: none
   - Expected outcome: one passing test per named reason code.
   - Execution state: pending
 
-- [ ] E-12 (case (d) of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` one fixture module under `tests/fixtures/fixture_codemod/` per static refusal reason code `displayed-output assertion` (legacy-kept), `setter-byte assertion` (legacy-kept), `body prose` (legacy-kept), and one test per fixture asserting that `--dry-run --format json` reports exactly that reason code with that disposition for the fixture's site and that `--apply` leaves the site byte-identical. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
+- [ ] E-12 (case (d) of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` one fixture module under `tests/fixtures/fixture_codemod/` per static refusal reason code `displayed-output assertion` (legacy-kept), `setter-byte assertion` (legacy-kept), `body prose` (legacy-kept), and one test per fixture asserting that `--dry-run --format json` reports exactly that reason code with that disposition for the fixture's site and that `--apply` leaves the site byte-identical. Follow the FIXTURE RULES above. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
   - Depends on: E-11
   - Expected outcome: one passing test per named reason code.
   - Execution state: pending
 
 ### Task group 2: finish
 
-- [ ] E-13 Finish this part: run `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` and the bare core gate `python3 -m pytest`; commit through `aw commit n0li9v -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (`not-equivalent`, the seventh reason code, is an apply-time refusal tested by Order 173 case (g).)
+- [ ] E-13 Finish this part: run `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py` and the bare core gate `python3 -m pytest`. If the module's total duration now exceeds the 10 s bound `j2xjtt` E-10 set, apply `j2xjtt`'s rule (move the subprocess cases to `tests/test_fixture_codemod_slow.py` and list it in `tests/slow_allowlist.txt`, justified at finalize with `--scope-reason`). Then commit through `aw commit n0li9v -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (`not-equivalent`, the seventh reason code, is an apply-time refusal tested by Order 173 case (g).)
   - Depends on: E-12
-  - Expected outcome: all cases pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
+  - Expected outcome: all cases pass; total duration under 10 s or the moved slow module listed with its own passing run; every commit is path-scoped to Scope-Paths (or justified at finalize).
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -97,7 +102,7 @@ Measured 2026-11-08 at `ac76110f4`; carried from `653ndz`.
 ## Scope check
 
 - Over-scope: none. No production module changes.
-- Under-scope: none known. Size: 3 E-items, 2 work Scope-Paths; the fixture glob holds 6 refusal fixtures.
+- Under-scope: none known after review round 1 (FIXTURE RULES added). Size: 3 E-items, 2 work Scope-Paths; the fixture glob holds 6 refusal fixtures.
 
 ## Required tests / validation
 
@@ -128,17 +133,17 @@ No spec change; implements the tooling half of `4sd62s` section 7 step 6.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-11 validates E-11
-  - Required evidence: for each of `dynamic-construction`, `unsupported-shape`, `legacy-format subject` separately, paste its test's `-v` PASSED line from `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py -k refus` and the `--dry-run --format json` entry for its fixture site showing the reason code and disposition; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
+  - Required evidence: for each of `dynamic-construction`, `unsupported-shape`, `legacy-format subject` separately, paste its test's `-v` PASSED line from `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py -k refus` and the `--dry-run --format json` entry for its fixture site showing the reason code and disposition; `git ls-files tests/fixtures/fixture_codemod` showing no fixture named `test_*.py`; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-12 validates E-12
-  - Required evidence: for each of `displayed-output assertion`, `setter-byte assertion`, `body prose` separately, paste its test's `-v` PASSED line from `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py -k refus` and the `--dry-run --format json` entry for its fixture site showing the reason code and disposition; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
+  - Required evidence: for each of `displayed-output assertion`, `setter-byte assertion`, `body prose` separately, paste its test's `-v` PASSED line from `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py -k refus` and the `--dry-run --format json` entry for its fixture site showing the reason code and disposition; `git ls-files tests/fixtures/fixture_codemod` showing no fixture named `test_*.py`; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-13 validates E-13
-  - Required evidence: paste the PASSED/FAILED counts of `tests/test_fixture_codemod.py`, the bare `python3 -m pytest` summary line and wall time, and every `aw commit n0li9v` output listing only Scope-Paths.
+  - Required evidence: paste the PASSED/FAILED counts and the `--durations=0` total of `tests/test_fixture_codemod.py` (or of the moved slow module, with its `tests/slow_allowlist.txt` line), the bare `python3 -m pytest` summary line and wall time, and every `aw commit n0li9v` output listing only Scope-Paths.
   - Observed evidence:
   - Result: pending
 
@@ -155,4 +160,4 @@ Honesty rule: run every command a V-item names and paste the ACTUAL output; neve
 
 Commits: commit only through `aw commit n0li9v -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize n0li9v` itself.
