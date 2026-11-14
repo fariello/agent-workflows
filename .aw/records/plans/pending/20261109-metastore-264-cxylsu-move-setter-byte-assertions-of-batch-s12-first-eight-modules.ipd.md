@@ -6,7 +6,9 @@
 - Scope: Batches S12a and S12b: 8 modules (`tests/test_records_only_lane_rederive.py`, `tests/test_releases_cli.py`, `tests/test_release_sentinel_succession.py`, `tests/test_releases.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_review_record_classifier.py`, `tests/test_review_rereview.py`, `tests/test_review_sequence.py`). EXCLUDES the `w13bkp` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_records_only_lane_rederive.py, tests/test_releases_cli.py, tests/test_release_sentinel_succession.py, tests/test_releases.py, tests/test_rereview_reviewed_plan.py, tests/test_review_record_classifier.py, tests/test_review_rereview.py, tests/test_review_sequence.py, .aw/records/plans/pending/20261109-metastore-264-cxylsu-move-setter-byte-assertions-of-batch-s12-first-eight-modules.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, batch test outcome parity, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from w13bkp (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -71,6 +74,16 @@ Batch rule, applied to every batch E-item of this plan:
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Convert Batch S12a (E-01)<br/>records_only_lane_rederive, releases_cli,<br/>release_sentinel_succession, releases"]
+    E02["2. Convert Batch S12b (E-02)<br/>rereview_reviewed_plan, review_record_classifier,<br/>review_rereview, review_sequence"]
+    E03["3. Union Check, F-28/F-29 & Commit (E-03)<br/>Verify outcome multiset union, record tables, aw commit"]
+
+    E01 --> E03
+    E02 --> E03
+```
+
 1. E-01, E-02: the two batches (independent).
 2. E-03: union check, F-28 rows, commit.
 
@@ -100,7 +113,7 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The helper reads through the ACTIVE format and, in the legacy format, also asserts the exact bullet line, so each converted test checks at least what it checked before on the same legacy bytes; `main` keeps one on-disk format. Only the format switch, the log branch of the helper and the exact-spelling rows wait for the cutover commit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -127,4 +140,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit cxylsu -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit cxylsu -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize cxylsu` itself.
