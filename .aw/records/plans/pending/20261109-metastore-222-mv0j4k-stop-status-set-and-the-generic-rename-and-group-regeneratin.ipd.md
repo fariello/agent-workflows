@@ -6,7 +6,9 @@
 - Scope: delete `status_set._auto_index_types` and its two calls, delete the four `run_index` calls in `artifact_rename.run_rename_generic` and `artifact_rename.run_group_generic`, and pin the three test modules that assert those commands' INDEX lines or files. EXCLUDES: the finalize refresh (Order 221), the research, plan-rename and adopt callers (Order 223), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_rename.py, tests/test_rename_group_machine_output.py, tests/test_research_rename_frontmatter.py, tests/test_group_verb_policy.py, .aw/records/plans/pending/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mv0j4k
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@ After this plan, the status setters and the generic rename and group verbs chang
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-`q6epwc` E-04's site list is split across Orders 221, 222 and 223; this plan takes: `status_set._auto_index_types` (definition, its two inner `run_index` calls, its two callers in `status_set.run_set_command`) and the four `run_index` sites in `artifact_rename` (two in `run_rename_generic`, two in `run_group_generic`), plus the test modules `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py` and `tests/test_group_verb_policy.py` from E-04's test list. "Each affected command's result loses only its INDEX-refresh line; pin each command's other output in the touched tests first" (carried from `q6epwc` E-04).
+`q6epwc` E-04's site list is split across Orders 221, 222 and 223; this plan takes: `status_set._auto_index_types` (definition, its two inner `run_index` calls, its two callers in `status_set.run_set_command`) and the four `run_index` sites in `artifact_rename` (two in `run_rename_generic`, two in `run_group_generic`), plus the test modules `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py` and `tests/test_group_verb_policy.py` from E-04's test list. Ensure `.aw/state/mv0j4k/` exists (`mkdir -p .aw/state/mv0j4k/`). "Each affected command's result loses only its INDEX-refresh line; pin each command's other output in the touched tests first" (carried from `q6epwc` E-04).
 
 PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/mv0j4k/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py` and `tests/test_group_verb_policy.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Create `.aw/state/mv0j4k/` (`mkdir -p .aw/state/mv0j4k/`) and pin `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py` and `tests/test_group_verb_policy.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/mv0j4k/E-01-before.txt` exists.
   - Execution state: pending
@@ -59,14 +62,27 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ## Project conventions discovered (Step 0)
 
-- `status_set.run_set_command` is the shared engine of the typed setters; `artifact_rename.run_rename_generic` and `artifact_rename.run_group_generic` back `aw rename <type>` and `aw group <type>`.
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
+- `agent_workflows/status_set.py::run_set_command` is the shared engine of the typed setters; `agent_workflows/artifact_rename.py::run_rename_generic` and `agent_workflows/artifact_rename.py::run_group_generic` back `aw rename <type>` and `aw group <type>`.
+- Cite code by SYMBOL (`agent_workflows/module.py::function_or_symbol`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
 
 Measured 2026-11-09 at `3d0ddb845`: `rg -n "_auto_index_types|run_index" agent_workflows/status_set.py` prints 1 definition, 2 inner `run_index` calls, 2 call sites and 1 docstring mention; `rg -n "run_index" agent_workflows/artifact_rename.py` prints 4 sites (2 in `run_rename_generic`, 2 in `run_group_generic`). `rg -c "INDEX\.(json|md)"`: `tests/test_rename_group_machine_output.py` 10, `tests/test_research_rename_frontmatter.py` 7, `tests/test_group_verb_policy.py` 6.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["1. Pin test modules (E-01)<br/>tests/test_rename_group_machine_output.py<br/>tests/test_research_rename_frontmatter.py<br/>tests/test_group_verb_policy.py"]
+    E02["2. Delete status_set index regeneration (E-02)<br/>agent_workflows/status_set.py"]
+    E03["3. Delete artifact_rename index regeneration (E-03)<br/>agent_workflows/artifact_rename.py"]
+    E04["4. Retarget tests & commit (E-04)<br/>tests/test_rename_group_machine_output.py<br/>tests/test_research_rename_frontmatter.py<br/>tests/test_group_verb_policy.py"]
+
+    E01 --> E02
+    E01 --> E03
+    E02 --> E04
+    E03 --> E04
+```
 
 1. Pin (E-01).
 2. Delete the `status_set` (E-02) and `artifact_rename` (E-03) callers.
@@ -96,7 +112,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Only the agent-mode changes list, which reported the refreshed INDEX paths; after this plan those entries are absent, which is the intended output change pinned by E-04. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -128,4 +144,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion is pin-first (PIN RULE above). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit mv0j4k -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion is pin-first (PIN RULE above). Stop safely if prerequisite metastore symbols from `tqknnc` (index alias routing) or `sdzcur` (F-28 baseline) are absent.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit mv0j4k -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize mv0j4k` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize mv0j4k itself.
