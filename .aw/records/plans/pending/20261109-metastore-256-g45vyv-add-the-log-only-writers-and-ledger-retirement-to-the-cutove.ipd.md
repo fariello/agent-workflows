@@ -6,7 +6,9 @@
 - Scope: In a scratch worktree with both cutover patches applied, retire the rename ledger and `record_history` writers, remove the INDEX and sidecar ignore lines from the installer template paths, and remove the INDEX and STATUS skip-name entries; regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes; this repository's own `.aw/.gitignore`, INDEX files, `STATUS.md` and sidecar are never touched (migration steps 2 and 5 do that).
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-256-g45vyv-add-the-log-only-writers-and-ledger-retirement-to-the-cutove.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:2k5t16
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g45vyv
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -57,7 +60,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: package
 
-- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout, remove the scratch worktree, run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit g45vyv -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout, remove the scratch worktree (`git worktree remove --force .aw/state/g45vyv/scratch`), run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit g45vyv -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the regenerated code patch holds the `2k5t16` changes plus this plan's; the guard test passes; one path-scoped commit.
   - Execution state: pending
@@ -75,6 +78,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | `rg -n "def append\b\|def append_advisory\|def append_rename" agent_workflows/record_history.py` (2026-11-09) | The three sidecar writers live in `record_history.py`. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["1. Create scratch worktree & apply patches (E-01)<br/>.aw/state/g45vyv/scratch"]
+    E02["2. Retire rename ledger & record_history writers (E-02)<br/>scratch worktree"]
+    E03["3. Remove ignore lines from installer templates (E-03)<br/>agent_workflows/engine.py, placement_switch.py"]
+    E04["4. Remove INDEX and STATUS skip-name scan entries (E-04)<br/>scratch worktree scan code"]
+    E05["5. Regenerate patch, verify test & commit (E-05)<br/>.aw/system/cutover/metastore-code.cutover.patch"]
+
+    E01 --> E02
+    E01 --> E03
+    E01 --> E04
+    E02 --> E05
+    E03 --> E05
+    E04 --> E05
+```
 
 1. E-01: scratch worktree with both patches.
 2. E-02 to E-04: ledger and writers; ignore lines; skip names.
@@ -104,7 +123,7 @@ None open.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the worktree and both `git apply --index` commands with exit status 0, and F-01.
@@ -136,8 +155,10 @@ Execute only after `2k5t16` is `executed` and this plan is `approved`. Code is e
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
+Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed, prerequisite cutover patches fail to apply, or required metastore symbols are absent, stop and report rather than proceeding.
+
 Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
 
-Commits: commit only through `aw commit g45vyv -- <paths>`; never push.
+Commits: commit only through `aw commit g45vyv -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize g45vyv` itself.
