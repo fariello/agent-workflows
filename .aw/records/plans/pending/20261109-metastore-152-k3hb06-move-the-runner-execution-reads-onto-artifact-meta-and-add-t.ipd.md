@@ -6,7 +6,9 @@
 - Scope: `y97k46` E-04 (move the execution-path reads) and E-05 (own-log finalize scope), carried unchanged. EXCLUDES: the search rows, the pin and the selection move (`k86yq7`, Order 147); the runner residual audit (kept in `y97k46`); every writer (Orders 06/07).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, tests/test_readers_runner.py, .aw/records/plans/pending/20261109-metastore-152-k3hb06-move-the-runner-execution-reads-onto-artifact-meta-and-add-t.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:k86yq7
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k3hb06
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from y97k46 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,13 +35,13 @@ The runner executes items (item execution, review sequence, production-set retri
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-The pin-first rule of `ffceq0` applies (carried from `t4gl15` through `y97k46`): the runner reads were pinned by `k86yq7` E-02 to E-04 on the unmodified code; a test that must change after this move is a behavior change and must be one of the decisions copied below (D-1). Save outcome lists under the gitignored `.aw/state/t4gl15/` with `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<file>`. None of the new tests reads production source.
+The pin-first rule of `ffceq0` applies (carried from `t4gl15` through `y97k46`): the runner reads were pinned by `k86yq7` E-02 to E-04 on the unmodified code; a test that must change after this move is a behavior change and must be one of the decisions copied below (D-1). Save outcome lists under the gitignored `.aw/state/t4gl15/` (ensure `.aw/state/t4gl15/` exists via `mkdir -p .aw/state/t4gl15`) with `mkdir -p .aw/state/t4gl15 && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<file>`. None of the new tests reads production source.
 
 Commit through `aw commit k3hb06 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
 ### Task group 1: move the execution reads and own-log scope
 
-- [ ] E-01 (carried from `y97k46` E-04) Move these runner reads onto `artifact_meta.read`/`query`/`history`: `execute_item_core` (4 `_SET_RE`, 3 `backlog.parse_item`, 1 `^-` regex and 1 `ipd_schema.read_readiness` site), `initialize_run_core` (its `parse_plan_file`/`discover_plans` consumers, verified to use the moved functions), `run_review_sequence` and `_promote_reviewed_plan` (one `read_readiness` each), `handle_review_orchestrator_readiness`, `production_set_findings_are_retryable` (3 `_SET_RE`), `production_set_retry_attempts` and `production_set_retry_key_already_spent` (1 `_SET_RE` each), `resolve_backlog_item`, `backlog_item_paths_for_id` and `populate_manifest_backlog` (1 `backlog.parse_item` each), `declared_spec_paths` (the `- Scope-Paths:` regex) and `enforce_no_active_runner_conflict` (the `- Id:` regex). Plan text read for prompts and bodies (lint, review sequence, scope reconciliation of body sections) still reads the file (N3). `runner_shared._front_matter_bullets` and `_split_metadata_region` keep their roles only inside the records-only conflict classifier and `rederive_front_matter` (merge-stage text) until `artifact_meta.read_text` serves them; their remaining uses are listed in `y97k46` F-04. Record `.aw/state/t4gl15/E-07x-before.txt` (the ten `k86yq7` E-03/E-04 baseline modules plus `tests/test_readers_runner.py`) before this edit and `E-07x-after.txt` after it. (Measured units: 24 sites in 13 functions of one module.)
+- [ ] E-01 (carried from `y97k46` E-04) Move these runner reads onto `artifact_meta.read`/`query`/`history`: `execute_item_core` (4 `_SET_RE`, 3 `backlog.parse_item`, 1 `^-` regex and 1 `ipd_schema.read_readiness` site), `initialize_run_core` (its `parse_plan_file`/`discover_plans` consumers, verified to use the moved functions), `run_review_sequence` and `_promote_reviewed_plan` (one `read_readiness` each), `handle_review_orchestrator_readiness`, `production_set_findings_are_retryable` (3 `_SET_RE`), `production_set_retry_attempts` and `production_set_retry_key_already_spent` (1 `_SET_RE` each), `resolve_backlog_item`, `backlog_item_paths_for_id` and `populate_manifest_backlog` (1 `backlog.parse_item` each), `declared_spec_paths` (the `- Scope-Paths:` regex) and `enforce_no_active_runner_conflict` (the `- Id:` regex). Plan text read for prompts and bodies (lint, review sequence, scope reconciliation of body sections) still reads the file (N3). `runner_shared._front_matter_bullets` and `_split_metadata_region` keep their roles only inside the records-only conflict classifier and `rederive_front_matter` (merge-stage text) until `artifact_meta.read_text` serves them; their remaining uses are listed in `y97k46` F-04. Record `.aw/state/t4gl15/E-07x-before.txt` (the ten `k86yq7` E-03/E-04 baseline modules plus `tests/test_readers_runner.py`; ensure `.aw/state/t4gl15/` exists via `mkdir -p .aw/state/t4gl15`) before this edit and `E-07x-after.txt` after it. (Measured units: 24 sites in 13 functions of one module.)
   - Depends on: none
   - Expected outcome: the two outcome lists are equal except lines D-1 names; `rg -n "_SET_RE|parse_item\(|read_readiness\(" agent_workflows/runner_shared.py` lists none of the 13 functions.
   - Execution state: pending
@@ -76,6 +79,20 @@ DECISIONS (copied from `t4gl15` through `y97k46`, whose text is authoritative):
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    subgraph S1["Task group 1: Runner execution reads & own-log scope"]
+        E1["E-01: Move 24 runner execution-path reader sites across 13 functions onto artifact_meta"]
+        E2["E-02: Treat finalized plan's own meta/id6.jsonl as plan-owned in scope reconciliation"]
+    end
+    subgraph V["Verification"]
+        V1["V-01: Verify identical PIN test outcomes and zero legacy reader patterns in runner_shared"]
+        V2["V-02: Verify own-log accepted without Scope-Paths entry while foreign log rejected"]
+    end
+    E1 --> V1
+    E2 --> V2
+```
+
 1. Move the execution-path reads (E-01).
 2. Own-log finalize scope (E-02).
 
@@ -105,7 +122,7 @@ No spec change. Implements the runner execution-path part of `4sd62s` C5a and th
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from y97k46)
 - Resolution or deferral rationale: All 24 sites are in one module (`runner_shared`) and use three reader names (`_SET_RE`, `backlog.parse_item`, `ipd_schema.read_readiness`), so the step is "replace these three readers in `runner_shared`", checked by one `rg` that must list none of the 13 functions. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -127,10 +144,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
+Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. A narrow safety stop applies if prerequisite metastore symbols from `tve77h`, `ffceq0`, or `k86yq7` are absent.
+
+Scope fence: this plan declares its territory in `- Scope-Paths:` as an allowlist for post-execution validation; out-of-scope modifications require explicit justification via `--scope-reason`.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit k3hb06 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize k3hb06` itself.
