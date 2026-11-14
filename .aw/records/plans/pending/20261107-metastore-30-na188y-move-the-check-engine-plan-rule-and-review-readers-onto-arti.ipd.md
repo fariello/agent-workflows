@@ -6,7 +6,7 @@
 - Scope: Pin then move the plan-rule readers (draft-ready, review-stale, scope-drift, dependency, priority, work kind, lint reach, orchestrator readiness, obligations) and the review readers (`check_spec_review_attestation`, the review-escalation and review-subject readers) of `check_engine` onto `artifact_meta` (`ffceq0` E-06 and E-07, partitioned). EXCLUDES: the other check_engine subsets (Orders 29, 31, 32) and git-content readers (`t4gl15`).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_spec_review_attestation.py, tests/test_gate_ref_resolution.py
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,14 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: na188y
+- Review-Depth: complex
+- Readiness: go-pending-approval
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
-
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261107-metastore-30-na188y-move-the-check-engine-plan-rule-and-review-readers-onto-arti.review.md
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ffceq0 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -38,14 +41,14 @@ The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, becau
 
 ### Task group 1: check_engine plan-rule and review readers
 
-- [ ] E-01 Pin the current behavior of THIS PART'S SUBSET of the `check_engine` working-tree readers (the original `ffceq0` E-06 list, partitioned across Orders 29 to 32) in `tests/test_readers_check_engine.py`: `build_dependency_index` with each `Item-Dependencies` form (through `evaluate_ipd_dependencies`), `check_ipd_draft_ready`, `check_ipd_review_stale`, `check_scope_drift`, `check_plan_priority`, `check_plan_work_kind`, `check_plan_priority_required`, `check_spec_review_attestation`, `evaluate_review_finding_escalation`, `evaluate_review_decision_escalation`, `check_review_dangling` (with `_review_subject_id_sets`), `find_obligations_carried_by`, `check_ipd_lint_reach` and `check_orchestrator_not_review_ready`, each on a `tmp_path` fixture through `aw check <type> --agent`. Run `tests/test_spec_review_attestation.py` and `tests/test_gate_ref_resolution.py` green as the baseline.
+- [ ] E-01 Pin the current behavior of THIS PART'S SUBSET of the `check_engine` working-tree readers (the original `ffceq0` E-06 list, partitioned across Orders 29 to 32) in `tests/test_readers_check_engine.py` (create the module if absent with `pytestmark = pytest.mark.core` and `class TestCheckEngineReadersOrder30`, or add `class TestCheckEngineReadersOrder30` if Order 29 `w1cs3p` has already created it): `build_dependency_index` with each `Item-Dependencies` form (through `evaluate_ipd_dependencies`), `check_ipd_draft_ready`, `check_ipd_review_stale`, `check_scope_drift`, `check_plan_priority`, `check_plan_work_kind`, `check_plan_priority_required`, `check_spec_review_attestation`, `evaluate_review_finding_escalation`, `evaluate_review_decision_escalation`, `check_review_dangling` (with `_review_subject_id_sets`), `find_obligations_carried_by`, `check_ipd_lint_reach` and `check_orchestrator_not_review_ready`, each on a `tmp_path` fixture through `aw check <type> --agent`. Run `tests/test_spec_review_attestation.py` and `tests/test_gate_ref_resolution.py` green as the baseline.
   - Depends on: none
-  - Expected outcome: the new module passes on the unmodified code; the baseline outcome list is saved, and the sorted rule-id counts of `aw check all --agent` (one `rule` per diagnostic) are saved to `.aw/state/ffceq0/check-before.txt` if that file does not yet exist (the first check_engine part to run writes it; later parts keep it, because it is the parent's final comparison bar) and, always, to this part's own `.aw/state/ffceq0/check-before-30.txt`.
+  - Expected outcome: the new module passes on the unmodified code; ensure `.aw/state/ffceq0` exists (`mkdir -p .aw/state/ffceq0`); the baseline outcome list is saved to `.aw/state/ffceq0/E-06-before-30.txt`, and the sorted rule-id counts of `aw check all --agent` (one `rule` per diagnostic) are saved to `.aw/state/ffceq0/check-before.txt` if that file does not yet exist (the first check_engine part to run writes it; later parts keep it, because it is the parent's final comparison bar) and, always, to this part's own `.aw/state/ffceq0/check-before-30.txt`.
   - Execution state: pending
 
 - [ ] E-02 Move the `check_engine` working-tree metadata readers onto `artifact_meta`: THIS PART'S SUBSET of the `ffceq0` E-07 site list (partitioned across Orders 29 to 32), namely every working-tree metadata read inside these functions, with its measured site-line count: `check_ipd_draft_ready` (2), `check_ipd_review_stale` (1), `check_scope_drift` (1), `evaluate_ipd_dependencies` (3), `check_plan_priority` (2), `check_plan_work_kind` (2), `check_plan_priority_required` (1), `_review_subject_id_sets` (2), `check_review_dangling` (1), `check_spec_review_attestation` (2), `evaluate_review_finding_escalation` (1), `evaluate_review_decision_escalation` (1), `find_obligations_carried_by` (1), `check_ipd_lint_reach` (1), `check_orchestrator_not_review_ready` (3); 24 site lines. In each function the reads to replace are the calls of `_read_declared_id`, `_read_item_id`, `_read_plan_status`, `_read_blocks_release`, `_parse_setid` and `_metadata_status`/`_status_meta` on working-tree text, the `_ITEM_*`/`_META_*`/`_PLAN_STATUS_RE`/`_ITEM_DEPENDENCIES_RE`/`_DATE_LINE_RE`/`_REVIEW_SUBJECT_TYPE_RE`/`_FROM_SPEC_LINE_RE`/`_CARRIER_DATE_RE` users, the inline `^- Kind:`/`^- Status:`/`^- Set:`/`^- Date:`/`^- Id:` searches, `backlog.parse_item` uses, the `prompts_index._parse_metadata_comment` use, and the `history_block`/`last_history_at` uses, all through `artifact_meta.read`/`query`/`history`. `_metadata_status(text)` keeps its text signature ONLY for the git-content callers that Order 09 moves to `read_at`; every working-tree call site passes through `artifact_meta.read` instead. Body-prose bullets kept by N3 (`_TARGET_BULLET_RE` over `Concern`/`Scope`/`Scope-Paths` body scanning for citations, open-question `Carrier*` rows) are NOT metadata reads and stay; each is listed in the `ffceq0` E-14 exclusion list.
   - Depends on: E-01
-  - Expected outcome: E-01 and its baseline modules pass unchanged; `aw check all --agent` on this checkout reports the same rule-id multiset as `.aw/state/ffceq0/check-before-30.txt` (pasted sorted counts, empty diff), with any difference explained by a plan or record that changed between the two runs.
+  - Expected outcome: E-01 and its baseline modules pass unchanged; the post-move baseline outcome list is saved to `.aw/state/ffceq0/E-07-after-30.txt`; `aw check all --agent` on this checkout reports the same rule-id multiset as `.aw/state/ffceq0/check-before-30.txt` (pasted sorted counts, empty diff), with any difference explained by a plan or record that changed between the two runs.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -74,6 +77,7 @@ Carried from `ffceq0` `## Findings` (measured 2026-11-02 at `0cbfcc706`), the ro
 | F-02 | Reader modules by owner (writers are Orders 06/07). THIS PLAN: `selectors` (7 regex sites), `cli` find/search/board paths (`_find_type_records`, `_find_prompt_id6`, `_find_prompt_setid`, `_run_search`, `_run_plans`), `attention` (10), `attention_contract` (history readers), `plans` (3), `check_engine` working-tree readers (30 sites in the module; its 12 `_blob_text` git call sites go to Order 09), `ipd_lint` (5), `ipd_schema.parse_metadata_block` (via its caller), `artifact_refs._SKIP_NAMES`. ORDER 09: `runner_shared` (20), `oc_runipd`, `agy_runipd`, the four hooks, `check_engine` git readers, `plan_readiness.review_staleness_index`, `ipd_lifecycle._release_own_plan_edit_before_landing`, `status_set._prepare_status_change` HEAD read, `plans_index` (6), `plans_archive` (5), `plans_refs` read side, `research_index` (2), `research_archive`, `prompts_index`, `artifact_audit` (1), `review_findings` (1), `review_sequence` (2), `review_tier`, `review_rereview`, `orchestrator_readiness` (1), `production_checks` (5), `work_cmd` (2), `artifact_adopt` (1), `ipd_set_plan`, `completion` | 9 reader modules here, 27 in Order 09; with the writer modules of Orders 06/07 they cover the 59. Comment-only mentions (`term`, `config`, `lifecycle_style`, `command_surface`, docstrings in `agy_runipd`) are not readers. |
 | F-06 | 4 records have a `- Status:` bullet only OUTSIDE the metadata region (3 reviews, 1 walkthrough quoting `- Status: approved <- unchanged`); `plans.read_status` (whole file) reads them, the region readers do not | No plan is affected (D-4). |
 | F-08 | `history_block(` call sites: `attention` 6, `check_engine` 3; `last_history_at(` and `history_block(` together 10 sites in `attention` and `check_engine` | All history reads in this plan's modules go through `artifact_meta.history`. |
+| F-09 | Live measurements at commit `ef392273b`: all 24 working-tree metadata read sites across 15 functions in `agent_workflows/check_engine.py` confirmed on disk; baseline suites `tests/test_spec_review_attestation.py` (29 tests) and `tests/test_gate_ref_resolution.py` (15 tests) pass green (44 passed in 14.38s, with `test_every_real_spec_in_this_repository_still_conforms` running in 12.14s on the live tree); `tests/test_readers_check_engine.py` does not yet exist and is created or extended by this part | Establishes the exact live baseline before reader moves; notes the 12s full-repository spec conformity sweep in `test_spec_review_attestation.py` within the core test budget. |
 
 Step-complexity measurement for this part (2026-11-07, at the worktree HEAD of the split; the rule is that no E-item hides more than about 25 units of work):
 
@@ -98,6 +102,36 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 1. Pin then move this subset of the `check_engine` working-tree readers (E-01, E-02).
 
+```mermaid
+flowchart TD
+    subgraph S1["Phase 1: Pin & Baseline (E-01)"]
+        A["Check tests/test_readers_check_engine.py: create or extend TestCheckEngineReadersOrder30"]
+        B["Pin 15 functions / 24 sites on tmp_path fixtures; run green against unmodified code"]
+        C["Capture baseline outcomes to .aw/state/ffceq0/E-06-before-30.txt"]
+        D["Save aw check all --agent rule-id multiset to .aw/state/ffceq0/check-before-30.txt (and check-before.txt if absent)"]
+        A --> B --> C --> D
+    end
+
+    subgraph S2["Phase 2: Migrate Readers (E-02)"]
+        E["Migrate 24 site lines across 15 functions to artifact_meta.read / query / history"]
+        F["Run tests/test_readers_check_engine.py and baseline modules unchanged"]
+        G["Save post-move outcomes to .aw/state/ffceq0/E-07-after-30.txt"]
+        E --> F --> G
+    end
+
+    subgraph S3["Phase 3: Parity Validation (V-01, V-02)"]
+        H["diff E-06-before-30.txt E-07-after-30.txt: assert empty diff"]
+        I["diff check-before-30.txt aw check all rule counts: assert empty diff"]
+        J["Clean commit via aw commit na188y"]
+        H --> J
+        I --> J
+    end
+
+    D --> E
+    G --> H
+    G --> I
+```
+
 ## Deferred / out of scope (with reason)
 
 - The git-content readers of `check_engine` (`_blob_text`/`_status_meta` callers).
@@ -109,12 +143,12 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Scope check
 
-- Over-scope: none. Only `check_engine.py` and the shared pin module change; the pin module gains one test class per part, so the four parts never edit the same test.
+- Over-scope: none. Only `check_engine.py` and the shared pin module change; the pin module is created if absent or gains one test class per part (`TestCheckEngineReadersOrder30`), so the four parts never edit the same test.
 - Under-scope: none known. This part carries its subset of E-06 and E-07 of `ffceq0` unchanged except where its site list is partitioned, as named in each item.
 
 ## Required tests / validation
 
-`tests/test_readers_check_engine.py` (core, `tmp_path` fixtures through `aw check <type> --agent`); this part adds only its own test class to the module, named after its Order, so the four check_engine parts never edit the same test. The baseline modules named in E-01 run before and after the move.
+`tests/test_readers_check_engine.py` (core, `tmp_path` fixtures through `aw check <type> --agent`); this part creates the module if absent (setting `pytestmark = pytest.mark.core`) or adds only its own test class `TestCheckEngineReadersOrder30` to the module, named after its Order, so the four check_engine parts never edit the same test. The baseline modules named in E-01 (`tests/test_spec_review_attestation.py` and `tests/test_gate_ref_resolution.py`) run before and after the move (note that `test_every_real_spec_in_this_repository_still_conforms` takes ~12s within the core budget).
 
 Commands: the named modules, the bare core gate `python3 -m pytest`, `aw check`, `aw sanitize --agent`. The thorough tier `make test-all` runs once, in `ffceq0`'s final item.
 
@@ -136,7 +170,7 @@ N/A: no spec text changes; implements `4sd62s` section 7 step 5 for this subset 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `git diff --stat agent_workflows/check_engine.py` empty, then `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py` all PASSED (one test per reader listed in E-01), and `wc -l` of the baseline modules' saved outcome list `.aw/state/ffceq0/E-06-before-30.txt`; also paste the sorted rule-id counts saved to `.aw/state/ffceq0/check-before-30.txt` (and `ls -l .aw/state/ffceq0/check-before.txt` showing the shared bar exists).
+  - Required evidence: paste `git diff --stat agent_workflows/check_engine.py` empty, then `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py` all PASSED (one test per reader listed in E-01), and `wc -l` of the baseline modules' saved outcome list `.aw/state/ffceq0/E-06-before-30.txt`; also paste the sorted rule-id counts saved to `.aw/state/ffceq0/check-before-30.txt` (and `ls -l .aw/state/ffceq0/check-before.txt` showing the shared bar exists, written by this part if not already present).
   - Observed evidence:
   - Result: pending
 
