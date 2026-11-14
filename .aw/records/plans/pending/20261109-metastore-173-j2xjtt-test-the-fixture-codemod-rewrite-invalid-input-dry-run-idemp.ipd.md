@@ -6,7 +6,7 @@
 - Scope: Part 2 of the round-3 split of `653ndz` (2026-11-09, research `nj8zdp` guidance): `653ndz` E-04 cases (a), (b), (c) as E-04, (e), (f) as E-08, (g), (h) as E-09, plus the finishing item E-10. Case (d), one fixture per refusal reason code, is Order 216 (`n0li9v`). EXCLUDES: the tool (`y3uowx`); the pilot and census (`653ndz`); production code.
 - Scope-Paths: tests/test_fixture_codemod.py, tests/fixtures/fixture_codemod/**, tests/slow_allowlist.txt, .aw/records/plans/pending/20261109-metastore-173-j2xjtt-test-the-fixture-codemod-rewrite-invalid-input-dry-run-idemp.ipd.md
 - Item-Dependencies: executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:y3uowx
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,15 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: j2xjtt
+- Readiness: go-pending-approval
+- Review-Depth: standard
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261109-metastore-173-j2xjtt-test-the-fixture-codemod-rewrite-invalid-input-dry-run-idemp.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 653ndz (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -49,7 +53,7 @@ A deliberately invalid value (F-08, for example `- Status: EXECUTED`) is NOT a r
 
 ### Task group 1: test cases
 
-- [ ] E-04 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (a) a plain constant metadata block becomes a builder call; (b) an f-string with field placeholders becomes keyword arguments; (c) an invalid value goes through `raw_fields=` and is listed `invalid-input`. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
+- [ ] E-04 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (a) a plain constant metadata block becomes a builder call; (b) an f-string with field placeholders becomes keyword arguments; (c) an invalid value goes through `raw_fields=` and is listed `invalid-input`. Tests define `CODEMOD_PATH = Path(__file__).resolve().parent.parent / "tools" / "fixture_codemod.py"` and drive the tool as a subprocess via `sys.executable` on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo`, asserting on its stdout/stderr, exit code, and on the rewritten files. No test reads production source.
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` passes every case (a), (b), (c).
   - Execution state: pending
@@ -59,7 +63,7 @@ A deliberately invalid value (F-08, for example `- Status: EXECUTED`) is NOT a r
   - Expected outcome: `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` passes every case (e), (f).
   - Execution state: pending
 
-- [ ] E-09 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (g) the `not-equivalent` case of E-03 is isolated and reverted while the other rewrites stay; (h) the rewritten fixture module's own tests pass. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source. (g) and (h) start pytest subprocesses (E-03); if the module's wall time under `-n 0` exceeds 10 s, the subprocess cases move to a second module listed in `tests/slow_allowlist.txt` and the core module keeps (a) to (f).
+- [ ] E-09 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (g) the `not-equivalent` case of E-03 is isolated and reverted while the other rewrites stay; (h) the rewritten fixture module's own tests pass. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source. (g) and (h) start pytest subprocesses (E-03); if the module's wall time under `-n 0` exceeds 10 s, the subprocess cases move to a second module `tests/test_fixture_codemod_slow.py` listed in `tests/slow_allowlist.txt` (justified under `--scope-reason`), and the core module keeps (a) to (f).
   - Depends on: E-08
   - Expected outcome: `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` passes every case (g), (h).
   - Execution state: pending
@@ -91,6 +95,17 @@ Measured 2026-11-08 at `ac76110f4`; carried from `653ndz`.
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    A["E-04: Test cases (a), (b), (c)<br/>Builder call, f-strings, raw_fields invalid-input"] --> B["E-08: Test cases (e), (f)<br/>--dry-run no-write, second --apply idempotence"]
+    B --> C["E-09: Test cases (g), (h)<br/>not-equivalent isolation & module tests pass"]
+    C --> D{"Wall time > 10s?"}
+    D -->|Yes| E["Move subprocess cases to tests/test_fixture_codemod_slow.py<br/>Add to tests/slow_allowlist.txt"]
+    D -->|No| F["Keep all cases in tests/test_fixture_codemod.py"]
+    E --> G["E-10: Run full test suite & bare core gate<br/>Commit via aw commit j2xjtt"]
+    F --> G
+```
+
 1. Write cases (a) to (c), (e) and (f), then (g) and (h) (E-04, E-08, E-09).
 2. Apply the 10 s bound, run, commit (E-10).
 
@@ -120,14 +135,14 @@ No spec change; implements the tooling half of `4sd62s` section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from 653ndz)
 - Resolution or deferral rationale: The batch rule already defines equivalence as an identical per-test outcome list, and a site's effect is only observable through the tests that use it. Per-module proof with halving on failure costs one pytest run per module when every rewrite holds and about two times the logarithm of the site count when one does not, while a per-site run would cost one run per site (3,272 at F-29). Recommendation strength: strong.
 
 ### OQ-02: Why is the census static?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from 653ndz)
 - Resolution or deferral rationale: A proved census would be a serial run of every batch module's tests, which is the work the batch plans spread across turns. The static census bounds the known refusals; each batch item adds its apply-time `not-equivalent` refusals to its `hand` count and stops at 25. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
