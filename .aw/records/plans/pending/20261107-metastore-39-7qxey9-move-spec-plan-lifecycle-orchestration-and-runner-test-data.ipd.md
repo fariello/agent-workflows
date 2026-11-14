@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): 8 modules of subset G4c in two items of 4 (E-04, E-07) and the finishing item E-06, which also converts any module the partition now places in subsets G3b, G4a, G4b, G4c that no plan names. The other modules of subsets G3b, G4a, G4b, G4c moved to the chunk plans `jutivt`, `52rpc1`, `2zo3g5`, `qqaqw8`, `xxiou0`, `3k142n`, `2etvye`, `80p88l`, `qb3n9s`, `723ct1` (F-41). Before the round-3 split: Batch subsets G3b, G4a, G4b, G4c of `59aiyh`'s batch items, each a named list of at most 25 modules, plus a finishing item. Each subset runs the Order-49 codemod (`653ndz`) and hand-converts only its census-counted refusals. Every subset applies the batch rule below (the `59aiyh` batch rule restructured for the codemod). EXCLUDES: the builder and fixtures (Order 37, `9rgn2w`); every other subset (Orders 38 to 40 and `59aiyh`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_orchestrator_shape_composed.py, tests/test_orchestrator_shape_gate.py, tests/test_orchestrator_status_gate.py, tests/test_partition.py, tests/test_partition_set_cohesion.py, tests/test_readiness_absence_invariant.py, tests/test_terminal_status_vocabulary.py, tests/test_unresolved_selector_near_match.py, .aw/records/plans/pending/20261107-metastore-39-7qxey9-move-spec-plan-lifecycle-orchestration-and-runner-test-data.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:jutivt, executed:52rpc1, executed:2zo3g5, executed:qqaqw8, executed:xxiou0, executed:3k142n, executed:2etvye, executed:80p88l, executed:qb3n9s, executed:723ct1
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7qxey9
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261107-metastore-39-7qxey9-move-spec-plan-lifecycle-orchestration-and-runner-test-data.review.md
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 and 7 to 14 modules of E-04 moved to jutivt, 52rpc1, 2zo3g5, qqaqw8, xxiou0, 3k142n, 2etvye, 80p88l, qb3n9s, 723ct1; kept 8 modules of G4c as E-04 and E-07; Highest E allocated raised to 07.
 - 2026-11-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): restructured per maintainer decision 2026-11-07 ("Codemod first, then small runs"); batch items E-01 to E-04 now run the Order-49 codemod 653ndz and hand-convert only its census-counted refusals; item E-05 (subset G5a) moved to 1upea0; added executed:653ndz.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 59aiyh per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
@@ -36,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Split note (round 3, 2026-11-09, research `nj8zdp` guidance): items E-01, E-02, E-03 and all but 8 modules of E-04 moved to the chunk plans named in F-41 and in `## Deferred / out of scope`; this plan keeps 8 modules of subset G4c as E-04 and E-07 (4 each) and the finishing item E-06.
 
 Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule, restructured 2026-11-08 for the Order-49 fixture codemod `653ndz` per maintainer decision 2026-11-07 "Codemod first, then small runs": the tool performs the mechanical rewrite, and the hand work is bounded by its measured refusals). In it, "E-13's `full-before.txt`" and "the builder's `raw_fields=` escape (E-01)" are items of Order 37 (`9rgn2w`), carried by the round-3 split into Order 170 (`j6o96i`) with the same ids; because `.aw/state/` does not travel between lane worktrees, step 2 always records a fresh before list here. Step 1's partition is restricted to the modules each batch item names (round-3 split 2026-11-09: a subset is now spread over several plans of at most 8 modules each): a module that the partition now places in the item's subset but that no plan names is NOT added here; it is reported, and the finishing item of `7qxey9` converts it; a named module that no longer matches F-01 is reported and skipped:
-1. Before the batch, re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
+1. Before the batch, ensure directory `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh`), re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
 2. Record the unmodified per-test outcome list (a batch whose files a previous batch did not touch may reuse the matching lines of E-13's `full-before.txt`): `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA $(cat .aw/state/59aiyh/<batch>-files.txt) | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/<batch>-before.txt`. `-p no:randomly` and `-n 0` make the list deterministic; `-m ""` includes `slow` and `livecorpus` modules.
 3. Run the codemod: `python3 tools/fixture_codemod.py --apply --format json $(cat .aw/state/59aiyh/<batch>-files.txt) > .aw/state/59aiyh/<batch>-codemod.json`. It rewrites only the sites whose module outcome list it proved identical (`653ndz` E-03, carried with the same id into Order 172, `y3uowx`, by the round-3 split) and lists every other site as a refusal with a reason code and a disposition (`hand` or `legacy-kept`, the `653ndz` reason-code table).
 4. Hand-convert ONLY the refusals with disposition `hand`: the static count is the sum of the `653ndz` F-30 rows of the item's modules (round-3 split 2026-11-09: an item now carries part of a subset, so the subset's F-31 row is context only), and the codemod report adds any apply-time `not-equivalent` refusals; the item's hand count is their sum. If the hand count exceeds 25, stop after step 3 (the proved codemod rewrites may be committed), convert nothing by hand, and report the subset for re-splitting. A hand conversion uses builder calls; a test that deliberately writes an INVALID value (an unknown status, `- Status: EXECUTED`, `- Priority: bogus`, a malformed gate) gets it through the builder's `raw_fields=` escape (E-01) and is listed with reason class `invalid-input`. A refusal with disposition `legacy-kept` stays in legacy form on purpose and is listed with its F-06 reason class.
@@ -116,8 +120,14 @@ F-41 (round-3 split 2026-11-09, research `nj8zdp` guidance; module basenames und
 
 ## Proposed changes (ordered, validatable)
 
-1. Convert the 8 kept modules of G4c under the batch rule (E-04, E-07), each by the codemod plus its census-counted refusals.
-2. Catch late partition modules, re-run the union, the core gate, commit (E-06).
+```mermaid
+flowchart TD
+    E04["E-04: Batch G4c (first 4 modules) codemod and hand conversions"] --> E06["E-06: Late module catch-up, union check, and final commits"]
+    E07["E-07: Batch G4c (second 4 modules) codemod and hand conversions"] --> E06
+```
+
+1. Convert batch G4c modules (E-04, E-07): Apply the batch rule to convert the 8 kept test modules using the fixture codemod `tools/fixture_codemod.py` and hand-converting census-counted refusals, verifying identical outcome lists and classifying remaining legacy lines.
+2. Finish and assemble (E-06): Re-derive the F-03 partition across subsets G3b, G4a, G4b, and G4c to convert any late unassigned modules, verify the union of batch test outcomes, validate with pytest and leak sanitizer, and commit through `aw commit 7qxey9`.
 
 ## Deferred / out of scope (with reason)
 
@@ -171,7 +181,7 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The kept items and the chunk plans (F-41) are disjoint module lists, each needs only the builder (`9rgn2w`) and the codemod (`653ndz`), and none edits `tests/support.py` (that is `59aiyh` E-09). This plan depends on its chunk plans only so that E-06's late-module catch-up sees their conversions. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -198,7 +208,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `653ndz`, `9rgn2w`, `g5hpbb`, `tve77h`, `xexn45`, `jutivt`, `52rpc1`, `2zo3g5`, `qqaqw8`, `xxiou0`, `3k142n`, `2etvye`, `80p88l`, `qb3n9s`, `723ct1` are executed. OQ-01 is resolved.
+Execute only after human approval (`Status: approved`) and after `653ndz`, `9rgn2w`, `g5hpbb`, `tve77h`, `xexn45`, `jutivt`, `52rpc1`, `2zo3g5`, `qqaqw8`, `xxiou0`, `3k142n`, `2etvye`, `80p88l`, `qb3n9s`, `723ct1` are executed. OQ-01 is resolved. Stop condition: stop safely without modifying files if prerequisite metastore symbols from `653ndz` or `9rgn2w` are missing, or if an unresolvable concurrent-edit conflict occurs. Shared-checkout safety: this plan edits only its Scope-Paths; do not stage, edit, or commit any other file.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if a subset cannot keep its outcome list identical without a production change, stop that subset and report the missing capability rather than changing production code or an assertion.
 
@@ -206,4 +216,4 @@ Honesty rule: run the batch comparisons and the bare `python3 -m pytest` core ga
 
 Commits: commit only through `aw commit 7qxey9 -- <paths>` (one commit per item allowed); never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize 7qxey9` (or runner-automated retirement upon validation; never a hand `git mv`), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
