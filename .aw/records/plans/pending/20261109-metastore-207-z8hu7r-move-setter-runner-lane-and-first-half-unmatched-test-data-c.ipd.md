@@ -6,7 +6,9 @@
 - Scope: Chunk 5 of 7 of `1upea0` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 7 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `1upea0`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_run_proposal_channel.py, tests/test_runs_answer.py, tests/test_run_selection_policy.py, tests/test_run_summary_table.py, tests/test_run_viewer.py, tests/test_action_table_runner_parity.py, tests/test_already_landed_dispatch.py, .aw/records/plans/pending/20261109-metastore-207-z8hu7r-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -22,6 +24,7 @@
 ## Workflow history
 
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 1upea0 (round 3, research nj8zdp guidance).
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, batch rules, and execution gate; marked reviewed and go-pending-approval.
 
 ## Goal
 
@@ -99,6 +102,18 @@ Measured 2026-11-09 at `3d0ddb845` for F-40; F-01, F-03, F-06 and F-08 copied fr
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Convert runner proposal, answers, policy & summary modules (E-01)<br/>tests/test_run_proposal_channel.py<br/>tests/test_runs_answer.py<br/>tests/test_run_selection_policy.py<br/>tests/test_run_summary_table.py"]
+    E02["2. Convert run viewer module (E-02)<br/>tests/test_run_viewer.py"]
+    E03["3. Convert runner parity & landed dispatch modules (E-03)<br/>tests/test_action_table_runner_parity.py<br/>tests/test_already_landed_dispatch.py"]
+    E04["4. Re-run Union, Core Gate & Path-Scoped Commits (E-04)"]
+
+    E01 --> E04
+    E02 --> E04
+    E03 --> E04
+```
+
 1. Convert each item's modules under the batch rule (E-01 to E-03).
 2. Re-run the union, the core gate, commit (E-04).
 
@@ -134,7 +149,7 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The module lists of all chunk plans are disjoint, each needs the builder (`9rgn2w`) and the codemod (`653ndz`), and none edits `tests/support.py` (that is `59aiyh` E-09, which runs last). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -174,4 +189,4 @@ Honesty rule: run every command a V-item names and paste the ACTUAL output; neve
 
 Commits: commit only through `aw commit z8hu7r -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize z8hu7r` itself.
