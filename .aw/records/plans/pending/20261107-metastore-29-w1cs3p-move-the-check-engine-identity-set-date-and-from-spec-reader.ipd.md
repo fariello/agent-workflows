@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: Split from `ffceq0` (Task group 3) under the maintainer's step-complexity rule: `ffceq0` E-07 moved 100 measured working-tree metadata-read site lines in 60 `check_engine` functions as one item. This part takes the identity, Set, date and From-Spec subset (26 site lines in 16 functions).
 - Scope: Pin then move the identity, collision, Set-length, date and From-Spec readers of `check_engine` onto `artifact_meta` (`ffceq0` E-06 and E-07, partitioned). EXCLUDES: every other check_engine subset (Orders 30 to 32), git-content readers (Order 09 `t4gl15`), the skip list (Order 32).
-- Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_check_engine.py, tests/test_check_engine_metadata_region.py, tests/test_check_engine_from_spec_missing.py
+- Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_check_engine.py, tests/test_check_engine_metadata_region.py, tests/test_check_engine_from_spec_missing.py, .aw/records/plans/pending/20261107-metastore-29-w1cs3p-move-the-check-engine-identity-set-date-and-from-spec-reader.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,13 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: w1cs3p
-
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+- Readiness: go-pending-approval
+- Review-Depth: complex
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261107-metastore-29-w1cs3p-move-the-check-engine-identity-set-date-and-from-spec-reader.review.md
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ffceq0 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +34,7 @@ The `check_engine` identity, Set, date and From-Spec rules read cached fields an
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Every E-item that moves a reader follows one rule, so a reviewer can check each the same way: (1) BEFORE the edit, add or extend a behavioral test in the named module that pins the reader's CURRENT observable behavior on a `tmp_path` fixture repository (the "prior behavior" column of the reader ledger in `## Findings`), and run it green against the unmodified code; (2) change the reader to call `artifact_meta`; (3) run the same test unchanged. A test that has to change in step 3 is a behavior change and must be one of the decisions listed in the ledger (D-1 to D-5), never a silent one. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/ffceq0/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/ffceq0/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Every saved baseline (command output, JSON, rule counts) also goes under `.aw/state/ffceq0/`, never `/tmp`, so it survives a lane integration. A count measured at authoring (for example the 1,635 executed plans of F-03) is context, never the bar: each expected outcome compares a before and after value re-derived on the same tree. New test modules set `pytestmark = pytest.mark.core`, call real functions or the real `aw` CLI, and never read production source.
+Every E-item that moves a reader follows one rule, so a reviewer can check each the same way: (1) BEFORE the edit, add or extend a behavioral test in the named module that pins the reader's CURRENT observable behavior on a `tmp_path` fixture repository (the "prior behavior" column of the reader ledger in `## Findings`), and run it green against the unmodified code; (2) change the reader to call `artifact_meta`; (3) run the same test unchanged. A test that has to change in step 3 is a behavior change and must be one of the decisions listed in the ledger (D-1 to D-5), never a silent one. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/ffceq0/` (`mkdir -p .aw/state/ffceq0 && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/ffceq0/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Every saved baseline (command output, JSON, rule counts) also goes under `.aw/state/ffceq0/`, never `/tmp`, so it survives a lane integration. A count measured at authoring (for example the 1,635 executed plans of F-03) is context, never the bar: each expected outcome compares a before and after value re-derived on the same tree. New test modules set `pytestmark = pytest.mark.core`, call real functions or the real `aw` CLI, and never read production source.
 
 The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, because the split parent `ffceq0` keeps the final cache-parity, residual-audit and finishing items that compare against these saved files. Commit through `aw commit w1cs3p -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -96,6 +98,11 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Pin current check_engine reader behavior in tests/test_readers_check_engine.py"] --> E02["E-02: Move 26 site lines across 16 functions onto artifact_meta"]
+```
+
 1. Pin then move this subset of the `check_engine` working-tree readers (E-01, E-02).
 
 ## Deferred / out of scope (with reason)
@@ -151,6 +158,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. Every reader move is pin-first: the baseline runs green on the unmodified code before the matching move, and a test edited after a move must be one that the copied decisions name.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate) and paste the ACTUAL summary lines; never claim a result you did not run.
+
+Safety rule: Stop and report rather than editing production code outside Scope-Paths or weakening test assertions if an unexpected failure occurs on unmodified code, or if an unresolvable concurrent-edit conflict occurs.
 
 Commits: commit only through `aw commit w1cs3p -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
