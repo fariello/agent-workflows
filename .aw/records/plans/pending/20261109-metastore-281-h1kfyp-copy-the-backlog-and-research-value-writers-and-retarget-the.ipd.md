@@ -6,7 +6,9 @@
 - Scope: Part of `k6jd6l` E-08: the copy of the `backlog` and `research_cmd` writers and the change of every production caller to `artifact_meta.append` (or the private copy, inside `artifact_meta`). EXCLUDES: test retargets (Orders 282, 283) and deleting the originals (Order 284).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, .aw/records/plans/pending/20261109-metastore-281-h1kfyp-copy-the-backlog-and-research-value-writers-and-retarget-the.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6bxlzb, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@ No production module outside `artifact_meta` calls a bullet-line value writer, w
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-08: "change any remaining caller (`status_set`, `backlog`, `research_cmd`, ...) to `artifact_meta.append`" and "move ... `backlog.set_release_exempt_kind_line`, `set_release_exempt_ref_line`, `set_close_evidence_line` and `research_cmd._set_priority_line` into private `artifact_meta` functions with unchanged behavior". Save the before-list for E-02 to E-04 to `.aw/state/9o83cr/E-08-callers-before.txt` over `tests/test_status_set.py`, `tests/test_backlog.py` and `tests/test_research_priority.py`.
+Carried from `k6jd6l` E-08: "change any remaining caller (`status_set`, `backlog`, `research_cmd`, ...) to `artifact_meta.append`" and "move ... `backlog.set_release_exempt_kind_line`, `set_release_exempt_ref_line`, `set_close_evidence_line` and `research_cmd._set_priority_line` into private `artifact_meta` functions with unchanged behavior". Save the before-list for E-02 to E-04 to `.aw/state/9o83cr/E-08-callers-before.txt` over `tests/test_status_set.py`, `tests/test_backlog.py` and `tests/test_research_priority.py` (ensure `.aw/state/9o83cr/` exists via `mkdir -p .aw/state/9o83cr/`).
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one module per item
 
-- [ ] E-01 In `agent_workflows/artifact_meta.py`, add private copies with unchanged behavior of `backlog.set_release_exempt_kind_line`, `backlog.set_release_exempt_ref_line`, `backlog.set_close_evidence_line` and `research_cmd._set_priority_line`, and point the `backlog` entries and the `set_close_evidence_line` call in `artifact_meta._render_field` at them.
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline callers PIN list to `.aw/state/9o83cr/E-08-callers-before.txt`. In `agent_workflows/artifact_meta.py`, add private copies (`_legacy_set_release_exempt_kind_line`, `_legacy_set_release_exempt_ref_line`, `_legacy_set_close_evidence_line`, `_legacy_research_set_priority_line`) with unchanged behavior of `backlog.set_release_exempt_kind_line`, `backlog.set_release_exempt_ref_line`, `backlog.set_close_evidence_line` and `research_cmd._set_priority_line`, and point the `backlog` entries and the `set_close_evidence_line` call in `artifact_meta._render_field` at them.
   - Depends on: none
   - Expected outcome: `artifact_meta` calls no `backlog` value writer.
   - Execution state: pending
@@ -68,6 +71,13 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 Measured 2026-11-09 at `f83159217`: `rg -n "set_[a-z_]+_line\(|_set_priority_line\(" agent_workflows` callers outside the definitions: `status_set.run_set_command` 4, `backlog.run_new` 5, `research_cmd.plan_set_priority` 1, `artifact_meta._render_field` 10 (map entries plus the close-evidence call). Order 280's F-24 is the authoritative re-derivation.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Save Baseline PIN List & Copy Four Writers<br/>to agent_workflows/artifact_meta.py"] --> E02["E-02: Retarget status_set.run_set_command<br/>to artifact_meta"]
+    E02 --> E03["E-03: Retarget backlog.run_new<br/>to artifact_meta"]
+    E03 --> E04["E-04: Retarget research_cmd.plan_set_priority<br/>to artifact_meta & Commit"]
+```
 
 1. Copy the four writers (E-01).
 2. Retarget `status_set` (E-02).
@@ -100,7 +110,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Use `artifact_meta.render_legacy` (pure, returns text) when the file does not exist yet, `append` otherwise; both write through the same private copies. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -132,4 +142,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit h1kfyp -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `6bxlzb` or dependencies are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit h1kfyp -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize h1kfyp` itself; never a hand `git mv` to `executed/`.
