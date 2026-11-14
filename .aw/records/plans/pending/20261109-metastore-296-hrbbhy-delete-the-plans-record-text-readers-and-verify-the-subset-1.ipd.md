@@ -6,7 +6,9 @@
 - Scope: The `plans` reader part of `k6jd6l` E-11 subset 1, the `selectors.metadata_region` deletion, and subset 1's expected-outcome check. The `attention`, `ipd_lint` and `check_engine` callers are in `ffceq0`'s Scope-Paths and expected moved; a live one in Order 280's F-25 is retargeted here with `--scope-reason`.
 - Scope-Paths: agent_workflows/plans.py, agent_workflows/selectors.py, tests/test_plan_status.py, tests/test_drift_detail_escaping.py, tests/test_releases_sibling_line_writers_bounding.py, .aw/records/plans/pending/20261109-metastore-296-hrbbhy-delete-the-plans-record-text-readers-and-verify-the-subset-1.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:iup4lp, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hrbbhy
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Carried from `k6jd6l` E-11 ("`plans._STATUS_RE`, `_SET_RE`, `_ORDER_RE` and `plans.read_status`", and `selectors.metadata_region`) and its V-11 evidence. Save the before-list of `tests/test_plan_status.py`, `tests/test_drift_detail_escaping.py` `tests/test_selector_two_dialect_readers.py` and `tests/test_releases_sibling_line_writers_bounding.py` to `.aw/state/9o83cr/E-11d-before.txt`.
 
-PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
+PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`mkdir -p .aw/state/9o83cr && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: delete, then verify
 
-- [ ] E-01 Change `plans.scan` and `plans.read_set` to read status, Set and Order through `artifact_meta.read_text` (or `read`), and retarget `tests/test_plan_status.py` and `tests/test_drift_detail_escaping.py` off `plans.read_status`, keeping every case.
+- [ ] E-01 Change `plans.scan` and `plans.read_set` to read status, Set and Order through `artifact_meta.read_text` (or `read`), and retarget `tests/test_plan_status.py` and `tests/test_drift_detail_escaping.py` off `plans.read_status`, keeping every case (PIN RULE, `mkdir -p .aw/state/9o83cr && ` capture to before-list).
   - Depends on: none
   - Expected outcome: no caller of `plans.read_status` remains.
   - Execution state: pending
@@ -74,6 +77,14 @@ Measured 2026-11-09 at `f83159217` with `rg -n "read_status\(" agent_workflows t
 3. Delete `selectors.metadata_region` (E-03).
 4. Verify subset 1 and commit (E-04).
 
+```mermaid
+flowchart TD
+    A["E-01: Retarget plans.scan, plans.read_set & test callers to artifact_meta"] --> B["E-02: Delete plans.read_status & plans regexes"]
+    B --> C["E-03: Switch selectors callers & tests to artifact_meta.metadata_region"]
+    C --> D["E-04: Verify subset 1 search, CrossHostReadIdReExport & baseline diffs"]
+    D --> E["V-01..V-04: Validate evidence, pass core gate, commit"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - Subset 2 (spec and backlog readers).
@@ -98,7 +109,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from k6jd6l)
 - Resolution or deferral rationale: Order 282 changes only its writer calls; E-03 here changes its region assertions. They are different units and run serially. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -130,4 +141,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit hrbbhy -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. A narrow safety stop applies if prerequisite metastore symbols from `1ajqaa`, `59aiyh`, `dcerjg`, `ffceq0`, `g5hpbb`, `iup4lp`, or `t4gl15` are absent. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit hrbbhy -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize hrbbhy` itself.
