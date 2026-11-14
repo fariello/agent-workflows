@@ -6,7 +6,7 @@
 - Scope: Phase B step 6 (`4sd62s` section 7), FINISHING PART after the 2026-11-07 split. The builder, its tests, the baselines and the tracked-fixture conversion moved to `9rgn2w` (Order 37); batch subsets G1a to G7a moved to `x05v02` (Order 38), `7qxey9` (Order 39) and `nbfg7w` (Order 40). Round-3 split (2026-11-09, research `nj8zdp` guidance): 22 G7b modules moved to `vaqtii`, `30zur4`, `9jmt3w` and the out-of-batch helper deletions to `1bshrb`. This plan keeps: the shared helpers `tests/support.py` and `tests/conformance_matrix.py`, edited last, and the G7 late-module catch-up (E-09); the single-switch-point proof and the F-06 census of every remaining legacy string (E-11); the full-suite comparison, core-gate timing, `make test-all`, `aw check` comparison and commit (E-12). EXCLUDES: changing production code; tests whose subject IS the legacy text format (the F-03 EXCLUDED list), which are listed and left unchanged; the review-pilot plan corpus (F-05); changing the builder's on-disk output to the log format (Order 13, `cxxmyv`).
 - Scope-Paths: tests/support.py, tests/conformance_matrix.py, tests/test_record_builder.py, .aw/records/plans/pending/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
 - Item-Dependencies: executed:1upea0, executed:7qxey9, executed:9rgn2w, executed:g5hpbb, executed:nbfg7w, executed:tve77h, executed:x05v02, executed:xexn45, executed:653ndz, executed:j6o96i, executed:ijpay0, executed:y3uowx, executed:j2xjtt, executed:7fpc8v, executed:id2pdx, executed:2fn0vd, executed:isj48z, executed:dg43sc, executed:wirc2e, executed:872zd9, executed:zl2pki, executed:jutivt, executed:52rpc1, executed:2zo3g5, executed:qqaqw8, executed:xxiou0, executed:3k142n, executed:2etvye, executed:80p88l, executed:qb3n9s, executed:723ct1, executed:i29bd5, executed:v1t2ai, executed:hp6ydi, executed:lf0fe4, executed:jjvnhb, executed:f8jntm, executed:a1b70x, executed:j5mwpk, executed:abf6yk, executed:qjxcgf, executed:0punmn, executed:2ll84l, executed:9hk3rh, executed:5mg9g1, executed:1cgrgp, executed:z8hu7r, executed:tsonlq, executed:erulw3, executed:vaqtii, executed:30zur4, executed:9jmt3w, executed:z4x192, executed:9zcuyh, executed:1bshrb, executed:n0li9v, executed:b3eilr
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,8 +17,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 59aiyh
 - Review-Depth: complex
+- Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-09 (22 G7b modules) moved to vaqtii, 30zur4, 9jmt3w; E-09 (out-of-batch helper deletions) moved to 1bshrb; added executed edges to every round-3 part (48 plans, Orders 170 to 216) so this plan stays the family's last part.
 - 2026-11-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added executed:1upea0 (new batch part at Order 50 carrying subsets G3a, G5a, G7a from x05v02, 7qxey9 and nbfg7w) per maintainer decision 2026-11-07 ("Codemod first, then small runs").
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-02, E-10, E-13 moved to 9rgn2w; E-03, E-04 and the G3a part of E-05 moved to x05v02; the G3b part of E-05, E-06 and the G5a part of E-07 moved to 7qxey9; the G5b part of E-07, E-08 and the G7a part of E-09 moved to nbfg7w.
@@ -93,13 +96,13 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
-- `review_findings.render_review` (pure) and `review_findings.write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
-- The existing shared plan builder is `support.ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`ipd_authoring.build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
-- Shared test plumbing lives in `tests/support.py` (`init_repo`, `git`, `run_cli`, `pinned_env`, `ready_plan_text`, `scope_drift_repo`); `tests/repo_template.py` (`copy_template_repo`) gives a pre-built repository; there is no `tests/conftest.py`, and the root `conftest.py` owns tier selection.
+- Interface names from Order 02 (`tve77h`): `agent_workflows/artifact_meta.py::registry_fields(type)`, `agent_workflows/artifact_meta.py::validate_event`, `agent_workflows/artifact_meta.py::validate_new_events(type, events, *, records_root, migration_import=False)`, `agent_workflows/artifact_meta.py::read(id6) -> State`, `agent_workflows/artifact_meta.py::create(...)` and `agent_workflows/artifact_meta.py::append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 routes the phase-B branch of `create` and `append` through `agent_workflows/artifact_core.py::write_legacy`, with `agent_workflows/artifact_core.py::render_legacy_text(text, events)` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
+- `agent_workflows/review_findings.py::render_review` (pure) and `agent_workflows/review_findings.py::write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
+- The existing shared plan builder is `tests/support.py::ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`agent_workflows/ipd_authoring.py::build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
+- Shared test plumbing lives in `tests/support.py` (`tests/support.py::init_repo`, `tests/support.py::git`, `tests/support.py::run_cli`, `tests/support.py::pinned_env`, `tests/support.py::ready_plan_text`, `tests/support.py::scope_drift_repo`); `tests/repo_template.py` (`tests/repo_template.py::copy_template_repo`) gives a pre-built repository; there is no `tests/conftest.py`, and the root `conftest.py` owns tier selection.
 - Tests are behavioral (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); core modules set `pytestmark = pytest.mark.core`; `slow` tests are listed in `tests/slow_allowlist.txt`; `pyproject.toml` `addopts` deselects `slow` and `livecorpus`, so a complete comparison passes `-m ""`, and `pytest-randomly` is installed, so a deterministic order needs `-p no:randomly`.
 - `tests/fixtures/review-pilot/` is the input corpus of `tools/review_pilot.py` (`manifest.json` names each plan file, `defects.json` quotes exact text to plant), and `tests/test_review_pilot.py` copies the whole directory into its fixture repository.
-- Filenames come from `artifact_naming.build_clustered_name` and parse with `artifact_naming.parse_clustered`.
+- Filenames come from `agent_workflows/artifact_naming.py::build_clustered_name` and parse with `agent_workflows/artifact_naming.py::parse_clustered`.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
 ## Findings
@@ -128,6 +131,14 @@ Measured 2026-11-02 at `0cbfcc706`.
 | `1bshrb` (Order 215) | none (helper deletions only) | 8 | `test_lane_submission_retention_narrowing`, `test_suite_baseline_direction`, `test_lifecycle_lane_nudge`, `test_finidem_reusable_not_finalized`, `test_research_set_assign_date_containment`, `test_finalize_trailer_attribution`, `test_finalize_disregarded_record`, `test_research_rename_frontmatter` |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    G7b["1. Migrate G7b shared helpers (support.py, conformance_matrix.py) & late G7 modules (E-09)"]
+    Switch["2. Prove single switch point & record F-06 census (E-11)"]
+    Compare["3. Full-suite comparison, core gate, sanitize & commit (E-12)"]
+    G7b --> Switch --> Compare
+```
 
 1. Migrate the shared helpers of G7b and catch late G7 modules (E-09).
 2. Prove the single switch point and write F-06 (E-11).
@@ -188,19 +199,19 @@ No spec change; implements `4sd62s` section 6 ("Rewrite the test data with ONE s
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: SUPERSEDED 2026-11-07: split per the maintainer step-complexity rule into `9rgn2w`, `x05v02`, `7qxey9`, `nbfg7w` and this finishing part. The original resolution read: No: 13 E-items in 5 task groups. The work is large in files, not in decisions; each batch is mechanical under the batch rule. If a batch proves too large for one pass during execution, split it at the seam its E-item names, measured at review: G1 into G1a/G1b (1,012 and 556 lines), G4 into G4a/G4b (403 and 841), G6 into G6a/G6b (503 and 501). Adding all three splits brings the plan to 16 E-items, inside the 18-item limit. Recommendation strength: medium.
 
 ### OQ-02: Which prior Orders does the builder depend on?
 
 - Blocking: no
 - Status: resolved
-- Owner: plan-review (round 1, decision D-1)
+- Owner: maintainer
 - Resolution or deferral rationale: `tve77h` and `xexn45`. It does NOT depend on Order 08's `artifact_meta.read_text`: `test_record_builder.py` reads built records back with `artifact_meta.read` (Order 02), and text-only records are checked by writing them into a fixture repository. But spec `4sd62s` section 7 step 6 requires a builder "that writes through `artifact_meta`", and in phase B only `xexn45` gives `artifact_meta.create` a legacy-format branch (`write_legacy`) and adds `render_legacy_text`; Order 02's `create` writes the log format. Depending only on `tve77h` would force the builder to carry its own legacy renderer, a second copy of the format that the cutover would have to change as well. The authored resolution said `executed:tve77h` was sufficient; review revised it to `executed:tve77h, executed:xexn45`. Critical-path cost: none, because Order 11 (`9o83cr`) already waits for `ffceq0` and `t4gl15`, which both wait for `xexn45`. Batches may run before or after Orders 08 and 09; each batch's before/after comparison runs against whatever production code is on `main` at that time. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 - [ ] V-09 validates E-09
   - Required evidence: paste `.aw/state/59aiyh/G7b-shared-files.txt` and the empty `diff` of the `G7b-shared` before/after outcome lists; for `tests/support.py` and for `tests/conformance_matrix.py` separately, its before and after F-01 `rg -c` count, the reason class of every remaining match, its `653ndz` F-30 row and its rows of `.aw/state/59aiyh/G7b-shared-codemod.json`; `rg -n "def ready_plan_text|def scope_drift_repo" tests/support.py` showing both helpers still exist; the re-derived G7 partition beside the F-41 union (a `diff`) and, per late module, its empty outcome `diff`, or the line `no late modules`; and the helper count from `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` beside E-13's `helpers-before.txt`, with each surviving helper across `tests/` and its reason.
   - Observed evidence:
@@ -223,10 +234,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed: the builder part `9rgn2w` and its round-3 parts, the codemod `653ndz` and its round-3 parts, every batch plan (`x05v02`, `7qxey9`, `nbfg7w`, `1upea0` and the round-3 chunk plans of Orders 175 to 212), the fixture and helper parts of Orders 213 to 215, and `g5hpbb`, `tve77h`, `xexn45`. All open questions are resolved.
 
+Stop and report without editing production code or tests if prerequisite symbols from writer/builder dependencies are absent on HEAD, if baseline test suites fail on unmodified HEAD before starting, or if concurrent edits in a shared checkout conflict with - Scope-Paths:.
+
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if a batch cannot keep its outcome list identical without a production change, stop that batch and report the missing capability rather than changing production code or an assertion. Each batch keeps every assertion except those its V-item lists.
 
 Honesty rule: run the batch comparisons, `tests/test_record_builder.py`, the bare `python3 -m pytest` core gate and `make test-all`, and paste the ACTUAL output; never claim a result you did not run.
 
 Commits: commit only through `aw commit 59aiyh -- <paths>` (one commit per batch allowed); never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 59aiyh` itself.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner owns retirement to executed/ and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs aw ipd finalize 59aiyh.
