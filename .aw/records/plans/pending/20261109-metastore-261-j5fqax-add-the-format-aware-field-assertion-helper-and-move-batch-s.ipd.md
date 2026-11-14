@@ -6,7 +6,7 @@
 - Scope: `iog3cw` E-01 (the helper and its test module) and E-05 (batch S04: `tests/test_backlog.py`, 30 candidate lines at `ac76110f4`). EXCLUDES the `iog3cw` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/record_builder.py, tests/test_record_builder_assert_field.py, tests/test_backlog.py, .aw/records/plans/pending/20261109-metastore-261-j5fqax-add-the-format-aware-field-assertion-helper-and-move-batch-s.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,13 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: j5fqax
-
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+- Readiness: go-pending-approval
+- Review-Depth: standard
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-261-j5fqax-add-the-format-aware-field-assertion-helper-and-move-batch-s.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from iog3cw (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -32,7 +34,7 @@ Add the format-aware field helper and move `tests/test_backlog.py` onto it with 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
 Batch rule, applied to every batch E-item of this plan:
-1. Record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/j5fqax/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
+1. Record the unmodified per-test outcome list of the batch's modules: `mkdir -p .aw/state/j5fqax && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/j5fqax/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
 2. In each named module (or class), replace every SETTER-BYTE assertion with a call to the helper of `tests/record_builder.py` added by `j5fqax` E-01, formerly `iog3cw` E-01 (`assert_field(path, field, value)` and `assert_no_field(path, field)`). A setter-byte assertion is an `assertIn`/`assertNotIn`/`assert ... in` over the text of a RECORD FILE that names a front-matter bullet (`- Status:`, `- Priority:`, `- Blocks-Release:` and the other F-28 fields). An assertion over command OUTPUT (stdout, stderr, a rendered message) is a `displayed-output assertion` and is NOT converted; an assertion whose subject is the legacy grammar itself (a legacy-loader, migration or quoted-example test) is `legacy-format subject` and is NOT converted.
 3. Re-run the same command into `<batch>-after.txt` and require `diff` to print nothing. A conversion that would change what a test checks (for example a test that asserts the exact bullet spelling, such as whitespace after the colon) stops and is reported with its node id; it is listed as `setter-byte, exact spelling` in F-28 for `cxxmyv`, not weakened.
 4. Count the remaining matches of the F-28 pattern in the batch's modules and give each remaining line one class: `converted` (none should remain), `displayed-output assertion`, `legacy-format subject` or `setter-byte, exact spelling`.
@@ -40,7 +42,7 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: work
 
-- [ ] E-01 (was `iog3cw` E-01, verbatim.) Add to `tests/record_builder.py` (the shared builder of `9rgn2w`/`59aiyh`) two helpers that assert a record's field through the active record format, so a test written against them passes unchanged when the cutover switches the builder to `RECORD_FORMAT = "log"`: `assert_field(path, field, value)` passes when the record at `path` has `field` equal to `value`, and `assert_no_field(path, field)` passes when the field is absent or unset. In the legacy format (`RECORD_FORMAT = "legacy"`, today's only format) each helper reads the value through `artifact_meta.read_text(path.read_text(), record_type=...)` and ALSO asserts the exact bullet line is present (or absent) in the file, so it is never weaker than the `assertIn("- Status: x", text)` it replaces; in the log format it reads `artifact_meta.read` and the in-file mirror (the cutover, `cxxmyv` E-07, adds that branch). Field names use the registry names (`status`, `priority`, `blocks_release`, ...) and the helper maps them to bullet labels with `artifact_meta`'s own label table (no second table). Add `tests/test_record_builder_assert_field.py` (core): for each record type, a builder-made record with and without a field, asserting pass and fail (a failing helper raises `AssertionError` naming the field, the expected and the observed value), including a record whose bullet uses a loose spelling (`-  Status:`), which must fail the exact-line half so the helper is not weaker than the old assertion.
+- [ ] E-01 (was `iog3cw` E-01, verbatim.) Add to `tests/record_builder.py` (the shared builder of `9rgn2w`/`59aiyh`) two helpers that assert a record's field through the active record format, so a test written against them passes unchanged when the cutover switches the builder to `RECORD_FORMAT = "log"`: `assert_field(path, field, value)` passes when the record at `path` (accepting `Path` or `str`) has `field` equal to `value`, and `assert_no_field(path, field)` passes when the field is absent or unset. In the legacy format (`RECORD_FORMAT = "legacy"`, today's only format) each helper reads the value through `artifact_meta.read_text(Path(path).read_text(encoding="utf-8"), record_type=...)` and ALSO asserts the exact bullet line (`f"- {label}: {value}"`) is present (or absent for `assert_no_field`) in the file, so it is never weaker than the `assertIn("- Status: x", text)` it replaces; in the log format it reads `artifact_meta.read` and the in-file mirror (the cutover, `cxxmyv` E-07, adds that branch). Field names use the registry names (`status`, `priority`, `blocks_release`, ...) and the helper maps them to bullet labels with `artifact_meta`'s label mapping (`_LEGACY_BULLET_LABEL` and `_render_field` value-writer mappings; no second table). Add `tests/test_record_builder_assert_field.py` (core): for each record type, a builder-made record with and without a field, asserting pass and fail (a failing helper raises `AssertionError` naming the field, the expected and the observed value), including a record whose bullet uses a loose spelling (`-  Status:`), which must fail the exact-line half so the helper is not weaker than the old assertion.
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_record_builder_assert_field.py` passes; the helpers read no production source.
   - Execution state: pending
@@ -74,6 +76,12 @@ Batch rule, applied to every batch E-item of this plan:
 1. E-01: the helper and its test.
 2. E-02: batch S04.
 3. E-03: union check, F-28 rows, commit.
+
+```mermaid
+flowchart TD
+    E01["E-01: Add assert_field/assert_no_field helpers and test_record_builder_assert_field.py"] --> E02["E-02: Convert setter-byte assertions in tests/test_backlog.py (batch S04)"]
+    E02 --> E03["E-03: Re-verify outcomes, assemble F-28/F-29 rows, sanitize, and commit"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -130,4 +138,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit j5fqax -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Stop and report rather than editing production code or weakening test assertions if an unexpected failure occurs on unmodified code, if an assertion pins exact legacy syntax that cannot be cleanly expressed via `assert_field`, or if an unresolvable concurrent-edit conflict occurs. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit j5fqax -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
