@@ -4729,7 +4729,11 @@ def run_queue(
     report_red_ci_warning(state)
     from agent_workflows import review_basis as _review_basis
 
-    _review_basis.report_stale_bases(state.get("repo") or Path.cwd(), host="oc")
+    _review_basis.report_stale_bases(
+        state.get("repo") or Path.cwd(),
+        host="oc",
+        run_id=str(state.get("run_id") or ""),
+    )
     state["_summary_table_printed"] = True
     # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half of the shutdown report. `emit_shutdown_report`
     # is the SAME idempotent routine the signal handlers use, so the normal and signal paths cannot

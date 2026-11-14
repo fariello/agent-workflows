@@ -179,29 +179,82 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
     return out
 
 
-def stale_report_lines(stale: Sequence[StaleBasis], host: str = "oc") -> List[str]:
-    """Human-readable warning lines, ending with the command that re-reviews the affected plans."""
+def stale_report_lines(
+    stale: Sequence[StaleBasis],
+    host: str = "oc",
+    *,
+    other_live_runs: Sequence[str] = (),
+) -> List[str]:
+    """Plain-language advice about reviews that may rest on an outdated design.
+
+    This is advice printed after a run ends, not a failure of that run, so the text says so first.
+    The list covers the whole checkout, not only the run printing it. When other runs are still
+    live, re-reviewing now could be wasted work (they may change more prerequisites), so the advice
+    says to wait for them first.
+    """
     if not stale:
         return []
     consumers = sorted({s.consumer for s in stale})
-    lines = [
-        f"[REVIEW-BASIS-STALE] {len(consumers)} plan(s) were reviewed against a prerequisite that "
-        "was still 'to-review' and has since changed, so their review may rest on an old design:"
-    ]
+    by_target: Dict[str, List[str]] = {}
     for s in stale:
-        lines.append(f"  - {s.consumer}: {s.reason}")
-    lines.append(
-        f"  Re-review them: aw {host} run --action review {' '.join(consumers)}"
-    )
+        by_target.setdefault(s.target, [])
+        if s.consumer not in by_target[s.target]:
+            by_target[s.target].append(s.consumer)
+    lines = [
+        "[REVIEW-BASIS-STALE] Advice, not a failure: this run's own results stand.",
+        f"  {len(consumers)} plan(s) in this checkout (not only this run) were reviewed while a plan they "
+        "depend on was still unreviewed. That plan's own review has since changed its steps or scope, "
+        "so these reviews may rest on an outdated design and should be reviewed again.",
+        "  Changed prerequisite -> plans reviewed against its old version:",
+    ]
+    for target in sorted(by_target):
+        lines.append(f"    {target} -> {' '.join(sorted(by_target[target]))}")
+    command = f"aw {host} run --action review {' '.join(consumers)}"
+    if other_live_runs:
+        lines.append(
+            f"  Not yet: {len(other_live_runs)} other run(s) are still active "
+            f"({', '.join(other_live_runs)}) and may change more prerequisites. Wait for them to "
+            "finish; the last one to finish prints the final list."
+        )
+        lines.append(f"  Then re-review with: {command}")
+    else:
+        lines.append(f"  No other runs are active, so re-review now with: {command}")
     return lines
 
 
-def report_stale_bases(repo: Any, *, host: str = "oc", stream: Any = None) -> List[str]:
-    """Print the stale-basis warning (never raises; prints nothing when there is nothing stale)."""
+def live_run_ids(repo: Path, *, exclude: str = "") -> List[str]:
+    """Run ids in this checkout whose driver is live right now (never raises)."""
+    try:
+        from agent_workflows import runner_shared as rs
+        from agent_workflows.runner_stop import LIVENESS_LIVE, run_liveness
+
+        root = rs.state_root(repo)
+        out = []
+        for d in sorted(root.glob("run-*")):
+            if d.name != exclude and d.is_dir() and run_liveness(d) == LIVENESS_LIVE:
+                out.append(d.name)
+        return out
+    except Exception:
+        return []
+
+
+def report_stale_bases(
+    repo: Any, *, host: str = "oc", stream: Any = None, run_id: str = ""
+) -> List[str]:
+    """Print the stale-basis advice (never raises; prints nothing when there is nothing stale)."""
     import sys
 
     try:
-        lines = stale_report_lines(stale_bases(Path(repo)), host=host)
+        stale = stale_bases(Path(repo))
+        lines = (
+            stale_report_lines(
+                stale,
+                host=host,
+                other_live_runs=live_run_ids(Path(repo), exclude=run_id),
+            )
+            if stale
+            else []
+        )
     except Exception:
         return []
     out = stream if stream is not None else sys.stderr

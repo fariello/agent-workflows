@@ -241,3 +241,26 @@ def test_partition_splits_a_chain_and_emits_the_flag(tmp_path: Path, capsys) -> 
     assert len(relaxed) == 3
     assert "ch0001" not in " ".join(relaxed)
     assert all(c.endswith("--review-unreviewed-deps") for c in relaxed)
+
+
+def test_stale_advice_says_the_run_succeeded_and_groups_by_changed_prerequisite() -> (
+    None
+):
+    stale = [
+        review_basis.StaleBasis("bbb002", "aaa001", "reviewed", "r", "run-x"),
+        review_basis.StaleBasis("ccc003", "aaa001", "reviewed", "r", "run-x"),
+        review_basis.StaleBasis("ccc003", "ddd004", "reviewed", "r", "run-x"),
+    ]
+    text = "\n".join(review_basis.stale_report_lines(stale, host="agy"))
+    assert "not a failure" in text
+    assert "aaa001 -> bbb002 ccc003" in text and "ddd004 -> ccc003" in text
+    assert "re-review now with: aw agy run --action review bbb002 ccc003" in text
+
+    waiting = "\n".join(
+        review_basis.stale_report_lines(
+            stale, host="agy", other_live_runs=["run-live-1"]
+        )
+    )
+    assert "Not yet: 1 other run(s) are still active (run-live-1)" in waiting
+    assert "Then re-review with: aw agy run --action review bbb002 ccc003" in waiting
+    assert "re-review now" not in waiting

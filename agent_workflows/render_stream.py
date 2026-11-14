@@ -4233,6 +4233,25 @@ def record_integration_refusal(
     return record_refusal(item, code=code, reason=reason, remedy=remedy)
 
 
+def _outcome_explanation(outcome: str, completed: int, total: int) -> str:
+    """One plain sentence saying why the run stopped, for the summary banner ("" when unknown)."""
+    if outcome == "COMPLETED":
+        return f"the queue is finished: all {total} item(s) ran and their results were merged to main."
+    if outcome == STRANDED_OUTCOME:
+        return "some finished work was not merged to main; the recovery section below names it."
+    if outcome == "FAILED":
+        return "one or more items failed; see Diagnostics below for which and why."
+    if outcome == "BLOCKED":
+        return "one or more items could not start because a prerequisite or gate was not met; see Diagnostics below."
+    if outcome == "INTERRUPTED":
+        return "the run was stopped early (signal or stop request); resume it with the command below."
+    if outcome == "PARTIAL":
+        return f"the run ended before its queue finished ({completed} of {total} item(s) ran)."
+    if outcome == NO_WORK_OUTCOME:
+        return "nothing was dispatched; see the remedy below."
+    return ""
+
+
 def render_run_summary_table(
     state: dict[str, Any],
     run_dir: Path | str | None = None,
@@ -4804,6 +4823,8 @@ def render_run_summary_table(
         f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"
     )
     b_line2 = f"Progress: {prog_bar} ({status_summary_str})"
+    b_why_text = _outcome_explanation(outcome_str, completed_count, display_total)
+    b_why = f"Why: {b_why_text}" if b_why_text else None
     # streamfmt (mm6wuz) E-08: the NAMED READER for `StreamTracker.modified_files`. The set is
     # RUN-SCOPED (one tracker per invocation, shared by every queue item), and this banner is a
     # per-RUN report, so the scopes match. It is appended to the progress line rather than added as
@@ -4838,6 +4859,8 @@ def render_run_summary_table(
         b_line1,
         b_line2,
     ]
+    if b_why:
+        banner_plain.insert(2, b_why)
     if b_chk:
         banner_plain.append(b_chk)
     base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4
@@ -4882,6 +4905,9 @@ def render_run_summary_table(
     # Banner Line 1
     pad_1 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line1))
     lines.append(f"{vl} {b_line1}{pad_1} {vl}")
+    if b_why:
+        pad_why = " " * max(0, total_table_width - 4 - _T.visible_width(b_why))
+        lines.append(f"{vl} {b_why}{pad_why} {vl}")
 
     # Banner Line 2
     pad_2 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line2))

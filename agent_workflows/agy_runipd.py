@@ -3930,7 +3930,11 @@ def run_queue(
     report_red_ci_warning(state)
     from agent_workflows import review_basis as _review_basis
 
-    _review_basis.report_stale_bases(state.get("repo") or Path.cwd(), host="agy")
+    _review_basis.report_stale_bases(
+        state.get("repo") or Path.cwd(),
+        host="agy",
+        run_id=str(state.get("run_id") or ""),
+    )
     state["_summary_table_printed"] = True
     # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half, through the SAME idempotent shared routine the
     # signal handlers use, so the two paths cannot drift and whichever fires first suppresses the

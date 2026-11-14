@@ -1359,7 +1359,11 @@ def test_the_item_table_gains_NO_column() -> None:
         "Tok cache",
     ]
     for state in (_state(landed), _state(stranded)):
-        header = render_run_summary_table(state, pal=Palette(False)).splitlines()[5]
+        header = next(
+            ln
+            for ln in render_run_summary_table(state, pal=Palette(False)).splitlines()
+            if ln.startswith("│ Run ")
+        )
         cells = [c.strip() for c in header.strip("│").split("│")]
         assert cells == expected, f"the table's column contract changed: {cells}"
 
@@ -1622,3 +1626,16 @@ def test_the_shutdown_report_prints_the_runs_pointer_exactly_once(
             runner_shared._SIGNAL_REPORT_DONE.set()
         else:
             runner_shared._SIGNAL_REPORT_DONE.clear()
+
+
+def test_summary_banner_says_why_the_run_stopped() -> None:
+    clean = render_run_summary_table(
+        _state(_item(status="executed", integration_signal="driver-run-suite")),
+        pal=Palette(False),
+    )
+    assert (
+        "Why: the queue is finished: all 1 item(s) ran and their results were merged to main."
+        in clean
+    )
+    stranded = render_run_summary_table(_state(_stranded_item()), pal=Palette(False))
+    assert "Why: some finished work was not merged to main" in stranded
