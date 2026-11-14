@@ -6,7 +6,9 @@
 - Scope: run the read-only baseline commands and the `^-` site searches, and write tables F-26 (the `e8420v` modules) and F-27 (the `0xsx2n` modules) and baseline table F-30 into this plan; commit this plan file. EXCLUDES every code or test edit (Orders 239 to 249).
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 786w7r
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.review.md
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from e8420v and 0xsx2n (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -35,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline and site tables
 
-- [ ] E-01 On the unedited tree, save under the gitignored `.aw/state/786w7r/before/` the stdout and exit code of `aw check all --agent` and `aw check all --all --agent` (rule-id multisets, `jq -r '.diagnostics[].rule' | sort | uniq -c`), `aw find plans --agent`, `aw attention --format json`, and the bare core gate summary line of `python3 -m pytest`; copy every value into table F-30 of this plan (the `aw find` and `aw attention` outputs as line counts plus `sha256sum`).
+- [ ] E-01 On the unedited tree, ensure directory `.aw/state/786w7r/before/` exists (`mkdir -p .aw/state/786w7r/before/`) and save under it the stdout and exit code of `aw check all --agent` and `aw check all --all --agent` (rule-id multisets, `jq -r '.diagnostics[].rule' | sort | uniq -c`), `aw find plans --agent`, `aw attention --format json`, and the bare core gate summary line of `python3 -m pytest`; copy every value into table F-30 of this plan (the `aw find` and `aw attention` outputs as line counts plus `sha256sum`).
   - Depends on: none
   - Expected outcome: F-30 holds every value.
   - Execution state: pending
@@ -65,8 +69,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
-1. Baseline (E-01).
-2. Site tables F-26 (E-02) and F-27 (E-03), commit.
+```mermaid
+flowchart TD
+    E01["E-01: Capture pre-deletion baselines into .aw/state/786w7r/before/ and record table F-30"] --> E02["E-02: Run regex searches over e8420v modules and write table F-26"]
+    E02 --> E03["E-03: Run regex searches over 0xsx2n modules, write table F-27, and commit"]
+```
+
+1. Baseline capture (E-01): Create `.aw/state/786w7r/before/`, capture exit codes, multisets, counts, and SHA256 checksums from read-only baseline commands, and record them in table F-30.
+2. Site tables and commit (E-02, E-03): Search and classify all remaining `^-` regex occurrences across `e8420v` modules into table F-26, search and classify occurrences across `0xsx2n` modules into table F-27, and commit this plan file alone using `aw commit 786w7r`.
 
 ## Deferred / out of scope (with reason)
 
@@ -94,7 +104,7 @@ N/A: this plan records measurements only.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Both families run after `k6jd6l` and before `9o83cr` and compare the same commands; one committed baseline taken before either starts is the honest reference for both. Recommendation strength: strong. RESOLVED 2026-11-11 by the user via /askme: one shared baseline for both groups (e8420v and 0xsx2n). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
@@ -121,4 +131,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed, and before any of Orders 239 to 249. Honesty rule: paste the ACTUAL outputs. Commits: only through `aw commit 786w7r -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (`1ajqaa`, `59aiyh`, `dcerjg`, `ffceq0`, `g5hpbb`, `k6jd6l`, `t4gl15`), and before any of Orders 239 to 249. Stop condition: stop safely without modifying files if prerequisite metastore symbols from `59aiyh`, `ffceq0`, `k6jd6l`, or `t4gl15` are missing, or if an unresolvable concurrent-edit conflict occurs. Shared-checkout safety: this plan edits only itself; do not stage, edit, or commit any other file. Honesty rule: paste the ACTUAL outputs. Commits: only through `aw commit 786w7r -- .aw/records/plans/pending/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.ipd.md`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize 786w7r` (or runner-automated retirement upon validation; never a hand `git mv`), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
