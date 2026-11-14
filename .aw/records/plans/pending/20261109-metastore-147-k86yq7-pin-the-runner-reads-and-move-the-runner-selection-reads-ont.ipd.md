@@ -6,7 +6,9 @@
 - Scope: (a) The `runner_shared`/`oc_runipd`/`agy_runipd` rows of the 4.4 search (`y97k46` E-01). (b) `y97k46` E-02 (pin the runner reads), divided into the pin module (E-02) and the ten-module baseline in two halves (E-03, E-04). (c) `y97k46` E-03 (move the plan-selection reads, E-05). EXCLUDES: the execution-path reads and the own-log finalize scope (`k3hb06`, Order 152); the runner residual audit (kept in `y97k46`); the five `runner_shared` git-content readers (`iqhzse`); every writer (Orders 06/07); deleting parsers (Order 11).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_readers_runner.py, tests/test_front_matter_loose_whitespace.py, .aw/records/plans/pending/20261109-metastore-147-k86yq7-pin-the-runner-reads-and-move-the-runner-selection-reads-ont.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k86yq7
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261109-metastore-147-k86yq7-pin-the-runner-reads-and-move-the-runner-selection-reads-ont.review.md.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from y97k46 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +36,7 @@ The runner builds its queue (plan discovery, selectors, dependency edges, dispos
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15` through `y97k46`): BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of the decisions copied below (D-1, D-4). For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<file>`) before the move and the same command into the matching after file after it; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. A count measured at authoring (for example F-05's 1,719 records) is context, never the bar. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits (then `slow`); none reads production source.
+The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15` through `y97k46`): BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of the decisions copied below (D-1, D-4). For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`(mkdir -p .aw/state/t4gl15 && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<file>)`) before the move and the same command into the matching after file after it; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. A count measured at authoring (for example F-05's 1,719 records) is context, never the bar. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits (then `slow`); none reads production source.
 
 Commit through `aw commit k86yq7 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -43,7 +47,7 @@ Commit through `aw commit k86yq7 -- <each changed path>`, one commit per item al
   - Expected outcome: F-03 has 6 single rows plus one bulk row naming 32 functions; no unclassified hit.
   - Execution state: pending
 
-- [ ] E-02 (carried from `y97k46` E-02, pin-module step) Pin the runner's metadata behavior in the new `tests/test_readers_runner.py` on the unmodified code: `runner_shared.parse_plan_file` on both hosts (`oc_runipd.parse_plan_file`, the `agy_runipd` re-export) for id, status (single token, loose whitespace, multi-word falls back to the directory bucket), kind, Set, Order, Item-Dependencies, From-Backlog, Attended; `discover_plans`, `discover_specs`, `edge_satisfied` for `executed:`, `exists:` and `state:` edges, `resolve_backlog_item`, `backlog_item_paths_for_id`, `read_set_membership`, `expand_selectors` (id6, Set, status selectors), `plan_bucket`, `reconcile_disposition`, `enforce_freeze_time_refusal`, and the readiness read used before auto-approval (`plan_readiness.is_plan_review_approved`, 4.4a row `l56tyz`: a missing readiness is refused). Also save `.aw/state/t4gl15/discover-before.txt`: the output of `python3 -c` printing `sorted((r.id6, r.status, r.setid, r.order, r.kind, tuple(r.dependencies)) for r in runner_shared.discover_plans(Path(".").resolve()).values())` for this checkout.
+- [ ] E-02 (carried from `y97k46` E-02, pin-module step) Pin the runner's metadata behavior in the new `tests/test_readers_runner.py` on the unmodified code: `runner_shared.parse_plan_file` on both hosts (`oc_runipd.parse_plan_file`, the `agy_runipd` re-export) for id, status (single token, loose whitespace, multi-word falls back to the directory bucket), kind, Set, Order, Item-Dependencies, From-Backlog, Attended; `discover_plans`, `discover_specs`, `edge_satisfied` for `executed:`, `exists:` and `state:` edges, `resolve_backlog_item`, `backlog_item_paths_for_id`, `read_set_membership`, `expand_selectors` (id6, Set, status selectors), `plan_bucket`, `reconcile_disposition`, `enforce_freeze_time_refusal`, and the readiness read used before auto-approval (`plan_readiness.is_plan_review_approved`, 4.4a row `l56tyz`: a missing readiness is refused). Also save `.aw/state/t4gl15/discover-before.txt` (creating directory `.aw/state/t4gl15` first via `mkdir -p .aw/state/t4gl15`): the output of `python3 -c` printing `sorted((r.id6, r.status, r.setid, r.order, r.kind, tuple(r.dependencies)) for r in runner_shared.discover_plans(Path(".").resolve()).values())` for this checkout.
   - Depends on: none
   - Expected outcome: the new module passes on the unmodified code (13 pinned functions); `discover-before.txt` is saved.
   - Execution state: pending
@@ -103,6 +107,14 @@ DECISIONS (copied from `t4gl15` through `y97k46`, whose text is authoritative):
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Record runner-file 4.4 rows into F-03 table"] --> E02["E-02: Create tests/test_readers_runner.py & pin current behavior"]
+    E02 --> E03["E-03: Save baseline 1 (5 modules) to .aw/state/t4gl15/E-06-before-1.txt"]
+    E03 --> E04["E-04: Save baseline 2 (5 modules) to .aw/state/t4gl15/E-06-before-2.txt"]
+    E04 --> E05["E-05: Move selection reads to artifact_meta & verify diffs against baselines"]
+```
+
 1. Record the runner-file 4.4 rows (E-01).
 2. Pin the runner reads and save the ten-module baseline (E-02 to E-04).
 3. Move the plan-selection reads (E-05).
@@ -135,7 +147,7 @@ No spec change. Implements the runner queue-building part of `4sd62s` C5a and se
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: The round-3 guidance asks for about 8 named units per item; one baseline item naming ten modules is a list, not a step. Two halves of five, each saved to its own file and diffed against its own after file, keep every module's before and after visible. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -174,10 +186,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
 
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first, and a test edited after a move must be one that D-1 or D-4 names.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit k86yq7 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize k86yq7` (never a hand git mv), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize k86yq7 itself.
