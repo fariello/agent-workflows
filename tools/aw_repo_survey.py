@@ -38,8 +38,9 @@ import re
 import socket
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any
 
 SCHEMA = "aw-repo-survey/v1"
 
@@ -118,13 +119,14 @@ _CONFIG_FILES = (
 _MAX_CONFIG_BYTES = 64 * 1024
 
 
-def _git(repo: Path, *args: str) -> Tuple[int, str]:
+def _git(repo: Path, *args: str) -> tuple[int, str]:
     try:
         res = subprocess.run(
             ["git", "-C", str(repo), *args],
             capture_output=True,
             text=True,
             timeout=120,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 1, str(exc)
@@ -141,9 +143,9 @@ def _expand(p: str) -> Path:
     return Path(os.path.expanduser(os.path.expandvars(p))).resolve()
 
 
-def registry_paths(home: Path) -> List[Tuple[Path, str]]:
+def registry_paths(home: Path) -> list[tuple[Path, str]]:
     """Repository paths the toolkit's user config and registry list on this machine."""
-    out: List[Tuple[Path, str]] = []
+    out: list[tuple[Path, str]] = []
     cfg_dirs = []
     if os.environ.get("AW_CONFIG_DIR"):
         cfg_dirs.append(Path(os.environ["AW_CONFIG_DIR"]))
@@ -182,8 +184,8 @@ def registry_paths(home: Path) -> List[Tuple[Path, str]]:
     return out
 
 
-def scan_for_repos(root: Path, max_depth: int) -> List[Path]:
-    found: List[Path] = []
+def scan_for_repos(root: Path, max_depth: int) -> list[Path]:
+    found: list[Path] = []
     root = root.resolve()
     stack = [(root, 0)]
     while stack:
@@ -209,7 +211,7 @@ def scan_for_repos(root: Path, max_depth: int) -> List[Path]:
     return found
 
 
-def classify_name(name: str) -> Dict[str, Any]:
+def classify_name(name: str) -> dict[str, Any]:
     m = _CORE_FACET_RE.match(name)
     if m:
         return {
@@ -264,12 +266,12 @@ def classify_name(name: str) -> Dict[str, Any]:
     return {"grammar": "other", "id6": None, "set": None, "nn": None, "facet": None}
 
 
-def read_bullets(text: str) -> Dict[str, Any]:
+def read_bullets(text: str) -> dict[str, Any]:
     """Bullets in the metadata region (before the first `## ` heading) and anywhere else."""
-    head: Dict[str, str] = {}
-    head_keys: List[str] = []
-    later_ids: List[str] = []
-    yaml: Dict[str, str] = {}
+    head: dict[str, str] = {}
+    head_keys: list[str] = []
+    later_ids: list[str] = []
+    yaml: dict[str, str] = {}
     lines = text.splitlines()
     start = 0
     if lines and lines[0].strip() == "---":
@@ -303,7 +305,7 @@ def read_bullets(text: str) -> Dict[str, Any]:
     }
 
 
-def _sha256(path: Path) -> Optional[str]:
+def _sha256(path: Path) -> str | None:
     h = hashlib.sha256()
     try:
         with open(path, "rb") as f:
@@ -314,11 +316,11 @@ def _sha256(path: Path) -> Optional[str]:
     return h.hexdigest()
 
 
-def survey_tree(tree_root: Path, repo_root: Path, tracked: Set[str]) -> Dict[str, Any]:
+def survey_tree(tree_root: Path, repo_root: Path, tracked: set[str]) -> dict[str, Any]:
     """Inventory one records tree (`.aw/`, `.agents/`, or a companion root)."""
-    files: List[Dict[str, Any]] = []
-    bulk: Dict[str, Dict[str, int]] = {}
-    dirs: Dict[str, Dict[str, int]] = {}
+    files: list[dict[str, Any]] = []
+    bulk: dict[str, dict[str, int]] = {}
+    dirs: dict[str, dict[str, int]] = {}
     for dirpath, dirnames, filenames in os.walk(tree_root, followlinks=False):
         d = Path(dirpath)
         rel_dir = d.relative_to(tree_root).as_posix()
@@ -345,7 +347,7 @@ def survey_tree(tree_root: Path, repo_root: Path, tracked: Set[str]) -> Dict[str
                 rel_repo = p.relative_to(repo_root).as_posix()
             except ValueError:
                 rel_repo = p.as_posix()
-            entry: Dict[str, Any] = {
+            entry: dict[str, Any] = {
                 "path": p.relative_to(tree_root).as_posix(),
                 "bytes": p.stat().st_size if p.exists() else None,
                 "tracked": rel_repo in tracked,
@@ -387,12 +389,12 @@ def survey_tree(tree_root: Path, repo_root: Path, tracked: Set[str]) -> Dict[str
     }
 
 
-def _read_small(path: Path) -> Dict[str, Any]:
+def _read_small(path: Path) -> dict[str, Any]:
     try:
         st = path.stat()
     except OSError:
         return {"exists": False}
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "exists": True,
         "bytes": st.st_size,
         "symlink": path.is_symlink(),
@@ -411,7 +413,7 @@ def _read_small(path: Path) -> Dict[str, Any]:
     return out
 
 
-def _records_backend(configs: Dict[str, Any]) -> Optional[str]:
+def _records_backend(configs: dict[str, Any]) -> str | None:
     for key in (
         ".aw/config/local.json",
         ".aw/config/project.json",
@@ -425,10 +427,10 @@ def _records_backend(configs: Dict[str, Any]) -> Optional[str]:
 
 
 def _companion_candidates(
-    repo: Path, configs: Dict[str, Any]
-) -> List[Tuple[Path, str]]:
+    repo: Path, configs: dict[str, Any]
+) -> list[tuple[Path, str]]:
     """Companion locations: an explicit `companion_dir` binding and the default `<repo>.aw`."""
-    out: List[Tuple[Path, str]] = []
+    out: list[tuple[Path, str]] = []
     for key in (
         ".aw/config/local.json",
         ".aw/config/project.json",
@@ -444,14 +446,14 @@ def _companion_candidates(
     return out
 
 
-def survey_repo(repo: Path, sources: List[str]) -> Dict[str, Any]:
+def survey_repo(repo: Path, sources: list[str]) -> dict[str, Any]:
     rc, top = _git(repo, "rev-parse", "--show-toplevel")
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "path": str(repo),
         "found_via": sorted(set(sources)),
         "git_toplevel": top.strip() if rc == 0 else None,
     }
-    _, out["head"] = (lambda r: (r[0], r[1].strip()))(_git(repo, "rev-parse", "HEAD"))
+    out["head"] = _git(repo, "rev-parse", "HEAD")[1].strip()
     _, br = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
     out["branch"] = br.strip()
     _, remotes = _git(repo, "remote", "-v")
@@ -461,7 +463,7 @@ def survey_repo(repo: Path, sources: List[str]) -> Dict[str, Any]:
     _, wts = _git(repo, "worktree", "list", "--porcelain")
     out["worktrees"] = [ln[9:] for ln in wts.splitlines() if ln.startswith("worktree ")]
     _, ls = _git(repo, "ls-files", "-z")
-    tracked = set(p for p in ls.split("\0") if p)
+    tracked = {p for p in ls.split("\0") if p}
     out["tracked_file_count"] = len(tracked)
     out["top_level"] = sorted(
         e.name + ("/" if e.is_dir() else "") for e in os.scandir(repo)
@@ -475,19 +477,19 @@ def survey_repo(repo: Path, sources: List[str]) -> Dict[str, Any]:
             out["trees"][name] = survey_tree(repo / name, repo, tracked)
     out["records_backend"] = _records_backend(configs)
     out["companions"] = []
-    seen: Set[Path] = set()
+    seen: set[Path] = set()
     for cpath, why in _companion_candidates(repo, configs):
         if cpath in seen:
             continue
         seen.add(cpath)
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "path": str(cpath),
             "source": why,
             "exists": cpath.is_dir(),
         }
         if cpath.is_dir():
             _, cls = _git(cpath, "ls-files", "-z")
-            ctracked = set(p for p in cls.split("\0") if p)
+            ctracked = {p for p in cls.split("\0") if p}
             _, chead = _git(cpath, "rev-parse", "HEAD")
             entry["is_git"] = (cpath / ".git").exists()
             entry["head"] = chead.strip()
@@ -500,7 +502,7 @@ def survey_repo(repo: Path, sources: List[str]) -> Dict[str, Any]:
     return out
 
 
-def _summary(repo: Dict[str, Any]) -> str:
+def _summary(repo: dict[str, Any]) -> str:
     parts = []
     for name, tree in repo["trees"].items():
         md = [f for f in tree["files"] if f["path"].endswith(".md")]
@@ -511,7 +513,7 @@ def _summary(repo: Dict[str, Any]) -> str:
     return ", ".join(parts) or "no trees"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("paths", nargs="*", help="repository paths to survey")
     ap.add_argument(
@@ -541,8 +543,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not args.paths and not scans:
         scans = [str(home)]
 
-    candidates: Dict[Path, List[str]] = {}
-    missing: List[Dict[str, str]] = []
+    candidates: dict[Path, list[str]] = {}
+    missing: list[dict[str, str]] = []
     for p in args.paths:
         rp = _expand(p)
         candidates.setdefault(rp, []).append("argument")
@@ -553,7 +555,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         for rp in scan_for_repos(_expand(s), args.max_depth):
             candidates.setdefault(rp, []).append(f"scan:{s}")
 
-    repos: List[Dict[str, Any]] = []
+    repos: list[dict[str, Any]] = []
     for rp in sorted(candidates):
         srcs = candidates[rp]
         if not rp.is_dir():
@@ -577,14 +579,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"surveying {rp} ...", file=sys.stderr, flush=True)
         try:
             r = survey_repo(rp, srcs)
-        except Exception as exc:  # keep going; record the failure
+        except Exception as exc:  # noqa: BLE001 - keep going; record the failure
             repos.append({"path": str(rp), "found_via": srcs, "error": repr(exc)})
             continue
         repos.append(r)
         print(f"  {_summary(r)}", file=sys.stderr, flush=True)
 
     aw_home = Path(os.environ.get("AW_HOME") or home / ".aw")
-    home_projects: List[Dict[str, Any]] = []
+    home_projects: list[dict[str, Any]] = []
     proj_root = aw_home / "projects"
     if proj_root.is_dir():
         for e in sorted(os.scandir(proj_root), key=lambda x: x.name):

@@ -44,6 +44,7 @@ def _run(tmp_path: Path, *args: str) -> dict:
         capture_output=True,
         text=True,
         env=env,
+        check=False,
     )
     assert res.returncode == 0, res.stderr
     return json.loads(out.read_text(encoding="utf-8"))
