@@ -168,10 +168,10 @@ No spec change; implements `4sd62s` 5.1 (naming, install question, `--migrate`) 
 ### OQ-08: Which plan documents `aw migrate`, `aw migrate layout`, bare `aw migrate` and `aw install --migrate` for users?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Carrier: a6s7na
-- Resolution or deferral rationale: The previous text named `90iqr1`, which does not carry it (see Spec / documentation sync). Placing user documentation in the Set is a scope decision for the maintainer. Recommended answer: add the family to the cutover docs patch written by `y1zihp` (README and reference documents), because `aw migrate metadata` and the install question only reach users after the cutover; this plan keeps the `--help` text. Recommendation strength: medium.
+- Resolution or deferral rationale: The previous text named `90iqr1`, which does not carry it (see Spec / documentation sync). Placing user documentation in the Set is a scope decision for the maintainer. Recommended answer: add the family to the cutover docs patch written by `y1zihp` (README and reference documents), because `aw migrate metadata` and the install question only reach users after the cutover; this plan keeps the `--help` text. Recommendation strength: medium. RESOLVED 2026-11-14 by the user via /askme: add README and reference docs for the whole aw migrate family (aw migrate, aw migrate layout, bare aw migrate, aw install --migrate, aw migrate metadata and its --describe-* / --no-describe options) to the y1zihp cutover docs patch; y1zihp to gain dependencies on 1vfqdu and ya4ee4 and return to review. No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 

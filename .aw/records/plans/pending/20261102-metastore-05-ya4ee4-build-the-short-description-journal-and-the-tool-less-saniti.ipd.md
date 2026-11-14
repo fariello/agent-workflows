@@ -208,11 +208,11 @@ No spec change; implements `4sd62s` 4.2 SHORT DESCRIPTION (HOW THE MIGRATION FIL
 ### OQ-05: Which plan documents `aw migrate metadata` and its `--describe-host`, `--describe-model`, `--describe-limit`, and `--no-describe` options for users?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Carrier: a6s7na
 - Finding: PR-012
-- Resolution or deferral rationale: `Spec / documentation sync` previously named `90iqr1`, which does not document `aw migrate metadata` or its `--describe-*` options (nor do its split parts `qhay6a`, `a49djh`, `y1zihp`, or `ngc2a2`, matching `1vfqdu` `OQ-08`). Documenting `aw migrate metadata` in live README or reference docs before the Order 13 cutover would invite users to convert repositories into a format phase-A readers cannot load, so carrier selection and timing are a maintainer scope decision. Recommended answer: add `aw migrate metadata` and its `--describe-*` / `--no-describe` options to the `y1zihp` cutover docs patch alongside `1vfqdu` `OQ-08`, while this plan ships `--help` (E-08) and `CHANGELOG.md` (E-11). Recommendation strength: medium.
+- Resolution or deferral rationale: `Spec / documentation sync` previously named `90iqr1`, which does not document `aw migrate metadata` or its `--describe-*` options (nor do its split parts `qhay6a`, `a49djh`, `y1zihp`, or `ngc2a2`, matching `1vfqdu` `OQ-08`). Documenting `aw migrate metadata` in live README or reference docs before the Order 13 cutover would invite users to convert repositories into a format phase-A readers cannot load, so carrier selection and timing are a maintainer scope decision. Recommended answer: add `aw migrate metadata` and its `--describe-*` / `--no-describe` options to the `y1zihp` cutover docs patch alongside `1vfqdu` `OQ-08`, while this plan ships `--help` (E-08) and `CHANGELOG.md` (E-11). Recommendation strength: medium. RESOLVED 2026-11-14 by the user via /askme: add README and reference docs for the whole aw migrate family (aw migrate, aw migrate layout, bare aw migrate, aw install --migrate, aw migrate metadata and its --describe-* / --no-describe options) to the y1zihp cutover docs patch; y1zihp to gain dependencies on 1vfqdu and ya4ee4 and return to review. No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
