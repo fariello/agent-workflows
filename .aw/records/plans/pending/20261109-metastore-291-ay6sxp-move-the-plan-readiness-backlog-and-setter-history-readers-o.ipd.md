@@ -6,7 +6,9 @@
 - Scope: The `plan_readiness`, `review_sequence`, `backlog`, `set_records` and `status_set` readers of `k6jd6l` E-10's history grammar. EXCLUDES `attention`, `check_engine`, `specs`, `research_index` and deleting the originals (Order 292); `HISTORY_RECORD_RE` uses stay (Order 248, `tdhav3`).
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/review_sequence.py, agent_workflows/backlog.py, agent_workflows/set_records.py, agent_workflows/status_set.py, .aw/records/plans/pending/20261109-metastore-291-ay6sxp-move-the-plan-readiness-backlog-and-setter-history-readers-o.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:bxupy8, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@ None of these five modules imports `history_block` or `newest_history_record` fr
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-10: "Non-loader callers (... `backlog`, and the measured `attention_contract` importers `plan_readiness`, `set_records`, `record_history`, `ipd_lifecycle` and `status_set`, whichever F-20 still lists) read through `artifact_meta.read`, `history`, `read_text` or `read_at`." (`record_history` and `ipd_lifecycle` import only `HISTORY_RECORD_RE`, which Order 248 owns.) Each caller here holds text, so it uses Order 290's public text entry point. Save the before-list of `tests/test_history_block_bounding.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_review_sequence.py`, `tests/test_backlog.py` and `tests/test_status_set.py` to `.aw/state/9o83cr/E-10e-before.txt`.
+Carried from `k6jd6l` E-10: "Non-loader callers (... `backlog`, and the measured `attention_contract` importers `plan_readiness`, `set_records`, `record_history`, `ipd_lifecycle` and `status_set`, whichever F-20 still lists) read through `artifact_meta.read`, `history`, `read_text` or `read_at`." (`record_history` and `ipd_lifecycle` import only `HISTORY_RECORD_RE`, which Order 248 owns.) Each caller here holds text, so it uses Order 290's public text entry point. Save the before-list of `tests/test_history_block_bounding.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_review_sequence.py`, `tests/test_backlog.py` and `tests/test_status_set.py` to `.aw/state/9o83cr/E-10e-before.txt` before E-01 (ensure `.aw/state/9o83cr/` exists via `mkdir -p .aw/state/9o83cr/`).
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one module per item
 
-- [ ] E-01 In `agent_workflows/plan_readiness.py`, replace the `history_block` and `newest_history_record` imports and their uses in `plan_readiness.extract_newest_history_entry`, `history_has_review_record` and `newest_verdict` with the `artifact_meta` history functions; keep the `HISTORY_RECORD_RE` import.
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-10e-before.txt`. In `agent_workflows/plan_readiness.py`, replace the `history_block` and `newest_history_record` imports and their uses in `plan_readiness.extract_newest_history_entry`, `history_has_review_record` and `newest_verdict` with the `artifact_meta` history functions; keep the `HISTORY_RECORD_RE` import.
   - Depends on: none
   - Expected outcome: `plan_readiness` imports no history function from `attention_contract`.
   - Execution state: pending
@@ -74,6 +77,14 @@ Measured 2026-11-09 at `f83159217` with `rg -n "history_block|newest_history_rec
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Capture Baseline PIN List & Retarget<br/>agent_workflows/plan_readiness.py"] --> E02["E-02: Retarget<br/>agent_workflows/review_sequence.py"]
+    E02 --> E03["E-03: Retarget<br/>agent_workflows/backlog.py"]
+    E03 --> E04["E-04: Retarget<br/>agent_workflows/set_records.py"]
+    E04 --> E05["E-05: Retarget<br/>agent_workflows/status_set.py & Commit"]
+```
+
 1. Retarget `plan_readiness` (E-01).
 2. Retarget `review_sequence` (E-02).
 3. Retarget `backlog` (E-03).
@@ -104,7 +115,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No: this plan changes its history-grammar read, Order 248 its two bullet-writer literals; they are different units, and Order 248 runs after `k6jd6l`, so they never edit the file at the same time. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -141,4 +152,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit ay6sxp -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore history grammar functions from `bxupy8` or `t4gl15` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit ay6sxp -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize ay6sxp` itself; never a hand `git mv` to `executed/`.
