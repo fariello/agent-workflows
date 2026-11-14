@@ -2,8 +2,8 @@
 
 - Subject-Id: 90iqr1
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-06
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-11-14
+- Reviewer: antigravity/gemini-3.8-flash
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -99,3 +99,83 @@ AW-TIER: standard
 | D-1 | Scratch location and new-file capture | `.aw/state/90iqr1/scratch`; `git add -A` plus `git diff --cached --binary HEAD` | `/tmp` (outside the lane); `git diff HEAD` (drops new files) | Probes at review (1 s worktree, 0 vs `new file`, 26 ms apply) | yes |
 | D-2 | Rename `--kind` options in this patch? | No; help text only, renames to `cxxmyv` | Rename in the patch (a CLI contract change in a documentation plan) | Spec 5.4; E-09 fence | yes |
 | D-3 | Edit `cxxmyv` Scope-Paths for `managed-sections.json`? | No; recorded for its review | Edit it (outside this ledger) | Step 0.1 ledger rule | yes |
+
+## Round 2
+
+This re-review ran at HEAD `9cc328330` in an isolated non-interactive runner review-sweep lane worktree following the round-3 metastore re-split (2026-11-09, research `nj8zdp`), which narrowed `90iqr1` from 10 E-items down to E-09 and E-10 (guarding and checking the patch written by `qhay6a`, `a49djh`, `y1zihp`, and `ngc2a2`). The tracked plan was committed and unmodified, so no pre-review snapshot was needed. Before edits, `aw ipd lint --phase author --agent` returned clean (0 findings, 2 advisory dash notices). Baseline text-asserting and installer tests passed on unmodified code: `python3 -m pytest tests/test_installer.py tests/test_installed_text_current.py tests/test_agents_section_records.py tests/test_technical_writing_delivery.py tests/test_askme_command_delivery.py tests/test_authoring_coverage_guidance.py` printed `23 passed in 15.12s`. After revisions and status progression, `aw ipd lint --phase review-finalize --agent` returned clean with 0 errors and 0 warnings.
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Front matter | `- Status: to-review`, lacked `- Readiness:` | Updated `- Status: reviewed`, added `- Readiness: go-pending-approval` | MD-15, Section 7.2 |
+| Blockquote line 21 | Lacked compliance blockquote | Added standard technical writing compliance blockquote | Requirement 12, standard compliance |
+| `## Workflow history` | Bullets from split, withdrawal and initial review | Added newest-first review history entry with verdict and findings PR-201..PR-204 | MD-15, Section 7.2 |
+| `## Proposed changes` | Ordered list of 3 steps, no diagram | Ordered list plus Mermaid `flowchart TD` diagram | PR-202 (Requirement 12b) |
+| `## Open questions` | OQ-01 and OQ-02 had `- Owner: none` | Updated `- Owner: plan author` on both resolved questions | PR-203 |
+| `## Validation and cross-check` | Contained two prose em-dashes `—` | Replaced em-dashes with parentheses to eliminate `IPD-C802` advisories | PR-201 |
+| `## Approval and execution gate` | Lacked explicit prerequisite safety stop for patch availability | Added narrow safety stop if `.aw/system/cutover/metastore-docs.cutover.patch` from `ngc2a2` is absent | PR-204 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes. The plan prepares and guards the cumulative patch that rewrites published managed blocks and installed workflows at cutover.
+2. No. It does not touch code guarding private data, commits, worktree isolation, or sandboxes.
+3. No. Narrowed in round 3 to 2 E-items in 1 task group and 2 Scope-Paths.
+4. Yes. `- Scope-Paths:` explicitly declares all files to modify.
+5. Low. The live documents do not change. Any issue with the patch is caught by the apply check or at `cxxmyv`.
+
+AW-TIER: standard
+
+### Step R1
+
+- Checked: `tests/test_installer.py`, `tests/test_installed_text_current.py`, `tests/test_agents_section_records.py`, `tests/test_technical_writing_delivery.py`, `tests/test_askme_command_delivery.py`, `tests/test_authoring_coverage_guidance.py`; spec `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` (Section 5.4, C10a); prerequisite plans `9o83cr`, `qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`.
+- Verified that all prerequisite references and citations in the plan resolve correctly.
+
+### Step R2
+
+- Checked: 1:1 bijection between E-09..E-10 and V-09..V-10; `- Scope-Paths:` completeness; `- Item-Dependencies: executed:9o83cr, executed:qhay6a, executed:a49djh, executed:y1zihp, executed:ngc2a2`; and verification reachability.
+- Verified that V-09 and V-10 demand concrete verifiable evidence (pytest durations and exit codes, corrupted hunk failure demonstration, sanitizer clean output, and recording pre-cutover text test failures in F-07 for `cxxmyv`).
+
+### Step R3
+
+- Checked: Security and privacy. Sanitizer runs in scratch worktree with patch applied; scratch worktree is under gitignored `.aw/state/90iqr1/` and is removed after check.
+
+### Step R4
+
+- Checked: Engineering rubric, right-sizing, anti-regression, and conceptual density.
+- Sized cleanly (2 items, 1 task group, 2 work paths). Outcome tests guard against documentation patch drift before cutover.
+
+### Step S5
+
+- Checked: Open questions. OQ-01, OQ-02, and OQ-03 resolved with ownership attributed. Review decisions (D-1..D-4) recorded and verified (`Reversible: yes`). No blocking questions remain.
+
+### Pass 2
+
+- Re-read all revised sections of `90iqr1`. Confirmed exact 1:1 E/V mapping, valid Mermaid diagram, zero em or en dashes, and verified `aw ipd lint --phase review-finalize --agent` returned clean (0 errors, 0 warnings).
+- AW-REVIEW: DONE
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-201 | LOW | IN-SCOPE | Proofreading / Technical Writing | `.aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md:19,137` | Missing front-matter `- Readiness: go-pending-approval`; missing technical writing compliance blockquote; line 137 contained two prose em-dashes `—` triggering `IPD-C802` advisories. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added `- Readiness: go-pending-approval` to front matter, inserted standard technical writing compliance blockquote, and replaced em-dashes with parentheses. |
+| PR-202 | LOW | IN-SCOPE | Proofreading / Technical Writing | `.aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md:72` | `Proposed changes` lacked a Requirement 12 Mermaid flowchart diagram. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added Mermaid `flowchart TD` diagram to `Proposed changes`. |
+| PR-203 | LOW | IN-SCOPE | S5 Questions & Governance | `.aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md:118,132` | Resolved open questions OQ-01 and OQ-02 carried `- Owner: none`, leaving ownership unattributed, contradicting Check S5 guidance. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `- Owner:` on OQ-01 and OQ-02 to `plan author`. |
+| PR-204 | MEDIUM | IN-SCOPE | R2 / S7 / Approval and execution gate | `.aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md:153` | Approval and execution gate lacked an explicit narrow safety stop if prerequisite cumulative patch file `.aw/system/cutover/metastore-docs.cutover.patch` from `ngc2a2` is absent before execution. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added explicit narrow safety stop to the execution gate if `.aw/system/cutover/metastore-docs.cutover.patch` is absent. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How should the plan satisfy Technical Writing Standard Requirement 12 (Diagrams)? | Add a Mermaid `flowchart TD` in `Proposed changes` illustrating patch guarding, scratch worktree verification, and test execution | Omit diagram (violates Requirement 12b) | `.aw/system/workflows/technical-writing/technical-writing.md:40-46` Requirement 12 | yes |
+| D-2 | How should OQ-01 and OQ-02 owner fields be attributed? | Update `- Owner: plan author` for both resolved questions | Leave `- Owner: none` (violates Check S5 attribution guidance) | `.aw/system/workflows/plan-review/steps/s5-questions.md:20-22` | yes |
+| D-3 | How should prose em-dashes and front matter readiness be standardized? | Add `- Readiness: go-pending-approval`, insert the standard compliance blockquote, and replace em-dashes on line 137 with parentheses | Leave em-dashes triggering IPD-C802 advisories and omit standard blockquote | `agent_workflows/ipd_lint.py:1347` (IPD-C802); `steps/s7-finalize.md:61-78` | yes |
+| D-4 | How should prerequisite patch availability be guarded at the execution gate? | Add an explicit narrow safety stop if `.aw/system/cutover/metastore-docs.cutover.patch` is absent before execution | Rely entirely on item-dependency status without verifying physical patch presence | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-46` | yes |
