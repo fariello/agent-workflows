@@ -125,3 +125,99 @@ AW-TIER: complex
 | D-2 | Normalize status matching for all types or plans only? | Plans only | All types (breaks backlog and spec matching); none (keeps the F-03 disagreement) | `plans.normalize_status` measured on `open`, `implemented`; D-1 of the plan | yes |
 | D-3 | Split E-07 or the plan? | No | Split at OQ-02's type boundary | One pin set per E-item; 14 items in 5 groups | yes |
 | D-4 | Add `executed:1ajqaa` to Item-Dependencies for `meta_cli.py`? | No | Add the edge | E-10 creates the module if absent, within Scope-Paths; adding an edge changes Set ordering for one file | yes |
+
+
+## Round 2
+
+This re-review ran at HEAD `65d8bd166` in an isolated runner review-sweep lane worktree following the round-3 split (`nj8zdp` guidance) which moved `a5ijjx` (Order 140) out and left 3 finishing items (`E-12..E-14` / `V-12..V-14`). The tracked plan was committed and clean at turn start, so the pre-review snapshot commit was skipped unchanged. Before edits, `aw ipd lint --phase author --agent` returned `clean` with 2 info advisories (`IPD-C802` em dashes in line 219). Live re-inspection against governing spec `4sd62s` section 7 step 5, the split child plans (`r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t`, `a5ijjx`), and the repository technical writing standard uncovered findings `PR-001..PR-005`, all fixed in place. Pass 2 re-checked `E-12..E-14` and `V-12..V-14`, and `aw ipd lint --phase review-finalize --agent --verbose` returned `clean` with 0 errors, 0 warnings, and 0 `IPD-C802` findings.
+
+### Proofreading
+
+Checked `.aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md` against all 12 numbered requirements of `.aw/system/workflows/technical-writing/technical-writing.md` and `.aw/system/workflows/plan-review/steps/p-proofread.md`.
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Approval and execution gate | Omitted safety rule for uncommitted changes and untracked files | Added standard safety rule to Gate | PR-001, Technical Writing Standard Requirement 1. |
+| Open questions (`OQ-01..OQ-03`) | `- Owner: none` recorded on resolved questions | Updated `- Owner:` to `plan author` and recorded decisions in `### Decisions` (D-1) | PR-002, `steps/s5-questions.md` Section 3.1. |
+| Proposed changes (ordered, validatable) | Single-line summary without process diagram | Added Mermaid `flowchart TD` diagram showing execution progression across E-12..E-14 | PR-003, Technical Writing Standard Requirement 12(b). |
+| Line 20, front matter | Missing front-matter metadata (`- Readiness: go-pending-approval`), missing compliance blockquote, status `to-review` | Added standard compliance blockquote, `- Readiness: go-pending-approval`, updated `Status: reviewed`, and appended workflow history entries | PR-004, Step S7 review output requirements. |
+| Validation and cross-check (line 219) | Line 219 contained two em dashes (`—`) | Replaced em dashes with commas to resolve `IPD-C802` diagnostics while preserving semantic reachability rules | PR-005, Technical writing standard and IPD-C802. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes. The finishing plan validates cache parity and offline execution for `aw find`, `aw attention`, `aw check meta`, `aw check all`, `aw ipd lint`, documents CLI output updates, adds CHANGELOG entries, and governs reader decisions D-1 to D-6.
+2. No. Test modules and contract documentation only; touches no authorization gates, commit locks, sandbox boundaries, or worktree isolation logic.
+3. No. Following the round-3 split, the finishing plan is right-sized at 3 E-items (E-12 to E-14) in 1 task group across 5 work Scope-Paths.
+4. Yes. `- Scope-Paths:` explicitly declares all 5 target files plus the plan itself.
+5. Yes. Validates cache parity and offline behavior across the core repository tools; flawed verification could conceal regressions in search, check, or attention read pipelines.
+
+AW-TIER: complex
+
+### Step R1
+
+- Checked: governing spec `4sd62s` (C5, C5a, C12, section 7 step 5), parent orchestrator `63ib9r` (row 08), all split child plans (`r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t`, `a5ijjx`), and existing test suite (`tests/test_artifact_meta_loader_parity.py`, `tests/test_artifact_meta_legacy.py`).
+- Checked: `- Item-Dependencies:` all resolve under `.aw/records/plans/` and align with orchestrator `63ib9r`.
+- Found owner violations in `OQ-01`, `OQ-02`, and `OQ-03` (`PR-002`), which recorded `- Owner: none` on resolved questions. Fixed by updating to `- Owner: plan author` and recording D-1 in `### Decisions`.
+
+### Step R2
+
+- Checked: `E-*`/`V-*` bijection (`3/3`: `E-12..E-14` <-> `V-12..V-14`, with `- Highest E allocated: 16` preserved), dependency chain (`E-12, E-13 -> E-14`), `- Scope-Paths:` completeness (all 5 target paths and the plan declared), and runtime reachability of all `V-*` checks.
+- Found missing safety rule in Approval and execution gate (`PR-001`). Fixed in Gate.
+
+### Step R3
+
+- Checked: safety, offline execution isolation (stripping host binaries and disabling socket connections in `E-13`), dependency invariance (`dependencies = ["filelock>=3"]`), and scope fence compliance.
+
+### Step R4
+
+- A (State & atomicity): Cache parity matrix tests in `E-12` across cold, warm, deleted, and corrupt SQLite cache states ensure robust handling of partial failure and cache drift.
+- C (Architecture & operability): Readers move cleanly onto `artifact_meta` across the six split child plans, with `ffceq0` verifying cache-parity and offline invariants before parser deletion in Order 11 (`9o83cr`).
+- D & E (Anti-regression & verification): `E-12` tests cache parity across 5 commands and 4 cache states; `E-13` tests zero host/network dependency; `E-14` verifies residual AST/regex audit (F-12) and executes core gate suite.
+
+### Step R5
+
+- Checked through review personas (QA/QC, Test Engineer, Technical Writer). Replaced em dashes in line 219 (`PR-005`), added Mermaid flowchart diagram (`PR-003`), added technical writing compliance blockquote (`PR-004`).
+
+### Step R6
+
+- Decomposition check: 3 E-items in 1 task group, 5 work Scope-Paths. Cleanly chunked from original 14 E-items across six split child plans and `a5ijjx`. Right-sized, no further decomposition needed.
+
+### Step R7
+
+- Cross-plan consistency: verified alignment with split plans `r81uvz`, `dqutt8`, `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t`, `a5ijjx`, and `t4gl15`. All reader moves and governing decisions D-1 to D-6 are consistently tracked.
+
+### Step S5
+
+- Checked: pre-existing `OQ-01..OQ-03` (`Blocking: no`, `Status: resolved`), updated owner from `none` to `plan author`; recorded decisions (`D-1..D-3`) in `### Decisions`, all `Reversible: yes`. Zero human-owned questions remain (`questions: []`).
+
+### Pass 2
+
+- Re-reviewed `E-12..E-14` and `V-12..V-14` per `steps/s6-rereview.md` rule 1 after adding gate clauses, Mermaid diagram, and formatting decisions.
+- Verified 3-to-3 `E-*`/`V-*` bijection, `- Highest E allocated: 16`, valid `- Scope-Paths:` and `- Item-Dependencies:`, zero em/en dashes, and `0` errors/warnings from `aw ipd lint --phase review-finalize --agent --verbose`.
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | HIGH | IN-SCOPE | R2 / S7 / Approval and execution gate | .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:247 | Approval and execution gate omitted the standard safety rule for uncommitted changes and untracked files. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added standard safety rule to Gate. Recommendation strength: strong. |
+| PR-002 | MEDIUM | IN-SCOPE | R1 / S5 / Open questions | .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:200, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:207, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:214 | Resolved open questions `OQ-01`, `OQ-02`, and `OQ-03` carried `- Owner: none`, leaving ownership unattributed. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `- Owner:` on `OQ-01`, `OQ-02`, and `OQ-03` to `plan author` and recorded decision D-1 in `### Decisions`. Recommendation strength: strong. |
+| PR-003 | LOW | IN-SCOPE | Proofreading / Technical writing standard Requirement 12 / R4 | .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:133 | `Proposed changes (ordered, validatable)` lacked a Mermaid flowchart diagram required by requirement 12(b). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added Mermaid `flowchart TD` diagram to `Proposed changes` showing E-12..E-14 progression. Recommendation strength: strong. |
+| PR-004 | LOW | IN-SCOPE | Proofreading / Front Matter | .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:10, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:20 | Missing front-matter metadata (`- Readiness: go-pending-approval`), omitted technical writing standard compliance blockquote, status `to-review` needing update to `reviewed`, and `## Workflow history` needing review record attribution. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added standard compliance blockquote, added `- Readiness: go-pending-approval` to front matter, set `Status: reviewed`, and appended workflow history entries. Recommendation strength: strong. |
+| PR-005 | LOW | IN-SCOPE | Proofreading / Technical writing standard / IPD-C802 | .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md:219 | Line 219 in `Validation and cross-check` contained two em dashes (`—`), triggering two `IPD-C802` linter diagnostics. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced em dashes with commas to resolve `IPD-C802` diagnostics while preserving semantic reachability rules. Recommendation strength: strong. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How should ownership of resolved open questions `OQ-01..OQ-03` be attributed? | Update `- Owner: none` to `- Owner: plan author` on all three resolved questions | Leave `- Owner: none` | `steps/s5-questions.md` Section 3.1 | yes |
+| D-2 | Should `- Highest E allocated: 16` be renumbered following the round-3 split? | Preserve `- Highest E allocated: 16` | Renumber highest E to 14 | Preserves historical allocation integrity across splits; conforms to `ipd_lint` | yes |
+| D-3 | How should `IPD-C802` em dashes in line 219 be resolved? | Replace em dashes with commas | Keep em dashes (rejected: triggers linter diagnostics); remove parenthetical clause (rejected: weakens reachability rule) | `steps/p-proofread.md`, `IPD-C802` | yes |

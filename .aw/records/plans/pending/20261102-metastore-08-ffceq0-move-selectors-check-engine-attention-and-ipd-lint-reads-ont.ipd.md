@@ -6,7 +6,8 @@
 - Scope: Phase B readers, part 1 of 2 (`4sd62s` section 7 step 5), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule: the reader moves now live in six child plans, Order 27 `r81uvz` (`selectors`, `aw find`/`aw search`/`aw ipd board`, `artifact_meta.read_text` with its spec 4.3 entry, and the `status_set` reads), Order 28 `dqutt8` (`attention` and `ipd_lint`), and Orders 29 to 32 `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t` (the `check_engine` working-tree readers in four site partitions, and the one record skip list). Round 3 (2026-11-09, research `nj8zdp` guidance): `aw check meta` (4.6) and `aw meta repair` (4.3, 4.7), formerly E-10 and E-11 here, moved to `a5ijjx` (Order 140); `r81uvz` and `dqutt8` were themselves re-split (into `cdglt1` and `1suzlp`) and each still finishes after its new part, so the `executed:r81uvz` and `executed:dqutt8` edges keep their meaning. THIS plan keeps the reader ledger and decisions D-1 to D-6 that govern all of them, and the finishing work: the cache-parity test (AC-1a), the offline proof (AC-12), the AC-1 partial residual audit (F-12), the docs and CHANGELOG lines, and the final gates. EXCLUDES: every reader of HEAD, staged or branch content and the runner, plans/research/prompts index, `artifact_audit` and `review_findings` modules (Order 09, `t4gl15`); deleting the old parsers and INDEX code (Order 11, `9o83cr`); writers (Orders 06 and 07).
 - Scope-Paths: agent_workflows/artifact_meta.py, tests/test_readers_cache_parity.py, tests/test_readers_offline.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:dqutt8, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:a5ijjx
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -18,7 +19,11 @@
 - Id: ffceq0
 - Review-Depth: complex
 
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
+
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-10, E-11 moved to a5ijjx.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-01, E-02, E-03, E-15, E-16 moved to r81uvz; E-04, E-05, E-09 moved to dqutt8; E-06 and E-07 (site list partitioned by function) moved to w1cs3p, na188y, i3b5zu and ebrc4t; E-08 moved to ebrc4t. Kept: E-10 to E-14, the reader ledger and D-1 to D-6.
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
@@ -132,6 +137,16 @@ DECISIONS where readers disagreed (4.3: "record which behavior each consumer of 
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E12["E-12: Cache parity tests across cold/warm/deleted/corrupt caches (AC-1a)"]
+    E13["E-13: Offline execution proof and dependency invariance (AC-12)"]
+    E14["E-14: AC-1 partial residual audit, docs, CHANGELOG, and final gates"]
+
+    E12 --> E14
+    E13 --> E14
+```
+
 1. Cache parity (AC-1a), offline proof (AC-12), residual audit, docs, commit (E-12 to E-14), after the six split parts are executed.
 
 ## Deferred / out of scope (with reason)
@@ -197,26 +212,26 @@ The ONE spec amendment of the original plan is now carried by Order 27 `r81uvz` 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes, from repository evidence. The PARITY CONSTRAINT comment asks only that the change be owned, and 4.3 requires the plan to pick one behavior. D-1 makes the two `aw find` paths agree with `aw attention`, `aw ipd board` and `ipd_lint` (F-04), affects 25 records in `executed/`, removes no row from any listing, and is recorded in `CHANGELOG.md`. Recommendation strength: strong.
 
 ### OQ-02: Does the plan fit the size limits?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Superseded 2026-11-07 by the maintainer step-complexity rule (no single E/V item may hide hundreds of steps): `ffceq0` E-07 alone measured 93 working-tree metadata-read site lines in 50 `check_engine` functions, so the plan was split into six child plans (Orders 27 to 32) and kept 5 finishing E-items; round 3 (2026-11-09) moved E-10 and E-11 to `a5ijjx`, leaving 3. Recommendation strength: strong.
 
 ### OQ-03: How does a reader get metadata for TEXT that is not a tracked working-tree file?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: `tve77h` defines `read`, `history`, `query`, `resolve` and `read_at` (revision blobs), but no entry point for an in-memory string, and today 58 test call sites plus `review_sequence` (before/after snapshots) and the public `selectors.read_front_matter_*(text)` readers pass text. This plan adds ONE additive function, `artifact_meta.read_text(text, *, record_type=None) -> State`, which runs the SAME loader that `read_at` feeds a blob to (tve77h E-14), writes no cache row, and returns the same `State` type. It is the only way to keep C5 (no parser outside `artifact_meta`) without a second grammar. After the cutover a text carries only `id` and `status`, so Order 13 (`cxxmyv`) must either switch each `read_text` caller to `read`/`read_at` or accept the mirror-only `State`; Order 11 (`9o83cr`) lists the remaining callers. Order 09 (`t4gl15`) uses this function, so it depends on this plan. Because spec 4.3 lists the interface functions and C5 makes that list the contract, this plan amends spec `4sd62s` 4.3 to add `read_text(text, *, record_type=None) -> State` beside `read_at`, with one sentence stating that it runs the same loader, caches nothing, and exists for in-memory text in phase B (declared in Scope-Paths and in `## Spec / documentation sync`). Its tests go in `tve77h`'s `tests/test_artifact_meta_legacy.py`, beside the loader they exercise. Reviewed 2026-11-06: `2xwb9b` OQ-04 and `59aiyh` state that they do not need it, and `t4gl15` E-04 and `9o83cr` E-10/E-11 name it, which matches this resolution. Recommendation strength: medium; the coordinator may instead move `read_text` into `tve77h` before that plan executes. Split 2026-11-07: adding `read_text` and its spec 4.3 entry is now Order 27 `r81uvz` E-02.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 - [ ] V-12 validates E-12
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_readers_cache_parity.py` with every test PASSED: one per (command x cache state) pair for the five commands and four cache states, the external-edit test, the invalid-replacement test asserting the record is named in a violation, and the legacy `.agents/` root test (rows equal before and after, or the ledger decision that records the loss); the module's total wall time from the `--durations=0` output.
   - Observed evidence:
@@ -245,5 +260,7 @@ Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outs
 Honesty rule: run the named modules, `python3 -m pytest` (core gate) and `make test-all`, and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit ffceq0 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or clean up another party's work. If a file you must edit is being changed under you and the two sets of changes cannot be safely combined, STOP and report rather than overwriting.
 
 Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize ffceq0` itself.
