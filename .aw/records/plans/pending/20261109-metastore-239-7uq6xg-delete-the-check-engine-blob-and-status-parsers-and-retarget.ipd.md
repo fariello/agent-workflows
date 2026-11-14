@@ -6,7 +6,9 @@
 - Scope: retarget the external callers to `artifact_meta.read_at(id6, rev)` or `artifact_meta.read_text(text)`, then delete the three parsers from `check_engine` with their internal callers, and update `tests/test_check_engine_status_meta.py`. EXCLUDES the named and inline `check_engine` regex patterns (Orders 240 and 241) and `tools/gate_drop_audit.py`'s `backlog.parse_item` call (owned by `k6jd6l` E-18).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/status_set.py, agent_workflows/runner_shared.py, tools/gate_drop_audit.py, tests/test_check_engine_status_meta.py, tests/test_gate_drop_audit.py, .aw/records/plans/pending/20261109-metastore-239-7uq6xg-delete-the-check-engine-blob-and-status-parsers-and-retarget.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from e8420v (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `e8420v` E-12's list is split across Orders 239, 240 and 241; this plan takes "Delete `check_engine._blob_text`, `_status_meta` and `_metadata_status` ... Also retarget the `_status_meta`/`_blob_text` callers in `hooks/ipd_dependency_statement_gate.py` (2) and `status_set` (2), and `_metadata_status` in `runner_shared` (1) and `prompts` (if still present). Update `tests/test_check_engine_status_meta.py`." Measured at this split: `prompts` no longer calls `_metadata_status`. From `e8420v` E-20 it takes "Retarget `tools/gate_drop_audit.py` (`check_engine._status_meta` ...) to `artifact_meta.read`/`read_at`, keeping `tests/test_gate_drop_audit.py` green." Each site reads the value through `artifact_meta.read`, `read_text` or `read_at` at its caller.
 
-PIN RULE (carried from `9o83cr`): before an item's edit, save its named test module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/7uq6xg/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case.
+PIN RULE (carried from `9o83cr`): before an item's edit, save its named test module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/7uq6xg/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case. Ensure `.aw/state/7uq6xg/` exists via `mkdir -p .aw/state/7uq6xg/`.
 
 ### Task group 1: callers first, then the parsers
 
-- [ ] E-01 In `agent_workflows/hooks/ipd_dependency_statement_gate.py`, replace `_ce._blob_text(repo_root, ":0:", ...)` and `_ce._status_meta(staged_text)` with `artifact_meta.read_text` on the staged blob (read with `git show :0:<path>` as today) and its `status` value.
+- [ ] E-01 Before the first edit, ensure `.aw/state/7uq6xg/` exists (`mkdir -p .aw/state/7uq6xg/`) and save baseline test PIN lists. In `agent_workflows/hooks/ipd_dependency_statement_gate.py`, replace `_ce._blob_text(repo_root, ":0:", ...)` and `_ce._status_meta(staged_text)` with `artifact_meta.read_text` on the staged blob (read with `git show :0:<path>` as today) and its `status` value.
   - Depends on: none
   - Expected outcome: `rg -n "_blob_text|_status_meta" agent_workflows/hooks/ipd_dependency_statement_gate.py` prints nothing.
   - Execution state: pending
@@ -73,6 +76,14 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "_blob_text|_status_meta\b|_metadata_
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Save Baseline PIN & Retarget<br/>hooks/ipd_dependency_statement_gate.py"] --> E04["E-04: Delete check_engine<br/>_blob_text, _status_meta, _metadata_status"]
+    E02["E-02: Retarget status_set.py"] --> E04
+    E03["E-03: Retarget runner_shared.py<br/>& tools/gate_drop_audit.py"] --> E04
+    E04 --> E05["E-05: Retarget tests/test_check_engine_status_meta.py<br/>& Commit"]
+```
+
 1. Retarget the external callers (E-01 to E-03).
 2. Delete the three parsers (E-04).
 3. Retarget the test and commit (E-05).
@@ -103,7 +114,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes: deleting first leaves an import error in the hook and the setter, which fails the core gate (C10a). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -140,4 +151,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit 7uq6xg -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `59aiyh`, `786w7r`, `ffceq0`, `k6jd6l`, or `t4gl15` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit 7uq6xg -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 7uq6xg` itself; never a hand `git mv` to `executed/`.
