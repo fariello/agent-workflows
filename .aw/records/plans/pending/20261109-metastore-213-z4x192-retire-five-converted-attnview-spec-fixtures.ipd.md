@@ -6,7 +6,7 @@
 - Scope: Part of the round-3 split of `9rgn2w` E-10 (2026-11-09, research `nj8zdp` guidance): delete 5 of the 9 converted `specs-valid` fixtures. EXCLUDES: the `violations/` set and `review-pilot/plans/` (kept literal); the consumer conversion (`7fpc8v`); production code.
 - Scope-Paths: tests/fixtures/attnview/specs-valid/approved.md, tests/fixtures/attnview/specs-valid/deferred.md, tests/fixtures/attnview/specs-valid/draft.md, tests/fixtures/attnview/specs-valid/implemented.md, tests/fixtures/attnview/specs-valid/implementing.md, .aw/records/plans/pending/20261109-metastore-213-z4x192-retire-five-converted-attnview-spec-fixtures.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i, executed:7fpc8v
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,15 @@
 - Highest E allocated: 28
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: z4x192
+- Readiness: go-pending-approval
+- Review-Depth: standard
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261109-metastore-213-z4x192-retire-five-converted-attnview-spec-fixtures.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9rgn2w (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -35,19 +39,19 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
 
 ### Task group 1: delete fixtures
 
-- [ ] E-26 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/approved.md`, `tests/fixtures/attnview/specs-valid/deferred.md`, `tests/fixtures/attnview/specs-valid/draft.md` with `git rm`, after confirming `rg -n "specs-valid" tests` lists no reader of them (Order 174, `7fpc8v`, moved every reader onto builder recipes).
+- [ ] E-26 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/approved.md`, `tests/fixtures/attnview/specs-valid/deferred.md`, `tests/fixtures/attnview/specs-valid/draft.md` with `git rm`, after confirming `rg -n "specs-valid" tests/test_*.py` lists no reader in test modules (Order 174, `7fpc8v`, moved every reader onto builder recipes; `tests/fixtures/attnview/README.md` update is owned by Order 214 `9zcuyh` and `tests/fixtures/review-pilot/` is kept literal).
   - Depends on: none
   - Expected outcome: the named files are gone and no test references them.
   - Execution state: pending
 
-- [ ] E-27 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/implemented.md`, `tests/fixtures/attnview/specs-valid/implementing.md` with `git rm`, after confirming `rg -n "specs-valid" tests` lists no reader of them (Order 174, `7fpc8v`, moved every reader onto builder recipes).
+- [ ] E-27 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/implemented.md`, `tests/fixtures/attnview/specs-valid/implementing.md` with `git rm`, after confirming `rg -n "specs-valid" tests/test_*.py` lists no reader in test modules (Order 174, `7fpc8v`, moved every reader onto builder recipes; `tests/fixtures/attnview/README.md` update is owned by Order 214 `9zcuyh` and `tests/fixtures/review-pilot/` is kept literal).
   - Depends on: none
   - Expected outcome: the named files are gone and no test references them.
   - Execution state: pending
 
 ### Task group 2: finish
 
-- [ ] E-28 Finish: Run the batch-rule step-2 command over `tests/test_attention_contract.py`, `tests/test_specs_verbs.py` and `tests/test_specs_releases_unsafe_field.py` and the bare core gate `python3 -m pytest`; commit through `aw commit z4x192 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [ ] E-28 Finish: Run the batch-rule step-2 command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`) over `tests/test_attention_contract.py`, `tests/test_specs_verbs.py` and `tests/test_specs_releases_unsafe_field.py` and the bare core gate `python3 -m pytest`; commit through `aw commit z4x192 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-26, E-27
   - Expected outcome: the three modules' outcome lists match their Order 174 after-lists; all runs pass; every commit is path-scoped to Scope-Paths.
   - Execution state: pending
@@ -72,11 +76,23 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 | Id | Evidence | Finding |
 |---|---|---|
 | F-42 | `rg -n "FIX\b|specs-valid|violations/|CONFORMING_ORCHESTRATOR|ORCH_IPD"` per module at `3d0ddb845`: `test_attention_contract` 5, `test_specs_verbs` 4, `test_specs_releases_unsafe_field` 5, `test_attention` 0, `test_attention_stem` 0, `test_ipd_lint` 17, `test_ipd_schema` 24 (all `CONFORMING_ORCHESTRATOR`/`ORCH_IPD`); `git ls-files tests/fixtures | grep attnview` lists 9 `specs-valid` and 8 `violations` files plus `README.md` | The attnview `specs-valid` set is read by three modules; `violations/` stays literal (`9rgn2w` E-10 rule 2); `test_attention` and `test_attention_stem` read no fixture file. |
+| F-43 | `python3 -m pytest tests/test_attention_contract.py tests/test_specs_verbs.py tests/test_specs_releases_unsafe_field.py` measured at `8fef56647`: 61 passed in 2.21s (`test_attention_contract.py` 27 passed, `test_specs_verbs.py` 20 passed, `test_specs_releases_unsafe_field.py` 14 passed) | Baseline passing outcomes for all three consumer modules prior to fixture deletion; confirms all consumer tests currently pass. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Delete the named fixtures.
-2. Run the consumers and the core gate, commit.
+```mermaid
+flowchart TD
+    A["Verify no test readers<br/>rg -n 'specs-valid' tests/test_*.py"] --> B["E-26: Delete approved, deferred, draft<br/>git rm tests/fixtures/attnview/specs-valid/..."]
+    B --> C["E-27: Delete implemented, implementing<br/>git rm tests/fixtures/attnview/specs-valid/..."]
+    C --> D["E-28: Run batch-rule step-2 command & bare core gate<br/>Verify outcomes unchanged"]
+    D --> E["Commit via aw commit z4x192"]
+```
+
+1. Confirm no test reader in `tests/test_*.py` reads `specs-valid/`.
+2. Delete the first three converted fixtures (`approved.md`, `deferred.md`, `draft.md`) with `git rm` (E-26).
+3. Delete the next two converted fixtures (`implemented.md`, `implementing.md`) with `git rm` (E-27).
+4. Run the batch-rule step-2 outcome check over the three consumers and the bare core gate `python3 -m pytest` (E-28).
+5. Path-scoped commit via `aw commit z4x192 -- <paths>`.
 
 ## Deferred / out of scope (with reason)
 
@@ -93,6 +109,9 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 ## Required tests / validation
 
 Validated by the unchanged outcomes of the three consumer modules and the bare core gate.
+- Batch-rule step-2 command per module: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`
+- Consumer module test counts: `tests/test_attention_contract.py` (27 passed), `tests/test_specs_verbs.py` (20 passed), `tests/test_specs_releases_unsafe_field.py` (14 passed), totaling 61 passing tests.
+- Core gate: bare `python3 -m pytest`.
 
 ## Spec / documentation sync
 
@@ -112,17 +131,17 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-26 validates E-26
-  - Required evidence: paste `rg -n "specs-valid" tests` (no reader), and `git status --short tests/fixtures/attnview/specs-valid/` listing each of `tests/fixtures/attnview/specs-valid/approved.md`, `tests/fixtures/attnview/specs-valid/deferred.md`, `tests/fixtures/attnview/specs-valid/draft.md` as deleted.
+  - Required evidence: paste `rg -n "specs-valid" tests/test_*.py` (no reader in test modules; non-test occurrences in `tests/fixtures/attnview/README.md` and literal `review-pilot/` fixtures are noted), and `git status --short tests/fixtures/attnview/specs-valid/` listing each of `tests/fixtures/attnview/specs-valid/approved.md`, `tests/fixtures/attnview/specs-valid/deferred.md`, `tests/fixtures/attnview/specs-valid/draft.md` as deleted.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-27 validates E-27
-  - Required evidence: paste `rg -n "specs-valid" tests` (no reader), and `git status --short tests/fixtures/attnview/specs-valid/` listing each of `tests/fixtures/attnview/specs-valid/implemented.md`, `tests/fixtures/attnview/specs-valid/implementing.md` as deleted.
+  - Required evidence: paste `rg -n "specs-valid" tests/test_*.py` (no reader in test modules), and `git status --short tests/fixtures/attnview/specs-valid/` listing each of `tests/fixtures/attnview/specs-valid/implemented.md`, `tests/fixtures/attnview/specs-valid/implementing.md` as deleted.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-28 validates E-28
-  - Required evidence: paste the PASSED/FAILED counts of `tests/test_attention_contract.py`, `tests/test_specs_verbs.py` and `tests/test_specs_releases_unsafe_field.py` each (unchanged from Order 174), the bare `python3 -m pytest` summary line, and every `aw commit z4x192` output listing only Scope-Paths.
+  - Required evidence: paste the PASSED/FAILED counts of `tests/test_attention_contract.py` (27 passed), `tests/test_specs_verbs.py` (20 passed) and `tests/test_specs_releases_unsafe_field.py` (14 passed) each (unchanged from Order 174), the bare `python3 -m pytest` summary line, and every `aw commit z4x192` output listing only Scope-Paths.
   - Observed evidence:
   - Result: pending
 
