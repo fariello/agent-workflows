@@ -6,7 +6,9 @@
 - Scope: In a scratch worktree (docs patch applied as the base), switch `artifact_meta`'s loader and writer to the log format, move the legacy loader into the new `m0001` migration module, delete the legacy write path and set the schema to 2; write the result as `.aw/system/cutover/metastore-code.cutover.patch`; add the core guard test. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-255-2k5t16-start-the-cutover-code-patch-with-the-log-format-loader-and.ipd.md, .aw/system/cutover/metastore-code.cutover.patch, tests/test_metastore_cutover_code_patch.py
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2k5t16
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -78,6 +81,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Create scratch worktree with docs patch base"] --> E02["E-02: Switch loader & writer to log format"]
+    E02 --> E03["E-03: Move legacy loader to m0001_metadata_v2.py"]
+    E03 --> E04["E-04: Delete legacy write path & set schema to 2"]
+    E04 --> E05["E-05: Generate patch, remove worktree & add guard test"]
+    E05 --> V05["V-05: Verify patch applies and guard test passes"]
+```
+
 1. E-01: scratch worktree with the docs patch as base.
 2. E-02 to E-04: the loader and writer switch in three steps.
 3. E-05: write the code patch, add the guard test, commit.
@@ -100,7 +112,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- The new guard test (E-05); fixture setter runs in the scratch worktree (V-02, V-04).
+- The new guard test `tests/test_metastore_cutover_code_patch.py` (E-05) proving `git apply --cached` of docs patch and `git apply --cached --check` of code patch; fixture setter runs in the scratch worktree verifying log-format and mirror writes (V-02, V-04); qualified under spec `4sd62s` Section 4.3 and Section 5.2.
 
 ## Spec / documentation sync
 
@@ -112,12 +124,12 @@ No spec change. Spec 5.2 and C10a are kept: nothing here changes `main`'s format
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: maintainer
 - Resolution or deferral rationale: Yes. C10a requires `main` to read exactly one format at every commit; an unapplied patch file is data, not code that runs, so `main` still reads only the legacy format until `cxxmyv`'s single commit applies it. It is the same design `90iqr1` OQ-01 uses for the documentation. Recommendation strength: strong. RESOLVED 2026-11-11 by the user via /askme: accept the patch design (the code switch is prepared in advance as an unapplied patch and applied at the attended cutover). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the `git worktree add` and `git apply --index` commands with exit status 0, and the base tree id recorded in F-01.
@@ -149,8 +161,12 @@ Execute only after every plan in `- Item-Dependencies:` is `executed` and this p
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
+Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed, the docs cutover patch fails to apply, or required metastore symbols are absent, stop and report rather than proceeding.
+
+Open questions: OQ-01 is resolved and none is blocking.
+
 Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
 
-Commits: commit only through `aw commit 2k5t16 -- <paths>`; never push.
+Commits: commit only through `aw commit 2k5t16 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 2k5t16` itself.
