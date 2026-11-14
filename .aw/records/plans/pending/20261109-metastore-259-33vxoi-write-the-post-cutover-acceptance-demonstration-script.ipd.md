@@ -6,7 +6,9 @@
 - Scope: Write `.aw/system/cutover/metastore-acceptance-demo.sh`, a script that prints one labelled block per criterion: read-only checks on the checkout it is pointed at, probes that commit or edit inside a throwaway `git clone --no-hardlinks`, and the AC-13 after-measurements. `cxxmyv` runs it after the cutover and deletes it in its last commit. Nothing runs it on `main` before the cutover except its syntax check.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-259-33vxoi-write-the-post-cutover-acceptance-demonstration-script.ipd.md, .aw/system/cutover/metastore-acceptance-demo.sh
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:tub3ir
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, script structure and dry-run safety, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -70,6 +73,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Create Script & readonly Section (E-01)<br/>Usage, set -u, AC-1/1b/7/9/11/30/36/41"]
+    E02["2. Add clone Section (E-02)<br/>Throwaway clone, AC-2/3/6/16/31/34"]
+    E03["3. Add measure Section (E-03)<br/>AC-13 measurements, warm/cold timing"]
+    E04["4. Dry Run, Sanitizer & Commit (E-04)<br/>bash -n, readonly dry-run, aw commit"]
+
+    E01 --> E02
+    E01 --> E03
+    E02 --> E04
+    E03 --> E04
+```
+
 1. E-01 to E-03: the three script sections.
 2. E-04: syntax and dry check, sanitizer, commit.
 
@@ -99,12 +115,12 @@ No spec change.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Shell script. The demonstrations run once, against one real repository, and their output is pasted as evidence; a pytest module in the suite would run them on every commit, where the criteria are false before the cutover and the clone probes are too slow for the core tier. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the `readonly` section of the script and `rg -n '== AC-' .aw/system/cutover/metastore-acceptance-demo.sh` listing one label each for AC-1, AC-1b, AC-7, AC-9, AC-11, AC-30, AC-36 and AC-41.
@@ -134,6 +150,6 @@ Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outs
 
 Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
 
-Commits: commit only through `aw commit 33vxoi -- <paths>`; never push.
+Commits: commit only through `aw commit 33vxoi -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs `aw ipd finalize 33vxoi`.
