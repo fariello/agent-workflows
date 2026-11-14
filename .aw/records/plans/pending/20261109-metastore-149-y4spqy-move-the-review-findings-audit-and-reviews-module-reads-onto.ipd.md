@@ -6,7 +6,9 @@
 - Scope: `2zpw22` E-01 (review findings, audit and review subject lookups), carried unchanged. EXCLUDES: the review sequence, tier, re-review and orchestrator readiness modules (`0i0zsg`, Order 150); the production-check, work and adoption modules (`awmsyq`, Order 154); the residual audit (kept in `2zpw22`); the `->reviewed` gate-only attestation rule (`2xwb9b`).
 - Scope-Paths: agent_workflows/review_findings.py, agent_workflows/artifact_audit.py, agent_workflows/reviews.py, tests/test_readers_review_modules.py, tests/test_artifact_audit_verdicts.py, .aw/records/plans/pending/20261109-metastore-149-y4spqy-move-the-review-findings-audit-and-reviews-module-reads-onto.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,9 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y4spqy
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
-
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 2zpw22 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +33,7 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-The pin-first rule of `ffceq0` applies (carried from `t4gl15` through `2zpw22`): BEFORE the edit, a behavioral test pins the reader's current observable behavior and runs green on the unmodified code; AFTER the edit, the same test runs unchanged except where decision D-1 (copied below) names it. Save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/E-11-before.txt`) before the move and into `E-11-after.txt` after it (`E-11` is the ORIGINAL `t4gl15` item id). Run a new module's `-k` selection as its own command. New test modules set `pytestmark = pytest.mark.core`; none reads production source.
+The pin-first rule of `ffceq0` applies (carried from `t4gl15` through `2zpw22`): BEFORE the edit, a behavioral test pins the reader's current observable behavior and runs green on the unmodified code; AFTER the edit, the same test runs unchanged except where decision D-1 (copied below) names it. For every existing module named as a baseline, ensure directory creation with `mkdir -p .aw/state/t4gl15`, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/E-11-before.txt`) before the move and into `E-11-after.txt` after it (`E-11` is the ORIGINAL `t4gl15` item id). Run a new module's `-k` selection as its own command. New test modules set `pytestmark = pytest.mark.core`; none reads production source.
 
 Commit through `aw commit y4spqy -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -75,10 +76,34 @@ DECISIONS (copied from `t4gl15` through `2zpw22`, whose text is authoritative): 
 
 1. Pin then move the review and audit modules (E-01).
 
+```mermaid
+flowchart TD
+    subgraph Stage1["Pre-Move: Pinning & Baselines"]
+        P1["Pin observable behavior in new tests/test_readers_review_modules.py"]
+        P2["Save spec-review-before.txt and baseline E-11-before.txt"]
+        P1 --> P2
+    end
+    subgraph Stage2["Move: Reader Migration"]
+        M1["Migrate review_findings._META_RE onto cached review_files/reviews"]
+        M2["Migrate artifact_audit._STATUS_LINE_RE onto cached metadata (D-1)"]
+        M3["Migrate reviews subject resolution & review_attestation_missing"]
+        P2 --> M1
+        P2 --> M2
+        P2 --> M3
+    end
+    subgraph Stage3["Validation"]
+        V1["V-01: Verify 5 baseline test suites, E-11 diff, and check.spec-review-unattested parity"]
+        M1 --> V1
+        M2 --> V1
+        M3 --> V1
+    end
+```
+
 ## Deferred / out of scope (with reason)
 
 - The `->reviewed` gate-only attestation rule (4.4 SR-601).
   - Carrier: 2xwb9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md
 - The residual audit of these modules.
   - Carrier: 2zpw22
 
@@ -101,7 +126,7 @@ No spec change. Implements the review-module part of `4sd62s` C5a.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes: the three modules share one concern (review front matter and review subjects) and one cached source (`review_files`/`reviews` rows), and the item names 8 units, inside the round-3 guidance. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -120,10 +145,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). If prerequisite symbols from `xexn45` or `tve77h` (`artifact_meta.read`, `artifact_meta.query`) are absent on HEAD, or if baseline test suites fail before the move, stop and report: that is a genuinely unsafe condition, not a scope question. Every reader move is pin-first.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit y4spqy -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize y4spqy` itself.
