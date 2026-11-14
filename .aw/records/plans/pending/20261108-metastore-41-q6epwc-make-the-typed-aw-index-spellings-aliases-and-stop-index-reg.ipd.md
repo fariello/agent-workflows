@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). The work of `9o83cr` E-02 (aliases), E-04 (regeneration calls), E-05 (stale-index rules) and E-15 (the INDEX statements in user documents), and this plan's own baseline E-01, now run in nine earlier parts: baseline `sdzcur` (Order 228); aliases `tqknnc` (220); regeneration callers `lywgzs` (221), `mv0j4k` (222), `9eqgcl` (223); stale-index rules `w819as` (224), `6qh68x` (229), `f1yjlx` (225); documents `m8dblq` (226), `kkftwj` (227). This plan keeps only E-17 (split into E-17 to E-19): the family-wide re-run and comparison against the `sdzcur` baseline. EXCLUDES: deleting the INDEX writers (Order 42, `snin8q`), the STATUS code and `_INDEX_CACHE`, the value writers and parsers (other parts of the `9o83cr` split), and the on-disk INDEX files and ignore lines (`cxxmyv`).
 - Scope-Paths: .aw/records/plans/pending/20261108-metastore-41-q6epwc-make-the-typed-aw-index-spellings-aliases-and-stop-index-reg.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6qh68x, executed:9eqgcl, executed:dcerjg, executed:f1yjlx, executed:ffceq0, executed:g5hpbb, executed:kkftwj, executed:lywgzs, executed:m8dblq, executed:mv0j4k, executed:sdzcur, executed:t4gl15, executed:tqknnc, executed:w819as
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to sdzcur; E-17 split in place into E-17, E-18, E-19; E-02 to tqknnc; E-04 split across lywgzs, mv0j4k, 9eqgcl; E-05 split across w819as, 6qh68x, f1yjlx; E-15 split across m8dblq, kkftwj.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9o83cr per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
@@ -74,8 +77,13 @@ Measured 2026-11-07 at `ac76110f4`. F-03 and F-04 are copied from `9o83cr` (meas
 
 ## Proposed changes (ordered, validatable)
 
-1. After the nine split parts, re-run their test modules (E-17, E-18), compare against the `sdzcur` baseline and commit (E-19).
+```mermaid
+flowchart TD
+    E17["E-17: Run Alias & Regeneration Test Modules<br/>(8 test modules)"] --> E18["E-18: Run Stale-Index & Document Test Modules<br/>(8 test modules)"]
+    E18 --> E19["E-19: Run Core Gates, Code Searches,<br/>Baseline Multiset Comparison & Commit"]
+```
 
+1. After the nine split parts, re-run their test modules (E-17, E-18), compare against the `sdzcur` baseline and commit (E-19).
 
 ## Deferred / out of scope (with reason)
 
@@ -125,7 +133,7 @@ No spec change; implements part of `4sd62s` 4.5 and section 7 step 7. Documentat
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `9o83cr` OQ-01. It runs the non-INDEX drift classes that the same `check_drift` reported before (F-04) and exits as `aw check <type>` would, after printing the alias information line. Reason: those classes were part of what `--check` gated, so silently passing would weaken a check a user may rely on, while refusing the flag would break scripts; no CI in this repository uses it (`9o83cr` F-05). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -152,4 +160,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. This plan deletes nothing; each part is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit q6epwc -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. This plan deletes nothing; each part is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite test modules from `tqknnc` or baseline table F-28 in `sdzcur` are absent upon starting, stop and report rather than proceeding on an incomplete tree. Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit q6epwc -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize q6epwc` itself; never a hand `git mv` to `executed/`.
