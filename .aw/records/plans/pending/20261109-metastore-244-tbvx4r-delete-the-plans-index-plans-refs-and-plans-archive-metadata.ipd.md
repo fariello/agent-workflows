@@ -6,7 +6,9 @@
 - Scope: delete the 16 literals in three modules, each use reading through `artifact_meta.read`, `read_text` or `read_at`; update `tests/test_plans_archive.py` where a test names a deleted pattern. EXCLUDES the artifact-family modules of E-21 (Order 245).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/plans_refs.py, agent_workflows/plans_archive.py, tests/test_plans_archive.py, tests/test_plans_index.py, .aw/records/plans/pending/20261109-metastore-244-tbvx4r-delete-the-plans-index-plans-refs-and-plans-archive-metadata.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tbvx4r
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-244-tbvx4r-delete-the-plans-index-plans-refs-and-plans-archive-metadata.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 0xsx2n (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `0xsx2n` E-21's site list ("`plans_index` (6 module-level, including `_META_RE` and the `_meta` reader), `plans_refs` (5: `_ID_RE`, `_DATE_RE`, `_SET_LINE_RE`, `_ORDER_LINE_RE`, and the `order_lines` literal in `_set_metadata` if Order 43 left it), `plans_archive` (5: `_ID_RE`, and the inline literals in `_plan_date`, `_resolve_plan_date`, `_plan_status`, `sweep_candidates`), `artifact_rename` (5 ...), `artifact_refs` (1 ...), `artifact_adopt` (1 ...), `artifact_audit` (1 ...). Update `tests/test_artifact_audit.py` and `tests/test_plans_archive.py` where a test names a deleted pattern.") is split across Orders 244 and 245; this plan takes the `plans_index`, `plans_refs` and `plans_archive` sites and `tests/test_plans_archive.py`.
 
-PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of the named test modules (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/tbvx4r/before.txt`); after the last edit, the same into `after.txt`. A retargeted test keeps every input case; a test edited because it names a deleted pattern is justified at finalize (`--scope-reason`) if it is outside Scope-Paths.
+PIN RULE (carried from `9o83cr`): before E-01, ensure `.aw/state/tbvx4r/` exists (`mkdir -p .aw/state/tbvx4r/`) and save the per-test outcome list of the named test modules (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/tbvx4r/before.txt`); after the last edit, the same into `after.txt`. A retargeted test keeps every input case; a test edited because it names a deleted pattern is justified at finalize (`--scope-reason`) if it is outside Scope-Paths.
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 In `agent_workflows/plans_index.py`, delete its 6 module-level `^-` literals, including `plans_index._META_RE` and the reader `plans_index._meta`; each caller reads through `artifact_meta.read_text`.
+- [ ] E-01 Before the first edit, ensure `.aw/state/tbvx4r/` exists (`mkdir -p .aw/state/tbvx4r/`) and save the baseline test PIN list to `.aw/state/tbvx4r/before.txt`. In `agent_workflows/plans_index.py`, delete its 6 module-level `^-` literals, including `plans_index._META_RE` and the reader `plans_index._meta`; each caller reads through `artifact_meta.read_text`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/plans_index.py` prints nothing; `rg -n "_META_RE|def _meta\b" agent_workflows/plans_index.py` prints nothing.
   - Execution state: pending
@@ -70,6 +73,13 @@ Measured at `ac76110f4` (`0xsx2n` F-27): `plans_index` 6, `plans_refs` 5, `plans
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Delete plans_index literals & _meta"] --> E02["E-02: Delete plans_refs literals"]
+    E02 --> E03["E-03: Delete plans_archive literals"]
+    E03 --> E04["E-04: Update tests, verify & commit"]
+```
+
 1. Delete the `plans_index` literals and `_meta` (E-01).
 2. Delete the `plans_refs` literals (E-02).
 3. Delete the `plans_archive` literals (E-03).
@@ -99,7 +109,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Record it in the V-item evidence and move on; a site an earlier reader plan removed needs no edit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -131,4 +141,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit tbvx4r -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Stop safely if prerequisite metastore symbols from `59aiyh`, `786w7r`, `ffceq0`, `k6jd6l`, or `t4gl15` are absent.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit tbvx4r -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize tbvx4r` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize tbvx4r itself.
