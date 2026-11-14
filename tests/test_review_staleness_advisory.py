@@ -23,6 +23,7 @@ import unittest
 from agent_workflows import artifact_core
 from agent_workflows import check_engine
 from agent_workflows.plan_readiness import (
+    clear_review_staleness_cache,
     review_staleness_from_texts,
     review_staleness_index,
 )
@@ -392,6 +393,61 @@ class TestBulkIndexResolver(unittest.TestCase):
         idx = review_staleness_index(self.root, [new_path])
         key = ".aw/records/plans/pending/20261015-test-01-renam1-new-name.ipd.md"
         self.assertNotIn(key, idx)
+
+    def test_cache_invalidation_on_mtime_change_and_clear(self):
+        clear_review_staleness_cache()
+        oq_open = (
+            "### OQ-01: Blocking question\n"
+            "- Blocking: yes\n"
+            "- Status: open\n"
+            "- Owner: author\n"
+            "- Resolution or deferral rationale: pending.\n"
+        )
+        plan_path = self.pending_dir / "20261015-test-01-cacht1-test-plan.ipd.md"
+        plan_path.write_text(
+            _make_plan_text(id6="cacht1", status="reviewed", open_questions=oq_open)
+        )
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "plan-review: harden cacht1"],
+            cwd=self.root,
+            check=True,
+        )
+
+        # 1. Unmodified plan: not stale, result cached
+        key = ".aw/records/plans/pending/20261015-test-01-cacht1-test-plan.ipd.md"
+        idx1 = review_staleness_index(self.root, [plan_path])
+        self.assertNotIn(key, idx1)
+
+        # 2. Repeated call returns same cached result
+        idx2 = review_staleness_index(self.root, [plan_path])
+        self.assertNotIn(key, idx2)
+
+        # 3. Modify plan file (resolving OQ-01) -> mtime changes -> cache invalidated
+        oq_resolved = (
+            "### OQ-01: Blocking question\n"
+            "- Blocking: yes\n"
+            "- Status: resolved\n"
+            "- Owner: author\n"
+            "- Resolution or deferral rationale: resolved.\n"
+        )
+        plan_path.write_text(
+            _make_plan_text(id6="cacht1", status="reviewed", open_questions=oq_resolved)
+        )
+        idx3 = review_staleness_index(self.root, [plan_path])
+        self.assertIn(key, idx3)
+        self.assertEqual(idx3[key].reasons, ("answered-blocking-question",))
+
+        # 4. Repeated call with modified mtime serves cached stale result
+        idx4 = review_staleness_index(self.root, [plan_path])
+        self.assertIn(key, idx4)
+        self.assertEqual(idx4[key].reasons, ("answered-blocking-question",))
+
+        # 5. Clear cache explicitly and ensure fresh lookup works
+        clear_review_staleness_cache()
+        idx5 = review_staleness_index(self.root, [plan_path])
+        self.assertIn(key, idx5)
+        self.assertEqual(idx5[key].reasons, ("answered-blocking-question",))
 
     def test_non_git_directory_returns_empty_dict(self):
         with tempfile.TemporaryDirectory() as td:

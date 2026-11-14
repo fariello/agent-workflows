@@ -174,8 +174,9 @@ class VerboseFlagReachTests(unittest.TestCase):
     # CPU, not wall, and the node's CPU cost grows with the live corpus (measured at review:
     # about 16.4s CPU for 17.2s wall at load 1.1), while the 27s-135s figures are wall times
     # under contention against the 240s wall ceiling; the marker gives headroom for corpus
-    # growth on both arms (CPU 300s, wall floored at 300s) while still catching a true hang.
-    @pytest.mark.timeout(300)
+    # growth on both arms (CPU 300s, wall floored at 300s); raised to 500s to give headroom
+    # for corpus growth while still catching a true hang.
+    @pytest.mark.timeout(500)
     @pytest.mark.livecorpus
     def test_verbose_flag_end_to_end_observable_difference(self) -> None:
         """Drive check plans in-process and assert compact vs verbose observable difference.

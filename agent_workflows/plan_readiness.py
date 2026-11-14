@@ -98,6 +98,7 @@ __all__ = [
     "ReviewStaleness",
     "approval_refusals",
     "classify_verdict",
+    "clear_review_staleness_cache",
     "extract_newest_history_entry",
     "format_recheck_history_entry",
     "history_has_review_record",
@@ -1369,6 +1370,14 @@ def review_staleness_from_texts(
     )
 
 
+_STALENESS_CACHE: Dict[Tuple[Path, str, int], Optional[ReviewStaleness]] = {}
+
+
+def clear_review_staleness_cache() -> None:
+    """Clear the in-memory review staleness memoization cache."""
+    _STALENESS_CACHE.clear()
+
+
 def review_staleness_index(
     repo_root: Path | str, plan_paths: Sequence[Path | str]
 ) -> Dict[str, ReviewStaleness]:
@@ -1383,7 +1392,8 @@ def review_staleness_index(
     """
     try:
         repo_root_path = Path(repo_root).resolve()
-        candidate_map: Dict[str, Tuple[Path, str]] = {}
+        results: Dict[str, ReviewStaleness] = {}
+        candidate_map: Dict[str, Tuple[Path, str, Tuple[Path, str, int]]] = {}
         for raw_path in plan_paths:
             p = Path(raw_path)
             abs_path = (
@@ -1394,16 +1404,30 @@ def review_staleness_index(
             except ValueError:
                 rel_posix = p.as_posix()
             try:
+                st = abs_path.stat()
+            except OSError:
+                continue
+
+            cache_key = (repo_root_path, rel_posix, st.st_mtime_ns)
+            if cache_key in _STALENESS_CACHE:
+                cached = _STALENESS_CACHE[cache_key]
+                if cached is not None:
+                    results[rel_posix] = cached
+                continue
+
+            try:
                 text = abs_path.read_text(encoding="utf-8")
             except OSError:
                 continue
             m = _STATUS_RE.search(text)
             status = m.group(1).strip().lower() if m else None
             if status in ("reviewed", "approved", "auto-approved"):
-                candidate_map[rel_posix] = (abs_path, text)
+                candidate_map[rel_posix] = (abs_path, text, cache_key)
+            else:
+                _STALENESS_CACHE[cache_key] = None
 
         if not candidate_map:
-            return {}
+            return results
 
         cmd = [
             "git",
@@ -1421,7 +1445,7 @@ def review_staleness_index(
             check=False,
         )
         if proc.returncode != 0:
-            return {}
+            return results
 
         candidate_reviewed_commits: Dict[str, str] = {}
         for section in proc.stdout.split("\x01")[1:]:
@@ -1441,8 +1465,12 @@ def review_staleness_index(
             if len(candidate_reviewed_commits) == len(candidate_map):
                 break
 
+        for rel, (_, _, cache_key) in candidate_map.items():
+            if rel not in candidate_reviewed_commits:
+                _STALENESS_CACHE[cache_key] = None
+
         if not candidate_reviewed_commits:
-            return {}
+            return results
 
         batch_input_str = "".join(
             f"{sha}:{rel}\n" for rel, sha in candidate_reviewed_commits.items()
@@ -1456,18 +1484,20 @@ def review_staleness_index(
         )
         stdout_bytes, _ = p.communicate(batch_input_str.encode("utf-8"))
         if p.returncode != 0:
-            return {}
+            return results
 
-        results: Dict[str, ReviewStaleness] = {}
         stream = stdout_bytes
         idx = 0
         for rel, sha in candidate_reviewed_commits.items():
+            abs_p, current_text, cache_key = candidate_map[rel]
             newline_pos = stream.find(b"\n", idx)
             if newline_pos == -1:
+                _STALENESS_CACHE[cache_key] = None
                 break
             header_line = stream[idx:newline_pos].decode("utf-8", errors="replace")
             idx = newline_pos + 1
             if header_line.endswith(" missing"):
+                _STALENESS_CACHE[cache_key] = None
                 continue
             parts = header_line.split()
             if len(parts) >= 3 and parts[1] == "blob":
@@ -1477,10 +1507,12 @@ def review_staleness_index(
                 if idx < len(stream) and stream[idx : idx + 1] == b"\n":
                     idx += 1
                 reviewed_text = blob_bytes.decode("utf-8", errors="replace")
-                abs_p, current_text = candidate_map[rel]
                 stale = review_staleness_from_texts(reviewed_text, current_text, sha)
+                _STALENESS_CACHE[cache_key] = stale
                 if stale is not None:
                     results[rel] = stale
+            else:
+                _STALENESS_CACHE[cache_key] = None
         return results
     except Exception:
         return {}
