@@ -6,7 +6,8 @@
 - Scope: FINISHING part of the cutover documentation patch. The content of the ONE cumulative patch file `.aw/system/cutover/metastore-docs.cutover.patch` is written by `qhay6a`, `a49djh`, `y1zihp` and `ngc2a2` (round-3 split 2026-11-09); this plan adds the guard test that keeps the patch applying, checks the patched tree with the sanitizer and the text-asserting tests, and commits. It does not apply the patch to the live documents. Order 13 (`cxxmyv`) applies the patch inside the cutover commit.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md, tests/test_metastore_cutover_patch.py
 - Item-Dependencies: executed:9o83cr, executed:qhay6a, executed:a49djh, executed:y1zihp, executed:ngc2a2
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -18,7 +19,10 @@
 - Id: 90iqr1
 - Review-Depth: standard
 
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
+
 ## Workflow history
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-201, PR-202, PR-203, PR-204.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 moved to qhay6a (plus a new patch-writing step), E-03, E-04, E-07 moved to a49djh, E-05 split across y1zihp (READMEs, docs, ipd_schema, reference and prompt documents) and ngc2a2 (Kind renames, cli.py help), E-06 moved to ngc2a2, E-08 (package the patch) replaced by the cumulative patch-writing step in each of the four parts; E-09 and E-10 kept.
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.
 - 2026-11-07 approved (aw set): status set to approved
@@ -71,6 +75,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    subgraph S1["Task group 1: Guard the documentation cutover patch"]
+        E9["E-09: Add tests/test_metastore_cutover_patch.py to verify git apply --check"]
+        E10["E-10: Run sanitizer and text-asserting tests in scratch worktree with patch applied"]
+    end
+    subgraph V["Verification"]
+        V9["V-09: Verify patch applies to HEAD, corrupted hunk fails, and installer tests pass"]
+        V10["V-10: Verify sanitizer clean, record pre-cutover test failures in F-07, and commit"]
+    end
+    E9 --> V9
+    E10 --> V10
+```
+
 1. (Moved) inventory, rewrites and patch writing: `qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`.
 2. E-09: guard the patch with a core test.
 3. E-10: sanitizer and patched-tree test run, commit.
@@ -115,7 +133,7 @@ No spec change. This plan prepares the documentation that spec `4sd62s` section 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Patch file. The runner merges an execute item's worktree into `main`, so a branch created inside the lane would not be the deliverable the runner tracks, and a branch outside the lane is invisible to the merge gate and to `git clone`. A tracked patch file is reviewed with the plan, survives a clone, is guarded by E-09's `git apply --check` test against later drift, and Order 13 applies it in one command. Recommendation strength: strong.
 
 ### OQ-03: Where does the scratch worktree live, and how are new files captured?
@@ -129,12 +147,12 @@ No spec change. This plan prepares the documentation that spec `4sd62s` section 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: E-09's core test fails on that commit, so the conflict is found at that commit's merge gate rather than at the cutover. The maintainer stops other work while this Set runs (spec section 7), so this is expected to be rare; Order 13 regenerates the patch if needed. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) (as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 - [ ] V-09 validates E-09
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_metastore_cutover_patch.py` with every test PASSED and its wall time; the output of the same run after deliberately corrupting one hunk of a scratch copy of the patch, showing the apply test FAILED; and the per-module `N passed` lines of `tests/test_installer.py` and of `tests/test_installed_text_current.py`, each run on its own in the executing checkout.
   - Observed evidence:
@@ -150,7 +168,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after `9o83cr`, `qhay6a`, `a49djh`, `y1zihp` and `ngc2a2` are `executed` and this plan is `approved`. Open questions: OQ-01 to OQ-03 are resolved and none is blocking. The patched-tree check runs ONLY in a scratch worktree under `.aw/state/90iqr1/`; the executing checkout changes only by this plan and the test module.
+Execute only after `9o83cr`, `qhay6a`, `a49djh`, `y1zihp` and `ngc2a2` are `executed` and this plan is `approved`. A narrow safety stop applies if the cumulative patch file `.aw/system/cutover/metastore-docs.cutover.patch` from `ngc2a2` is absent. Open questions: OQ-01 to OQ-03 are resolved and none is blocking. The patched-tree check runs ONLY in a scratch worktree under `.aw/state/90iqr1/`; the executing checkout changes only by this plan and the test module.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
