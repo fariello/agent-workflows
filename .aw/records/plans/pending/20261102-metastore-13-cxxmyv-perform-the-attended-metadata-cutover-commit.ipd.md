@@ -6,7 +6,8 @@
 - Scope: Apply the two prepared cutover patches (documentation: `90iqr1` family; code switch to the log format: `2k5t16`, `g45vyv`, `x1mmdp`, `0zylig`), run the real migration on this repository with the invocation the `5qyba0` rehearsal proved, and make the ONE cutover commit; then run the prepared demonstration script (`33vxoi`) on the migrated repository, add the changelog and finalize. The post-cutover code that is dormant on `main` was built earlier by `clors0`, the setter-byte test conversion by `iog3cw` and `w13bkp` (split 2026-11-07), and the preparation, patch writing and rehearsal by the round-3 parts (split 2026-11-09). One commit, attended by the maintainer.
 - Scope-Paths: .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, agent_workflows/, tests/, .aw/records/, .aw/system/workflows/, .aw/system/cutover/, .aw/system/managed-sections.json, .aw/.gitignore, .aw/config/project.json, .aw/AGENT_QUICKSTART.md, .aw/QUICKSTART.md, docs/, AGENTS.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:tub3ir, executed:2k5t16, executed:g45vyv, executed:x1mmdp, executed:0zylig, executed:33vxoi, executed:5qyba0
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,6 +21,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review round 2 verified post-split scope (E-08, E-09, E-10, E-11, E-13), dependencies, and attended execution gate; findings PR-201..PR-203 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 moved to tub3ir; E-03 to 2k5t16 (which starts the inert code patch and its guard test); E-04 to g45vyv; E-07 to x1mmdp; E-16 to 0zylig; E-17 to 5qyba0 (rehearsal now runs before the attended turn on the prepared patches); E-11 and E-12 prepared as a script by 33vxoi, with E-12's obligation merged into E-11, which runs the script on the real repository. E-08 now applies both patches; E-09, E-10, E-11, E-13 kept. The format switch, the migration run on this repository and the single cutover commit stay here (spec 5.2, C10a).
 - 2026-11-08 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): added executed:87rvs2, executed:rdg0qv, executed:aqc3m6, executed:zgyna1 (setter-byte assertion batches split from iog3cw and w13bkp, Orders 59 to 62) per maintainer step-complexity rule.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-05, E-06, E-14, E-15 and the log-format halves of E-04 (rename events) and E-17 (the one-commit extra-path mechanism, with its spec 5.2 step 7 amendment) moved to clors0; the setter-byte half of E-07 moved to iog3cw and w13bkp. The format switch, the migration run and the single cutover commit stay here (spec 5.2, C10a).
@@ -98,6 +100,20 @@ The decision, the first dry run and the AC-13 before values are `tub3ir`; the co
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E08["1. Apply prepared patches (E-08)<br/>Apply docs & code cutover patches, retire patch guard tests"]
+    E09["2. Pre-migration test & dry run (E-09)<br/>Core & full suites, clean records tree, dry run"]
+    E10["3. Attended migration commit (E-10)<br/>aw migrate metadata --apply with extra paths, schema stamp 2"]
+    E11["4. Acceptance demonstrations (E-11)<br/>Run acceptance script, AC-1b thorough tier, AC-16 hook proofs"]
+    E13["5. Changelog & finalize (E-13)<br/>CHANGELOG entry, remove demo script, attended finalize"]
+
+    E08 --> E09
+    E09 --> E10
+    E10 --> E11
+    E11 --> E13
+```
+
 1. (Moved) decision, dry run, AC-13 before values: `tub3ir`. Code patch: `2k5t16`, `g45vyv`, `x1mmdp`, `0zylig`. Demo script: `33vxoi`. Rehearsal: `5qyba0`.
 2. E-08: apply both patches in one working tree.
 3. E-09, E-10: both test tiers and a final dry run, then the attended migration commit.
@@ -169,7 +185,7 @@ No spec change is planned. The OQ-01 `overrides` key and the `--date` refusal ar
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 - [ ] V-08 validates E-08
   - Required evidence: paste `git apply --stat` of each patch (docs, code), `git status --short` showing both patch files, `tests/test_metastore_cutover_patch.py` and `tests/test_metastore_cutover_code_patch.py` deleted, `rg -n '^- (Status|Readiness):' AGENTS.md` returning only quoted legacy examples, and the `CURRENT_METADATA_SCHEMA = 2` line from `rg -n 'CURRENT_METADATA_SCHEMA *=' agent_workflows/`.
   - Observed evidence:

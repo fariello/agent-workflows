@@ -2,8 +2,8 @@
 
 - Subject-Id: cxxmyv
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-06
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-11-14
+- Reviewer: antigravity/gemini-3.8-flash
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -138,3 +138,93 @@ AW-TIER: complex
 | D-3 | How does one commit hold the migration and the code? | Spike E-17 on a copy, with a stop condition for the maintainer | Pick a mechanism at review without a demonstration; two commits (breaks C10a) | S5 HOW rule 3; spec 5.2 step 7; C10a | yes |
 | D-4 | What does the pre-migration test gate require? | Pass except listed unmigrated-records refusals; full green on the migrated copy | Full green before migration (unsatisfiable) | `dcerjg` OQ on `CURRENT_METADATA_SCHEMA`; `tests/test_attention.py` | yes |
 | D-5 | Do `Kind` option renames keep the old spelling? | Yes, as aliases | Hard rename | `cli.py` `--kind` alias of `--work-kind`; spec 5.4 | yes |
+
+## Round 2
+
+This re-review ran at HEAD `5138ec141` in an isolated non-interactive runner review-sweep lane worktree. Approval had been withdrawn on 2026-11-07 per maintainer direction to pause before re-review while the metastore plans were re-split for the any-repo migration (`g5hpbb`). In rounds 2 and 3 splits (2026-11-07 and 2026-11-09), `cxxmyv` was split down from 17 E-items to 5 E-items, moving preparation, rehearsals, and post-cutover dormant code into child plans (`tub3ir`, `2k5t16`, `g45vyv`, `x1mmdp`, `0zylig`, `33vxoi`, `5qyba0`, `clors0`, `iog3cw`, `w13bkp`). The tracked plan `.aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md` was committed and unmodified, so the pre-review snapshot commit was skipped. Before edits, `aw ipd lint --phase author --agent` returned clean (0 errors, 0 warnings, 2 info IPD-C802). Baseline unit tests passed: `python3 -m pytest tests/test_executed_transition_gate.py tests/test_ipd_dependency_statement_gate.py` printed `29 passed in 1.51s`. After revisions and status progression, `aw ipd lint --phase review-finalize --agent` returned clean (0 errors, 0 warnings, IPD-C802 cleared).
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Front matter | `- Status: to-review`, lacked `- Readiness:` | Updated `- Status: reviewed`, added `- Readiness: go-pending-approval` (retained `- Review-Depth: complex`) | PR-203 (MD-15, Section 7.2) |
+| `## Workflow history` | Bullets from split and draft creation | Added newest-first review history entry with verdict and findings PR-201..PR-203 | PR-203 (MD-15, Section 7.2) |
+| `## Proposed changes` | 4-step ordered list without diagram | 4-step ordered list plus Mermaid `flowchart TD` diagram | PR-202 (Requirement 12b) |
+| Line 188 (V-preamble) | Em dashes in runtime-demonstration reachability rule | Replaced em dashes with plain hyphens | PR-201 (IPD-C802) |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes. It flips the on-disk metadata format of every record, stamps `metadata_schema: 2`, adds CLI commands, renames options, and amends the managed AGENTS.md block.
+2. Yes. It changes commit hooks, makes bulk commit under the integration lock, and runs the leak sanitizer on sidecar records that become tracked for the first time.
+3. Yes. 5 cross-cutting E-items across repository documentation, inert patch application, migration execution, and full acceptance demonstration suite.
+4. Yes. `- Scope-Paths:` explicitly declares all directories and files touched.
+5. Yes. A mistake during cutover could corrupt records or leave the repository in a mixed-format state on main.
+
+AW-TIER: complex
+
+### Step R1
+
+- Checked: governing spec `4sd62s` (sections 5.2, 5.4, 7 step 9); orchestrator `63ib9r` row 13; split child plans `tub3ir`, `2k5t16`, `g45vyv`, `x1mmdp`, `0zylig`, `33vxoi`, `5qyba0`, `clors0`, `iog3cw`, `w13bkp`.
+- Verified that all 19 plans in `- Item-Dependencies:` exist and properly sequence the preparation, rehearsals, and post-cutover dormant code.
+
+### Step R2
+
+- Checked: 1:1 bijection between E-08, E-09, E-10, E-11, E-13 and V-08, V-09, V-10, V-11, V-13.
+- Verified that each V-item demands concrete, non-tautological evidence (`git apply --stat`, `git status --short`, `make test-all` summary, `aw check meta`, `aw sanitize --agent`, commit hash/stat, script demonstration output with labelled blocks).
+
+### Step R3
+
+- Checked: Security and privacy lens. Commit executed under repository integration lock (`aw integration-lock`). All newly tracked records are sanitized with `aw sanitize --agent` before committing. Execution requires maintainer presence (`- Attended: required`).
+
+### Step R4
+
+- Checked: Engineering rubric. Invariant C10a preserved (single on-disk format at every commit on main). Added Mermaid flowchart diagram (PR-202). Replaced em dashes in prose (PR-201).
+
+### Step R5
+
+- Checked: Eight personas. Tested against regression, QA/QC, and architect views: pre-migration dry run and full test suites protect against corrupting repo state.
+
+### Step R6
+
+- Checked: Decomposition. The plan was already split down from 17 E-items to 5 E-items across rounds 2 and 3 splits. The remaining 5 E-items constitute the minimal atomic cutover sequence.
+
+### Step R7
+
+- Checked: Cross-plan consistency. Re-verified carrier mappings for all sibling metastore plans: all deferred rows are mapped to their respective owners.
+
+### Step S5
+
+- Checked: Open questions. OQ-01 and OQ-02 remain resolved with documented rationale. No open questions remain.
+
+### Step S6
+
+- Checked: Re-review decision. Revisions applied in place without structural drift. No further round needed.
+AW-REVIEW: DONE
+
+### Step S7
+
+- Checked: Finalize state and commit. Updated `- Status: reviewed`, set `- Readiness: go-pending-approval`, appended review record Round 2.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-201 | LOW | IN-SCOPE | Proofreading / Style | .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md:188 | Em dashes present in validation preamble prose (flagged by IPD-C802 advisory). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced em dashes with plain hyphens (strong). |
+| PR-202 | MEDIUM | IN-SCOPE | Proofreading / Technical Writing | .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md:101-106; .aw/system/workflows/technical-writing/technical-writing.md:40-46 | `## Proposed changes` lacked a Mermaid flowchart diagram required by Technical Writing Standard Requirement 12b for multi-step processes. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added Mermaid `flowchart TD` diagram illustrating the 5-step cutover workflow (strong). |
+| PR-203 | LOW | IN-SCOPE | S7 / Front matter | .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md:9-10 | Plan front matter was at `- Status: to-review` and lacked explicit `- Readiness: go-pending-approval`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added `- Readiness: go-pending-approval` to front matter, updated `- Status: reviewed`, and added review entry to `## Workflow history` (very strong). |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-201 | Is the post-split scope of cxxmyv atomic and ready for attended execution? | Yes. The remaining 5 E-items (E-08, E-09, E-10, E-11, E-13) form the indivisible transactional core of the cutover on main, with all preparation completed in predecessor plans. | Further split cutover into separate commits (rejected: violates C10a single on-disk format invariant). | Spec 4sd62s section 5.2, research nj8zdp | yes |
+| D-202 | How should multi-step cutover workflow be visualized? | Add Mermaid `flowchart TD` diagram to `## Proposed changes (ordered, validatable)` showing sequence E-08 -> E-09 -> E-10 -> E-11 -> E-13 | Prose list only (violates Requirement 12b) | Technical Writing Standard Requirement 12b | yes |
+| D-203 | What review depth and readiness should be recorded in front matter? | Retain `- Review-Depth: complex` and set `- Readiness: go-pending-approval` with `- Status: reviewed` | Demote to standard; leave readiness absent | `.aw/system/workflows/plan-review/steps/t-tier.md`; `.aw/system/workflows/plan-review/steps/s7-finalize.md` | yes |
