@@ -2,8 +2,8 @@
 
 - Subject-Id: dcerjg
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-06
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-11-14
+- Reviewer: antigravity/gemini
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -127,3 +127,116 @@ AW-TIER: complex
 | D-2 | Split into 04a and 04b? | No | Split at the OQ-01 seam | Each E-item is one concern; 16 of 18 items | yes |
 | D-3 | How does a lane run the clone proof without the sidecar? | A synthetic sidecar, recorded; the real line stays with `cxxmyv` E-02 | Block E-15 until it is run in the main checkout | `cxxmyv` E-02 owns AC-22 case 2 | yes |
 | D-4 | Does a `warn` leak finding refuse `--apply`? | No: listed, not refused | Refuse on `warn` too | spec 5.2 step 6 and AC-16 name `fail`; `tve77h` E-03 (d) scans imported bytes | yes |
+
+## Round 2
+
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
+
+Re-reviewed at `HEAD` `0ea2db75d` in an isolated runner review-sweep worktree after the 2026-11-07 approval withdrawal (for amended spec `4sd62s` `C12`, `5.2a`, and `AC-42`) and the 2026-11-07 and 2026-11-09 plan splits (`g8na48`, `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6`, `hpedmn`, and `o19353`). Pre-edit `git status --short` was clean (pre-review snapshot skipped unchanged); `aw ipd lint --phase author --agent` had 2 `info` findings (`IPD-C802` em dashes) before edits and 0 findings across all severities after edits.
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Front matter, Workflow history | Missing `executed:g8na48` dependency, `g8na48`/`g5hpbb`/`830wku`/`clors0` scope alignment, and technical-writing standard header | Added `executed:g8na48` to `- Item-Dependencies:`, updated `Concern` and `Scope` for `g8na48`, `g5hpbb` (`9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`), `830wku`, and `clors0`, and added the technical-writing header note | `PR-013`, `PR-014`, `PR-015`. |
+| `Detailed Implementation Checklist` (`:40-55`), `Deferred` (`:126-144`) | Five split-part `Carrier:` bullets pasted inside a broken inline backtick span in the checklist | Replaced with a clean summary sentence and moved all seven split-part `Carrier:` entries (plus `g5hpbb` and `clors0`) into `## Deferred / out of scope (with reason)` | `PR-014`. |
+| `E-12`, `V-12` | Census lacked `project_context.project_records_dir(repo)`, `"no sidecar (none expected)"`, and absent-template handling | Specified repository-agnostic `project_records_dir(repo)`, zero hard-coded `id6`/count constants, `"no sidecar (none expected)"` accounting (`4sd62s` `5.2a`), and clean skipping of absent template paths | `PR-014`. |
+| `E-13`, `Scope check`, `V-13` | Omitted top-of-`run` `read_metadata_schema >= 2` guard, step-6 `write_metadata_schema(repo, 2)` stamp write, step-7 commit execution, and Phase-A-safe `artifact_meta.replay` + `SUPPORTED_TYPES` check | Wired top-of-`run` `read_metadata_schema >= 2` guard, direct `artifact_meta.replay` + mirror-parser verification (ensuring `"roadmap"` is in `SUPPORTED_TYPES`), journal-backed `write_metadata_schema(repo, 2)` before staging and `terminal_commit_marker`, and `commit=True` step-7 `offer_commit` + marker deletion | `PR-010`, `PR-012`. |
+| `E-14`, `E-15`, `V-15` | Assumed `git clone` runs commit hooks without installing `.git/hooks/pre-commit`, named `"the backlog close gate"` informally, and missed `commit_lock.commit_isolated`'s detached `.aw-isocommit-*` worktree | Installed executable `.git/hooks/pre-commit` invoking `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` in `E-14` and `E-15`, noted `ipd_lifecycle.checkout_control_root` marker lookup across `commit_isolated`, and sequenced `commit=False` inspection + `commit_staged` | `PR-011`. |
+| `E-16`, `V-16`, `AC-11`, `OQ-01..OQ-04` | Assumed gitignored `.aw/state/dcerjg/check-before.jsonl` exists in an isolated lane, omitted `g8na48` on `AC-11`/`OQ-03`, used conditional tense for executed `tve77h` in `OQ-02`, and cited bare line numbers in `F-09`/`OQ-04` | Added deterministic regeneration of `.aw/state/dcerjg/check-before.jsonl` from `g8na48` `F-03`'s recorded `HEAD` SHA, credited `g8na48`, updated `OQ-02` for executed `tve77h`, and anchored `F-09`/`OQ-04` by `<!-- aw-prompt:` content | `PR-012`, `PR-013`, `PR-015`. |
+| `Findings` (`F-18`), `Proposed changes`, `Validation-state rule` | No Round 2 re-measurements, no Requirement 12 Mermaid diagram, and two `IPD-C802` em dashes | Added `F-18` at `HEAD` `0ea2db75d`, added Mermaid `flowchart TD` diagram of `m0001_metadata_v2.run`, and replaced both em dashes with parentheses | `PR-015`. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes: wires `4sd62s` 5.2 steps 6 and 7 into `m0001_metadata_v2.run` (`aw migrate metadata --apply` and bare `aw migrate --apply`), stamps `metadata_schema: 2` in `project.json`, and exercises commit-gate hooks.
+2. Yes: interacts with `hooks/executed_transition_gate.py`, `hooks/backlog_blocking_close_gate.py`, `commit_lock.commit_isolated`, `leak_sanitizer`, and the terminal commit marker on a full repository clone.
+3. Yes: integrates 7 upstream split plans (`g8na48`, `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6`, `hpedmn`, `o19353`) and runs a 10-module family gate plus a full-clone dry-run/apply/commit/second-apply proof.
+4. Yes: 5 `Scope-Paths` directly, plus verification over 9 upstream migration modules and test suites.
+5. Yes: final verification gate in Phase A before Order 13 (`cxxmyv`) executes the irreversible cutover commit.
+
+AW-TIER: complex
+
+### Step R1
+
+- Verified live codebase state at `HEAD` `0ea2db75d`: `agent_workflows/migrations/` does not yet exist; `tve77h` is executed; `artifact_meta.REGISTRY` has 7 keys (`backlog`, `ipd`, `prompt`, `release`, `research`, `spec`, `walkthrough`), while `artifact_meta.SUPPORTED_TYPES` (`agent_workflows/artifact_meta.py:57`) is a separate module-level 7-tuple checked independently in `replay` (`:967`), `_load_sources` (`:2581`), and `read` (`:3235`) (`PR-012`).
+- Verified `artifact_meta.check_freshness` (`agent_workflows/artifact_meta.py:3038`) walks `records_root` in `os.walk` order and calls Phase-B `load_legacy_artifact` (`:2923`) and `load_legacy_review` (`:2431`, `_parse_bullet_metadata`) on `.md` and `.review.md` files, whereas `artifact_meta.replay(id6, art_type, lines, records_root=scratch_records_root)` replays `meta/<id6>.jsonl` directly with zero Phase-B legacy `.md`/`.review.md` side effects (`PR-012`).
+- Verified `git clone --no-hardlinks . tmp/...` succeeds from this linked worktree (`rc=0`), creates only `.git/hooks/*.sample` files, and `.pre-commit-config.yaml` omits opt-in `backlog-blocking-close-gate` (`PR-011`).
+- Verified `aw commit --no-plan` (`work_cmd.py:959` -> `git_commit_helper.offer_commit` -> `commit_lock.commit_isolated` at `agent_workflows/commit_lock.py:351-415`) runs `git commit` inside a detached linked worktree `.aw-isocommit-*` where `<wt>/.aw/state/durable` is absent and `ipd_lifecycle.checkout_control_root(wt)` (`agent_workflows/ipd_lifecycle.py:447-463`) collapses back to the primary checkout's `.aw` (`PR-011`).
+- Re-measured corpus counts at `HEAD` `0ea2db75d` (`F-18`): 35 legacy-timestamp records outside comms, 4,719 tracked `.md` files under `.aw/records`, 1,330 `.review.md` files, and no `.aw/records/history.jsonl` in this runner lane.
+
+### Step R2
+
+- Checked 1:1 `E-*`/`V-*` bijection (`E-12..E-16` <-> `V-12..V-16`, `- Highest E allocated: 16`).
+- Found and closed three reachability gaps:
+  1. `E-13` and `E-15` step (e) (`"metadata_schema is 2; nothing to do"`) were unreachable because no split part wired the top-of-`run` `chain.read_metadata_schema(repo) >= 2` guard, the step-6 `chain.write_metadata_schema(repo, 2)` stamp write, or the step-7 commit (`PR-010`).
+  2. `V-15` demanded `"aw commit --no-plan output with both hooks passing"` on a fresh `git clone`, which runs zero hooks unless `.git/hooks/pre-commit` is installed (`PR-011`).
+  3. `V-16` demanded comparing `aw check --agent` against gitignored `.aw/state/dcerjg/check-before.jsonl`, which is absent when `dcerjg` executes in an isolated lane separate from `g8na48`, and `- Item-Dependencies:` omitted `executed:g8na48` (`PR-013`).
+
+### Step R3
+
+- Checked gate-bypass and commit-isolation safety: `write_metadata_schema(repo, 2)` now runs before staging the migration's explicit path list and writing `o19353` E-01's `git write-tree` marker so the marker binds the exact staged tree including `project.json`, and `terminal_commit_marker` is deleted immediately after step-7 `offer_commit` succeeds and on `rollback` (`PR-010`).
+- Installing `.git/hooks/pre-commit` in `E-14` and `E-15` proves both `ipd-executed-gate` and `backlog-blocking-close-gate` under real `commit_lock.commit_isolated` detached-worktree execution without `--no-verify` (`PR-011`).
+- Safety invariant preserved: `--apply` never runs in this checkout, and `git status --porcelain | sha256sum` of this checkout is verified equal before and after `E-15`.
+
+### Step R4
+
+- Checked transactionality, idempotency, and `4sd62s` `C12` / `5.2a` repository-agnosticism:
+  - `project.json` is backed up in `journal_dir / "backups"` before `write_metadata_schema(repo, 2)` so `rollback(repo)` restores pre-apply `project.json` (`PR-010`).
+  - `m0001_verify.py` resolves `records_root` via `project_context.project_records_dir(repo)` with zero repository-specific `id6` or count constants, handles `"no sidecar (none expected)"` (`vxevph` E-04), and skips absent template paths cleanly (`PR-014`).
+  - `commit=True` defaults `m0001_metadata_v2.run(..., apply=True)` to full `4sd62s` 5.2 step-0..step-7 completion while `commit=False` + `commit_staged` supports `E-15`'s staged-tree inspection (`D-5`, `PR-010`).
+
+### Step R5
+
+- Checked through the eight reviewer personas:
+  - QA/QC and testing/regression caught that `git clone` installs no `.git/hooks/pre-commit` and that `commit_isolated` runs hooks inside `.aw-isocommit-*` where worktree-local `.aw/state/durable` is absent (`PR-011`).
+  - Architect caught the unowned gap between `g8na48` (`write_metadata_schema`), `o19353` (`terminal_commit_marker`), and `clors0`/`cxxmyv` (`aw migrate metadata --apply` making one step-7 commit) (`PR-010`), plus `artifact_meta.SUPPORTED_TYPES` vs `REGISTRY` (`PR-012`).
+  - Software engineer and power user caught the missing `executed:g8na48` dependency and cross-lane `.aw/state/dcerjg/check-before.jsonl` regeneration (`PR-013`).
+  - Technical writer and novice caught the broken inline backtick span in `Detailed Implementation Checklist` (`:40-52`) and missing Requirement 12 flowchart (`PR-014`, `PR-015`).
+
+### Step R6
+
+- Checked plan sizing against `IPD-Z603`: 5 `E-*` items (`E-12`..`E-16`) in 1 task group and 4 work `Scope-Paths` (`m0001_verify.py`, `m0001_metadata_v2.py`, `tests/test_m0001_roundtrip.py`, `CHANGELOG.md`), well within the 5-item / 8-work-path ceiling (`aw ipd lint --phase author --agent` reports 0 findings). No further split is warranted.
+
+### Step R7
+
+- Checked cross-plan alignment across orchestrator `63ib9r` (`E-04`, `E-15`..`E-19`, `E-55`, `E-56`), upstream parts `tve77h` (executed), `g8na48` (reviewed), `vxevph` (reviewed), `1vfqdu`, `dky26u`, `ghhzb6`, `hpedmn`, and `o19353`, and downstream plans `odeo9z`/`830wku`/`ya4ee4` (Order 05), `9vf2iv`/`6oi2nu`/`3g20ms`/`bv4kkj`/`g5hpbb` (Order 14, `C12`/`5.2a`/`AC-42`), `ffceq0` (Order 08), `9o83cr` (Order 11), `clors0` (`E-19`), `5qyba0`, and `cxxmyv` (`E-02`, `E-10`).
+- Confirmed `g8na48` (`E-01`, `F-03`), `o19353` (`E-01`), `1vfqdu` (`E-02`), `g5hpbb` (`E-07`), `clors0` (`E-19`), and `cxxmyv` (`E-10`) now join cleanly with `dcerjg` `E-12`..`E-16`.
+
+### Step S5
+
+- Checked `OQ-01`..`OQ-06` and all Round 2 findings (`PR-010`..`PR-015`): every open question is resolved and non-blocking, every Round 2 finding has Low Remediation Risk and is `FIXED` in place from repository and spec evidence (`D-5`..`D-8`), and zero human questions remain.
+
+### Pass 2
+
+- Re-read `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md` end-to-end and ran `aw ipd lint --phase author --agent`: `outcome: "clean"`, `exit: 0`, `findings: 0`.
+- Verified `E-12..E-16` <-> `V-12..V-16` 1:1 bijection, `- Highest E allocated: 16`, valid Mermaid `flowchart TD` syntax, zero `TODO` placeholders, zero em/en dashes, zero bare line numbers, zero absolute paths, and zero `file://` URIs.
+
+AW-REVIEW: DONE
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-010 | BLOCKER | UNDER-SCOPE | R2 / R4 / R7 | `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md:63,147`; `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:771-784`; `.aw/records/plans/pending/20261109-metastore-100-o19353-build-the-m0001-terminal-commit-marker-index-cleanup-step-an.ipd.md:37`; `.aw/records/plans/pending/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.ipd.md:39` | After the 2026-11-07 and 2026-11-09 splits, no part wired into `m0001_metadata_v2.run` (1) the top-of-`run` `chain.read_metadata_schema(repo) >= 2` guard returning `"metadata_schema is 2; nothing to do"` before preflight, (2) the journal-backed `chain.write_metadata_schema(repo, 2)` stamp write before staging and writing `o19353`'s `git write-tree` marker, or (3) `4sd62s` 5.2 step-7 commit execution (`offer_commit` + marker deletion), leaving `E-13`/`E-15`(e) unreachable and breaking `1vfqdu` `E-02`, `g5hpbb` `E-07`, `clors0` `E-19`, and `cxxmyv` `E-10` | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Wired the top-of-`run` `read_metadata_schema >= 2` guard, journal-backed `write_metadata_schema(repo, 2)` before staging and `terminal_commit_marker`, and `commit=True` step-7 `offer_commit` + marker deletion (plus `commit=False` / `commit_staged`) into `E-13`, `Scope check`, and `V-13` (strength: very strong). |
+| PR-011 | HIGH | IN-SCOPE | R1 / R3 / R7 | `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md:68,73,238`; `agent_workflows/commit_lock.py:351-415`; `.pre-commit-config.yaml:1-35`; `.aw/records/plans/pending/20261109-metastore-100-o19353-build-the-m0001-terminal-commit-marker-index-cleanup-step-an.ipd.md:37` | `git clone --no-hardlinks` installs only `.git/hooks/*.sample` and `backlog-blocking-close-gate` is absent from `.pre-commit-config.yaml`, so `aw commit --no-plan` in `E-15` and `tmp_path` fixtures in `E-14` run zero hooks unless `.git/hooks/pre-commit` is installed; moreover `commit_lock.commit_isolated` runs `.git/hooks/pre-commit` inside a detached `.aw-isocommit-*` linked worktree where `<wt>/.aw/state/durable` does not exist unless marker lookup falls back to `ipd_lifecycle.checkout_control_root(root) / "state" / "durable"` | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Required installing an executable `.git/hooks/pre-commit` invoking `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` in `E-14` and `E-15` (and `V-15`), exercising `commit_isolated` and specifying the `checkout_control_root` marker-lookup fix (`--scope-reason`) if `o19353` omitted it (strength: very strong). |
+| PR-012 | HIGH | IN-SCOPE | R1 / R7 | `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md:63,192`; `agent_workflows/artifact_meta.py:57,967,2431,2581,3038,3235`; `.aw/records/plans/pending/20261107-metastore-19-hpedmn-build-the-m0001-review-events-and-convert-research-records-w.ipd.md:38` | `E-13` did not specify calling `artifact_meta.replay` directly (avoiding Phase-B `check_freshness`'s `os.walk` `load_legacy_artifact` and `load_legacy_review` `_parse_bullet_metadata` scan on rewritten mirrors and templates) and missed that `artifact_meta.SUPPORTED_TYPES` (`:57`) is checked separately from `REGISTRY` in `replay` (`:967`), which rejects `"roadmap"` if `hpedmn` E-01 updated only `REGISTRY`; `OQ-02` also referred to executed `tve77h` in future tense | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Specified `artifact_meta.replay(id6, art_type, lines, records_root=scratch_records_root)` plus mirror-parser checks and `"roadmap"` membership in `SUPPORTED_TYPES` (`--scope-reason` if needed) in `E-13`, and updated `OQ-02` for executed `tve77h` (strength: very strong). |
+| PR-013 | HIGH | UNDER-SCOPE | R1 / R2 / R7 | `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md:6,8,78,157,199,242`; `.aw/records/plans/pending/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md:43,75,97` | Round-3 split `g8na48` (split from `vxevph` on 2026-11-09) was missing from `- Item-Dependencies:` and plan text, and `E-16`/`V-16` lacked cross-lane regeneration of gitignored `.aw/state/dcerjg/check-before.jsonl` from `g8na48` `F-03`'s recorded `HEAD` SHA when `dcerjg` runs in an isolated worktree | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added `executed:g8na48` to `- Item-Dependencies:`, credited `g8na48` across `Concern`, `Scope`, `Deferred`, `E-14`, `Required tests / validation`, and `OQ-03`, and specified temporary-worktree regeneration of `.aw/state/dcerjg/check-before.jsonl` from `g8na48` `F-03` in `E-16` and `V-16` (strength: very strong). |
+| PR-014 | MEDIUM | IN-SCOPE | Proofreading / R2 / R7 | `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md:24,40-52,58,126-144`; `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md:83-85,786-805`; `.aw/records/plans/pending/20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md:36-48` | Five split-part `Carrier:` bullets were pasted inside a broken inline backtick span at lines 40-52 instead of `## Deferred / out of scope (with reason)`, `Scope`/`Deferred` omitted the `g5hpbb` (`C12`/`5.2a`/`AC-42`) and `830wku`/`clors0` carriers, and `E-12` lacked explicit `project_context.project_records_dir(repo)`, `"no sidecar (none expected)"`, and absent-template rules | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Repaired lines 40-52, moved all split-part `Carrier:` bullets into `Deferred` alongside `g5hpbb` and `clors0`, updated `Scope`, and specified `project_records_dir(repo)`, zero repo-specific constants, `"no sidecar (none expected)"`, and absent-template skipping in `E-12` and `V-12` (strength: strong). |
+| PR-015 | LOW | IN-SCOPE | Proofreading | `.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md:20,98,117-124,197,215` | Missing technical-writing header note and Requirement 12 Mermaid flowchart in `Proposed changes`, bare line-number citations (`"lines 14 to 15"`) in `F-09` and `OQ-04`, two `IPD-C802` em dashes in `Validation and cross-check`, and no Round 2 `HEAD` `0ea2db75d` re-measurement row | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added technical-writing header note, Mermaid `flowchart TD` diagram, `<!-- aw-prompt:` content anchors in `F-09`/`OQ-04`, `F-18` re-measurements at `0ea2db75d`, and parentheses replacing both em dashes (strength: strong). |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-5 | Should `m0001_metadata_v2.run(..., apply=True)` execute `4sd62s` 5.2 step 7 by default (`commit: bool = True`) while exposing `commit=False` + `commit_staged` for staged-tree inspection? | Yes: default `commit=True` stamps `metadata_schema: 2`, stages the explicit path list (including in-tree `project.json`), writes `terminal_commit_marker`, commits via `git_commit_helper.offer_commit` (`RUNNER_AW_COMMIT`), and deletes the marker; `commit=False` leaves the staged index and marker intact for `E-15` step (c)/(d) inspection before `commit_staged` | Leave step-7 committing to manual callers only (breaks `aw migrate metadata --apply` in `1vfqdu` `E-02`, `g5hpbb` `E-07`, `clors0` `E-19`, and `cxxmyv` `E-10`); or omit `commit=False` (prevents `E-15` from running `aw sanitize --agent` and direct gate CLIs on the staged tree before commit) | `4sd62s` 5.2 steps 6-7, `1vfqdu` `E-02`, `g5hpbb` `E-07`, `clors0` `E-19`, `cxxmyv` `E-10`, and `dcerjg` `E-15`/`V-15` | yes |
+| D-6 | When must `chain.write_metadata_schema(repo, 2)` run relative to `o19353` E-01's `terminal_commit_marker`? | Before staging the migration's explicit path list and computing `terminal_commit_marker`'s `git write-tree` id, with pre-apply `project.json` backed up in `journal_dir / "backups"` | Write `metadata_schema: 2` after the marker (either leaves `project.json` uncommitted or changes the staged index and invalidates `terminal_commit_marker`'s `git write-tree` match) | `4sd62s` 5.2 steps 4a, 6, and 7; `o19353` `E-01`; `commit_lock.commit_isolated` (`agent_workflows/commit_lock.py:383-415`) | yes |
+| D-7 | How should `E-13` verify produced logs and mirrors before Phase B switches `artifact_meta._load_sources` away from legacy `.md`/`.review.md` loaders? | Replay each `meta/<id6>.jsonl` directly via `artifact_meta.replay(id6, art_type, lines, records_root=scratch_records_root)` (ensuring `"roadmap"` is in `SUPPORTED_TYPES`) and parse mirrors via `parse_artifact_mirror`, `parse_staged_prompt_mirror`, and `parse_review_mirror` | Call `artifact_meta.check_freshness` on the mixed scratch tree (walks in `os.walk` order and invokes Phase-B `load_legacy_artifact` and `load_legacy_review` `_parse_bullet_metadata` on templates, READMEs, and YAML-front-matter `.review.md` mirrors) | `agent_workflows/artifact_meta.py:57,967,2431,2923,3038` and `4sd62s` C9 / 5.2 step 6 | yes |
+| D-8 | How should `E-16` / `V-16` compare `aw check --agent` against `.aw/state/dcerjg/check-before.jsonl` when `dcerjg` runs in an isolated worktree lane where `g8na48`'s gitignored `.aw/state/` is absent? | Regenerate `.aw/state/dcerjg/check-before.jsonl` from a temporary detached worktree under `tmp/` at the pre-edit `HEAD` SHA recorded in `g8na48` `F-03` (removing the temporary worktree immediately) | Require manual main-checkout state copying (violates lane isolation) or skip the baseline diff (weakens `V-16`) | `g8na48` `E-01` and `F-03` (`.aw/records/plans/pending/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md:43,97`) | yes |
