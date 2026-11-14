@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): 8 modules of subset G7a in two items of 4 (E-03, E-05) and the finishing item E-04, which also converts any module the partition now places in subsets G3a, G5a, G7a that no plan names. The other modules of subsets G3a, G5a, G7a moved to the chunk plans `2ll84l`, `9hk3rh`, `5mg9g1`, `1cgrgp`, `z8hu7r`, `tsonlq`, `erulw3` (F-41). Before the round-3 split: Batch subsets G3a, G5a, G7a, moved verbatim (module lists unchanged) from `x05v02` E-05, `7qxey9` E-05 and `nbfg7w` E-05, plus a finishing item. Each subset runs the codemod and hand-converts only its census-counted refusals under the batch rule below. EXCLUDES: the builder and fixtures (`9rgn2w`); the codemod and its census (`653ndz`); every other subset (Orders 38 to 40 and `59aiyh`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_generators_writing_standard_pointer.py, tests/test_generic_color_depth.py, tests/test_id6_global_mint.py, tests/test_identity_rename_hint.py, tests/test_index_check_agent_records.py, tests/test_index_rebuild.py, tests/test_index_write_agent_records.py, tests/test_inlane_retirement_lands.py, .aw/records/plans/pending/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:2ll84l, executed:9hk3rh, executed:5mg9g1, executed:1cgrgp, executed:z8hu7r, executed:tsonlq, executed:erulw3
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1upea0
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 and 7 to 14 modules of E-03 moved to 2ll84l, 9hk3rh, 5mg9g1, 1cgrgp, z8hu7r, tsonlq, erulw3; kept 8 modules of G7a as E-03 and E-05; Highest E allocated raised to 05.
 - 2026-11-08 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from x05v02, 7qxey9 and nbfg7w (their E-05 subsets G3a, G5a, G7a) per maintainer decision 2026-11-07 ("Codemod first, then small runs"; at most 4 batch items per plan; no single E/V item hides hundreds of steps).
 
@@ -35,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Split note (round 3, 2026-11-09, research `nj8zdp` guidance): items E-01, E-02 and all but 8 modules of E-03 moved to the chunk plans named in F-41 and in `## Deferred / out of scope`; this plan keeps 8 modules of subset G7a as E-03 and E-05 (4 each) and the finishing item E-04.
 
 Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule, restructured 2026-11-08 for the Order-49 fixture codemod `653ndz` per maintainer decision 2026-11-07 "Codemod first, then small runs": the tool performs the mechanical rewrite, and the hand work is bounded by its measured refusals). In it, "E-13's `full-before.txt`" and "the builder's `raw_fields=` escape (E-01)" are items of Order 37 (`9rgn2w`), carried by the round-3 split into Order 170 (`j6o96i`) with the same ids; because `.aw/state/` does not travel between lane worktrees, step 2 always records a fresh before list here. Step 1's partition is restricted to the modules each batch item names (round-3 split 2026-11-09: a subset is now spread over several plans of at most 8 modules each): a module that the partition now places in the item's subset but that no plan names is NOT added here; it is reported, and the finishing item of `1upea0` converts it; a named module that no longer matches F-01 is reported and skipped:
-1. Before the batch, re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
+1. Before the batch, ensure the state directory exists (`mkdir -p .aw/state/59aiyh`), re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
 2. Record the unmodified per-test outcome list (a batch whose files a previous batch did not touch may reuse the matching lines of E-13's `full-before.txt`): `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA $(cat .aw/state/59aiyh/<batch>-files.txt) | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/<batch>-before.txt`. `-p no:randomly` and `-n 0` make the list deterministic; `-m ""` includes `slow` and `livecorpus` modules.
 3. Run the codemod: `python3 tools/fixture_codemod.py --apply --format json $(cat .aw/state/59aiyh/<batch>-files.txt) > .aw/state/59aiyh/<batch>-codemod.json`. It rewrites only the sites whose module outcome list it proved identical (`653ndz` E-03, carried with the same id into Order 172, `y3uowx`, by the round-3 split) and lists every other site as a refusal with a reason code and a disposition (`hand` or `legacy-kept`, the `653ndz` reason-code table).
 4. Hand-convert ONLY the refusals with disposition `hand`: the static count is the sum of the `653ndz` F-30 rows of the item's modules (round-3 split 2026-11-09: an item now carries part of a subset, so the subset's F-31 row is context only), and the codemod report adds any apply-time `not-equivalent` refusals; the item's hand count is their sum. If the hand count exceeds 25, stop after step 3 (the proved codemod rewrites may be committed), convert nothing by hand, and report the subset for re-splitting. A hand conversion uses builder calls; a test that deliberately writes an INVALID value (an unknown status, `- Status: EXECUTED`, `- Priority: bogus`, a malformed gate) gets it through the builder's `raw_fields=` escape (E-01) and is listed with reason class `invalid-input`. A refusal with disposition `legacy-kept` stays in legacy form on purpose and is listed with its F-06 reason class.
@@ -86,6 +90,7 @@ Measured 2026-11-07 at `ac76110f4` for the subsets; F-01, F-03, F-06 and F-08 co
 | F-06 | (written by E-11) remaining legacy strings in `tests/` after the batches, each with one reason class: `legacy-format subject`, `displayed-output assertion`, `setter-byte assertion`, `invalid-input`, `body prose` | Order 13 changes the builder plus the F-06 rows of class `setter-byte assertion`; `invalid-input` rows already go through `raw_fields=` and need a decision at the cutover (an invalid bullet has no log-format equivalent); every other class is either a legacy-format test (moved to the migration tests at the cutover) or prose. |
 | F-08 | At review, 15 test modules write a deliberately invalid metadata value (for example `tests/test_releases.py` "`- Status: bogus`", `tests/test_check_engine.py` "`- Status: EXECUTED`", `tests/test_specs_set_adapter.py` "`- Priority: bogus`") | A builder that validates every field cannot build these; E-01 adds `raw_fields=` and the batch rule lists them as `invalid-input`. |
 | F-11 | Subsets of this part, by the F-03 first-match rule at `ac76110f4`, moved unchanged from the three earlier batch parts | See the table below; each item's hand count comes from `653ndz` F-31. |
+| F-42 | Measured 2026-11-14 at HEAD `2f210f95f` across all 8 target test modules: 73 passed in 15.79s (`test_generators_writing_standard_pointer` 4, `test_generic_color_depth` 11, `test_id6_global_mint` 2, `test_identity_rename_hint` 4, `test_index_check_agent_records` 16, `test_index_rebuild` 7, `test_index_write_agent_records` 19, `test_inlane_retirement_lands` 10) | Baseline suite passes before codemod application; serves as the pre-conversion regression baseline for E-03 and E-05. |
 
 | Subset | Modules | Count | F-01 lines | Helpers | Moved from |
 |---|---|---|---|---|---|
@@ -110,6 +115,16 @@ F-41 (round-3 split 2026-11-09, research `nj8zdp` guidance; module basenames und
 | this plan, E-05 | G7a | 4 | `test_index_check_agent_records`, `test_index_rebuild`, `test_index_write_agent_records`, `test_inlane_retirement_lands` |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E03["E-03: Convert G7a batch 1 (generators_writing, generic_color, id6_global, identity_rename)"]
+    E05["E-05: Convert G7a batch 2 (index_check, index_rebuild, index_write, inlane_retirement)"]
+    E04["E-04: Partition check for late modules, union verification, pytest core gate, sanitize, scoped commits"]
+
+    E03 --> E04
+    E05 --> E04
+```
 
 1. Convert the 8 kept modules of G7a under the batch rule (E-03, E-05), each by the codemod plus its census-counted refusals.
 2. Catch late partition modules, re-run the union, the core gate, commit (E-04).
@@ -146,7 +161,7 @@ F-41 (round-3 split 2026-11-09, research `nj8zdp` guidance; module basenames und
 
 ## Required tests / validation
 
-Each subset is validated by an identical per-test result list before and after (the batch rule), which is behavioral by construction: the same tests, unchanged assertions, the same outcomes. Commands: the batch rule's command per subset, the codemod's `--apply` report, the bare core gate `python3 -m pytest`, `aw sanitize --agent`. CONTRIBUTES to AC-1b (owned by `cxxmyv`).
+Each subset is validated by an identical per-test result list before and after (the batch rule), which is behavioral by construction: the same tests, unchanged assertions, the same outcomes. Baseline measured at HEAD `2f210f95f`: 73 tests passing across the 8 target test modules (`test_generators_writing_standard_pointer.py`: 4, `test_generic_color_depth.py`: 11, `test_id6_global_mint.py`: 2, `test_identity_rename_hint.py`: 4, `test_index_check_agent_records.py`: 16, `test_index_rebuild.py`: 7, `test_index_write_agent_records.py`: 19, `test_inlane_retirement_lands.py`: 10). Commands: the batch rule's command per subset, the codemod's `--apply` report, the bare core gate `python3 -m pytest`, `aw sanitize --agent`. CONTRIBUTES to AC-1b (owned by `cxxmyv`).
 
 ## Spec / documentation sync
 
@@ -158,7 +173,7 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The kept items and the chunk plans (F-41) are disjoint module lists, each needs only the builder (`9rgn2w`) and the codemod (`653ndz`), and none edits `tests/support.py` (that is `59aiyh` E-09). This plan depends on its chunk plans only so that E-04's late-module catch-up sees their conversions. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -193,4 +208,6 @@ Honesty rule: run the batch comparisons and the bare `python3 -m pytest` core ga
 
 Commits: commit only through `aw commit 1upea0 -- <paths>` (one commit per item allowed); never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or clean up another party's work. If a file you must edit is being changed under you and the two sets of changes cannot be safely combined, STOP and report rather than overwriting.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only when execution completes (by the runner automatically or via `aw ipd finalize`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. Never a hand `git mv`.
