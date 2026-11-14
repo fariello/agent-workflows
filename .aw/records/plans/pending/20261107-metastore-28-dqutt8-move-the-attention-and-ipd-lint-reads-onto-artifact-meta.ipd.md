@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): the `ipd_lint` item E-03 moved to `1suzlp` (Order 151). Pin then move the `attention` reads (`scan`, every per-tree `_*_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE`, `read_readiness` callers and the `attention_contract.history_block`/`last_history_at` calls) onto `artifact_meta.query` and `artifact_meta.history`, applying D-3 (`ffceq0` E-04, E-05 carried unchanged). EXCLUDES: `ipd_lint` (`1suzlp`), `selectors` and `aw find` (Order 27 `r81uvz`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_readers_attention.py, .aw/records/plans/pending/20261107-metastore-28-dqutt8-move-the-attention-and-ipd-lint-reads-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:1suzlp
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dqutt8
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-03 moved to 1suzlp.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ffceq0 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -33,20 +36,20 @@ Every `aw attention` item is built from one `artifact_meta.query` over the in-sc
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Every E-item that moves a reader follows one rule, so a reviewer can check each the same way: (1) BEFORE the edit, add or extend a behavioral test in the named module that pins the reader's CURRENT observable behavior on a `tmp_path` fixture repository (the "prior behavior" column of the reader ledger in `## Findings`), and run it green against the unmodified code; (2) change the reader to call `artifact_meta`; (3) run the same test unchanged. A test that has to change in step 3 is a behavior change and must be one of the decisions listed in the ledger (D-1 to D-5), never a silent one. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/ffceq0/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/ffceq0/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Every saved baseline (command output, JSON, rule counts) also goes under `.aw/state/ffceq0/`, never `/tmp`, so it survives a lane integration. A count measured at authoring (for example the 1,635 executed plans of F-03) is context, never the bar: each expected outcome compares a before and after value re-derived on the same tree. New test modules set `pytestmark = pytest.mark.core`, call real functions or the real `aw` CLI, and never read production source.
+Every E-item that moves a reader follows one rule, so a reviewer can check each the same way: (1) BEFORE the edit, add or extend a behavioral test in the named module that pins the reader's CURRENT observable behavior on a `tmp_path` fixture repository (the "prior behavior" column of the reader ledger in `## Findings`), and run it green against the unmodified code; (2) change the reader to call `artifact_meta`; (3) run the same test unchanged. A test that has to change in step 3 is a behavior change and must be one of the decisions listed in the ledger (D-1 to D-5), never a silent one. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/ffceq0/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/ffceq0/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Every saved baseline (command output, JSON, rule counts) also goes under `.aw/state/ffceq0/` (ensure directory existence with `mkdir -p .aw/state/ffceq0`), never `/tmp`, so it survives a lane integration. A count measured at authoring (for example the 1,635 executed plans of F-03) is context, never the bar: each expected outcome compares a before and after value re-derived on the same tree. New test modules set `pytestmark = pytest.mark.core`, call real functions or the real `aw` CLI, and never read production source.
 
 The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, because the split parent `ffceq0` keeps the final cache-parity, residual-audit and finishing items that compare against these saved files. Commit through `aw commit dqutt8 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
 ### Task group 1: attention
 
-- [ ] E-01 Pin the current `aw attention` behavior in `tests/test_readers_attention.py`: per-tree status mapping (`attention.missing-status`, `attention.unknown-status`, disposition mismatch), `id`, `priority`, `blocks_release`, `readiness`, `last_history_at` (newest record by `attention_contract.newest_history_record`), gate fields, open-question counts and `detail_kind`/`detail_text` for one fixture of each tree (plans, specs, backlog, research, releases, prompts), and the `aw attention --check --agent` exit code with one violation. If `.aw/state/ffceq0/att-before.json` (saved by Order 142 `cdglt1` E-02, which `r81uvz` depends on) is absent from this checkout, save `aw attention --all --format json` to it now, before any attention edit. Run `tests/test_attention.py`, `tests/test_attention_contract.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_readers.py` and `tests/test_prompts_attention.py` green as the baseline.
+- [ ] E-01 Pin the current `aw attention` behavior in `tests/test_readers_attention.py`: per-tree status mapping (`attention.missing-status`, `attention.unknown-status`, disposition mismatch), `id`, `priority`, `blocks_release`, `readiness`, `last_history_at` (newest record by `attention_contract.newest_history_record`), gate fields, open-question counts and `detail_kind`/`detail_text` for one fixture of each tree (plans, specs, backlog, research, releases, prompts), and the `aw attention --check --agent` exit code with one violation. If `.aw/state/ffceq0/att-before.json` (saved by Order 142 `cdglt1` E-02, which `r81uvz` depends on) is absent from this checkout, ensure directory existence (`mkdir -p .aw/state/ffceq0`) and save `aw attention --all --format json` to it now, before any attention edit. Run `tests/test_attention.py`, `tests/test_attention_contract.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_readers.py` and `tests/test_prompts_attention.py` green as the baseline.
   - Depends on: none
   - Expected outcome: the new module passes on the unmodified code; the five existing modules' summary lines are recorded.
   - Execution state: pending
 
 - [ ] E-02 Move `attention` reads onto `artifact_meta.query`: `scan` builds `Item`s from one `query()` over the in-scope types instead of reading each file; `_plans_record`, `_spec_record`, `_backlog_record`, `_research_record`, `_release_record`, `_prompts_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE` and `read_readiness` callers read cached fields; `last_history_at` comes from `artifact_meta.history` through the unchanged `attention_contract.last_history_at` rule (phase B: same lines, same answer; the post-cutover `last_history_precision` key is Order 13's, see Deferred). Body-derived columns (open-question counts, E/V counts) still read the body (N3). `_extract_detail` stays as the fallback when `short_description` is absent (D-3). A cross-artifact `query()` `incomplete` list becomes an `attention.missing-status` violation for each named record, so an invalid record is reported, never silently dropped.
   - Depends on: E-01
-  - Expected outcome: E-04 and its five baseline modules pass unchanged; `aw attention --all --format json` on this checkout yields the same item count and violation count as `.aw/state/ffceq0/att-before.json` (F-07 records 3,096 and 1 at authoring; the bar is equality with the saved baseline, not those numbers), and the diff of sorted `id`/`tree`/`native_status`/`last_history_at`/`detail_text` tuples is empty.
+  - Expected outcome: E-01 and its five baseline modules pass unchanged; `aw attention --all --format json` on this checkout yields the same item count and violation count as `.aw/state/ffceq0/att-before.json` (F-07 records 3,096 and 1 at authoring; the bar is equality with the saved baseline, not those numbers), and the diff of sorted `id`/`tree`/`native_status`/`last_history_at`/`detail_text` tuples is empty.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -55,13 +58,13 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Carried verbatim from `ffceq0` Step 0; where a line says "this plan" it means the split parent `ffceq0`.
 
-- The `artifact_meta` interface names come from Order 02 (`tve77h`) and are used exactly: `artifact_meta.read(id6) -> State`, `artifact_meta.history(id6)`, `artifact_meta.query(...)` with typed filters (type, status, Set, order, `depends_on`, `latest_gate_review_of`, `path`) and an `incomplete` list, `artifact_meta.resolve(path_or_id6)`, `artifact_meta.read_at(id6, rev)` (Order 09 only), `artifact_meta.repair(id6, *, confirm=None)`, and the `artifacts.short_description` column. The legacy loader stores a multi-word `- Status:` raw value in a legacy-only column and sets `artifacts.status` only for a single token (tve77h OQ-03, which names this plan as the carrier of the reader decision).
-- One status normalizer already exists: `plans.normalize_status` maps `EXECUTED`/`DONE` to `executed` and any other unrecognized token to `plans.LEGACY_GROUP` (`legacy/unknown`); `plans.read_status` applies it to the FIRST token of the whole-file `- Status:` line. `attention._plans_record` and `ipd_lint.lint_text` (M105) already use it.
-- `selectors.metadata_region` is the shared region bound (the bullet block before the first `##`, or the YAML fence). The PARITY CONSTRAINT comment above `selectors._STATUS_RE` records the 24-plan disagreement and forbids changing it without "owning that contract change", which D-1 does here.
-- Shared history rules: `attention_contract.history_block`, `attention_contract.newest_history_record`, `attention_contract.last_history_at`.
-- `aw find` for plans uses `plans_index.plan_entry` and `plans_index.query` for display rows and `selectors.resolve` (through `cli._resolve_selectors_with_kinds`) for selector hits; `aw ipd board` is `cli._run_plans` over `plans.scan`.
-- New CLI leaves are declared in `command_surface` (`CommandDeclaration`) and covered by `tests/conformance_matrix.py`. Order 03 (`1ajqaa`) creates `agent_workflows/meta_cli.py` for `aw show --history`, so this plan adds `check meta` and `meta repair` to that module.
-- Traversal exclusions live in `layout.TRAVERSAL_EXCLUSIONS` (consumed by `selectors`); `_SKIP_NAMES` is defined separately in `check_engine`, `selectors` and `artifact_refs`.
+- The `artifact_meta` interface names come from Order 02 (`tve77h`) and are used exactly: `agent_workflows/artifact_meta.py::read(id6) -> State`, `agent_workflows/artifact_meta.py::history(id6)`, `agent_workflows/artifact_meta.py::query(...)` with typed filters (type, status, Set, order, `depends_on`, `latest_gate_review_of`, `path`) and an `incomplete` list, `agent_workflows/artifact_meta.py::resolve(path_or_id6)`, `agent_workflows/artifact_meta.py::read_at(id6, rev)` (Order 09 only), `agent_workflows/artifact_meta.py::repair(id6, *, confirm=None)`, and the `artifacts.short_description` column. The legacy loader stores a multi-word `- Status:` raw value in a legacy-only column and sets `artifacts.status` only for a single token (tve77h OQ-03, which names this plan as the carrier of the reader decision).
+- One status normalizer already exists: `agent_workflows/plans.py::normalize_status` maps `EXECUTED`/`DONE` to `executed` and any other unrecognized token to `plans.LEGACY_GROUP` (`legacy/unknown`); `agent_workflows/plans.py::read_status` applies it to the FIRST token of the whole-file `- Status:` line. `agent_workflows/attention.py::_plans_record` and `agent_workflows/ipd_lint.py::lint_text` (`IPD-M105`) already use it.
+- `agent_workflows/selectors.py::metadata_region` is the shared region bound (the bullet block before the first `##`, or the YAML fence). The PARITY CONSTRAINT comment above `selectors._STATUS_RE` records the 24-plan disagreement and forbids changing it without "owning that contract change", which D-1 does here.
+- Shared history rules: `agent_workflows/attention_contract.py::history_block`, `agent_workflows/attention_contract.py::newest_history_record`, `agent_workflows/attention_contract.py::last_history_at`.
+- `aw find` for plans uses `agent_workflows/plans_index.py::plan_entry` and `agent_workflows/plans_index.py::query` for display rows and `agent_workflows/selectors.py::resolve` (through `cli._resolve_selectors_with_kinds`) for selector hits; `aw ipd board` is `cli._run_plans` over `plans.scan`.
+- New CLI leaves are declared in `agent_workflows/command_surface.py::CommandDeclaration` and covered by `tests/conformance_matrix.py`. Order 03 (`1ajqaa`) creates `agent_workflows/meta_cli.py` for `aw show --history`, so the split parent `ffceq0` planned `check meta` and `meta repair` for that module (moved to Order 140 `a5ijjx`).
+- Traversal exclusions live in `agent_workflows/layout.py::TRAVERSAL_EXCLUSIONS` (consumed by `selectors`); `_SKIP_NAMES` is defined separately in `check_engine`, `selectors` and `artifact_refs`.
 - Core tier: modules set `pytestmark = pytest.mark.core`; the bare gate is `python3 -m pytest` (30 s budget).
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
@@ -96,7 +99,14 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Proposed changes (ordered, validatable)
 
-1. Pin then move `attention` and its history reads (E-01, E-02; `ffceq0` E-04, E-05).
+1. Pin current `aw attention` behavior across all six record trees in `tests/test_readers_attention.py` and capture baseline outcome lists (E-01).
+2. Move `attention` readers onto `artifact_meta.query` and `artifact_meta.history`, reporting incomplete query records as `attention.missing-status` violations and preserving `_extract_detail` fallback (E-02).
+
+```mermaid
+flowchart TD
+    E01["E-01: Pin current attention behavior and baselines"] --> E02["E-02: Move attention readers onto artifact_meta"]
+    E02 --> V02["V-02: Verify parity and incomplete record handling"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -108,6 +118,7 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
   - Carrier: r81uvz
 - The event-owned readiness/approval/coverage rules (AC-15).
   - Carrier: 2xwb9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md
 - Cache parity, offline proof and the residual audit over `attention` and `ipd_lint`: kept in the split parent.
   - Carrier: ffceq0
 
@@ -132,7 +143,7 @@ N/A: no spec text changes; this part implements `4sd62s` 4.4 (the `_extract_deta
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Round 3 (2026-11-09): 2 E-items, 3 work Scope-Paths; E-03 moved to `1suzlp`, which carries the original's E-09 -> E-07 edge on the check_engine parts. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -156,8 +167,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. Every reader move is pin-first: the baseline runs green on the unmodified code before the matching move, and a test edited after a move must be one that the copied decisions name.
 
+Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under other modules of `agent_workflows/` is out of this plan's purpose.
+
+Safety: if prerequisite `artifact_meta` reader interfaces (`artifact_meta.query`, `artifact_meta.history`, `artifact_meta.read_text`) or prerequisite plan modules are absent or incomplete, or if an unresolvable concurrent-edit conflict occurs, stop and report immediately: that is an unsafe condition, not a scope question.
+
 Honesty rule: run the named modules and `python3 -m pytest` (core gate) and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit dqutt8 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize dqutt8` itself.
