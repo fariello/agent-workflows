@@ -534,6 +534,40 @@ class TestPromptContents(unittest.TestCase):
             outcome_path = lane_root / m.group(1)
             self.assertTrue(outcome_path.parent.is_dir())
 
+            # pi8ga2: isolated review prompt on both hosts embeds a questions[] schema
+            # example that parses as JSON, passes validate_questions for the item's id6,
+            # and states the QUESTION_OPTION_MAX_LENGTH limit.
+            for host_mod in (oc_runipd, agy_runipd):
+                host_prompt = host_mod.build_review_prompt(
+                    item,
+                    self.state,
+                    self.run_dir,
+                    plan_in_lane,
+                    Path("."),
+                    lane_root=lane_root,
+                )
+                self.assertIn(
+                    f"<= {runner_shared.QUESTION_OPTION_MAX_LENGTH} chars",
+                    host_prompt,
+                )
+                schema_match = re.search(
+                    r'(\{\s*"questions":\s*\[.*?\]\s*\})',
+                    host_prompt,
+                    re.DOTALL,
+                )
+                self.assertIsNotNone(schema_match)
+                parsed_example = json.loads(schema_match.group(1))
+                verdict = runner_shared.validate_questions(
+                    parsed_example, item_id6="rev001"
+                )
+                self.assertEqual(
+                    verdict.verdict,
+                    runner_shared.QUESTIONS_VERDICT_VALID,
+                    verdict.violations,
+                )
+                self.assertEqual(len(verdict.questions), 1)
+                self.assertTrue(verdict.questions[0]["gates_verdict"])
+
 
 class TestA10Contract(unittest.TestCase):
     """A10a / A10b / A31: Contract tests between decisions/questions register and question carrier."""

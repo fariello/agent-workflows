@@ -26809,17 +26809,17 @@ QUESTION_OPTION_MAX_LENGTH: int = 120
 QUESTIONS_MAX_COUNT: int = 20
 
 
-def questions_schema_literal() -> str:
-    """The questions field as it appears inside the execute prompt's outcome-JSON literal."""
+def questions_schema_literal(artifact_id6: str = "id6") -> str:
+    """The questions field as it appears inside an outcome-JSON literal."""
     return (
         f'  "{QUESTIONS_KEY}": [\n'
         f"    {{\n"
         f'      "question_id": "terse-local-id",\n'
-        f'      "text": "the question for the human (max 2000 chars)",\n'
-        f'      "artifact_id6": "id6",\n'
+        f'      "text": "the question for the human (max {QUESTION_TEXT_MAX_LENGTH} chars)",\n'
+        f'      "artifact_id6": "{artifact_id6}",\n'
         f'      "gates_verdict": true,\n'
-        f'      "evidence": ["prior artifact or repo evidence consulted"],\n'
-        f'      "options": ["optional label 1", "optional label 2"],\n'
+        f'      "evidence": ["prior artifact or repo evidence consulted (max {QUESTION_EVIDENCE_MAX_COUNT} items, each <= {QUESTION_EVIDENCE_ITEM_MAX_LENGTH} chars)"],\n'
+        f'      "options": ["short choice 1", "short choice 2 (optional, {QUESTION_OPTIONS_MIN_COUNT}-{QUESTION_OPTIONS_MAX_COUNT} items, each <= {QUESTION_OPTION_MAX_LENGTH} chars)"],\n'
         f'      "allow_free_text": true\n'
         f"    }}\n"
         f"  ],"
@@ -34157,6 +34157,10 @@ def build_review_prompt(
         lane_root=lane_root,
     )
     lane_containment.prepare_lane_submission_dir(paths)
+    item_id6 = str(item.get("id6") or "id6")
+    q_schema = (
+        "{\n" + questions_schema_literal(artifact_id6=item_id6).rstrip(",") + "\n}"
+    )
     return (
         command
         + "\n"
@@ -34164,8 +34168,11 @@ def build_review_prompt(
         + f"\n\nRequired JSON outcome: {paths.prompt_outcome}\n\n"
         f"When a material question is the HUMAN'S to decide under the askme three-way sort "
         f"(see `.aw/system/workflows/askme/askme.md` 'Establish facts before asking'), "
-        f"record it in `questions[]` in {paths.prompt_outcome} and exit normally; "
-        f"never prompt and never wait.\n\n" + REVIEW_FOREGROUND_RULE
+        f"record it in `questions[]` in {paths.prompt_outcome} using the exact entry schema "
+        f"below (`gates_verdict: true` parks a blocking question as `awaiting-human`; put "
+        f"detailed option trade-offs in `text` so each entry in `options` stays <= "
+        f"{QUESTION_OPTION_MAX_LENGTH} chars) and exit normally; never prompt and never wait:\n"
+        f"{q_schema}\n\n" + REVIEW_FOREGROUND_RULE
     )
 
 
