@@ -6,7 +6,9 @@
 - Scope: Chunk 4 of 11 of `nbfg7w` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `nbfg7w`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_work_gate_severity.py, tests/test_attention_contract.py, tests/test_attention_degraded_item.py, tests/test_attention_excluded_tree_selector.py, tests/test_attention_lane_detail_bound.py, tests/test_attention_output_safety.py, tests/test_attention_priority_blocker.py, tests/test_attention.py, .aw/records/plans/pending/20261109-metastore-195-lf0fe4-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -22,6 +24,7 @@
 ## Workflow history
 
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from nbfg7w (round 3, research nj8zdp guidance).
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, batch rules, and execution gate; marked reviewed and go-pending-approval.
 
 ## Goal
 
@@ -100,6 +103,18 @@ Measured 2026-11-09 at `3d0ddb845` for F-40; F-01, F-03, F-06 and F-08 copied fr
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Convert work gate severity module (E-01)<br/>tests/test_work_gate_severity.py"]
+    E02["2. Convert attention contract, degraded, excluded & lane modules (E-02)<br/>tests/test_attention_contract.py<br/>tests/test_attention_degraded_item.py<br/>tests/test_attention_excluded_tree_selector.py<br/>tests/test_attention_lane_detail_bound.py"]
+    E03["3. Convert attention output safety, priority blocker & attention modules (E-03)<br/>tests/test_attention_output_safety.py<br/>tests/test_attention_priority_blocker.py<br/>tests/test_attention.py"]
+    E04["4. Re-run Union, Core Gate & Path-Scoped Commits (E-04)"]
+
+    E01 --> E04
+    E02 --> E04
+    E03 --> E04
+```
+
 1. Convert each item's modules under the batch rule (E-01 to E-03).
 2. Re-run the union, the core gate, commit (E-04).
 
@@ -135,7 +150,7 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The module lists of all chunk plans are disjoint, each needs the builder (`9rgn2w`) and the codemod (`653ndz`), and none edits `tests/support.py` (that is `59aiyh` E-09, which runs last). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -175,4 +190,4 @@ Honesty rule: run every command a V-item names and paste the ACTUAL output; neve
 
 Commits: commit only through `aw commit lf0fe4 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize lf0fe4` itself.
