@@ -6,7 +6,9 @@
 - Scope: `iog3cw` E-02 (batch S01: 8 modules, 28 candidate lines at `ac76110f4`), as S01a and S01b. EXCLUDES the `iog3cw` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_agy_runipd_cli.py, tests/test_artifact_group.py, tests/test_artifact_rename.py, tests/test_attention_priority_blocker.py, tests/test_attention.py, tests/test_awcmdsurf_mutation_verbs.py, tests/test_backlog_already_complete.py, tests/test_backlog_close_evidence_plan_disposition.py, .aw/records/plans/pending/20261109-metastore-262-545ag7-move-setter-byte-assertions-of-batch-s01-onto-the-format-awa.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4, executed:j5fqax
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 545ag7
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-262-545ag7-move-setter-byte-assertions-of-batch-s01-onto-the-format-awa.review.md
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from iog3cw (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -32,7 +36,7 @@ Every setter-byte assertion in the eight S01 modules goes through the format-awa
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
 Batch rule, applied to every batch E-item of this plan:
-1. Record the unmodified per-test outcome list of the batch's modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/545ag7/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
+1. Record the unmodified per-test outcome list of the batch's modules: `mkdir -p .aw/state/545ag7 && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/545ag7/<batch>-before.txt`. For a batch restricted to named test classes, pass the `<module>::<Class>` node ids.
 2. In each named module (or class), replace every SETTER-BYTE assertion with a call to the helper of `tests/record_builder.py` added by `j5fqax` E-01, formerly `iog3cw` E-01 (`assert_field(path, field, value)` and `assert_no_field(path, field)`). A setter-byte assertion is an `assertIn`/`assertNotIn`/`assert ... in` over the text of a RECORD FILE that names a front-matter bullet (`- Status:`, `- Priority:`, `- Blocks-Release:` and the other F-28 fields). An assertion over command OUTPUT (stdout, stderr, a rendered message) is a `displayed-output assertion` and is NOT converted; an assertion whose subject is the legacy grammar itself (a legacy-loader, migration or quoted-example test) is `legacy-format subject` and is NOT converted.
 3. Re-run the same command into `<batch>-after.txt` and require `diff` to print nothing. A conversion that would change what a test checks (for example a test that asserts the exact bullet spelling, such as whitespace after the colon) stops and is reported with its node id; it is listed as `setter-byte, exact spelling` in F-28 for `cxxmyv`, not weakened.
 4. Count the remaining matches of the F-28 pattern in the batch's modules and give each remaining line one class: `converted` (none should remain), `displayed-output assertion`, `legacy-format subject` or `setter-byte, exact spelling`.
@@ -60,6 +64,7 @@ Batch rule, applied to every batch E-item of this plan:
 - Test data comes from ONE builder, `tests/record_builder.py` (`9rgn2w`/`59aiyh`), which writes through `artifact_meta`; `cxxmyv` E-07 switches it to `RECORD_FORMAT = "log"` in the cutover commit.
 - Tests are behavioral (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); core modules set `pytestmark = pytest.mark.core`; `pyproject.toml` `addopts` deselects `slow` and `livecorpus`, so a complete comparison passes `-m ""`, and `pytest-randomly` is installed, so a deterministic order needs `-p no:randomly`.
 - `artifact_meta.read_text(text, *, record_type=None) -> State` parses a record's text in either format (phase-B legacy loader), so the helper's legacy branch needs no new parser.
+- S01 candidate classification (measured at `ac76110f4`): 23 lines across six modules are convertible setter-byte assertions; 5 lines are `legacy-format subject` and remain unconverted per batch rule step 2: `tests/test_attention_priority_blocker.py` (4 lines testing `attention.read_readiness` parser directly on literal strings) and `tests/test_attention.py` (line 3509 testing synthetic string buffer index offsets for chunk window straddling).
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
@@ -71,8 +76,21 @@ Batch rule, applied to every batch E-item of this plan:
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01, E-02: the two halves of S01 (independent).
-2. E-03: union check, F-28 rows, commit.
+1. Convert batch S01a assertions in `tests/test_agy_runipd_cli.py`, `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, `tests/test_attention_priority_blocker.py` (E-01).
+2. Convert batch S01b assertions in `tests/test_attention.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py` (E-02).
+3. Re-verify the outcome multiset across all eight S01 modules, write the F-28 remaining-matches and F-29 count tables, run `aw sanitize --agent`, and commit (E-03).
+
+```mermaid
+flowchart TD
+    E01["E-01: Convert batch S01a assertions<br/>tests/test_agy_runipd_cli.py, test_artifact_group.py, test_artifact_rename.py, test_attention_priority_blocker.py"]
+    E02["E-02: Convert batch S01b assertions<br/>tests/test_attention.py, test_awcmdsurf_mutation_verbs.py, test_backlog_already_complete.py, test_backlog_close_evidence_plan_disposition.py"]
+    E03["E-03: Union check, assemble F-28/F-29 rows, sanitize, and commit"]
+
+    E01 --> E03
+    E02 --> E03
+```
+
+E-01 and E-02 touch disjoint test files and are independent; E-03 consolidates their outcome lists and assembles the remaining-match table.
 
 ## Deferred / out of scope (with reason)
 
@@ -102,7 +120,7 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The helper reads through the ACTIVE format and, in the legacy format, also asserts the exact bullet line, so each converted test checks at least what it checked before on the same legacy bytes; `main` keeps one on-disk format. Only the format switch, the log branch of the helper and the exact-spelling rows wait for the cutover commit. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -129,4 +147,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 545ag7 -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Apply the stop conditions below if unexpected failures or missing prerequisite symbols occur.
+
+Shared-checkout safety: other agents and humans work concurrently in this repository; never revert, stage, commit, discard, or reformat changes outside this plan's edits, and stop and report if an unresolvable concurrent-edit conflict occurs.
+
+Stop conditions (safety stops): stop and report rather than editing production code or weakening test assertions if an unexpected failure occurs on unmodified code, if an assertion pins exact legacy syntax that cannot be cleanly expressed via `assert_field`, if prerequisite `tests/record_builder.py` or helper functions `assert_field` / `assert_no_field` from `j5fqax` are absent, or if an unresolvable concurrent-edit conflict occurs.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL output; never claim a result you did not run.
+
+Commits: commit only through `aw commit 545ag7 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 545ag7` itself.
