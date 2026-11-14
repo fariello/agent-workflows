@@ -6,7 +6,9 @@
 - Scope: rewrite the three INDEX paragraphs and keep `tests/test_installed_text_current.py` green. EXCLUDES `docs/`, `README.md`, `CONTRIBUTING.md` and `CHANGELOG.md` (Order 226).
 - Scope-Paths: .aw/records/plans/README.md, .aw/records/research/README.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_installed_text_current.py, .aw/records/plans/pending/20261109-metastore-227-kkftwj-update-the-index-paragraphs-in-the-plans-and-research-readme.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6qh68x, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kkftwj
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-227-kkftwj-update-the-index-paragraphs-in-the-plans-and-research-readme.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -66,6 +70,13 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -c "stale-index" tests/test_installed_te
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Update .aw/records/plans/README.md"] --> E04["E-04: Update test & commit"]
+    E02["E-02: Update research README template"] --> E03["E-03: Update .aw/records/research/README.md"]
+    E03 --> E04
+```
+
 1. Plans README (E-01).
 2. Template, then installed research README (E-02, E-03).
 3. Test and commit (E-04).
@@ -94,7 +105,7 @@ No spec change; this plan IS the documentation sync for `4sd62s` 4.5 in these th
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It may be shortened to one sentence of history; the files are no longer generated, so the reasoning about committing them is no longer an operating instruction. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -126,4 +137,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Orders 220 and 229 first, so the text changes only once the alias exists and the stale-index rules are gone). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL outputs; never claim a result you did not run. Commits: only through `aw commit kkftwj -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Orders 220 and 229 first, so the text changes only once the alias exists and the stale-index rules are gone).
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`).
+
+Honesty rule: paste the ACTUAL outputs; never claim a result you did not run.
+
+Commits: only through `aw commit kkftwj -- <paths>`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize kkftwj` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize kkftwj itself.
