@@ -6,7 +6,9 @@
 - Scope: retarget or delete the cases of those two modules, under the PIN RULE, before any builder is deleted. EXCLUDES the builder deletions (Orders 233 to 235) and the per-type index test modules.
 - Scope-Paths: tests/test_index_write_agent_records.py, tests/test_index_check_agent_records.py, .aw/records/plans/pending/20261109-metastore-231-f6y2yy-retarget-the-index-agent-record-tests-off-the-index-write-pa.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: f6y2yy
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-231-f6y2yy-retarget-the-index-agent-record-tests-off-the-index-write-pa.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,11 +34,11 @@ After this plan, neither module calls an INDEX builder or asserts an INDEX file,
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/f6y2yy/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; the evidence pastes both lists and maps each removed name to its successor. "A test whose only subject is a deleted INDEX writer is deleted, and the mapping names it as an INDEX-byte-only test" (carried from `snin8q`).
+Ensure `.aw/state/f6y2yy/` exists (`mkdir -p .aw/state/f6y2yy/`). PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/f6y2yy/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; the evidence pastes both lists and maps each removed name to its successor. "A test whose only subject is a deleted INDEX writer is deleted, and the mapping names it as an INDEX-byte-only test" (carried from `snin8q`).
 
 ### Task group 1: two modules
 
-- [ ] E-01 Pin `tests/test_index_write_agent_records.py` and `tests/test_index_check_agent_records.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Create `.aw/state/f6y2yy/` (`mkdir -p .aw/state/f6y2yy/`) and pin `tests/test_index_write_agent_records.py` and `tests/test_index_check_agent_records.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/f6y2yy/E-01-before.txt` exists.
   - Execution state: pending
@@ -57,15 +60,28 @@ PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test ou
 
 ## Project conventions discovered (Step 0)
 
-- Both modules drive the CLI through `tests.conformance_matrix.run_cli_inproc` or subprocesses and validate records with `agent_schema.validate_agent_record`.
+- Both modules drive the CLI through `tests/conformance_matrix.py::run_cli_inproc` or subprocesses and validate records with `agent_workflows/agent_schema.py::validate_agent_record`.
 - Tests assert on behavior, never on source text (GUIDING_PRINCIPLES P16).
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
+- Cite code by SYMBOL (`agent_workflows/module.py::function_or_symbol`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
 
 Measured 2026-11-09 at `3d0ddb845`: `rg -c "def test"`: `tests/test_index_write_agent_records.py` 19, `tests/test_index_check_agent_records.py` 16. `rg -n "build_index" tests/test_index_check_agent_records.py` prints 6 builder calls in one fixture.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["1. Pin test modules (E-01)<br/>tests/test_index_write_agent_records.py<br/>tests/test_index_check_agent_records.py"]
+    E02["2. Retarget write module off write path (E-02)<br/>tests/test_index_write_agent_records.py"]
+    E03["3. Remove index builder fixture in check module (E-03)<br/>tests/test_index_check_agent_records.py"]
+    E04["4. Verify & commit in one atomic commit (E-04)<br/>tests/test_index_write_agent_records.py<br/>tests/test_index_check_agent_records.py"]
+
+    E01 --> E02
+    E01 --> E03
+    E02 --> E04
+    E03 --> E04
+```
 
 1. Pin (E-01).
 2. Retarget the write module (E-02) and the check module (E-03).
@@ -95,7 +111,7 @@ No spec change.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Its refusal and record-shape cases still describe the alias verbs, which keep `--agent`/`--json` contracts; only the write-only cases lose their subject. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -127,4 +143,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit f6y2yy -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Stop safely if prerequisite metastore symbols from `q6epwc` (alias verbs and stale-index elimination) or `54a80m` are absent.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit f6y2yy -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize f6y2yy` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize f6y2yy itself.
