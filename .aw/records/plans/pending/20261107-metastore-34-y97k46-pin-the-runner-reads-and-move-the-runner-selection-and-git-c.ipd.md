@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). E-01, E-02 and E-03 (search rows, pin, selection move) moved to `k86yq7` (Order 147); E-04 and E-05 (execution move, own-log finalize scope) moved to `k3hb06` (Order 152). This plan keeps E-06: the `runner_shared`/`oc_runipd`/`agy_runipd` rows of `t4gl15` E-15's residual audit, and the final runner runs. EXCLUDES: the five `runner_shared` git-content readers (`iqhzse`); every writer (Orders 06/07); deleting parsers (Order 11).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-34-y97k46-pin-the-runner-reads-and-move-the-runner-selection-and-git-c.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:k86yq7, executed:k3hb06
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 moved to k86yq7; E-04, E-05 moved to k3hb06.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from t4gl15 per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 
@@ -80,7 +83,18 @@ DECISIONS (copied from `t4gl15`, whose text is authoritative):
 
 ## Proposed changes (ordered, validatable)
 
-1. Runner residual audit, commit (E-06).
+1. Run residual audit across runner modules (`agent_workflows/runner_shared.py`, `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`), populating table F-04 with hit owners (E-06).
+2. Move and repair any unowned reader defect discovered before finishing, re-run `tests/test_readers_runner.py` and the ten baseline modules, verify core gate `python3 -m pytest`, and commit path-scoped (E-06).
+
+```mermaid
+flowchart TD
+    A["E-06: Scan runner modules for ^- regexes and history hits"] --> B["E-06: Populate table F-04 with hit owners"]
+    B --> C{"Any unowned reader defect?"}
+    C -->|Yes| D["Repair unowned reader defect and update scope"]
+    C -->|No| E["Re-run tests/test_readers_runner.py and 10 baseline modules"]
+    D --> E
+    E --> F["Verify bare core gate python3 -m pytest and commit path-scoped"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -114,7 +128,7 @@ No spec change. Implements the runner part of `4sd62s` C5a and section 7 step 5,
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Superseded 2026-11-09 by the round-3 split (research `nj8zdp` guidance): the selection subset went to `k86yq7` and the execution subset to `k3hb06`, each a plan of its own. The original resolution read: Into two task groups of this plan, at the seam `t4gl15` OQ-03 named (E-03: `parse_plan_file`, `discover_*`, `edge_satisfied` and the other queue-building reads; E-04: `execute_item_core`/`initialize_run_core`/review-sequence reads), not into two plans: each item is under the 25-unit bound and both share one pinning module and one baseline. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -131,12 +145,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `ffceq0`, `g5hpbb`, `h58z9n`, `tve77h`, `xexn45`, `k86yq7` and `k3hb06` are executed. OQ-01 is resolved.
+Execute only after human approval (`Status: approved`) and after `ffceq0`, `g5hpbb`, `h58z9n`, `tve77h`, `xexn45`, `k86yq7` and `k3hb06` are executed. OQ-01 is resolved and not blocking.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first, and a test edited after a move must be one that D-1 to D-4 name.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code is not modified unless E-06 uncovers an unowned reader defect. Every reader move is pin-first, and a test edited after a move must be one that D-1 to D-4 name.
+
+Safety: if prerequisite modules or `artifact_meta.read` / `query` runner implementations from `k86yq7` or `k3hb06` are absent (or `tests/test_readers_runner.py` from `k86yq7`), stop and report immediately: that is an unsafe condition, not a scope question.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit y97k46 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize y97k46` itself.
