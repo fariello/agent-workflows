@@ -1,5 +1,5 @@
 - Id: t1uuxl
-- Status: open
+- Status: done
 - Set: revgate
 - Priority: medium
 - Work-Kind: chore
@@ -8,6 +8,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-14 done (aw set): status set to done
 - 2026-11-14 created (aw backlog): Review agents push long commands to the background and poll them, costing cached tokens; the review prompt should require foreground commands and no polling
 
 ## Observed
