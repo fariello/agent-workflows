@@ -6,7 +6,9 @@
 - Scope: delete the 19 named patterns in four groups, each use reading the value through `artifact_meta.read`, `read_text` or `read_at` at its caller, and update comments in `check_engine` that cite a deleted pattern. EXCLUDES the three parsers (Order 239), the inline literals (Order 241), and the two `body prose` patterns `_TARGET_BULLET_RE` and the `parse_spec_acceptance_criteria` table-rule literal (kept, N3).
 - Scope-Paths: agent_workflows/check_engine.py, .aw/records/plans/pending/20261109-metastore-240-js35bz-delete-the-named-check-engine-metadata-regex-patterns.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, check_engine regex groups, PIN rule, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from e8420v (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `e8420v` E-12's list is split across Orders 239, 240 and 241; this plan takes "the named patterns `_ID_LINE_RE`, `_SET_LINE_RE`, `_IDENT_ID_BULLET_RE`, `_IDENT_SET_BULLET_RE`, `_STATUS_META_RE`, `_ITEM_ID_RE`, `_ITEM_PRIORITY_RE`, `_ITEM_WORK_KIND_RE`, `_META_BLOCKS_RELEASE_RE`, `_META_CLOSE_EVIDENCE_RE`, `_META_FROM_BACKLOG_RE`, `_ITEM_FROM_SPEC_RE` (defined twice), `_PLAN_STATUS_RE`, `_ITEM_DEPENDENCIES_RE`, `_DATE_LINE_RE`, `_REVIEW_SUBJECT_TYPE_RE`, `_FROM_SPEC_LINE_RE`, `_SCOPE_PATHS_LINE_RE`, `_CARRIER_DATE_RE`". Each group below is one edit pass in `agent_workflows/check_engine.py`: delete the pattern, change each use to the `artifact_meta` field of the same name, fix a comment that cites it. If F-26 classes a pattern `already gone`, record that and move on.
 
-PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of every `tests/test_check_engine*.py` module (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_check_engine*.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/js35bz/before.txt`); after E-04, the same into `after.txt`. A test edited because it names a deleted pattern keeps every input case and is justified at finalize (`--scope-reason`).
+PIN RULE (carried from `9o83cr`): before E-01, create directory `mkdir -p .aw/state/js35bz/` and save the per-test outcome list of every `tests/test_check_engine*.py` module (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_check_engine*.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/js35bz/before.txt`); after E-04, the same into `after.txt`. A test edited because it names a deleted pattern keeps every input case and is justified at finalize (`--scope-reason`).
 
 ### Task group 1: four pattern groups, then verify
 
-- [ ] E-01 Group A (identity and status): delete `_ID_LINE_RE`, `_SET_LINE_RE`, `_IDENT_ID_BULLET_RE`, `_IDENT_SET_BULLET_RE`, `_STATUS_META_RE`, `_PLAN_STATUS_RE`.
+- [ ] E-01 Ensure `.aw/state/js35bz/` exists (`mkdir -p .aw/state/js35bz/`) and capture baseline per PIN rule. Group A (identity and status): delete `_ID_LINE_RE`, `_SET_LINE_RE`, `_IDENT_ID_BULLET_RE`, `_IDENT_SET_BULLET_RE`, `_STATUS_META_RE`, `_PLAN_STATUS_RE`.
   - Depends on: none
   - Expected outcome: `rg -n "\b(_ID_LINE_RE|_SET_LINE_RE|_IDENT_ID_BULLET_RE|_IDENT_SET_BULLET_RE|_STATUS_META_RE|_PLAN_STATUS_RE)\b" agent_workflows/check_engine.py` prints nothing.
   - Execution state: pending
@@ -73,6 +76,20 @@ Measured at `ac76110f4` (`e8420v` F-26): `check_engine` has 30 `^-` literals, of
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Group A deletions (E-01)<br/>_ID_LINE_RE, _SET_LINE_RE, _IDENT_ID_BULLET_RE, _IDENT_SET_BULLET_RE, _STATUS_META_RE, _PLAN_STATUS_RE"]
+    E02["2. Group B deletions (E-02)<br/>_ITEM_ID_RE, _ITEM_PRIORITY_RE, _ITEM_WORK_KIND_RE, _ITEM_DEPENDENCIES_RE, _DATE_LINE_RE"]
+    E03["3. Group C deletions (E-03)<br/>_META_BLOCKS_RELEASE_RE, _META_CLOSE_EVIDENCE_RE, _META_FROM_BACKLOG_RE, _ITEM_FROM_SPEC_RE, _FROM_SPEC_LINE_RE"]
+    E04["4. Group D deletions (E-04)<br/>_REVIEW_SUBJECT_TYPE_RE, _SCOPE_PATHS_LINE_RE, _CARRIER_DATE_RE"]
+    E05["5. Verification & commit (E-05)<br/>Save after.txt, run check_engine tests, compare multisets with 786w7r F-30, commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
+
 1. Delete groups A to D (E-01 to E-04).
 2. Verify and commit (E-05).
 
@@ -100,7 +117,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Then the pattern has no use left; delete the definition only, and F-26 shows it. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -137,4 +154,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit js35bz -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed or required predecessor symbols are absent, stop and report rather than proceeding. Scope fence: the paths in `- Scope-Paths:` are a declaration. Production code outside `agent_workflows/check_engine.py` is not modified by this plan; a needed test-tree file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines and command output; never claim a result you did not run. Commits: commit only through `aw commit js35bz -- <paths>` with only Scope-Paths files (or justified test paths); never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize js35bz` itself.
