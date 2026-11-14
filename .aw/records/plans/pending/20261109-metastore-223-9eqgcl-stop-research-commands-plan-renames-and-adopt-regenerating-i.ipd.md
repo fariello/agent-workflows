@@ -6,7 +6,9 @@
 - Scope: delete those five call sites and the default refresher, pin the two test modules that assert their INDEX lines, and add the `producers` case to `tests/test_index_aliases.py` (created by Order 220). EXCLUDES: the finalize refresh (Order 221), `status_set` and `artifact_rename` (Order 222), the `run_index` calls inside `plans_archive._refresh_index` and `research_archive`, which write INDEX files directly and are deleted with the writers by `snin8q`.
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/research_refs.py, agent_workflows/plans_refs.py, agent_workflows/artifact_adopt.py, tests/test_artifact_refs_rewrite.py, tests/test_artifact_adopt.py, tests/test_index_aliases.py, .aw/records/plans/pending/20261109-metastore-223-9eqgcl-stop-research-commands-plan-renames-and-adopt-regenerating-i.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:lywgzs, executed:mv0j4k, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, callers deletion, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -76,6 +79,22 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "run_index" agent_workflows/research_
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Pin existing test suites (E-01)<br/>tests/test_artifact_refs_rewrite.py<br/>tests/test_artifact_adopt.py"]
+    E02["2. Delete research_cmd callers (E-02)<br/>agent_workflows/research_cmd.py"]
+    E03["3. Delete citation rewriter callers (E-03)<br/>agent_workflows/research_refs.py<br/>agent_workflows/plans_refs.py"]
+    E04["4. Delete adopt default refresher (E-04)<br/>agent_workflows/artifact_adopt.py"]
+    E05["5. Retarget tests, add producers test & commit (E-05)<br/>tests/test_index_aliases.py"]
+
+    E01 --> E02
+    E01 --> E03
+    E01 --> E04
+    E02 --> E05
+    E03 --> E05
+    E04 --> E05
+```
+
 1. Pin (E-01).
 2. Delete the research (E-02), citation (E-03) and adopt (E-04) callers.
 3. Retarget, add the `producers` case, commit (E-05).
@@ -104,7 +123,7 @@ No spec change; implements part of `4sd62s` 4.5 and contributes to AC-9 (owned b
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Removing it would delete the rollback test's only hook; keeping an unused-by-default seam is the smaller change, and `cxxmyv` can remove it with the rest of the INDEX residue. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -141,4 +160,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (including Orders 221 and 222, so E-05's whole-family search is meaningful). Every deletion is pin-first (PIN RULE above). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 9eqgcl -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (including Orders 221 and 222, so E-05's whole-family search is meaningful). Every deletion is pin-first (PIN RULE above). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 9eqgcl -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 9eqgcl` itself.
