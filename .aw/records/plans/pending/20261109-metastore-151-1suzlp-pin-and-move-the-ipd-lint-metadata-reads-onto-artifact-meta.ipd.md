@@ -3,10 +3,12 @@
 - Date: 2026-11-09
 - Kind: child
 - Concern: Split from `dqutt8` (Order 28) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 5 E-items, 8 work Scope-Paths, about 8 named units per item): `dqutt8` E-03 named 11 distinct units in one item. `ipd_lint` parses plan metadata and history itself (5 `^-` literals and `ipd_schema.parse_metadata_block`); spec `4sd62s` C5 requires it to answer from `artifact_meta`.
-- Scope: Pin the `ipd_lint` metadata verdicts, then move the `parse` metadata slice and the `lint_text` `state` argument, then move the rule readers (`IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113`, `M105`, the `run_lint` rows and `_CITATION_PLAN_DATE_RE`) onto `artifact_meta` (`ffceq0` E-09, carried through `dqutt8` E-03 and split here into three steps). EXCLUDES: `attention` (kept in `dqutt8`), `selectors` and `aw find` (`cdglt1`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
+- Scope: Pin the `ipd_lint` metadata verdicts, then move the `parse` metadata slice and the `lint_text` `state` argument, then move the rule readers (`IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113`, `IPD-M105`, the `run_lint` rows and `_CITATION_PLAN_DATE_RE`) onto `artifact_meta` (`ffceq0` E-09, carried through `dqutt8` E-03 and split here into three steps). EXCLUDES: `attention` (kept in `dqutt8`), `selectors` and `aw find` (`cdglt1`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, tests/test_readers_ipd_lint.py, .aw/records/plans/pending/20261109-metastore-151-1suzlp-pin-and-move-the-ipd-lint-metadata-reads-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dqutt8 (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -38,7 +41,7 @@ Commit through `aw commit 1suzlp -- <each changed path>`, one commit per item al
 
 ### Task group 1: ipd_lint
 
-- [ ] E-01 (carried from `dqutt8` E-03, pin step) Before any `ipd_lint` edit, pin the current verdicts in the new `tests/test_readers_ipd_lint.py`: one conforming and one refused fixture each for `IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113` and `M105`. Save the outcome list of `tests/test_ipd_lint.py`, `tests/test_readiness_absence_invariant.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_priority_required.py` to `.aw/state/ffceq0/E-09-before.txt`, and save `aw ipd lint --all --agent` (every plan under `.aw/records/plans`, not only pending; per-plan disposition and rule ids, sorted) to `.aw/state/ffceq0/lint-before.jsonl`.
+- [ ] E-01 (carried from `dqutt8` E-03, pin step) Before any `ipd_lint` edit, pin the current verdicts in the new `tests/test_readers_ipd_lint.py`: one conforming and one refused fixture each for `IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113` and `IPD-M105`. Ensure directory `.aw/state/ffceq0/` exists (`mkdir -p .aw/state/ffceq0`), save the outcome list of `tests/test_ipd_lint.py`, `tests/test_readiness_absence_invariant.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_priority_required.py` to `.aw/state/ffceq0/E-09-before.txt`, and save `aw ipd lint --all --agent` (every plan under `.aw/records/plans`, not only pending; per-plan disposition and rule ids, sorted) to `.aw/state/ffceq0/lint-before.jsonl`.
   - Depends on: none
   - Expected outcome: the new module passes on the unmodified code; both baselines are saved.
   - Execution state: pending
@@ -48,7 +51,7 @@ Commit through `aw commit 1suzlp -- <each changed path>`, one commit per item al
   - Expected outcome: the E-01 module and the four baseline modules pass unchanged.
   - Execution state: pending
 
-- [ ] E-03 (carried from `dqutt8` E-03, rule step) Move the `ipd_lint` rule readers onto the `State` that E-02 supplies: `IPD-S405` reads `artifact_meta.history` (4.4 bullet "Gate IPD-S405"); `IPD-M107`, `IPD-M113` and `IPD-M112` read cached `readiness`, `approval` and `coverage` fields and their history (their meaning is unchanged; the event-ownership form is Order 06's AC-15); the `run_lint` row status, priority and `blocks_release` read cached fields; `_CITATION_PLAN_DATE_RE` reads cached `date`; `plans.read_status` is the shared status for `M105`. `_LEAF_RE` (the E-leaf grammar) stays, per N3. (The original's E-09 -> E-07 edge, on the check_engine move, is carried by this plan's `- Item-Dependencies:` edges on Orders 29 to 32.)
+- [ ] E-03 (carried from `dqutt8` E-03, rule step) Move the `ipd_lint` rule readers onto the `State` that E-02 supplies: `IPD-S405` reads `artifact_meta.history` (4.4 bullet "Gate IPD-S405"); `IPD-M107`, `IPD-M113` and `IPD-M112` read cached `readiness`, `approval` and `coverage` fields and their history (their meaning is unchanged; the event-ownership form is Order 06's AC-15); the `run_lint` row status, priority and `blocks_release` read cached fields; `_CITATION_PLAN_DATE_RE` reads cached `date`; `plans.read_status` is the shared status for `IPD-M105`. `_LEAF_RE` (the E-leaf grammar) stays, per N3. (The original's E-09 -> E-07 edge, on the check_engine move, is carried by this plan's `- Item-Dependencies:` edges on Orders 29 to 32.)
   - Depends on: E-02
   - Expected outcome: every test of E-01 passes with an empty outcome-list diff; `aw ipd lint --all --agent` reports the same per-plan disposition and rule ids as `.aw/state/ffceq0/lint-before.jsonl` (pasted sorted diff, empty).
   - Execution state: pending
@@ -60,7 +63,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 Carried from `dqutt8` (and through it `ffceq0`) Step 0:
 
 - The `artifact_meta` interface names come from Order 02 (`tve77h`) and are used exactly: `artifact_meta.read(id6) -> State`, `artifact_meta.history(id6)`, `artifact_meta.query(...)`, `artifact_meta.resolve(path_or_id6)`, `artifact_meta.read_at(id6, rev)`; `artifact_meta.read_text(text, *, record_type=None) -> State` is added by `cdglt1` (Order 142, through `r81uvz`).
-- One status normalizer already exists: `plans.normalize_status` maps `EXECUTED`/`DONE` to `executed` and any other unrecognized token to `plans.LEGACY_GROUP` (`legacy/unknown`); `plans.read_status` applies it to the FIRST token of the whole-file `- Status:` line. `ipd_lint.lint_text` (M105) already uses it.
+- One status normalizer already exists: `plans.normalize_status` maps `EXECUTED`/`DONE` to `executed` and any other unrecognized token to `plans.LEGACY_GROUP` (`legacy/unknown`); `plans.read_status` applies it to the FIRST token of the whole-file `- Status:` line. `ipd_lint.lint_text` (`IPD-M105`) already uses it.
 - Core tier: modules set `pytestmark = pytest.mark.core`; the bare gate is `python3 -m pytest` (30 s budget).
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, never a bare line number (advisory `IPD-C801`).
 
@@ -81,9 +84,15 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 ## Proposed changes (ordered, validatable)
 
-1. Pin the verdicts and save the baselines (E-01).
-2. Feed `ipd_lint` a `State` (E-02).
-3. Move the rule readers onto it (E-03).
+1. Pin the verdicts in `tests/test_readers_ipd_lint.py` and save the baselines under `.aw/state/ffceq0/` (E-01).
+2. Feed `ipd_lint` a `State` via `state: Optional[State] = None` in `ipd_lint.lint_text` (E-02).
+3. Move the rule readers onto `State` fields and events (E-03).
+
+```mermaid
+flowchart TD
+    A["E-01: Pin current verdicts in tests/test_readers_ipd_lint.py and record baselines"] --> B["E-02: Support state argument in ipd_lint.lint_text with read_text fallback"]
+    B --> C["E-03: Move rule readers (IPD-S405, M107, M112, M113, IPD-M105) onto State"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -119,7 +128,7 @@ N/A: no spec text changes; this part implements `4sd62s` 4.4 (the bullet "Gate I
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `git diff --stat agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py` empty; `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` with ten named tests PASSED (one conforming and one refused each for IPD-S405, IPD-M107, IPD-M112, IPD-M113 and M105); `wc -l .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/lint-before.jsonl`.
+  - Required evidence: paste `git diff --stat agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py` empty; `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` with ten named tests PASSED (one conforming and one refused each for IPD-S405, IPD-M107, IPD-M112, IPD-M113 and IPD-M105); `wc -l .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/lint-before.jsonl`.
   - Observed evidence:
   - Result: pending
 
@@ -140,8 +149,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. Every reader move is pin-first, and a test edited after a move must be one that the copied decisions name.
 
+Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under other modules of `agent_workflows/` is out of this plan's purpose.
+
+Safety: if prerequisite `artifact_meta` reader interfaces from `r81uvz` (`artifact_meta.read_text`, `artifact_meta.read`, `artifact_meta.history`) are absent or incomplete, stop and report immediately: that is an unsafe condition, not a scope question.
+
 Honesty rule: run the named modules and `python3 -m pytest` (core gate) and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit 1suzlp -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 1suzlp` itself.
