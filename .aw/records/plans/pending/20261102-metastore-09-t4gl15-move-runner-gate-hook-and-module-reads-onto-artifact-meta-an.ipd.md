@@ -6,7 +6,8 @@
 - Scope: Phase B readers, part 2 of 2 (`4sd62s` section 7 step 5), FINISHING PART after the 2026-11-07 split. The reader moves moved to four parts: (a) the 4.4 `read_at` gates, hooks, setter and merge-path readers, with the first rows of the re-run search and the `aw check` baseline, to `h58z9n` (Order 33); (b) the runner reads and own-log finalize scope to `y97k46` (Order 34); (c) the plans, research and prompts modules, the banner-blind research body test and the INDEX baseline to `jd7874` (Order 35); (d) the review, orchestration, production-check, work and adoption modules to `2zpw22` (Order 36). Round 3 (2026-11-09, research `nj8zdp` guidance): the 4.8 hook that refuses a staged non-append change to `meta/*.jsonl` (formerly E-05) moved to `jq82as` (Order 141). This plan keeps: the gate cache-parity test (E-13), the offline setter and gate proof (E-14), and the repository-wide residual audit, gates, `CHANGELOG.md` line and commit (E-15). EXCLUDES: the readers of Order 08 (`ffceq0`); writers (Orders 06/07); deleting parsers and INDEX code (Order 11); the event-ownership gate rules after the cutover (Order 13).
 - Scope-Paths: tests/test_readers_gate_cache_parity.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md
 - Item-Dependencies: executed:2zpw22, executed:jq82as, executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:jd7874, executed:tve77h, executed:xexn45, executed:y97k46
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -19,6 +20,8 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-05 moved to jq82as.
 - 2026-11-07 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): split per maintainer step-complexity rule; items E-02, E-03, E-04 and the gate-file rows of E-01 moved to h58z9n; E-06, E-07, E-08 and the runner rows of E-01 moved to y97k46; E-09, E-10, E-16 and the remaining rows of E-01 moved to jd7874; E-11, E-12 moved to 2zpw22; each part also carries the E-15 residual-audit rows for its own modules.
 - 2026-11-07 same-status (aw set): maintainer direction 2026-11-07 (spec 4sd62s C12/5.2a step 3a): the any-repo migration and multi-shape cache (g5hpbb) must land before any reader move and before the cutover
@@ -39,7 +42,7 @@ Every gate, hook, runner and record module reads metadata only through `artifact
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Split note (2026-11-07): the reader moves and their pin-first baselines now run in the four parts named in Scope; the rule below is kept because E-13 and E-14 follow it for their new module. The pin-first rule of `ffceq0` applies to every move here: BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of D-1 to D-4 below. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command, never combined with baseline module paths, because `-k` filters every path on the command line. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. A count measured at authoring (for example F-05's 1,719 records) is context, never the bar. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits, in which case they are marked `slow` and run in `make test-all`; none reads production source.
+Split note (2026-11-07): the reader moves and their pin-first baselines now run in the four parts named in Scope; the rule below is kept because E-13 and E-14 follow it for their new module. The pin-first rule of `ffceq0` applies to every move here: BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of D-1 to D-4 below. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (mkdir -p .aw/state/t4gl15 && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command, never combined with baseline module paths, because `-k` filters every path on the command line. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. A count measured at authoring (for example F-05's 1,719 records) is context, never the bar. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits, in which case they are marked `slow` and run in `make test-all`; none reads production source.
 
 Round-3 note (2026-11-09): Task group 1 (E-05, the staged `meta/*.jsonl` append hook) moved to `jq82as`, an `- Item-Dependencies:` edge of this plan, so E-15's former `Depends on: E-05` is carried by that edge.
 
@@ -64,15 +67,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- Interface names from Order 02 (`tve77h`), used exactly: `artifact_meta.read(id6) -> State`, `artifact_meta.history(id6)`, `artifact_meta.query(...)` (type, status, Set, order, `depends_on`, `latest_gate_review_of`, `path` filters, and an `incomplete` list), `artifact_meta.resolve(path_or_id6)`, and `artifact_meta.read_at(id6, rev)`, which runs git in the repository that owns the resolved records root, resolves the record's path inside that revision (`git ls-files -s` for the index, `git rev-parse <rev>:<path>` for a commit), caches by blob sha in `rev_log_states`/`rev_mirrors`, feeds a miss to the same loader (the legacy loader for a bullet blob in phase B), fails closed on a validation error, and returns distinct results for an absent record, an invalid revision and an unversioned placement. From Order 08 (`ffceq0`): `artifact_meta.read_text(text, *, record_type=None) -> State` for in-memory text (merge-stage blobs, before/after review snapshots), and decision D-1 (canonical normalized status for multi-word plans).
-- Today's git-content helpers: `check_engine._blob_text(repo_root, ref, path)` (`git show <ref>:<path>`, `:0:<path>` for the index) and `check_engine._status_meta(text)`; `hooks.executed_transition_gate._blob_at`; `runner_shared.read_merge_stage` (`git cat-file -p :<stage>:<path>`); `runner_shared._run_git`.
-- The hooks are thin: `hooks.status_untooled_gate.check` delegates to `check_engine.check_status_untooled`, and `hooks.backlog_blocking_close_gate.check` filters `check_engine.check_release_gate_consistency`; both are dispatched by `cli` (`ipd-status-untooled-gate`, `backlog-blocking-close-gate`, `ipd-executed-gate`, `ipd-dependency-statement-gate`) and installed as optional pre-commit hooks from the `engine` template (`ipd-executed-transition-gate`, `ipd-status-untooled-gate`).
-- One runner plan record serves both hosts: `runner_shared.PlanRecord` (`id6`, `setid`, `status`, `order`, `path`, `rel_path`, `dependencies`, `kind`, `dependency_error`, `from_backlog`) built by `runner_shared.parse_plan_file`; `oc_runipd` re-exports `selectors.read_front_matter_id as _read_id`, and `tools/ipdrunner/runagy.py` consumes `agy_runipd._read_id`.
-- `runner_shared._front_matter_bullets` and `_split_metadata_region` feed the records-only conflict classifier (`classify_records_only_front_matter_conflict`) and `rederive_front_matter` (plan `kl18sz`).
-- The plans index writer and reader are one module (`plans_index.run_index`, `scan_plans`, `plan_entry`, `query`); `ipd_set_plan` and `completion` consume `scan_plans`; `plans_archive` reads `_idx._EXCLUDE_NAMES` and calls `scan_plans`.
-- Review files: `review_findings.parse_review_text` (front matter via `review_findings._META_RE`, then rounds and findings), `review_findings.review_attestation_missing` (the one attestation predicate).
+- Interface names from Order 02 (`tve77h`), used exactly: `agent_workflows/artifact_meta.py::read`, `agent_workflows/artifact_meta.py::history`, `agent_workflows/artifact_meta.py::query` (type, status, Set, order, `depends_on`, `latest_gate_review_of`, `path` filters, and an `incomplete` list), `agent_workflows/artifact_meta.py::resolve`, and `agent_workflows/artifact_meta.py::read_at`, which runs git in the repository that owns the resolved records root, resolves the record's path inside that revision (`git ls-files -s` for the index, `git rev-parse <rev>:<path>` for a commit), caches by blob sha in `rev_log_states`/`rev_mirrors`, feeds a miss to the same loader (the legacy loader for a bullet blob in phase B), fails closed on a validation error, and returns distinct results for an absent record, an invalid revision and an unversioned placement. From Order 08 (`ffceq0`): `agent_workflows/artifact_meta.py::read_text` for in-memory text (merge-stage blobs, before/after review snapshots), and decision D-1 (canonical normalized status for multi-word plans).
+- Today's git-content helpers: `agent_workflows/check_engine.py::_blob_text` (`git show <ref>:<path>`, `:0:<path>` for the index) and `agent_workflows/check_engine.py::_status_meta`; `agent_workflows/hooks/executed_transition_gate.py::_blob_at`; `agent_workflows/runner_shared.py::read_merge_stage` (`git cat-file -p :<stage>:<path>`); `agent_workflows/runner_shared.py::_run_git`.
+- The hooks are thin: `agent_workflows/hooks/status_untooled_gate.py::check` delegates to `agent_workflows/check_engine.py::check_status_untooled`, and `agent_workflows/hooks/backlog_blocking_close_gate.py::check` filters `agent_workflows/check_engine.py::check_release_gate_consistency`; both are dispatched by `agent_workflows/cli.py` (`ipd-status-untooled-gate`, `backlog-blocking-close-gate`, `ipd-executed-gate`, `ipd-dependency-statement-gate`) and installed as optional pre-commit hooks from the `engine` template (`ipd-executed-transition-gate`, `ipd-status-untooled-gate`).
+- One runner plan record serves both hosts: `agent_workflows/runner_shared.py::PlanRecord` (`id6`, `setid`, `status`, `order`, `path`, `rel_path`, `dependencies`, `kind`, `dependency_error`, `from_backlog`) built by `agent_workflows/runner_shared.py::parse_plan_file`; `agent_workflows/oc_runipd.py` re-exports `agent_workflows/selectors.py::read_front_matter_id as _read_id`, and `tools/ipdrunner/runagy.py` consumes `agent_workflows/agy_runipd.py::_read_id`.
+- `agent_workflows/runner_shared.py::_front_matter_bullets` and `agent_workflows/runner_shared.py::_split_metadata_region` feed the records-only conflict classifier (`agent_workflows/runner_shared.py::classify_records_only_front_matter_conflict`) and `agent_workflows/runner_shared.py::rederive_front_matter` (plan `kl18sz`).
+- The plans index writer and reader are one module (`agent_workflows/plans_index.py::run_index`, `agent_workflows/plans_index.py::scan_plans`, `agent_workflows/plans_index.py::plan_entry`, `agent_workflows/plans_index.py::query`); `agent_workflows/ipd_set_plan.py` and `agent_workflows/completion.py` consume `scan_plans`; `agent_workflows/plans_archive.py` reads `_idx._EXCLUDE_NAMES` and calls `scan_plans`.
+- Review files: `agent_workflows/review_findings.py::parse_review_text` (front matter via `agent_workflows/review_findings.py::_META_RE`, then rounds and findings), `agent_workflows/review_findings.py::review_attestation_missing` (the one attestation predicate).
 - Core tier: `pytestmark = pytest.mark.core`; tests needing many real git commits use the `slow` marker and run in `make test-all`.
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- Cite code by SYMBOL (`path::Symbol`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
 ## Findings
 
@@ -118,6 +121,16 @@ DECISIONS where readers disagreed (4.3):
 - D-3 (YAML vs bullet for research in `research_index` and `artifact_adopt`). Kept as `ffceq0` D-2: the cache carries research YAML status and `id`, and the bullet `- Id:` inventory of `artifact_adopt` reads the cached `id` for plans, specs, backlog and releases, so each consumer gets the answer it gets today.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E13["1. Gate Cache Parity Tests (E-13)<br/>tests/test_readers_gate_cache_parity.py<br/>(cold, warm, deleted, corrupt index.db)"]
+    E14["2. Offline Setter & Network Absence Proof (E-14)<br/>tests/test_readers_gate_cache_parity.py<br/>(isolated PATH & disabled sockets)"]
+    E15["3. Residual Audit, Core Gate, CHANGELOG & Commit (E-15)<br/>CHANGELOG.md, F-04 table, aw check all, aw sanitize"]
+
+    E13 --> E14
+    E14 --> E15
+```
 
 1. Gate cache parity (AC-1a), offline setter (AC-12), residual audit, commit (E-13 to E-15).
 
@@ -177,26 +190,26 @@ No spec text changes in this plan after the round-3 split. The ONE spec amendmen
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The brief names `tve77h` and `xexn45` as the dependencies; this plan also needs `artifact_meta.read_text` and the D-1 status rule, both introduced by `ffceq0`, and it moves `runner_shared` callers of `selectors.read_front_matter_*`, which `ffceq0` rewrites. So `- Item-Dependencies:` adds `executed:ffceq0`. If the coordinator moves `read_text` into `tve77h`, the edge can still stay, because D-1 lives in `ffceq0`. Recommendation strength: strong.
 
 ### OQ-02: How does `read_at` serve a merge-stage blob (`:<stage>:<path>`)?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: `tve77h` E-14 defines `read_at` for the index (`git ls-files -s`) and commits (`git rev-parse <rev>:<path>`). A merge stage is an index entry with a stage number, which `git ls-files -s` already lists, so E-04 first tries `read_at(id6, ":<stage>:")`; if `tve77h`'s implementation rejects a stage spelling, E-04 passes the stage blob text (from `runner_shared.read_merge_stage`) to `artifact_meta.read_text`, which uses the same loader. Either path keeps C5a (one loader). The chosen path is recorded in F-03. Recommendation strength: medium.
 
 ### OQ-03: Should the plan be split?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: maintainer
 - Resolution or deferral rationale: SUPERSEDED 2026-11-07: split per the maintainer step-complexity rule into `h58z9n`, `y97k46`, `jd7874`, `2zpw22` and this finishing part. The original resolution read: No: 15 E-items in 5 task groups, within limits (16 after the 2026-11-05 banner item, F-09). If execution finds E-07 (the runner move) too large, split it into E-07a (`parse_plan_file`, `discover_*`, `edge_satisfied`) and E-07b (the remaining `execute_item_core`/`initialize_run_core`/review-sequence reads), which keeps the plan at 16. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 - [ ] V-13 validates E-13
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_readers_gate_cache_parity.py -k parity` with every (command x cache state) test PASSED for the setter and the three gate leaves across the four cache states, the staged external-edit test, and the invalid staged record test asserting a non-zero exit naming the record; and the module's marker (`core` or `slow` with the docstring reason).
   - Observed evidence:
@@ -218,7 +231,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed (the four split parts `h58z9n`, `y97k46`, `jd7874`, `2zpw22`, and `ffceq0`, `g5hpbb`, `tve77h`, `xexn45`). Open questions: OQ-01 to OQ-03 are resolved and none is blocking.
+Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed (the four split parts `h58z9n`, `y97k46`, `jd7874`, `2zpw22`, and `ffceq0`, `g5hpbb`, `tve77h`, `xexn45`). Open questions: OQ-01 to OQ-03 are resolved and none is blocking. Stop and report without editing production code or tests if prerequisite symbols or packages from split dependencies are absent on HEAD, if baseline test suites fail on unmodified HEAD before starting, or if concurrent edits in a shared checkout conflict with `- Scope-Paths:`.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first (the named baseline modules run green on the unmodified code before the move), and a test edited after a move must be one that D-1 to D-4 name.
 
@@ -226,4 +239,4 @@ Honesty rule: run the named modules, `python3 -m pytest` (core gate) and `make t
 
 Commits: commit only through `aw commit t4gl15 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize t4gl15` itself.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs `aw ipd finalize t4gl15`.
