@@ -6,7 +6,9 @@
 - Scope: Part of the round-3 split of `9rgn2w` E-10 (2026-11-09, research `nj8zdp` guidance): the attnview consumers (E-22 to E-24 one module each, E-25 the two named modules that read no fixture plus the finish). EXCLUDES: deleting the fixture files (`z4x192`, `9zcuyh`); the orchestrator fixture (`b3eilr`); the `violations/` and `review-pilot/plans/` sets (kept literal); production code.
 - Scope-Paths: tests/test_attention_contract.py, tests/test_specs_verbs.py, tests/test_specs_releases_unsafe_field.py, tests/test_attention.py, tests/test_attention_stem.py, .aw/records/plans/pending/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -20,7 +22,8 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
-
+- 2026-11-14 reviewed (antigravity/claude-opus-5.5): plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
+- 2026-11-14 /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9rgn2w (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,28 +34,32 @@ The three test modules that read the attnview `specs-valid` fixtures build those
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `9rgn2w`; they are kept so that every reference between them (for example "E-13's `full-before.txt`", "the builder's `raw_fields=` escape (E-01)") still points at the right item across the family. New ids added by the round-3 split start at E-15.
+Item ids: this plan's items E-22 to E-25 were allocated by the round-3 split of `9rgn2w` E-10; the ids E-01 (`RecordBuilder`) and E-13 (baselines) cited in the Findings and open question are items of Order 170 (`j6o96i`), which carries them with the same ids.
+
+OUTCOME-LIST COMMAND (defined here so the plan is self-contained; it is step 2 of the `59aiyh` batch rule, with this plan's state directory). For one module `<m>` (for example `tests/test_specs_verbs.py`, short name `<short>` = `test_specs_verbs`), record the unmodified list BEFORE editing the module: `mkdir -p .aw/state/7fpc8v && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <m> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/7fpc8v/<short>-before.txt`. After the edit, run the same command into `<short>-after.txt` and require `diff .aw/state/7fpc8v/<short>-before.txt .aw/state/7fpc8v/<short>-after.txt` to print nothing. `.aw/state/` is gitignored and does not travel between lane worktrees, so always record a fresh before list.
+
+NINE-SPEC RECIPE (used by E-22, E-23 and E-24; it reproduces what `specs.validate_spec` requires of the nine `tests/fixtures/attnview/specs-valid/*.md` files). Inside the test, open a `tempfile.TemporaryDirectory()` as `tmp`; for each status in (`approved`, `deferred`, `draft`, `implemented`, `implementing`, `parked`, `reviewed`, `superseded`, `to-review`), build the text with `RecordBuilder().spec(status=<status>, history=[<one history event dated 2026-08-08 recording the creation>], text_only=True, ...)` and write it to `Path(tmp) / f"{status}.md"`, so the file names (and every `f.name` in an assertion message) match the old fixtures. Three rules come from `specs.validate_spec`: (a) the `deferred` spec carries the fixture's gate, `gate_kind="issue"`, `gate_ref="https://example.com/issues/1"`, `gate_summary="waiting on an upstream decision"`, else it raises `attention.gate-missing`; (b) no other status carries any gate field, else `attention.gate-forbidden`; (c) every spec carries at least one `## Workflow history` record matching `attention_contract.HISTORY_RECORD_RE`, else `attention.history-missing`. Then replace `FIX / "specs-valid"` with `Path(tmp)` in the existing loop and leave the loop body and every assertion unchanged. If `RecordBuilder.spec` cannot express (a) to (c) without `raw_fields=`, stop and report it as a defect of `j6o96i` E-01; do not use `raw_fields=` for valid input.
 
 ### Task group 1: one consumer per item
 
-- [ ] E-22 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_attention_contract.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with a builder recipe: build the nine valid specs (one per spec native status: `approved`, `deferred`, `draft`, `implemented`, `implementing`, `parked`, `reviewed`, `superseded`, `to-review`) with `RecordBuilder.spec(...)` into a temporary directory and iterate over those files where the test now globs `FIX / "specs-valid"`. The reads are in `FixtureParseTests.test_valid_specs_have_bare_enum_status_and_map`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
+- [ ] E-22 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_attention_contract.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `FixtureParseTests.test_valid_specs_have_bare_enum_status_and_map`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
   - Depends on: none
-  - Expected outcome: the module's per-test outcome list (batch-rule step-2 command over `tests/test_attention_contract.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
+  - Expected outcome: the module's per-test outcome list (the OUTCOME-LIST COMMAND over `tests/test_attention_contract.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
   - Execution state: pending
 
-- [ ] E-23 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_verbs.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with a builder recipe: build the nine valid specs (one per spec native status: `approved`, `deferred`, `draft`, `implemented`, `implementing`, `parked`, `reviewed`, `superseded`, `to-review`) with `RecordBuilder.spec(...)` into a temporary directory and iterate over those files where the test now globs `FIX / "specs-valid"`. The reads are in `CheckTests.test_valid_specs_pass`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
+- [ ] E-23 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_verbs.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `CheckTests.test_valid_specs_pass`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
   - Depends on: none
-  - Expected outcome: the module's per-test outcome list (batch-rule step-2 command over `tests/test_specs_verbs.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
+  - Expected outcome: the module's per-test outcome list (the OUTCOME-LIST COMMAND over `tests/test_specs_verbs.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
   - Execution state: pending
 
-- [ ] E-24 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_releases_unsafe_field.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with a builder recipe: build the nine valid specs (one per spec native status: `approved`, `deferred`, `draft`, `implemented`, `implementing`, `parked`, `reviewed`, `superseded`, `to-review`) with `RecordBuilder.spec(...)` into a temporary directory and iterate over those files where the test now globs `FIX / "specs-valid"`. The reads are in `test_non_regression_valid_specs_fixtures`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
+- [ ] E-24 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_releases_unsafe_field.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `test_non_regression_valid_specs_fixtures`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
   - Depends on: none
-  - Expected outcome: the module's per-test outcome list (batch-rule step-2 command over `tests/test_specs_releases_unsafe_field.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
+  - Expected outcome: the module's per-test outcome list (the OUTCOME-LIST COMMAND over `tests/test_specs_releases_unsafe_field.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
   - Execution state: pending
 
 ### Task group 2: check and finish
 
-- [ ] E-25 Check the two remaining named consumers and finish: `9rgn2w` E-10 names `tests/test_attention.py` and `tests/test_attention_stem.py` as attnview consumers, but at `3d0ddb845` neither reads `tests/fixtures/attnview/` (`rg -n "FIX|fixtures" ` finds only the Set name `attnview` in prose and a backlog filename); re-run that search, and convert any read it now finds by the E-22 recipe, else record `no fixture read`. Then run the batch-rule step-2 command over the five modules, the bare core gate `python3 -m pytest`, and commit through `aw commit 7fpc8v -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [ ] E-25 Check the two remaining named consumers and finish: `9rgn2w` E-10 names `tests/test_attention.py` and `tests/test_attention_stem.py` as attnview consumers, but at `3d0ddb845` neither reads `tests/fixtures/attnview/` (`rg -n "FIX|fixtures" ` finds only the Set name `attnview` in prose and a backlog filename); re-run that search, and convert any read it now finds by the NINE-SPEC RECIPE, else record `no fixture read`. Then run the OUTCOME-LIST COMMAND over each of the three converted modules (and over any module E-25 converts), the bare core gate `python3 -m pytest`, and commit through `aw commit 7fpc8v -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-22, E-23, E-24
   - Expected outcome: the search result for each of the two modules is recorded; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
   - Execution state: pending
@@ -96,11 +103,11 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 ## Scope check
 
 - Over-scope: none. No production module changes.
-- Under-scope: none known. Size: 4 E-items, 5 work Scope-Paths; each E-22 to E-24 edits one module.
+- Under-scope: none known after review round 1 (the NINE-SPEC RECIPE now states the gate and history rules `specs.validate_spec` enforces). Size: 4 E-items, 5 work Scope-Paths; each E-22 to E-24 edits one module.
 
 ## Required tests / validation
 
-Each module is validated by an identical per-test outcome list before and after. Commands: the batch-rule step-2 command per module, the bare core gate `python3 -m pytest`.
+Each module is validated by an identical per-test outcome list before and after. Commands: the OUTCOME-LIST COMMAND per module, the bare core gate `python3 -m pytest`.
 
 ## Spec / documentation sync
 
@@ -120,17 +127,17 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-22 validates E-22
-  - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_attention_contract.py` (batch-rule step-2 command over that module alone), and `rg -n "specs-valid" tests/test_attention_contract.py` printing nothing while `rg -n "violations" tests/test_attention_contract.py` still lists the literal violation reads.
+  - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_attention_contract.py` (the OUTCOME-LIST COMMAND over that module alone), and `rg -n "specs-valid" tests/test_attention_contract.py` printing nothing while `rg -n "violations" tests/test_attention_contract.py` still lists the literal violation reads.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-23 validates E-23
-  - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_specs_verbs.py` (batch-rule step-2 command over that module alone), and `rg -n "specs-valid" tests/test_specs_verbs.py` printing nothing while `rg -n "violations" tests/test_specs_verbs.py` still lists the literal violation reads.
+  - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_specs_verbs.py` (the OUTCOME-LIST COMMAND over that module alone), and `rg -n "specs-valid" tests/test_specs_verbs.py` printing nothing while `rg -n "violations" tests/test_specs_verbs.py` still lists the literal violation reads.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-24 validates E-24
-  - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_specs_releases_unsafe_field.py` (batch-rule step-2 command over that module alone), and `rg -n "specs-valid" tests/test_specs_releases_unsafe_field.py` printing nothing while `rg -n "violations" tests/test_specs_releases_unsafe_field.py` still lists the literal violation reads.
+  - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_specs_releases_unsafe_field.py` (the OUTCOME-LIST COMMAND over that module alone), and `rg -n "specs-valid" tests/test_specs_releases_unsafe_field.py` printing nothing while `rg -n "violations" tests/test_specs_releases_unsafe_field.py` still lists the literal violation reads.
   - Observed evidence:
   - Result: pending
 
@@ -152,4 +159,4 @@ Honesty rule: run every command a V-item names and paste the ACTUAL output; neve
 
 Commits: commit only through `aw commit 7fpc8v -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 7fpc8v` itself.
