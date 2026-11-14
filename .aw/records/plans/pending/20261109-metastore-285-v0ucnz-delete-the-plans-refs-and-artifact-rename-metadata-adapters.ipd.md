@@ -6,7 +6,9 @@
 - Scope: The `plans_refs` and `artifact_rename` half of `k6jd6l` E-09 and its two test modules. EXCLUDES the `prompts` and `runner_shared` adapters (Order 286) and the module-level `^-` regex literals of these two modules, which Orders 244 (`tbvx4r`) and 245 (`qttoyc`) delete after `k6jd6l` (do NOT delete `plans_refs._SET_LINE_RE`, `_ORDER_LINE_RE`, `artifact_rename._SET_LINE_RE`, `_ORDER_LINE_RE`, `_ID_LINE_RE`, `_STATUS_LINE_RE` or `_DATE_LINE_RE` here, even if they lose a use).
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/artifact_rename.py, tests/test_plans_order_grammar.py, tests/test_spec_id6_filenames.py, .aw/records/plans/pending/20261109-metastore-285-v0ucnz-delete-the-plans-refs-and-artifact-rename-metadata-adapters.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:zs7a45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, deletion targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-09: "Delete the thin adapters kept by `xexn45` F-08 ...; their one production caller each ... calls `artifact_meta` directly. Retarget ... to the behavior through `aw group plans`, `aw rename specs --to-id6` ..., asserting on the resulting `artifact_meta.read` state and file bytes." Save the before-list of `tests/test_plans_order_grammar.py` and `tests/test_spec_id6_filenames.py` to `.aw/state/9o83cr/E-09a-before.txt` before E-01.
+Carried from `k6jd6l` E-09: "Delete the thin adapters kept by `xexn45` F-08 ...; their one production caller each ... calls `artifact_meta` directly. Retarget ... to the behavior through `aw group plans`, `aw rename specs --to-id6` ..., asserting on the resulting `artifact_meta.read` state and file bytes." Save the before-list of `tests/test_plans_order_grammar.py` and `tests/test_spec_id6_filenames.py` to `.aw/state/9o83cr/E-09a-before.txt` before E-01 (ensure `.aw/state/9o83cr/` exists via `mkdir -p .aw/state/9o83cr/`).
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one adapter per item, then its tests
 
-- [ ] E-01 Delete `plans_refs._set_metadata`; `plans_refs.apply_renames` writes the `Set` and `Order` change through `artifact_meta.append`, keeping the batch-refusal-before-write behavior (a plan whose `- Order:` line cannot be matched refuses the whole batch before any file is written).
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-09a-before.txt`. Delete `plans_refs._set_metadata`; `plans_refs.apply_renames` writes the `Set` and `Order` change through `artifact_meta.append`, keeping the batch-refusal-before-write behavior (a plan whose `- Order:` line cannot be matched refuses the whole batch before any file is written).
   - Depends on: none
   - Expected outcome: `rg -n "_set_metadata\b" agent_workflows/plans_refs.py` prints nothing.
   - Execution state: pending
@@ -68,6 +71,13 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 Measured 2026-11-09 at `f83159217` with `rg -n "_set_metadata\b|_update_frontmatter_metadata|_update_or_inject_set_metadata" agent_workflows tests`: `plans_refs` 2, `artifact_rename` 5, `tests/test_plans_order_grammar.py` 6, `tests/test_spec_id6_filenames.py` 1.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Delete plans_refs._set_metadata<br/>apply_renames writes Set & Order through artifact_meta.append"] --> E02["E-02: Delete artifact_rename adapter<br/>run_rename_generic calls artifact_meta.append"]
+    E02 --> E03["E-03: Retarget test_plans_order_grammar<br/>assert through aw group plans and artifact_meta.read"]
+    E03 --> E04["E-04: Retarget test_spec_id6_filenames<br/>assert through aw rename specs --to-id6 and commit"]
+```
 
 1. Delete `plans_refs._set_metadata` (E-01).
 2. Delete the `artifact_rename` adapter (E-02).
@@ -102,7 +112,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It goes with `_set_metadata` here; Order 244 E-02 deletes it only "if `k6jd6l` left it", so no site is handled twice. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -134,4 +144,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit v0ucnz -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `1ajqaa`, `59aiyh`, `dcerjg`, `ffceq0`, `g5hpbb`, `t4gl15`, or `zs7a45` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit v0ucnz -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize v0ucnz` itself; never a hand `git mv` to `executed/`.
