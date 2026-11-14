@@ -894,6 +894,17 @@ LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 #: streamfmt (mm6wuz) E-06: agy's `ACTIVE`/`DONE`/`ERROR` step states mapped onto the status
 #: vocabulary `render_stream._status_glyph_char` already understands, so ONE glyph table serves both
 #: hosts. `FAILED` is included because `render_agy_event` has always accepted it beside `ERROR`.
+#: Plain-language labels for the Antigravity `manage_task` actions, so a background-task check reads
+#: as what it does ("checking status of task-303") instead of the raw tool call. An action not listed
+#: here keeps the generic `manage_task: <action> <task>` form.
+_MANAGE_TASK_PHRASES: dict[str, str] = {
+    "status": "checking status of {task}",
+    "kill": "stopping {task}",
+    "send_input": "sending input to {task}",
+    "list": "listing background tasks",
+}
+
+
 _AGY_STATE_TO_STATUS: dict[str, str] = {
     "ACTIVE": "running",
     "DONE": "completed",
@@ -1158,6 +1169,7 @@ def render_agy_event(
             if kind in ("read", "find") and verbosity < 1:
                 return None
             cmd = ""
+            plain_phrase = False
             if "CommandLine" in params:
                 cmd = str(params["CommandLine"])
             elif "command" in params:
@@ -1183,8 +1195,13 @@ def render_agy_event(
                 action = str(params.get("Action", "")).strip("\"'")
                 task_id = str(params.get("TaskId", "")).strip("\"'")
                 task_ref = task_id.split("/")[-1] if task_id else ""
-                parts = [p for p in (action, task_ref) if p]
-                cmd = " ".join(parts)
+                phrase = _MANAGE_TASK_PHRASES.get(action.lower())
+                if phrase and (task_ref or action.lower() == "list"):
+                    cmd = phrase.format(task=task_ref)
+                    plain_phrase = True
+                else:
+                    parts = [p for p in (action, task_ref) if p]
+                    cmd = " ".join(parts)
                 if not cmd and "toolSummary" in params:
                     cmd = str(params["toolSummary"]).strip("\"'")
             elif (
@@ -1239,7 +1256,9 @@ def render_agy_event(
                     else str(tool_name)
                 )
             else:
-                if cmd:
+                if cmd and plain_phrase:
+                    summary = _one_line(cmd, 350, ellipsis=trunc_ellipsis)
+                elif cmd:
                     summary = (
                         f"{tool_name}: {_one_line(cmd, 350, ellipsis=trunc_ellipsis)}"
                     )

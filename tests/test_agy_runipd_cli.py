@@ -2097,7 +2097,37 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         )
         rendered_task = agy_runipd.render_agy_event(done_task, pal)
         self.assertIsNotNone(rendered_task)
-        self.assertIn("manage_task: status task-12", rendered_task)
+        self.assertIn("checking status of task-12", rendered_task)
+        self.assertNotIn("manage_task", rendered_task)
+
+        def _task_line(params: dict) -> str | None:
+            return agy_runipd.render_agy_event(
+                json.dumps(
+                    {
+                        "event": "step_update",
+                        "step_update": {
+                            "state": "DONE",
+                            "step_type": "tool",
+                            "tool_info": {"name": "manage_task", "parameters": params},
+                        },
+                    }
+                ),
+                pal,
+            )
+
+        self.assertIn(
+            "stopping task-7", _task_line({"Action": "kill", "TaskId": "c/task-7"})
+        )
+        self.assertIn(
+            "sending input to task-7",
+            _task_line({"Action": "send_input", "TaskId": "c/task-7"}),
+        )
+        self.assertIn("listing background tasks", _task_line({"Action": "list"}))
+        # An action with no plain-language label keeps the generic tool form.
+        self.assertIn(
+            "manage_task: frobnicate task-7",
+            _task_line({"Action": "frobnicate", "TaskId": "c/task-7"}),
+        )
 
         # schedule extracts DurationSeconds, TimerCondition, and Prompt
         done_sched = json.dumps(
