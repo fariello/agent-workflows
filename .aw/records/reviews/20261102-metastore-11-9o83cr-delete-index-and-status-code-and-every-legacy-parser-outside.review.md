@@ -2,8 +2,8 @@
 
 - Subject-Id: 9o83cr
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-06
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-11-14
+- Reviewer: antigravity/gemini-3.8-flash
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -118,3 +118,98 @@ AW-TIER: complex
 | D-2 | Split E-12 now? | No; follow-on rows if F-20 exceeds about 40 | Split now (the size is unknown until F-20) | OQ-03 | yes |
 | D-3 | Keep the prompts naming rule? | Yes, through `check_content` | Drop it with `run_index` (silent loss) | F-04 spirit; OQ-01 | yes |
 | D-4 | Edit the orchestrator's child table? | No; recorded for its review | Edit `63ib9r` (outside this ledger) | Plan-review Step 0.1 ledger rule | yes |
+
+## Round 2
+
+This re-review ran at HEAD `c42ce196a` in an isolated non-interactive runner review-sweep lane worktree. Approval had been withdrawn on 2026-11-07 per maintainer direction to pause before re-review while the metastore plans were re-split for the any-repo migration (`g5hpbb`). The tracked plan `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` was committed and unmodified, so the pre-review snapshot commit was skipped. Before edits, `aw ipd lint --phase author --agent` returned clean (0 errors, 0 warnings, 2 info IPD-C802). Baseline unit tests passed on unmodified code: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 tests/test_executed_transition_gate.py tests/test_ipd_dependency_statement_gate.py` printed `29 passed in 1.05s`. After revisions and status progression, `aw ipd lint --phase review-finalize --agent` returned clean with 0 errors and 0 warnings (IPD-C802 cleared).
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Front matter | `- Status: to-review`, lacked `- Readiness:` | Updated `- Status: reviewed`, added `- Readiness: go-pending-approval` (retained `- Review-Depth: complex`) | PR-006 (MD-15, Section 7.2) |
+| `## Workflow history` | Bullets from round-3 split and earlier rounds | Added newest-first review history entry with verdict and findings PR-001..PR-006 | PR-006 (MD-15, Section 7.2) |
+| E-01 | Baseline capture without ensuring directory existence | Added explicit `mkdir -p .aw/state/9o83cr/before/` instruction into E-01 | PR-003 (Executability / R2) |
+| `## Proposed changes` | Ordered list of 3 steps, no diagram | Ordered list of 4 steps plus Mermaid `flowchart TD` | PR-002 (Requirement 12b) |
+| OQ-01..OQ-04 | `- Owner: none` | `- Owner: plan author` | PR-004 (`s5-questions.md:21`) |
+| Line 211 | Two em dashes in reachability rule text | Replaced em dashes with parentheses | PR-005 (`IPD-C802`) |
+| `## Approval and execution gate` | Lacked explicit safety stop for missing prerequisite split parts and scope fence production clarification | Added narrow safety stop for missing implementations from `0xsx2n`, `e8420v`, `k6jd6l`, `q6epwc`, `snin8q`, or `artifact_meta`, and clarified scope fence declaration | PR-001 (`s7-finalize.md:31-46`) |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes. Proves AC-1 single-owner and AC-9 deletion for the metastore C5 contract.
+2. No. Does not touch code guarding private data, commits, worktree isolation, or sandboxes.
+3. Yes. Finishing audit plan of metastore with 4 E-items in 3 task groups across 45+ affected modules.
+4. Yes. `- Scope-Paths:` explicitly declares `tests/test_metadata_single_owner.py` and the plan itself.
+5. Yes. Proves complete removal of legacy parsers and single-owner enforcement.
+
+AW-TIER: complex
+
+### Step R1
+
+- Checked: target test module `tests/test_metadata_single_owner.py` declared in `- Scope-Paths:`; governing spec `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` (C5, Section 4.3, Section 4.5, AC-1, AC-9); upstream split plans `0xsx2n`, `e8420v`, `k6jd6l`, `q6epwc`, `snin8q`, and prerequisite plans `ffceq0`, `t4gl15`, `59aiyh`, `1ajqaa`, `dcerjg`, `g5hpbb`, and `clors0` in `- Item-Dependencies:`.
+- Verified that all symbols and callers referenced in E-01, E-13, and E-14 are correctly accounted for across the split parts.
+
+### Step R2
+
+- Checked: 1:1 bijection between E-items (E-01, E-13, E-14, E-16) and V-items (V-01, V-13, V-14, V-16); `- Scope-Paths:` completeness; `- Item-Dependencies:` completeness; and verification reachability.
+- Confirmed that baseline capture in E-01 has explicit directory creation instruction (`mkdir -p .aw/state/9o83cr/before/`).
+
+### Step R3
+
+- Checked: isolation and hygiene. The plan authors a behavioral test module and runs non-modifying audit scans. No secrets or network paths involved.
+
+### Step R4
+
+- Checked: right-sizing, anti-regression, and conceptual density.
+- Sized cleanly (4 items in 3 task groups) as the finishing proof and validation plan of the metastore migration.
+
+### Step R5
+
+- Checked through all eight personas: QA (clean baseline and multiset verification), testing (behavioral single-owner test with no AST/inspect code pinning), UI/UX (alias messaging preserved), architect (C5 single reader/writer invariant proved), engineer (executable path-scoped plan), power user (index aliases maintained), novice (clear error exits when unpatched), stakeholder (AC-1 and AC-9 verified).
+
+### Step R6
+
+- Checked: decomposition and splitting. The plan was split in round 3 to allocate deletion work into five child plans (`q6epwc`, `snin8q`, `k6jd6l`, `e8420v`, `0xsx2n`), leaving this plan sized cleanly for residual audit, single-owner proof, and finish. No further split needed.
+
+### Step R7
+
+- Checked consistency across all metastore plans and Order 00 orchestrator. Prerequisites correctly reflect all split parts and migration ordering dependencies.
+
+### Step S5
+
+- Checked: OQ-01 through OQ-05 are resolved, non-blocking, and owners updated from `none` to `plan author`. Review decisions (D-1..D-5) recorded and verified (`Reversible: yes`).
+
+### Pass 2
+
+- Re-read all revised sections of `9o83cr`. Confirmed exact 1:1 E/V mapping, valid Mermaid diagram, zero em or en dashes, and verified `aw ipd lint --phase review-finalize --agent` returned clean (0 errors, 0 warnings).
+- AW-REVIEW: DONE
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | MEDIUM | IN-SCOPE | Gate / Lifecycle | `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md:234-245`; `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-46` | The gate lacked a narrow safety stop for missing prerequisite split parts or `artifact_meta` implementations, and needed scope fence clarification that production code is not modified by this plan. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added narrow unsafe-condition prerequisite stop and clarified scope fence in the execution gate (strong). |
+| PR-002 | MEDIUM | IN-SCOPE | Proofreading / R6 | `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md:107-111`; `.aw/system/workflows/technical-writing/technical-writing.md:40-46` | `Proposed changes` lacked a Mermaid flowchart diagram required by Technical Writing Standard Requirement 12b for a multi-step audit and verification process. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added ordered 4-step process and Mermaid `flowchart TD` diagram to `Proposed changes` (strong). |
+| PR-003 | LOW | IN-SCOPE | Executability / R2 | `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md:48` | E-01 instructed saving baseline outputs to `.aw/state/9o83cr/before/` without ensuring directory creation, risking shell redirect failure. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added explicit `mkdir -p .aw/state/9o83cr/before/` instruction into E-01 (strong). |
+| PR-004 | LOW | IN-SCOPE | S5 / IPD Schema | `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md:174, 181, 188, 202`; `.aw/system/workflows/plan-review/steps/s5-questions.md:21` | OQ-01, OQ-02, OQ-03, and OQ-04 had `- Owner: none` rather than naming an accountable owner (`plan author`). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated OQ-01, OQ-02, OQ-03, and OQ-04 owner from `none` to `plan author` (strong). |
+| PR-005 | LOW | IN-SCOPE | Proofreading / Prose Style | `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md:211`; `AGENTS.md`; `IPD-C802` | Line 211 contained two em dashes in reachability rule text, triggering `IPD-C802` lint advisories. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced em dashes with parentheses, clearing `IPD-C802` (strong). |
+| PR-006 | MEDIUM | IN-SCOPE | Front Matter / Lifecycle | `.aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md:9`; `.aw/system/workflows/plan-review/steps/s7-finalize.md:3-6` | Front matter was at `- Status: to-review` and lacked required `- Readiness:` field. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Advanced `- Status: reviewed`, added `- Readiness: go-pending-approval` to front matter, and prepended newest-first review entry to `## Workflow history` (strong). |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | How should the plan execution gate specify safety stops and scope fence? | Add narrow safety stop if prerequisite modules from `0xsx2n`, `e8420v`, `k6jd6l`, `q6epwc`, `snin8q`, or `artifact_meta` are absent, and clarify scope fence declaration that production code is not modified | Omit safety stop | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-46` | yes |
+| D-2 | How should the plan satisfy Technical Writing Standard Requirement 12 (Diagrams)? | Add ordered 4-step process and Mermaid `flowchart TD` in `Proposed changes` illustrating baseline capture, single-owner test authoring, AC-1 audit, and full validation pipeline | Omit diagram (violates Requirement 12b) | `.aw/system/workflows/technical-writing/technical-writing.md:40-46` Requirement 12 | yes |
+| D-3 | How should baseline directory creation be handled? | Add explicit `mkdir -p .aw/state/9o83cr/before/` into E-01 | Rely on implicit existence | `.aw/system/workflows/plan-review/steps/r2-executability.md` | yes |
+| D-4 | How should OQ-01..OQ-04 owners be recorded? | Update `- Owner: none` to `- Owner: plan author` to satisfy open question ownership requirements | Leave `none` | `.aw/system/workflows/plan-review/steps/s5-questions.md:21` | yes |
+| D-5 | What review depth and readiness should be recorded in front matter? | Retain `- Review-Depth: complex` (Order 11 complex finishing audit plan spanning AC-1 and AC-9 proofs) and set `- Readiness: go-pending-approval` with `- Status: reviewed` | Demote to standard; leave readiness absent or no-go | `.aw/system/workflows/plan-review/steps/t-tier.md`; `.aw/system/workflows/plan-review/steps/s7-finalize.md:3-6, 61-78` | yes |
