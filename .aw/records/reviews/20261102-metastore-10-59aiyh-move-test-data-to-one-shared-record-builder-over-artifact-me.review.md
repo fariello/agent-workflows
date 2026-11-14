@@ -209,5 +209,5 @@ AW-TIER: complex
 | D-1 | Plan readiness and status | Transition to `reviewed` with verdict `APPROVE WITH REVISIONS APPLIED` | Leave in `to-review` | All criteria satisfied, revisions applied | yes |
 | D-2 | Review depth tier | Keep `complex` per front matter | Downgrade to `standard` | Retain explicit front-matter configuration | yes |
 | D-3 | Scope boundaries | Keep 3 work Scope-Paths (`tests/support.py`, `tests/conformance_matrix.py`, `tests/test_record_builder.py`) | Expand scope | Well-bounded finishing plan | yes |
-| D-4 | Human questions | None; questions list empty | Prompt human | Autonomous non-interactive lane execution | no |
-| D-5 | Sanitization & tests | Run full gate tests and sanitize check | Skip checks | Repository execution contract | no |
+| D-4 | Human questions | None; questions list empty | Prompt human | Autonomous non-interactive lane execution | yes |
+| D-5 | Sanitization & tests | Run full gate tests and sanitize check | Skip checks | Repository execution contract | yes |
