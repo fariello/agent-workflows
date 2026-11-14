@@ -2,8 +2,8 @@
 
 - Subject-Id: t4gl15
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-06
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-11-14
+- Reviewer: antigravity/gemini-3.8-flash
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -112,3 +112,100 @@ AW-TIER: complex
 | D-1 | Where does the staged-log append judgement live? | An `artifact_meta` function; spec 4.3 amended | Hook reads log bytes (violates 4.3); hook diffs bytes and calls `read_text` per line (a second log path) | Spec 4.3 "No other code ... opens a log"; `tve77h` E-07 | yes |
 | D-2 | Normalize non-plan statuses? | No | Normalize all types | `plans.normalize_status` vocabulary; `ffceq0` D-1 as amended | yes |
 | D-3 | Split E-07 or the plan? | No | Split at OQ-03's 07a/07b seam | One pin set per E-item; 16 items in 5 groups | yes |
+
+## Round 2
+
+This re-review ran at HEAD `0b49e5c6e` in an isolated runner review-sweep lane worktree after the 2026-11-07 approval withdrawal and reader split (`h58z9n`, `y97k46`, `jd7874`, `2zpw22`), and the 2026-11-09 round-3 split (`jq82as`). Working tree was clean at turn start (`pre-review snapshot: skipped unchanged`). Pass 1 and Pass 2 verified the post-split plan against amended spec `4sd62s`, orchestrator `63ib9r`, the reviewed split parts, and current repository gates. Before edits, `aw ipd lint --phase author` returned clean with two non-blocking `IPD-C802` em-dash advisories; after revisions, `aw ipd lint --phase review-finalize --agent` returned clean (`0` errors, `0` warnings, `0` advisories).
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Approval and execution gate | Omitted narrow unsafe-condition stop rule and conditional runner/executor finalize clause | Added explicit stop-and-report rule for absent prerequisite symbols, baseline failure, or checkout conflicts, and explicit conditional runner/executor ownership clause | PR-001, Technical Writing Standard Requirement 1. |
+| Open questions (OQ-01, OQ-02, OQ-03) | Recorded `- Owner: none` on resolved questions | Updated to `- Owner: plan author` (OQ-01, OQ-02) and `- Owner: maintainer` (OQ-03), and recorded decisions in `### Decisions` (D-1, D-2, D-3) | PR-002, steps/s5-questions.md owner attestation standard. |
+| Proposed changes (ordered, validatable) | One-line description without process diagram | Added Mermaid `flowchart TD` diagram showing execution progression across E-13, E-14, and E-15 | PR-003, Technical Writing Standard Requirement 12(b). |
+| Step 0 / Project conventions discovered | Cited code using unqualified `module.function` symbols | Standardized citations to repo-relative `path::Symbol` identifiers | PR-004, Technical Writing Standard Requirement 7, IPD-C801. |
+| Validation and cross-check / Front matter | Contained em dashes (U+2014) in V-rule prose and omitted front matter readiness | Replaced em dashes with parentheses resolving two `IPD-C802` advisories, and added `- Readiness: go-pending-approval` | PR-005, Technical Writing Standard Requirement 1, Step S7 review output requirements. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes. The plan owns AC-1a (gate cache parity) and AC-12 (offline proof), adds `tests/test_readers_gate_cache_parity.py`, adds a `CHANGELOG.md` entry for the new hook, and closes the repository-wide residual regex audit (F-04).
+2. Yes. It exercises pre-commit gates (`aw ipd-status-untooled-gate`, `aw ipd-executed-gate`, `aw backlog-blocking-close-gate`, `aw ipd set`) that guard repository commits and lifecycle transitions.
+3. No on execution item count after splitting (`3` E-items in `1` task group), yes on cross-module audit scope (E-15 audits residual `^-` regexes across 24 functions in 12 modules and verifies 5 cited tables).
+4. Yes. `- Scope-Paths:` explicitly declares `tests/test_readers_gate_cache_parity.py`, `CHANGELOG.md`, and the plan itself.
+5. Yes. Gate cache parity verification failure or residual audit omission could mask regressions in commit gates or lifecycle checks.
+
+AW-TIER: complex
+
+### Step R1
+
+- Checked: governing spec `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` (sections 4.4, 4.8, 5.2a, 6, 7); orchestrator `63ib9r`; split parts `h58z9n` (Order 33), `y97k46` (Order 34), `jd7874` (Order 35), `2zpw22` (Order 36), `jq82as` (Order 141), `snh19k` (formerly `h58z9n`), `ffceq0` (Order 08); and gate test modules in `tests/`.
+- Verified resolved open questions OQ-01, OQ-02, and OQ-03 owners: updated from `- Owner: none` to `- Owner: plan author` (OQ-01, OQ-02) and `- Owner: maintainer` (OQ-03) (`PR-002`).
+
+### Step R2
+
+- Checked: E/V bijection (`3/3`: `E-13..E-15` <-> `V-13..V-15`), `- Highest E allocated: 16`, `- Item-Dependencies:` (`executed:2zpw22, executed:jq82as, executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:jd7874, executed:tve77h, executed:xexn45, executed:y97k46`), and isolated-lane reachability of every `V-*` demand.
+- Checked gate contract: added narrow unsafe-condition stop rule and explicit conditional runner/executor finalize ownership clause to `Approval and execution gate` (`PR-001`).
+- Verified zero em/en dashes, explicit state directory initialization (`mkdir -p .aw/state/t4gl15`), and valid `- Scope-Paths:`.
+
+### Step R3
+
+- Checked: E-13 tests gate parity across cold, warm, deleted, and corrupt caches; E-14 asserts offline execution without network access (`PATH` stripped of host launchers, `socket.socket` patched to raise).
+- Gates remain fail-closed on corrupt or unparseable records.
+
+### Step R4
+
+- A (Correctness and data integrity): Idempotent tests; cache parity proves deterministic behavior regardless of cache temperature or corruption.
+- C (Architecture and operability): Reuses existing test patterns and gate CLIs (`aw ipd set`, `aw ipd-status-untooled-gate`, `aw ipd-executed-gate`, `aw backlog-blocking-close-gate`).
+- D and E (Anti-regression and testing): Pin-first discipline preserved; cache-parity tests prevent regression during metastore migration; residual audit F-04 ensures no unowned `^-` regexes or `Workflow history` readers linger in production modules.
+- Executability and right-sizing: 3 E-items in 1 task group after the 2026-11-07 and 2026-11-09 splits; each item addresses one cohesive deliverable.
+
+### Step R5
+
+- Checked through the eight review personas: QA/QC (deterministic parity tests across cache states), testing/regression (untainted offline environment proof), UI/UX (clear gate failure diagnostics naming invalid records), architect (one metadata cache loader across all gates and hooks), software engineer (exact CLI leaves and parameters), power user (consistent pre-commit gate verdicts), novice (unambiguous gate rejection reasons), stakeholder (AC-1a, AC-12, and residual audit F-04 closure).
+
+### Step R6
+
+- Checked: 3 E-items in 1 task group across 2 non-plan Scope-Paths (`tests/test_readers_gate_cache_parity.py`, `CHANGELOG.md`), well within right-sizing bounds after the splits. No further decomposition needed.
+
+### Step R7
+
+- Checked consistency across the `Set: metastore` family: child plan `t4gl15` aligns with orchestrator `63ib9r`, Order 08 `ffceq0`, split reader parts `h58z9n`, `y97k46`, `jd7874`, `2zpw22`, append hook carrier `jq82as`, and writer finisher `xexn45`. Shared dependencies in `- Item-Dependencies:` accurately reflect the split decomposition.
+
+### Step S5
+
+- Checked: OQ-01, OQ-02, and OQ-03 are resolved and non-blocking. Attested owners set and decisions D-1 through D-5 recorded in `### Decisions`. Zero questions belong to the human (`questions: []`).
+
+### Step S6
+
+- Re-review check: No new `E-*` or `V-*` items added or removed; `- Scope-Paths:` and `- Item-Dependencies:` unchanged; all edits are surgical hardening.
+- Re-run `aw ipd lint --phase review-finalize --agent` confirmed clean (0 errors, 0 warnings, 0 advisories).
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | HIGH | IN-SCOPE | R2 / S7 / Approval and execution gate | .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md:231 | Approval and execution gate omitted explicit narrow unsafe-condition stop rule and explicit conditional runner/executor finalize clause. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added narrow stop rule for missing prerequisites, baseline test failure, or checkout conflicts, and explicit conditional runner/executor ownership clause to Gate (recommendation strength: strong). |
+| PR-002 | MEDIUM | IN-SCOPE | R1 / S5 / OQ owners | .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md:186 | OQ-01, OQ-02, and OQ-03 recorded `- Owner: none` on resolved questions, violating the owner attestation standard in steps/s5-questions.md. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `- Owner: plan author` (OQ-01, OQ-02) and `- Owner: maintainer` (OQ-03) and recorded decisions in `### Decisions` (D-1, D-2, D-3) (recommendation strength: strong). |
+| PR-003 | LOW | IN-SCOPE | Proofreading / Requirement 12(b) | .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md:120 | Proposed changes lacked a Mermaid diagram required by Technical Writing Standard Requirement 12(b) for multi-step processes with branches. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added Mermaid `flowchart TD` diagram under `## Proposed changes` showing execution progression across E-13, E-14, and E-15 (recommendation strength: strong). |
+| PR-004 | LOW | IN-SCOPE | Proofreading / Requirement 7 / Step 0 | .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md:67 | Step 0 cited code using unqualified `module.function` symbols instead of repo-relative `path::Symbol` identifiers (`IPD-C801`, Technical Writing Standard Requirement 7). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Standardized code citations to `path::Symbol` identifiers in Step 0 (recommendation strength: strong). |
+| PR-005 | LOW | IN-SCOPE | Proofreading / Advisory IPD-C802 / Step S7 | .aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md:209 | Line 209 contained em dashes (U+2014) in V-rule prose triggering `IPD-C802` advisories; front matter lacked `- Readiness: go-pending-approval`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced em dashes with parentheses in line 209 and added `- Readiness: go-pending-approval` to front matter (recommendation strength: very strong). |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does this plan depend on Order 08 (`ffceq0`)? | Yes. Retain `executed:ffceq0` in `- Item-Dependencies:` because `t4gl15` needs `artifact_meta.read_text` and status normalization rule D-1. | Omit `ffceq0` dependency (rejected: `read_text` and D-1 are introduced in `ffceq0`). | OQ-01, spec `4sd62s` | yes |
+| D-2 | How does `read_at` serve a merge-stage blob (`:<stage>:<path>`)? | First try `read_at(id6, ":<stage>:")`; fallback to `artifact_meta.read_text` over stage blob text if stage spelling is unsupported. | Build custom parser for merge stages (rejected: violates C5a single-loader requirement). | OQ-02, spec `4sd62s` C5a | yes |
+| D-3 | Should the plan be split? | Handled by 2026-11-07 maintainer split into `h58z9n`, `y97k46`, `jd7874`, `2zpw22`, `jq82as`, and finishing plan `t4gl15` (3 E-items). | Further split `t4gl15` (rejected: 3 items in 1 task group is already well right-sized). | OQ-03, research `nj8zdp` | yes |
+| D-4 | How is gate cache parity verified across cache states? | Run four distinct gate CLIs on fixture repository under cold, warm, deleted, and corrupt `.aw/state/index.db`, asserting identical normalized outputs and exit codes. | Run on live repository (rejected: corrupt cache would disrupt other lane operations). | `t4gl15` E-13, spec `4sd62s` AC-1a | yes |
+| D-5 | How is offline execution proved without network access? | Strip host launcher binaries from `PATH` and patch `socket.socket` to raise via `sitecustomize` on `PYTHONPATH`. | Disable network adapter (rejected: unsupported in test runner). | `t4gl15` E-14, spec `4sd62s` AC-12 | yes |
