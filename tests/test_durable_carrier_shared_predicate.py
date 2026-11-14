@@ -212,9 +212,9 @@ class DurableCarrierSharedPredicateTests(unittest.TestCase):
                 f"`{label}` reached the repo-aware evaluator {spy.call_count} times across {len(S.CHECKPOINTS)} checkpoints.",
             )
 
-        # 3. lint_file at every checkpoint other than pre-transition calls it 0 times
+        # 3. lint_file at every checkpoint where the rule does not apply calls it 0 times
         for cp in S.CHECKPOINTS:
-            if cp == "pre-transition":
+            if cp in ("pre-transition", "review-finalize"):
                 continue
             with mock.patch.object(
                 ce, "evaluate_durable_carrier", wraps=ce.evaluate_durable_carrier
@@ -225,6 +225,32 @@ class DurableCarrierSharedPredicateTests(unittest.TestCase):
                 0,
                 f"`lint_file` at checkpoint {cp!r} reached the evaluator {spy.call_count} times; expected 0.",
             )
+
+    def test_review_finalize_reports_what_the_review_merge_gate_refuses(self):
+        """pay4hs: the reviewer's check and the review-lane merge gate must agree.
+
+        Before the fix `aw ipd lint --phase review-finalize` reported this plan clean while
+        `runner_shared.check_review_lane_artifacts` refused it, so the review was wasted.
+        """
+        from agent_workflows import runner_shared as rs
+
+        res = ipd_lint.lint_file(self.plan, checkpoint="review-finalize")
+        self.assertIn(RULE, [d.code for d in res.diagnostics])
+        self.assertNotEqual(res.disposition, S.DISPOSITION_CONFORMING)
+
+        # The gate's carrier half, isolated: with the gate's own author-lint half stubbed to pass
+        # (this fixture lacks unrelated metadata), the gate refuses for exactly the carrier rule.
+        rel = str(self.plan.relative_to(self.repo)).replace("\\", "/")
+        handle = mock.Mock(path=str(self.repo), branch="")
+        passing = ipd_lint.LintResult(S.DISPOSITION_CONFORMING, [], [])
+        with mock.patch.object(ipd_lint, "lint_text", return_value=passing):
+            ok, reason = rs.check_review_lane_artifacts(self.repo, handle, [rel])
+        self.assertFalse(ok)
+        self.assertIn(RULE, reason)
+
+        # Drafting is still free: `author` does not demand a carrier.
+        author = ipd_lint.lint_file(self.plan, checkpoint="author")
+        self.assertNotIn(RULE, [d.code for d in author.diagnostics])
 
 
 if __name__ == "__main__":

@@ -3625,6 +3625,86 @@ def retire_review_sweep_lane(
     return record
 
 
+#: Retention code for a review whose integration was terminally refused and whose commit was moved off
+#: the shared sweep lane onto its own parked branch (backlog `cm36w7`).
+RETENTION_REVIEW_INTEGRATION_REFUSED = "review-integration-refused"
+
+
+def park_refused_review_off_sweep_lane(
+    *,
+    run_dir: Path,
+    state: Mapping[str, Any],
+    item: dict[str, Any],
+    attempt: MutableMapping[str, Any],
+    handle: Any,
+    reason: str,
+    append_jsonl: Callable[..., Any],
+) -> str | None:
+    """Move a terminally refused review's commits off the shared sweep lane (backlog `cm36w7`).
+
+    Every review in a run shares one sweep lane, and the integration gate checks every file the lane
+    changed against main. A refused review left on the lane therefore made every LATER review's
+    integration refuse with the first review's reason, and the diverged lane could no longer
+    fast-forward to main. So the refused review is parked on `aw/parked/<run_id>/<id6>` (the same
+    branch shape a review awaiting a human uses) and the lane is reset to the tip it had before this
+    review's turn. Nothing is lost: the parked branch holds the review's commits.
+
+    Returns the parked branch, or None when parking was not safe and the lane was left untouched: no
+    recorded starting tip, a lane that is not a descendant of it, or a dirty lane.
+    """
+    wt_path = Path(str(getattr(handle, "path", "") or ""))
+    base_tip = str(attempt.get("review_lane_tip_before") or "")
+    if not base_tip or not wt_path.is_dir():
+        return None
+    rc, head_out, _ = _run_git(wt_path, ["rev-parse", "HEAD"])
+    head = head_out.strip() if rc == 0 else ""
+    if not head or head == base_tip:
+        return None
+    rc_anc, _, _ = _run_git(wt_path, ["merge-base", "--is-ancestor", base_tip, head])
+    if rc_anc != 0:
+        return None
+    rc_st, st_out, _ = _run_git(wt_path, ["status", "--porcelain"])
+    if rc_st != 0 or st_out.strip():
+        return None
+    parked = f"aw/parked/{str(state.get('run_id') or '')}/{item['id6']}"
+    rc_br, _, _ = _run_git(wt_path, ["branch", "-f", parked, head])
+    if rc_br != 0:
+        return None
+    rc_reset, _, _ = _run_git(wt_path, ["reset", "--hard", base_tip])
+    if rc_reset != 0:
+        return None
+    preserved_reason = (
+        f"review {item['id6']} was refused integration, so its commits were moved to {parked} "
+        f"and the shared review lane was reset so later reviews are not blocked by it: {reason}"
+    )
+    item["preserved_branch"] = parked
+    item["preserved_worktree"] = str(wt_path)
+    item["preserved_base"] = base_tip
+    item["preserved_lane_id"] = f"parked-{item['id6']}"
+    item["preserved_reason"] = preserved_reason
+    item["preserved_retention_reasons"] = [RETENTION_REVIEW_INTEGRATION_REFUSED]
+    attempt["preserved_branch"] = parked
+    attempt["preserved_base"] = base_tip
+    attempt["preserved_lane_id"] = f"parked-{item['id6']}"
+    attempt["review_parked_off_sweep_lane"] = parked
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "worktree-preserved",
+            "id6": item.get("id6"),
+            "worktree": str(wt_path),
+            "branch": parked,
+            "lane_id": f"parked-{item['id6']}",
+            "base_commit": base_tip,
+            "status": item.get("status"),
+            "reason": preserved_reason,
+            "retention_reasons": [RETENTION_REVIEW_INTEGRATION_REFUSED],
+        },
+    )
+    return parked
+
+
 def deferred_review_lane_handle(state: dict[str, Any], item: Mapping[str, Any]) -> Any:
     """The lane handle a DEFERRED REVIEW item's re-attempt must merge, or None (`i4ak5n` E-05).
 
@@ -46558,13 +46638,29 @@ def execute_item_core(
                     # `finish_integrated_review_item`).
                     attempt["review_disposition"] = disposition
                     disposition = review_decision.status
+                    # cm36w7: a TERMINAL refusal must not stay on the shared sweep lane, or every later
+                    # review in this run is refused for this review's reason. A deferred one stays,
+                    # because the ladder re-attempts it from the sweep lane.
+                    report_branch = wt_handle.branch
+                    if not review_decision.deferred:
+                        parked_to = park_refused_review_off_sweep_lane(
+                            run_dir=run_dir,
+                            state=state,
+                            item=item,
+                            attempt=attempt,
+                            handle=wt_handle,
+                            reason=review_reason,
+                            append_jsonl=append_jsonl,
+                        )
+                        if parked_to:
+                            report_branch = parked_to
                     save_state(run_dir, state)
                     # E-07: REPORT THE DEFERRAL AND THE REMEDY, not merely the refusal. A message that
                     # states a condition with no route is one an operator learns to skim, and a message that
                     # promises a re-attempt which never happens is worse than one that promises nothing.
                     for line in format_review_integration_refusal_report(
                         id6=str(item["id6"]),
-                        branch=wt_handle.branch,
+                        branch=report_branch,
                         kind=review_kind,
                         reason=review_reason,
                         decision=review_decision,

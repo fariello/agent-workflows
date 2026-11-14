@@ -76,6 +76,20 @@ No check may change an existing `Blocking: yes` to `Blocking: no` without a reco
 
 Every recommended answer for an open question must state its strength as one of `very weak`, `weak`, `medium`, `strong`, or `very strong` (MD-9).
 
+### Every question you leave open or deferred needs a carrier
+
+An open question that is not `- Blocking: yes`, or a deferred one, is an obligation the plan
+does not discharge itself, so something durable must own it. Give each such question ONE of:
+
+- `- Carrier: <id6>`: a backlog item, plan, or spec that tracks it. If none exists, file one
+  with `aw backlog new` and cite its id6.
+- `- Carrier-Evidence: <path>`: an executed plan or implemented spec that already handled it.
+- `- Carrier-Declined: <reason>`: a recorded decision that it needs no follow-up.
+
+A run refuses to merge a review whose plan leaves such a question uncarried
+(`check.ipd-uncarried-obligation`), and that refusal discards the whole review. Run
+`aw ipd lint --phase review-finalize` before you finish: it reports the same rule.
+
 ### 3.2 Ask interactively
 Notice: this interactive subsection applies only to an interactive `/plan-review` run. When run by a runner (non-interactive review invocation), questions are recorded in the plan and review record per Section 3.3 instead of prompting interactively.
 

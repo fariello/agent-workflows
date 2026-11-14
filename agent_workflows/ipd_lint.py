@@ -3034,14 +3034,22 @@ def _merge_review_escalation(
 # maps `executed` -> `done`), so the claim of doneness is the only place the question can be asked. One
 # set excludes the phase the other requires, and both are right about their own concern.
 #
-# DO NOT WIDEN THIS TO THE EARLIER PHASES. Firing at `author`/`review-finalize`/`pre-execution` would
-# demand a carrier for a row a plan is still drafting, which is the mass-failure E-05 exists to avoid;
-# 664 such rows exist across all 106 pending plans today (measured 2026-09-18).
+# `review-finalize` IS INCLUDED (backlog `pay4hs`, 2026-11-14) because the review-lane integration gate
+# (`runner_shared.check_review_lane_artifacts`) already demands a carrier at the moment a review
+# merges, and that refusal is terminal. With the rule absent here, the reviewer's own
+# `aw ipd lint --phase review-finalize` reported clean on a plan the gate then refused, so the whole
+# review was wasted (run-20261114T011656Z-594596: 1vfqdu OQ-08, ya4ee4 OQ-05). The checker and the
+# gate must ask the same question. Measured before widening: 0 of 209 pending plans fail at
+# review-finalize, because the 664 rows of 2026-09-18 are grandfathered (pre-cutover `info`).
+#
+# DO NOT WIDEN THIS TO `author`/`pre-execution`. `author` would demand a carrier for a row a plan is
+# still drafting, which is the mass-failure E-05 exists to avoid; `pre-execution` follows a passing
+# `review-finalize`, so it adds no protection.
 #
 # THE EXISTING `pre-execution` BLOCKING-OQ CHECK IS UNTOUCHED. Its exclusion from `pre-transition` is
 # deliberate and documented (`check_checkpoint`), and this item ADDS a different question at a different
 # phase rather than relocating an existing one. Two gates, two questions.
-_CARRIER_CHECKPOINTS = frozenset(("pre-transition",))
+_CARRIER_CHECKPOINTS = frozenset(("review-finalize", "pre-transition"))
 
 
 def _merge_durable_carrier(
