@@ -3,10 +3,12 @@
 - Date: 2026-11-09
 - Kind: child
 - Concern: Spec `4sd62s` section 5.4 (last bullet) renames `Kind` (plan role), research `kind` and prompt `Kind` to `plan_role`, `research_kind` and `prompt_kind` in documents and help text, and spec 4.1 has the installer create two quickstarts. C10a keeps both off `main` until the cutover commit. This is the fourth of four parts that build the cumulative cutover documentation patch (split from `90iqr1` E-05 `Kind` subset and E-06, round 3, research `nj8zdp`).
-- Scope: In a scratch worktree with the committed patch applied, apply the `Kind` renames in documents and `cli.py` help strings, and write the two quickstarts plus their installer template text in `engine.py`; regenerate `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes; no CLI option is renamed.
+- Scope: In a scratch worktree with the committed patch applied, apply the `Kind` renames in documents and `agent_workflows/cli.py` help strings, and write the two quickstarts plus their installer template text in `agent_workflows/engine.py`; regenerate `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes; no CLI option is renamed.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-253-ngc2a2-add-kind-rename-and-quickstart-rewrites-to-the-cutover-docs.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch
 - Item-Dependencies: executed:9o83cr, executed:y1zihp
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, scratch worktree isolation, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 90iqr1 (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create a scratch git worktree (`git worktree add --detach .aw/state/ngc2a2/scratch HEAD`) and apply the committed cumulative patch in it (`git apply --index` of `.aw/system/cutover/metastore-docs.cutover.patch`, as last written by `y1zihp`). If it does not apply, stop and report.
+- [ ] E-01 Create a scratch git worktree (`mkdir -p .aw/state/ngc2a2 && git worktree add --detach .aw/state/ngc2a2/scratch HEAD`) and apply the committed cumulative patch in it (`git apply --index` of `.aw/system/cutover/metastore-docs.cutover.patch`, as last written by `y1zihp`). If it does not apply, stop and report.
   - Depends on: none
   - Expected outcome: the scratch worktree shows the three earlier parts' changes staged; the executing checkout is unchanged.
   - Execution state: pending
@@ -75,8 +78,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Create Scratch Worktree & Apply Base Patch (E-01)<br/>git worktree add .aw/state/ngc2a2/scratch<br/>apply metastore-docs.cutover.patch"]
+    E02["2. Rewrite Kind in Documents (E-02)<br/>qhay6a F-03 table documents"]
+    E03["3. Update cli.py Help Strings (E-03)<br/>agent_workflows/cli.py"]
+    E04["4. Write Two Quickstarts & Templates (E-04)<br/>AGENT_QUICKSTART.md, QUICKSTART.md, engine.py"]
+    E05["5. Regenerate Patch & Path-Scoped Commit (E-05)<br/>git diff --cached --binary HEAD > metastore-docs.cutover.patch<br/>remove scratch worktree & commit"]
+
+    E01 --> E02
+    E01 --> E03
+    E01 --> E04
+    E02 --> E05
+    E03 --> E05
+    E04 --> E05
+```
+
 1. E-01: scratch worktree with the patch applied.
-2. E-02 to E-04: `Kind` renames in documents, `cli.py` help strings, quickstarts.
+2. E-02 to E-04: `Kind` renames in documents, `agent_workflows/cli.py` help strings, quickstarts.
 3. E-05: regenerate the patch and commit.
 
 ## Deferred / out of scope (with reason)
@@ -101,11 +120,16 @@ No spec change; the documents change in `cxxmyv`'s cutover commit.
 
 ## Open questions
 
-None open.
+### OQ-01: Does this plan edit live documents on main?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: No. Spec `4sd62s` C10a requires all documentation rewrites to remain off main until the atomic cutover commit (`cxxmyv`). All edits are performed inside an isolated scratch worktree (`.aw/state/ngc2a2/scratch`) and committed as an updated cumulative patch file `.aw/system/cutover/metastore-docs.cutover.patch`. Recommendation strength: very strong.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the `git apply --index` command and its exit status, and the scratch worktree's `git diff --cached --stat`.
@@ -116,11 +140,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `cli.py` diff hunks for the `aw ipd scaffold --kind` and `aw research mv --kind` help strings, and `git diff HEAD -- agent_workflows/cli.py | rg '^[-+].*add_argument\("--'` in the scratch worktree showing no changed option name.
+  - Required evidence: paste the `agent_workflows/cli.py` diff hunks for the `aw ipd scaffold --kind` and `aw research mv --kind` help strings, and `git diff HEAD -- agent_workflows/cli.py | rg '^[-+].*add_argument\("--'` in the scratch worktree showing no changed option name.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste the content of `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md` from the scratch worktree and the `engine.py` diff hunk that emits them.
+  - Required evidence: paste the content of `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md` from the scratch worktree and the `agent_workflows/engine.py` diff hunk that emits them.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
@@ -133,12 +157,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after `y1zihp` is `executed` and this plan is `approved`. Documents are edited ONLY in the scratch worktree; the executing checkout changes only by this plan and the patch file.
+Execute only after `y1zihp` is `executed` and this plan is `approved`. Documents are edited ONLY in the scratch worktree; the executing checkout changes only by this plan and the patch file. Stop and report without editing production code or tests if prerequisite symbols or the cumulative patch file from `y1zihp` are absent on HEAD, if git apply fails in the scratch worktree, or if concurrent edits in a shared checkout conflict with `- Scope-Paths:`.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
 Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
 
-Commits: commit only through `aw commit ngc2a2 -- <paths>`; never push.
+Commits: commit only through `aw commit ngc2a2 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs `aw ipd finalize ngc2a2`.
