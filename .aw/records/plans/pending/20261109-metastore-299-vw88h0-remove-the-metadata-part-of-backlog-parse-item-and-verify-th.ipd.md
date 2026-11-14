@@ -6,7 +6,9 @@
 - Scope: The last part of `k6jd6l` E-18 and its V-18 evidence.
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog.py, tests/test_backlog_duplicate_guard.py, tests/test_backlog_descriptive_safety.py, tests/test_run_proposal_channel.py, .aw/records/plans/pending/20261109-metastore-299-vw88h0-remove-the-metadata-part-of-backlog-parse-item-and-verify-th.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:po3o1c, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, baseline diff commands, execution gate, and PIN rule; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-18 and OQ-02 (see Order 298). Save the before-list of the four test modules and `tests/test_specs_status_dirs.py` and `tests/test_gate_drop_audit.py` to `.aw/state/9o83cr/E-18c-before.txt`.
+Carried from `k6jd6l` E-18 and OQ-02 (see Order 298). Before any test retargeting edit, create directory `mkdir -p .aw/state/9o83cr/` and save the before-list of the four test modules and `tests/test_specs_status_dirs.py` and `tests/test_gate_drop_audit.py` to `.aw/state/9o83cr/E-18c-before.txt`.
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: tests, then the parser, then verify
 
-- [ ] E-01 Retarget the metadata assertions of `tests/test_backlog.py` and `tests/test_backlog_duplicate_guard.py` from `parse_item(...).<field>` to `artifact_meta.read_text(...)`, keeping every case.
+- [ ] E-01 Ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the six PIN modules baseline to `.aw/state/9o83cr/E-18c-before.txt`; then retarget the metadata assertions of `tests/test_backlog.py` and `tests/test_backlog_duplicate_guard.py` from `parse_item(...).<field>` to `artifact_meta.read_text(...)`, keeping every case.
   - Depends on: none
   - Expected outcome: neither module reads a metadata field from `parse_item`.
   - Execution state: pending
@@ -68,6 +71,18 @@ Measured 2026-11-09 at `f83159217` with `rg -c "parse_item\(" tests`: see the Co
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Retarget test_backlog & test_backlog_duplicate_guard (E-01)<br/>tests/test_backlog.py, tests/test_backlog_duplicate_guard.py"]
+    E02["2. Retarget test_backlog_descriptive_safety & test_run_proposal_channel (E-02)<br/>tests/test_backlog_descriptive_safety.py, tests/test_run_proposal_channel.py"]
+    E03["3. Strip metadata fields from backlog.parse_item / BacklogItem (E-03)<br/>agent_workflows/backlog.py"]
+    E04["4. Verify subset 2 & commit (E-04)<br/>PIN diffs, baseline diffs, aw commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+```
+
 1. Retarget two backlog test modules (E-01).
 2. Retarget two more (E-02).
 3. Strip the parser (E-03).
@@ -97,7 +112,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: It reads the id from `artifact_meta` and the body from `parse_item`; the id is metadata. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -129,4 +144,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit vw88h0 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit vw88h0 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed or required metastore symbols from `t4gl15`, `ffceq0`, or `po3o1c` are absent, stop and report rather than proceeding. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize vw88h0` itself.
