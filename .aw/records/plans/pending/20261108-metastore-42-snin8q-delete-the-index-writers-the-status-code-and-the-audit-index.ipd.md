@@ -6,7 +6,9 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). `9o83cr` E-03 (INDEX writers), E-06 (STATUS code), E-07 (`_INDEX_CACHE`) and this plan's baseline E-01 now run in eight earlier parts: baseline `54a80m` (Order 230); test retargets `f6y2yy` (231) and `6966zq` (232); plans, research and prompts writers `uopi8z` (233), `s6k01k` (234), `drav0u` (235); STATUS renderer `3v2ew2` (236); audit cache `h3jp4e` (237). This plan keeps the one E-03 member shared by all three index modules, the `artifact_core.emit_index_write_result` and `emit_index_check_result` helpers (new id E-18), and the family-wide finish E-17. EXCLUDES: the aliases, regeneration calls and stale-index rules (Order 41, `q6epwc`); value writers, adapters and parsers (Orders 43 to 46); the AC-1 test, audit and documents (`9o83cr`); on-disk INDEX files and skip names (`cxxmyv`).
 - Scope-Paths: agent_workflows/artifact_core.py, .aw/records/plans/pending/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:3v2ew2, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:drav0u, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:h3jp4e, executed:q6epwc, executed:s6k01k, executed:t4gl15, executed:uopi8z
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,9 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snin8q
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005; review record .aw/records/reviews/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.review.md
 
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to 54a80m; E-03 split across f6y2yy, 6966zq, uopi8z, s6k01k, drav0u, with its shared `artifact_core.emit_index_*` member kept here as new E-18; E-06 moved to 3v2ew2; E-07 moved to h3jp4e.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 9o83cr per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
@@ -50,11 +54,11 @@ PIN RULE (carried from `9o83cr`): E-18 deletes two helpers whose only callers we
 
 ## Project conventions discovered (Step 0)
 
-- `check_engine.check_content` calls `plans_index.check_drift` and `research_index.check_drift` (and, after Order 41, `prompts_index.check_drift`), which host non-INDEX rules (F-04), so those functions survive with their INDEX classes removed.
-- `artifact_core.emit_index_check_result` and `emit_index_write_result` are called only from the three `run_index` functions; `artifact_core.emit_index_missing_dir_refusal` is a separate refusal helper and stays if any caller remains (check at execution).
-- `run_cli.write_index` writes the run ledger projection and is unrelated to INDEX manifests.
+- `agent_workflows/check_engine.py::check_content` calls `agent_workflows/plans_index.py::check_drift` and `agent_workflows/research_index.py::check_drift` (and, after Order 41, `agent_workflows/prompts_index.py::check_drift`), which host non-INDEX rules (F-04), so those functions survive with their INDEX classes removed.
+- `agent_workflows/artifact_core.py::emit_index_check_result` and `agent_workflows/artifact_core.py::emit_index_write_result` are called only from the three `run_index` functions; `agent_workflows/artifact_core.py::emit_index_missing_dir_refusal` is a separate refusal helper and stays if any caller remains (check at execution).
+- `agent_workflows/run_cli.py::write_index` writes the run ledger projection and is unrelated to INDEX manifests.
 - Test data comes from ONE builder, `tests/record_builder.py` (`59aiyh`); core tests carry `pytestmark = pytest.mark.core`.
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
+- Cite code by SYMBOL (`agent_workflows/module.py::function_or_symbol`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
 
@@ -68,6 +72,14 @@ Measured 2026-11-07 at `ac76110f4`. F-02, F-04 and F-10 are copied from `9o83cr`
 | F-23 | `rg -c "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched" agent_workflows`: `plans_index` 14, `research_index` 15, `prompts_index` 14, `artifact_core` 2, `plans_archive` 2, `research_archive` 2, `ipd_lifecycle` 1. Test modules naming one of them or `run_index`: 11 (listed in E-03; `tests/test_orchestrator_retirement.py` names only `_refresh_plans_index_fail_loud`, owned by Order 41). | The archive writers were not in the original E-03 list; added here so no writer survives. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E18["1. Delete shared index helpers (E-18)<br/>agent_workflows/artifact_core.py::emit_index_write_result<br/>agent_workflows/artifact_core.py::emit_index_check_result<br/>agent_workflows/artifact_core.py::emit_index_missing_dir_refusal"]
+    E17["2. Family validation and baseline check (E-17)<br/>aw check plans/research/prompts --all<br/>rg family search & python3 -m pytest"]
+
+    E18 --> E17
+```
 
 1. After the eight split parts, delete the shared `artifact_core` helpers (E-18).
 2. Validate the family against the `54a80m` baseline and commit (E-17).
@@ -116,7 +128,7 @@ No spec change; implements part of `4sd62s` 4.5 and section 7 step 7.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `9o83cr` OQ-02. No. They still host `aw find` backends (`run_find`, `query`) and the F-04 content rules; renaming is churn the spec does not ask for and would widen this plan's diff across 17 importing modules. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -138,4 +150,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit snin8q -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion in the parts is pin-first. Stop safely if prerequisite index-writer deletions from `uopi8z` (plans), `s6k01k` (research), or `drav0u` (prompts) are absent or if callers of `emit_index_*` remain in `plans_index`, `research_index`, or `prompts_index`.
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or "clean up" another party's work.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+
+Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: only through `aw commit snin8q -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize snin8q` (never a hand git mv), after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When aw oc run or aw agy run executes the plan, the runner performs the finalize; a hand executor runs aw ipd finalize snin8q itself.
