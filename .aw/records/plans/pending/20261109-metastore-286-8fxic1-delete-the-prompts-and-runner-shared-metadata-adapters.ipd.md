@@ -6,7 +6,9 @@
 - Scope: The `prompts` and `runner_shared` half of `k6jd6l` E-09 and its test modules, including `tests/test_backlog.py` if it references an adapter. EXCLUDES the rename adapters (Order 285).
 - Scope-Paths: agent_workflows/prompts.py, agent_workflows/runner_shared.py, tests/test_prompts_set_surface.py, tests/test_records_only_lane_rederive.py, tests/test_backlog.py, .aw/records/plans/pending/20261109-metastore-286-8fxic1-delete-the-prompts-and-runner-shared-metadata-adapters.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:v0ucnz
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-09 (quoted in Order 285). Save the before-list of `tests/test_prompts_set_surface.py`, `tests/test_records_only_lane_rederive.py` and `tests/test_backlog.py` to `.aw/state/9o83cr/E-09b-before.txt` before E-01.
+Carried from `k6jd6l` E-09 (quoted in Order 285). Save the before-list of `tests/test_prompts_set_surface.py`, `tests/test_records_only_lane_rederive.py` and `tests/test_backlog.py` to `.aw/state/9o83cr/E-09b-before.txt` before E-01 (ensure `.aw/state/9o83cr/` exists via `mkdir -p .aw/state/9o83cr/`).
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one adapter per item, then its tests
 
-- [ ] E-01 Delete `prompts.render_metadata_comment`; `prompts.run_new` writes the `aw-prompt` comment through `artifact_meta.create`/`append`.
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-09b-before.txt`. Delete `prompts.render_metadata_comment`; `prompts.run_new` writes the `aw-prompt` comment through `artifact_meta.create`/`append`.
   - Depends on: none
   - Expected outcome: the adapter is gone.
   - Execution state: pending
@@ -68,6 +71,13 @@ Measured 2026-11-09 at `f83159217`: see the Concern. `tests/test_backlog.py` had
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Save Baseline PIN List & Delete<br/>prompts.render_metadata_comment"] --> E02["E-02: Delete<br/>runner_shared.rederive_front_matter"]
+    E02 --> E03["E-03: Retarget<br/>tests/test_prompts_set_surface.py"]
+    E03 --> E04["E-04: Retarget Re-derive Tests<br/>& Commit"]
+```
+
 1. Delete `render_metadata_comment` (E-01).
 2. Delete `rederive_front_matter` (E-02).
 3. Retarget `test_prompts_set_surface` (E-03).
@@ -97,7 +107,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No: it is a reader helper, owned by Order 293 with the other `metadata_region` callers. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -129,4 +139,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 8fxic1 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `59aiyh`, `ffceq0`, `t4gl15`, or `v0ucnz` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 8fxic1 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 8fxic1` itself; never a hand `git mv` to `executed/`.
