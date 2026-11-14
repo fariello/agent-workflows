@@ -1,5 +1,7 @@
 # Walkthrough: review-lane gate fixes (pay4hs, cm36w7)
 
+- Id: qub4s7
+- Target-Id: pay4hs
 - Date: 2026-11-14
 - Set: revgate
 - Commits: eba40955c (fixes), 13d3c03a8 (related runner output wording)

@@ -23,6 +23,11 @@ from typing import Any
 from agent_workflows import render_stream
 
 
+def _row(lines: list[str], prefix: str) -> str:
+    """The first rendered row starting with `prefix`, so the asserts do not depend on row indices."""
+    return next(ln.strip() for ln in lines if ln.strip().startswith(prefix))
+
+
 def _item(**overrides: Any) -> dict[str, Any]:
     """Build one queue entry in the shape persisted by runner state."""
     item: dict[str, Any] = {
@@ -170,11 +175,11 @@ class ZeroDispatchProgressDenominatorTests(unittest.TestCase):
         )
         lines = rendered.splitlines()
         self.assertEqual(
-            lines[3].strip(),
+            _row(lines, "│ Progress:"),
             "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                             │",
         )
         self.assertEqual(
-            lines[9].strip(),
+            _row(lines, "│ Total ("),
             "│ Total (0/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
         )
         self.assertEqual(_outcome_word(rendered), render_stream.NO_WORK_OUTCOME)

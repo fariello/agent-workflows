@@ -25,6 +25,7 @@ from agent_workflows import specs as _specs
 _PLAN_ID_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
 _ITEM_DEPS_RE = re.compile(r"(?m)^-[ \t]*Item-Dependencies:[ \t]*(.*?)[ \t]*$")
 _SCOPE_PATHS_RE = re.compile(r"(?m)^-[ \t]*Scope-Paths:[ \t]*(.*?)[ \t]*$")
+_CARRIER_RULE = "check.ipd-uncarried-obligation"
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 _SET_RE = re.compile(r"(?m)^-[ \t]*Set:[ \t]*(\S+)")
 _TERMINAL_DISPOSITIONS = frozenset(("executed", "superseded", "not-executed"))
@@ -357,6 +358,11 @@ def _check_ipd_conformance(
     if lint_res.disposition != _lint.S.DISPOSITION_CONFORMING:
         for diag in lint_res.diagnostics:
             if diag.code == _lint.C_ORCH_NOT_READY:
+                continue
+            # A freshly produced plan is still a draft for review; carrying its open and deferred
+            # rows is the reviewer's job, checked by the reviewer's own review-finalize lint and the
+            # review merge gate (backlog `pay4hs`). Production must not refuse on it.
+            if diag.code == _CARRIER_RULE:
                 continue
             diags.append((diag.code, diag.message))
 

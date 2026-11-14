@@ -29,6 +29,11 @@ from agent_workflows import render_stream, run_selection_policy
 from agent_workflows import term as T
 
 
+def _row(lines: list[str], prefix: str) -> str:
+    """The first rendered row starting with `prefix`, so the asserts do not depend on row indices."""
+    return next(ln.strip() for ln in lines if ln.strip().startswith(prefix))
+
+
 def _item(**overrides: Any) -> dict[str, Any]:
     """Build one queue entry in the shape persisted by runner state."""
     item: dict[str, Any] = {
@@ -586,19 +591,19 @@ class ZeroDispatchOutcomeRegressionFenceTests(_DepthTestBase):
 
         # Progress line is byte-identical to progdenom format
         self.assertEqual(
-            lines[3].strip(),
+            _row(lines, "│ Progress:"),
             "│ Progress: 0/1  [          ]   0% (1 reviewed)                                                                             │",
         )
 
         # Per-artifact row is unchanged
         self.assertEqual(
-            lines[7].strip(),
+            _row(lines, "│  01 │"),
             "│  01 │  01 │ test01 │ b7oicl │ execute │ ◑ reviewed │ verified │        - │     - │       - │      - │       - │         - │",
         )
 
         # Totals row is unchanged
         self.assertEqual(
-            lines[9].strip(),
+            _row(lines, "│ Total ("),
             "│ Total (0/1 items run)                                         │       0s │ $0.00 │       0 │      0 │       0 │         0 │",
         )
 
@@ -616,13 +621,15 @@ class ZeroDispatchOutcomeRegressionFenceTests(_DepthTestBase):
                 lineterm="",
             )
         )
-        # Unified diff should only show changes in the Outcome line
+        # Unified diff should only show changes in the Outcome line (and the `Why:` line that
+        # explains that outcome, which differs by construction).
         changed_diff_lines = [
             diff_line
             for diff_line in diff
             if (diff_line.startswith("+") or diff_line.startswith("-"))
             and not diff_line.startswith("+++")
             and not diff_line.startswith("---")
+            and not diff_line[1:].strip().startswith("│ Why:")
         ]
         self.assertEqual(len(changed_diff_lines), 2)
         self.assertTrue(
