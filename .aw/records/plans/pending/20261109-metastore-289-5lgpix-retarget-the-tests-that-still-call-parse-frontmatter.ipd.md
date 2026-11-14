@@ -6,7 +6,9 @@
 - Scope: Test retargets for the `parse_frontmatter` move of `k6jd6l` E-10 (`k6jd6l` named only the loader test modules; these eight were found on 2026-11-09 by running the E-10 search over `tests`). Items E-01 to E-04 take one large module each; E-05 takes the four small ones.
 - Scope-Paths: tests/test_research_cmd_create.py, tests/test_research_rename_frontmatter.py, tests/test_research_archive.py, tests/test_research_descriptive_safety.py, tests/test_artifact_adopt.py, tests/test_date_reader_clock_parity.py, tests/test_research_unsafe_field.py, tests/test_selector_two_dialect_readers.py, .aw/records/plans/pending/20261109-metastore-289-5lgpix-retarget-the-tests-that-still-call-parse-frontmatter.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sq6v7i, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, test retargeting coverage, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -73,6 +76,20 @@ Measured 2026-11-09 at `f83159217` with `rg -c "parse_frontmatter" tests`: see t
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Retarget test_research_cmd_create (E-01)<br/>tests/test_research_cmd_create.py"]
+    E02["2. Retarget test_research_rename_frontmatter (E-02)<br/>tests/test_research_rename_frontmatter.py"]
+    E03["3. Retarget test_research_archive (E-03)<br/>tests/test_research_archive.py"]
+    E04["4. Retarget test_research_descriptive_safety (E-04)<br/>tests/test_research_descriptive_safety.py"]
+    E05["5. Retarget four small modules & commit (E-05)<br/>test_artifact_adopt.py<br/>test_date_reader_clock_parity.py<br/>test_research_unsafe_field.py<br/>test_selector_two_dialect_readers.py"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
+
 1. Retarget `test_research_cmd_create` (E-01).
 2. Retarget `test_research_rename_frontmatter` (E-02).
 3. Retarget `test_research_archive` (E-03).
@@ -103,7 +120,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Assert on the matching `artifact_meta.read_text` outcome (a defect or empty fields) and keep the case; if the observable differs, stop and report it in this plan rather than weakening the test. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -140,4 +157,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 5lgpix -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 5lgpix -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 5lgpix` itself.
