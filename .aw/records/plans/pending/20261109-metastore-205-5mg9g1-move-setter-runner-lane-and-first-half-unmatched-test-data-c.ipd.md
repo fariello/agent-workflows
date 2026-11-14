@@ -6,7 +6,9 @@
 - Scope: Chunk 3 of 7 of `1upea0` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 7 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `1upea0`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_agy_skip_permissions_default.py, tests/test_lane_rule_break_detection.py, tests/test_merge_gate_spec_anchors.py, tests/test_oc_runipd.py, tests/test_records_only_lane_rederive.py, tests/test_run_analytics_review_cost.py, tests/test_run_dir_parents_are_guaranteed.py, .aw/records/plans/pending/20261109-metastore-205-5mg9g1-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,12 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 5mg9g1
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini-4-carbon-medium): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-205-5mg9g1-move-setter-runner-lane-and-first-half-unmatched-test-data-c.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 1upea0 (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -32,7 +36,7 @@ Every hand-built record in the 7 test modules named below comes from `tests/reco
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
 Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule, restructured 2026-11-08 for the Order-49 fixture codemod `653ndz` per maintainer decision 2026-11-07 "Codemod first, then small runs": the tool performs the mechanical rewrite, and the hand work is bounded by its measured refusals). In it, "E-13's `full-before.txt`" and "the builder's `raw_fields=` escape (E-01)" are items of Order 37 (`9rgn2w`), carried by the round-3 split into Order 170 (`j6o96i`) with the same ids; because `.aw/state/` does not travel between lane worktrees, step 2 always records a fresh before list here. Step 1's partition is restricted to the modules each batch item names (round-3 split 2026-11-09: a subset is now spread over several plans of at most 8 modules each): a module that the partition now places in the item's subset but that no plan names is NOT added here; it is reported, and the finishing item of `1upea0` converts it; a named module that no longer matches F-01 is reported and skipped:
-1. Before the batch, re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
+1. Before the batch, create `.aw/state/59aiyh/` (`mkdir -p .aw/state/59aiyh`), re-derive its file list with the F-03 first-match partition over the F-01 `rg -l` output at the current HEAD, minus the F-03 EXCLUDED list, and save it as `.aw/state/59aiyh/<batch>-files.txt`. The counts in each E-item are context measured at `0cbfcc706` or `ac76110f4`, not the bar.
 2. Record the unmodified per-test outcome list (a batch whose files a previous batch did not touch may reuse the matching lines of E-13's `full-before.txt`): `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA $(cat .aw/state/59aiyh/<batch>-files.txt) | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/59aiyh/<batch>-before.txt`. `-p no:randomly` and `-n 0` make the list deterministic; `-m ""` includes `slow` and `livecorpus` modules.
 3. Run the codemod: `python3 tools/fixture_codemod.py --apply --format json $(cat .aw/state/59aiyh/<batch>-files.txt) > .aw/state/59aiyh/<batch>-codemod.json`. It rewrites only the sites whose module outcome list it proved identical (`653ndz` E-03, carried with the same id into Order 172, `y3uowx`, by the round-3 split) and lists every other site as a refusal with a reason code and a disposition (`hand` or `legacy-kept`, the `653ndz` reason-code table).
 4. Hand-convert ONLY the refusals with disposition `hand`: the static count is the sum of the `653ndz` F-30 rows of the item's modules (round-3 split 2026-11-09: an item now carries part of a subset, so the subset's F-31 row is context only), and the codemod report adds any apply-time `not-equivalent` refusals; the item's hand count is their sum. If the hand count exceeds 25, stop after step 3 (the proved codemod rewrites may be committed), convert nothing by hand, and report the subset for re-splitting. A hand conversion uses builder calls; a test that deliberately writes an INVALID value (an unknown status, `- Status: EXECUTED`, `- Priority: bogus`, a malformed gate) gets it through the builder's `raw_fields=` escape (E-01) and is listed with reason class `invalid-input`. A refusal with disposition `legacy-kept` stays in legacy form on purpose and is listed with its F-06 reason class.
@@ -42,9 +46,9 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 4 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_agy_skip_permissions_default.py`, `tests/test_lane_rule_break_detection.py`, `tests/test_merge_gate_spec_anchors.py`, `tests/test_oc_runipd.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_agy_skip_permissions_default` 12, `test_lane_rule_break_detection` 9, `test_merge_gate_spec_anchors` 2, `test_oc_runipd` 92. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-5mg9g1-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [ ] E-01 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 4 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_agy_skip_permissions_default.py`, `tests/test_lane_rule_break_detection.py`, `tests/test_merge_gate_spec_anchors.py`, `tests/test_oc_runipd.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_agy_skip_permissions_default` 12, `test_lane_rule_break_detection` 9, `test_merge_gate_spec_anchors` 2, `test_oc_runipd` 92. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-5mg9g1-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Keep `tests/test_oc_runipd.py::_CONFORMING_PLAN` and `tests/test_oc_runipd.py::_init_repo_with_conforming_plan` exported with their existing `id6` format-placeholder (`_CONFORMING_PLAN.format(id6=...)`) and `(repo: Path, id6: str = "slf001") -> Path` call contract intact, because 25 other `tests/test_*.py` modules import them directly (`D-2`); any other private record-building helper found now is deleted when it has no internal or external caller, or listed with its reason.
   - Depends on: none
-  - Expected outcome: an empty before/after `diff` for the `G5a-5mg9g1-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
+  - Expected outcome: an empty before/after `diff` for the `G5a-5mg9g1-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper (including `tests/test_oc_runipd.py::_CONFORMING_PLAN` and `tests/test_oc_runipd.py::_init_repo_with_conforming_plan`) listed with its reason; the codemod report and the hand count (at most 25) pasted.
   - Execution state: pending
 
 - [ ] E-02 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 3 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_records_only_lane_rederive.py`, `tests/test_run_analytics_review_cost.py`, `tests/test_run_dir_parents_are_guaranteed.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_records_only_lane_rederive` 61, `test_run_analytics_review_cost` 31, `test_run_dir_parents_are_guaranteed` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-5mg9g1-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
@@ -54,21 +58,21 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5a-5mg9g1-1-files.txt .aw/state/59aiyh/G5a-5mg9g1-2-files.txt)`) into `.aw/state/59aiyh/5mg9g1-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 5mg9g1 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5a-5mg9g1-1-files.txt .aw/state/59aiyh/G5a-5mg9g1-2-files.txt)`) into `.aw/state/59aiyh/5mg9g1-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run `python3 -m pytest -m "" $(rg -l "tests\.test_oc_runipd" tests/)` to verify zero cross-module regressions across external callers of `tests/test_oc_runipd.py` (`D-2`); run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 5mg9g1 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
-  - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
+  - Expected outcome: the union comparison is empty; all cross-module `test_oc_runipd` importers, the bare core gate, and `aw sanitize --agent` pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Interface names from Order 02 (`tve77h`): `artifact_meta.registry_fields(type)`, `artifact_meta.validate_event`, `artifact_meta.validate_new_events(type, events, *, records_root, migration_import=False)`, `artifact_meta.read(id6) -> State`, `artifact_meta.create(...)` and `artifact_meta.append(id6, events, *, expect_seq)`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 routes the phase-B branch of `create` and `append` through `write_legacy`, with `render_legacy_text(text, events)` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
-- `review_findings.render_review` (pure) and `review_findings.write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
-- The existing shared plan builder is `support.ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`ipd_authoring.build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
+- Interface names from Order 02 (`tve77h`): `agent_workflows/artifact_meta.py::registry_fields`, `agent_workflows/artifact_meta.py::validate_event`, `agent_workflows/artifact_meta.py::validate_new_events`, `agent_workflows/artifact_meta.py::read`, `agent_workflows/artifact_meta.py::create` and `agent_workflows/artifact_meta.py::append`. Order 02's `create`/`append` write the log format; `2xwb9b` E-03 adds the phase-B legacy branch of `append` and `xexn45` E-01 (via Order 21, `7yr827`) routes the phase-B branch of `create` and `append` through `agent_workflows/artifact_meta.py::write_legacy`, with `agent_workflows/artifact_meta.py::render_legacy_text` (`xexn45` E-11) as the same renderer over a string. In phase B the on-disk format is the bullet format; the legacy loader reads it into the cache.
+- `agent_workflows/review_findings.py::render_review` (pure) and `agent_workflows/review_findings.py::write_review` render and write a `.review.md` record; no CLI calls `write_review` (`xexn45` Findings).
+- The existing shared plan builder is `tests/support.py::ready_plan_text`, which is "BUILT FROM THE REAL GENERATOR (`agent_workflows/ipd_authoring.py::build_skeleton`)" and then fills the fields a draft leaves open; the builder keeps that approach for plans, so a scaffold change still reaches every fixture.
 - Shared test plumbing lives in `tests/support.py` (`init_repo`, `git`, `run_cli`, `pinned_env`, `ready_plan_text`, `scope_drift_repo`); `tests/repo_template.py` (`copy_template_repo`) gives a pre-built repository; there is no `tests/conftest.py`, and the root `conftest.py` owns tier selection.
 - Tests are behavioral (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); core modules set `pytestmark = pytest.mark.core`; `slow` tests are listed in `tests/slow_allowlist.txt`; `pyproject.toml` `addopts` deselects `slow` and `livecorpus`, so a complete comparison passes `-m ""`, and `pytest-randomly` is installed, so a deterministic order needs `-p no:randomly`.
 - `tests/fixtures/review-pilot/` is the input corpus of `tools/review_pilot.py` (`manifest.json` names each plan file, `defects.json` quotes exact text to plant), and `tests/test_review_pilot.py` copies the whole directory into its fixture repository.
-- Filenames come from `artifact_naming.build_clustered_name` and parse with `artifact_naming.parse_clustered`.
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- Filenames come from `agent_workflows/artifact_naming.py::build_clustered_name` and parse with `agent_workflows/artifact_naming.py::parse_clustered`.
+- Cite code by repo-relative `path::Symbol` identifiers or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (Technical Writing Standard Requirement 7; advisory `IPD-C801`).
 
 ## Findings
 
@@ -87,15 +91,41 @@ Measured 2026-11-09 at `3d0ddb845` for F-40; F-01, F-03, F-06 and F-08 copied fr
 | `tests/test_agy_skip_permissions_default.py` | G5a | 12 | none | E-01 |
 | `tests/test_lane_rule_break_detection.py` | G5a | 9 | none | E-01 |
 | `tests/test_merge_gate_spec_anchors.py` | G5a | 2 | none | E-01 |
-| `tests/test_oc_runipd.py` | G5a | 92 | none | E-01 |
+| `tests/test_oc_runipd.py` | G5a | 92 | none (E-09 regex); exports `_CONFORMING_PLAN`, `_init_repo_with_conforming_plan` to 25 `tests/test_*.py` modules | E-01 |
 | `tests/test_records_only_lane_rederive.py` | G5a | 61 | none | E-02 |
 | `tests/test_run_analytics_review_cost.py` | G5a | 31 | none | E-02 |
 | `tests/test_run_dir_parents_are_guaranteed.py` | G5a | 1 | none | E-02 |
 
+### Behavior decisions
+
+- D-1 (Chunk 3 execution order relative to sibling chunk plans, OQ-01). The module lists of all chunk plans are disjoint, each depends on the builder (`tests/record_builder.py::RecordBuilder`, `9rgn2w`) and the codemod (`tools/fixture_codemod.py`, `653ndz`), and none edits `tests/support.py` (`59aiyh` E-09), allowing independent execution order.
+- D-2 (shared `tests/test_oc_runipd.py` exports). Keep `tests/test_oc_runipd.py::_CONFORMING_PLAN` (preserving `.format(id6=...)` and field lines replaced by callers) and `tests/test_oc_runipd.py::_init_repo_with_conforming_plan` (preserving `(repo: Path, id6: str = "slf001") -> Path`) exported because 25 other `tests/test_*.py` modules import them directly (`rg -l "tests\.test_oc_runipd" tests/`), and verify all importers pass in `E-03`.
+- D-3 (private test helper handling and inline census regex). Inline the `59aiyh` E-09 helper-census `rg` pattern directly in `V-01` and `V-02`; delete any unreferenced private record-building helper found at execution time and list surviving helpers with their reason.
+- D-4 (hand conversion stop threshold). Stop after codemod step 3 if an item's hand-conversion refusal count exceeds 25, commit proved codemod rewrites if desired, and report the subset for re-splitting.
+- D-5 (deliberately invalid test inputs). Construct deliberately invalid metadata fixtures through `tests/record_builder.py::RecordBuilder`'s `raw_fields=` escape rather than raw legacy bullet strings, classifying remaining matches as `invalid-input`.
+- D-6 (state directory initialization). Create `.aw/state/59aiyh/` via `mkdir -p .aw/state/59aiyh` in batch rule step 1 before writing `<batch>-files.txt` and `<batch>-before.txt` in an isolated lane worktree.
+
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1a. Convert batch G5a-5mg9g1-1 (E-01): 4 modules, preserve test_oc_runipd exports"]
+    E02["1b. Convert batch G5a-5mg9g1-2 (E-02): 3 modules"]
+    H1{"Hand refusals > 25?"}
+    H2{"Hand refusals > 25?"}
+    STOP["Stop hand conversion after codemod step 3 and report subset for re-splitting"]
+    E03["2. Re-run union outcome diff, test_oc_runipd importers, bare core gate, aw sanitize, and aw commit (E-03)"]
+
+    E01 --> H1
+    E02 --> H2
+    H1 -->|"yes"| STOP
+    H2 -->|"yes"| STOP
+    H1 -->|"no (<= 25)"| E03
+    H2 -->|"no (<= 25)"| E03
+```
+
 1. Convert each item's modules under the batch rule (E-01 to E-02).
-2. Re-run the union, the core gate, commit (E-03).
+2. Re-run the union, the `test_oc_runipd` importer check, the core gate, and commit (E-03).
 
 ## Deferred / out of scope (with reason)
 
@@ -129,25 +159,25 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: Yes. The module lists of all chunk plans are disjoint, each needs the builder (`9rgn2w`) and the codemod (`653ndz`), and none edits `tests/support.py` (that is `59aiyh` E-09, which runs last). Recommendation strength: strong.
+- Owner: plan author
+- Resolution or deferral rationale: Yes. The module lists of all chunk plans are disjoint, each needs the builder (`tests/record_builder.py::RecordBuilder`, `9rgn2w`) and the codemod (`tools/fixture_codemod.py`, `653ndz`), `tests/test_oc_runipd.py` preserves its exported `_CONFORMING_PLAN` and `_init_repo_with_conforming_plan` contracts for sibling callers (`D-2`), and none edits `tests/support.py` (that is `59aiyh` E-09, which runs last). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `.aw/state/59aiyh/G5a-5mg9g1-1-files.txt` and the empty `diff .aw/state/59aiyh/G5a-5mg9g1-1-before.txt .aw/state/59aiyh/G5a-5mg9g1-1-after.txt`; then, for each of `tests/test_agy_skip_permissions_default.py`, `tests/test_lane_rule_break_detection.py`, `tests/test_merge_gate_spec_anchors.py`, `tests/test_oc_runipd.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-5mg9g1-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
+  - Required evidence: paste `.aw/state/59aiyh/G5a-5mg9g1-1-files.txt` and the empty `diff .aw/state/59aiyh/G5a-5mg9g1-1-before.txt .aw/state/59aiyh/G5a-5mg9g1-1-after.txt`; then, for each of `tests/test_agy_skip_permissions_default.py`, `tests/test_lane_rule_break_detection.py`, `tests/test_merge_gate_spec_anchors.py`, `tests/test_oc_runipd.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-5mg9g1-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; confirm `tests/test_oc_runipd.py::_CONFORMING_PLAN` and `tests/test_oc_runipd.py::_init_repo_with_conforming_plan` remain exported with `.format(id6=...)` and `(repo, id6)` compatibility (`D-2`); and paste the before and after helper census of `rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"` (`59aiyh` E-09 pattern) over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `.aw/state/59aiyh/G5a-5mg9g1-2-files.txt` and the empty `diff .aw/state/59aiyh/G5a-5mg9g1-2-before.txt .aw/state/59aiyh/G5a-5mg9g1-2-after.txt`; then, for each of `tests/test_records_only_lane_rederive.py`, `tests/test_run_analytics_review_cost.py`, `tests/test_run_dir_parents_are_guaranteed.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-5mg9g1-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
+  - Required evidence: paste `.aw/state/59aiyh/G5a-5mg9g1-2-files.txt` and the empty `diff .aw/state/59aiyh/G5a-5mg9g1-2-before.txt .aw/state/59aiyh/G5a-5mg9g1-2-after.txt`; then, for each of `tests/test_records_only_lane_rederive.py`, `tests/test_run_analytics_review_cost.py`, `tests/test_run_dir_parents_are_guaranteed.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-5mg9g1-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and paste the before and after helper census of `rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"` (`59aiyh` E-09 pattern) over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G5a-5mg9g1-1`, `G5a-5mg9g1-2` against `.aw/state/59aiyh/5mg9g1-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 5mg9g1` output listing only Scope-Paths.
+  - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G5a-5mg9g1-1`, `G5a-5mg9g1-2` against `.aw/state/59aiyh/5mg9g1-union-after.txt` (empty), the `python3 -m pytest -m "" $(rg -l "tests\.test_oc_runipd" tests/)` summary line confirming zero cross-module regressions, the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 5mg9g1` output listing only Scope-Paths.
   - Observed evidence:
   - Result: pending
 
@@ -156,7 +186,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `653ndz`, `9rgn2w`, `g5hpbb`, `tve77h`, `xexn45` are executed. Every open question is resolved.
+Execute only after human approval (`Status: approved`) and after `653ndz`, `9rgn2w`, `g5hpbb`, `tve77h`, `xexn45` are executed. Every open question is resolved. Stop and report without editing production code or weakening assertions if prerequisite symbols from `653ndz` (`tools/fixture_codemod.py`) or `9rgn2w` (`tests/record_builder.py::RecordBuilder`) are absent on HEAD, if unmodified baseline tests fail on HEAD before edits, or if concurrent edits in a shared checkout conflict unresolvably with `- Scope-Paths:`.
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code under `agent_workflows/` and `tools/` is out of this plan's purpose: if a module cannot keep its outcome list identical without a production change, stop that item and report the missing capability rather than changing production code or an assertion.
 
@@ -164,4 +194,4 @@ Honesty rule: run every command a V-item names and paste the ACTUAL output; neve
 
 Commits: commit only through `aw commit 5mg9g1 -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs `aw ipd finalize 5mg9g1`.
