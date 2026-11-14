@@ -6,7 +6,9 @@
 - Scope: delete `_front_matter_bullets` and its two re-exports, the named and inline `^-` literals, and route the `run_review_sequence` status rewrite through `artifact_meta.append`; update `tests/test_runner_shared.py`. EXCLUDES the two `record_oq_answer` literals (open-question rows, body prose, N3).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, .aw/records/plans/pending/20261109-metastore-242-k6nukd-delete-the-runner-shared-metadata-parsers-and-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k6nukd
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-242-k6nukd-delete-the-runner-shared-metadata-parsers-and-regex-literals.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from e8420v (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `e8420v` E-19 ("Delete `runner_shared._front_matter_bullets` and its re-exports in `oc_runipd`/`agy_runipd`, and every `^-` metadata regex literal in `runner_shared`. Sites at the split (16 literals): the named `_SET_RE`, `_ORDER_RE`, `_KIND_RE`, `_HISTORY_BULLET_RE` (defined twice), `_FRONT_MATTER_BULLET_RE`; inline literals in `declared_spec_paths`, `enforce_no_active_runner_conflict`, `run_review_sequence` (the `- Status:` rewrite to `to-review`, a WRITE that must go through `artifact_meta.append`), `reconcile_disposition`, `execute_item_core`, `perform_coordinator_proposal_file` (three). ... Update `tests/test_runner_shared.py`.") is split across E-01 to E-05 here. The search is `LIT` from `786w7r`.
 
-PIN RULE (carried from `9o83cr`): before E-01, save `tests/test_runner_shared.py`'s per-test outcome list to `.aw/state/k6nukd/before.txt` (command as in `9o83cr`); after E-04, the same into `after.txt`. A retargeted test keeps every input case.
+PIN RULE (carried from `9o83cr`): before E-01, ensure directory `.aw/state/k6nukd/` exists (`mkdir -p .aw/state/k6nukd/`) and save `tests/test_runner_shared.py`'s per-test outcome list to `.aw/state/k6nukd/before.txt` (command as in `9o83cr`); after E-04, the same into `after.txt`. A retargeted test keeps every input case.
 
 ### Task group 1: runner parsers and literals
 
-- [ ] E-01 Delete `runner_shared._front_matter_bullets` and its four call sites (in the three-way front-matter merge and the bullet-key lookup), reading each key through `artifact_meta.read_text`; delete its re-exports in `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`.
+- [ ] E-01 Capture the baseline PIN list (`mkdir -p .aw/state/k6nukd/` and save `.aw/state/k6nukd/before.txt`); then delete `runner_shared._front_matter_bullets` and its four call sites (in the three-way front-matter merge and the bullet-key lookup), reading each key through `artifact_meta.read_text`; delete its re-exports in `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`.
   - Depends on: none
   - Expected outcome: `rg -n "_front_matter_bullets" agent_workflows` prints nothing.
   - Execution state: pending
@@ -73,8 +76,25 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "_front_matter_bullets" agent_workflo
 
 ## Proposed changes (ordered, validatable)
 
-1. Delete the parser and re-exports (E-01), the named patterns (E-02), the status rewrite (E-03), the inline literals (E-04).
-2. Test and commit (E-05).
+```mermaid
+flowchart TD
+    E01["1. Delete _front_matter_bullets & re-exports (E-01)<br/>Capture PIN baseline, remove parser and re-exports"]
+    E02["2. Delete named regex patterns (E-02)<br/>Remove _SET_RE, _ORDER_RE, _KIND_RE, _HISTORY_BULLET_RE, _FRONT_MATTER_BULLET_RE"]
+    E03["3. Retarget status rewrite (E-03)<br/>Replace re.sub with artifact_meta.append set event"]
+    E04["4. Delete inline literals (E-04)<br/>Remove inline ^- literals across runner functions"]
+    E05["5. Update tests & commit (E-05)<br/>Verify PIN after-list, run test_runner_shared, aw commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
+
+1. Delete the parser and re-exports (E-01): Capture baseline PIN test outcomes to `.aw/state/k6nukd/before.txt`, delete `runner_shared._front_matter_bullets` and its four call sites, reading keys via `artifact_meta.read_text`, and delete its re-exports in `oc_runipd.py` and `agy_runipd.py`.
+2. Delete named regex patterns (E-02): Remove `_SET_RE`, `_ORDER_RE`, `_KIND_RE`, both `_HISTORY_BULLET_RE` definitions, and `_FRONT_MATTER_BULLET_RE`, retargeting their call sites to `artifact_meta.read_text` or `history`.
+3. Retarget status rewrite (E-03): In `runner_shared.run_review_sequence`, replace the `re.sub` regex rewrite of `- Status:` with an `artifact_meta.append` `set` event for `status`.
+4. Delete inline literals (E-04): Remove inline `^-` metadata regex literals in `declared_spec_paths`, `enforce_no_active_runner_conflict`, `reconcile_disposition`, `execute_item_core`, and `perform_coordinator_proposal_file`, keeping only body prose rows in `record_oq_answer`.
+5. Update tests and commit (E-05): Update `tests/test_runner_shared.py` to account for deleted symbols, verify after-list PIN outcomes against before-list, run pytest, and commit via `aw commit k6nukd`.
 
 ## Deferred / out of scope (with reason)
 
@@ -100,7 +120,7 @@ No spec change; implements part of `4sd62s` 4.3.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. `_read_id` is rebound by `k6jd6l` E-11; this plan removes only the `_front_matter_bullets` re-exports. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -137,4 +157,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 239 first: it also edits `runner_shared`). Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit k6nukd -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 239 first: it also edits `runner_shared`). Safety stop: if prerequisite metastore reader symbols from `1ajqaa`, `59aiyh`, `786w7r`, `7uq6xg`, `dcerjg`, `ffceq0`, `g5hpbb`, `k6jd6l`, or `t4gl15` are absent, stop and report rather than proceeding. Shared-checkout safety: this plan edits only its Scope-Paths; do not stage, edit, or commit any other file.
+
+Pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit k6nukd -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize k6nukd` itself.
