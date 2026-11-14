@@ -6,7 +6,9 @@
 - Scope: delete those prompts symbols and retarget the INDEX-byte cases of `tests/test_prompts_index.py`. "`prompts_index` has no `run_find` (it has `scan_prompts` and `check_drift`); keep those" (carried from `snin8q` E-03). EXCLUDES the plans and research writers (Orders 233 and 234) and the shared `artifact_core.emit_index_*` helpers (`snin8q`).
 - Scope-Paths: agent_workflows/prompts_index.py, tests/test_prompts_index.py, .aw/records/plans/pending/20261109-metastore-235-drav0u-delete-the-prompts-index-writers.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `snin8q` E-03's site list is split across Orders 231 to 235 and `snin8q`; this plan takes the prompts members (`build_index_json`, `build_index_md`, `_set_last_touched`, `DEFAULT_INDEX_LIMIT`, the write path of `run_index` in `prompts_index`) and `tests/test_prompts_index.py`. `prompts_index` has no `record_producers` entry (measured), so none is deleted.
 
-PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_prompts_index.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/drav0u/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; a test whose only subject is a deleted INDEX writer is deleted and named "INDEX-byte-only" in the mapping.
+PIN RULE (carried from `9o83cr`): before the edit, ensure the output directory exists (`mkdir -p .aw/state/drav0u`) and save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_prompts_index.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/drav0u/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; a test whose only subject is a deleted INDEX writer is deleted and named "INDEX-byte-only" in the mapping.
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_prompts_index.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Ensure `.aw/state/drav0u` exists (`mkdir -p .aw/state/drav0u`) and pin `tests/test_prompts_index.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/drav0u/E-01-before.txt` exists.
   - Execution state: pending
@@ -62,6 +65,16 @@ PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test ou
 Measured 2026-11-09 at `3d0ddb845`: `rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index" agent_workflows/prompts_index.py` prints 12 lines; `tests/test_prompts_index.py` calls `build_index_*` 10 times and `run_index` 3 times. `rg -n "prompts_index" agent_workflows/record_producers.py` prints nothing.
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Ensure state dir & pin test baseline (tests/test_prompts_index.py)"]
+    E02["E-02: Delete prompts INDEX writers, limit param, and run_index in prompts_index.py"]
+    E03["E-03: Retarget scan tests, remove INDEX-byte-only tests in test_prompts_index.py, commit Scope-Paths"]
+
+    E01 --> E02
+    E02 --> E03
+```
 
 1. Pin (E-01).
 2. Delete the prompts writers (E-02).
@@ -91,7 +104,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: After Orders 220 (`artifact_types.TYPE_BACKENDS`) and 231 (`tests/test_index_check_agent_records.py`), no; the executor confirms with `rg -n "prompts_index\.(build_index|run_index|DEFAULT_INDEX)" agent_workflows tests`. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -118,4 +131,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit drav0u -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets (PIN RULE above). Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `f6y2yy`, `54a80m`, or `q6epwc` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit drav0u -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize drav0u` itself after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence; never a hand `git mv` to `executed/`.
