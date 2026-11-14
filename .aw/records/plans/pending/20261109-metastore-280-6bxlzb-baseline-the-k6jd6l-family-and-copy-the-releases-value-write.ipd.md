@@ -6,7 +6,9 @@
 - Scope: `k6jd6l` E-01 (baseline, re-derive F-24 and F-25) split into three items, plus the first half of `k6jd6l` E-08 (copy, not yet delete, `releases._in_metadata_region` and the seven `releases.set_*_line` writers into private `artifact_meta` functions and point `artifact_meta._render_field` at them). EXCLUDES: the `backlog` and `research_cmd` writers and the production caller retargets (Order 281), the test retargets (Orders 282 and 283), deleting the originals (Order 284).
 - Scope-Paths: agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-280-6bxlzb-baseline-the-k6jd6l-family-and-copy-the-releases-value-write.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, baseline rules, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -80,6 +83,20 @@ Measured 2026-11-09 at `f83159217` with the `rg` commands of E-01 to E-03 before
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Re-derive writer & adapter rows of F-24 (E-01)"]
+    E02["2. Re-derive grammar rows of F-24 (E-02)"]
+    E03["3. Re-derive F-25 & save family baselines (E-03)"]
+    E04["4. Copy first four releases writers into artifact_meta (E-04)<br/>agent_workflows/artifact_meta.py"]
+    E05["5. Copy remaining three writers & repoint _render_field (E-05)<br/>agent_workflows/artifact_meta.py"]
+
+    E01 --> E02
+    E02 --> E03
+    E03 --> E04
+    E04 --> E05
+```
+
 1. Re-derive the writer and adapter rows of F-24 (E-01).
 2. Re-derive the grammar rows of F-24 (E-02).
 3. Re-derive F-25 and save the baselines (E-03).
@@ -112,7 +129,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: So that each later part changes one module and leaves the suite green: callers and tests are retargeted (Orders 281 to 283) while the originals still exist, and Order 284 deletes them. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -149,4 +166,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 6bxlzb -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 6bxlzb -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 6bxlzb` itself.
