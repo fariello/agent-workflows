@@ -6,7 +6,9 @@
 - Scope: retarget the named call sites of those five modules to `research_index.check_drift`, `research_index.scan_research` (or the module's existing scan function) or `aw find research`, before any deletion. EXCLUDES the deletions themselves (Orders 233 to 235) and the index test modules (Orders 231, 233 to 235).
 - Scope-Paths: tests/test_model_vocab.py, tests/test_research_priority.py, tests/test_research_unsafe_field.py, tests/test_research_set_assign_date_containment.py, tests/test_drift_rule_registration.py, .aw/records/plans/pending/20261109-metastore-232-6966zq-retarget-five-research-and-registry-tests-off-the-index-buil.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6966zq
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `snin8q` E-03's test list is split across Orders 231 to 235; this plan takes "the other test modules that call a deleted symbol (`tests/test_drift_rule_registration.py`, `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_unsafe_field.py`, `tests/test_research_set_assign_date_containment.py`) are retargeted to `check_drift` or `aw find`".
 
-PIN RULE (carried from `9o83cr`), applied per item to that item's one module: before the edit, save its per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/6966zq/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; the evidence pastes both lists and maps each removed name to its successor.
+PIN RULE (carried from `9o83cr`), applied per item to that item's one module: before the edit, save its per-test outcome list (`mkdir -p .aw/state/6966zq && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/6966zq/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: one module per item
 
-- [ ] E-01 `tests/test_model_vocab.py`: the four `_ri.run_index(` calls (a regenerate, a `--check`, a broken-vocab case) become `research_index.check_drift` calls or `aw check research --all --agent` runs asserting the same `unrecognized-model` findings and exit codes.
+- [ ] E-01 `tests/test_model_vocab.py`: the four `_ri.run_index(` calls (a regenerate, a `--check`, a broken-vocab case) become `research_index.check_drift` calls or `aw check research --all --agent` runs asserting the same `unrecognized-model` findings and exit codes (PIN RULE, `mkdir -p .aw/state/6966zq && ` capture to `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `rg -n "run_index" tests/test_model_vocab.py` prints nothing; the module passes.
   - Execution state: pending
@@ -76,6 +79,15 @@ Measured 2026-11-09 at `3d0ddb845` with `rg -n "build_index|run_index|DEFAULT_IN
 
 1. Retarget each module in turn (E-01 to E-05) and commit (E-05).
 
+```mermaid
+flowchart TD
+    A["E-01: Retarget tests/test_model_vocab.py"] --> B["E-02: Retarget tests/test_research_priority.py"]
+    B --> C["E-03: Retarget tests/test_research_unsafe_field.py"]
+    C --> D["E-04: Retarget tests/test_research_set_assign_date_containment.py"]
+    D --> E["E-05: Retarget tests/test_drift_rule_registration.py"]
+    E --> F["V-01..V-05: Validate evidence, pass core gate, commit"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - Deleting the builders and `run_index`'s write path: Orders 233 to 235.
@@ -100,7 +112,7 @@ No spec change.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from snin8q)
 - Resolution or deferral rationale: Yes; either is behavioral. Prefer the surface the original case was proving (a finding, an exit code, a reported field). Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -137,4 +149,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first per item. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit 6966zq -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first per item. A narrow safety stop applies if prerequisite metastore symbols from `1ajqaa`, `54a80m`, `59aiyh`, `dcerjg`, `ffceq0`, `g5hpbb`, `q6epwc`, or `t4gl15` are absent. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit 6966zq -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 6966zq` itself.
