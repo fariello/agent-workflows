@@ -1,5 +1,7 @@
 # Walkthrough: review prompt questions[] schema (pi8ga2)
 
+- Id: 01u6ht
+- Target-Id: pi8ga2
 - Date: 2026-11-14
 - Set: revgate
 - Commits: 2d0ccf156 (fix and tests)
