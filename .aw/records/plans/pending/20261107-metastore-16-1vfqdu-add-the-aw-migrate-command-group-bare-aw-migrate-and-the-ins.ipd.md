@@ -170,6 +170,7 @@ No spec change; implements `4sd62s` 5.1 (naming, install question, `--migrate`) 
 - Blocking: no
 - Status: open
 - Owner: maintainer
+- Carrier: a6s7na
 - Resolution or deferral rationale: The previous text named `90iqr1`, which does not carry it (see Spec / documentation sync). Placing user documentation in the Set is a scope decision for the maintainer. Recommended answer: add the family to the cutover docs patch written by `y1zihp` (README and reference documents), because `aw migrate metadata` and the install question only reach users after the cutover; this plan keeps the `--help` text. Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
