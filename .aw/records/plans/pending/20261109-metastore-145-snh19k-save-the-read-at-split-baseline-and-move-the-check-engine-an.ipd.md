@@ -6,7 +6,9 @@
 - Scope: (a) Save the split-wide `aw check all --agent` baseline that must precede every code edit of the `t4gl15` family (formerly part of `h58z9n` E-01) and record it as table F-10 here. (b) The 4.4 search rows for `check_engine` and the two blob-reading hooks (the rest of `h58z9n` E-01's file subset goes to `iqhzse`). (c) `h58z9n` E-02: the `check_engine` git-content readers. (d) `h58z9n` E-03: the four hooks. EXCLUDES: the setter, staleness, lifecycle and runner merge-path readers (`iqhzse`, Order 146); the residual audit (kept in `h58z9n`); everything else of `t4gl15`.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/hooks/status_untooled_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_readers_read_at_gates.py, .aw/records/plans/pending/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,9 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snh19k
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
-
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from h58z9n (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +33,7 @@ The `check_engine` gates and the four hooks that read metadata out of a git revi
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15` through `h58z9n`): BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of the decisions copied below (D-1, D-2). For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it, where `<E>` is the ORIGINAL `t4gl15` item id named in each item below; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command, never combined with baseline module paths. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits, in which case they are marked `slow` and run in `make test-all`; none reads production source.
+The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15` through `h58z9n`): BEFORE the edit, a behavioral test in the named module pins the reader's current observable behavior (the ledger in `## Findings`) and runs green on the unmodified code; AFTER the edit, the same test runs unchanged. A test that must change is a behavior change and must be one of the decisions copied below (D-1, D-2). For every existing module named as a baseline, ensure directory creation with `mkdir -p .aw/state/t4gl15`, save the per-test outcome list under the gitignored `.aw/state/t4gl15/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/t4gl15/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it, where `<E>` is the ORIGINAL `t4gl15` item id named in each item below; `diff` of the two prints nothing except lines a named decision explains. Run a new module's `-k` selection as its own command, never combined with baseline module paths. Every saved baseline goes under `.aw/state/t4gl15/`, never `/tmp`. New test modules set `pytestmark = pytest.mark.core` unless they need real `git` subprocesses across many commits, in which case they are marked `slow` and run in `make test-all`; none reads production source.
 
 Commit through `aw commit snh19k -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -102,6 +103,22 @@ DECISIONS that govern this part (copied from `t4gl15`, whose text is authoritati
 1. Save the split-wide baseline (E-01) and the gate-file 4.4 rows (E-02).
 2. Pin then move the `check_engine` git readers (E-03) and the hooks (E-04).
 
+```mermaid
+flowchart TD
+    subgraph TG1["Task Group 1: Baseline & Search Rows"]
+        E01["E-01: Save split-wide check baseline to check-before.txt & Table F-10"]
+        E02["E-02: Re-run 4.4 search over check_engine & hooks into Table F-03"]
+        E01 --> E02
+    end
+    subgraph TG2["Task Group 2: read_at Gates & Hooks"]
+        E03["E-03: Pin & move check_engine git readers to artifact_meta.read_at"]
+        E04["E-04: Move 4 pre-commit hooks to read_at"]
+        E02 --> E03
+        E03 --> E04
+    end
+    E04 --> V["V-01..V-04: Verify outcome lists and rule-id multiset parity"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - The 4.4 search rows for `status_set`, `plan_readiness`, `ipd_lifecycle` and `artifact_meta`, and the setter, staleness, lifecycle and runner merge-path readers.
@@ -130,7 +147,7 @@ No spec change. Implements the gate and hook part of `4sd62s` 4.4 and C5a.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: `.aw/state/` is gitignored, so a baseline saved inside an isolated lane worktree does not reach a later plan. E-01 therefore also pastes the `aw check all --agent` rule-id counts into this plan (F-10), which is tracked; `t4gl15` E-15 compares against F-10. Carried from `h58z9n` OQ-01. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -164,10 +181,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Every reader move is pin-first.
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). If prerequisite symbols from `xexn45` or `tve77h` (`artifact_meta.read`, `artifact_meta.read_at`, `artifact_meta.query`) are absent on HEAD, or if baseline test suites fail before the move, stop and report: that is a genuinely unsafe condition, not a scope question. Every reader move is pin-first.
 
 Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit snh19k -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize snh19k` itself.
