@@ -6,7 +6,9 @@
 - Scope: In a gitignored clone of the maintainer's main checkout: apply both patches, copy the sidecar and the description journal, run both test tiers on the switched unmigrated tree, run `aw migrate metadata --apply` without `--force` with the extra-path argument, check the one commit and both tiers, run the demonstration script; record the exact invocation for `cxxmyv`. Edits only this plan.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-260-5qyba0-rehearse-the-full-metadata-cutover-on-a-clone-with-the-prepa.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:tub3ir, executed:0zylig, executed:33vxoi
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -22,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -34,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prepare the clone
 
-- [ ] E-01 In the maintainer's main checkout, record `git status --porcelain | sha256sum` in F-01, then `git clone --no-hardlinks` it to the gitignored `tmp/cxxmyv-rehearsal`. In the clone, apply `.aw/system/cutover/metastore-docs.cutover.patch` and then `.aw/system/cutover/metastore-code.cutover.patch` with `git apply` (working tree only, not committed), delete the two patch files, `tests/test_metastore_cutover_patch.py` and `tests/test_metastore_cutover_code_patch.py` (as `cxxmyv` E-08 does), and copy the history sidecar and the `tub3ir` description journal into the clone so no new model call is made.
+- [ ] E-01 In the maintainer's main checkout, record `git status --porcelain | sha256sum` in F-01, ensure the clone parent directory exists (`mkdir -p tmp/`), then `git clone --no-hardlinks . tmp/cxxmyv-rehearsal`. In the clone, apply `.aw/system/cutover/metastore-docs.cutover.patch` and then `.aw/system/cutover/metastore-code.cutover.patch` with `git apply` (working tree only, not committed), delete the two patch files, `tests/test_metastore_cutover_patch.py` and `tests/test_metastore_cutover_code_patch.py` (as `cxxmyv` E-08 does), and copy the history sidecar and the `tub3ir` description journal into the clone so no new model call is made.
   - Depends on: none
   - Expected outcome: the clone holds the switched, patched, unmigrated tree with the sidecar and journal; this checkout is untouched.
   - Execution state: pending
@@ -80,8 +83,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Proposed changes (ordered, validatable)
 
 1. E-01: clone with both patches, sidecar and journal.
-2. E-02 to E-04: pre-migration tiers, the apply and its one commit, post-migration tiers and demo script.
-3. E-05: clean up and commit findings.
+2. E-02: pre-migration test tiers and dry run verification on the switched tree.
+3. E-03: migration apply with extra-path argument and single commit check.
+4. E-04: post-migration test tiers and acceptance demonstration script execution.
+5. E-05: clean up rehearsal clone and commit findings.
+
+```mermaid
+flowchart TD
+    A["E-01: Clone repository to tmp/cxxmyv-rehearsal<br/>Apply docs & code cutover patches<br/>Copy sidecar and description journal"] --> B["E-02: Run pre-migration core gate & test-all<br/>Verify census & dry-run aw migrate metadata"]
+    B --> C["E-03: Execute aw migrate metadata --apply<br/>with extra-path argument in clone<br/>Verify single cutover commit"]
+    C --> D["E-04: Run post-migration test tiers<br/>Execute metastore-acceptance-demo.sh<br/>Record per-criterion findings"]
+    D --> E["E-05: Clean up rehearsal & demo clones<br/>Verify repository integrity sha256sum<br/>Commit findings in this plan"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -107,7 +120,7 @@ None open.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste F-01, the clone command line, both `git apply` commands with exit 0, `git -C tmp/cxxmyv-rehearsal status --short | wc -l`, and `ls -l` of the copied sidecar and journal in the clone.
@@ -135,12 +148,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only with the maintainer present, in the main checkout that holds the history sidecar, after every plan in `- Item-Dependencies:` is `executed`. The runner must not dispatch this plan unattended (`- Attended: required`). Never pass `--force` or `--no-verify`.
+Execute only after human approval (`Status: approved`), with the maintainer present, in the main checkout that holds the history sidecar, and after every plan in `- Item-Dependencies:` is executed (`1ajqaa`, `87rvs2`, `90iqr1`, `aqc3m6`, `clors0`, `dcerjg`, `g5hpbb`, `iog3cw`, `rdg0qv`, `w13bkp`, `ya4ee4`, `zgyna1`, `tub3ir`, `0zylig`, `33vxoi`). The runner must not dispatch this plan unattended (`- Attended: required`).
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`).
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). In this checkout, production code is untouched; all mutation, patching, and testing happen strictly within the clone `tmp/cxxmyv-rehearsal`.
 
-Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
+Safety: if any prerequisite artifact (`.aw/system/cutover/metastore-docs.cutover.patch`, `.aw/system/cutover/metastore-code.cutover.patch`, `.aw/system/cutover/metastore-acceptance-demo.sh`, the history sidecar, or the `tub3ir` description journal) is absent, stop and report immediately: that is an unsafe condition, not a scope question.
 
-Commits: in this checkout, commit only through `aw commit 5qyba0 -- <this plan>`; never push.
+Honesty rule: paste the ACTUAL output of every command named above (pre- and post-migration test tiers, dry run, migration apply, demo script results, and sha256 checksums); never claim a result you did not run. Never pass `--force` or `--no-verify`.
 
-Lifecycle: the attending executor runs `aw ipd finalize 5qyba0` after every `V-*` is `pass`; never `git mv` the plan by hand.
+Commits: in this checkout, commit only through `aw commit 5qyba0 -- <this plan>`; never `git add -A`, a bare `git add`, or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; an attending hand executor runs `aw ipd finalize 5qyba0` itself.
