@@ -6,7 +6,9 @@
 - Scope: In a scratch worktree with both cutover patches applied, rename the plan-role, research-kind and prompt-kind options keeping each old spelling as an alias, and update every `90iqr1` F-07 test; regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-258-0zylig-add-the-kind-option-renames-and-text-test-updates-to-the-cut.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:x1mmdp
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0zylig
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -52,7 +55,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: package
 
-- [ ] E-04 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree, run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit 0zylig -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [ ] E-04 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree (`git worktree remove --force .aw/state/0zylig/scratch`), run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit 0zylig -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-02, E-03
   - Expected outcome: the final code patch holds every task group 2 change of `cxxmyv`; the guard test passes; one path-scoped commit.
   - Execution state: pending
@@ -76,6 +79,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. E-02, E-03: option renames; text-test updates.
 3. E-04: regenerate the code patch and commit.
 
+```mermaid
+flowchart TD
+    E01["E-01: Create scratch worktree and apply docs and code patches"] --> E02["E-02: Rename Kind-named options with backward-compatible aliases"]
+    E01 --> E03["E-03: Update F-07 tests asserting post-cutover documentation text"]
+    E02 --> E04["E-04: Regenerate metastore-code.cutover.patch and verify guard test"]
+    E03 --> E04
+    E04 --> V04["V-04: Validate patch stat, guard test pass, worktree cleanup"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - Applying the patch: the cutover.
@@ -88,7 +100,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- Behavioral tests of each renamed option and its alias (V-02); the F-07 test run (V-03); the guard test (V-04).
+- Behavioral tests of each renamed option and its alias (V-02); the F-07 test run (V-03); the guard test `tests/test_metastore_cutover_code_patch.py` (V-04). Implements spec `4sd62s` Section 5.4 and contributes to cutover step 9.
 
 ## Spec / documentation sync
 
@@ -100,7 +112,7 @@ None open.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the worktree and both `git apply --index` commands with exit status 0, and F-01.
@@ -128,8 +140,10 @@ Execute only after `x1mmdp` is `executed` and this plan is `approved`. Code and 
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
 
+Safety: if either cutover patch rejects, if prerequisite `tests/test_metastore_cutover_code_patch.py` from `g45vyv` is missing, or if an unexpected failure occurs on unmodified code, stop and report immediately: that is an unsafe condition, not a scope question.
+
 Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run.
 
 Commits: commit only through `aw commit 0zylig -- <paths>`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 0zylig` itself.
