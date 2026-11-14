@@ -390,13 +390,13 @@ def classify_sets(
                 finished.append(m.id6)
                 continue
             if (
-                review_unreviewed_deps
-                and batch_action == _run_selection_policy.ACTION_REVIEW
+                batch_action == _run_selection_policy.ACTION_REVIEW
                 and m_status in _REVIEW_SETTLED_STATUSES
             ):
-                # `--review-unreviewed-deps`: a review batch has nothing to do for a member that is
-                # already reviewed, and no orchestrator retires in a review run, so it neither blocks
-                # the Set nor needs approval first.
+                # A review batch has nothing to do for a member that is already reviewed, and no
+                # orchestrator retires in a review run, so that member neither blocks the Set nor
+                # needs approval first. (Approval gates EXECUTION; refusing a review batch for it
+                # made a half-reviewed Set unpartitionable.)
                 finished.append(m.id6)
                 continue
 

@@ -232,7 +232,11 @@ def test_partition_splits_a_chain_and_emits_the_flag(tmp_path: Path, capsys) -> 
         encoding="utf-8",
     )
 
-    assert run(False, expect_rc=2) == []
+    # Without the flag, an already-reviewed member no longer refuses a review batch; the Set is
+    # kept in one shard because its chain must be reviewed in order.
+    strict = run(False)
+    assert len(strict) == 1 and "--review-unreviewed-deps" not in strict[0]
+    assert "ch0001" not in strict[0]
     relaxed = run(True)
     assert len(relaxed) == 3
     assert "ch0001" not in " ".join(relaxed)
