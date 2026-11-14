@@ -6,7 +6,9 @@
 - Scope: the alias function, its three `TYPE_BACKENDS` entries, its `command_surface` leaf, the `cli.py` research branch and help strings, the prompts content-drift wiring in `check_engine.check_content`, and the new test module `tests/test_index_aliases.py` (minus its `producers` case, which Order 223 of the split adds). EXCLUDES: deleting any automatic regeneration call (Orders 221 to 223), the stale-index rules (Orders 224 and 225), the documents (Orders 226 and 227), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/artifact_types.py, agent_workflows/command_surface.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/test_index_aliases.py, .aw/records/plans/pending/20261109-metastore-220-tqknnc-make-the-typed-aw-index-spellings-aliases-of-aw-index-rebuil.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, alias wiring, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -76,6 +79,21 @@ Measured 2026-11-09 at `3d0ddb845`. `rg -n "run_index" agent_workflows/artifact_
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Add index_alias function (E-01)<br/>agent_workflows/meta_cli.py"]
+    E02["2. Point TYPE_BACKENDS & command surface to alias (E-02)<br/>agent_workflows/artifact_types.py<br/>agent_workflows/command_surface.py"]
+    E03["3. Route CLI research branch & update help strings (E-03)<br/>agent_workflows/cli.py"]
+    E04["4. Wire prompts drift check into check_engine (E-04)<br/>agent_workflows/check_engine.py"]
+    E05["5. Comprehensive alias tests & commit (E-05)<br/>tests/test_index_aliases.py"]
+
+    E01 --> E02
+    E01 --> E03
+    E02 --> E05
+    E03 --> E05
+    E04 --> E05
+```
+
 1. The alias function (E-01).
 2. Route the three backends and the research branch to it (E-02, E-03).
 3. Wire the prompts drift rule (E-04).
@@ -107,7 +125,7 @@ No spec change; implements part of `4sd62s` 4.5. The documents this makes false 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Carried from `q6epwc` OQ-01: it runs the non-INDEX drift classes and exits as `aw check <type> --all` would, after the alias line. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -144,4 +162,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit tqknnc -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit tqknnc -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize tqknnc` itself.
