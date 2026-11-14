@@ -208,6 +208,10 @@ class StepSummary:
     # dict rather than the dataclass so `dataclasses.asdict` renders it directly into the `--json` and
     # `--agent` payloads as DISCRETE FIELDS; read it through `step_refusal`, never by hand.
     refusal: dict[str, str] | None = None
+    # For a REVIEW step: did its review commit merge to main (`review_integrated` in the run record)?
+    # None when the record does not say. A review never moves its plan to `executed/`, so the Landed
+    # column answers from this field for reviews instead of from the plan's directory.
+    review_integrated: bool | None = None
     # runverdict (bxx9af) E-07: verifier evidence (tests_run / corrections_made) surfaced in StepSummary
     tests_run: list[Any] = field(default_factory=list)
     corrections_made: list[str] = field(default_factory=list)
@@ -1291,6 +1295,11 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         elapsed_seconds=step_el_sec,
                         elapsed_str=step_el_str,
                         ending_head=step_ending_head,
+                        review_integrated=(
+                            item.get("review_integrated")
+                            if isinstance(item.get("review_integrated"), bool)
+                            else None
+                        ),
                         # orchprobe (r2i1b1) E-04: read the refusal the runner recorded through the
                         # SHARED reader, which tolerates a run directory frozen before this record
                         # existed (it returns None) and normalizes a malformed one rather than raising.
@@ -2322,6 +2331,14 @@ def render_steps_table(
 
         # Landed column derived from the plan's terminal directory on disk (statusvocab 9x7otz)
         l_verdict = landed_verdict(audit)
+        if step.action == "review":
+            # A review lands when its commit merges to main; it never moves the plan to executed/.
+            if step.review_integrated is True:
+                l_verdict = "yes"
+            elif step.review_integrated is False:
+                l_verdict = "no"
+            elif l_verdict == "no":
+                l_verdict = "unknown"
         if l_verdict == "yes":
             landed_disp = (
                 term.color256("yes", 46) if getattr(term, "color", False) else "yes"

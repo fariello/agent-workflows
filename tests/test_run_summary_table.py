@@ -337,6 +337,37 @@ class RunSummaryTableRenderingTests(TestCase):
         self.assertIn("miss01", row_lines[4])
         self.assertIn("unknown", row_lines[4])
 
+    def test_review_landed_reflects_integration_not_plan_directory(self):
+        # A reviewed plan stays in pending/, so a review's Landed answer must come from whether its
+        # review commit merged to main, not from the plan's directory.
+        term = Term(color=False)
+
+        def review(id6: str, integrated):
+            return run_viewer.StepSummary(
+                position=1,
+                id6=id6,
+                setid="test",
+                action="review",
+                status="reviewed",
+                configured_file="",
+                stem=f"20260920-test-03-{id6}",
+                review_integrated=integrated,
+            )
+
+        def landed(step) -> str:
+            table = strip_ansi(
+                run_viewer.render_steps_table(
+                    [step], term, short=True, repo_root=self.root
+                )
+            )
+            row = next(line for line in table.splitlines() if step.id6 in line)
+            return row.split()[1]
+
+        # strnd1 is in pending/, which an execute step would report as Landed "no".
+        self.assertEqual(landed(review("strnd1", True)), "yes")
+        self.assertEqual(landed(review("strnd1", False)), "no")
+        self.assertEqual(landed(review("strnd1", None)), "unknown")
+
     def test_landed_column_values_with_color(self):
         steps = self._make_steps()
         term = Term(color=True)
