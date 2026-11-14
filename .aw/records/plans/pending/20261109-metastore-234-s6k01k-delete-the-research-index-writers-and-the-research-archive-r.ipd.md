@@ -6,7 +6,9 @@
 - Scope: delete those research symbols, the post-move refresh, and the `research_index` entry of `record_producers`; keep `research_index._scan_docs`, `query`, `run_find` and the non-INDEX rules of `research_index.check_drift`; retarget the INDEX-byte cases of `tests/test_research_index.py`. EXCLUDES the plans and prompts writers (Orders 233 and 235), the shared `artifact_core.emit_index_*` helpers (`snin8q`), and the `research_archive` skip of `INDEX.md` during scans (cutover, `cxxmyv`).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/record_producers.py, tests/test_research_index.py, .aw/records/plans/pending/20261109-metastore-234-s6k01k-delete-the-research-index-writers-and-the-research-archive-r.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15, executed:uopi8z
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s6k01k
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `snin8q` E-03's site list is split across Orders 231 to 235 and `snin8q`; this plan takes the research members: `build_index_json`, `build_index_md`, `_set_last_touched`, the write path of `run_index` and `DEFAULT_INDEX_LIMIT` in `research_index`; "the post-move refresh in `research_archive`"; the `research_index` entry in `record_producers`; and `tests/test_research_index.py`. Keep the non-INDEX drift classes of `research_index.check_drift` (`q6epwc` F-04).
 
-PIN RULE (carried from `9o83cr`): before the edit, save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_research_index.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/s6k01k/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; a test whose only subject is a deleted INDEX writer is deleted and named "INDEX-byte-only" in the mapping.
+PIN RULE (carried from `9o83cr`): before the edit, create directory `mkdir -p .aw/state/s6k01k/` and save the module's per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_research_index.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/s6k01k/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; a test whose only subject is a deleted INDEX writer is deleted and named "INDEX-byte-only" in the mapping.
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_research_index.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Ensure `.aw/state/s6k01k/` exists (`mkdir -p .aw/state/s6k01k/`) and pin `tests/test_research_index.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/s6k01k/E-01-before.txt` exists.
   - Execution state: pending
@@ -73,6 +76,21 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "build_index_(json|md)|_set_last_touc
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["1. Pin baseline test outcomes (E-01)<br/>tests/test_research_index.py"]
+    E02["2. Delete research INDEX writers (E-02)<br/>agent_workflows/research_index.py"]
+    E03["3. Delete archive refresh (E-03)<br/>agent_workflows/research_archive.py"]
+    E04["4. Delete producer entry (E-04)<br/>agent_workflows/record_producers.py"]
+    E05["5. Retarget tests, verify & commit (E-05)<br/>tests/, aw commit"]
+
+    E01 --> E02
+    E02 --> E03
+    E02 --> E04
+    E03 --> E05
+    E04 --> E05
+```
+
 1. Pin (E-01).
 2. Delete the research writers (E-02), the archive refresh (E-03), the producer entry (E-04).
 3. Retarget and commit (E-05).
@@ -103,7 +121,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. The regenerated INDEX was deliberately never appended to `touched` (comment citing idxuntrack `4r0qp1` E-07), so the reported move list is unchanged. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -140,4 +158,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 233 first, because both edit `agent_workflows/record_producers.py`; serial order keeps each diff small). Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit s6k01k -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed (Order 233 first, because both edit `agent_workflows/record_producers.py`; serial order keeps each diff small). Pin-first. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if a prerequisite plan in `- Item-Dependencies:` is not executed or required metastore symbols from `f6y2yy`, `6966zq`, or `uopi8z` are absent, stop and report rather than proceeding. Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit s6k01k -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize s6k01k` itself.
