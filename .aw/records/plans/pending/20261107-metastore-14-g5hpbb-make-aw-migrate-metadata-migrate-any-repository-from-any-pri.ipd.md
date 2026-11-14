@@ -6,7 +6,9 @@
 - Scope: Finishing part of the any-repository family, after its parts built the corpus (`9vf2iv`), the multi-shape cache scan and stable id-less identity (`6oi2nu`), discovery and id-less conversion (`3g20ms`), and the layout stage with no-sidecar and companion handling (`bv4kkj`): prove AC-42 on each corpus shape and on a copy of this repository in `tests/test_m0001_any_repo.py` (E-07), then the CHANGELOG line, the append-only `tve77h` history pointer, the gates and the commit (E-08). EXCLUDES: every item moved to the parts above (see Deferred); this repository's attended cutover (`cxxmyv`); short-description generation (`ya4ee4`); moving any reader or writer onto the cache (Orders 07 to 11); shapes no toolkit release has written (4sd62s 3c).
 - Scope-Paths: tests/test_m0001_any_repo.py, tests/slow_allowlist.txt, CHANGELOG.md, .aw/records/plans/executed/20261102-metastore-02-tve77h-build-the-artifact-meta-core-registry-event-schema-append-ke.ipd.md, .aw/records/plans/pending/20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv, executed:6oi2nu, executed:3g20ms, executed:bv4kkj
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,9 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g5hpbb
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
-
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 to E-06 (and the shapes module of E-07) moved to 9vf2iv, 6oi2nu, 3g20ms, bv4kkj.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored at maintainer direction ("The plans MUST create the tool or tools needed to migrate to the new metastore"; scope "all five shapes" chosen via question tool) after the 4sd62s C12 amendment.
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -71,6 +72,21 @@ Items E-01 to E-06 moved to `9vf2iv`, `6oi2nu`, `3g20ms` and `bv4kkj` (see Defer
 
 1. (Moved) corpus `9vf2iv`; cache `6oi2nu`; discovery and id-less conversion `3g20ms`; layout stage `bv4kkj`.
 2. Prove AC-42 on every shape plus this repository, then record and commit (E-07, E-08).
+
+```mermaid
+flowchart TD
+    subgraph Prereqs["Prerequisite Shape Implementations"]
+        C1["9vf2iv: 5-shape corpus"]
+        C2["6oi2nu: multi-shape cache scan"]
+        C3["3g20ms: discovery & id-less conversion"]
+        C4["bv4kkj: layout stage & companion"]
+    end
+    C1 --> E07["E-07: Parameterized AC-42 proofs in tests/test_m0001_any_repo.py"]
+    C2 --> E07
+    C3 --> E07
+    C4 --> E07
+    E07 --> E08["E-08: Record changelog, history pointer, and verify gates"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -132,4 +148,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Run in an isolated lane; this plan never runs `aw migrate metadata --apply` on this checkout or on any of the maintainer's other repositories, only on generated fixtures and on a disposable clone of this repository. On completion, finalize through `aw ipd finalize g5hpbb`; the runner retires the orchestrator only when every child, including this one, is executed.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. All open questions are resolved.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Stop and report rather than editing production code outside Scope-Paths or weakening test assertions if an unexpected failure occurs on unmodified code, or if an unresolvable concurrent-edit conflict occurs.
+
+Safety: this plan NEVER runs `aw migrate metadata --apply` (or bare `aw migrate --apply`) in this checkout or on any of the maintainer's other repositories, only on generated fixtures and on a disposable clone of this repository. If an apply would touch this checkout's records, stop and report: that is a genuinely unsafe condition, not a scope question.
+
+Honesty rule: run the named test modules and the bare core gate `python3 -m pytest`, and paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: commit only through `aw commit g5hpbb -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize g5hpbb` itself.
