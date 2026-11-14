@@ -6,7 +6,9 @@
 - Scope: `clors0` E-18, split by call site: `artifact_rename.run_rename_generic`, `artifact_rename.run_group_generic`, `plans_archive.apply_shard_moves`, each with its case in `tests/test_log_rename_events.py`. Retiring the ledger and sidecar writer is NOT here (`g45vyv`).
 - Scope-Paths: agent_workflows/artifact_rename.py, agent_workflows/plans_archive.py, tests/test_log_rename_events.py, .aw/records/plans/pending/20261109-metastore-269-v45j1n-write-dormant-rename-events-for-log-format-rename-group-and.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,11 +23,12 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from clors0 (round 3, research nj8zdp guidance).
 
 ## Goal
 
-On log-format records, rename, group and archive each append one `rename` event with the old and new path; legacy behavior is unchanged.
+On log-format records, rename, group and archive each append one `rename` event carrying verb (`rename`, `group`, or `archive`) and the new records-root-relative path; the previous path is recovered from prior event history, and legacy behavior is unchanged.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -35,22 +38,22 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 1: work
 
-- [ ] E-01 Before the first edit, save the dormancy baseline: run `aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/v45j1n/before/` (this is this plan's share of `clors0` E-20's baseline).
+- [ ] E-01 Before the first edit, save the dormancy baseline: ensure `.aw/state/v45j1n/before/` exists (`mkdir -p .aw/state/v45j1n/before/`), run `aw check all --agent` and `aw check all --all --agent` on this repository, and store each rule multiset under `.aw/state/v45j1n/before/` (this is this plan's share of `clors0` E-20's baseline).
   - Depends on: none
   - Expected outcome: two baseline files exist under `.aw/state/v45j1n/before/`.
   - Execution state: pending
 
-- [ ] E-02 (part of `clors0` E-18.) In `artifact_rename.run_rename_generic`, when the target record has a log, append a `rename` event (verb `rename`) carrying the old and new path through `artifact_meta.append`; a legacy-format target keeps today's behavior, including the rename-ledger write through `record_history.record_rename`. Add the `rename` case and the legacy case to `tests/test_log_rename_events.py`.
+- [ ] E-02 (part of `clors0` E-18.) In `artifact_rename.run_rename_generic`, when the target record has a log, append a `rename` event (verb `rename`, carrying the new records-root-relative `path` per spec `4sd62s` Section 4.2 / PATH HISTORY, with the prior path recovered from log history) through `artifact_meta.append`; a legacy-format target keeps today's behavior, including the rename-ledger write through `record_history.record_rename`. Add the `rename` case and the legacy case to `tests/test_log_rename_events.py`.
   - Depends on: E-01
-  - Expected outcome: on a log-format fixture a rename appends one `rename` event and `aw show <id6> --history` lists the old path then the new one; on a legacy-format fixture the file bytes and the ledger line are unchanged.
+  - Expected outcome: on a log-format fixture a rename appends one `rename` event with verb `rename` and the new path, and `aw show <id6> --history` lists the old path then the new one; on a legacy-format fixture the file bytes and the ledger line are unchanged.
   - Execution state: pending
 
-- [ ] E-03 (part of `clors0` E-18.) In `artifact_rename.run_group_generic`, the same for verb `group`, with its case in `tests/test_log_rename_events.py`.
+- [ ] E-03 (part of `clors0` E-18.) In `artifact_rename.run_group_generic`, the same for verb `group` (appending a `rename` event with verb `group` and new records-root-relative `path`), with its case in `tests/test_log_rename_events.py`.
   - Depends on: E-01
   - Expected outcome: on a log-format fixture a group appends one `rename` event with verb `group`.
   - Execution state: pending
 
-- [ ] E-04 (part of `clors0` E-18.) In `plans_archive.apply_shard_moves`, the same for verb `archive`, with its case in `tests/test_log_rename_events.py`.
+- [ ] E-04 (part of `clors0` E-18.) In `plans_archive.apply_shard_moves`, the same for verb `archive` (appending a `rename` event with verb `archive` and new records-root-relative `path`), with its case in `tests/test_log_rename_events.py`.
   - Depends on: E-01
   - Expected outcome: on a log-format fixture an archive appends one `rename` event with verb `archive`.
   - Execution state: pending
@@ -63,10 +66,10 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 ## Project conventions discovered (Step 0)
 
 - `artifact_meta.append` dispatches on the TARGET's storage format (`artifact_meta._storage_format`): a record with `meta/<id6>.jsonl` takes the log branch (the `tve77h` path, exercised today only by synthetic-log tests), a record without one takes the phase-B legacy branch (`append_legacy`). This is what makes log-only code dormant on `main`.
-- `artifact_meta` already accepts an `overrides` envelope key (`validate_event`: "overrides must be a non-empty list when present") and the legacy branch copies it (`_prepare_legacy_events`), so E-14 changes only the callers.
-- `hooks/meta_log_append_gate.py` and `artifact_meta.check_staged_log_append` are added by `t4gl15` E-05 (phase-B form); E-05 here adds the terminal-log rules.
+- `artifact_meta.RENAME_VERBS` defines the frozen set of valid rename verbs: `("rename", "group", "archive")`. Per spec `4sd62s` Section 4.2 / PATH HISTORY, each `rename` event payload carries `verb` and the new records-root-relative `path` only; the prior path is recovered from the previous path-bearing event in `seq` order.
+- `plans_archive.apply_shard_moves` and `artifact_rename.run_rename_generic`/`run_group_generic` execute file moves (`_core.git_mv`); for log-format records, each appends the corresponding `rename` event to the target's event log under lock via `artifact_meta.append`.
+- Pre-split parent `clors0` owned broader log-format gates, readers, and overrides; child plan `v45j1n` owns strictly the rename/group/archive event write call sites and behavioral tests.
 - `aw meta repair` and `aw check meta` live in `meta_cli` (`ffceq0` E-11, `1ajqaa`).
-- `set_records.write_walkthrough` writes a walkthrough today; E-06 wraps it.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (advisory `IPD-C801`).
 
 ## Findings
@@ -76,6 +79,16 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 | F-01 | `clors0` E-18 measurement | 3 call sites, 1 event shape, 1 test module: about 8 units, now one call site per item. |
 
 ## Proposed changes (ordered, validatable)
+
+```mermaid
+flowchart TD
+    E01["E-01: Capture Dormancy Baseline<br/>(.aw/state/v45j1n/before/)"] --> E02["E-02: Write rename Event in<br/>artifact_rename.run_rename_generic"]
+    E01 --> E03["E-03: Write group Event in<br/>artifact_rename.run_group_generic"]
+    E01 --> E04["E-04: Write archive Event in<br/>plans_archive.apply_shard_moves"]
+    E02 --> E05["E-05: Run test_log_rename_events.py,<br/>Core Pytest, aw check, aw sanitize, Commit"]
+    E03 --> E05
+    E04 --> E05
+```
 
 1. E-01: baseline.
 2. E-02 to E-04: one call site each.
@@ -107,8 +120,8 @@ No spec change.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: `90iqr1` writes a documentation patch whose hunks include `agent_workflows/cli.py` help strings and guards it with a core test that the patch still applies to HEAD. This plan edits `cli.py` (E-06, E-14); running it AFTER the patch exists would make the patch stop applying and fail the core gate at this plan's merge. So this plan omits the `90iqr1` edge, and `9o83cr` (which `90iqr1` depends on) carries `executed:clors0`, which orders this plan before the patch is generated. Every other `cxxmyv` dependency is kept, plus `ffceq0`, `t4gl15` and `xexn45`, whose code these items extend. Recommendation strength: strong.
+- Owner: plan author
+- Resolution or deferral rationale: `90iqr1` writes a documentation patch whose hunks include `agent_workflows/cli.py` help strings and guards it with a core test that the patch still applies to HEAD. Pre-split parent `clors0` edited `cli.py` (in items that remained in `clors0`), ordering the `clors0` family before `90iqr1`. While `v45j1n` itself edits only `artifact_rename.py` and `plans_archive.py` rather than `cli.py`, running after `90iqr1` is unnecessary and keeping the split family topology aligned ensures consistent sequencing before the patch is generated. Every other dependency is kept, plus `ffceq0`, `t4gl15` and `xexn45`, whose code these items extend. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -144,4 +157,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit v45j1n -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `t4gl15` or `xexn45` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit v45j1n -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize v45j1n` itself; never a hand `git mv` to `executed/`.
