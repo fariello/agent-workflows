@@ -131,6 +131,20 @@ _ALLOWED_PATHS: frozenset[str] = frozenset(
 # The load-bearing PUBLIC package/repo name is never a leak on its own.
 _PACKAGE_NAME = "agent-workflows"
 
+# Generic machine / CI identifiers that must never be treated as personal derived warn tokens.
+_GENERIC_DERIVED_TOKENS: frozenset[str] = frozenset(
+    {
+        _PACKAGE_NAME.lower(),
+        "runner",
+        "runneradmin",
+        "root",
+        "ubuntu",
+        "circleci",
+        "builder",
+        "user",
+    }
+)
+
 
 @dataclass
 class Finding:
@@ -462,7 +476,7 @@ def derive_warn_tokens(repo_root: Path) -> dict[str, str]:
     tokens: dict[str, str] = {}
 
     def add(val: str | None, reason: str) -> None:
-        if val and len(val) >= 3 and val not in (_PACKAGE_NAME,):
+        if val and len(val) >= 3 and val.lower() not in _GENERIC_DERIVED_TOKENS:
             tokens[val] = reason
 
     # Home dir basename.

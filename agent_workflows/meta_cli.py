@@ -498,9 +498,9 @@ def index_rebuild(repo_root: Path) -> CommandResult:
         conn.close()
 
     try:
-        cache_rel = str((ctx.state_root / "index.db").relative_to(ctx.repo_root))
+        cache_rel = (ctx.state_root / "index.db").relative_to(ctx.repo_root).as_posix()
     except ValueError:
-        cache_rel = str(ctx.state_root / "index.db")
+        cache_rel = (ctx.state_root / "index.db").as_posix()
     diags = [
         Diagnostic(
             location=str(r[1] or r[0]),

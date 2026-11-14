@@ -34004,9 +34004,9 @@ def build_review_prompt(
     handler = review_handler_for(item)
     root = lane_root if lane_root is not None else repo
     try:
-        rel_path = str(plan_path.relative_to(root))
+        rel_path = plan_path.relative_to(root).as_posix()
     except ValueError:
-        rel_path = str(plan_path)
+        rel_path = Path(plan_path).as_posix()
     command = f"/{handler} {rel_path}"
     if lane_root is None:
         return command

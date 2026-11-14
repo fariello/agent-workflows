@@ -626,6 +626,15 @@ class AutoDeriveTests(unittest.TestCase):
             "the gate unrunnable exactly where it runs unattended, and `--warn` would take the "
             "whole scan down with it",
         ),
+        (
+            "a generic CI runner USER (e.g. runner) must never be derived",
+            {"USER": "runner"},
+            "",
+            True,
+            "GENERIC CI EXEMPTION: CI runners execute under generic usernames like runner or "
+            "runneradmin, which also appear in repository domain terms (runner_shared, runner Set "
+            "completion); deriving them would refuse legitimate commit and status messages",
+        ),
     )
 
     def test_derived_tokens_warn_without_failing_and_degrade_when_unavailable(self):
