@@ -6,7 +6,9 @@
 - Scope: delete the cache and its bound, make `artifact_audit.build_index` answer from `artifact_meta.query`/`resolve` on every call, delete `tests/test_artifact_audit_cache_eviction.py`, and retarget the two freshness test modules. EXCLUDES every other INDEX symbol (Orders 233 to 236).
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_cache_eviction.py, tests/test_artifact_audit_index_cache.py, tests/test_artifact_audit_identity_staleness.py, .aw/records/plans/pending/20261109-metastore-237-h3jp4e-delete-the-artifact-audit-in-process-index-cache.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `snin8q` E-07 ("Delete `artifact_audit._INDEX_CACHE` and `_INDEX_CACHE_MAX` ... `artifact_audit.build_index` answers from `artifact_meta.query`/`resolve` on every call. Delete `tests/test_artifact_audit_cache_eviction.py` (it tests the removed LRU) and retarget the freshness assertions of `tests/test_artifact_audit_index_cache.py` and `tests/test_artifact_audit_identity_staleness.py` to the behavior") is split across E-01 to E-04 here.
 
-PIN RULE (carried from `9o83cr`): before the edit, save the modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_artifact_audit_cache_eviction.py tests/test_artifact_audit_index_cache.py tests/test_artifact_audit_identity_staleness.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/h3jp4e/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; each case of the deleted eviction module is named "subject removed (LRU deleted)" in the mapping.
+PIN RULE (carried from `9o83cr`): before the edit, save the modules' per-test outcome list (`mkdir -p .aw/state/h3jp4e/ && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_artifact_audit_cache_eviction.py tests/test_artifact_audit_index_cache.py tests/test_artifact_audit_identity_staleness.py | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/h3jp4e/<E>-before.txt`); after it, the same into `<E>-after.txt`. A retargeted test keeps every input case; each case of the deleted eviction module is named "subject removed (LRU deleted)" in the mapping.
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin the three test modules (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Ensure directory `.aw/state/h3jp4e/` exists (`mkdir -p .aw/state/h3jp4e/`) and pin the three test modules (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/h3jp4e/E-01-before.txt` exists.
   - Execution state: pending
@@ -68,9 +71,18 @@ Measured 2026-11-09 at `3d0ddb845`: `rg -n "_INDEX_CACHE" agent_workflows` print
 
 ## Proposed changes (ordered, validatable)
 
-1. Pin (E-01).
-2. Delete the cache (E-02).
-3. Retarget the tests (E-03), verify and commit (E-04).
+1. Create baseline directory and pin the three test modules (E-01).
+2. Delete `_INDEX_CACHE`, `_INDEX_CACHE_MAX`, and LRU handling in `artifact_audit.py` (E-02).
+3. Delete `tests/test_artifact_audit_cache_eviction.py` and retarget freshness assertions in `test_artifact_audit_index_cache.py` and `test_artifact_audit_identity_staleness.py` (E-03).
+4. Save `E-04-after.txt`, verify diff mapping, run remaining modules, and commit path-scoped (E-04).
+
+```mermaid
+flowchart TD
+    A["E-01: mkdir -p .aw/state/h3jp4e/ and pin 3 test modules into E-01-before.txt"] --> B["E-02: Delete _INDEX_CACHE, _INDEX_CACHE_MAX and LRU logic in artifact_audit.py"]
+    B --> C["E-03: Delete eviction test module and retarget freshness tests in index_cache / identity_staleness"]
+    C --> D["E-04: Capture E-04-after.txt, verify diff mapping, run pytest suite"]
+    D --> E["E-04: Commit path-scoped via aw commit h3jp4e"]
+```
 
 ## Deferred / out of scope (with reason)
 
@@ -96,7 +108,7 @@ No spec change; implements part of `4sd62s` 4.5.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: The SQLite cache (`ffceq0`, `t4gl15`) is the replacement the spec names; a repeated call reads the cache rather than rescanning. If a measurement shows a user-perceptible regression, file it as a `bug` with the number (AGENTS.md perceptibility rule). Recommendation strength: medium.
 
 ## Validation and cross-check (verify before reporting done)
@@ -128,4 +140,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first. Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines. Commits: only through `aw commit h3jp4e -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. OQ-01 is resolved and not blocking. Pin-first.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Production code outside `agent_workflows/artifact_audit.py` is not modified.
+
+Safety: if prerequisite `artifact_meta.query` / `resolve` implementations or SQLite cache mechanisms from `ffceq0` or `t4gl15` are absent, stop and report immediately: that is an unsafe condition, not a scope question.
+
+Honesty rule: run the named test modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run.
+
+Commits: commit only through `aw commit h3jp4e -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize h3jp4e` itself.
