@@ -6,7 +6,7 @@
 - Scope: Create `agent_workflows/migrations/m0001_convert.py`: the log builder (checkpoint, rename, legacy events; `dcerjg` E-09 subset) and the file rewrite (`dcerjg` E-10 subset) for plans, backlog items, releases, specs and staged prompts, with their tests (subset of `dcerjg` E-14). EXCLUDES: research records, walkthroughs, the roadmap, review files and review events (`hpedmn`); the census and round trip (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_conversion.py, .aw/records/plans/pending/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.ipd.md
 - Item-Dependencies: executed:tve77h, executed:vxevph, executed:dky26u
-- Status: to-review
+- Status: reviewed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,13 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ghhzb6
-
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+- Readiness: go-pending-approval
+- Review-Depth: complex
 
 ## Workflow history
+- 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
+- 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 review per research nj8zdp; within the guidance, no items moved; V-03 evidence now names the per-type node ids beside the summary line.
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dcerjg per maintainer step-complexity rule (no single E/V item hides hundreds of steps).
 - 2026-11-07 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -76,6 +78,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. E-02: their file rewrite.
 3. E-03: tests.
 
+```mermaid
+flowchart TD
+    E01["E-01: Create m0001_convert.py log builder and field mapping for 5 types"] --> E02["E-02: Implement file rewrite with compact front matter and in-file mirror"]
+    E02 --> E03["E-03: Add comprehensive tests in tests/test_m0001_conversion.py"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - Research records, walkthroughs, the roadmap, review files and every `review` event.
@@ -118,7 +126,7 @@ No spec change; implements `4sd62s` 5.2 step 4 and 4.2a for the five types.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py -k "layout or path_history or clock or fields"` all PASSED, naming one field-destination test per type (plans, backlog, releases, specs, prompts) and the `Scope-Exceeded` test; and the four JSON lines (seq 0 to 3) of the fixture plan log printed by a `python3 -c` dump, showing `op` checkpoint, legacy, legacy, legacy and `append` 0 on each.
@@ -140,7 +148,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. All open questions are resolved.
 
-Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`).
+Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Stop and report rather than editing production code outside Scope-Paths or weakening test assertions if an unexpected failure occurs on unmodified code, or if an unresolvable concurrent-edit conflict occurs.
 
 Safety: this plan NEVER runs `aw migrate metadata --apply` (or bare `aw migrate --apply`) in this checkout. Every apply is on a `tmp_path` fixture repository. If an apply would touch this checkout's records, stop and report: that is a genuinely unsafe condition, not a scope question.
 
