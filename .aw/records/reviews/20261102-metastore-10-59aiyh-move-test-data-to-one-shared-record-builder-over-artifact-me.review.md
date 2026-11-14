@@ -2,8 +2,8 @@
 
 - Subject-Id: 59aiyh
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-06
-- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Reviewed-At: 2026-11-14
+- Reviewer: antigravity/gemini-3.8-flash
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
@@ -117,3 +117,97 @@ AW-TIER: complex
 | D-2 | Split the plan into a Set? | No; pre-measured in-plan seams | Split into per-batch child plans | Step R6; 16 E-items worst case | yes |
 | D-3 | Edit the orchestrator `63ib9r` child-table row for Order 10? | No; report it for the orchestrator's own review | Edit `63ib9r` in this lane | Review scope ledger is `59aiyh` only; the runner reads each plan's `- Item-Dependencies:` | yes |
 | D-4 | Keep the review-pilot plan corpus literal? | Keep it literal | Convert it, which breaks `tools/review_pilot.py`'s filename and quotation contract | `tools/review_pilot.py` reads `manifest.json` and `defects.json` | yes |
+
+## Round 2
+
+This round was reviewed at HEAD `474995a0b` in review-sweep lane worktree `run-20261114T011349Z-590595`, a non-interactive run. The plan is the finishing child plan of `Set: metastore` test-data migration (migrating `tests/support.py` and `tests/conformance_matrix.py`, single switch point test in `tests/test_record_builder.py`, remaining legacy-strings census F-06, full comparison, core gate, sanitize, commit). The plan was demoted from approved on 2026-11-07 following maintainer direction and split in Round 3 (2026-11-09, research `nj8zdp`), leaving 3 E-items in 2 task groups. Re-review evaluates the resulting finishing plan against current repository conventions and gates.
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Validation-state rule (line 212) | Prose with em dashes (`—as distinct...—name`) | Clean prose with commas | PR-001 (IPD-C802 advisory cleanup) |
+| Proposed changes | Plain numbered list without diagram | Mermaid flowchart TD diagram added | PR-002 (Technical writing requirement 12(b)) |
+| Step 0 conventions | Bare symbol / module names | Explicit `path::Symbol` code citations | PR-003 (Section 10.2 / IPD-C801 advisory compliance) |
+| Gate | No narrow stop rule; unelaborated runner finalize | Explicit narrow stop rule and runner retirement ownership clause | PR-004 (Gate contract standard) |
+| Front matter & OQ | Missing readiness; OQ-01 / OQ-02 owner none / reviewer | `- Readiness: go-pending-approval` added; owners set to plan author / maintainer | PR-005 (Readiness tag and ownership standard) |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Step T
+
+1. Yes. It establishes the single switch point verification and final test-builder migration that cutover (`cxxmyv`) relies upon.
+2. No guard module is edited. Scope is test infrastructure and test suites.
+3. No. 3 E-items (E-09, E-11, E-12) across 3 work Scope-Paths (`tests/support.py`, `tests/conformance_matrix.py`, `tests/test_record_builder.py`).
+4. Yes, bounded Scope-Paths.
+5. Low risk to production; behavioral parity enforced by before/after outcome lists.
+
+AW-TIER: complex
+
+### Step R1
+
+- Baseline verification: `tests/support.py` (`ready_plan_text`, `scope_drift_repo`) and `tests/conformance_matrix.py` confirmed present. `tests/test_record_builder.py` is present on branch.
+- Upstream batch plans and splits confirmed reflected in `- Item-Dependencies:`.
+- Verified citations and symbols against current repository tree.
+
+### Step R2
+
+- E/V bijection checked: exactly 3 E-items (E-09, E-11, E-12) mapped to 3 V-items (V-09, V-11, V-12).
+- Every V-item requires concrete evidence: pasted before/after diffs, test execution output, census tables, and timing.
+- Scope-Paths declarations match deliverables.
+
+### Step R3
+
+- Changes restricted to test tree (`tests/`). No production code modified.
+- Sanitizer (`aw sanitize --agent`) included in E-12 terminal step.
+- No secrets or credentials touched.
+
+### Step R4
+
+- Engineering rubric checked:
+  - C: Single builder switch point, writes through `artifact_meta`.
+  - D: Behavioral outcome comparison protects against regressions.
+  - E: Step 0 citations standardized to `path::Symbol`, Mermaid flowchart added.
+  - F: Explicit stop condition and conditional runner/executor finalize ownership in gate.
+
+### Step R5
+
+- Personas evaluated: QA (strict outcome comparisons), Architect (clean single switch), Engineer (well-scoped finishing batch). All requirements met.
+
+### Step R6
+
+- Right-sizing: 3 E-items in 2 task groups. Right-sized for execution in a single lane turn.
+
+### Step R7
+
+- Set cohesion: finishing child plan of `metastore` test migration. Dependencies correctly point to preceding batch chunk plans and builder prereqs.
+
+### Step S5
+
+- All open questions resolved. No material questions requiring human decision.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | LOW | IN-SCOPE | Style / Lint | Em dashes in validation rule prose (line 212) | Triggered IPD-C802 advisory | Low | FIXED | Replaced em dashes with commas |
+| PR-002 | LOW | IN-SCOPE | Compliance | `## Proposed changes` lacked Mermaid diagram | Technical writing requirement 12(b) | Low | FIXED | Added Mermaid flowchart TD diagram |
+| PR-003 | LOW | IN-SCOPE | Citation | Step 0 conventions used bare symbols | IPD-C801 advisory compliance | Low | FIXED | Standardized citations to `path::Symbol` |
+| PR-004 | MEDIUM | IN-SCOPE | Gate | Gate lacked narrow stop rule and runner finalize ownership | Gate contract standard | Low | FIXED | Added narrow stop rule and runner retirement ownership clause |
+| PR-005 | LOW | IN-SCOPE | Metadata | Missing readiness; OQ owners not standardized | Front matter and ownership standards | Low | FIXED | Added `- Readiness: go-pending-approval`, set OQ owners to plan author / maintainer |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Plan readiness and status | Transition to `reviewed` with verdict `APPROVE WITH REVISIONS APPLIED` | Leave in `to-review` | All criteria satisfied, revisions applied | yes |
+| D-2 | Review depth tier | Keep `complex` per front matter | Downgrade to `standard` | Retain explicit front-matter configuration | yes |
+| D-3 | Scope boundaries | Keep 3 work Scope-Paths (`tests/support.py`, `tests/conformance_matrix.py`, `tests/test_record_builder.py`) | Expand scope | Well-bounded finishing plan | yes |
+| D-4 | Human questions | None; questions list empty | Prompt human | Autonomous non-interactive lane execution | no |
+| D-5 | Sanitization & tests | Run full gate tests and sanitize check | Skip checks | Repository execution contract | no |
