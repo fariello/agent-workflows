@@ -6,7 +6,9 @@
 - Scope: Pin then move the graduation and handoff readers of `check_engine` (`build_graduation_reverse_index`, `graduation_cluster` through it, `evaluate_handoff_ready`, `check_graduation_incomplete`, `graduated_closable_warnings` and their history-date readers) onto `artifact_meta` (`ebrc4t` E-01 and E-02, carried unchanged). EXCLUDES: the record skip list (`i16on1`, Order 144, then `ebrc4t`), the other check_engine subsets (Orders 29 to 31), and git-content readers (`t4gl15` family).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_graduation_forward_links.py, tests/test_handoff_ready_gate.py, .aw/records/plans/pending/20261109-metastore-143-dbq57g-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: complex
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,9 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dbq57g
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
-
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ebrc4t (round 3, research nj8zdp guidance).
 - 2026-11-09 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -32,7 +33,7 @@ The `check_engine` graduation and handoff rules read cached fields and report th
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Every E-item that moves a reader follows one rule, so a reviewer can check each the same way: (1) BEFORE the edit, add or extend a behavioral test in the named module that pins the reader's CURRENT observable behavior on a `tmp_path` fixture repository (the "prior behavior" column of the reader ledger in `## Findings`), and run it green against the unmodified code; (2) change the reader to call `artifact_meta`; (3) run the same test unchanged. A test that has to change in step 3 is a behavior change and must be one of the decisions copied below (D-1, D-4, D-6), never a silent one. For every existing module named as a baseline, save the per-test outcome list under the gitignored `.aw/state/ffceq0/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/ffceq0/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Every saved baseline also goes under `.aw/state/ffceq0/`, never `/tmp`. A count measured at authoring is context, never the bar. New test modules set `pytestmark = pytest.mark.core`, call real functions or the real `aw` CLI, and never read production source. The file names keep the `ebrc4t` suffix `-32` (`E-06-before-32.txt`, `check-before-32.txt`) so the split parent `ffceq0` finds them.
+Every E-item that moves a reader follows one rule, so a reviewer can check each the same way: (1) BEFORE the edit, add or extend a behavioral test in the named module that pins the reader's CURRENT observable behavior on a `tmp_path` fixture repository (the "prior behavior" column of the reader ledger in `## Findings`), and run it green against the unmodified code; (2) change the reader to call `artifact_meta`; (3) run the same test unchanged. A test that has to change in step 3 is a behavior change and must be one of the decisions copied below (D-1, D-4, D-6), never a silent one. For every existing module named as a baseline, ensure directory creation with `mkdir -p .aw/state/ffceq0`, save the per-test outcome list under the gitignored `.aw/state/ffceq0/` (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/ffceq0/<E>-before.txt`) before the move and the same command into `<E>-after.txt` after it; `diff` of the two prints nothing except lines a named decision explains. Every saved baseline also goes under `.aw/state/ffceq0/`, never `/tmp`. A count measured at authoring is context, never the bar. New test modules set `pytestmark = pytest.mark.core`, call real functions or the real `aw` CLI, and never read production source. The file names keep the `ebrc4t` suffix `-32` (`E-06-before-32.txt`, `check-before-32.txt`) so the split parent `ffceq0` finds them.
 
 Commit through `aw commit dbq57g -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
 
@@ -88,6 +89,18 @@ DECISIONS that govern this part's reader moves (copied verbatim from `ffceq0`, w
 
 1. Pin then move this subset of the `check_engine` working-tree readers (E-01, E-02).
 
+```mermaid
+flowchart TD
+    subgraph Prereqs["Prerequisite Plans"]
+        P1["w1cs3p: Identity & From-Spec Readers (Order 29)"]
+        P2["na188y: Plan Rule & Review Readers (Order 30)"]
+        P3["i3b5zu: Release Gate & From-Backlog Readers (Order 31)"]
+    end
+    Prereqs --> E01["E-01: Pin current check_engine graduation & handoff reader behavior in test_readers_check_engine.py"]
+    E01 --> E02["E-02: Move 19 site lines across 6 functions to artifact_meta (read/query/history)"]
+    E02 --> V02["V-02: Verify outcome lists and aw check all --agent rule-id multiset parity"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - The one record skip list (`ebrc4t` E-03).
@@ -138,8 +151,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 Execute only after human approval (`Status: approved`) and after every `- Item-Dependencies:` edge is executed. Every reader move is pin-first, and a test edited after a move must be one that the copied decisions name.
 
+Scope fence: the paths in `- Scope-Paths:` are a declaration. A needed test-tree file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). If prerequisite symbols from `xexn45` or `tve77h` (`artifact_meta.read`, `artifact_meta.query`, `artifact_meta.history`) are absent on HEAD, or if baseline test suites fail before the move, stop and report: that is a genuinely unsafe condition, not a scope question.
+
 Honesty rule: run the named modules and `python3 -m pytest` (core gate) and paste the ACTUAL summary lines; never claim a result you did not run.
 
 Commits: commit only through `aw commit dbq57g -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push.
 
-Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize dbq57g` itself.
