@@ -6,7 +6,9 @@
 - Scope: delete `ipd_lifecycle._refresh_plans_index_fail_loud` and its one call, update the five `ipd_lifecycle` comments and the one `lane_containment.inventory_lane` comment that describe it, and pin or retarget the tests that patch or call it. EXCLUDES: every other regeneration caller (Orders 222 and 223), the three `stale-index` comments in `ipd_lifecycle` (Order 224), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/lane_containment.py, tests/test_ipd_lifecycle_cli.py, tests/test_orchestrator_retirement.py, .aw/records/plans/pending/20261109-metastore-221-lywgzs-stop-the-finalize-transaction-regenerating-the-plans-index.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -17,10 +19,11 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lywgzs
 
-> Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+> Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -33,11 +36,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 `q6epwc` E-04's site list is split across Orders 221, 222 and 223; this plan takes: the `_refresh_plans_index_fail_loud` definition, its call in `_finalize_transaction`, its five comment sites in `ipd_lifecycle` and its one comment site in `lane_containment.inventory_lane`, plus the `tests/test_orchestrator_retirement.py` module named in E-04's test list and `tests/test_ipd_lifecycle_cli.py`, which also patches the function.
 
-PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/lywgzs/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor. A test whose ONLY subject is the deleted refresh (it patches the function to raise, or spies on its call) is deleted, and the mapping says so with the reason "subject removed (AC-26 freshness replaces it)".
+PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' per-test outcome list (`mkdir -p .aw/state/lywgzs && python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > .aw/state/lywgzs/<E>-before.txt`); after it, run the same command into `<E>-after.txt`. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor. A test whose ONLY subject is the deleted refresh (it patches the function to raise, or spies on its call) is deleted, and the mapping says so with the reason "subject removed (AC-26 freshness replaces it)".
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py` (PIN RULE, `E-01-before.txt`).
+- [ ] E-01 Pin `tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py` (PIN RULE, `mkdir -p .aw/state/lywgzs && ` capture to `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/lywgzs/E-01-before.txt` exists.
   - Execution state: pending
@@ -72,6 +75,14 @@ Measured 2026-11-09 at `3d0ddb845`. `rg -n "_refresh_plans_index_fail_loud" agen
 2. Delete the refresh and its call (E-02), fix the comment (E-03).
 3. Retarget the tests and commit (E-04).
 
+```mermaid
+flowchart TD
+    A["E-01: Pin baseline test outcomes (E-01-before.txt)"] --> B["E-02: Delete _refresh_plans_index_fail_loud & call in ipd_lifecycle"]
+    B --> C["E-03: Rewrite comment in lane_containment.inventory_lane"]
+    C --> D["E-04: Retarget tests & verify no INDEX regenerated on finalize"]
+    D --> E["V-01..V-04: Validate evidence, pass core gate, commit"]
+```
+
 ## Deferred / out of scope (with reason)
 
 - The other regeneration callers of `q6epwc` E-04: `status_set`, `artifact_rename` (Order 222); `research_cmd`, `research_refs`, `plans_refs`, `artifact_adopt` (Order 223).
@@ -98,7 +109,7 @@ No spec change; implements part of `4sd62s` 4.5 and contributes to AC-26 (owned 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (carried from q6epwc)
 - Resolution or deferral rationale: No. It guarded against a stale INDEX file, which no command reads after Order 220; AC-26's cache freshness rule replaces it (spec `4sd62s` 4.5). Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -130,4 +141,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Every deletion is pin-first (PIN RULE above). Scope fence: a needed file outside `- Scope-Paths:` is edited and then justified at finalize (`--scope-reason`). Honesty rule: paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit lywgzs -- <paths>`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. A narrow safety stop applies if prerequisite metastore symbols from `1ajqaa`, `59aiyh`, `dcerjg`, `ffceq0`, `g5hpbb`, `sdzcur`, `t4gl15`, or `tqknnc` are absent. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: run the named modules and `python3 -m pytest` (core gate), and paste the ACTUAL summary lines; never claim a result you did not run. Commits: only through `aw commit lywgzs -- <paths>`; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize lywgzs` itself.
