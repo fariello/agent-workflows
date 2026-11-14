@@ -6,7 +6,9 @@
 - Scope: The `selectors` reader part of `k6jd6l` E-11 subset 1. Production callers in `runner_shared`, `releases`, `status_set`, `ipd_lint` and `attention` are moved by `ffceq0` and `t4gl15` (dependencies); any that Order 280's F-25 still lists live is handled here with `--scope-reason`. EXCLUDES `selectors.metadata_region` (Orders 293 and 296), the `plans` and `prompts` readers (Orders 295, 296).
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/artifact_meta.py, tests/test_front_matter_loose_whitespace.py, tests/test_history_order.py, tests/test_fixfirst_end_to_end.py, tests/test_blocks_release_reader_bounding.py, .aw/records/plans/pending/20261109-metastore-294-8ysz6b-delete-the-selectors-record-text-readers-and-rebind-the-runn.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:71ewpn, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -21,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
 
 ## Goal
@@ -31,13 +34,13 @@
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: write for a modest executor that cannot hold much in its head. Each E-item is one step (one concern, about one file, executable in one focused pass) and its V-item names each unit it covers with its own check; a plan stays at about 5 E-items and 8 work Scope-Paths, else split it into more child plans (guidance, `IPD-Z603`). Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-Carried from `k6jd6l` E-11: "The public `selectors.read_front_matter_*` callers that remain after `ffceq0` and `t4gl15` include the `oc_runipd`/`agy_runipd` `_read_id` re-exports ...; rebind the re-export to `artifact_meta.read_text`'s loose `id` value (`ffceq0` D-2, `t4gl15` D-4) so that test passes unchanged." Save the before-list of `tests/test_runner_shared.py`, `tests/test_front_matter_loose_whitespace.py`, `tests/test_history_order.py`, `tests/test_fixfirst_end_to_end.py` and `tests/test_blocks_release_reader_bounding.py` to `.aw/state/9o83cr/E-11b-before.txt`.
+Carried from `k6jd6l` E-11: "The public `selectors.read_front_matter_*` callers that remain after `ffceq0` and `t4gl15` include the `oc_runipd`/`agy_runipd` `_read_id` re-exports ...; rebind the re-export to `artifact_meta.read_text`'s loose `id` value (`ffceq0` D-2, `t4gl15` D-4) so that test passes unchanged." Save the before-list of `tests/test_runner_shared.py`, `tests/test_front_matter_loose_whitespace.py`, `tests/test_history_order.py`, `tests/test_fixfirst_end_to_end.py` and `tests/test_blocks_release_reader_bounding.py` to `.aw/state/9o83cr/E-11b-before.txt` before E-01 (ensure `.aw/state/9o83cr/` exists via `mkdir -p .aw/state/9o83cr/`).
 
 PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save the named test modules' per-test outcome list (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <modules> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort > <before-file>`); after it, run the same command into the matching after-file. A retargeted test keeps every input case, so the after-list may rename a test but not drop a case; the evidence pastes both lists and maps each removed name to its successor.
 
 ### Task group 1: rebind, retarget tests, delete
 
-- [ ] E-01 Rebind `oc_runipd._read_id` and `agy_runipd._read_id` to a function returning `artifact_meta.read_text(text).fields`' loose `id` value (`ffceq0` D-2, `t4gl15` D-4), and change `artifact_meta.append_legacy`'s `_sel.read_front_matter_id` call to the same local reader.
+- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-11b-before.txt`. Rebind `oc_runipd._read_id` and `agy_runipd._read_id` to a function returning `artifact_meta.read_text(text).fields`' loose `id` value (`ffceq0` D-2, `t4gl15` D-4), and change `artifact_meta.append_legacy`'s `_sel.read_front_matter_id` call to the same local reader.
   - Depends on: none
   - Expected outcome: no module imports `read_front_matter_id` for the re-export; `CrossHostReadIdReExportTests` passes unchanged.
   - Execution state: pending
@@ -74,6 +77,14 @@ Measured 2026-11-09 at `f83159217` with `rg -n "read_front_matter_(id|status|blo
 
 ## Proposed changes (ordered, validatable)
 
+```mermaid
+flowchart TD
+    E01["E-01: Save Baseline PIN List & Rebind<br/>oc_runipd / agy_runipd _read_id"] --> E02["E-02: Retarget<br/>test_front_matter_loose_whitespace,<br/>test_history_order & test_fixfirst_end_to_end"]
+    E02 --> E03["E-03: Retarget<br/>test_blocks_release_reader_bounding"]
+    E03 --> E04["E-04: Delete selectors<br/>read_front_matter_* Readers"]
+    E04 --> E05["E-05: Delete selectors<br/>_ID_RE, _STATUS_RE, _SET_RE & Commit"]
+```
+
 1. Rebind the re-exports (E-01).
 2. Retarget three tests (E-02).
 3. Retarget the blocks-release test (E-03).
@@ -106,7 +117,7 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Then Order 142 did not finish; stop and report rather than deleting the pattern. Recommendation strength: strong.
 
 ## Validation and cross-check (verify before reporting done)
@@ -143,4 +154,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 8ysz6b -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Pin-first where an item deletes or retargets. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Safety stop: if prerequisite metastore symbols from `59aiyh`, `71ewpn`, `ffceq0`, or `t4gl15` are absent upon starting, stop and report rather than creating conflicting implementations. Honesty rule: paste the ACTUAL output; never claim a result you did not run. Commits: only through `aw commit 8ysz6b -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push. Lifecycle: the plan moves to `.aw/records/plans/executed/` only through finalize; when `aw oc run` or `aw agy run` executes the plan, the runner performs the finalize; a hand executor runs `aw ipd finalize 8ysz6b` itself; never a hand `git mv` to `executed/`.
