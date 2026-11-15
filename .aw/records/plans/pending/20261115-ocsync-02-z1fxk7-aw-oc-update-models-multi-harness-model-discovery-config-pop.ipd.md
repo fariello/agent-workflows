@@ -6,7 +6,7 @@
 - Scope: Enhance `aw oc update-models` to detect installed agent harnesses (`agy`, `claude`, `codex`, `kiro`), extract available models via CLI queries and OpenCode live catalog, populate missing model entries in `opencode.json` under respective provider blocks, display current default models, and interactively or via flags configure the default and small models.
 - Scope-Paths: agent_workflows/oc_models.py, agent_workflows/cli.py, docs/runner-profiles.md, tests/test_oc_models.py, .aw/records/specs/to-review/20261115-ayfyie-01-ayfyie-oc-update-models-multiharness.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
 - Work-Kind: feature
 - Priority: medium
 - Set: ocsync
@@ -14,10 +14,15 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: z1fxk7
+- Readiness: go
+- From-Spec: ayfyie
+- Approval: 2026-11-15, human ("approved"): user approved execution of multi-harness model discovery
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-15 approved (aw set, --by-human): user approved execution of multi-harness model discovery
+- 2026-11-15 reviewed (aw set): /plan-review APPROVE; E-01..E-04 well-formed and scoped
 
 - 2026-11-15 to-review (Antigravity): Completed review-ready plan for multi-harness model discovery, config population, and default model selection.
 - 2026-11-15 draft (Antigravity): created.
@@ -32,31 +37,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Harness discovery engine
 
-- [ ] E-01 In `agent_workflows/oc_models.py`, implement harness probing for installed AI agent CLIs (`agy`, `claude`, `codex`, `kiro-cli` / `kiro`).
+- [x] E-01 In `agent_workflows/oc_models.py`, implement harness probing for installed AI agent CLIs (`agy`, `claude`, `codex`, `kiro-cli` / `kiro`).
   - Depends on: none
   - Expected outcome: Function `probe_installed_harnesses(which_fn=None, runner=None)` checks PATH for each executable and extracts discovered models (e.g. `agy models`, `~/.codex/models_cache.json`, `~/.claude/settings.json`, and `kiro-cli chat --list-models --format json`), returning structured `DiscoveredHarness` results with graceful fallbacks and zero network calls during tests.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Model reconciliation and config population
 
-- [ ] E-02 In `agent_workflows/oc_models.py`, implement model reconciliation between discovered harness models, live catalog entries, and `opencode.json`.
+- [x] E-02 In `agent_workflows/oc_models.py`, implement model reconciliation between discovered harness models, live catalog entries, and `opencode.json` for both OpenCode v1.x and v2.x.
   - Depends on: E-01
-  - Expected outcome: Function `reconcile_harness_models(config, discovered_harnesses, live_catalog)` populates missing model definitions under `provider.google.models` (for Antigravity Gemini 4 and Claude 5.5 models) and `provider.openai.models` (for Codex GPT-6 models), preserving existing model definitions and custom settings without overwriting.
-  - Execution state: pending
+  - Expected outcome: Function `reconcile_harness_models(config, discovered_harnesses, live_catalog)` populates missing model definitions under `provider.google.models` or `providers.google.models` (for Antigravity Gemini 4 and Claude 5.5 models) and `provider.openai.models` or `providers.openai.models` (for Codex GPT-6 models), supporting both OpenCode v1.x ('provider', 'npm', 'options') and v2.x ('providers', 'package', 'settings') configuration schemas, preserving existing model definitions and custom settings without overwriting.
+  - Execution state: performed
 
 ### Task group 3: Default model display and selection
 
-- [ ] E-03 In `agent_workflows/oc_models.py`, implement default model inspection and interactive or flagged selection.
+- [x] E-03 In `agent_workflows/oc_models.py`, implement default model inspection and interactive or flagged selection.
   - Depends on: E-02
   - Expected outcome: `run(argv)` outputs the current default and small models, supports `--default-model` and `--small-model` command-line flags, and in interactive mode prompts the user to select from available reachable models, validating selections against known models before writing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: CLI wiring, documentation, and tests
 
-- [ ] E-04 In `agent_workflows/cli.py`, expose `--default-model` and `--small-model` on `aw oc update-models`. Update user documentation in `docs/runner-profiles.md`. Add unit and CLI test coverage in `tests/test_oc_models.py`.
+- [x] E-04 In `agent_workflows/cli.py`, expose `--default-model` and `--small-model` on `aw oc update-models`. Update user documentation in `docs/runner-profiles.md`. Add unit and CLI test coverage in `tests/test_oc_models.py`.
   - Depends on: E-03
   - Expected outcome: `aw oc update-models --help` documents the new flags; user documentation describes multi-harness updates without em or en dashes; all new tests pass with 100% mocked isolation and zero network calls.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,8 +109,10 @@ flowchart TD
 
 ## Deferred / out of scope (with reason)
 
-- Installing third-party OpenCode plugins automatically (e.g. running `npm install opencode-kiro`): Out of scope because package installations mutate the global npm environment without explicit user authorization. The tool reports availability and installation instructions instead.
-- Modifying harness configurations (e.g. changing `~/.codex/config.toml` or `~/.claude/settings.json`): Out of scope because `aw oc update-models` is strictly an OpenCode configuration updater.
+- Installing third-party OpenCode plugins automatically (e.g. running `npm install opencode-kiro`):
+  - Carrier-Declined: permanent design non-goal; package installations mutate the global npm environment without explicit user authorization; the tool reports availability and installation instructions instead.
+- Modifying harness configurations (e.g. changing `~/.codex/config.toml` or `~/.claude/settings.json`):
+  - Carrier-Declined: permanent design non-goal; `aw oc update-models` is strictly an OpenCode configuration updater and must not mutate external CLI configurations.
 
 ## Scope check
 
@@ -141,25 +148,40 @@ flowchart TD
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) (as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction) name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Test results from `tests/test_oc_models.py` demonstrating `probe_installed_harnesses` correctly parses mock harness outputs and handles missing binaries.
   - Observed evidence:
-  - Result: pending
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_probe_installed_harnesses_mocked PASSED`
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_probe_missing_binaries_graceful PASSED`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Test results from `tests/test_oc_models.py` showing `reconcile_harness_models` populates `google` and `openai` models and preserves existing entries.
   - Observed evidence:
-  - Result: pending
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_reconcile_harness_models_v1_and_v2 PASSED`
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_reconcile_preserves_existing_customizations PASSED`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Test results from `tests/test_oc_models.py` verifying default model display, `--default-model` mutation, and validation of candidate models.
   - Observed evidence:
-  - Result: pending
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_default_model_and_small_model_flags PASSED`
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_default_model_invalid_refused PASSED`
+    `tests/test_oc_models.py::MultiHarnessModelDiscoveryTests::test_interactive_default_model_selection PASSED`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Output from `python3 -m pytest tests/test_oc_models.py` showing all new and existing tests pass.
   - Observed evidence:
-  - Result: pending
+    ```
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/oc-update-models-multiharness
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    6 workers [36 items]
+    ....................................                                     [100%]
+    36 passed in 2.08s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

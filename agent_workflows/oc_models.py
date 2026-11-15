@@ -33,7 +33,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -42,6 +44,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 from agent_workflows.artifact_core import replacement_mode
+from agent_workflows.opencode_cli import is_v2
 
 # Endpoints probed for pricing, in order. Both are LiteLLM proxy admin routes; the first is a
 # superset (it carries cache-token pricing), the second is the narrower per-group summary.
@@ -89,6 +92,491 @@ class ProviderOutcome(NamedTuple):
     @property
     def has_changes(self) -> bool:
         return bool(self.added or self.removed or self.changed)
+
+
+class DiscoveredHarness(NamedTuple):
+    """An installed AI agent CLI and its discovered models/status."""
+
+    name: str
+    executable: Optional[str]
+    installed: bool
+    models: Tuple[str, ...]
+    target_provider: str
+    notes: str = ""
+    model_details: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+# --- OpenCode v1.x and v2.x schema compatibility helpers -----------------------------
+
+
+def _provider_container_keys(config: Mapping[str, Any]) -> List[str]:
+    """Return existing provider container keys (['providers'], ['provider'], or both)."""
+    keys = []
+    if isinstance(config.get("providers"), Mapping):
+        keys.append("providers")
+    if isinstance(config.get("provider"), Mapping):
+        keys.append("provider")
+    return keys
+
+
+def _get_all_providers(
+    config: Mapping[str, Any],
+) -> Dict[str, Tuple[str, Dict[str, Any]]]:
+    """Map provider_name -> (container_key, spec_dict) across v1 ('provider') and v2 ('providers')."""
+    res: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+    for key in ("providers", "provider"):
+        cont = config.get(key)
+        if isinstance(cont, Mapping):
+            for name, spec in cont.items():
+                if (
+                    isinstance(name, str)
+                    and isinstance(spec, Mapping)
+                    and name not in res
+                ):
+                    res[name] = (key, spec)
+    return res
+
+
+def _get_provider_options(spec: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Extract options or settings dictionary from a provider spec (v1 vs v2)."""
+    if not isinstance(spec, Mapping):
+        return {}
+    if "options" in spec and isinstance(spec["options"], Mapping):
+        return spec["options"]
+    if "settings" in spec and isinstance(spec["settings"], Mapping):
+        return spec["settings"]
+    return {}
+
+
+def _is_openai_compatible(spec: Mapping[str, Any]) -> bool:
+    """Check if provider spec uses an OpenAI-compatible driver or has a baseURL (v1 vs v2)."""
+    if not isinstance(spec, Mapping):
+        return False
+    pkg = str(spec.get("npm") or spec.get("package") or "")
+    if pkg == _OPENAI_COMPATIBLE_NPM or "openai-compatible" in pkg:
+        return True
+    options = _get_provider_options(spec)
+    return bool(
+        options.get("baseURL") or options.get("base_url") or options.get("baseUrl")
+    )
+
+
+def _derive_model_title(model_id: str) -> str:
+    """Generate a clean display name from a model identifier slug."""
+    clean = model_id
+    if clean.startswith("antigravity-"):
+        clean = clean[len("antigravity-") :]
+    words = clean.replace("-", " ").replace("_", " ").split()
+    return " ".join(w.capitalize() for w in words)
+
+
+# --- Multi-harness discovery probes (E-01) -------------------------------------------
+
+
+def _probe_agy(
+    which_fn: Callable[[str], Optional[str]],
+    runner: Callable[..., Any],
+) -> DiscoveredHarness:
+    binary = which_fn("agy")
+    if not binary:
+        return DiscoveredHarness(
+            name="agy",
+            executable=None,
+            installed=False,
+            models=(),
+            target_provider="google",
+            notes="agy CLI not found on PATH",
+        )
+    try:
+        proc = runner(
+            [binary, "models"],
+            capture_output=True,
+            text=True,
+            timeout=10.0,
+            shell=False,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        return DiscoveredHarness(
+            name="agy",
+            executable=binary,
+            installed=True,
+            models=(),
+            target_provider="google",
+            notes=f"agy models query failed: {type(exc).__name__}",
+        )
+
+    stdout = strip_ansi(getattr(proc, "stdout", "") or "")
+    models: List[str] = []
+    details: Dict[str, Dict[str, Any]] = {}
+
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if not line or "Fetching available models" in line:
+            continue
+        parts = line.split(None, 1)
+        if not parts:
+            continue
+        model_id = parts[0].strip()
+        if not re.match(r"^[a-zA-Z0-9][-._a-zA-Z0-9]+$", model_id):
+            continue
+        if model_id.lower() in ("model", "name", "id", "alias"):
+            continue
+        display_name = (
+            parts[1].strip() if len(parts) > 1 else _derive_model_title(model_id)
+        )
+        models.append(model_id)
+        details[model_id] = {
+            "name": display_name,
+            "limit": {"context": 1048576, "output": 65536},
+        }
+
+    return DiscoveredHarness(
+        name="agy",
+        executable=binary,
+        installed=True,
+        models=tuple(models),
+        target_provider="google",
+        notes=f"Detected {len(models)} Antigravity models for provider google",
+        model_details=details,
+    )
+
+
+def _probe_codex(
+    which_fn: Callable[[str], Optional[str]],
+    homedir: Path,
+) -> DiscoveredHarness:
+    binary = which_fn("codex")
+    if not binary:
+        return DiscoveredHarness(
+            name="codex",
+            executable=None,
+            installed=False,
+            models=(),
+            target_provider="openai",
+            notes="codex CLI not found on PATH",
+        )
+
+    models: List[str] = []
+    details: Dict[str, Dict[str, Any]] = {}
+    cache_path = homedir / ".codex" / "models_cache.json"
+
+    if cache_path.is_file():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            for entry in data.get("models", []):
+                slug = entry.get("slug")
+                if not slug or not isinstance(slug, str):
+                    continue
+                display_name = entry.get("display_name") or slug
+                ctx = entry.get("context_window", 272000)
+                models.append(slug)
+                details[slug] = {
+                    "name": display_name,
+                    "limit": {"context": ctx, "output": 32768},
+                }
+        except (OSError, ValueError):
+            pass
+
+    if not models:
+        config_path = homedir / ".codex" / "config.toml"
+        if config_path.is_file():
+            try:
+                for line in config_path.read_text(encoding="utf-8").splitlines():
+                    m = re.match(r'^\s*model\s*=\s*["\']([^"\']+)["\']', line)
+                    if m:
+                        slug = m.group(1).strip()
+                        if slug:
+                            models.append(slug)
+                            details[slug] = {
+                                "name": slug,
+                                "limit": {"context": 272000, "output": 32768},
+                            }
+                        break
+            except OSError:
+                pass
+
+    return DiscoveredHarness(
+        name="codex",
+        executable=binary,
+        installed=True,
+        models=tuple(models),
+        target_provider="openai",
+        notes=f"Detected {len(models)} models from ~/.codex",
+        model_details=details,
+    )
+
+
+def _probe_claude(
+    which_fn: Callable[[str], Optional[str]],
+    homedir: Path,
+) -> DiscoveredHarness:
+    binary = which_fn("claude")
+    if not binary:
+        return DiscoveredHarness(
+            name="claude",
+            executable=None,
+            installed=False,
+            models=(),
+            target_provider="uri",
+            notes="claude CLI not found on PATH",
+        )
+
+    settings_path = homedir / ".claude" / "settings.json"
+    models: List[str] = []
+    details: Dict[str, Dict[str, Any]] = {}
+    base_url = ""
+    target_prov = "uri"
+
+    if settings_path.is_file():
+        try:
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
+            env_map = data.get("env", {})
+            base_url = env_map.get("ANTHROPIC_BASE_URL", "")
+            if (
+                base_url
+                and "uri" not in base_url
+                and base_url.startswith("https://api.anthropic.com")
+            ):
+                target_prov = "anthropic"
+            for k, val in env_map.items():
+                if k.startswith("ANTHROPIC_DEFAULT_") or k == "ANTHROPIC_MODEL":
+                    if isinstance(val, str) and val.strip():
+                        val_str = val.strip()
+                        if val_str not in models:
+                            models.append(val_str)
+                            details[val_str] = {
+                                "name": val_str,
+                                "limit": {"context": 1000000, "output": 65536},
+                            }
+        except (OSError, ValueError):
+            pass
+
+    notes = (
+        f"Claude Code configured with gateway {base_url}"
+        if base_url
+        else "Claude Code CLI detected"
+    )
+    return DiscoveredHarness(
+        name="claude",
+        executable=binary,
+        installed=True,
+        models=tuple(models),
+        target_provider=target_prov,
+        notes=notes,
+        model_details=details,
+    )
+
+
+def _probe_kiro(
+    which_fn: Callable[[str], Optional[str]],
+    runner: Callable[..., Any],
+) -> DiscoveredHarness:
+    binary = which_fn("kiro-cli") or which_fn("kiro")
+    if not binary:
+        return DiscoveredHarness(
+            name="kiro",
+            executable=None,
+            installed=False,
+            models=(),
+            target_provider="kiro",
+            notes="kiro CLI not found on PATH",
+        )
+
+    try:
+        proc = runner(
+            [binary, "chat", "--list-models", "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=10.0,
+            shell=False,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        return DiscoveredHarness(
+            name="kiro",
+            executable=binary,
+            installed=True,
+            models=(),
+            target_provider="kiro",
+            notes=f"kiro query failed: {type(exc).__name__}",
+        )
+
+    stdout = strip_ansi(getattr(proc, "stdout", "") or "").strip()
+    models: List[str] = []
+    details: Dict[str, Dict[str, Any]] = {}
+
+    if stdout:
+        try:
+            data = json.loads(stdout)
+            for item in data.get("models", []):
+                m_id = item.get("model_id")
+                if not m_id or not isinstance(m_id, str) or m_id == "auto":
+                    continue
+                display_name = item.get("model_name") or m_id
+                ctx = item.get("context_window_tokens", 200000)
+                models.append(m_id)
+                details[m_id] = {
+                    "name": display_name,
+                    "limit": {"context": ctx, "output": 32768},
+                }
+        except ValueError:
+            pass
+
+    notes = (
+        f"Detected {len(models)} models via kiro-cli (requires opencode-kiro ACP plugin)"
+        if models
+        else "kiro CLI detected"
+    )
+    return DiscoveredHarness(
+        name="kiro",
+        executable=binary,
+        installed=True,
+        models=tuple(models),
+        target_provider="kiro",
+        notes=notes,
+        model_details=details,
+    )
+
+
+def probe_installed_harnesses(
+    which_fn: Optional[Callable[[str], Optional[str]]] = None,
+    runner: Optional[Callable[..., Any]] = None,
+    homedir: Optional[Path] = None,
+    env: Optional[Mapping[str, str]] = None,
+) -> Dict[str, DiscoveredHarness]:
+    """Probe host system for installed AI agent CLIs (agy, codex, claude, kiro).
+
+    Under pytest (`PYTEST_CURRENT_TEST`), defaults to returning absent binaries when
+    which_fn is not injected, ensuring zero accidental external processes in tests.
+    """
+    environ = os.environ if env is None else env
+    if (
+        which_fn is None
+        and environ.get("PYTEST_CURRENT_TEST")
+        and not environ.get("AW_TEST_REAL_HARNESS")
+    ):
+
+        def which(cmd: str) -> Optional[str]:
+            return None
+    else:
+        which = shutil.which if which_fn is None else which_fn
+
+    run = subprocess.run if runner is None else runner
+    home = (
+        Path(environ.get("HOME", str(Path.home()))).expanduser()
+        if homedir is None
+        else homedir
+    )
+
+    return {
+        "agy": _probe_agy(which, run),
+        "codex": _probe_codex(which, home),
+        "claude": _probe_claude(which, home),
+        "kiro": _probe_kiro(which, run),
+    }
+
+
+# --- Model reconciliation and config population (E-02) ------------------------------
+
+
+def reconcile_harness_models(
+    config: Dict[str, Any],
+    discovered: Dict[str, DiscoveredHarness],
+    prefer_v2: bool = False,
+) -> Dict[str, List[str]]:
+    """Populate missing model definitions from discovered harnesses into opencode.json.
+
+    Supports OpenCode v1 ('provider' with 'npm') and v2 ('providers' with 'package').
+    Preserves all existing model entries and user customizations without overwriting.
+    Returns mapping of provider_name -> list of newly added model IDs.
+    """
+    cont_keys = _provider_container_keys(config)
+    if "providers" in cont_keys:
+        primary_key = "providers"
+    elif "provider" in cont_keys:
+        primary_key = "provider"
+    else:
+        primary_key = "providers" if prefer_v2 else "provider"
+        config[primary_key] = {}
+
+    providers = config[primary_key]
+    added: Dict[str, List[str]] = {}
+
+    # 1. Antigravity -> google provider
+    agy = discovered.get("agy")
+    if agy and agy.installed and agy.models:
+        if "google" not in providers:
+            providers["google"] = {
+                ("package" if primary_key == "providers" else "npm"): (
+                    "@opencode-ai/ai/providers/google"
+                    if primary_key == "providers"
+                    else "@ai-sdk/google"
+                ),
+                "name": "Google Gemini",
+                "models": {},
+            }
+        g_spec = providers["google"]
+        if not isinstance(g_spec.get("models"), dict):
+            g_spec["models"] = {}
+        g_models = g_spec["models"]
+        for raw_id in agy.models:
+            key = (
+                raw_id if raw_id.startswith("antigravity-") else f"antigravity-{raw_id}"
+            )
+            if key not in g_models:
+                det = (agy.model_details or {}).get(raw_id, {})
+                g_models[key] = {
+                    "name": det.get("name") or _derive_model_title(raw_id),
+                    "limit": det.get("limit") or {"context": 1048576, "output": 65536},
+                }
+                added.setdefault("google", []).append(key)
+
+    # 2. Codex -> openai provider
+    codex = discovered.get("codex")
+    if codex and codex.installed and codex.models:
+        if "openai" not in providers:
+            providers["openai"] = {
+                ("package" if primary_key == "providers" else "npm"): (
+                    "@opencode-ai/ai/providers/openai"
+                    if primary_key == "providers"
+                    else "@ai-sdk/openai"
+                ),
+                "name": "OpenAI",
+                "models": {},
+            }
+        o_spec = providers["openai"]
+        if not isinstance(o_spec.get("models"), dict):
+            o_spec["models"] = {}
+        o_models = o_spec["models"]
+        for raw_id in codex.models:
+            if raw_id not in o_models:
+                det = (codex.model_details or {}).get(raw_id, {})
+                o_models[raw_id] = {
+                    "name": det.get("name") or raw_id,
+                    "limit": det.get("limit") or {"context": 272000, "output": 32768},
+                }
+                added.setdefault("openai", []).append(raw_id)
+
+    # 3. Kiro -> kiro provider (if kiro provider declared in config)
+    kiro = discovered.get("kiro")
+    if kiro and kiro.installed and kiro.models:
+        if "kiro" in providers:
+            k_spec = providers["kiro"]
+            if not isinstance(k_spec.get("models"), dict):
+                k_spec["models"] = {}
+            k_models = k_spec["models"]
+            for raw_id in kiro.models:
+                if raw_id not in k_models:
+                    det = (kiro.model_details or {}).get(raw_id, {})
+                    k_models[raw_id] = {
+                        "name": det.get("name") or raw_id,
+                        "limit": det.get("limit")
+                        or {"context": 200000, "output": 32768},
+                    }
+                    added.setdefault("kiro", []).append(raw_id)
+
+    return added
 
 
 # --------------------------------------------------------------------------------------
@@ -304,18 +792,19 @@ def parse_models_output(text: str) -> Tuple[str, ...]:
 def models_from_config(config: Any) -> Tuple[str, ...]:
     """Statically declared ``provider/model`` ids from a parsed OpenCode config.
 
-    Reads ONLY the per-provider model keys. It never looks at a provider's options block,
-    credential value, or headers, so no secret can reach the caller.
+    Reads ONLY the per-provider model keys across OpenCode v1 ('provider') and v2 ('providers').
+    It never looks at a provider's options block, credential value, or headers, so no secret
+    can reach the caller.
     """
 
     if not isinstance(config, Mapping):
         return ()
-    providers = config.get("provider")
-    if not isinstance(providers, Mapping):
+    all_provs = _get_all_providers(config)
+    if not all_provs:
         return ()
     pattern = _model_re()
     found: Dict[str, None] = {}
-    for provider_name, spec in providers.items():
+    for provider_name, (_cont_key, spec) in all_provs.items():
         if not isinstance(provider_name, str) or not isinstance(spec, Mapping):
             continue
         models = spec.get("models")
@@ -551,10 +1040,10 @@ def card_from_config(config: Any, model_id: str) -> Tuple[Dict[str, Any], str]:
     if not model_id:
         return {}, CARD_NO_MODEL
     provider_name, _, bare = model_id.partition("/")
-    providers = config.get("provider")
-    if not isinstance(providers, Mapping):
+    all_provs = _get_all_providers(config)
+    if not all_provs or provider_name not in all_provs:
         return {}, CARD_MODEL_NOT_DECLARED
-    spec = providers.get(provider_name)
+    _cont_key, spec = all_provs[provider_name]
     models = spec.get("models") if isinstance(spec, Mapping) else None
     entry = models.get(bare) if isinstance(models, Mapping) else None
     if not isinstance(entry, Mapping):
@@ -843,18 +1332,10 @@ def build_models(
 def discover_providers(config: Mapping[str, Any]) -> List[str]:
     """Names of providers that look OpenAI-compatible, in config order."""
 
-    providers = config.get("provider")
-    if not isinstance(providers, Mapping):
-        return []
+    all_provs = _get_all_providers(config)
     found: List[str] = []
-    for name, spec in providers.items():
-        if not isinstance(spec, Mapping):
-            continue
-        options = spec.get("options")
-        has_base = isinstance(options, Mapping) and isinstance(
-            options.get("baseURL"), str
-        )
-        if spec.get("npm") == _OPENAI_COMPATIBLE_NPM or has_base:
+    for name, (_cont_key, spec) in all_provs.items():
+        if _is_openai_compatible(spec):
             found.append(name)
     return found
 
@@ -867,11 +1348,14 @@ def sync_provider(
 ) -> ProviderOutcome:
     """Refresh one provider's ``models`` block in ``config`` (mutated in place on success)."""
 
-    spec = config["provider"][name]
-    options = spec.get("options") if isinstance(spec, Mapping) else None
-    if not isinstance(options, Mapping):
-        return ProviderOutcome(name, False, SKIP_NO_BASEURL)
-    base_url = options.get("baseURL")
+    all_provs = _get_all_providers(config)
+    if name not in all_provs:
+        return ProviderOutcome(name, False, "provider not declared in config")
+    cont_key, spec = all_provs[name]
+    options = _get_provider_options(spec)
+    base_url = (
+        options.get("baseURL") or options.get("base_url") or options.get("baseUrl")
+    )
     if not isinstance(base_url, str) or not base_url:
         return ProviderOutcome(name, False, SKIP_NO_BASEURL)
 
@@ -879,7 +1363,8 @@ def sync_provider(
     if not ok:
         return ProviderOutcome(name, False, reason)
 
-    api_key = resolve_api_key(options.get("apiKey"))
+    raw_key = options.get("apiKey") or options.get("api_key") or spec.get("apiKey")
+    api_key = resolve_api_key(raw_key)
     if not api_key:
         return ProviderOutcome(name, False, SKIP_NO_KEY)
 
@@ -911,7 +1396,7 @@ def sync_provider(
             if _existing_cost(model_id) != new_models[model_id].get("cost")
         )
     )
-    config["provider"][name]["models"] = new_models
+    config[cont_key][name]["models"] = new_models
     return ProviderOutcome(name, True, "", added, removed, changed)
 
 
@@ -1021,6 +1506,19 @@ def build_parser(prog: str = "aw oc update-models") -> argparse.ArgumentParser:
         action="store_true",
         help="Permit a non-https baseURL, and only for a loopback host.",
     )
+    parser.add_argument(
+        "--default-model",
+        help="Set the top-level default model in opencode.json (e.g. google/antigravity-gemini-4-carbon-medium).",
+    )
+    parser.add_argument(
+        "--small-model",
+        help="Set the top-level small_model in opencode.json.",
+    )
+    parser.add_argument(
+        "--no-interactive",
+        action="store_true",
+        help="Disable interactive prompts.",
+    )
     parser.add_argument("--agent", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--json", dest="as_json", action="store_true", help=argparse.SUPPRESS
@@ -1046,6 +1544,10 @@ def run(
     fetch: Optional[Callable[[str, str], Optional[Any]]] = None,
     env: Optional[Mapping[str, str]] = None,
     context: Optional[Any] = None,
+    which_fn: Optional[Callable[[str], Optional[str]]] = None,
+    runner: Optional[Callable[..., Any]] = None,
+    homedir: Optional[Path] = None,
+    input_fn: Optional[Callable[[str], str]] = None,
 ) -> int:
     """Preview or apply the model/pricing sync. Returns a process exit code."""
 
@@ -1124,20 +1626,15 @@ def run(
     original = target.path.read_text(encoding="utf-8")
     config = json.loads(original)
 
-    providers = discover_providers(config)
-    if not providers:
-        if is_agent_or_json:
-            res = CommandResult(
-                status="clean",
-                summary=f"no OpenAI-compatible providers declared in {target.path}",
-                command="oc update-models",
-                applied=False,
-                complete=True,
-            )
-            return get_renderer(ctx).emit(res, ctx)
-        print(f"no OpenAI-compatible providers declared in {target.path}")
-        return 0
+    # 1. Multi-harness probe and model reconciliation
+    harnesses = probe_installed_harnesses(
+        which_fn=which_fn, runner=runner, homedir=homedir, env=env
+    )
+    prefer_v2 = is_v2()
+    harness_added = reconcile_harness_models(config, harnesses, prefer_v2=prefer_v2)
 
+    # 2. OpenAI-compatible LiteLLM pricing sync
+    providers = discover_providers(config)
     outcomes = [
         sync_provider(config, name, fetcher, allow_insecure=args.allow_insecure)
         for name in providers
@@ -1145,11 +1642,107 @@ def run(
     synced = [o for o in outcomes if o.synced]
     mutated = [o for o in synced if o.has_changes]
 
+    # 3. Default and small model inspection and selection
+    curr_default = config.get("model") or "(not set)"
+    curr_small = config.get("small_model") or config.get("smallModel") or "(not set)"
+    model_changed = False
+    small_changed = False
+
+    if args.default_model:
+        target_model = args.default_model.strip()
+        if not _model_re().match(target_model):
+            msg = f"invalid default model format: {target_model!r}"
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=msg,
+                    command="oc update-models",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"error: {msg}")
+            return 2
+        if config.get("model") != target_model:
+            config["model"] = target_model
+            model_changed = True
+
+    if args.small_model:
+        target_small = args.small_model.strip()
+        if not _model_re().match(target_small):
+            msg = f"invalid small model format: {target_small!r}"
+            if is_agent_or_json:
+                res = CommandResult(
+                    status="cannot-run",
+                    summary=msg,
+                    command="oc update-models",
+                    exit_code=2,
+                    verified=False,
+                    complete=False,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"error: {msg}")
+            return 2
+        if config.get("small_model") != target_small:
+            config["small_model"] = target_small
+            small_changed = True
+
+    is_interactive = input_fn is not None or (
+        sys.stdin.isatty()
+        and not is_agent_or_json
+        and not getattr(args, "no_interactive", False)
+        and not args.default_model
+    )
+
+    if is_interactive and not args.default_model:
+        ask = input_fn if input_fn is not None else input
+        try:
+            ans = (
+                ask(f"Change default model (current: {curr_default})? [y/N]: ")
+                .strip()
+                .lower()
+            )
+            if ans in ("y", "yes"):
+                choice = ask("Enter new default model (<provider>/<model>): ").strip()
+                if choice:
+                    if _model_re().match(choice):
+                        config["model"] = choice
+                        model_changed = True
+                        print(f"default model updated to: {choice}")
+                    else:
+                        print(
+                            f"warning: '{choice}' is not a valid provider/model identifier; skipped"
+                        )
+                ans_sm = (
+                    ask(f"Change small model (current: {curr_small})? [y/N]: ")
+                    .strip()
+                    .lower()
+                )
+                if ans_sm in ("y", "yes"):
+                    choice_sm = ask(
+                        "Enter new small model (<provider>/<model>): "
+                    ).strip()
+                    if choice_sm:
+                        if _model_re().match(choice_sm):
+                            config["small_model"] = choice_sm
+                            small_changed = True
+                            print(f"small model updated to: {choice_sm}")
+                        else:
+                            print(
+                                f"warning: '{choice_sm}' is not a valid provider/model identifier; skipped"
+                            )
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+    total_harness_added = sum(len(models) for models in harness_added.values())
+    has_changes = bool(mutated or total_harness_added or model_changed or small_changed)
+
     if is_agent_or_json:
-        if not mutated:
+        if not has_changes:
             res = CommandResult(
                 status="clean",
-                summary="providers up to date; no changes",
+                summary="providers and models up to date; no changes",
                 command="oc update-models",
                 applied=False,
                 complete=True,
@@ -1158,7 +1751,7 @@ def run(
         if is_dry_run:
             res = CommandResult(
                 status="preview",
-                summary=f"{len(mutated)} provider(s) have changes",
+                summary=f"{len(mutated)} provider(s) and {total_harness_added} harness model(s) have changes",
                 command="oc update-models",
                 applied=False,
                 complete=False,
@@ -1184,6 +1777,28 @@ def run(
         return get_renderer(ctx).emit(res, ctx)
 
     print(f"config: {target.path}")
+    print(f"current default model: {curr_default}")
+    print(f"current small model: {curr_small}")
+    print("\ndiscovered harnesses:")
+    for h_name in ("agy", "claude", "codex", "kiro"):
+        h = harnesses.get(h_name)
+        if not h:
+            continue
+        if h.installed:
+            detail_str = f"installed ({h.executable})"
+            if h.models:
+                detail_str += f" - {len(h.models)} model(s) available"
+            if h.notes:
+                detail_str += f" ({h.notes})"
+            print(f"  {h.name}: {detail_str}")
+        else:
+            print(f"  {h.name}: not installed")
+    print()
+
+    if not providers and not outcomes:
+        print(
+            f"no OpenAI-compatible gateway providers to sync pricing with in {target.path}"
+        )
     for outcome in outcomes:
         if not outcome.synced:
             print(f"skipped {outcome.name}: {outcome.skip_reason}")
@@ -1192,11 +1807,21 @@ def run(
             print(f"{outcome.name}: up to date")
             continue
         total = len(outcome.added) + len(outcome.removed) + len(outcome.changed)
-        print(f"{outcome.name}: {total} change(s)")
+        print(f"{outcome.name}: {total} pricing change(s)")
         for line in _describe(outcome):
             print(line)
 
-    if not mutated:
+    for prov, added_list in harness_added.items():
+        print(f"{prov}: {len(added_list)} model(s) added from harness discovery")
+        for item in added_list:
+            print(f"  + ADDED   {item}")
+
+    if model_changed:
+        print(f"default model: {curr_default} -> {config.get('model')}")
+    if small_changed:
+        print(f"small model: {curr_small} -> {config.get('small_model')}")
+
+    if not has_changes:
         return 0
     if is_dry_run:
         print("\npreview only; re-run without --dry-run to write")

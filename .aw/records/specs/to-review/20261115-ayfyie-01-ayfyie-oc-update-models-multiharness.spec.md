@@ -15,7 +15,7 @@ This section is informative. It defines each term once, and the rest of the spec
 | Term | Meaning |
 |---|---|
 | harness | An external AI agent CLI installed on the host system, specifically `agy`, `claude`, `codex`, or `kiro-cli`. |
-| provider | A model service declaration inside OpenCode's configuration file under the `provider` dictionary. |
+| provider | A model service declaration inside OpenCode's configuration file under the `provider` (OpenCode v1) or `providers` (OpenCode v2) dictionary. |
 | OpenCode config | The JSON configuration file that OpenCode loads (`opencode.json`), located by OpenCode precedence rules. |
 | default model | The top-level `model` key in `opencode.json` designating the active primary model for OpenCode turns. |
 | small model | The top-level `small_model` key in `opencode.json` designating the secondary model for low-complexity turns. |
@@ -109,13 +109,18 @@ classDiagram
 
 ### 3.2 Configuration Population in `opencode.json`
 
-1. **Provider Model Blocks**:
-   - Discovered models that are missing from the respective `provider.<name>.models` block must be populated with:
+1. **OpenCode v1.x and v2.x Schema Compatibility**:
+   - The tool must support both OpenCode v1.x (`"provider"` dictionary, `"npm"` driver packages, `"options"` settings) and OpenCode v2.x (`"providers"` dictionary, `"package"` driver packages, `"settings"` configuration map).
+   - If `"providers"` exists in `opencode.json`, new providers and models are populated under `"providers"` using v2 conventions. If `"provider"` exists, new providers and models are populated under `"provider"` using v1 conventions.
+
+2. **Provider Model Blocks**:
+   - Discovered models that are missing from the respective provider models block (`provider.<name>.models` or `providers.<name>.models`) must be populated with:
      - `name`: A human-readable display title derived from the model name or harness metadata.
      - Reasonable default limits or options if supplied by the harness discovery payload.
    - Existing model entries in `opencode.json` must be preserved without overwriting customized user settings.
-2. **Gateway Pricing Sync**:
-   - Providers declaring `@ai-sdk/openai-compatible` or `options.baseURL` with LiteLLM admin endpoints continue to have their `cost` blocks refreshed per the existing `ocsync-01` contract.
+
+3. **Gateway Pricing Sync**:
+   - Providers declaring OpenAI-compatible packages (such as `@ai-sdk/openai-compatible` or `@opencode-ai/ai/providers/openai-compatible`) or configured with a `baseURL` (in `options` or `settings`) with LiteLLM admin endpoints continue to have their `cost` blocks refreshed per the existing `ocsync-01` contract.
 
 ### 3.3 Default Model Display and Selection
 

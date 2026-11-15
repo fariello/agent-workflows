@@ -437,3 +437,27 @@ can still repair by hand is never written over.
 | See what you have | `aw oc profile list` |
 | Set or clear the default profile | `aw oc profile default gem` / `--clear` |
 | Remove a profile | `aw oc profile remove gem` |
+
+## OpenCode model discovery and default selection (`aw oc update-models`)
+
+`aw oc update-models` synchronizes models and pricing into your OpenCode configuration (`opencode.json`). It detects installed AI agent harnesses (`agy`, `claude`, `codex`, `kiro`), reconciles missing model definitions across OpenCode v1.x (`provider`, `npm`, `options`) and v2.x (`providers`, `package`, `settings`) schemas, and allows inspecting or changing OpenCode's default model.
+
+### Key capabilities
+
+- **Multi-harness discovery**: Probes installed CLI tools on PATH. Detects Antigravity (`agy`), Codex (`codex`), Claude Code (`claude`), and Kiro (`kiro-cli`), mapping available models to their respective OpenCode providers (`google`, `openai`, `uri`, `kiro`).
+- **Configuration population**: Populates missing model definitions with appropriate context limits and human-readable names. Existing models and custom user configurations are never overwritten.
+- **Default model configuration**: Displays current default model (`model`) and small model (`small_model`). Offers interactive selection on interactive terminals, or non-interactive flags (`--default-model` and `--small-model`).
+- **Atomic updates**: Changes are previewed with `--dry-run` or written atomically with a pre-write timestamped `.bak` backup file.
+
+### Examples
+
+```bash
+# Preview discovered models and pricing changes without writing
+aw oc update-models --dry-run
+
+# Apply discovered models and prompt for default model selection
+aw oc update-models
+
+# Update models and set default model non-interactively
+aw oc update-models --default-model google/antigravity-gemini-4-carbon-medium --small-model uri/its_direct/pt1-qwen3-32b-us --no-interactive
+```

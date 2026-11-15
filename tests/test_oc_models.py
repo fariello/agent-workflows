@@ -17,6 +17,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Optional
 
 from agent_workflows import oc_models
 
@@ -728,6 +729,333 @@ class RateCardFromConfigTests(unittest.TestCase):
         comps, reason = oc_models.card_from_config(json.loads(_card_config()), "")
         self.assertEqual(comps, {})
         self.assertEqual(reason, oc_models.CARD_NO_MODEL)
+
+
+class _Proc:
+    def __init__(self, stdout: str = "", returncode: int = 0):
+        self.stdout = stdout
+        self.returncode = returncode
+
+
+class MultiHarnessModelDiscoveryTests(unittest.TestCase):
+    """Tests for multi-harness model discovery, config population, and default model selection."""
+
+    def test_probe_installed_harnesses_mocked(self):
+        with TemporaryDirectory() as td:
+            home = Path(td)
+            # Setup ~/.codex/models_cache.json
+            codex_dir = home / ".codex"
+            codex_dir.mkdir(parents=True)
+            codex_cache = codex_dir / "models_cache.json"
+            codex_cache.write_text(
+                json.dumps(
+                    {
+                        "models": [
+                            {
+                                "slug": "gpt-6.1-sol",
+                                "display_name": "GPT-6.1-Sol",
+                                "context_window": 272000,
+                            },
+                            {
+                                "slug": "gpt-6-astra",
+                                "display_name": "GPT-6-Astra",
+                                "context_window": 272000,
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            # Setup ~/.claude/settings.json
+            claude_dir = home / ".claude"
+            claude_dir.mkdir(parents=True)
+            claude_settings = claude_dir / "settings.json"
+            claude_settings.write_text(
+                json.dumps(
+                    {
+                        "env": {
+                            "ANTHROPIC_BASE_URL": "https://llmgw.its.uri.edu",
+                            "ANTHROPIC_DEFAULT_SONNET_MODEL": "its_direct/pt3-claude-sonnet-5-1m-us",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_which(cmd: str) -> Optional[str]:
+                mapping = {
+                    "agy": "/bin/mock-agy",
+                    "codex": "/bin/mock-codex",
+                    "claude": "/bin/mock-claude",
+                    "kiro-cli": "/bin/mock-kiro-cli",
+                }
+                return mapping.get(cmd)
+
+            def fake_runner(argv, **kwargs):
+                cmd = argv[0]
+                if "mock-agy" in cmd:
+                    out = (
+                        "gemini-4-carbon-medium         Gemini 4 Carbon (Medium)\n"
+                        "claude-opus-5-5-high           Claude Opus 5.5 (High)\n"
+                    )
+                    return _Proc(stdout=out, returncode=0)
+                elif "mock-kiro-cli" in cmd:
+                    out = json.dumps(
+                        {
+                            "models": [
+                                {
+                                    "model_name": "gpt-5.6-terra",
+                                    "model_id": "gpt-5.6-terra",
+                                    "context_window_tokens": 986000,
+                                },
+                                {
+                                    "model_name": "claude-opus-5",
+                                    "model_id": "claude-opus-5",
+                                    "context_window_tokens": 1000000,
+                                },
+                            ]
+                        }
+                    )
+                    return _Proc(stdout=out, returncode=0)
+                return _Proc(stdout="", returncode=1)
+
+            harnesses = oc_models.probe_installed_harnesses(
+                which_fn=fake_which, runner=fake_runner, homedir=home
+            )
+
+            # Assert agy
+            self.assertTrue(harnesses["agy"].installed)
+            self.assertIn("gemini-4-carbon-medium", harnesses["agy"].models)
+            self.assertIn("claude-opus-5-5-high", harnesses["agy"].models)
+            self.assertEqual(harnesses["agy"].target_provider, "google")
+
+            # Assert codex
+            self.assertTrue(harnesses["codex"].installed)
+            self.assertIn("gpt-6.1-sol", harnesses["codex"].models)
+            self.assertIn("gpt-6-astra", harnesses["codex"].models)
+            self.assertEqual(harnesses["codex"].target_provider, "openai")
+
+            # Assert claude
+            self.assertTrue(harnesses["claude"].installed)
+            self.assertEqual(harnesses["claude"].target_provider, "uri")
+
+            # Assert kiro
+            self.assertTrue(harnesses["kiro"].installed)
+            self.assertIn("gpt-5.6-terra", harnesses["kiro"].models)
+            self.assertIn("claude-opus-5", harnesses["kiro"].models)
+
+    def test_probe_missing_binaries_graceful(self):
+        harnesses = oc_models.probe_installed_harnesses(
+            which_fn=lambda _: None, runner=lambda *a, **kw: None
+        )
+        for h_name in ("agy", "codex", "claude", "kiro"):
+            self.assertFalse(harnesses[h_name].installed)
+            self.assertIsNone(harnesses[h_name].executable)
+            self.assertEqual(harnesses[h_name].models, ())
+
+    def test_reconcile_harness_models_v1_and_v2(self):
+        discovered = {
+            "agy": oc_models.DiscoveredHarness(
+                name="agy",
+                executable="/bin/agy",
+                installed=True,
+                models=("gemini-4-carbon-medium", "claude-opus-5-5-high"),
+                target_provider="google",
+                model_details={
+                    "gemini-4-carbon-medium": {
+                        "name": "Gemini 4 Carbon (Medium)",
+                        "limit": {"context": 1048576, "output": 65536},
+                    }
+                },
+            ),
+            "codex": oc_models.DiscoveredHarness(
+                name="codex",
+                executable="/bin/codex",
+                installed=True,
+                models=("gpt-6.1-sol",),
+                target_provider="openai",
+            ),
+        }
+
+        # 1. OpenCode v1 schema ('provider')
+        cfg_v1 = {
+            "provider": {
+                "google": {"npm": "@ai-sdk/google", "models": {}},
+                "openai": {"npm": "@ai-sdk/openai", "models": {}},
+            }
+        }
+        added_v1 = oc_models.reconcile_harness_models(cfg_v1, discovered)
+        self.assertIn(
+            "antigravity-gemini-4-carbon-medium",
+            cfg_v1["provider"]["google"]["models"],
+        )
+        self.assertIn(
+            "antigravity-claude-opus-5-5-high",
+            cfg_v1["provider"]["google"]["models"],
+        )
+        self.assertIn("gpt-6.1-sol", cfg_v1["provider"]["openai"]["models"])
+        self.assertIn("google", added_v1)
+        self.assertIn("openai", added_v1)
+
+        # 2. OpenCode v2 schema ('providers')
+        cfg_v2 = {
+            "providers": {
+                "google": {"package": "@opencode-ai/ai/providers/google", "models": {}},
+                "openai": {"package": "@opencode-ai/ai/providers/openai", "models": {}},
+            }
+        }
+        added_v2 = oc_models.reconcile_harness_models(cfg_v2, discovered)
+        self.assertIn(
+            "antigravity-gemini-4-carbon-medium",
+            cfg_v2["providers"]["google"]["models"],
+        )
+        self.assertIn("gpt-6.1-sol", cfg_v2["providers"]["openai"]["models"])
+        self.assertIn("google", added_v2)
+        self.assertIn("openai", added_v2)
+
+    def test_reconcile_preserves_existing_customizations(self):
+        discovered = {
+            "agy": oc_models.DiscoveredHarness(
+                name="agy",
+                executable="/bin/agy",
+                installed=True,
+                models=("gemini-4-carbon-medium",),
+                target_provider="google",
+            )
+        }
+        cfg = {
+            "provider": {
+                "google": {
+                    "models": {
+                        "antigravity-gemini-4-carbon-medium": {
+                            "name": "My Custom Title",
+                            "cost": {"input": 12.34},
+                        }
+                    }
+                }
+            }
+        }
+        added = oc_models.reconcile_harness_models(cfg, discovered)
+        self.assertEqual(added, {})
+        entry = cfg["provider"]["google"]["models"][
+            "antigravity-gemini-4-carbon-medium"
+        ]
+        self.assertEqual(entry["name"], "My Custom Title")
+        self.assertEqual(entry["cost"]["input"], 12.34)
+
+    def test_default_model_and_small_model_flags(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    [
+                        "--config",
+                        str(cfg),
+                        "--default-model",
+                        "google/antigravity-gemini-4-carbon-medium",
+                        "--small-model",
+                        "uri/small-1",
+                        "--no-interactive",
+                    ],
+                    which_fn=lambda _: None,
+                    fetch=lambda u, k: _model_info_payload(),
+                )
+            self.assertEqual(rc, 0)
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertEqual(
+                written["model"], "google/antigravity-gemini-4-carbon-medium"
+            )
+            self.assertEqual(written["small_model"], "uri/small-1")
+
+    def test_default_model_invalid_refused(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--default-model", "bad!model!name"],
+                    which_fn=lambda _: None,
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("invalid default model format", buf.getvalue())
+
+    def test_interactive_default_model_selection(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+            prompts = [
+                "y",  # Change default model?
+                "google/antigravity-claude-opus-5-5-high",  # New default model
+                "y",  # Change small model?
+                "uri/its_direct/pt1-qwen3-32b-us",  # New small model
+            ]
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    ["--config", str(cfg)],
+                    input_fn=lambda _: prompts.pop(0),
+                    which_fn=lambda _: None,
+                    fetch=lambda u, k: _model_info_payload(),
+                )
+            self.assertEqual(rc, 0)
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertEqual(
+                written["model"], "google/antigravity-claude-opus-5-5-high"
+            )
+            self.assertEqual(written["small_model"], "uri/its_direct/pt1-qwen3-32b-us")
+
+    def test_multiharness_run_dry_run_and_apply(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+
+            def fake_which(cmd: str) -> Optional[str]:
+                if cmd == "agy":
+                    return "/bin/mock-agy"
+                return None
+
+            def fake_runner(argv, **kw):
+                out = "gemini-4-carbon-medium   Gemini 4 Carbon (Medium)\n"
+                return _Proc(stdout=out, returncode=0)
+
+            # 1. Dry run shows discovered harness and adds preview without writing
+            buf_dry = io.StringIO()
+            with redirect_stdout(buf_dry):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--dry-run", "--no-interactive"],
+                    which_fn=fake_which,
+                    runner=fake_runner,
+                    fetch=lambda u, k: None,
+                )
+            self.assertEqual(rc, 0)
+            self.assertIn("discovered harnesses:", buf_dry.getvalue())
+            self.assertIn("agy: installed (/bin/mock-agy)", buf_dry.getvalue())
+            self.assertIn(
+                "google: 1 model(s) added from harness discovery",
+                buf_dry.getvalue(),
+            )
+            self.assertIn("preview only", buf_dry.getvalue())
+
+            # 2. Real run writes the new models
+            buf_apply = io.StringIO()
+            with redirect_stdout(buf_apply):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--no-interactive"],
+                    which_fn=fake_which,
+                    runner=fake_runner,
+                    fetch=lambda u, k: None,
+                )
+            self.assertEqual(rc, 0)
+            self.assertIn("wrote:", buf_apply.getvalue())
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertIn(
+                "antigravity-gemini-4-carbon-medium",
+                written["provider"]["google"]["models"],
+            )
 
 
 if __name__ == "__main__":  # pragma: no cover

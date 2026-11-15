@@ -5926,6 +5926,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Permit a non-https baseURL, and only for a loopback host.",
     )
+    p_oc_models.add_argument(
+        "--default-model",
+        help="Set the top-level default model in opencode.json (e.g. google/antigravity-gemini-4-carbon-medium).",
+    )
+    p_oc_models.add_argument(
+        "--small-model",
+        help="Set the top-level small_model in opencode.json.",
+    )
 
     # runprofile Order 02 (p0l1to) E-03: `aw oc profile <verb>`, a FIXED namespace of five verbs
     # for named launch profiles (`gem`, `sonnet`, `sol`). Declared here with STRUCTURED flags and
@@ -19832,9 +19840,19 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             forwarded = []
             if getattr(args, "config", None):
                 forwarded += ["--config", str(args.config)]
-            for flag in ("apply", "dry_run", "no_backup", "allow_insecure"):
+            for flag in (
+                "apply",
+                "dry_run",
+                "no_backup",
+                "allow_insecure",
+                "no_interactive",
+            ):
                 if getattr(args, flag, False):
                     forwarded.append("--" + flag.replace("_", "-"))
+            if getattr(args, "default_model", None):
+                forwarded += ["--default-model", str(args.default_model)]
+            if getattr(args, "small_model", None):
+                forwarded += ["--small-model", str(args.small_model)]
             for flag in ("agent", "as_agent"):
                 if getattr(args, flag, False):
                     forwarded.append("--agent")
