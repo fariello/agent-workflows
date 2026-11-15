@@ -970,6 +970,22 @@ class MultiHarnessModelDiscoveryTests(unittest.TestCase):
             )
             self.assertEqual(written["small_model"], "uri/small-1")
 
+    def test_no_interactive_flag_skips_prompting(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+            buf = io.StringIO()
+            called = []
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    ["--config", str(cfg), "--no-interactive"],
+                    which_fn=lambda _: None,
+                    fetch=lambda u, k: _model_info_payload(),
+                    input_fn=lambda prompt: called.append(prompt) or "y",
+                )
+            self.assertEqual(rc, 0)
+            self.assertEqual(called, [])
+
     def test_default_model_invalid_refused(self):
         with TemporaryDirectory() as td:
             cfg = Path(td) / "opencode.json"

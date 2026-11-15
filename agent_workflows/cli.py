@@ -19845,10 +19845,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 "dry_run",
                 "no_backup",
                 "allow_insecure",
-                "no_interactive",
             ):
                 if getattr(args, flag, False):
                     forwarded.append("--" + flag.replace("_", "-"))
+            if (
+                getattr(args, "no_interactive", False)
+                or _term_mod.get_interactive_override() is False
+            ):
+                forwarded.append("--no-interactive")
             if getattr(args, "default_model", None):
                 forwarded += ["--default-model", str(args.default_model)]
             if getattr(args, "small_model", None):

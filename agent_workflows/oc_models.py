@@ -35,7 +35,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -1688,8 +1687,10 @@ def run(
             config["small_model"] = target_small
             small_changed = True
 
-    is_interactive = input_fn is not None or (
-        sys.stdin.isatty()
+    from agent_workflows import term as _term
+
+    is_interactive = (
+        (input_fn is not None or _term.is_interactive())
         and not is_agent_or_json
         and not getattr(args, "no_interactive", False)
         and not args.default_model
