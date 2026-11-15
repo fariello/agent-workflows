@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw oc update-models` previously only probed LiteLLM gateways for pricing, leaving other installed AI harnesses (`agy`, `claude`, `codex`, `kiro`) unchecked, omitting new models (Gemini 4, Antigravity Claude, GPT-6 series) from `opencode.json`, and providing no mechanism to inspect or set OpenCode's default model.
 - Scope: Enhance `aw oc update-models` to detect installed agent harnesses (`agy`, `claude`, `codex`, `kiro`), extract available models via CLI queries and OpenCode live catalog, populate missing model entries in `opencode.json` under respective provider blocks, display current default models, and interactively or via flags configure the default and small models.
-- Scope-Paths: agent_workflows/oc_models.py, agent_workflows/cli.py, docs/runner-profiles.md, tests/test_oc_models.py, tests/test_oc_models_cli.py, .aw/records/specs/to-review/20261115-ayfyie-01-ayfyie-oc-update-models-multiharness.spec.md
+- Scope-Paths: agent_workflows/oc_models.py, agent_workflows/cli.py, docs/runner-profiles.md, tests/test_oc_models.py, .aw/records/specs/to-review/20261115-ayfyie-01-ayfyie-oc-update-models-multiharness.spec.md
 - Item-Dependencies: none
 - Status: to-review
 - Work-Kind: feature
@@ -53,7 +53,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: CLI wiring, documentation, and tests
 
-- [ ] E-04 In `agent_workflows/cli.py`, expose `--default-model` and `--small-model` on `aw oc update-models`. Update user documentation in `docs/runner-profiles.md`. Add unit and CLI test coverage in `tests/test_oc_models.py` and `tests/test_oc_models_cli.py`.
+- [ ] E-04 In `agent_workflows/cli.py`, expose `--default-model` and `--small-model` on `aw oc update-models`. Update user documentation in `docs/runner-profiles.md`. Add unit and CLI test coverage in `tests/test_oc_models.py`.
   - Depends on: E-03
   - Expected outcome: `aw oc update-models --help` documents the new flags; user documentation describes multi-harness updates without em or en dashes; all new tests pass with 100% mocked isolation and zero network calls.
   - Execution state: pending
@@ -114,13 +114,12 @@ flowchart TD
 
 ## Required tests / validation
 
-- Unit tests in `tests/test_oc_models.py`:
+- Unit and CLI tests in `tests/test_oc_models.py`:
   - `test_probe_installed_harnesses_mocked`: Verifies correct model extraction across `agy`, `claude`, `codex`, and `kiro`.
   - `test_probe_missing_binaries_graceful`: Verifies that absent executables are reported as not installed without error.
   - `test_reconcile_harness_models_adds_missing`: Verifies that `provider.google.models` and `provider.openai.models` receive new entries.
   - `test_reconcile_preserves_existing_customizations`: Verifies that existing model entries and user keys remain unmodified.
   - `test_default_model_flag_updates_config`: Verifies `--default-model` updates `"model"` key in `opencode.json`.
-- CLI tests in `tests/test_oc_models_cli.py`:
   - `test_cli_help_includes_default_model_flags`: Verifies `--default-model` and `--small-model` in `--help`.
   - `test_cli_dry_run_shows_discovered_harnesses`: Verifies terminal output includes discovered harness summaries.
 
@@ -158,7 +157,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Output from `python3 -m pytest tests/test_oc_models.py tests/test_oc_models_cli.py` showing all new and existing tests pass.
+  - Required evidence: Output from `python3 -m pytest tests/test_oc_models.py` showing all new and existing tests pass.
   - Observed evidence:
   - Result: pending
 
