@@ -6,7 +6,7 @@
 - Scope: Enhance `aw oc update-models` to detect installed agent harnesses (`agy`, `claude`, `codex`, `kiro`), extract available models via CLI queries and OpenCode live catalog, populate missing model entries in `opencode.json` under respective provider blocks, display current default models, and interactively or via flags configure the default and small models.
 - Scope-Paths: agent_workflows/oc_models.py, agent_workflows/cli.py, docs/runner-profiles.md, tests/test_oc_models.py, .aw/records/specs/to-review/20261115-ayfyie-01-ayfyie-oc-update-models-multiharness.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Set: ocsync
@@ -16,11 +16,11 @@
 - Id: z1fxk7
 - Readiness: go
 - From-Spec: ayfyie
-- Approval: 2026-11-15, human ("approved"): user approved execution of multi-harness model discovery
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-15 executed (Antigravity): execute multi-harness model discovery, OpenCode v1/v2 support, and default model selection
 - 2026-11-15 approved (aw set, --by-human): user approved execution of multi-harness model discovery
 - 2026-11-15 reviewed (aw set): /plan-review APPROVE; E-01..E-04 well-formed and scoped
 
