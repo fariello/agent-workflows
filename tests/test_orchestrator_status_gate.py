@@ -17,6 +17,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from agent_workflows import agent_schema, coverage_record
 from tests.test_ipd_lint import _conforming_child
 
@@ -414,6 +416,8 @@ class TestOrchestratorStatusGate(unittest.TestCase):
             self.assertEqual(p2.returncode, 0)
             self.assertIn("- Status: draft", orch.read_text(encoding="utf-8"))
 
+    # 9 backward pairs x (git init + 2 CLI subprocesses) routinely exceeds 240s on slow CI VMs.
+    @pytest.mark.timeout(wall=600)
     def test_e05_backward_pairs_message_requirement_and_approval_withdrawn(self):
         """Case 8: all backward pairs require --message, warn loudly, record APPROVAL WITHDRAWN, strip Readiness."""
         backward_pairs = [

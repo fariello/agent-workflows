@@ -584,3 +584,27 @@ def test_read_at_ignores_quoted_ids_and_files_outside_the_records_root(
 
     res = meta.read_at("lg0002", "HEAD", project_context=ctx)
     assert res.kind == "absent"
+
+
+def test_read_at_finds_a_phase_b_legacy_record_with_crlf_line_endings(tmp_path: Path):
+    """A Phase B legacy record committed with CRLF line endings is still found by read_at."""
+    repo_dir, ctx = _legacy_repo(tmp_path)
+    subprocess.run(
+        ["git", "config", "core.autocrlf", "false"], cwd=repo_dir, check=True
+    )
+    plan = (
+        repo_dir
+        / ".aw/records/plans/pending/20261101-legacy-01-cr0001-crlf-plan.ipd.md"
+    )
+    crlf_bytes = (
+        _legacy_plan_text("cr0001", "approved").replace("\n", "\r\n").encode("utf-8")
+    )
+    plan.write_bytes(crlf_bytes)
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-qm", "legacy crlf"], cwd=repo_dir, check=True)
+
+    res = meta.read_at("cr0001", "HEAD", project_context=ctx)
+    assert res.kind == "ok", res.error
+    assert res.state is not None
+    assert res.state.id6 == "cr0001"
+    assert res.state.status == "approved"

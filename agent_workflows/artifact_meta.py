@@ -3627,7 +3627,18 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
         # Phase B legacy check: search for artifact .md containing id6 at revision
         # `-e` is required: the pattern starts with `-`, so without it git reads it as an option and
         # exits 129, which made every phase-B record read `absent`.
-        grep_cmd = ["git", "grep", "-l", "-E", "-e", f"^- Id:[ \t]*{id6}[ \t]*$", rev]
+        # Use POSIX character classes (`[[:blank:]]` / `[[:space:]]`) rather than `\t` / `\r`:
+        # BSD/Windows POSIX ERE may treat `\t`/`\r` as literal chars, and Windows blobs with CRLF
+        # retain `\r` before `$` when `git grep` splits lines on `\n`.
+        grep_cmd = [
+            "git",
+            "grep",
+            "-l",
+            "-E",
+            "-e",
+            f"^- Id:[[:blank:]]*{id6}[[:space:]]*$",
+            rev,
+        ]
         if rel_repo and rel_repo != ".":
             grep_cmd += ["--", rel_repo]
         find_md = subprocess.run(
