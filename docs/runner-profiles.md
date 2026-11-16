@@ -446,7 +446,7 @@ can still repair by hand is never written over.
 
 - **Multi-harness discovery**: Probes installed CLI tools on PATH. Detects Antigravity (`agy`), Codex (`codex`), Claude Code (`claude`), and Kiro (`kiro-cli`), mapping available models to their respective OpenCode providers (`google`, `openai`, `uri`, `kiro`).
 - **Configuration population**: Populates missing model definitions with appropriate context limits and human-readable names. Existing models and custom user configurations are never overwritten.
-- **Default model configuration**: Displays current default model (`model`) and small model (`small_model`). Offers interactive selection on interactive terminals, or non-interactive flags (`--default-model` and `--small-model`).
+- **Default model configuration**: Displays current default model (`model`) and small model (`small_model`) after model updates complete. On interactive terminals, offers prompts to list (`l`), search (`/<query>` or `s`), pick by number (`#`) or identifier, or cancel (`c`, `q`, blank Enter, Ctrl+C/EOF) at any time without changing defaults; also supports non-interactive flags (`--default-model` and `--small-model`).
 - **Atomic updates**: Changes are previewed with `--dry-run` or written atomically with a pre-write timestamped `.bak` backup file.
 
 ### Examples

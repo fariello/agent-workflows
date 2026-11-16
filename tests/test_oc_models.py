@@ -17,7 +17,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Optional
+from typing import List, Optional
 
 from agent_workflows import oc_models
 
@@ -1072,6 +1072,140 @@ class MultiHarnessModelDiscoveryTests(unittest.TestCase):
                 "antigravity-gemini-4-carbon-medium",
                 written["provider"]["google"]["models"],
             )
+
+    def test_interactive_prompts_after_model_updates_with_list_search_select(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+
+            def fake_which(cmd: str) -> Optional[str]:
+                return "/bin/mock-agy" if cmd == "agy" else None
+
+            def fake_runner(argv, **kw):
+                out = (
+                    "gemini-4-carbon-medium   Gemini 4 Carbon (Medium)\n"
+                    "claude-opus-5-5-high     Claude Opus 5.5 (High)\n"
+                )
+                return _Proc(stdout=out, returncode=0)
+
+            buf = io.StringIO()
+            observed_stdout_before_first_prompt: List[str] = []
+            observed_cfg_written_before_prompt: List[bool] = []
+            prompts = [
+                "y",
+                "l",  # list all models
+                "/carbon",  # search filter
+                "1",  # pick #1 from search results
+                "n",  # skip small model
+            ]
+
+            def fake_ask(prompt: str) -> str:
+                if not observed_stdout_before_first_prompt:
+                    observed_stdout_before_first_prompt.append(buf.getvalue())
+                    on_disk = json.loads(cfg.read_text(encoding="utf-8"))
+                    observed_cfg_written_before_prompt.append(
+                        "antigravity-gemini-4-carbon-medium"
+                        in on_disk.get("provider", {})
+                        .get("google", {})
+                        .get("models", {})
+                    )
+                return prompts.pop(0)
+
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    ["--config", str(cfg)],
+                    input_fn=fake_ask,
+                    which_fn=fake_which,
+                    runner=fake_runner,
+                    fetch=lambda u, k: None,
+                )
+
+            self.assertEqual(rc, 0)
+            # Model updates were printed and saved BEFORE the first interactive prompt.
+            pre_prompt = observed_stdout_before_first_prompt[0]
+            self.assertIn("google: 2 model(s) added from harness discovery", pre_prompt)
+            self.assertIn("antigravity-gemini-4-carbon-medium", pre_prompt)
+            self.assertIn("current default model: uri/alpha", pre_prompt)
+            self.assertEqual(observed_cfg_written_before_prompt, [True])
+
+            full_out = buf.getvalue()
+            self.assertIn("available models (", full_out)
+            self.assertIn("matches for 'carbon' (1):", full_out)
+            self.assertIn("[new]", full_out)
+
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertEqual(
+                written["model"], "google/antigravity-gemini-4-carbon-medium"
+            )
+            self.assertNotIn("small_model", written)
+            # At most one backup file is created for the run.
+            baks = list(Path(td).glob("opencode.json.*.bak"))
+            self.assertEqual(len(baks), 1)
+
+    def test_interactive_search_and_cancel_preserves_default_and_model_updates(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+
+            def fake_which(cmd: str) -> Optional[str]:
+                return "/bin/mock-agy" if cmd == "agy" else None
+
+            def fake_runner(argv, **kw):
+                out = "gemini-4-carbon-medium   Gemini 4 Carbon (Medium)\n"
+                return _Proc(stdout=out, returncode=0)
+
+            # Cancel via 'c' after invoking search
+            prompts = [
+                "s",  # jump straight into search
+                "carbon",  # filter query
+                "c",  # cancel without changing default model
+            ]
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    ["--config", str(cfg)],
+                    input_fn=lambda _: prompts.pop(0),
+                    which_fn=fake_which,
+                    runner=fake_runner,
+                    fetch=lambda u, k: None,
+                )
+            self.assertEqual(rc, 0)
+            self.assertEqual(prompts, [])
+            self.assertIn("matches for 'carbon' (1):", buf.getvalue())
+            self.assertIn("cancelled; default model unchanged", buf.getvalue())
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertEqual(written["model"], "uri/alpha")
+            self.assertIn(
+                "antigravity-gemini-4-carbon-medium",
+                written["provider"]["google"]["models"],
+            )
+
+    def test_interactive_eof_cancels_cleanly_without_changing_default(self):
+        with TemporaryDirectory() as td:
+            cfg = Path(td) / "opencode.json"
+            cfg.write_text(_config(), encoding="utf-8")
+
+            calls = 0
+
+            def raise_eof_on_second_prompt(_prompt: str) -> str:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return "y"
+                raise EOFError()
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = oc_models.run(
+                    ["--config", str(cfg)],
+                    input_fn=raise_eof_on_second_prompt,
+                    which_fn=lambda _: None,
+                    fetch=lambda u, k: None,
+                )
+            self.assertEqual(rc, 0)
+            self.assertIn("cancelled; default model unchanged", buf.getvalue())
+            written = json.loads(cfg.read_text(encoding="utf-8"))
+            self.assertEqual(written["model"], "uri/alpha")
 
 
 if __name__ == "__main__":  # pragma: no cover

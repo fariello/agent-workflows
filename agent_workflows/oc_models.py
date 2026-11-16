@@ -40,7 +40,18 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agent_workflows.artifact_core import replacement_mode
 from agent_workflows.opencode_cli import is_v2
@@ -1538,6 +1549,194 @@ def _describe(outcome: ProviderOutcome) -> List[str]:
     return lines
 
 
+def _collect_selectable_models(config: Mapping[str, Any]) -> List[Tuple[str, str]]:
+    """Collect sorted ``(provider/model, display_name)`` pairs across configured providers."""
+
+    all_provs = _get_all_providers(config)
+    pattern = _model_re()
+    items: Dict[str, str] = {}
+    for prov_name in sorted(all_provs):
+        _cont_key, spec = all_provs[prov_name]
+        models = spec.get("models")
+        if not isinstance(models, Mapping):
+            continue
+        for model_id in sorted(models):
+            if not isinstance(model_id, str):
+                continue
+            candidate = f"{prov_name.strip()}/{model_id.strip()}"
+            if not pattern.match(candidate):
+                continue
+            entry = models[model_id]
+            title = (
+                entry.get("name", "").strip()
+                if isinstance(entry, Mapping) and isinstance(entry.get("name"), str)
+                else ""
+            )
+            if title.lower() == model_id.strip().lower():
+                title = ""
+            items.setdefault(candidate, title)
+    return [(k, v) for k, v in items.items()]
+
+
+def _print_model_choices(
+    items: Sequence[Tuple[str, str]],
+    *,
+    current: str = "",
+    newly_added: FrozenSet[str] = frozenset(),
+) -> None:
+    """Print numbered ``provider/model`` choices with optional title and status tags."""
+
+    if not items:
+        print("  (no matching models found)")
+        return
+    width = len(str(len(items)))
+    for idx, (full_id, title) in enumerate(items, 1):
+        tags: List[str] = []
+        if current and full_id == current:
+            tags.append("current")
+        if full_id in newly_added:
+            tags.append("new")
+        tag_str = f" [{' '.join(tags)}]" if tags else ""
+        title_str = f"  ({title})" if title else ""
+        print(f"  [{idx:>{width}}] {full_id}{title_str}{tag_str}")
+
+
+def _filter_model_choices(
+    items: Sequence[Tuple[str, str]], query: str
+) -> List[Tuple[str, str]]:
+    """Filter ``(full_id, title)`` pairs by space-separated case-insensitive tokens."""
+
+    tokens = [tok for tok in query.strip().lower().split() if tok]
+    if not tokens:
+        return list(items)
+    matches: List[Tuple[str, str]] = []
+    for full_id, title in items:
+        haystack = f"{full_id} {title}".lower()
+        if all(tok in haystack for tok in tokens):
+            matches.append((full_id, title))
+    return matches
+
+
+def _prompt_model_selection(
+    ask: Callable[[str], str],
+    *,
+    label: str,
+    current: str,
+    catalog: Sequence[Tuple[str, str]],
+    newly_added: FrozenSet[str] = frozenset(),
+) -> Tuple[Optional[str], bool]:
+    """Interactively prompt to change ``label``, supporting list, search, and cancel.
+
+    Returns ``(selected_model_or_None, cancelled_by_user)``.
+    """
+
+    cancel_words = {"c", "cancel", "q", "quit", "exit", "abort", "none"}
+    try:
+        ans = ask(
+            f"Change {label} (current: {current})? [y/N/l(ist)/s(earch)]: "
+        ).strip()
+    except (EOFError, KeyboardInterrupt):
+        print(f"\ncancelled; {label} unchanged")
+        return None, True
+
+    ans_low = ans.lower()
+    if not ans_low or ans_low in ("n", "no"):
+        return None, False
+    if ans_low in cancel_words:
+        print(f"cancelled; {label} unchanged")
+        return None, True
+
+    shown: List[Tuple[str, str]] = list(catalog)
+    prefill_cmd: Optional[str] = None
+    if ans_low in ("l", "list", "?"):
+        prefill_cmd = "l"
+    elif (
+        ans_low in ("s", "search")
+        or ans_low.startswith("/")
+        or ans_low.startswith("s ")
+    ):
+        prefill_cmd = ans
+    elif ans_low not in ("y", "yes"):
+        if _model_re().match(ans):
+            return ans, False
+        print(f"{label} unchanged")
+        return None, False
+
+    pattern = _model_re()
+    while True:
+        if prefill_cmd is not None:
+            raw = prefill_cmd
+            prefill_cmd = None
+        else:
+            try:
+                raw = ask(
+                    f"Enter {label} (<provider>/<model>, #, 'l' list, '/query' search, or 'c'/Enter cancel): "
+                ).strip()
+            except (EOFError, KeyboardInterrupt):
+                print(f"\ncancelled; {label} unchanged")
+                return None, True
+
+        low = raw.lower()
+        if not raw or low in cancel_words:
+            print(f"cancelled; {label} unchanged")
+            return None, True
+
+        if low in ("l", "list", "?"):
+            shown = list(catalog)
+            print(f"\navailable models ({len(shown)}):")
+            _print_model_choices(shown, current=current, newly_added=newly_added)
+            continue
+
+        if low in ("s", "search"):
+            try:
+                query = ask("Search filter (blank to go back, 'c' to cancel): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print(f"\ncancelled; {label} unchanged")
+                return None, True
+            if query.lower() in cancel_words:
+                print(f"cancelled; {label} unchanged")
+                return None, True
+            if not query:
+                continue
+            shown = _filter_model_choices(catalog, query)
+            print(f"\nmatches for {query!r} ({len(shown)}):")
+            _print_model_choices(shown, current=current, newly_added=newly_added)
+            continue
+
+        if raw.startswith("/") or low.startswith("s ") or low.startswith("search "):
+            if raw.startswith("/"):
+                query = raw[1:].strip()
+            elif low.startswith("s "):
+                query = raw[2:].strip()
+            else:
+                query = raw[7:].strip()
+            if not query:
+                shown = list(catalog)
+                print(f"\navailable models ({len(shown)}):")
+                _print_model_choices(shown, current=current, newly_added=newly_added)
+            else:
+                shown = _filter_model_choices(catalog, query)
+                print(f"\nmatches for {query!r} ({len(shown)}):")
+                _print_model_choices(shown, current=current, newly_added=newly_added)
+            continue
+
+        if raw.isdigit():
+            idx = int(raw)
+            if 1 <= idx <= len(shown):
+                return shown[idx - 1][0], False
+            print(
+                f"warning: selection #{idx} out of range (1..{len(shown)}); try again or 'c' to cancel"
+            )
+            continue
+
+        if pattern.match(raw):
+            return raw, False
+
+        print(
+            f"warning: '{raw}' is not a valid provider/model, #, or command; enter 'l' to list, '/query' to search, or 'c' to cancel"
+        )
+
+
 def run(
     argv: Optional[List[str]] = None,
     fetch: Optional[Callable[[str, str], Optional[Any]]] = None,
@@ -1687,55 +1886,6 @@ def run(
             config["small_model"] = target_small
             small_changed = True
 
-    from agent_workflows import term as _term
-
-    is_interactive = (
-        (input_fn is not None or _term.is_interactive())
-        and not is_agent_or_json
-        and not getattr(args, "no_interactive", False)
-        and not args.default_model
-    )
-
-    if is_interactive and not args.default_model:
-        ask = input_fn if input_fn is not None else input
-        try:
-            ans = (
-                ask(f"Change default model (current: {curr_default})? [y/N]: ")
-                .strip()
-                .lower()
-            )
-            if ans in ("y", "yes"):
-                choice = ask("Enter new default model (<provider>/<model>): ").strip()
-                if choice:
-                    if _model_re().match(choice):
-                        config["model"] = choice
-                        model_changed = True
-                        print(f"default model updated to: {choice}")
-                    else:
-                        print(
-                            f"warning: '{choice}' is not a valid provider/model identifier; skipped"
-                        )
-                ans_sm = (
-                    ask(f"Change small model (current: {curr_small})? [y/N]: ")
-                    .strip()
-                    .lower()
-                )
-                if ans_sm in ("y", "yes"):
-                    choice_sm = ask(
-                        "Enter new small model (<provider>/<model>): "
-                    ).strip()
-                    if choice_sm:
-                        if _model_re().match(choice_sm):
-                            config["small_model"] = choice_sm
-                            small_changed = True
-                            print(f"small model updated to: {choice_sm}")
-                        else:
-                            print(
-                                f"warning: '{choice_sm}' is not a valid provider/model identifier; skipped"
-                            )
-        except (EOFError, KeyboardInterrupt):
-            pass
-
     total_harness_added = sum(len(models) for models in harness_added.values())
     has_changes = bool(mutated or total_harness_added or model_changed or small_changed)
 
@@ -1778,8 +1928,6 @@ def run(
         return get_renderer(ctx).emit(res, ctx)
 
     print(f"config: {target.path}")
-    print(f"current default model: {curr_default}")
-    print(f"current small model: {curr_small}")
     print("\ndiscovered harnesses:")
     for h_name in ("agy", "claude", "codex", "kiro"):
         h = harnesses.get(h_name)
@@ -1817,24 +1965,89 @@ def run(
         for item in added_list:
             print(f"  + ADDED   {item}")
 
+    backup_done = False
+    if has_changes and not is_dry_run:
+        text = serialize(config, detect_indent(original))
+        backup_path = write_config(
+            target.path, text, backup=not args.no_backup, original=original
+        )
+        backup_done = True
+        if backup_path is not None:
+            print(f"backup: {backup_path}")
+        print(f"wrote: {target.path}")
+
     if model_changed:
         print(f"default model: {curr_default} -> {config.get('model')}")
+    else:
+        print(f"current default model: {curr_default}")
     if small_changed:
         print(f"small model: {curr_small} -> {config.get('small_model')}")
+    else:
+        print(f"current small model: {curr_small}")
 
-    if not has_changes:
-        return 0
-    if is_dry_run:
-        print("\npreview only; re-run without --dry-run to write")
-        return 0
+    from agent_workflows import term as _term
 
-    text = serialize(config, detect_indent(original))
-    backup_path = write_config(
-        target.path, text, backup=not args.no_backup, original=original
+    is_interactive = (
+        (input_fn is not None or _term.is_interactive())
+        and not getattr(args, "no_interactive", False)
+        and not args.default_model
     )
-    if backup_path is not None:
-        print(f"backup: {backup_path}")
-    print(f"wrote: {target.path}")
+
+    interactive_changed = False
+    if is_interactive:
+        ask = input_fn if input_fn is not None else input
+        catalog = _collect_selectable_models(config)
+        newly_added = frozenset(
+            [f"{o.name}/{mid}" for o in outcomes for mid in o.added]
+            + [f"{prov}/{mid}" for prov, mids in harness_added.items() for mid in mids]
+        )
+        eff_default = config.get("model") or "(not set)"
+        chosen_default, aborted = _prompt_model_selection(
+            ask,
+            label="default model",
+            current=eff_default,
+            catalog=catalog,
+            newly_added=newly_added,
+        )
+        if chosen_default and chosen_default != config.get("model"):
+            config["model"] = chosen_default
+            interactive_changed = True
+            print(f"default model: {eff_default} -> {chosen_default}")
+        elif chosen_default and chosen_default == config.get("model"):
+            print(f"default model remains: {chosen_default}")
+
+        if not aborted and chosen_default is not None and not args.small_model:
+            eff_small = (
+                config.get("small_model") or config.get("smallModel") or "(not set)"
+            )
+            chosen_small, _ = _prompt_model_selection(
+                ask,
+                label="small model",
+                current=eff_small,
+                catalog=catalog,
+                newly_added=newly_added,
+            )
+            if chosen_small and chosen_small != config.get("small_model"):
+                config["small_model"] = chosen_small
+                interactive_changed = True
+                print(f"small model: {eff_small} -> {chosen_small}")
+            elif chosen_small and chosen_small == config.get("small_model"):
+                print(f"small model remains: {chosen_small}")
+
+        if interactive_changed and not is_dry_run:
+            text = serialize(config, detect_indent(original))
+            backup_path = write_config(
+                target.path,
+                text,
+                backup=(not args.no_backup and not backup_done),
+                original=original,
+            )
+            if backup_path is not None:
+                print(f"backup: {backup_path}")
+            print(f"wrote: {target.path}")
+
+    if is_dry_run and (has_changes or interactive_changed):
+        print("\npreview only; re-run without --dry-run to write")
     return 0
 
 
