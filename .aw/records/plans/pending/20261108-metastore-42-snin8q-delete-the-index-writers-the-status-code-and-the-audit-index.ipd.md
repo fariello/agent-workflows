@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). `9o83cr` E-03 (INDEX writers), E-06 (STATUS code), E-07 (`_INDEX_CACHE`) and this plan's baseline E-01 now run in eight earlier parts: baseline `54a80m` (Order 230); test retargets `f6y2yy` (231) and `6966zq` (232); plans, research and prompts writers `uopi8z` (233), `s6k01k` (234), `drav0u` (235); STATUS renderer `3v2ew2` (236); audit cache `h3jp4e` (237). This plan keeps the one E-03 member shared by all three index modules, the `artifact_core.emit_index_write_result` and `emit_index_check_result` helpers (new id E-18), and the family-wide finish E-17. EXCLUDES: the aliases, regeneration calls and stale-index rules (Order 41, `q6epwc`); value writers, adapters and parsers (Orders 43 to 46); the AC-1 test, audit and documents (`9o83cr`); on-disk INDEX files and skip names (`cxxmyv`).
 - Scope-Paths: agent_workflows/artifact_core.py, .aw/records/plans/pending/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:3v2ew2, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:drav0u, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:h3jp4e, executed:q6epwc, executed:s6k01k, executed:t4gl15, executed:uopi8z
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 18
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snin8q
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005; review record .aw/records/reviews/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.review.md
 

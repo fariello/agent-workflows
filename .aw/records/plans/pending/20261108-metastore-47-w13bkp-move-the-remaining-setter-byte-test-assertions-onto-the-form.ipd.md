@@ -6,7 +6,7 @@
 - Scope: `cxxmyv` E-07 (setter-byte half), split: batch S14 converts a named module subset (6 modules, 23 candidate lines at the split); E-11 finishes and assembles the S11 to S14 F-28 table. Batches S11 to S13 (E-01 to E-03) moved to `qtvk2q`, `cxylsu` and `810kpy` on 2026-11-09 (round-3 split). Batches S15 to S20 moved to `aqc3m6` (Order 61) and `zgyna1` (Order 62) on 2026-11-08. The helper is in `iog3cw` (Order 44). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code.
 - Scope-Paths: tests/test_set_dispatch_parity.py, tests/test_set_refuses_review_record.py, tests/test_spec_id6_filenames.py, tests/test_spec_production.py, tests/test_spec_review_gate_kind.py, tests/test_specs_evidence_gate_parity.py, .aw/records/plans/pending/20261108-metastore-47-w13bkp-move-the-remaining-setter-byte-test-assertions-onto-the-form.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4, executed:qtvk2q, executed:cxylsu, executed:810kpy
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: w13bkp
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 (S11 to S13) moved to qtvk2q (S11 first eight modules), cxylsu (S12 first eight modules) and 810kpy (`tests/test_question_visibility.py`, the last two S12 modules, and S13).

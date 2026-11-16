@@ -6,7 +6,7 @@
 - Scope: `y97k46` E-04 (move the execution-path reads) and E-05 (own-log finalize scope), carried unchanged. EXCLUDES: the search rows, the pin and the selection move (`k86yq7`, Order 147); the runner residual audit (kept in `y97k46`); every writer (Orders 06/07).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, tests/test_readers_runner.py, .aw/records/plans/pending/20261109-metastore-152-k3hb06-move-the-runner-execution-reads-onto-artifact-meta-and-add-t.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:k86yq7
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k3hb06
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from y97k46 (round 3, research nj8zdp guidance).

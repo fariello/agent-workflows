@@ -6,7 +6,7 @@
 - Scope: Pin then move the release-gate and close readers of `check_engine` (`evaluate_blocking_close`, `check_release_gate_consistency` working-tree half, `release_gate_warnings`, `check_live_bug_gate`, `check_decision_ref_dangling`, the From-Backlog carrier readers and the close-date history read) onto `artifact_meta` (`ffceq0` E-06 and E-07, partitioned). EXCLUDES: the other check_engine subsets (Orders 29, 30, 32) and the staged-content half of `check_release_gate_consistency` (`t4gl15`).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_check_engine_release_gate.py, tests/test_from_backlog_cardinality.py, .aw/records/plans/pending/20261107-metastore-31-i3b5zu-move-the-check-engine-release-gate-and-from-backlog-readers.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: i3b5zu
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261107-metastore-31-i3b5zu-move-the-check-engine-release-gate-and-from-backlog-readers.review.md

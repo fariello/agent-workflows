@@ -6,7 +6,7 @@
 - Scope: Move `agent_workflows/plans_refs.py::_set_metadata` onto `artifact_meta.render_legacy_text` and its caller `agent_workflows/plans_refs.py::apply_renames` onto `artifact_meta.append` and `artifact_meta.write_legacy` with pre-batch `dry_run=True` and `- Order:` grammar validation (`bsl45u` E-01, `plans_refs` subset), and confirm `agent_workflows/plans_archive.py::apply_shard_moves` stays a pure move. EXCLUDES: `artifact_rename` (`1hfmpb`), research shelf verbs (`9gy5jk`), `rename` and path events (`cxxmyv`).
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-128-fnu6kw-move-the-plans-refs-regroup-field-writers-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:1hfmpb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fnu6kw
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-128-fnu6kw-move-the-plans-refs-regroup-field-writers-onto-artifact-meta.review.md

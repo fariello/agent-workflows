@@ -6,7 +6,7 @@
 - Scope: Round-3 split 2026-11-09: E-05 moved to `6jd6mh`, E-15 and E-14 to `wilgfy`, E-06 to `724acb`, E-18 to `v45j1n`. This plan keeps E-19, the one-commit mechanism of `cxxmyv` E-17 (an explicit extra-path list for `m0001`'s commit step, with the spec 5.2 step 7 amendment); and a finishing item E-20 that re-checks dormancy for the whole family. EXCLUDES: the format switch (`cxxmyv` E-03), retiring the sidecar writer, the rename ledger, the INDEX ignore lines and skip names (`cxxmyv` E-04), the builder switch (`cxxmyv` E-07), the documentation patch (`cxxmyv` E-08), the `Kind` option renames (`cxxmyv` E-16), the rehearsal, the real migration and every real-repository demonstration (`cxxmyv` E-01, E-02, E-09 to E-13, E-17).
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, tests/test_m0001_extra_paths.py, .aw/records/plans/pending/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4, executed:6jd6mh, executed:wilgfy, executed:724acb, executed:v45j1n
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 20
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: clors0
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 This plan conforms to the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.review.md

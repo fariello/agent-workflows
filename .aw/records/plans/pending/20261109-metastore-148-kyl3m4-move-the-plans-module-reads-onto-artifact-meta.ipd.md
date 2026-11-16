@@ -6,7 +6,7 @@
 - Scope: (a) `jd7874` E-01: save the INDEX baseline before any code edit of the `jd7874` family, and record the 4.4 search rows for the 31 files outside the gate and runner files. (b) `jd7874` E-02: pin, then move, the plans modules (`plans_index`, `plans_archive`, `plans_refs` read side, `ipd_set_plan`, `completion`). EXCLUDES: the research and prompts modules and the banner fix (`cb5eda`, Order 153); the residual audit (kept in `jd7874`); deleting the INDEX writers (Order 11).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/plans_archive.py, agent_workflows/plans_refs.py, agent_workflows/ipd_set_plan.py, agent_workflows/completion.py, tests/test_readers_record_modules.py, tests/test_plans_index.py, .aw/records/plans/pending/20261109-metastore-148-kyl3m4-move-the-plans-module-reads-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kyl3m4
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-148-kyl3m4-move-the-plans-module-reads-onto-artifact-meta.review.md

@@ -6,7 +6,7 @@
 - Scope: `2zpw22` E-01 (review findings, audit and review subject lookups), carried unchanged. EXCLUDES: the review sequence, tier, re-review and orchestrator readiness modules (`0i0zsg`, Order 150); the production-check, work and adoption modules (`awmsyq`, Order 154); the residual audit (kept in `2zpw22`); the `->reviewed` gate-only attestation rule (`2xwb9b`).
 - Scope-Paths: agent_workflows/review_findings.py, agent_workflows/artifact_audit.py, agent_workflows/reviews.py, tests/test_readers_review_modules.py, tests/test_artifact_audit_verdicts.py, .aw/records/plans/pending/20261109-metastore-149-y4spqy-move-the-review-findings-audit-and-reviews-module-reads-onto.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,8 +18,10 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y4spqy
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 2zpw22 (round 3, research nj8zdp guidance).

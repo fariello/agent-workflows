@@ -6,7 +6,7 @@
 - Scope: Move `agent_workflows/plan_readiness.py::recheck_readiness` (`8q27jt` E-01) and `agent_workflows/coverage_record.py::write` (`8q27jt` E-02) onto `agent_workflows/artifact_meta.py::append`, decouple `- Coverage-Checked:` model attribution from `LegacyRender.actor_label` in `agent_workflows/artifact_meta.py`, and create `tests/test_writers_obligations.py` with the `4sd62s` AC-15 (1)-(3) and AC-14a (1)-(2) readiness and coverage refusal cases, which `xexn45` E-13 extends. EXCLUDES: finalize scope fields (`9qhtrc`, `1dvb08`), retirement (`8q27jt`), and the `status_set` engine (`2xwb9b`).
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/readiness_recheck.py, agent_workflows/coverage_record.py, agent_workflows/artifact_meta.py, tests/test_writers_obligations.py, .aw/records/plans/pending/20261109-metastore-130-d4w53g-move-the-readiness-re-check-and-coverage-writers-onto-artifa.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: d4w53g
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-130-d4w53g-move-the-readiness-re-check-and-coverage-writers-onto-artifa.review.md

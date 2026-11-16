@@ -6,7 +6,7 @@
 - Scope: Part of `k6jd6l` E-08: the copy of the `backlog` and `research_cmd` writers and the change of every production caller to `artifact_meta.append` (or the private copy, inside `artifact_meta`). EXCLUDES: test retargets (Orders 282, 283) and deleting the originals (Order 284).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, .aw/records/plans/pending/20261109-metastore-281-h1kfyp-copy-the-backlog-and-research-value-writers-and-retarget-the.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6bxlzb, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: h1kfyp
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

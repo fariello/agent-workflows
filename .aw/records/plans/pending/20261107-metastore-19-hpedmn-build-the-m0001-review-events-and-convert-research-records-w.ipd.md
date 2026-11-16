@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/migrations/m0001_convert.py`, add the `review` events of every subject, the log builder for research records, walkthroughs and the roadmap, and the `roadmap` registry entry in `artifact_meta.py` (`dcerjg` E-09 subset), and the file rewrite for research records, walkthroughs, the roadmap and review files (`dcerjg` E-10 subset), with their tests (subset of `dcerjg` E-14). EXCLUDES: the five types `ghhzb6` converts; the census and round trip (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_convert.py, agent_workflows/artifact_meta.py, tests/test_m0001_review_conversion.py, .aw/records/plans/pending/20261107-metastore-19-hpedmn-build-the-m0001-review-events-and-convert-research-records-w.ipd.md
 - Item-Dependencies: executed:tve77h, executed:vxevph, executed:dky26u, executed:ghhzb6
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,8 +18,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hpedmn
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 review per research nj8zdp; within the guidance, no items moved; V-03 evidence now names the per-type node ids beside the summary line.

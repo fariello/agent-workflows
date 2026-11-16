@@ -6,7 +6,7 @@
 - Scope: Integration and finishing part of the `m0001` build, after its parts (`g8na48` chain, `metadata_schema` stamp, read-path hook, and `aw check` baseline; `vxevph` preflight, journal, and sidecar; `1vfqdu` CLI group, bare `aw migrate`, and install prompt; `dky26u` renames and citations; `ghhzb6` and `hpedmn` conversion; `o19353` terminal marker and cleanup): the step-6 field census (E-12), the round-trip verifier plus step-6 stamp, idempotency guard, and step-7 commit wiring in `m0001_metadata_v2.run` (E-13), `tests/test_m0001_roundtrip.py` plus the end-of-family run of all ten `m0001` test modules (E-14), the proof on a disposable clone of this repository with installed commit hooks (E-15), and the `CHANGELOG.md` line and validation gates (E-16). Everything runs ONLY on `tmp_path` test fixtures and on a disposable clone; this plan never migrates this checkout. EXCLUDES: every item moved to the parts above (see Deferred); multi-repository layout/shape discovery, id-less record conversion, and five-shape corpus parity (`4sd62s` C12, 5.2a, AC-42: `9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`, `g5hpbb`); the description journal and model generation (Order 05: `odeo9z`, `830wku`, `ya4ee4`); explicit `--include-paths` commit staging (`clors0` E-19); switching the toolkit's loader and writer to logs, moving the legacy loader into `m0001`, the real cutover run, and flipping `CURRENT_METADATA_SCHEMA` to 2 (Order 13, `cxxmyv`); removing the sidecar writer and the `history.jsonl` lines from `engine.py` and `placement_switch.py` (Order 13, `cxxmyv`); deleting INDEX/STATUS code (Order 11, `9o83cr`); and `aw check meta` (Order 08, `ffceq0`).
 - Scope-Paths: agent_workflows/migrations/m0001_verify.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_roundtrip.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md
 - Item-Dependencies: executed:tve77h, executed:g8na48, executed:vxevph, executed:1vfqdu, executed:dky26u, executed:ghhzb6, executed:hpedmn, executed:o19353
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -17,11 +17,13 @@
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dcerjg
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-010..PR-015 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-010..PR-015 FIXED; review record .aw/records/reviews/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-11 (and the gate-marker module of E-14) moved to o19353.

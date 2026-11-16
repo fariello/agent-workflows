@@ -6,7 +6,7 @@
 - Scope: (a) The 4.4 search rows for `plan_readiness`, `ipd_lifecycle` and `artifact_meta` (the rest of `h58z9n` E-01's file subset; `snh19k` writes the `check_engine` and hook rows). (b) `h58z9n` E-04, divided into the setter, staleness and lifecycle readers (E-02) and the five `runner_shared` merge-path readers (E-03). EXCLUDES: the `check_engine` git readers and the hooks (`snh19k`), every other runner read (`y97k46` and its round-3 part), the residual audit (kept in `h58z9n`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/plan_readiness.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/artifact_meta.py, tests/test_readers_read_at_gates.py, .aw/records/plans/pending/20261109-metastore-146-iqhzse-move-the-setter-staleness-lifecycle-and-runner-merge-path-gi.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:snh19k
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iqhzse
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-146-iqhzse-move-the-setter-staleness-lifecycle-and-runner-merge-path-gi.review.md

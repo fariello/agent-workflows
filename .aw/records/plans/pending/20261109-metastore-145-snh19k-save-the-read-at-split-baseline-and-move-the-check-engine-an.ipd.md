@@ -6,7 +6,7 @@
 - Scope: (a) Save the split-wide `aw check all --agent` baseline that must precede every code edit of the `t4gl15` family (formerly part of `h58z9n` E-01) and record it as table F-10 here. (b) The 4.4 search rows for `check_engine` and the two blob-reading hooks (the rest of `h58z9n` E-01's file subset goes to `iqhzse`). (c) `h58z9n` E-02: the `check_engine` git-content readers. (d) `h58z9n` E-03: the four hooks. EXCLUDES: the setter, staleness, lifecycle and runner merge-path readers (`iqhzse`, Order 146); the residual audit (kept in `h58z9n`); everything else of `t4gl15`.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/hooks/status_untooled_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_readers_read_at_gates.py, .aw/records/plans/pending/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,8 +18,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snh19k
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from h58z9n (round 3, research nj8zdp guidance).

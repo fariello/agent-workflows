@@ -6,7 +6,7 @@
 - Scope: Phase B step 6 (`4sd62s` section 7), FINISHING PART after the 2026-11-07 split. The builder, its tests, the baselines and the tracked-fixture conversion moved to `9rgn2w` (Order 37); batch subsets G1a to G7a moved to `x05v02` (Order 38), `7qxey9` (Order 39) and `nbfg7w` (Order 40). Round-3 split (2026-11-09, research `nj8zdp` guidance): 22 G7b modules moved to `vaqtii`, `30zur4`, `9jmt3w` and the out-of-batch helper deletions to `1bshrb`. This plan keeps: the shared helpers `tests/support.py` and `tests/conformance_matrix.py`, edited last, and the G7 late-module catch-up (E-09); the single-switch-point proof and the F-06 census of every remaining legacy string (E-11); the full-suite comparison, core-gate timing, `make test-all`, `aw check` comparison and commit (E-12). EXCLUDES: changing production code; tests whose subject IS the legacy text format (the F-03 EXCLUDED list), which are listed and left unchanged; the review-pilot plan corpus (F-05); changing the builder's on-disk output to the log format (Order 13, `cxxmyv`).
 - Scope-Paths: tests/support.py, tests/conformance_matrix.py, tests/test_record_builder.py, .aw/records/plans/pending/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
 - Item-Dependencies: executed:1upea0, executed:7qxey9, executed:9rgn2w, executed:g5hpbb, executed:nbfg7w, executed:tve77h, executed:x05v02, executed:xexn45, executed:653ndz, executed:j6o96i, executed:ijpay0, executed:y3uowx, executed:j2xjtt, executed:7fpc8v, executed:id2pdx, executed:2fn0vd, executed:isj48z, executed:dg43sc, executed:wirc2e, executed:872zd9, executed:zl2pki, executed:jutivt, executed:52rpc1, executed:2zo3g5, executed:qqaqw8, executed:xxiou0, executed:3k142n, executed:2etvye, executed:80p88l, executed:qb3n9s, executed:723ct1, executed:i29bd5, executed:v1t2ai, executed:hp6ydi, executed:lf0fe4, executed:jjvnhb, executed:f8jntm, executed:a1b70x, executed:j5mwpk, executed:abf6yk, executed:qjxcgf, executed:0punmn, executed:2ll84l, executed:9hk3rh, executed:5mg9g1, executed:1cgrgp, executed:z8hu7r, executed:tsonlq, executed:erulw3, executed:vaqtii, executed:30zur4, executed:9jmt3w, executed:z4x192, executed:9zcuyh, executed:1bshrb, executed:n0li9v, executed:b3eilr
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 13
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 59aiyh
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-09 (22 G7b modules) moved to vaqtii, 30zur4, 9jmt3w; E-09 (out-of-batch helper deletions) moved to 1bshrb; added executed edges to every round-3 part (48 plans, Orders 170 to 216) so this plan stays the family's last part.

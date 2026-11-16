@@ -6,7 +6,7 @@
 - Scope: Finishing part of the any-repository family, after its parts built the corpus (`9vf2iv`), the multi-shape cache scan and stable id-less identity (`6oi2nu`), discovery and id-less conversion (`3g20ms`), and the layout stage with no-sidecar and companion handling (`bv4kkj`): prove AC-42 on each corpus shape and on a copy of this repository in `tests/test_m0001_any_repo.py` (E-07), then the CHANGELOG line, the append-only `tve77h` history pointer, the gates and the commit (E-08). EXCLUDES: every item moved to the parts above (see Deferred); this repository's attended cutover (`cxxmyv`); short-description generation (`ya4ee4`); moving any reader or writer onto the cache (Orders 07 to 11); shapes no toolkit release has written (4sd62s 3c).
 - Scope-Paths: tests/test_m0001_any_repo.py, tests/slow_allowlist.txt, CHANGELOG.md, .aw/records/plans/executed/20261102-metastore-02-tve77h-build-the-artifact-meta-core-registry-event-schema-append-ke.ipd.md, .aw/records/plans/pending/20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv, executed:6oi2nu, executed:3g20ms, executed:bv4kkj
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,8 +18,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g5hpbb
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 to E-06 (and the shapes module of E-07) moved to 9vf2iv, 6oi2nu, 3g20ms, bv4kkj.

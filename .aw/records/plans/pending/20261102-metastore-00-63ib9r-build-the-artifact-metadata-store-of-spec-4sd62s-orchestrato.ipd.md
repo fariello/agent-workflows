@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the 212 children below (14 top-level families and their split parts) in dependency order and confirm each reaches `executed`. No code, test or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Coverage: pass
@@ -20,11 +20,13 @@
 - Highest E allocated: 212
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: orchestrator
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED
 - 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED; review record .aw/records/reviews/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.review.md
 - 2026-11-13 coverage pass (aw oc run): fingerprint 702f3b688c5b, model uri/its_direct/pt3-claude-opus-5.5-1m-us

@@ -6,7 +6,7 @@
 - Scope: Part 1 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-13 (baselines, with F-10) and E-01 (the builder), E-01 split into E-01 (class, rules, four methods), E-15 (the other four methods) and E-16 (the `support.ready_plan_text` supersession), plus the finishing item E-17. EXCLUDES: the builder's test module (`ijpay0`); the tracked-fixture conversion (`7fpc8v`, `z4x192`, `9zcuyh`, `9rgn2w`); every test-module batch; production code; the log format (Order 13).
 - Scope-Paths: tests/record_builder.py, tests/support.py, tests/fixtures/record_builder/ready_plan_text_golden.json, .aw/records/plans/pending/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: j6o96i
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.review.md

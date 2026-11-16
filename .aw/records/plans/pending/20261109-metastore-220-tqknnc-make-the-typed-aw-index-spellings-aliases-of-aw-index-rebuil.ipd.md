@@ -6,7 +6,7 @@
 - Scope: the alias function, its three `TYPE_BACKENDS` entries, its `command_surface` leaf, the `cli.py` research branch and help strings, the prompts content-drift wiring in `check_engine.check_content`, and the new test module `tests/test_index_aliases.py` (minus its `producers` case, which Order 223 of the split adds). EXCLUDES: deleting any automatic regeneration call (Orders 221 to 223), the stale-index rules (Orders 224 and 225), the documents (Orders 226 and 227), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/artifact_types.py, agent_workflows/command_surface.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/test_index_aliases.py, .aw/records/plans/pending/20261109-metastore-220-tqknnc-make-the-typed-aw-index-spellings-aliases-of-aw-index-rebuil.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tqknnc
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, alias wiring, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).

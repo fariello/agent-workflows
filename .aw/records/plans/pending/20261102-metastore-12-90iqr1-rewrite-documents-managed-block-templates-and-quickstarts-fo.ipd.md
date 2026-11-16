@@ -6,7 +6,7 @@
 - Scope: FINISHING part of the cutover documentation patch. The content of the ONE cumulative patch file `.aw/system/cutover/metastore-docs.cutover.patch` is written by `qhay6a`, `a49djh`, `y1zihp` and `ngc2a2` (round-3 split 2026-11-09); this plan adds the guard test that keeps the patch applying, checks the patched tree with the sanitizer and the text-asserting tests, and commits. It does not apply the patch to the live documents. Order 13 (`cxxmyv`) applies the patch inside the cutover commit.
 - Scope-Paths: .aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md, tests/test_metastore_cutover_patch.py
 - Item-Dependencies: executed:9o83cr, executed:qhay6a, executed:a49djh, executed:y1zihp, executed:ngc2a2
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -17,11 +17,13 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 90iqr1
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: standard
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-201, PR-202, PR-203, PR-204.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 moved to qhay6a (plus a new patch-writing step), E-03, E-04, E-07 moved to a49djh, E-05 split across y1zihp (READMEs, docs, ipd_schema, reference and prompt documents) and ngc2a2 (Kind renames, cli.py help), E-06 moved to ngc2a2, E-08 (package the patch) replaced by the cumulative patch-writing step in each of the four parts; E-09 and E-10 kept.
 - 2026-11-07 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: maintainer direction 2026-11-07: paused before re-review; the metastore plans MUST build the tools that migrate ANY repo from ANY prior format (.agents layout, id-less/untitled records, no sidecar), not only this repository. Re-review against the amended spec 4sd62s before re-approval.

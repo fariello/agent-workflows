@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). The `check_engine`, runner and setter/release subsets of `9o83cr` E-12 and this plan's baseline now run in six earlier parts: shared baseline and site table F-26 `786w7r` (Order 238); `check_engine` parsers and their external callers `7uq6xg` (239), named patterns `js35bz` (240), inline literals `bcrko1` (241); runner `k6nukd` (242); setter and release `kmf6w4` (243). This plan keeps only E-17 (split into E-17 and new E-21): the family re-run, a final sweep of comments citing a deleted symbol, and the comparison against the `786w7r` baseline. EXCLUDES: every other module's literals (Order 46, `0xsx2n`), the record text readers and grammars (Order 43, `k6jd6l`), and the AC-1 audit (`9o83cr`).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/runner_shared.py, agent_workflows/status_set.py, agent_workflows/releases.py, .aw/records/plans/pending/20261108-metastore-45-e8420v-delete-the-check-engine-runner-setter-and-release-metadata-p.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:bcrko1, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:js35bz, executed:k6jd6l, executed:k6nukd, executed:kmf6w4, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 21
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: e8420v
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261108-metastore-45-e8420v-delete-the-check-engine-runner-setter-and-release-metadata-p.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to 786w7r; E-12 split across 7uq6xg, js35bz, bcrko1; E-19 moved to k6nukd; E-20 moved to kmf6w4 (its `tools/gate_drop_audit.py` `_status_meta` retarget to 7uq6xg); E-17 kept and split in place into E-17 and E-21.

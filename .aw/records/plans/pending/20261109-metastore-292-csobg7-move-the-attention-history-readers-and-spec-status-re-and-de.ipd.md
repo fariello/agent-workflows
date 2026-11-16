@@ -6,7 +6,7 @@
 - Scope: The rest of `k6jd6l` E-10: these readers, `SPEC_STATUS_RE`, and deleting `attention_contract.history_block`, `newest_history_record`, `last_history_at` and `SPEC_STATUS_RE`. EXCLUDES `attention_contract.GATE_KIND_RE`, `GATE_REF_RE`, `GATE_SUMMARY_RE` and `HISTORY_RECORD_RE` (Order 248, `tdhav3`), and the `specs._read_*` readers (Order 297).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/specs.py, agent_workflows/research_index.py, agent_workflows/attention_contract.py, tests/test_attention_contract.py, tests/test_history_block_bounding.py, .aw/records/plans/pending/20261109-metastore-292-csobg7-move-the-attention-history-readers-and-spec-status-re-and-de.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:ay6sxp, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: csobg7
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, deletion targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

@@ -6,7 +6,7 @@
 - Scope: Part of the round-3 split of `59aiyh` E-09 (2026-11-09, research `nj8zdp` guidance): the helper deletions in the 8 test modules outside every batch (E-36, E-37), plus the census and finish (E-38). EXCLUDES: helpers inside batch modules (each chunk plan deletes its own); `tests/support.py` (`59aiyh` E-09); production code.
 - Scope-Paths: tests/test_lane_submission_retention_narrowing.py, tests/test_suite_baseline_direction.py, tests/test_lifecycle_lane_nudge.py, tests/test_finidem_reusable_not_finalized.py, tests/test_research_set_assign_date_containment.py, tests/test_finalize_trailer_attribution.py, tests/test_finalize_disregarded_record.py, tests/test_research_rename_frontmatter.py, .aw/records/plans/pending/20261109-metastore-215-1bshrb-delete-orphaned-record-building-helpers-in-test-modules-outs.ipd.md
 - Item-Dependencies: executed:1upea0, executed:7qxey9, executed:9rgn2w, executed:g5hpbb, executed:nbfg7w, executed:tve77h, executed:x05v02, executed:xexn45, executed:653ndz, executed:j6o96i
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 38
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1bshrb
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-215-1bshrb-delete-orphaned-record-building-helpers-in-test-modules-outs.review.md

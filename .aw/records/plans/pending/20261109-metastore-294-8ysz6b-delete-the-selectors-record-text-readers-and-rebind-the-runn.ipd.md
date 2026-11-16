@@ -6,7 +6,7 @@
 - Scope: The `selectors` reader part of `k6jd6l` E-11 subset 1. Production callers in `runner_shared`, `releases`, `status_set`, `ipd_lint` and `attention` are moved by `ffceq0` and `t4gl15` (dependencies); any that Order 280's F-25 still lists live is handled here with `--scope-reason`. EXCLUDES `selectors.metadata_region` (Orders 293 and 296), the `plans` and `prompts` readers (Orders 295, 296).
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/artifact_meta.py, tests/test_front_matter_loose_whitespace.py, tests/test_history_order.py, tests/test_fixfirst_end_to_end.py, tests/test_blocks_release_reader_bounding.py, .aw/records/plans/pending/20261109-metastore-294-8ysz6b-delete-the-selectors-record-text-readers-and-rebind-the-runn.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:71ewpn, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8ysz6b
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

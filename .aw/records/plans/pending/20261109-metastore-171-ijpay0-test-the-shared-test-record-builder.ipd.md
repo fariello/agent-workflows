@@ -6,7 +6,7 @@
 - Scope: Part 2 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-02 (`tests/test_record_builder.py`), split into E-02 (groups (a), (b), (f)), E-18 (c), E-19 (d) and E-20 (e), plus the finishing item E-21 that applies the 10 s bound. EXCLUDES: the builder itself (`j6o96i`); the fixture conversion; production code; the switch-point test (`59aiyh` E-11).
 - Scope-Paths: tests/test_record_builder.py, tests/slow_allowlist.txt, .aw/records/plans/pending/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45, executed:j6o96i
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 21
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ijpay0
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.review.md

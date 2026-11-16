@@ -6,7 +6,7 @@
 - Scope: Batch S08 (`rdg0qv` E-01): 6 modules, 24 candidate lines at `ac76110f4`, as S08a and S08b. EXCLUDES the `rdg0qv` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_handoff_ready_gate.py, tests/test_implementing_spec_replan.py, tests/test_ipd_lifecycle_cli.py, tests/test_oc_runipd.py, tests/test_orchestrator_retirement.py, tests/test_orchestrator_status_gate.py, .aw/records/plans/pending/20261109-metastore-270-wdz2l9-move-setter-byte-assertions-of-batch-s08-onto-the-format-awa.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wdz2l9
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261109-metastore-270-wdz2l9-move-setter-byte-assertions-of-batch-s08-onto-the-format-awa.review.md

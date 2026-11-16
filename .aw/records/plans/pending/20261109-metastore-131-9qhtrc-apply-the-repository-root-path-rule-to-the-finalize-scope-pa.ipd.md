@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/artifact_meta.py::validate_new_events` and `agent_workflows/artifact_meta.py::_check_path_safety`, enforce `records_root` containment on `path` only, enforce `repo_root` containment on `out_of_scope_paths` and `widened_paths` with relative, no-`..`, strict-subpath, string-safety, and leak-sanitizer checks, forward `repo_root` from `append` and legacy writer entry points, create `tests/test_writers_scope_fields.py` for the OQ-03 path-root and refusal cases, and amend spec `4sd62s` Section 4.2 (`8q27jt` E-03, path-root subset). EXCLUDES: writing `scope_result`, `out_of_scope_paths`, and `widened_paths` at finalize (plan `1dvb08`, finalize scope fields).
 - Scope-Paths: agent_workflows/artifact_meta.py, tests/test_writers_scope_fields.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261109-metastore-131-9qhtrc-apply-the-repository-root-path-rule-to-the-finalize-scope-pa.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9qhtrc
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-131-9qhtrc-apply-the-repository-root-path-rule-to-the-finalize-scope-pa.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 8q27jt (round 3, research nj8zdp guidance).

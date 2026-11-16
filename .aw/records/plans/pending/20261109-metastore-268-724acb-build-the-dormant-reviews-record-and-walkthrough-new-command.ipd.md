@@ -6,7 +6,7 @@
 - Scope: `clors0` E-06, split: `aw reviews record`; `aw walkthrough new`; the two `command_surface` leaves and the `aw reviews` namespace text. `aw meta repair` is NOT here (`ffceq0` E-11).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/reviews.py, agent_workflows/set_records.py, agent_workflows/command_surface.py, tests/test_reviews_record_walkthrough_new.py, tests/test_command_surface_declarations.py, .aw/records/plans/pending/20261109-metastore-268-724acb-build-the-dormant-reviews-record-and-walkthrough-new-command.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 724acb
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261109-metastore-268-724acb-build-the-dormant-reviews-record-and-walkthrough-new-command.review.md

@@ -6,7 +6,7 @@
 - Scope: Phase B, section 7 step 7 of `4sd62s`, FINISHING PART after the 2026-11-07 split. The deletions themselves now run in five earlier parts: aliases, regeneration calls, stale-index rules and the INDEX documents (`q6epwc`); INDEX writers, STATUS code and `_INDEX_CACHE` (`snin8q`); value writers, adapters, borrowed grammars and record text readers (`k6jd6l`); `check_engine`, runner, setter and release parsers (`e8420v`); every other metadata regex literal (`0xsx2n`). This plan keeps: (1) the residual audit F-20 after all five parts (E-01); (2) the AC-1 behavioral test (E-13); (3) the AC-1 audit F-21 with its exclusion file (E-14); (4) the final validation and commit (E-16). EXCLUDES: anything that needs the log format or the migrated tree (cutover, `cxxmyv`), and document rewrites for log-based commands (`90iqr1`).
 - Scope-Paths: tests/test_metadata_single_owner.py, .aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:1ajqaa, executed:clors0, executed:59aiyh, executed:dcerjg, executed:e8420v, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:q6epwc, executed:snin8q, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -17,9 +17,11 @@
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9o83cr
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 check per research nj8zdp; already within guidance (0 IPD-Z603), no items moved; V-16 evidence now names the E-13 module and the F-21 recount.

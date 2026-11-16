@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split: move the `status_set` inventory and transition reads onto `artifact_meta`, applying D-6 (`ffceq0` E-15 and E-16, carried here as E-04 and E-05). The `selectors`, `aw find`, `aw search`, `aw ipd board` and `artifact_meta.read_text` work (E-01 to E-03) moved to `cdglt1` (Order 142). EXCLUDES: `attention`, `ipd_lint`, `check_engine`, the meta commands and the cache-parity test.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_artifact_meta_loader_parity.py, .aw/records/plans/pending/20261107-metastore-27-r81uvz-move-selectors-aw-find-aw-ipd-board-and-status-set-reads-ont.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:cdglt1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: r81uvz
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261107-metastore-27-r81uvz-move-selectors-aw-find-aw-ipd-board-and-status-set-reads-ont.review.md

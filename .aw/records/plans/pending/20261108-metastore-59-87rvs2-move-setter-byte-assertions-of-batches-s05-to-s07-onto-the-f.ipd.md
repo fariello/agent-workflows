@@ -6,7 +6,7 @@
 - Scope: `cxxmyv` E-07 (setter-byte half), batches S05, S06, S07 moved verbatim from `iog3cw` (module and class lists unchanged; 8 module entries, 57 candidate lines at the split); E-04 finishes. The helper is `j5fqax` E-01 (formerly `iog3cw` E-01). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code; every other batch.
 - Scope-Paths: tests/test_backlog_set_adapter.py, tests/test_backlog_transition_authority.py, tests/test_backlog_transition_gate.py, tests/test_clean_target_zero_delta_e2e.py, tests/test_doctor.py, tests/test_gate_pair_validation_parity.py, tests/test_gradcover_end_to_end.py, tests/test_group_verb_policy.py, .aw/records/plans/pending/20261108-metastore-59-87rvs2-move-setter-byte-assertions-of-batches-s05-to-s07-onto-the-f.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 87rvs2
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 This plan conforms to the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261108-metastore-59-87rvs2-move-setter-byte-assertions-of-batches-s05-to-s07-onto-the-f.review.md

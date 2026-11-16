@@ -6,7 +6,7 @@
 - Scope: Pin the kept research front-matter behavior in a new characterization module, extend the `artifact_meta` legacy writer's research `---` YAML form where it cannot yet reproduce that behavior, then move the front-matter edit in `research_refs._apply_renames` and the status edit in `research_archive.apply_moves` onto `artifact_meta.append` (`bsl45u` E-01, research subset). EXCLUDES: `artifact_rename` (`1hfmpb`), `plans_refs` (`fnu6kw`).
 - Scope-Paths: agent_workflows/research_refs.py, agent_workflows/research_archive.py, agent_workflows/artifact_meta.py, tests/test_research_meta_writer_characterization.py, .aw/records/plans/pending/20261109-metastore-129-9gy5jk-move-the-research-refs-move-and-set-assign-field-writers-ont.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:fnu6kw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9gy5jk
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/claude-opus-5.5): /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from bsl45u (round 3, research nj8zdp guidance).

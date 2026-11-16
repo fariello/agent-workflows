@@ -6,7 +6,7 @@
 - Scope: Register `backlog` fields (`set` and migration-only `summary`), widen initial `backlog` transition statuses (`backlog.STATUSES`), and support headerless `backlog` creation layout in `agent_workflows/artifact_meta.py`, move `agent_workflows/backlog.py::_render_item` and `agent_workflows/backlog.py::run_new` onto `artifact_meta.render_legacy_text` and `artifact_meta.create` (`g6tw94` E-01, backlog subset), and move `agent_workflows/backlog.py::run_note` and `agent_workflows/backlog.py::_reattach_history` onto `artifact_meta.append` and `artifact_meta.render_legacy_text` (`g6tw94` E-02, backlog subset) while keeping `set_release_exempt_kind_line`, `set_release_exempt_ref_line`, and `set_close_evidence_line` as the pure value delegates called by `artifact_meta._render_field` (`2xwb9b`). EXCLUDES: specs (`b3l7y6`), releases (`3466h8`), `agent_workflows/set_records.py::close_on_answer` and `promote_question_to_backlog` (`x2dxvf`), `--summary` as `short_description` (`fekdwv`), and the family audit (`g6tw94`).
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-121-jlwedt-move-the-backlog-create-and-note-writers-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jlwedt
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-121-jlwedt-move-the-backlog-create-and-note-writers-onto-artifact-meta.review.md

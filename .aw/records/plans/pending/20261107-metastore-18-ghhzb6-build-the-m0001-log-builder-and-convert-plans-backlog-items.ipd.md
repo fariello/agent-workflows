@@ -6,7 +6,7 @@
 - Scope: Create `agent_workflows/migrations/m0001_convert.py`: the log builder (checkpoint, rename, legacy events; `dcerjg` E-09 subset) and the file rewrite (`dcerjg` E-10 subset) for plans, backlog items, releases, specs and staged prompts, with their tests (subset of `dcerjg` E-14). EXCLUDES: research records, walkthroughs, the roadmap, review files and review events (`hpedmn`); the census and round trip (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_conversion.py, .aw/records/plans/pending/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.ipd.md
 - Item-Dependencies: executed:tve77h, executed:vxevph, executed:dky26u
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ghhzb6
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.review.md

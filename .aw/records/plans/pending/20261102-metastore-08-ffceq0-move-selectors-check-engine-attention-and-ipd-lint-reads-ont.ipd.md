@@ -6,7 +6,7 @@
 - Scope: Phase B readers, part 1 of 2 (`4sd62s` section 7 step 5), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule: the reader moves now live in six child plans, Order 27 `r81uvz` (`selectors`, `aw find`/`aw search`/`aw ipd board`, `artifact_meta.read_text` with its spec 4.3 entry, and the `status_set` reads), Order 28 `dqutt8` (`attention` and `ipd_lint`), and Orders 29 to 32 `w1cs3p`, `na188y`, `i3b5zu`, `ebrc4t` (the `check_engine` working-tree readers in four site partitions, and the one record skip list). Round 3 (2026-11-09, research `nj8zdp` guidance): `aw check meta` (4.6) and `aw meta repair` (4.3, 4.7), formerly E-10 and E-11 here, moved to `a5ijjx` (Order 140); `r81uvz` and `dqutt8` were themselves re-split (into `cdglt1` and `1suzlp`) and each still finishes after its new part, so the `executed:r81uvz` and `executed:dqutt8` edges keep their meaning. THIS plan keeps the reader ledger and decisions D-1 to D-6 that govern all of them, and the finishing work: the cache-parity test (AC-1a), the offline proof (AC-12), the AC-1 partial residual audit (F-12), the docs and CHANGELOG lines, and the final gates. EXCLUDES: every reader of HEAD, staged or branch content and the runner, plans/research/prompts index, `artifact_audit` and `review_findings` modules (Order 09, `t4gl15`); deleting the old parsers and INDEX code (Order 11, `9o83cr`); writers (Orders 06 and 07).
 - Scope-Paths: agent_workflows/artifact_meta.py, tests/test_readers_cache_parity.py, tests/test_readers_offline.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:dqutt8, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:a5ijjx
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -17,11 +17,13 @@
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ffceq0
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-10, E-11 moved to a5ijjx.

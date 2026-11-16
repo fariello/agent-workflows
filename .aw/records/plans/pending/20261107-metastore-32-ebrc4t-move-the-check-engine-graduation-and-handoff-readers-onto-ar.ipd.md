@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). E-01 and E-02 (the `check_engine` graduation and handoff readers) moved to `dbq57g` (Order 143); the `layout` constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` share of E-03 moved to `i16on1` (Order 144). This plan keeps the rest of E-03 (`ffceq0` E-08): point the inline skip-name copies in `specs`, `releases` and `ipd_lint` at the `layout` constants, and check that one definition remains. EXCLUDES: the other check_engine subsets (Orders 29 to 31) and git-content readers (`t4gl15` family).
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/ipd_lint.py, .aw/records/plans/pending/20261107-metastore-32-ebrc4t-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:dbq57g, executed:i16on1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ebrc4t
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/claude-opus-5.5): plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261107-metastore-32-ebrc4t-move-the-check-engine-graduation-and-handoff-readers-onto-ar.review.md
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02 moved to dbq57g; E-03 (constants and the check_engine, selectors, artifact_refs, artifact_core subset) moved to i16on1.

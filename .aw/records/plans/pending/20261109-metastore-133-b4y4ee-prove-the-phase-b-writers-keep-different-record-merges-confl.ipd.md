@@ -6,7 +6,7 @@
 - Scope: Add `tests/test_writers_merge_independence.py` (`xexn45` E-12). Depends on every writer part, because the test drives `aw backlog note`, `aw describe`, `aw specs note` and `aw ipd recheck-readiness` after their moves. EXCLUDES: the AC-21 obligations and AC-6 diff test, the audit and the gates (`xexn45`).
 - Scope-Paths: tests/test_writers_merge_independence.py, .aw/records/plans/pending/20261109-metastore-133-b4y4ee-prove-the-phase-b-writers-keep-different-record-merges-confl.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:6e93gt, executed:bsl45u, executed:8q27jt
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: b4y4ee
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-133-b4y4ee-prove-the-phase-b-writers-keep-different-record-merges-confl.review.md
 

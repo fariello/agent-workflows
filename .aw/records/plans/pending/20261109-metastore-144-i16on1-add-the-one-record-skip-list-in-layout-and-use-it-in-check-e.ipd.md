@@ -6,7 +6,7 @@
 - Scope: The first part of `ebrc4t` E-03, its site list partitioned by module: add `layout.RECORD_SCAN_SKIP_NAMES` and `layout.RECORD_SCAN_EXCLUDED_DIRS`, make the three `_SKIP_NAMES` copies (`check_engine`, `selectors`, `artifact_refs`) aliases of the `layout` constant and their walkers consult both constants (E-01), and make `artifact_core.iter_scan_files` consult only the excluded-directory constant, with the behavioral fixture test (E-02). EXCLUDES: the inline copies in `specs`, `releases` and `ipd_lint` (kept in `ebrc4t` E-03), the `check_engine` graduation readers (`dbq57g`), and retiring the aliases (Order 11).
 - Scope-Paths: agent_workflows/layout.py, agent_workflows/check_engine.py, agent_workflows/selectors.py, agent_workflows/artifact_refs.py, agent_workflows/artifact_core.py, tests/test_readers_check_engine.py, .aw/records/plans/pending/20261109-metastore-144-i16on1-add-the-one-record-skip-list-in-layout-and-use-it-in-check-e.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:dbq57g
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: i16on1
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261109-metastore-144-i16on1-add-the-one-record-skip-list-in-layout-and-use-it-in-check-e.review.md

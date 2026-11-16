@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). The four module-family subsets of `9o83cr` E-12 and this plan's baseline now run in seven earlier parts: shared baseline and site table F-27 `786w7r` (Order 238); plans modules `tbvx4r` (244); artifact modules `qttoyc` (245); ipd modules `nx7fws` (246); readiness modules `akhrp5` (247); attention, review and research `tdhav3` (248); remaining modules `n2cvf0` (249). This plan keeps only E-17 (split into E-17 and new E-25): the family-wide search and comment sweep, and the comparison with the `786w7r` baseline. EXCLUDES: `check_engine`, `runner_shared`, `status_set` and `releases` (Order 45, `e8420v`), the record text readers and grammars (Order 43, `k6jd6l`), and the AC-1 audit (`9o83cr`).
 - Scope-Paths: .aw/records/plans/pending/20261108-metastore-46-0xsx2n-delete-the-remaining-plans-family-ipd-family-and-module-meta.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:akhrp5, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:n2cvf0, executed:nx7fws, executed:qttoyc, executed:t4gl15, executed:tbvx4r, executed:tdhav3
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 25
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0xsx2n
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to 786w7r; E-21 split across tbvx4r, qttoyc; E-22 split across nx7fws, akhrp5; E-23 moved to tdhav3; E-24 moved to n2cvf0; E-17 kept and split in place into E-17 and E-25.

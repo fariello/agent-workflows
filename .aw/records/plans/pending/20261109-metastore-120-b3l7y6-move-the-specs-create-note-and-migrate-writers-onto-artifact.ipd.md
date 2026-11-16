@@ -6,7 +6,7 @@
 - Scope: Register `spec` fields (`author`, `canonical`, and migration-only `implemented` unset) and in-place free-form spec `- Status:` replacement in `agent_workflows/artifact_meta.py`, move `agent_workflows/specs.py::run_new` and `agent_workflows/specs.py::_render_new_spec` onto `artifact_meta.create` and `artifact_meta.render_legacy_text` (`g6tw94` E-01, specs subset), move `agent_workflows/specs.py::run_note` and `agent_workflows/specs.py::run_migrate` onto `artifact_meta.append` (`g6tw94` E-02, specs subset) through the legacy writer of `7yr827`, and remove the unreferenced private metadata/history writer helpers in `agent_workflows/specs.py`. EXCLUDES: backlog (`jlwedt`), releases (`3466h8`), the family audit (`g6tw94`), and `--summary` as `short_description` (`fekdwv`).
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/artifact_meta.py, tests/test_specs_date_containment.py, tests/test_specs_releases_descriptive_safety.py, .aw/records/plans/pending/20261109-metastore-120-b3l7y6-move-the-specs-create-note-and-migrate-writers-onto-artifact.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: b3l7y6
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-120-b3l7y6-move-the-specs-create-note-and-migrate-writers-onto-artifact.review.md

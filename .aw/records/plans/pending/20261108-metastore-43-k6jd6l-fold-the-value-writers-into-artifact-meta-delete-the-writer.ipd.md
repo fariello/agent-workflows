@@ -6,7 +6,7 @@
 - Scope: The finishing gate of `9o83cr` E-08, E-09, E-10, E-11 and E-18 (originally carried here verbatim with their ids): E-17 checks, on the whole family's result, every expected outcome those items stated, then runs the gates. Every work item moved in the round-3 split (2026-11-09, research `nj8zdp` guidance) to Orders 280 to 299; see Deferred. EXCLUDES: every other parser and regex literal (`9o83cr` E-12, Orders 45, 46 and 238 to 249); the INDEX and STATUS code (Orders 41 and 42); switching `write_legacy` off and removing the folded value writers again at the cutover (`cxxmyv`).
 - Scope-Paths: .aw/records/plans/pending/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:5lgpix, executed:6bxlzb, executed:6v4uao, executed:71ewpn, executed:8fxic1, executed:8ysz6b, executed:ad86ym, executed:ay6sxp, executed:bxupy8, executed:csobg7, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:h1kfyp, executed:hrbbhy, executed:iup4lp, executed:po3o1c, executed:sq6v7i, executed:t4gl15, executed:tfvby1, executed:um2kvx, executed:v0ucnz, executed:vw88h0, executed:zs7a45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 18
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k6jd6l
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, finishing gate targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-08, E-09, E-10, E-11, E-18 moved to 6bxlzb, h1kfyp, tfvby1, 6v4uao, zs7a45, v0ucnz, 8fxic1, ad86ym, sq6v7i, 5lgpix, bxupy8, ay6sxp, csobg7, 71ewpn, 8ysz6b, iup4lp, hrbbhy, um2kvx, po3o1c, vw88h0.

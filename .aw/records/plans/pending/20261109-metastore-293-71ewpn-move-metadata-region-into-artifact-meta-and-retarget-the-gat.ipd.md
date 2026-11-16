@@ -6,7 +6,7 @@
 - Scope: The non-`selectors` callers of `selectors.metadata_region` from `k6jd6l` E-11. Each call changes from `selectors.metadata_region(text)` to `artifact_meta.metadata_region(text)` ONLY; the `^-` regex literals applied to the region stay, because Orders 247 (`akhrp5`, `orchestrator_readiness._BATCH_META_RE`), 249 (`n2cvf0`, the literal in `executed_transition_gate._plan_id_of`) and 45 (`e8420v`, `check_engine`, `runner_shared`, `status_set`, `releases`) delete them after `k6jd6l`. EXCLUDES the `selectors` internal uses and the deletion (Order 294).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/orchestrator_readiness.py, agent_workflows/check_engine.py, agent_workflows/runner_shared.py, agent_workflows/status_set.py, agent_workflows/releases.py, .aw/records/plans/pending/20261109-metastore-293-71ewpn-move-metadata-region-into-artifact-meta-and-retarget-the-gat.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:csobg7, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 71ewpn
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 This plan conforms to the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261109-metastore-293-71ewpn-move-metadata-region-into-artifact-meta-and-retarget-the-gat.review.md

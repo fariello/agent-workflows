@@ -6,7 +6,7 @@
 - Scope: Extract the phase-B legacy renderer that `2xwb9b` built inside `agent_workflows/artifact_meta.py::append_legacy` into one named function, `agent_workflows/artifact_meta.py::write_legacy`, extend it to the phase-B branch of `artifact_meta.create`, the `aw-prompt` comment and YAML front-matter forms, and the note, transition, review, coverage, and legacy-history events, and add its in-memory text helpers `artifact_meta.render_legacy_text` and `artifact_meta.restore_legacy_snapshot` (`xexn45` E-01, E-11). Add the core test module `tests/test_artifact_meta_legacy_writer.py`. Move the write halves of the runner helpers `agent_workflows/runner_shared.py::mark_plan_attended`, `agent_workflows/runner_shared.py::rederive_front_matter`, `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`, and `agent_workflows/review_sequence.py::restore_pre_s7_plan` onto those helpers (`xexn45` E-11). Capture the `.aw/state/xexn45/` baselines and record their commit SHA and summary in `F-04` for `xexn45` E-17, because every later part depends on this one and this is the first writer edit of the move. EXCLUDES: every other writer (parts `g6tw94`, `n5sxxk`, `6e93gt`, `bsl45u`, `8q27jt`) and the finishing work (`xexn45`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/runner_shared.py, agent_workflows/review_sequence.py, tests/test_artifact_meta_legacy_writer.py, .aw/records/plans/pending/20261107-metastore-21-7yr827-add-the-phase-b-legacy-writer-and-move-the-runner-writer-hel.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7yr827
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 
 - 2026-11-12 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261107-metastore-21-7yr827-add-the-phase-b-legacy-writer-and-move-the-runner-writer-hel.review.md

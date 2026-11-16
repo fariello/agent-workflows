@@ -6,7 +6,7 @@
 - Scope: (1) the `aw check --agent` baseline for `dcerjg` V-16 (plus tracked SHA and count in `F-03` for cross-lane replay) and the chain module (`agent_workflows/migrations/__init__.py`, `agent_workflows/migrations/chain.py`); (2) the read-path schema gate in `agent_workflows/artifact_meta.py` covering `check_freshness` and `read_at`; (3) `metadata_schema` as a round-tripped portable-policy key in `project_schema` and `install_wizard` (both normal and fallback rebuild paths); (4) the stamp-and-schema suite `tests/test_migrations_chain.py` (from `vxevph` E-05). Everything runs only on test fixtures. EXCLUDES: preflight, journal, sidecar and their tests (`vxevph`); the `aw migrate` CLI (`1vfqdu`); every later step (`dky26u`, `ghhzb6`, `hpedmn`, `o19353`, `dcerjg`).
 - Scope-Paths: agent_workflows/migrations/__init__.py, agent_workflows/migrations/chain.py, agent_workflows/artifact_meta.py, agent_workflows/project_schema.py, agent_workflows/install_wizard.py, tests/test_migrations_chain.py, .aw/records/plans/pending/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - Item-Dependencies: executed:tve77h
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g8na48
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-12 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.review.md

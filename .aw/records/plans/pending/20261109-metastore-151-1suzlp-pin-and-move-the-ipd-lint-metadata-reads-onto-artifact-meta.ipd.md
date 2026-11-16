@@ -6,7 +6,7 @@
 - Scope: Pin the `ipd_lint` metadata verdicts, then move the `parse` metadata slice and the `lint_text` `state` argument, then move the rule readers (`IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113`, `IPD-M105`, the `run_lint` rows and `_CITATION_PLAN_DATE_RE`) onto `artifact_meta` (`ffceq0` E-09, carried through `dqutt8` E-03 and split here into three steps). EXCLUDES: `attention` (kept in `dqutt8`), `selectors` and `aw find` (`cdglt1`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, tests/test_readers_ipd_lint.py, .aw/records/plans/pending/20261109-metastore-151-1suzlp-pin-and-move-the-ipd-lint-metadata-reads-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1suzlp
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dqutt8 (round 3, research nj8zdp guidance).

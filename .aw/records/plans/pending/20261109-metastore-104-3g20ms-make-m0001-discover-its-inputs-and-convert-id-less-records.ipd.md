@@ -6,7 +6,7 @@
 - Scope: Add `agent_workflows/migrations/m0001_discover.py` with `discover(repo) -> Inventory` and replace every repository-specific constant in the `m0001_*` modules with values computed from it (E-01, from `g5hpbb` E-04); mint ids, statuses, titles and Set/order for id-less records and list unclassifiable files untouched (E-02, from `g5hpbb` E-05). EXCLUDES: the cache changes (`6oi2nu`), layout stage and sidecar expectation (`bv4kkj`), the AC-42 test module and changelog (`g5hpbb`).
 - Scope-Paths: agent_workflows/migrations/m0001_discover.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_renames.py, agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_verify.py, .aw/records/plans/pending/20261109-metastore-104-3g20ms-make-m0001-discover-its-inputs-and-convert-id-less-records.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv, executed:6oi2nu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3g20ms
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from g5hpbb (round 3, research nj8zdp guidance).

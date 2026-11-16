@@ -6,7 +6,7 @@
 - Scope: Add the `aw migrate` group with `metadata` and `layout` leaves (`dcerjg` E-02), the bare-`aw migrate` runner over every pending step (new, maintainer requirement), and the `aw install`/`aw setup` pending-migration question and `--migrate` (`dcerjg` E-03), with their tests (a subset of `dcerjg` E-14). Adds one helper, `chain.pending_migrations`, to the `g8na48` chain module. EXCLUDES: the chain and stamp (`g8na48`); the preflight and journal (`vxevph`); every `m0001` step body (`dky26u`, `ghhzb6`, `hpedmn`, `dcerjg`); the `--describe-*` options (`ya4ee4`).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, agent_workflows/engine.py, agent_workflows/migrations/chain.py, tests/test_migrate_cli.py, tests/test_install_migrate_prompt.py, tests/test_completion.py, .aw/records/plans/pending/20261107-metastore-16-1vfqdu-add-the-aw-migrate-command-group-bare-aw-migrate-and-the-ins.ipd.md
 - Item-Dependencies: executed:tve77h, executed:g8na48, executed:vxevph
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1vfqdu
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-001..PR-006, PR-008..PR-011 FIXED; PR-007 OPEN as non-blocking OQ-08
 - 2026-11-14 /plan-review (antigravity/claude-opus-5.5): REVIEWED - OPEN QUESTIONS; PR-001..PR-006, PR-008..PR-011 FIXED; PR-007 OPEN as non-blocking OQ-08; E-05/V-05 added; review record .aw/records/reviews/20261107-metastore-16-1vfqdu-add-the-aw-migrate-command-group-bare-aw-migrate-and-the-ins.review.md

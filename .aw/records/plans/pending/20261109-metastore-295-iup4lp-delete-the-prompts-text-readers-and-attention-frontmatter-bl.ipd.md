@@ -6,7 +6,7 @@
 - Scope: The `prompts` and `attention` reader part of `k6jd6l` E-11 subset 1. EXCLUDES `artifact_rename`'s own regex literals (Order 245, `qttoyc`) and `attention`'s inline literals (Order 248, `tdhav3`).
 - Scope-Paths: agent_workflows/prompts.py, agent_workflows/artifact_rename.py, agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_prompts_new.py, .aw/records/plans/pending/20261109-metastore-295-iup4lp-delete-the-prompts-text-readers-and-attention-frontmatter-bl.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:8ysz6b, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iup4lp
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, prompt reader deletion, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

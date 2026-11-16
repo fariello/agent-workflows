@@ -6,7 +6,7 @@
 - Scope: delete `status_set._auto_index_types` and its two calls, delete the four `run_index` calls in `artifact_rename.run_rename_generic` and `artifact_rename.run_group_generic`, and pin the three test modules that assert those commands' INDEX lines or files. EXCLUDES: the finalize refresh (Order 221), the research, plan-rename and adopt callers (Order 223), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_rename.py, tests/test_rename_group_machine_output.py, tests/test_research_rename_frontmatter.py, tests/test_group_verb_policy.py, .aw/records/plans/pending/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mv0j4k
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).

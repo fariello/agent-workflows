@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): 8 modules of subset G2b in two items of 4 (E-04, E-07) and the finishing item E-06, which also converts any module the partition now places in subsets G1a, G1b, G2a, G2b that no plan names. The other modules of subsets G1a, G1b, G2a, G2b moved to the chunk plans `id2pdx`, `2fn0vd`, `isj48z`, `dg43sc`, `wirc2e`, `872zd9`, `zl2pki` (F-41). Before the round-3 split: Batch subsets G1a, G1b, G2a, G2b of `59aiyh`'s batch items, each a named list of at most 25 modules, plus a finishing item. Each subset runs the Order-49 codemod (`653ndz`) and hand-converts only its census-counted refusals. Every subset applies the batch rule below (the `59aiyh` batch rule restructured for the codemod). EXCLUDES: the builder and fixtures (Order 37, `9rgn2w`); every other subset (Orders 38 to 40 and `59aiyh`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_production_correction_turn.py, tests/test_production_fix_it.py, tests/test_production_prompt_writing_standard.py, tests/test_production_resume_handoff.py, tests/test_production_set_check.py, tests/test_severity_truth_surfaces.py, tests/test_source_citation_scan.py, tests/test_suppress_narrowing.py, .aw/records/plans/pending/20261107-metastore-38-x05v02-move-backlog-release-gate-check-engine-production-and-setter.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:id2pdx, executed:2fn0vd, executed:isj48z, executed:dg43sc, executed:wirc2e, executed:872zd9, executed:zl2pki
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x05v02
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, batch rules, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 and 7 to 14 modules of E-04 moved to id2pdx, 2fn0vd, isj48z, dg43sc, wirc2e, 872zd9, zl2pki; kept 8 modules of G2b as E-04 and E-07; Highest E allocated raised to 07.

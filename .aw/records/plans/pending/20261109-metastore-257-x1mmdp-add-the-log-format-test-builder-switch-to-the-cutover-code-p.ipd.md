@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with both cutover patches applied, set the builder's `RECORD_FORMAT = "log"`, add the log-format branch of `assert_field`/`assert_no_field`, update the exact-spelling rows, keep the literal-input legacy tests pointing at `m0001`, and settle the `review-pilot` corpus; list the tests that are refused until the migration; regenerate `.aw/system/cutover/metastore-code.cutover.patch`.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,10 +16,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x1mmdp
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.review.md

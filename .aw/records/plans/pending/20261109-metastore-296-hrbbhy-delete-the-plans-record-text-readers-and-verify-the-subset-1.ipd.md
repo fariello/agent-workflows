@@ -6,7 +6,7 @@
 - Scope: The `plans` reader part of `k6jd6l` E-11 subset 1, the `selectors.metadata_region` deletion, and subset 1's expected-outcome check. The `attention`, `ipd_lint` and `check_engine` callers are in `ffceq0`'s Scope-Paths and expected moved; a live one in Order 280's F-25 is retargeted here with `--scope-reason`.
 - Scope-Paths: agent_workflows/plans.py, agent_workflows/selectors.py, tests/test_plan_status.py, tests/test_drift_detail_escaping.py, tests/test_releases_sibling_line_writers_bounding.py, .aw/records/plans/pending/20261109-metastore-296-hrbbhy-delete-the-plans-record-text-readers-and-verify-the-subset-1.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:iup4lp, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hrbbhy
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

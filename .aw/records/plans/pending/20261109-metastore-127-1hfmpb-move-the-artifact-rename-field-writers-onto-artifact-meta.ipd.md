@@ -6,7 +6,7 @@
 - Scope: First capture the family baseline that `bsl45u` compares against (recording its commit SHA, counts, and digest in `F-03` alongside gitignored `.aw/state/bsl45u/family-before.txt`), then move `artifact_rename._update_frontmatter_metadata` (the `aw rename <type>` Set, Order, and `--to-id6` Id edit) and `artifact_rename._update_or_inject_set_metadata` plus `run_group_generic`'s pre-batch validation (the `aw group <type>` Set and Order edit) onto `artifact_meta.append` and `artifact_meta.write_legacy` (`bsl45u` E-01, `artifact_rename` subset). EXCLUDES: `plans_refs` (`fnu6kw`), research shelf verbs (`9gy5jk`), `rename` and path events (`cxxmyv`).
 - Scope-Paths: agent_workflows/artifact_rename.py, agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-127-1hfmpb-move-the-artifact-rename-field-writers-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1hfmpb
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
 - 2026-11-12 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-127-1hfmpb-move-the-artifact-rename-field-writers-onto-artifact-meta.review.md

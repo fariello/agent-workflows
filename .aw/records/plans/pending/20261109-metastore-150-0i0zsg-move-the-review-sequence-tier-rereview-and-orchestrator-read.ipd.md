@@ -6,7 +6,7 @@
 - Scope: The review-sequence and orchestration subset of `2zpw22` E-02, carried unchanged and divided by module family: `review_sequence`, `review_tier` and `review_rereview` (E-01); `orchestrator_readiness` (E-02). EXCLUDES: the review findings, audit and reviews modules (`y4spqy`); `production_checks`, `work_cmd` and `artifact_adopt` (`awmsyq`, Order 154); the WRITE half of `review_sequence.restore_pre_s7_plan` (`7yr827` E-04 via prerequisite `xexn45`); the workflow-history text grammar in `review_sequence.count_verdict_bearing_entries` and `restore_pre_s7_plan` (`ay6sxp` E-02, Order 291); the residual audit (kept in `2zpw22`).
 - Scope-Paths: agent_workflows/review_sequence.py, agent_workflows/review_tier.py, agent_workflows/review_rereview.py, agent_workflows/orchestrator_readiness.py, tests/test_readers_review_modules.py, .aw/records/plans/pending/20261109-metastore-150-0i0zsg-move-the-review-sequence-tier-rereview-and-orchestrator-read.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:y4spqy
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0i0zsg
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED; review record .aw/records/reviews/20261109-metastore-150-0i0zsg-move-the-review-sequence-tier-rereview-and-orchestrator-read.review.md
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED

@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): 8 modules of subset G7a in two items of 4 (E-03, E-05) and the finishing item E-04, which also converts any module the partition now places in subsets G3a, G5a, G7a that no plan names. The other modules of subsets G3a, G5a, G7a moved to the chunk plans `2ll84l`, `9hk3rh`, `5mg9g1`, `1cgrgp`, `z8hu7r`, `tsonlq`, `erulw3` (F-41). Before the round-3 split: Batch subsets G3a, G5a, G7a, moved verbatim (module lists unchanged) from `x05v02` E-05, `7qxey9` E-05 and `nbfg7w` E-05, plus a finishing item. Each subset runs the codemod and hand-converts only its census-counted refusals under the batch rule below. EXCLUDES: the builder and fixtures (`9rgn2w`); the codemod and its census (`653ndz`); every other subset (Orders 38 to 40 and `59aiyh`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_generators_writing_standard_pointer.py, tests/test_generic_color_depth.py, tests/test_id6_global_mint.py, tests/test_identity_rename_hint.py, tests/test_index_check_agent_records.py, tests/test_index_rebuild.py, tests/test_index_write_agent_records.py, tests/test_inlane_retirement_lands.py, .aw/records/plans/pending/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:2ll84l, executed:9hk3rh, executed:5mg9g1, executed:1cgrgp, executed:z8hu7r, executed:tsonlq, executed:erulw3
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1upea0
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.review.md

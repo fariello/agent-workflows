@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with both cutover patches applied, retire the rename ledger and `record_history` writers, remove the INDEX and sidecar ignore lines from the installer template paths, and remove the INDEX and STATUS skip-name entries; regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes; this repository's own `.aw/.gitignore`, INDEX files, `STATUS.md` and sidecar are never touched (migration steps 2 and 5 do that).
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-256-g45vyv-add-the-log-only-writers-and-ledger-retirement-to-the-cutove.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:2k5t16
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g45vyv
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from cxxmyv (round 3, research nj8zdp guidance).

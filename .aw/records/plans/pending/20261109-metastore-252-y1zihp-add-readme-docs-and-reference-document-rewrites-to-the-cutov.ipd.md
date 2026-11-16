@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with the committed patch applied, rewrite the field-syntax passages of the five records READMEs, two docs, `ipd_schema.py` docstrings and help text, and every `qhay6a` F-03 `rewrite` row among the reference and `aw-prompt` documents; regenerate `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-252-y1zihp-add-readme-docs-and-reference-document-rewrites-to-the-cutov.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch
 - Item-Dependencies: executed:9o83cr, executed:a49djh
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y1zihp
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-252-y1zihp-add-readme-docs-and-reference-document-rewrites-to-the-cutov.review.md
 

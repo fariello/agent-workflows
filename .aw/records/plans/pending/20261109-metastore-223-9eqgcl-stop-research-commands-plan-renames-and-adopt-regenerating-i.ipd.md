@@ -6,7 +6,7 @@
 - Scope: delete those five call sites and the default refresher, pin the two test modules that assert their INDEX lines, and add the `producers` case to `tests/test_index_aliases.py` (created by Order 220). EXCLUDES: the finalize refresh (Order 221), `status_set` and `artifact_rename` (Order 222), the `run_index` calls inside `plans_archive._refresh_index` and `research_archive`, which write INDEX files directly and are deleted with the writers by `snin8q`.
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/research_refs.py, agent_workflows/plans_refs.py, agent_workflows/artifact_adopt.py, tests/test_artifact_refs_rewrite.py, tests/test_artifact_adopt.py, tests/test_index_aliases.py, .aw/records/plans/pending/20261109-metastore-223-9eqgcl-stop-research-commands-plan-renames-and-adopt-regenerating-i.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:lywgzs, executed:mv0j4k, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9eqgcl
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, callers deletion, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).

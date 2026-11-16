@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09). The work of `9o83cr` E-02 (aliases), E-04 (regeneration calls), E-05 (stale-index rules) and E-15 (the INDEX statements in user documents), and this plan's own baseline E-01, now run in nine earlier parts: baseline `sdzcur` (Order 228); aliases `tqknnc` (220); regeneration callers `lywgzs` (221), `mv0j4k` (222), `9eqgcl` (223); stale-index rules `w819as` (224), `6qh68x` (229), `f1yjlx` (225); documents `m8dblq` (226), `kkftwj` (227). This plan keeps only E-17 (split into E-17 to E-19): the family-wide re-run and comparison against the `sdzcur` baseline. EXCLUDES: deleting the INDEX writers (Order 42, `snin8q`), the STATUS code and `_INDEX_CACHE`, the value writers and parsers (other parts of the `9o83cr` split), and the on-disk INDEX files and ignore lines (`cxxmyv`).
 - Scope-Paths: .aw/records/plans/pending/20261108-metastore-41-q6epwc-make-the-typed-aw-index-spellings-aliases-and-stop-index-reg.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6qh68x, executed:9eqgcl, executed:dcerjg, executed:f1yjlx, executed:ffceq0, executed:g5hpbb, executed:kkftwj, executed:lywgzs, executed:m8dblq, executed:mv0j4k, executed:sdzcur, executed:t4gl15, executed:tqknnc, executed:w819as
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 19
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: q6epwc
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to sdzcur; E-17 split in place into E-17, E-18, E-19; E-02 to tqknnc; E-04 split across lywgzs, mv0j4k, 9eqgcl; E-05 split across w819as, 6qh68x, f1yjlx; E-15 split across m8dblq, kkftwj.

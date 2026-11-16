@@ -6,7 +6,7 @@
 - Scope: The `specs` part of `k6jd6l` E-18 (subset 2). `check_engine._read_blocks_release` (a different function, used by `runner_shared` and `tools/gate_drop_audit.py`) is owned by Order 45 (`e8420v`), as `k6jd6l` E-18 already said. EXCLUDES `backlog.parse_item` (Orders 298, 299) and `attention`'s inline literals (Order 248).
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/attention.py, agent_workflows/check_engine.py, tests/test_specs_status_dirs.py, tests/test_specs_releases_descriptive_safety.py, .aw/records/plans/pending/20261109-metastore-297-um2kvx-delete-the-specs-record-text-readers.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:hrbbhy, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: um2kvx
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007; review record .aw/records/reviews/20261109-metastore-297-um2kvx-delete-the-specs-record-text-readers.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

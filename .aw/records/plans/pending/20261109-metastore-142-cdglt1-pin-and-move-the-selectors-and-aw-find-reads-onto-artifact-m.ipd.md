@@ -6,7 +6,7 @@
 - Scope: Pin the current `selectors` and `aw find` behavior and save the checkout baselines, then move the `selectors` reads and the `aw find`, `aw search` and `aw ipd board` paths in `cli` onto `artifact_meta`, add `artifact_meta.read_text` with its spec 4.3 entry, and apply decisions D-1 and D-2 (`r81uvz` E-01, E-02 and E-03 carried; `r81uvz` E-01 is split into a pin item and a baseline item). EXCLUDES: the `status_set` reads (kept in `r81uvz`), `attention` and `ipd_lint` (`dqutt8`, `1suzlp`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/artifact_meta.py, agent_workflows/cli.py, agent_workflows/plans.py, tests/test_readers_selectors_find.py, tests/test_artifact_meta_legacy.py, tests/test_find_single_read.py, tests/test_front_matter_loose_whitespace.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261109-metastore-142-cdglt1-pin-and-move-the-selectors-and-aw-find-reads-onto-artifact-m.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cdglt1
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-142-cdglt1-pin-and-move-the-selectors-and-aw-find-reads-onto-artifact-m.review.md

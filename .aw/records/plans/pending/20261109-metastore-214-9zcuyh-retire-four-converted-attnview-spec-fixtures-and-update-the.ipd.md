@@ -6,7 +6,7 @@
 - Scope: Part of the round-3 split of `9rgn2w` E-10 (2026-11-09, research `nj8zdp` guidance): delete 4 of the 9 converted `specs-valid` fixtures and update the fixture README. EXCLUDES: the `violations/` set and `review-pilot/plans/` (kept literal); the consumer conversion (`7fpc8v`); production code.
 - Scope-Paths: tests/fixtures/attnview/specs-valid/parked.md, tests/fixtures/attnview/specs-valid/reviewed.md, tests/fixtures/attnview/specs-valid/superseded.md, tests/fixtures/attnview/specs-valid/to-review.md, tests/fixtures/attnview/README.md, .aw/records/plans/pending/20261109-metastore-214-9zcuyh-retire-four-converted-attnview-spec-fixtures-and-update-the.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i, executed:7fpc8v, executed:z4x192
-- Status: reviewed
+- Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,12 +16,14 @@
 - Highest E allocated: 31
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9zcuyh
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261109-metastore-214-9zcuyh-retire-four-converted-attnview-spec-fixtures-and-update-the.review.md

@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). The baseline, the 4.4 search rows and the `check_engine` and hook moves (former E-01 baseline and gate-file rows, E-02, E-03) moved to `snh19k` (Order 145); the remaining 4.4 search rows and the setter, staleness, lifecycle and runner merge-path moves (former E-01 remaining rows, E-04) moved to `iqhzse` (Order 146). This plan keeps E-05: the residual-audit rows of `t4gl15` E-15 for the hook, readiness and lifecycle modules, the re-run of every moved module, and the gates. EXCLUDES: every other runner read (Order 34 `y97k46`), the record, review and orchestration modules (Orders 35 `jd7874` and 36 `2zpw22`), the new `meta/*.jsonl` append hook (`jq82as`), the cache-parity and offline tests and the repo-wide finish (`t4gl15`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-33-h58z9n-move-the-check-engine-hook-and-setter-git-content-readers-on.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:snh19k, executed:iqhzse
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: h58z9n
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-02, E-03 moved to snh19k; E-01 (remaining search rows) and E-04 moved to iqhzse.

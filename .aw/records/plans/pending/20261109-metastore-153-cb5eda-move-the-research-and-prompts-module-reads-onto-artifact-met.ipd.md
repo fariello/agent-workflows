@@ -6,7 +6,7 @@
 - Scope: `jd7874` E-03 (research and prompts modules), divided into a research step (E-01) and a prompts step (E-02), and `jd7874` E-04 (banner-blind research body test, E-03), carried unchanged. EXCLUDES: the plans modules and the INDEX baseline (`kyl3m4`); the residual audit (kept in `jd7874`); deleting the INDEX writers and parsers (Order 11).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/prompts_index.py, tests/test_readers_record_modules.py, .aw/records/plans/pending/20261109-metastore-153-cb5eda-move-the-research-and-prompts-module-reads-onto-artifact-met.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:kyl3m4
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cb5eda
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, pinning rules, and execution gate; marked reviewed and go-pending-approval.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from jd7874 (round 3, research nj8zdp guidance).

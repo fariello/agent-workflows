@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). E-01 (review findings, audit, review subject lookups) moved to `y4spqy` (Order 149); E-02 (review sequence, tier, re-review, orchestrator readiness, production checks, work, adoption) moved, partitioned by module family, to `0i0zsg` (Order 150) and `awmsyq` (Order 154). This plan keeps E-03: the residual-audit rows of `t4gl15` E-15 for the ten production modules, and the final runs. EXCLUDES: the gate, runner and plans/research/prompts modules (Orders 33 `h58z9n`, 34 `y97k46`, 35 `jd7874` and their round-3 parts); the `->reviewed` gate-only attestation rule (`2xwb9b`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-36-2zpw22-move-the-review-orchestration-production-check-and-work-modu.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:y4spqy, executed:0i0zsg, executed:awmsyq
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2zpw22
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, residual audit targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01 moved to y4spqy; E-02 moved to 0i0zsg and awmsyq (module list partitioned by family).

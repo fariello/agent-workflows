@@ -6,7 +6,7 @@
 - Scope: delete those research symbols, the post-move refresh, and the `research_index` entry of `record_producers`; keep `research_index._scan_docs`, `query`, `run_find` and the non-INDEX rules of `research_index.check_drift`; retarget the INDEX-byte cases of `tests/test_research_index.py`. EXCLUDES the plans and prompts writers (Orders 233 and 235), the shared `artifact_core.emit_index_*` helpers (`snin8q`), and the `research_archive` skip of `INDEX.md` during scans (cutover, `cxxmyv`).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/record_producers.py, tests/test_research_index.py, .aw/records/plans/pending/20261109-metastore-234-s6k01k-delete-the-research-index-writers-and-the-research-archive-r.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15, executed:uopi8z
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s6k01k
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from snin8q (round 3, research nj8zdp guidance).

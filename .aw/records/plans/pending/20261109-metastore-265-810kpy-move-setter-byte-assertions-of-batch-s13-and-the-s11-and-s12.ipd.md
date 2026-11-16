@@ -6,7 +6,7 @@
 - Scope: Batches S1112r and S13: 8 modules (`tests/test_question_visibility.py`, `tests/test_review_sequence_runner.py`, `tests/test_review_staleness_advisory.py`, `tests/test_runfresh_end_to_end.py`, `tests/test_runner_backlog_close_behavior.py`, `tests/test_runner_shared.py`, `tests/test_run_proposal_channel.py`, `tests/test_set_dispatch_dedup.py`). EXCLUDES the `w13bkp` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_question_visibility.py, tests/test_review_sequence_runner.py, tests/test_review_staleness_advisory.py, tests/test_runfresh_end_to_end.py, tests/test_runner_backlog_close_behavior.py, tests/test_runner_shared.py, tests/test_run_proposal_channel.py, tests/test_set_dispatch_dedup.py, .aw/records/plans/pending/20261109-metastore-265-810kpy-move-setter-byte-assertions-of-batch-s13-and-the-s11-and-s12.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 810kpy
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from w13bkp (round 3, research nj8zdp guidance).

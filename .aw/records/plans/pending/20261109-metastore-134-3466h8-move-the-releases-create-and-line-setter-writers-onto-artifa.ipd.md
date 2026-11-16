@@ -6,7 +6,7 @@
 - Scope: Register `release` fields (`version`, `set`, `order`) and the bounded in-memory bullet helper `set_legacy_bullet_line` in `agent_workflows/artifact_meta.py` (breaking `_render_field`'s circular `_releases.set_*_line` delegation), move `releases.plan_release`, `releases.create_release`, and `releases.run_new` onto `artifact_meta.create` (`g6tw94` E-01, releases subset), and move all seven `releases.set_*_line` helpers (`set_item_dependencies_line`, `set_graduated_to_line`, `set_blocks_release_line`, `set_priority_line`, `set_work_kind_line`, `set_from_backlog_line`, and `set_from_spec_line`) onto `artifact_meta.set_legacy_bullet_line` (`g6tw94` E-02, releases subset; `63zo2f` deferral). EXCLUDES: specs (`b3l7y6`), backlog (`jlwedt`), `--summary` as `short_description` (`fekdwv`), and the family audit (`g6tw94`).
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/artifact_meta.py, tests/test_specs_releases_descriptive_safety.py, .aw/records/plans/pending/20261109-metastore-134-3466h8-move-the-releases-create-and-line-setter-writers-onto-artifa.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3466h8
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
 - 2026-11-12 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261109-metastore-134-3466h8-move-the-releases-create-and-line-setter-writers-onto-artifa.review.md

@@ -6,7 +6,7 @@
 - Scope: Create `agent_workflows/migrations/m0001_renames.py` with `classify_name`, `build_rename_map` (`dcerjg` E-07), `plan_citation_rewrites` (`dcerjg` E-08) and `apply_step3` (the scratch-copy citation apply and file moves of 5.2 step 3, wired into `m0001_metadata_v2.py`), and its test module (subset of `dcerjg` E-14). Citation PLANNING is ONE call to `artifact_refs.plan_reference_rewrites_with_warnings` over the scratch copy, and the APPLY is one loop over its output with protected text masked; the executor writes no per-citation edit by hand, so the 2,035 hits are the tool's output, not hidden manual steps. EXCLUDES: preflight, journal and sidecar (`vxevph`); conversion (`ghhzb6`, `hpedmn`); census, round trip and the end-to-end clone proof (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_renames.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_renames.py, .aw/records/plans/pending/20261107-metastore-17-dky26u-build-the-m0001-legacy-name-rename-map-and-citation-rewrite.ipd.md
 - Item-Dependencies: executed:tve77h, executed:vxevph
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dky26u
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-07 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from dcerjg per maintainer step-complexity rule (no single E/V item hides hundreds of steps).

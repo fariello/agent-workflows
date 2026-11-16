@@ -6,7 +6,7 @@
 - Scope: delete the last emitter and the two registry entries together, rewrite the `check_engine` comments that cite them, and update `tests/test_drift_rule_registration.py` plus the stale-index cases of `tests/test_research_index.py` and `tests/test_index_check_agent_records.py`. EXCLUDES: `doctor` (Order 225), the plans and prompts emitters (Order 224), and INDEX-byte assertions (`snin8q`).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/check_engine.py, tests/test_drift_rule_registration.py, tests/test_research_index.py, tests/test_index_check_agent_records.py, .aw/records/plans/pending/20261109-metastore-229-6qh68x-delete-the-research-stale-index-emitter-and-the-two-stale-in.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc, executed:w819as
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6qh68x
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-229-6qh68x-delete-the-research-stale-index-emitter-and-the-two-stale-in.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from q6epwc (round 3, research nj8zdp guidance).

@@ -6,7 +6,7 @@
 - Scope: Step 4a (journal marker holding the migration id and the staged `git write-tree` id, written after staging and deleted after commit and on rollback) and step 5 (delete `plans/STATUS.md`, every `INDEX.json`/`INDEX.md` under plans, research, prompts, and the INDEX ignore lines of the target repository's `.aw/.gitignore` or `.agents/.gitignore`) in `agent_workflows/migrations/m0001_metadata_v2.py`; read-only marker acceptance with tree-id validation in `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/backlog_blocking_close_gate.py`; and `tests/test_m0001_gate_marker.py` (the `dcerjg` E-14 subset that tests E-11). Everything runs only on `tmp_path` fixtures. EXCLUDES: the census, round trip, family test run, clone proof and changelog (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_m0001_gate_marker.py, .aw/records/plans/pending/20261109-metastore-100-o19353-build-the-m0001-terminal-commit-marker-index-cleanup-step-an.ipd.md
 - Item-Dependencies: executed:tve77h, executed:g8na48, executed:vxevph, executed:1vfqdu, executed:dky26u, executed:ghhzb6, executed:hpedmn
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: o19353
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-100-o19353-build-the-m0001-terminal-commit-marker-index-cleanup-step-an.review.md

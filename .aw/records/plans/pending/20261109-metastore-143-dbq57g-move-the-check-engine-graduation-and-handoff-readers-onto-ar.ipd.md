@@ -6,7 +6,7 @@
 - Scope: Pin then move the graduation and handoff readers of `check_engine` (`build_graduation_reverse_index`, `graduation_cluster` through it, `evaluate_handoff_ready`, `check_graduation_incomplete`, `graduated_closable_warnings` and their history-date readers) onto `artifact_meta` (`ebrc4t` E-01 and E-02, carried unchanged). EXCLUDES: the record skip list (`i16on1`, Order 144, then `ebrc4t`), the other check_engine subsets (Orders 29 to 31), and git-content readers (`t4gl15` family).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_graduation_forward_links.py, tests/test_handoff_ready_gate.py, .aw/records/plans/pending/20261109-metastore-143-dbq57g-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,8 +18,10 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dbq57g
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from ebrc4t (round 3, research nj8zdp guidance).

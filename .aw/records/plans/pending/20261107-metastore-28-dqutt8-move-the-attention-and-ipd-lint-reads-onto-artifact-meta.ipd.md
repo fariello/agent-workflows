@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): the `ipd_lint` item E-03 moved to `1suzlp` (Order 151). Pin then move the `attention` reads (`scan`, every per-tree `_*_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE`, `read_readiness` callers and the `attention_contract.history_block`/`last_history_at` calls) onto `artifact_meta.query` and `artifact_meta.history`, applying D-3 (`ffceq0` E-04, E-05 carried unchanged). EXCLUDES: `ipd_lint` (`1suzlp`), `selectors` and `aw find` (Order 27 `r81uvz`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_readers_attention.py, .aw/records/plans/pending/20261107-metastore-28-dqutt8-move-the-attention-and-ipd-lint-reads-onto-artifact-meta.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:1suzlp
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dqutt8
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-03 moved to 1suzlp.

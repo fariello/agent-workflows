@@ -6,7 +6,7 @@
 - Scope: Finishing audit of the `specs`, `backlog`, and `releases` writer move (`xexn45` E-02 subset A and E-05 subset A). After the 2026-11-09 round-3 split per research `nj8zdp` (plan-size calibration), the code moves live in `b3l7y6` (Order 120, `specs`), `jlwedt` (Order 121, `backlog`), and `3466h8` (Order 134, `releases`). This plan runs the family audit (`E-03`) proving that none of the 18 moved writer functions in `agent_workflows/specs.py`, `agent_workflows/backlog.py`, or `agent_workflows/releases.py` still builds metadata bullets or `## Workflow history` lines by hand. EXCLUDES: the `prompts`, `ipd_authoring`, `research_cmd`, `artifact_adopt`, and `set_records` writer family (`n5sxxk`), creation-time `short_description` and `aw describe` (`6e93gt` and `fekdwv`), and retiring the thin compatibility adapters (`9o83cr`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:b3l7y6, executed:jlwedt, executed:3466h8
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g6tw94
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.review.md

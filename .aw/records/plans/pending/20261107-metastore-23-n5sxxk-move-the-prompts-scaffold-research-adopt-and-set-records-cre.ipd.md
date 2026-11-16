@@ -6,7 +6,7 @@
 - Scope: FINISHING PART of the prompts, scaffold, research, adopt and `set_records` writer move (`xexn45` E-02 subset B and E-05 subset B). Round-3 split 2026-11-09 per research `nj8zdp`: the eleven writer moves live in `s95hj6` (Order 122, research), `ernmom` (Order 123, plan scaffold, plan sync and prompts) and `x2dxvf` (Order 135, adopt and `set_records`); this plan keeps the five-module family audit (`E-03`) and the combined family regression and core-gate check (`E-04`) deferred here by those three parts. EXCLUDES: specs, backlog and releases (`g6tw94` and its parts `b3l7y6`, `jlwedt`, `3466h8`), `--summary` and `aw describe` (`6e93gt` and its parts `fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`), the cross-family merge-independence test (`b4y4ee`), whole-move obligations and documentation (`xexn45`), and `agent_workflows/set_records.py::write_local_projections` (writes generated run-projection files, not record metadata).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-23-n5sxxk-move-the-prompts-scaffold-research-adopt-and-set-records-cre.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:s95hj6, executed:ernmom, executed:x2dxvf
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: n5sxxk
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini-4-carbon): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; E-04/V-04 added; review record .aw/records/reviews/20261107-metastore-23-n5sxxk-move-the-prompts-scaffold-research-adopt-and-set-records-cre.review.md

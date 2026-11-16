@@ -6,7 +6,7 @@
 - Scope: The caller half of `k6jd6l` E-18's `backlog.parse_item` work. Callers in `check_engine`, `runner_shared`, `status_set` and `production_checks` are in phase-B Scope-Paths (`ffceq0`, `t4gl15`) and expected moved; a live one in Order 280's F-25 is retargeted here with `--scope-reason`. EXCLUDES changing `parse_item` itself (Order 299).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/set_records.py, tools/gate_drop_audit.py, agent_workflows/backlog.py, tests/test_gate_drop_audit.py, .aw/records/plans/pending/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:um2kvx
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: po3o1c
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).

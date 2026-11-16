@@ -6,7 +6,7 @@
 - Scope: `cxxmyv` E-07 (setter-byte half), split: batches S02 and S03 convert named module subsets (4 modules, 34 candidate lines at the split); E-12 finishes and assembles this part's F-28 table. The helper (E-01) and batch S04 (E-05) moved to `j5fqax`, and batch S01 (E-02) to `545ag7`, on 2026-11-09 (round-3 split). Batches S05 to S10 moved to `87rvs2` (Order 59) and `rdg0qv` (Order 60) on 2026-11-08; S11 to S20 are in `w13bkp` (Order 47), `aqc3m6` (Order 61) and `zgyna1` (Order 62). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code.
 - Scope-Paths: tests/test_backlog_gate_follows_status.py, tests/test_backlog_new_gate_vocabulary.py, tests/test_backlog_positional_close_gate.py, tests/test_backlog_production.py, .aw/records/plans/pending/20261108-metastore-44-iog3cw-add-the-format-aware-field-assertion-helper-and-move-the-fir.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4, executed:j5fqax, executed:545ag7
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 12
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iog3cw
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, batch rules, execution gate, and PIN rule; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
 - 2026-11-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): round-3 split per research nj8zdp; items E-01, E-05 moved to j5fqax; E-02 moved to 545ag7 (as S01a and S01b).

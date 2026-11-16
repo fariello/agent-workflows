@@ -6,7 +6,7 @@
 - Scope: The production-caller part of `k6jd6l` E-10's `research_contract.parse_frontmatter` move. The original is deleted by Order 290 after Order 289 retargets the tests. EXCLUDES the research contract checks inside `research_contract` itself, which Order 290 moves with the deletion.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/attention.py, agent_workflows/releases.py, agent_workflows/research_archive.py, agent_workflows/research_index.py, agent_workflows/selectors.py, .aw/records/plans/pending/20261109-metastore-288-sq6v7i-move-parse-frontmatter-into-artifact-meta-and-retarget-its-p.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:ad86ym, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,10 +18,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: sq6v7i
+- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-288-sq6v7i-move-parse-frontmatter-into-artifact-meta-and-retarget-its-p.review.md
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from k6jd6l (round 3, research nj8zdp guidance).
