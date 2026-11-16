@@ -432,3 +432,12 @@ def test_agents_managed_block() -> None:
 
     assert engine.AGENTS_BEGIN not in b1
     assert b1 == b2
+
+
+def test_execution_contract_allows_explicit_human_push_directive() -> None:
+    """Managed pointer block forbids unrequested pushes while allowing explicit human directives."""
+    expected = "never push without an explicit human request or directive to do so"
+    for layout in ("aw", "legacy"):
+        block = engine.agents_managed_block(target_layout=layout)
+        assert expected in block
+        assert ", and never push;" not in block

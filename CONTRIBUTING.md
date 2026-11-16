@@ -251,7 +251,7 @@ The gate has five honest limits:
   AI-facing artifacts (IPDs/plans, research findings, prompts, specs, walkthroughs, commit
   messages, code comments); spend no effort avoiding dashes there.
 - The standing agent execution contract (commit only your own files path-scoped, never
-  `git add -A`/bare/`-a`, never push; paste the actual runner output when you claim tests
+  `git add -A`/bare/`-a`, never push without an explicit human request or directive to do so; paste the actual runner output when you claim tests
   passed; review-means-read-only; never change what a plan in `executed/` records, though a
   dated history line pointing at later work may be appended) lives
   in the managed `AGENT-WORKFLOWS` block in `AGENTS.md`. That block is the canonical home;

@@ -118,7 +118,7 @@ safe to hand to any agent from its path alone:
 3. The HARD MUST honesty rule: when you report tests/validation passed, paste the ACTUAL
    runner output; never claim success you did not run.
 4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;
-   never push.
+   never push without an explicit human request or directive to do so.
 5. The lifecycle transition on completion: the plan reaches `executed` ONLY through the gated
    finalize transaction, which performs the attributed history entry, the terminal `Status:`,
    the move, and the path-scoped lifecycle commit as one transaction; a hand-built `git mv`

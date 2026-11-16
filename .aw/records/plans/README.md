@@ -215,7 +215,7 @@ safe to hand to any agent from its path alone:
 3. The HARD MUST honesty rule: when you report tests/validation passed, paste the ACTUAL
    runner output; never claim success you did not run.
 4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;
-   never push.
+   never push without an explicit human request or directive to do so.
 5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`,
    record a `## Workflow history` line, newest-first). The supported way to perform this transition
    is `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, which runs the
