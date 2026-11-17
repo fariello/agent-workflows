@@ -31,7 +31,7 @@ from agent_workflows import (
     research_contract,
     review_findings,
 )
-from agent_workflows.migrations import m0001_renames
+from agent_workflows.migrations import m0001_discover, m0001_renames
 
 FIVE_RECORD_TYPES: Tuple[str, ...] = ("ipd", "backlog", "release", "spec", "prompt")
 REMAINING_RECORD_TYPES: Tuple[str, ...] = ("research", "walkthrough", "roadmap")
@@ -65,8 +65,8 @@ _YYYYMMDD_RE = re.compile(r"\A(\d{4})(\d{2})(\d{2})\Z")
 _YYYY_MM_DD_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
 _DATED_PREFIX_RE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})(?:[:/\s]|$)")
 
-_EXCLUDED_DIRNAMES = m0001_renames.OQ02_EXCLUDED_DIRNAMES
-_EXCLUDED_FILENAMES = m0001_renames.OQ02_EXCLUDED_FILENAMES
+_EXCLUDED_DIRNAMES = m0001_discover.EXCLUDED_DIRNAMES
+_EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
 
 
 @dataclass(frozen=True)
@@ -326,7 +326,7 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
         "tiers": FieldDestination(
             "comment_value", "concerns", "colon substring inside Concerns value"
         ),
-        # Body bullets inside historical prompts (e.g. fwtqr8, wazeo5, 06nu85); kept in prompt body.
+        # Body bullets inside historical prompts; kept in prompt body.
         "Core": FieldDestination(
             "prompt_body", "body", "bullet in prompt body prose, kept unchanged"
         ),
@@ -1054,6 +1054,8 @@ def build_record_log(
         record_path, records_root, text=text
     )
     id6 = str(art_row["id6"])
+    if art_row.get("id_derived"):
+        id6 = artifact_core.mint_id6(repo_root or records_root)
     art_type = str(art_row["type"])
     if art_type not in ALL_RECORD_TYPES:
         raise layout_migration.MigrationError(
@@ -1106,8 +1108,9 @@ def build_record_log(
         fields["set"] = str(art_row["set_id"])
     if art_row.get("order_nn") is not None and "order" in reg:
         fields["order"] = int(art_row["order_nn"])
-    if art_row.get("title") and "title" in reg:
-        fields["title"] = str(art_row["title"])
+    title_val = art_row.get("title") or m0001_discover._extract_first_h1(text)
+    if title_val and "title" in reg:
+        fields["title"] = str(title_val)
 
     art_fields = art_row.get("fields") or {}
     if art_fields.get("ace") and "ace" in reg:
@@ -1666,13 +1669,17 @@ def _walk_target_records(
             for fname in sorted(files):
                 if not fname.endswith(".md"):
                     continue
-                if (
-                    fname in _EXCLUDED_FILENAMES
-                    or fname.startswith("INDEX.")
-                    or fname.endswith(".review.md")
+                if m0001_discover.is_non_record_filename(fname) or fname.endswith(
+                    ".review.md"
                 ):
                     continue
-                found.append(cur_path / fname)
+                fpath = cur_path / fname
+                rel_p = fpath.relative_to(records_root).as_posix()
+                if m0001_discover.is_excluded_template(
+                    rel_p, fname, fpath.read_text(encoding="utf-8", errors="replace")
+                ):
+                    continue
+                found.append(fpath)
     return found
 
 

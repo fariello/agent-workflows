@@ -29,22 +29,14 @@ from agent_workflows import (
 from agent_workflows.migrations import (
     chain,
     m0001_convert,
+    m0001_discover,
     m0001_preflight,
     m0001_renames,
     m0001_verify,
 )
 
-_EXCLUDED_DIRNAMES = frozenset(
-    {"comms", "prompt-library", "untracked", "runs", "meta", "reviews"}
-)
-_EXCLUDED_FILENAMES = frozenset(
-    {
-        "README.md",
-        "STATUS.md",
-        "conformance-results-template.md",
-        "20260712-0156-14-chatgpt-modular-report-template.md",
-    }
-)
+_EXCLUDED_DIRNAMES = m0001_discover.EXCLUDED_DIRNAMES
+_EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
 _PROMPT_COMMENT_RE = re.compile(
     r"\A<!--\s*(?:aw-prompt|aw-managed-prompt):\s*(.*?)\s*-->", re.DOTALL
 )
@@ -149,13 +141,20 @@ def _walk_record_files(root: Path, *, exclude_dirs: Set[str]) -> List[Path]:
         for fname in sorted(files):
             if not fname.endswith(".md"):
                 continue
-            if (
-                fname in _EXCLUDED_FILENAMES
-                or fname.startswith("INDEX.")
-                or fname.endswith(".review.md")
+            if m0001_discover.is_non_record_filename(fname) or fname.endswith(
+                ".review.md"
             ):
                 continue
-            found.append(cur_path / fname)
+            fpath = cur_path / fname
+            try:
+                rel_p = fpath.relative_to(root).as_posix()
+            except ValueError:
+                rel_p = fname
+            if m0001_discover.is_excluded_template(
+                rel_p, fname, fpath.read_text(encoding="utf-8", errors="replace")
+            ):
+                continue
+            found.append(fpath)
     return found
 
 

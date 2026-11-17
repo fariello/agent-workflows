@@ -37,9 +37,10 @@ from agent_workflows import (
     project_context,
     record_history,
 )
+from agent_workflows.migrations import m0001_discover
 
 # --------------------------------------------------------------------------------------
-# Module-level data constants (replaced with discovered values in downstream 3g20ms)
+# Generic scan roots and structural non-record exclusions (no repository constants)
 # --------------------------------------------------------------------------------------
 
 M0001_SCAN_ROOTS: Tuple[str, ...] = artifact_core.REFERENCE_SCAN_ROOTS + (
@@ -52,35 +53,9 @@ M0001_SCAN_ROOTS: Tuple[str, ...] = artifact_core.REFERENCE_SCAN_ROOTS + (
     ".aw/.gitignore",
 )
 
-OQ02_EXCLUDED_DIRNAMES: frozenset[str] = frozenset(
-    {"comms", "prompt-library", "untracked", "runs", "meta", "reviews"}
-)
+OQ02_EXCLUDED_DIRNAMES: frozenset[str] = m0001_discover.EXCLUDED_DIRNAMES
 
-OQ02_EXCLUDED_FILENAMES: frozenset[str] = frozenset(
-    {
-        "README.md",
-        "STATUS.md",
-        "conformance-results-template.md",
-        "20260712-0156-14-chatgpt-modular-report-template.md",
-    }
-)
-
-# Deliberate legacy-name examples exempted from citation rewriting (E-02 (4)).
-# Keyed by (repo-relative POSIX path, legacy filename).
-M0001_CITATION_EXEMPTIONS: Dict[Tuple[str, str], str] = {
-    (
-        "tests/test_plans_rename_selectors.py",
-        "20260808-0004-06-migrate-existing-plans.ipd.md",
-    ): "fixture building a legacy-named file for legacy selector tests",
-    (
-        "agent_workflows/selectors.py",
-        "20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md",
-    ): "comment example of parse_clustered misparse",
-    (
-        "agent_workflows/check_engine.py",
-        "20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md",
-    ): "comment example of parse_clustered misparse",
-}
+OQ02_EXCLUDED_FILENAMES: frozenset[str] = frozenset({"README.md", "STATUS.md"})
 
 _PROMPT_COMMENT_RE = re.compile(
     r"\A<!--\s*(?:aw-prompt|aw-managed-prompt):\s*(.*?)\s*-->", re.DOTALL
@@ -221,27 +196,11 @@ def classify_name(name: str) -> str:
 
     Tests ``artifact_naming._LEGACY_TIMESTAMP_RE`` before
     ``artifact_naming.parse_clustered`` so legacy names whose slug starts with
-    a 6-letter word (for example ``20260712-1033-01-assess-bugs-...``) classify
-    as ``'legacy'``, while clustered names with a 4-digit Set id and a real
-    digit-bearing ``id6`` or non-HHMM Set id still classify as ``'clustered'``.
+    a 6-letter word classify as ``'legacy'``, while clustered names with a
+    4-digit Set id and a real digit-bearing ``id6`` or non-HHMM Set id still
+    classify as ``'clustered'``.
     """
-    m_leg = artifact_naming._LEGACY_TIMESTAMP_RE.match(name)
-    if m_leg:
-        m_clu = artifact_naming.parse_clustered(name)
-        if m_clu is not None:
-            hhmm = m_leg.group("hhmm")
-            hh = int(hhmm[:2])
-            mm = int(hhmm[2:])
-            valid_hhmm = 0 <= hh <= 23 and 0 <= mm <= 59
-            id6_cand = m_clu.group("id6")
-            has_digit = any(ch.isdigit() for ch in id6_cand)
-            if not valid_hhmm or has_digit:
-                return "clustered"
-        return "legacy"
-
-    if artifact_naming.parse_clustered(name) is not None:
-        return "clustered"
-    return "other"
+    return m0001_discover.classify_name(name)
 
 
 # --------------------------------------------------------------------------------------
@@ -266,29 +225,17 @@ def _rel_posix(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root.resolve()).as_posix()
 
 
-def _walk_candidate_records(records_root: Path) -> List[Path]:
-    """Walk ``records_root`` returning non-excluded ``.md`` records in sorted order."""
+def _walk_candidate_records(
+    records_root: Path, *, repo_root: Optional[Path] = None
+) -> List[Path]:
+    """Return non-excluded, classifiable record paths under ``records_root`` in sorted order."""
     if not records_root.is_dir():
         return []
-    found: List[Path] = []
-    for cur_dir, dirs, files in os.walk(records_root):
-        dirs[:] = sorted(
-            d
-            for d in dirs
-            if d not in OQ02_EXCLUDED_DIRNAMES and not d.endswith(".data")
-        )
-        cur_path = Path(cur_dir)
-        for fname in sorted(files):
-            if not fname.endswith(".md"):
-                continue
-            if (
-                fname in OQ02_EXCLUDED_FILENAMES
-                or fname.startswith("INDEX.")
-                or fname.endswith(".review.md")
-            ):
-                continue
-            found.append(cur_path / fname)
-    return found
+    inv = m0001_discover.discover(
+        repo_root if repo_root is not None else records_root,
+        records_root=records_root,
+    )
+    return [r.path for r in inv.records]
 
 
 def _walk_plan_files(records_root: Path) -> List[Path]:
@@ -445,28 +392,74 @@ def _record_type_from_rel(rel_path: str, facet: Optional[str]) -> str:
     return facet or "other"
 
 
+def _parse_non_legacy_name_parts(
+    path: Path,
+    rel_path: str,
+    repo_path: Path,
+) -> Tuple[str, str, Optional[str], int]:
+    """Return ``(date, slug, facet, default_nn)`` for a non-legacy-timestamp id-less record."""
+    fname = path.name
+    m_dsf = artifact_naming._DATED_SLUG_FACET_RE.match(fname)
+    if m_dsf:
+        date = m_dsf.group("date")
+        raw_slug = m_dsf.group("slug")
+        raw_facet = m_dsf.group("facet")
+    else:
+        m_hd = m0001_discover._HYPHEN_DATE_PREFIX_RE.match(fname)
+        if m_hd:
+            date = f"{m_hd.group('y')}{m_hd.group('m')}{m_hd.group('d')}"
+            raw_slug = m_hd.group("rest")
+            raw_facet = m_hd.group("facet")
+        else:
+            date = m0001_discover.infer_record_date(path, repo_path)
+            stem = fname[:-3] if fname.endswith(".md") else fname
+            raw_facet = None
+            if "." in stem:
+                base, cand_facet = stem.rsplit(".", 1)
+                if cand_facet in artifact_naming.ARTIFACT_TYPE_FACETS:
+                    raw_slug = base
+                    raw_facet = cand_facet
+                else:
+                    raw_slug = stem
+            else:
+                raw_slug = stem
+
+    if raw_facet is not None and raw_facet not in artifact_naming.ARTIFACT_TYPE_FACETS:
+        raise RenameRefusalError(
+            f"Refused: record {rel_path} has unknown facet {raw_facet!r} "
+            f"(must be in ARTIFACT_TYPE_FACETS)"
+        )
+
+    top_dir = Path(rel_path).parts[0] if Path(rel_path).parts else ""
+    facet = (
+        raw_facet if raw_facet is not None else artifact_naming.TYPE_FACET.get(top_dir)
+    )
+    slug = artifact_core.kebab_slug(raw_slug, 60, "record")
+    return date, slug, facet, 1
+
+
 def build_rename_map(
     repo: Union[str, Path],
     journal: Optional[Union[Dict[str, Any], str, Path]] = None,
 ) -> RenameMap:
-    """Build the deterministic legacy-name rename map for ``repo``.
+    """Build the deterministic legacy-name and id-less rename map for ``repo``.
 
-    Scans every tracked artifact, walkthrough, and roadmap under
+    Scans every discovered candidate record under
     ``project_context.project_records_dir(repo)`` (excluding comms, ``.data/``,
-    READMEs, and OQ-02 templates). Reuses minted ``id6`` values stored in
-    ``journal['minted_ids']``, or mints repository-unique ``id6`` values via
-    ``artifact_core.mint_id6`` and records them in ``journal`` before returning
-    (when ``journal=None``, mints in memory and writes nothing).
+    READMEs, templates, and unclassifiable files). Reuses minted ``id6`` values
+    stored in ``journal['minted_ids']``, or mints repository-unique ``id6``
+    values via ``artifact_core.mint_id6`` and records them in ``journal`` before
+    returning (when ``journal=None``, mints in memory and writes nothing).
     """
     repo_path = Path(repo)
     records_root = project_context.project_records_dir(repo_path)
     jpath, jdata, journal_minted = _load_journal_minted(journal)
 
-    candidate_files = _walk_candidate_records(records_root)
+    candidate_files = _walk_candidate_records(records_root, repo_root=repo_path)
 
     # First pass: index all existing record id6s and unmapped plan (set, order) pairs.
     other_ids_by_id: Dict[str, List[str]] = {}
-    legacy_paths: List[Tuple[Path, str]] = []
+    rename_targets: List[Tuple[Path, str]] = []
     unmapped_plan_pairs: Dict[Tuple[str, int], List[str]] = {}
 
     for path in candidate_files:
@@ -480,11 +473,14 @@ def build_rename_map(
             else None
         )
         fname_id = _filename_id6_non_legacy(path.name)
+        is_legacy_name = classify_name(path.name) == "legacy"
 
-        if classify_name(path.name) == "legacy":
-            legacy_paths.append((path, rel_path))
+        if is_legacy_name:
+            rename_targets.append((path, rel_path))
             if infile_id is not None:
                 other_ids_by_id.setdefault(infile_id, []).append(rel_path)
+        elif infile_id is None and fname_id is None:
+            rename_targets.append((path, rel_path))
         else:
             rec_id = infile_id or fname_id
             if rec_id is not None:
@@ -515,7 +511,7 @@ def build_rename_map(
         if len(paths) > 1:
             unmapped_duplicates.append((pair, tuple(sorted(paths))))
 
-    # Second pass: build rename entries for every legacy-classified record.
+    # Second pass: build rename entries for every legacy-name and id-less record.
     entries: List[RenameEntry] = []
     minted_in_pass: Set[str] = set()
     new_journal_entries: Dict[str, str] = {}
@@ -524,15 +520,21 @@ def build_rename_map(
 
     all_known_ids: Set[str] = set(other_ids_by_id.keys()) | set(journal_minted.values())
 
-    for path, rel_path in legacy_paths:
+    for path, rel_path in rename_targets:
         m_leg = artifact_naming._LEGACY_TIMESTAMP_RE.match(path.name)
-        if m_leg is None:
-            continue
-        facet = m_leg.group("facet")
-        if facet is not None and facet not in artifact_naming.ARTIFACT_TYPE_FACETS:
-            raise RenameRefusalError(
-                f"Refused: legacy record {rel_path} has unknown facet {facet!r} "
-                f"(must be in ARTIFACT_TYPE_FACETS)"
+        if m_leg is not None:
+            facet = m_leg.group("facet")
+            if facet is not None and facet not in artifact_naming.ARTIFACT_TYPE_FACETS:
+                raise RenameRefusalError(
+                    f"Refused: legacy record {rel_path} has unknown facet {facet!r} "
+                    f"(must be in ARTIFACT_TYPE_FACETS)"
+                )
+            date_str = m_leg.group("date")
+            slug_str = m_leg.group("slug")
+            default_nn = int(m_leg.group("nn"))
+        else:
+            date_str, slug_str, facet, default_nn = _parse_non_legacy_name_parts(
+                path, rel_path, repo_path
             )
 
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -587,14 +589,14 @@ def build_rename_map(
         logged_order = _parse_order_int(
             fields.get("Order") or fields.get("order"), rel_path
         )
-        order_nn = logged_order if logged_order is not None else int(m_leg.group("nn"))
+        order_nn = logged_order if logged_order is not None else default_nn
 
         new_name = artifact_naming.build_clustered_name(
-            date=m_leg.group("date"),
+            date=date_str,
             set_id=set_id,
             order=order_nn,
             id6=id6,
-            slug=m_leg.group("slug"),
+            slug=slug_str,
             artifact_type=facet,
         )
         parent_rel = Path(rel_path).parent
@@ -614,8 +616,8 @@ def build_rename_map(
                 minted=minted,
                 set_id=artifact_core.kebab(set_id),
                 order=order_nn,
-                date=m_leg.group("date"),
-                slug=m_leg.group("slug"),
+                date=date_str,
+                slug=slug_str,
                 facet=facet,
                 record_type=record_type,
             )
@@ -1107,11 +1109,6 @@ def plan_citation_rewrites(
     prefilter_re = re.compile("|".join(re.escape(p) for p in prefixes))
     matchers = _build_citation_matchers(name_map)
 
-    exemptions_by_file: Dict[str, List[str]] = {}
-    for ex_rel, ex_name in M0001_CITATION_EXEMPTIONS:
-        if ex_name in name_map:
-            exemptions_by_file.setdefault(ex_rel, []).append(ex_name)
-
     protected_spans_by_file: Dict[str, Tuple[ProtectedSpan, ...]] = {}
     substituted_by_file: Dict[str, int] = {}
     location_counts: Dict[str, int] = {}
@@ -1142,7 +1139,9 @@ def plan_citation_rewrites(
 
         rel_posix = _rel_posix(f_res, scratch_resolved)
         is_review = _is_review_file(f_res, records_resolved)
-        file_exemptions = exemptions_by_file.get(rel_posix, [])
+        file_exemptions = m0001_discover.discover_citation_exemptions(
+            text, rel_posix, name_map
+        )
 
         spans = _find_protected_spans(
             text,
@@ -1358,11 +1357,6 @@ def apply_step3(
             )
         edits_by_file.setdefault(f_res, []).append(edit)
 
-    exemptions_by_file: Dict[str, List[str]] = {}
-    for ex_rel, ex_name in M0001_CITATION_EXEMPTIONS:
-        if ex_name in citation_plan.name_map:
-            exemptions_by_file.setdefault(ex_rel, []).append(ex_name)
-
     rewritten_now: List[str] = []
     for f_res, file_edits in sorted(edits_by_file.items(), key=lambda kv: str(kv[0])):
         target_path = f_res
@@ -1378,7 +1372,9 @@ def apply_step3(
 
         orig_text = target_path.read_text(encoding="utf-8")
         is_review = _is_review_file(target_path, records_resolved)
-        file_exemptions = exemptions_by_file.get(orig_rel_posix, [])
+        file_exemptions = m0001_discover.discover_citation_exemptions(
+            orig_text, orig_rel_posix, citation_plan.name_map
+        )
         spans = _find_protected_spans(
             orig_text,
             orig_rel_posix,

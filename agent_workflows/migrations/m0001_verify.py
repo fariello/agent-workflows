@@ -25,53 +25,23 @@ from agent_workflows import (
     project_context,
     research_contract,
 )
-from agent_workflows.migrations import m0001_convert, m0001_renames
+from agent_workflows.migrations import m0001_convert, m0001_discover, m0001_renames
 
-_TEMPLATE_SINGLE_FILES: Tuple[str, ...] = (
-    "research/conformance-results-template.md",
-    "research/plan-review/20260712-0156-14-chatgpt-modular-report-template.md",
-    "research/20260712-0156-14-chatgpt-modular-report-template.md",
-    "prompts/conformance-results-template.md",
-)
-
-_SKIP_DIRNAMES = frozenset(
-    {"comms", "prompt-library", "untracked", "runs", "meta", "reviews"}
-)
+_SKIP_DIRNAMES = m0001_discover.EXCLUDED_DIRNAMES
 _SKIP_FILENAMES = frozenset({"README.md", "STATUS.md"})
 
 
-def _is_oq02_excluded_template(rel_posix: str) -> bool:
+def _is_oq02_excluded_template(rel_posix: str, *, text: Optional[str] = None) -> bool:
     """Return True if ``rel_posix`` (records-root-relative) is an OQ-02 excluded template."""
-    if rel_posix in _TEMPLATE_SINGLE_FILES:
-        return True
-    parts = Path(rel_posix).parts
-    if not parts:
-        return False
-    if parts[0] == "prompt-library":
-        return True
-    if len(parts) >= 2 and parts[0] == "prompts" and parts[1] == "prompt-library":
-        return True
-    return False
+    return m0001_discover.is_excluded_template(rel_posix, Path(rel_posix).name, text)
 
 
 def _discover_present_templates(records_root: Path) -> List[str]:
     """Return sorted records-root-relative paths of present OQ-02 excluded templates."""
-    present: Set[str] = set()
-    for rel in _TEMPLATE_SINGLE_FILES:
-        if (records_root / rel).is_file():
-            present.add(rel)
-
-    for lib_dir in (
-        records_root / "prompt-library",
-        records_root / "prompts" / "prompt-library",
-    ):
-        if not lib_dir.is_dir():
-            continue
-        for p in sorted(lib_dir.rglob("*.md")):
-            if p.name == "README.md" or p.name.startswith("INDEX."):
-                continue
-            present.add(p.relative_to(records_root).as_posix())
-    return sorted(present)
+    if not records_root.is_dir():
+        return []
+    inv = m0001_discover.discover(records_root, records_root=records_root)
+    return sorted(u.rel_path for u in inv.excluded if u.category == "excluded-template")
 
 
 def _discover_non_leading_research_prompt_comments(records_root: Path) -> List[str]:
@@ -569,7 +539,40 @@ def build_field_census(
             }
         )
 
-    present_templates = _discover_present_templates(legacy_root)
+    inv = m0001_discover.discover(repo_path, records_root=legacy_root)
+    present_templates = sorted(
+        u.rel_path for u in inv.excluded if u.category == "excluded-template"
+    )
+    unclassifiable_files = [
+        {
+            "path": u.rel_path,
+            "repo_path": u.repo_rel_path,
+            "source_tree": u.source_tree,
+            "reason": u.reason,
+        }
+        for u in inv.unclassifiable
+    ]
+    disc_by_rel = {r.rel_path: r for r in inv.records}
+    minted_records: List[Dict[str, Any]] = []
+    for ent in (rename_summary or {}).get("entries") or []:
+        if not isinstance(ent, Mapping) or not ent.get("minted"):
+            continue
+        old_rel = str(ent.get("old_rel") or "")
+        disc = disc_by_rel.get(old_rel)
+        minted_records.append(
+            {
+                "id6": ent.get("id6"),
+                "old_rel": old_rel,
+                "new_rel": ent.get("new_rel"),
+                "record_type": disc.record_type if disc else "",
+                "status": disc.status if disc else None,
+                "status_source": disc.status_source if disc else None,
+                "title": disc.title if disc else None,
+                "set_id": ent.get("set_id"),
+                "order": ent.get("order"),
+            }
+        )
+
     non_leading_research_comments = _discover_non_leading_research_prompt_comments(
         legacy_root
     )
@@ -596,6 +599,10 @@ def build_field_census(
         "orphan_counts": norm_orphans,
         "orphan_record_count": sum(norm_orphans.values()),
         "excluded_templates": present_templates,
+        "unclassifiable_files": unclassifiable_files,
+        "unclassifiable_count": len(unclassifiable_files),
+        "minted_records": minted_records,
+        "minted_record_count": len(minted_records),
         "non_leading_research_prompt_comments": non_leading_research_comments,
         "with_description_count": with_description_count,
         "without_description_count": without_description_count,
@@ -702,7 +709,9 @@ def verify_round_trip(
         post_root, record_types=m0001_convert.ALL_RECORD_TYPES
     ):
         rel = rec_path.relative_to(post_root).as_posix()
-        if _is_oq02_excluded_template(rel):
+        if _is_oq02_excluded_template(
+            rel, text=rec_path.read_text(encoding="utf-8", errors="replace")
+        ):
             continue
         if artifact_naming._LEGACY_TIMESTAMP_RE.match(rec_path.name):
             legacy_filename_leftovers.append(rel)
@@ -1073,6 +1082,28 @@ def format_census(census: Mapping[str, Any]) -> str:
     lines.append(f"  Excluded templates (kept byte-identical, {len(templates)}):")
     for t in templates:
         lines.append(f"    - {t}")
+
+    minted_recs = census.get("minted_records") or []
+    if minted_recs:
+        lines.append(f"  Minted id-less records ({len(minted_recs)}):")
+        for mr in minted_recs:
+            st = mr.get("status") or "none"
+            st_src = mr.get("status_source")
+            st_lbl = f"{st} [{st_src}]" if st_src else st
+            lines.append(
+                f"    - {mr.get('id6')}: {mr.get('old_rel')} -> {mr.get('new_rel')} "
+                f"(type={mr.get('record_type')}, status={st_lbl}, title={mr.get('title')!r})"
+            )
+    else:
+        lines.append("  Minted id-less records: 0")
+
+    unclass = census.get("unclassifiable_files") or []
+    if unclass:
+        lines.append(f"  Unclassifiable files (left untouched, {len(unclass)}):")
+        for uf in unclass:
+            lines.append(f"    - {uf.get('path')}: {uf.get('reason')}")
+    else:
+        lines.append("  Unclassifiable files (left untouched): 0")
 
     non_leading = census.get("non_leading_research_prompt_comments") or []
     lines.append(

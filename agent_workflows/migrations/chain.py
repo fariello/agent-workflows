@@ -14,6 +14,7 @@ import re
 import tempfile
 from typing import Any, Callable, List, Optional, Set, Tuple, Union
 
+from agent_workflows import attention_contract
 from agent_workflows import project_context
 from agent_workflows import project_schema
 
@@ -64,14 +65,7 @@ CURRENT_METADATA_SCHEMA = 1
 
 _WORKFLOW_HISTORY_RE = re.compile(r"^## Workflow history\s*$", re.MULTILINE)
 
-_EXCLUDED_FILENAMES = frozenset(
-    {
-        "README.md",
-        "STATUS.md",
-        "conformance-results-template.md",
-        "20260712-0156-14-chatgpt-modular-report-template.md",
-    }
-)
+_EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
 _EXCLUDED_DIRNAMES = frozenset({"comms", "prompt-library"})
 # Non-record subdirectories under legacy `.agents/` (host skill packages installed by `aw install`,
 # legacy system workflows, inbox, run records, and runtime state).
@@ -253,7 +247,11 @@ def repo_has_legacy_records(
             for fname in files:
                 if not fname.endswith(".md"):
                     continue
-                if fname in _EXCLUDED_FILENAMES or fname.startswith("INDEX."):
+                if (
+                    fname in _EXCLUDED_FILENAMES
+                    or fname.startswith("INDEX.")
+                    or attention_contract.is_nonartifact_name(fname)
+                ):
                     continue
                 if (
                     is_agents
