@@ -94,6 +94,7 @@ flowchart TD
 
 - E-01 (the five-shape corpus `tests/migration_corpus.py`): Moved to 9vf2iv (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 9vf2iv
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-102-9vf2iv-build-the-five-shape-migration-fixture-corpus-from-a-structu.ipd.md
 - E-02 (multi-tree cache scan), E-03 (stable id-less identity), and the `tests/test_artifact_meta_shapes.py` half of E-07: Moved to 6oi2nu (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 6oi2nu
 - E-04 (`m0001_discover.py` and constant removal) and E-05 (id-less conversion): Moved to 3g20ms (round-3 split 2026-11-09 per research nj8zdp guidance).
