@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2 step 3 renames every legacy-timestamp record and rewrites every citation of it. Measured 2026-11-07: 35 tracked records outside comms match `artifact_naming._LEGACY_TIMESTAMP_RE` (34 after the OQ-02 template exclusion), and `dcerjg` F-05 measured 2,035 citation hits in 457 files over the widened scan roots (re-measured at review 2026-11-13 at `01c564538`: 2,067 hits in 472 files, 0 warnings; the count is context, the bar is re-derived at execution). Plan `dcerjg` owned this step; it was split 2026-11-07 per the maintainer's step-complexity rule.
 - Scope: Create `agent_workflows/migrations/m0001_renames.py` with `classify_name`, `build_rename_map` (`dcerjg` E-07), `plan_citation_rewrites` (`dcerjg` E-08) and `apply_step3` (the scratch-copy citation apply and file moves of 5.2 step 3, wired into `m0001_metadata_v2.py`), and its test module (subset of `dcerjg` E-14). Citation PLANNING is ONE call to `artifact_refs.plan_reference_rewrites_with_warnings` over the scratch copy, and the APPLY is one loop over its output with protected text masked; the executor writes no per-citation edit by hand, so the 2,035 hits are the tool's output, not hidden manual steps. EXCLUDES: preflight, journal and sidecar (`vxevph`); conversion (`ghhzb6`, `hpedmn`); census, round trip and the end-to-end clone proof (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_renames.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_renames.py, .aw/records/plans/pending/20261107-metastore-17-dky26u-build-the-m0001-legacy-name-rename-map-and-citation-rewrite.ipd.md
+- Scope-Exceeded: agent_workflows/artifact_refs.py (Exclude comms/ and *.data/ non-artifacts from count_legacy_prefix_records and _index_records_facetless_stems so m0001 citation planning and test_m0001_sidecar do not falsely treat comms messages as sh...)
 - Item-Dependencies: executed:tve77h, executed:vxevph
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dky26u
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: dky26u verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_refs.py: Exclude comms/ and *.data/ non-artifacts from count_legacy_prefix_records and _index_records_facetless_stems so m0001 citation planning and test_m0001_sidecar do not falsely treat comms messages as shared artifact prefixes]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
