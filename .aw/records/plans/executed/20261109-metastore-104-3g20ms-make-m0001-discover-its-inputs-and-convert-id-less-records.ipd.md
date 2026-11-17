@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2a requires `aw migrate metadata` to discover its inputs in any repository instead of using this repository's constants (the 34-entry rename map, the 28-id mint list, `wvlk84`), and to convert id-less records (C12 shape c). Plan `g5hpbb` owned this (its E-04, E-05) beside six other items; research `nj8zdp` guidance splits it in round 3 on 2026-11-09.
 - Scope: Add `agent_workflows/migrations/m0001_discover.py` with `discover(repo) -> Inventory` and replace every repository-specific constant in the `m0001_*` modules with values computed from it (E-01, from `g5hpbb` E-04); mint ids, statuses, titles and Set/order for id-less records and list unclassifiable files untouched (E-02, from `g5hpbb` E-05). EXCLUDES: the cache changes (`6oi2nu`), layout stage and sidecar expectation (`bv4kkj`), the AC-42 test module and changelog (`g5hpbb`).
 - Scope-Paths: agent_workflows/migrations/m0001_discover.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_renames.py, agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_verify.py, .aw/records/plans/pending/20261109-metastore-104-3g20ms-make-m0001-discover-its-inputs-and-convert-id-less-records.ipd.md
+- Scope-Exceeded: agent_workflows/migrations/chain.py (V-01 requires zero repo-specific template filename literals anywhere in agent_workflows/migrations/ chain.py held prompt-library-template.md and legacy-agents-prompt.md); tests/test_m0001_discover.py (Unit and integration behavioral test coverage for m0001_discover.discover and idless_prose conversion E-01 and E-02)
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv, executed:6oi2nu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3g20ms
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 3g20ms verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/migrations/chain.py: V-01 requires zero repo-specific template filename literals anywhere in agent_workflows/migrations/; chain.py held prompt-library-template.md and legacy-agents-prompt.md; out-of-scope tests/test_m0001_discover.py: Unit and integration behavioral test coverage for m0001_discover.discover() and idless_prose conversion (E-01 and E-02)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
