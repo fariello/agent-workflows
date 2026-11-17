@@ -6,7 +6,7 @@
 - Scope: Make `aw backlog new`, `aw specs new` and `aw releases new` write `--summary` as `short_description` in their `create` event (`6e93gt` E-01, the backlog, specs and releases subset), update the exact-byte spec creation test in `tests/test_specs_date_containment.py`, and create the shared test module `tests/test_writers_create_summary.py`. EXCLUDES: research and adopt (`bir7xm`), plan scaffold and prompts with `ipd_schema.META_RECOGNIZED` (`py2vu9`), `aw describe` (`h06gs7`).
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/artifact_meta.py, tests/test_specs_date_containment.py, tests/test_writers_create_summary.py, .aw/records/plans/pending/20261109-metastore-124-fekdwv-write-short-description-at-creation-for-backlog-specs-and-re.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fekdwv
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: fekdwv verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/artifact_meta.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini-4-carbon): /plan-review (antigravity/gemini-4-carbon): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
