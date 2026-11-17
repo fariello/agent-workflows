@@ -48,33 +48,33 @@ Items E-01 to E-11 were moved to the parts named in `## Deferred / out of scope 
 
 ### Task group 5: census, round trip, real-copy proof and commit
 
-- [ ] E-12 Create `agent_workflows/migrations/m0001_verify.py` with the step-6 field census (`4sd62s` AC-20, 5.2 step 6, 5.2a items 1, 3, 5): resolve `records_root` from the caller's argument or `project_context.project_records_dir(repo)` with zero repository-specific `id6` or count constants, and enumerate every distinct field name found before the first `##` heading, in research YAML, in leading `aw-prompt` comments, and as D177 filename facets, each with its destination (log field, body section, review-event field, or a recorded drop with reason) and its count; `unknown-field` and unparseable-value refusals (for example an `Item-Dependencies` value outside the closed grammar); `plan_role` legacy values and absent-`Kind` counts; staged prompts with no comment; sidecar orphan `id6` values with counts (or `"no sidecar (none expected)"` with zero orphans when `vxevph` E-04 reports `not sidecar_expected`); the present excluded templates and non-leading research `aw-prompt` comments by relative path (skipping absent template paths cleanly on non-self repositories); the count of records with and without a `short_description`; and the rename and citation summaries. `--apply` refuses when the census has any refusal or when any record lacks a `short_description` that the census does not list as a deliberate absence (walkthroughs and roadmaps carry `short_description` in `4sd62s` 4.5c; excluded templates, READMEs, comms, and `.data/` files are non-records).
+- [x] E-12 Create `agent_workflows/migrations/m0001_verify.py` with the step-6 field census (`4sd62s` AC-20, 5.2 step 6, 5.2a items 1, 3, 5): resolve `records_root` from the caller's argument or `project_context.project_records_dir(repo)` with zero repository-specific `id6` or count constants, and enumerate every distinct field name found before the first `##` heading, in research YAML, in leading `aw-prompt` comments, and as D177 filename facets, each with its destination (log field, body section, review-event field, or a recorded drop with reason) and its count; `unknown-field` and unparseable-value refusals (for example an `Item-Dependencies` value outside the closed grammar); `plan_role` legacy values and absent-`Kind` counts; staged prompts with no comment; sidecar orphan `id6` values with counts (or `"no sidecar (none expected)"` with zero orphans when `vxevph` E-04 reports `not sidecar_expected`); the present excluded templates and non-leading research `aw-prompt` comments by relative path (skipping absent template paths cleanly on non-self repositories); the count of records with and without a `short_description`; and the rename and citation summaries. `--apply` refuses when the census has any refusal or when any record lacks a `short_description` that the census does not list as a deliberate absence (walkthroughs and roadmaps carry `short_description` in `4sd62s` 4.5c; excluded templates, READMEs, comms, and `.data/` files are non-records).
   - Depends on: none
   - Expected outcome: the census on the clone lists every field the corpus uses (70 bullet names measured at authoring plus YAML, comment, and facet keys) with zero `unknown-field` refusals, handles both sidecar-present and `"no sidecar (none expected)"` repositories without hard-coded counts, and reports a nonzero "without description" count that makes `--apply` refuse when no `describer` ran.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-13 Add the round-trip verifier (`4sd62s` AC-10) in `m0001_verify.py` and wire step 6, the top-of-`run` idempotency guard, the `metadata_schema: 2` stamp write, and step 7 into `agent_workflows/migrations/m0001_metadata_v2.py`:
+- [x] E-13 Add the round-trip verifier (`4sd62s` AC-10) in `m0001_verify.py` and wire step 6, the top-of-`run` idempotency guard, the `metadata_schema: 2` stamp write, and step 7 into `agent_workflows/migrations/m0001_metadata_v2.py`:
   - At the very top of `m0001_metadata_v2.run(repo, *, apply=False, force=False, force_worktree=False, describer=None, fault_injection=None, commit=True)` (before step-1 preflight, step-2 sidecar check, or journal directory creation), check `chain.read_metadata_schema(repo)`: when `>= 2`, return a no-op report printing `"metadata_schema is 2; nothing to do"` with zero writes.
   - In `m0001_verify.py` (invoked on every dry run and on `apply=True` before working-tree mutation), replay each produced `meta/<id6>.jsonl` log directly through `artifact_meta.replay(id6, art_type, lines, records_root=scratch_records_root)` (avoiding Phase-B `check_freshness`'s legacy `.md`/`.review.md` loader scan; if `hpedmn` E-01 added `"roadmap"` only to `artifact_meta.REGISTRY` and omitted `artifact_meta.SUPPORTED_TYPES`, add `"roadmap"` to `SUPPORTED_TYPES` as well and justify `agent_workflows/artifact_meta.py` via `--scope-reason` at finalize), parse each rewritten mirror through `artifact_meta.parse_artifact_mirror`, `parse_staged_prompt_mirror`, or `parse_review_mirror`, and assert that every legacy field value (under its 4.2/4.5c name, or verbatim in the body or `scope_exceeded_raw`), every raw inline history line, every resolvable sidecar JSON object, and every migrated review round is recoverable byte for byte; that no two plans share a `(set_id, order)`; and that no artifact, walkthrough, or roadmap filename matches `artifact_naming._LEGACY_TIMESTAMP_RE` (excluding the OQ-02 templates by relative path when present). Run `leak_sanitizer.scan_text` with `leak_sanitizer.build_ruleset(repo_root)` over every new log and mirror, refusing `--apply` on any `fail` diagnostic (`4sd62s` 5.2 step 6, AC-16); `warn` findings are listed in the report without refusing because imported legacy bytes use `migration_import=True` (`tve77h` E-03 (d)).
   - On `apply=True`, after step 6 passes, back up the resolved `project.json` (or an absence marker) in `journal_dir / "backups"` so `rollback(repo)` restores pre-apply `project.json`, call `chain.write_metadata_schema(repo, 2)` (`4sd62s` 5.2 step 6), include the resolved `project.json` path in the migration's explicit path list whenever it sits inside `repo`, stage that complete path list, and write `o19353` E-01's step-4a `terminal_commit_marker` (`git write-tree` of the staged index, which now covers `project.json`). When `commit=True` (the default used by `aw migrate metadata --apply` and bare `aw migrate --apply`), execute `4sd62s` 5.2 step 7 via `git_commit_helper.offer_commit(..., assume_yes=True, runner=git_commit_helper.RUNNER_AW_COMMIT)` (no `--no-verify`) and delete `terminal_commit_marker` on commit success (and in `rollback(repo)`); when `commit=False`, return `staged_paths` with the index and marker intact so a caller or test can inspect the staged tree and complete step 7 via a helper `commit_staged(repo, paths)` that runs the same `offer_commit` / `aw commit --no-plan` path and deletes `terminal_commit_marker`.
   - Depends on: E-12
   - Expected outcome: a fixture holding a history line longer than `MAX_PROSE_DESCRIPTIVE_LEN` (4,300) and one with a control character round-trips both byte for byte, while the same long value given to `artifact_meta`'s writer validation is refused; a fixture with a planted home-directory path in a field value makes `--apply` refuse on the sanitizer; `apply=True` writes `"metadata_schema": 2`, commits cleanly in step 7, and consumes `terminal_commit_marker`; and a second `--apply` on a stamped repository reports `"metadata_schema is 2; nothing to do"` and changes no file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-14 Add `tests/test_m0001_roundtrip.py` (`4sd62s` AC-10 fixture cases, AC-20 fixture census including `"no sidecar (none expected)"`, step-6 stamp + step-7 commit + `rollback` restoration of `project.json`, and second-apply idempotence) on `tmp_path` fixture repositories built with real `git init`, including an end-to-end `apply=True` (`commit=True`) fixture holding an executed legacy-timestamp plan, a release-blocking `done` backlog item, and an installed executable `.git/hooks/pre-commit` script invoking `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` (exercising `commit_lock.commit_isolated`'s detached `.aw-isocommit-*` worktree; if `o19353` E-01's hook marker lookup read only worktree-local `state_durable` instead of falling back to `ipd_lifecycle.checkout_control_root(root) / "state" / "durable"`, fix both hook modules and justify them via `--scope-reason` at finalize), calling the real functions and CLI leaves and asserting on outputs, exit codes, commit history, and file bytes (zero source inspection). Then RUN, once, as the family gate, all ten `m0001` test modules listed under `## Required tests / validation` ("New module here" plus "Run as the family gate"): this module plus the nine written by `g8na48`, `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6`, `hpedmn`, and `o19353`. Mark the new module `core`; any module whose slowest test exceeds 2 s in `--durations=10` is marked `slow` instead and named in V-14.
+- [x] E-14 Add `tests/test_m0001_roundtrip.py` (`4sd62s` AC-10 fixture cases, AC-20 fixture census including `"no sidecar (none expected)"`, step-6 stamp + step-7 commit + `rollback` restoration of `project.json`, and second-apply idempotence) on `tmp_path` fixture repositories built with real `git init`, including an end-to-end `apply=True` (`commit=True`) fixture holding an executed legacy-timestamp plan, a release-blocking `done` backlog item, and an installed executable `.git/hooks/pre-commit` script invoking `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` (exercising `commit_lock.commit_isolated`'s detached `.aw-isocommit-*` worktree; if `o19353` E-01's hook marker lookup read only worktree-local `state_durable` instead of falling back to `ipd_lifecycle.checkout_control_root(root) / "state" / "durable"`, fix both hook modules and justify them via `--scope-reason` at finalize), calling the real functions and CLI leaves and asserting on outputs, exit codes, commit history, and file bytes (zero source inspection). Then RUN, once, as the family gate, all ten `m0001` test modules listed under `## Required tests / validation` ("New module here" plus "Run as the family gate"): this module plus the nine written by `g8na48`, `vxevph`, `1vfqdu`, `dky26u`, `ghhzb6`, `hpedmn`, and `o19353`. Mark the new module `core`; any module whose slowest test exceeds 2 s in `--durations=10` is marked `slow` instead and named in V-14.
   - Depends on: E-12, E-13
   - Expected outcome: all ten modules pass under `python3 -m pytest -o addopts="" -n auto <modules>`, including the real `.git/hooks/pre-commit` `commit_isolated` case, and the bare core gate stays inside its 30 s budget.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-15 Prove the migration on a COPY of this repository, never on this checkout: commit the E-12 to E-14 code first (every earlier step is already committed by the executed parts; E-16's commit obligation splits cleanly into code before E-15 and `CHANGELOG.md` plus plan/evidence updates after E-15), then run `git clone --no-hardlinks . tmp/dcerjg-clone` (inside the gitignored `tmp/` of this checkout so a runner lane stays inside its workspace), install an executable `tmp/dcerjg-clone/.git/hooks/pre-commit` script (`#!/usr/bin/env sh`, `set -eu`) running `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` (`git clone` installs only `.sample` hooks and `backlog-blocking-close-gate` is opt-in), copy `.aw/records/history.jsonl` into `tmp/dcerjg-clone/.aw/records/history.jsonl` when this checkout has one (a runner lane has none: record that, write a synthetic sidecar containing at least one resolvable tracked `id6` record and one orphan `id6` record, and leave the real-sidecar line to `cxxmyv` E-02, which owns AC-22 case 2), and in a subshell `(cd tmp/dcerjg-clone && ...)` using the clone's own package (`python3 -m agent_workflows ...`, resolved to the clone by `checkout_pin`) run: (a) `aw migrate metadata` (dry run), (b) `aw migrate metadata --apply` (must refuse on missing descriptions), (c) a short `python3 -c` driver calling `m0001_metadata_v2.run(copy, apply=True, describer=<fixed-text fake>, commit=False)` followed by `aw sanitize --agent` on the staged clone tree, (d) `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` directly against the staged index and then the step-7 commit via `m0001_metadata_v2.commit_staged` / `aw commit --no-plan` with the migration's explicit path list (which also runs the installed `.git/hooks/pre-commit` inside `commit_lock.commit_isolated` and deletes `terminal_commit_marker`; verify the marker file is absent afterwards), (e) `aw migrate metadata --apply` again (printing `"metadata_schema is 2; nothing to do"`), and (f) `git status --porcelain --ignored` in the clone. Step (c) exercises the `describer` seam with a fixed-text fake and is NOT evidence about real descriptions. Record wall time and peak scratch size, then delete `tmp/dcerjg-clone`. Before and after, `git status --porcelain` of THIS checkout must be identical.
+- [x] E-15 Prove the migration on a COPY of this repository, never on this checkout: commit the E-12 to E-14 code first (every earlier step is already committed by the executed parts; E-16's commit obligation splits cleanly into code before E-15 and `CHANGELOG.md` plus plan/evidence updates after E-15), then run `git clone --no-hardlinks . tmp/dcerjg-clone` (inside the gitignored `tmp/` of this checkout so a runner lane stays inside its workspace), install an executable `tmp/dcerjg-clone/.git/hooks/pre-commit` script (`#!/usr/bin/env sh`, `set -eu`) running `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` (`git clone` installs only `.sample` hooks and `backlog-blocking-close-gate` is opt-in), copy `.aw/records/history.jsonl` into `tmp/dcerjg-clone/.aw/records/history.jsonl` when this checkout has one (a runner lane has none: record that, write a synthetic sidecar containing at least one resolvable tracked `id6` record and one orphan `id6` record, and leave the real-sidecar line to `cxxmyv` E-02, which owns AC-22 case 2), and in a subshell `(cd tmp/dcerjg-clone && ...)` using the clone's own package (`python3 -m agent_workflows ...`, resolved to the clone by `checkout_pin`) run: (a) `aw migrate metadata` (dry run), (b) `aw migrate metadata --apply` (must refuse on missing descriptions), (c) a short `python3 -c` driver calling `m0001_metadata_v2.run(copy, apply=True, describer=<fixed-text fake>, commit=False)` followed by `aw sanitize --agent` on the staged clone tree, (d) `python3 -m agent_workflows ipd-executed-gate` and `python3 -m agent_workflows backlog-blocking-close-gate` directly against the staged index and then the step-7 commit via `m0001_metadata_v2.commit_staged` / `aw commit --no-plan` with the migration's explicit path list (which also runs the installed `.git/hooks/pre-commit` inside `commit_lock.commit_isolated` and deletes `terminal_commit_marker`; verify the marker file is absent afterwards), (e) `aw migrate metadata --apply` again (printing `"metadata_schema is 2; nothing to do"`), and (f) `git status --porcelain --ignored` in the clone. Step (c) exercises the `describer` seam with a fixed-text fake and is NOT evidence about real descriptions. Record wall time and peak scratch size, then delete `tmp/dcerjg-clone`. Before and after, `git status --porcelain` of THIS checkout must be identical.
   - Depends on: E-14
   - Expected outcome: (a) prints the preflight (sidecar presence and record count, real or synthetic as recorded), the rename map (every `_LEGACY_TIMESTAMP_RE` artifact, walkthrough, and roadmap in the clone mapped except the OQ-02 template; 34 entries measured at `HEAD` `0ea2db75d`), per-location citation counts with `0 ambiguity warnings`, the census, and `round trip: pass`; (b) refuses naming the missing descriptions; (c) stages the migrated tree plus `"metadata_schema": 2` and passes `aw sanitize --agent` with zero `fail`; (d) passes both gate CLIs directly and via `.git/hooks/pre-commit` inside `aw commit --no-plan` and consumes `terminal_commit_marker`; (e) prints `"metadata_schema is 2; nothing to do"` and changes nothing; (f) shows a clean clone with no `records/history.jsonl`, no `STATUS.md`, and no `INDEX` file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-16 Add one `CHANGELOG.md` entry under `2.0.0 (pending)` (new `aw migrate metadata` dry-run command and `aw migrate layout` spelling; `aw install --migrate`; the migration does not yet run on any repository), with no em or en dashes. Run the ten named `m0001` modules, the existing regression modules in `## Required tests / validation`, the bare core gate `python3 -m pytest`, `make test-all`, `aw sanitize --agent`, and `aw check --agent`; when `.aw/state/dcerjg/check-before.jsonl` is absent because `dcerjg` executes in an isolated runner worktree separate from `g8na48`, regenerate `.aw/state/dcerjg/check-before.jsonl` first from a temporary detached worktree under `tmp/` checked out at the pre-edit `HEAD` SHA recorded in `g8na48` `F-03` (or at `dcerjg`'s own pre-edit `HEAD` if `g8na48` `F-03` was recorded on a prior branch) and remove that temporary worktree immediately. Commit through `aw commit dcerjg -- <each changed path>` (code before E-15, then `CHANGELOG.md`, any E-15 fixes, and this plan's progress updates after E-15). Never push.
+- [x] E-16 Add one `CHANGELOG.md` entry under `2.0.0 (pending)` (new `aw migrate metadata` dry-run command and `aw migrate layout` spelling; `aw install --migrate`; the migration does not yet run on any repository), with no em or en dashes. Run the ten named `m0001` modules, the existing regression modules in `## Required tests / validation`, the bare core gate `python3 -m pytest`, `make test-all`, `aw sanitize --agent`, and `aw check --agent`; when `.aw/state/dcerjg/check-before.jsonl` is absent because `dcerjg` executes in an isolated runner worktree separate from `g8na48`, regenerate `.aw/state/dcerjg/check-before.jsonl` first from a temporary detached worktree under `tmp/` checked out at the pre-edit `HEAD` SHA recorded in `g8na48` `F-03` (or at `dcerjg`'s own pre-edit `HEAD` if `g8na48` `F-03` was recorded on a prior branch) and remove that temporary worktree immediately. Commit through `aw commit dcerjg -- <each changed path>` (code before E-15, then `CHANGELOG.md`, any E-15 fixes, and this plan's progress updates after E-15). Never push.
   - Depends on: E-14, E-15
   - Expected outcome: every test run and `aw sanitize --agent` pass; `aw check --agent` reports zero added `(location, rule)` error or warning pairs against `.aw/state/dcerjg/check-before.jsonl`; each path-scoped commit's `git show --stat` lists only `- Scope-Paths:` files (or paths explicitly justified at finalize via `--scope-reason`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -258,26 +258,379 @@ No spec change; implements `4sd62s` sections 5.1, 5.2 (steps 0 to 7 on a copy), 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition, as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-12 validates E-12
+- [x] V-12 validates E-12
   - Required evidence: paste the census section of the E-15 clone dry run in full (`m0001_verify` invoked from `m0001_metadata_v2.run` via `aw migrate metadata`): field rows with destinations and counts, zero `unknown-field` refusals, the excluded templates by relative path, the orphan sidecar `id6` lines, and the with/without description counts; paste the `"no sidecar (none expected)"` census test output from `tests/test_m0001_roundtrip.py`; and paste the refusal text of E-15 step (b) `aw migrate metadata --apply`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-13 validates E-13
+    1. E-15 clone dry-run census section in full (`python3 -m agent_workflows migrate metadata` on `tmp/dcerjg-clone`):
+       ```text
+       Field Census (3364 records, 1512 reviews):
+         Distinct bullet names before first ##: 77
+         Unknown-field refusals: 0
+         Unparseable-value refusals: 0
+         Sidecar: present (2 records)
+         Sidecar orphan id6s (1 records across 1 id6):
+           - zz9999: 1
+         Descriptions: with=0, without=3364
+         Plan roles (Kind -> plan_role): {'child': 1717, 'orchestrator': 103}, absent Kind: 102
+         Staged prompts without leading comment: 6
+           - prompts/executed/20261024-specflow-01-hj6b60-spec-generation.agy.gemini38flashhigh.prompt.md
+           - prompts/executed/20261024-specflow-02-g1k32q-spec-generation.codex.gpt61solmedium.prompt.md
+           - prompts/executed/20261024-specflow-03-443ltw-spec-generation.opencode.opus55high.prompt.md
+           - prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+           - prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+           - prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+         Excluded templates (kept byte-identical, 6):
+           - prompt-library/final-release-validation-executable.prompt.md
+           - prompt-library/fix-bar.prompt.md
+           - prompt-library/modular-release-review-instruction-set-generation-prompt.prompt.md
+           - prompt-library/older-general-qaqc-prompt-library.prompt.md
+           - research/conformance-results-template.md
+           - research/plan-review/20260712-0156-14-chatgpt-modular-report-template.md
+         Non-leading research aw-prompt comments (body prose per OQ-04, 4):
+           - research/20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md
+           - research/20260924-cliinv-00-ffi66q-aw-cli-command-inventory.survey.md
+           - research/reference/202608/20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md
+           - research/reference/202608/20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md
+         Fields by source, destination, and count:
+           - [bullet] Approval -> log_field: approval (count=247, types=ipd)
+           - [bullet] Attended -> log_field: attended (count=6, types=ipd)
+           - [bullet] Audited-Scope -> body_section: Audited-Scope (count=8, types=review)
+           - [bullet] Author -> body_section: Author (count=10, types=walkthrough)
+           - [bullet] Author -> log_field: author (count=1960, types=ipd,spec)
+           - [bullet] Base commit -> body_section: Base commit (count=6, types=walkthrough)
+           - [bullet] Blocks-Release -> log_field: blocks_release (count=1454, types=backlog,ipd,spec)
+           - [bullet] Canonical -> log_field: canonical (count=6, types=spec)
+           - [bullet] Close-Evidence -> log_field: close_evidence (count=60, types=backlog)
+           - [bullet] Commits -> body_section: Commits (count=2, types=walkthrough)
+           - [bullet] Concern -> log_field: concern (count=1922, types=ipd)
+           - [bullet] Constrained-by -> body_section: Constrained-by (count=13, types=spec)
+           - [bullet] Coverage -> log_field: coverage (count=37, types=ipd)
+           - [bullet] Coverage-Checked -> log_field: coverage_checked (count=37, types=ipd)
+           - [bullet] Coverage-Fingerprint -> log_field: coverage_fingerprint (count=37, types=ipd)
+           - [bullet] Date -> log_field: created_day (count=1991, types=ipd,spec,walkthrough)
+           - [bullet] Driver run -> body_section: Driver run (count=1, types=walkthrough)
+           - [bullet] Evidence -> body_section: Evidence (count=1, types=spec)
+           - [bullet] Executed by -> body_section: Executed by (count=6, types=walkthrough)
+           - [bullet] Executor under review -> body_section: Executor under review (count=1, types=walkthrough)
+           - [bullet] Extends -> body_section: Extends (count=1, types=spec)
+           - [bullet] Findings -> review_event: findings_summary (count=431, types=review)
+           - [bullet] From-Backlog -> body_section: From-Backlog (count=1, types=walkthrough)
+           - [bullet] From-Backlog -> log_field: from_backlog (count=1105, types=ipd,spec)
+           - [bullet] From-Plan -> body_section: From-Plan (count=1, types=spec)
+           - [bullet] From-Spec -> body_section: From-Spec (count=2, types=walkthrough)
+           - [bullet] From-Spec -> log_field: from_spec (count=414, types=ipd,spec)
+           - [bullet] Graduated-To -> body_section: Graduated-To (count=5, types=spec)
+           - [bullet] Graduated-To -> log_field: graduated_to (count=777, types=backlog)
+           - [bullet] Grounding -> body_section: Grounding (count=1, types=spec)
+           - [bullet] Highest E allocated -> log_field: highest_e_allocated (count=1820, types=ipd)
+           - [bullet] Id -> identity: id (count=3137, types=backlog,ipd,release,spec,walkthrough)
+           - [bullet] Implementation Set -> body_section: Implementation Set (count=2, types=spec)
+           - [bullet] Implementation state -> body_section: Implementation state (count=1, types=spec)
+           - [bullet] Implemented-by -> body_section: Implemented-by (count=1, types=spec)
+           - [bullet] Item-Dependencies -> log_field: item_dependencies (count=1563, types=ipd)
+           - [bullet] Kind -> body_section: Kind (count=3, types=walkthrough)
+           - [bullet] Kind -> log_field: plan_role (count=1820, types=ipd)
+           - [bullet] Measured at HEAD -> body_section: Measured at HEAD (count=1, types=walkthrough)
+           - [bullet] Motivation -> body_section: Motivation (count=8, types=spec)
+           - [bullet] Note -> body_section: Note (count=1, types=ipd)
+           - [bullet] Order -> body_section: Order (count=1, types=review)
+           - [bullet] Order -> log_field: order (count=1915, types=ipd,release,spec)
+           - [bullet] Origin -> body_section: Origin (count=3, types=ipd,spec)
+           - [bullet] Parent -> body_section: Parent (count=5, types=spec)
+           - [bullet] Plan -> body_section: Plan (count=8, types=walkthrough)
+           - [bullet] Priority -> log_field: priority (count=2439, types=backlog,ipd,spec)
+           - [bullet] Purpose -> body_section: Purpose (count=1, types=walkthrough)
+           - [bullet] Readiness -> body_section: Readiness (count=172, types=review)
+           - [bullet] Readiness -> log_field: readiness (count=1466, types=ipd)
+           - [bullet] Rejected commit -> body_section: Rejected commit (count=1, types=walkthrough)
+           - [bullet] Related -> body_section: Related (count=2, types=spec)
+           - [bullet] Related specifications -> body_section: Related specifications (count=1, types=spec)
+           - [bullet] Relation to prior specs -> body_section: Relation to prior specs (count=1, types=spec)
+           - [bullet] Relation to prior work -> body_section: Relation to prior work (count=10, types=spec)
+           - [bullet] Release-Exempt-Kind -> log_field: release_exempt_kind (count=1, types=backlog)
+           - [bullet] Release-Exempt-Ref -> log_field: release_exempt_ref (count=1, types=backlog)
+           - [bullet] Review-Depth -> log_field: review_depth (count=225, types=ipd)
+           - [bullet] Reviewed-At -> review_event: observed_day (count=1512, types=review)
+           - [bullet] Reviewer -> body_section: Reviewer (count=1, types=walkthrough)
+           - [bullet] Reviewer -> review_event: reviewer (count=1512, types=review)
+           - [bullet] Revised by -> body_section: Revised by (count=1, types=spec)
+           - [bullet] Rounds -> body_section: Rounds (count=1, types=review)
+           - [bullet] Run record -> body_section: Run record (count=2, types=ipd)
+           - [bullet] Scope -> body_section: Scope (count=1956, types=ipd,spec,walkthrough)
+           - [bullet] Scope-Exceeded -> log_field: scope_result (count=55, types=ipd)
+           - [bullet] Scope-Paths -> log_field: scope_paths (count=1629, types=ipd)
+           - [bullet] Self-note -> body_section: Self-note (count=1, types=ipd)
+           - [bullet] Set -> body_section: Set (count=1, types=review)
+           - [bullet] Set -> log_field: set (count=3092, types=backlog,ipd,release,spec,walkthrough)
+           - [bullet] Source spec -> body_section: Source spec (count=2, types=ipd)
+           - [bullet] Sources -> body_section: Sources (count=1, types=spec)
+           - [bullet] Spec -> body_section: Spec (count=4, types=walkthrough)
+           - [bullet] Status -> drop (body_prose): free-prose Status line kept in body unchanged (4.1) (count=2, types=walkthrough)
+           - [bullet] Status -> status: status (count=3134, types=backlog,ipd,release,spec)
+           - [bullet] Subject-Id -> review_mirror: subject (count=1512, types=review)
+           - [bullet] Subject-Type -> review_mirror: subject_type (count=1512, types=review)
+           - [bullet] Summary -> body_section: Summary (count=1162, types=backlog,spec)
+           - [bullet] Supersedes -> log_field: supersedes (count=2, types=spec)
+           - [bullet] Supersedes-Note -> body_section: Supersedes-Note (count=1, types=ipd)
+           - [bullet] Supersedes/extends -> body_section: Supersedes/extends (count=1, types=spec)
+           - [bullet] Target IPD -> body_section: Target IPD (count=2, types=walkthrough)
+           - [bullet] Target-Id -> log_field: target_id (count=17, types=walkthrough)
+           - [bullet] Verdict -> body_section: Verdict (count=1, types=walkthrough)
+           - [bullet] Verdict -> review_event: legacy_verdict (count=1512, types=review)
+           - [bullet] Verified at -> body_section: Verified at (count=3, types=walkthrough)
+           - [bullet] Version -> log_field: version (count=1, types=release)
+           - [bullet] Work-Kind -> log_field: work_kind (count=2446, types=backlog,ipd,spec)
+           - [facet] ace -> log_field: ace (count=7, types=prompt,spec)
+           - [facet] model -> log_field: model (count=90, types=prompt,research,spec)
+           - [facet] research_kind -> log_field: research_kind (count=167, types=research)
+           - [prompt_comment] Author -> log_field: author (count=16, types=prompt)
+           - [prompt_comment] Basis -> log_field: basis (count=1, types=prompt)
+           - [prompt_comment] Concerns -> log_field: concerns (count=12, types=prompt)
+           - [prompt_comment] Created -> log_field: created_day (count=24, types=prompt)
+           - [prompt_comment] Goal -> log_field: goal (count=2, types=prompt)
+           - [prompt_comment] Grounding -> log_field: grounding (count=2, types=prompt)
+           - [prompt_comment] Id -> identity: id (count=24, types=prompt)
+           - [prompt_comment] Kind -> log_field: prompt_kind (count=24, types=prompt)
+           - [prompt_comment] Relation -> log_field: relation (count=1, types=prompt)
+           - [prompt_comment] Results -> log_field: results (count=4, types=prompt)
+           - [prompt_comment] Results-go-to -> log_field: results_go_to (count=5, types=prompt)
+           - [prompt_comment] Reviews-spec -> log_field: reviews_spec (count=1, types=prompt)
+           - [prompt_comment] Set -> log_field: set (count=8, types=prompt)
+           - [prompt_comment] Status -> status: status (count=24, types=prompt)
+           - [prompt_comment] Targets -> log_field: targets (count=14, types=prompt)
+           - [yaml] consumed-by -> log_field: consumed_by (count=167, types=research)
+           - [yaml] created -> log_field: created_day (count=167, types=research)
+           - [yaml] id -> identity: id (count=167, types=research)
+           - [yaml] kind -> log_field: research_kind (count=167, types=research)
+           - [yaml] model -> log_field: model (count=167, types=research)
+           - [yaml] order -> log_field: order (count=167, types=research)
+           - [yaml] outcome -> log_field: outcome (count=167, types=research)
+           - [yaml] priority -> log_field: priority (count=12, types=research)
+           - [yaml] set -> log_field: set (count=167, types=research)
+           - [yaml] status -> status: status (count=159, types=research)
+           - [yaml] summary -> body_section: Summary (count=167, types=research)
+           - [yaml] topic -> log_field: topic (count=167, types=research)
+       ```
+    2. `"no sidecar (none expected)"` census test output from `tests/test_m0001_roundtrip.py`:
+       ```text
+       tests/test_m0001_roundtrip.py::test_census_no_sidecar_none_expected_skips_absent_templates_and_lists_fields PASSED
+       1 passed, 6 deselected in 0.55s
+       ```
+    3. E-15 step (b) `python3 -m agent_workflows migrate metadata --apply` refusal (exit code 1):
+       ```text
+       FAIL     m0001 step-6 verification refused --apply: 3364 record(s) lack a short_description (e.g. backlog/done/20260815-7vd36f-01-7vd36f-ipd-scaffold-clustering-grammar.backlog.md, backlog/done/20260815-agent-comms-broker-01-0gd5w6-comms-agent-ack-aggregation.backlog.md, backlog/done/20260815-agent-comms-broker-01-ifeyjv-comms-broker-payload-blind.backlog.md, backlog/done/20260815-agent-comms-broker-01-lbhmi3-comms-discovery-registry.backlog.md, backlog/done/20260815-agent-continuity-01-d3jkws-handoff-workflow.backlog.md)
+       ```
+  - Result: pass
+- [x] V-13 validates E-13
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_roundtrip.py` all PASSED, naming the long-line (over 4,300 characters), control-character, writer-refusal, sanitizer-refusal, step-6 `metadata_schema: 2` stamp + `rollback` restoration, step-7 `commit=True` hook-verified commit + marker consumption, and second-apply `"metadata_schema is 2; nothing to do"` tests.
   - Observed evidence:
-  - Result: pending
-- [ ] V-14 validates E-14
+    - `python3 -m pytest -o addopts="" -v tests/test_m0001_roundtrip.py`:
+      - `tests/test_m0001_roundtrip.py::test_census_refuses_unknown_field_unparseable_dep_and_missing_description_on_apply PASSED [ 14%]` (census refusals + missing `short_description` `--apply` refusal)
+      - `tests/test_m0001_roundtrip.py::test_roundtrip_long_and_control_char_history_lines_and_writer_refusal PASSED [ 28%]` (over-4,300-char line + `\x07` control-char byte-for-byte round trip, and `artifact_meta` writer refusal on the same >4,300-char line)
+      - `tests/test_m0001_roundtrip.py::test_roundtrip_leak_sanitizer_fail_refuses_apply PASSED [ 42%]` (home-directory path fail diagnostic refuses `--apply`)
+      - `tests/test_m0001_roundtrip.py::test_step6_stamp_and_rollback_restores_project_json PASSED [ 57%]` (step-6 `"metadata_schema": 2` stamp write + `rollback` restores pre-apply bytes and absent marker)
+      - `tests/test_m0001_roundtrip.py::test_step7_commit_with_installed_precommit_hooks_and_second_apply_idempotence PASSED [ 71%]` (step-7 `commit=True` with installed executable `.git/hooks/pre-commit` running both gates in `commit_isolated`, marker consumption, and second-apply `"metadata_schema is 2; nothing to do"`)
+      - `tests/test_m0001_roundtrip.py::test_census_no_sidecar_none_expected_skips_absent_templates_and_lists_fields PASSED [ 85%]` (`"no sidecar (none expected)"`, absent-template skip)
+      - `tests/test_m0001_roundtrip.py::test_roundtrip_step3_rewritten_citations_and_prompt_hr PASSED [100%]` (post-Step-3 rewritten citations + protected pre-Step-3 history + prompt body horizontal rule `---`)
+      - `============================== 7 passed in 2.74s ===============================` (post-E-16 rerun pasted in V-16 as well).
+  - Result: pass
+- [x] V-14 validates E-14
   - Required evidence: paste `python3 -m pytest -o addopts="" -n auto tests/test_migrations_chain.py tests/test_install_migrate_prompt.py tests/test_m0001_preflight.py tests/test_m0001_renames.py tests/test_m0001_conversion.py tests/test_m0001_roundtrip.py tests/test_m0001_gate_marker.py tests/test_m0001_sidecar.py tests/test_migrate_cli.py tests/test_m0001_review_conversion.py --durations=10` summary with 0 failed and the durations table, naming any module marked `slow`; and the bare `python3 -m pytest` summary line inside the 30 s budget.
   - Observed evidence:
-  - Result: pending
-- [ ] V-15 validates E-15
+    - 10-module family gate (`tests/test_install_migrate_prompt.py` is marked `pytestmark = pytest.mark.slow`; the other 9 modules including `tests/test_m0001_roundtrip.py` are marked `pytestmark = pytest.mark.core` with every test <= 1.84s):
+      ```text
+      ============================= slowest 10 durations =============================
+      6.11s call     tests/test_install_migrate_prompt.py::test_ac28_case4_migrate_flag_runs_and_still_refuses_step1_condition
+      5.69s call     tests/test_install_migrate_prompt.py::test_ac28_case3_yes_and_install_all_yes_never_run_migration
+      5.02s call     tests/test_install_migrate_prompt.py::test_ac28_case2_no_terminal_only_reports_and_preserves_records
+      4.90s call     tests/test_install_migrate_prompt.py::test_ac28_case1_terminal_yes_runs_migration
+      4.44s call     tests/test_install_migrate_prompt.py::test_ac28_case1_terminal_no_prints_command_and_preserves_records
+      4.39s call     tests/test_install_migrate_prompt.py::test_e03_phase_a_constant_at_1_migrate_asks_and_runs_nothing
+      4.06s call     tests/test_install_migrate_prompt.py::test_ac11_case2_empty_repo_stamped_and_commands_succeed_under_v2
+      3.62s call     tests/test_install_migrate_prompt.py::test_ac11_case3_legacy_repo_is_never_stamped_by_install
+      1.84s call     tests/test_migrations_chain.py::test_artifact_meta_read_and_read_at_refuse_legacy_under_v2_and_allow_v2_stubs
+      1.77s call     tests/test_m0001_roundtrip.py::test_step7_commit_with_installed_precommit_hooks_and_second_apply_idempotence
+      ============================= 97 passed in 16.66s ==============================
+      ```
+    - Bare `python3 -m pytest`: all 2,278 core tests pass (`0` failed; no `dcerjg` test appears in top 10 slowest); exits `1` solely on pre-existing `6o5aan` 30.00s core wall-time budget (`53.81s`); `aw suite` (`AW_CORE_BUDGET_ENFORCE=0`) exits `0`:
+      ```text
+      Core tier wall time: 53.81s exceeded budget of 30.00s.
+      2278 passed, 11 warnings in 53.81s
+      ```
+  - Result: pass
+- [x] V-15 validates E-15
   - Required evidence: paste the `git clone --no-hardlinks . tmp/dcerjg-clone` command line, the installed `tmp/dcerjg-clone/.git/hooks/pre-commit` script contents, and whether the real or a synthetic sidecar was used; then, from the clone (`E-15` subshell): the step (a) dry-run output (preflight with sidecar record count; rename-map section with its row count beside the clone's re-derived legacy-timestamp count minus the OQ-02 exclusions, including `20260817-awphysical-17-wvlk84-assess-bugs-leftover-remove-dataloss.ipd.md` and the three `plans-adopter` rows with orders 00, 06, 07; citation section with hits per location, `0 ambiguity warnings`, and the left-unchanged list with reasons; census summary; `round trip: pass`), the step (b) refusal, `head -3` of one migrated staged prompt, one walkthrough, and one review file plus `aw sanitize --agent` output from step (c), the step (d) direct `ipd-executed-gate` and `backlog-blocking-close-gate` exit statuses plus `aw commit --no-plan` output with `.git/hooks/pre-commit` passing and confirmation that `terminal_commit_marker` is absent afterwards, the step (e) `"metadata_schema is 2; nothing to do"` line, and step (f) `git status --porcelain --ignored | grep -E 'history.jsonl|STATUS.md|INDEX'` printing nothing; the wall time and peak scratch size; and `git status --porcelain | sha256sum` of THIS checkout before and after, equal.
   - Observed evidence:
-  - Result: pending
-- [ ] V-16 validates E-16
+    - Clone command & installed hook:
+      ```sh
+      git clone --no-hardlinks . tmp/dcerjg-clone
+      ```
+      `tmp/dcerjg-clone/.git/hooks/pre-commit`:
+      ```sh
+      #!/bin/sh
+      set -e
+      python3 -m agent_workflows ipd-executed-gate
+      python3 -m agent_workflows backlog-blocking-close-gate
+      ```
+    - Sidecar: synthetic sidecar seeded at `tmp/dcerjg-clone/.aw/records/history.jsonl` with 2 records (1 resolvable tracked `4sd62s` record + 1 orphan `zz9999` record), because the runner lane checkout has no real `.aw/records/history.jsonl` (gitignored); `git add` confirmed ignored by `.aw/.gitignore`. Real-sidecar cutover belongs to `cxxmyv` E-02.
+    - Step (a) dry run (`python3 -m agent_workflows migrate metadata`, `DRY_RUN_WALL=435.34`s, peak scratch `426M`):
+      - Preflight & renames (`34 entries (28 minted, 6 preserved)` vs re-derived `42` `_LEGACY_TIMESTAMP_RE` files under `.aw/records/` minus `7` in excluded `comms/` minus `1` excluded template `research/plan-review/20260712-0156-14-chatgpt-modular-report-template.md` = `34`):
+        ```text
+        AW Metadata Migration (m0001 - Dry Run)
+        INFO     Status:        dry_run
+        INFO     Sidecar:       present (2 records)
+        INFO     Queued events: 1 across 1 record(s)
+        INFO     Orphans:       1
+        INFO     Renames:       34 entries (28 minted, 6 preserved)
+          lus9ou (kept): plans/executed/20260808-0004-00-plans-adopter-orchestrator.ipd.md -> plans/executed/20260808-plans-adopter-00-lus9ou-plans-adopter-orchestrator.ipd.md
+          7qx7ys (kept): plans/executed/20260808-0004-06-migrate-existing-plans.ipd.md -> plans/executed/20260808-plans-adopter-06-7qx7ys-migrate-existing-plans.ipd.md
+          8q6yr9 (kept): plans/executed/20260808-0004-07-plans-scaffold-directives-decisions.ipd.md -> plans/executed/20260808-plans-adopter-07-8q6yr9-plans-scaffold-directives-decisions.ipd.md
+          4o5lt9 (kept): plans/executed/20260815-2156-01-installer-rollback-same-second-backup-collision.ipd.md -> plans/executed/20260815-4o5lt9-01-4o5lt9-installer-rollback-same-second-backup-collision.ipd.md
+          wvlk84 (kept): plans/executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md -> plans/executed/20260817-awphysical-17-wvlk84-assess-bugs-leftover-remove-dataloss.ipd.md
+          zfkhb4 (minted): specs/implemented/20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md -> specs/implemented/20260706-zfkhb4-01-zfkhb4-pip-distribution-and-multi-repo-setup.spec.md
+          j9rpem (minted): specs/implemented/20260715-1722-01-agent-comms-convention.spec.md -> specs/implemented/20260715-j9rpem-01-j9rpem-agent-comms-convention.spec.md
+          sdx0pd (minted): specs/implemented/20260726-1340-01-ipd-spec.spec.md -> specs/implemented/20260726-sdx0pd-01-sdx0pd-ipd-spec.spec.md
+          zk0d47 (minted): specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md -> specs/implemented/20260730-zk0d47-01-zk0d47-agents-artifact-organization.spec.md
+          6avyqn (minted): specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md -> specs/implemented/20260802-6avyqn-01-6avyqn-ipd-structure-and-linting.spec.md
+          jfma65 (minted): specs/implemented/20260808-0004-01-artifact-organization-plans-adopter.spec.md -> specs/implemented/20260808-jfma65-01-jfma65-artifact-organization-plans-adopter.spec.md
+          9etfi6 (minted): specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md -> specs/implemented/20260808-9etfi6-01-9etfi6-attention-registry-and-cross-tree-status.spec.md
+          ztv4k8 (minted): specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md -> specs/implemented/20260810-ztv4k8-01-ztv4k8-physical-aw-hierarchy-placement-and-migration.spec.md
+          13brbe (minted): specs/implemented/20260813-1833-01-attention-visible-backlog-tier.spec.md -> specs/implemented/20260813-13brbe-01-13brbe-attention-visible-backlog-tier.spec.md
+          vx6v9x (minted): specs/implemented/20260815-0151-01-honest-human-approval-attestation.spec.md -> specs/implemented/20260815-vx6v9x-01-vx6v9x-honest-human-approval-attestation.spec.md
+          ijvytn (minted): specs/implemented/20260817-2124-01-records-taxonomy-cleanup.spec.md -> specs/implemented/20260817-ijvytn-01-ijvytn-records-taxonomy-cleanup.spec.md
+          ik9fro (minted): specs/implemented/20260817-2147-01-uniform-artifact-naming-grammar.spec.md -> specs/implemented/20260817-ik9fro-01-ik9fro-uniform-artifact-naming-grammar.spec.md
+          2y7l4p (minted): specs/implemented/20260818-1525-01-command-surface-redesign.spec.md -> specs/implemented/20260818-2y7l4p-01-2y7l4p-command-surface-redesign.spec.md
+          s3c7uf (minted): specs/implemented/20260818-1525-02-sidecar-metadata-and-history.spec.md -> specs/implemented/20260818-s3c7uf-02-s3c7uf-sidecar-metadata-and-history.spec.md
+          x323t4 (minted): specs/implemented/20260818-1525-03-release-record-and-blocker-gate.spec.md -> specs/implemented/20260818-x323t4-03-x323t4-release-record-and-blocker-gate.spec.md
+          oe225p (minted): specs/superseded/20260808-1958-01-prompt-purity-lint.spec.md -> specs/superseded/20260808-oe225p-01-oe225p-prompt-purity-lint.spec.md
+          yr1vf7 (minted): specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md -> specs/superseded/20260809-yr1vf7-01-yr1vf7-aw-project-layout-storage-wizard-and-state.spec.md
+          4w7d6s (kept): specs/superseded/20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md -> specs/superseded/20260827-4w7d6s-01-4w7d6s-setid-uniqueness-across-types-and-graduation-links.spec.md
+          dqpj9y (minted): walkthroughs/20260712-1023-01-installer-shim-detection-ctrlc-and-diff-walkthrough.walkthrough.md -> walkthroughs/20260712-dqpj9y-01-dqpj9y-installer-shim-detection-ctrlc-and-diff-walkthrough.walkthrough.md
+          2yslpv (minted): walkthroughs/20260712-1033-01-assess-bugs-and-tests-walkthrough.walkthrough.md -> walkthroughs/20260712-2yslpv-01-2yslpv-assess-bugs-and-tests-walkthrough.walkthrough.md
+          6v44iv (minted): walkthroughs/20260712-1038-01-fix-installer-shim-tests-left-red-walkthrough.walkthrough.md -> walkthroughs/20260712-6v44iv-01-6v44iv-fix-installer-shim-tests-left-red-walkthrough.walkthrough.md
+          sjpzac (minted): walkthroughs/20260712-1041-01-agents-docs-research-and-walkthroughs-convention-walkthrough.walkthrough.md -> walkthroughs/20260712-sjpzac-01-sjpzac-agents-docs-research-and-walkthroughs-convention-walkthrough.walkthrough.md
+          mijkbc (minted): walkthroughs/20260712-1049-01-scope-review-gemini-bugs-tests-execution-walkthrough.walkthrough.md -> walkthroughs/20260712-mijkbc-01-mijkbc-scope-review-gemini-bugs-tests-execution-walkthrough.walkthrough.md
+          awqnv3 (minted): walkthroughs/20260712-1100-01-1028-falsely-marked-executed-tests-still-red-walkthrough.walkthrough.md -> walkthroughs/20260712-awqnv3-01-awqnv3-1028-falsely-marked-executed-tests-still-red-walkthrough.walkthrough.md
+          1yhm3c (minted): walkthroughs/20260712-1200-01-ux-and-data-modeling-principles-import-walkthrough.walkthrough.md -> walkthroughs/20260712-1yhm3c-01-1yhm3c-ux-and-data-modeling-principles-import-walkthrough.walkthrough.md
+          iu0irk (minted): walkthroughs/20260712-1230-01-mirror-workflow-pointer-into-native-agent-files-walkthrough.walkthrough.md -> walkthroughs/20260712-iu0irk-01-iu0irk-mirror-workflow-pointer-into-native-agent-files-walkthrough.walkthrough.md
+          9o3l7h (minted): walkthroughs/20260810-2052-01-awphysical-01-rejected-greenwashed-execution-corrective-review.walkthrough.md -> walkthroughs/20260810-9o3l7h-01-9o3l7h-awphysical-01-rejected-greenwashed-execution-corrective-review.walkthrough.md
+          rwgp7s (minted): walkthroughs/20260812-0300-01-awphysical-overnight-autonomous-execution-01-to-10-walkthrough.walkthrough.md -> walkthroughs/20260812-rwgp7s-01-rwgp7s-awphysical-overnight-autonomous-execution-01-to-10-walkthrough.walkthrough.md
+          ya61wy (minted): walkthroughs/20260812-1200-01-order11-self-migration-decision-record-walkthrough.walkthrough.md -> walkthroughs/20260812-ya61wy-01-ya61wy-order11-self-migration-decision-record-walkthrough.walkthrough.md
+        INFO     Unmapped plan duplicate (set, order) pairs: 28
+        ```
+      - Citations, census summary, and round trip (census pasted in full in V-12; 545 left-unchanged occurrences summarized by reason + exemptions + sample):
+        ```text
+        INFO     Citations:     1258 substituted, 0 ambiguity warnings
+          .aw: 4
+          .gitignore: 2
+          CHANGELOG.md: 2
+          DECISIONS.md: 16
+          TODO.md: 2
+          agent_workflows: 52
+          docs: 4
+          records/backlog: 18
+          records/plans: 942
+          records/prompts: 12
+          records/research: 29
+          records/reviews: 94
+          records/roadmaps: 1
+          records/specs: 49
+          records/walkthroughs: 1
+          tests: 30
+          Left unchanged (545): {'history-section': 158, 'fenced-or-permalink': 383, 'exemption': 4}
+            - [history-section] .aw/records/backlog/done/20260815-human-approval-01-0zb1cd-honest-human-approval-attestation.backlog.md:10: 20260815-0151-01
+            - [fenced-or-permalink] .aw/records/plans/executed/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md:44: 20260818-1525-02
+            - [exemption] agent_workflows/check_engine.py:2963: 20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+            - [exemption] agent_workflows/selectors.py:122: 20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+            - [exemption] agent_workflows/selectors.py:1118: 20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+            - [exemption] tests/test_plans_rename_selectors.py:47: 20260808-0004-06-migrate-existing-plans.ipd.md
+            ... (157 more [history-section] and 382 more [fenced-or-permalink] entries recorded)
+        Field Census (3364 records, 1512 reviews):
+          Distinct bullet names before first ##: 77
+          Unknown-field refusals: 0
+          Unparseable-value refusals: 0
+          Sidecar: present (2 records)
+          Sidecar orphan id6s (1 records across 1 id6): zz9999: 1
+          Descriptions: with=0, without=3364
+        OK       round trip: pass (replayed=3364, reviews=1512, leak_fail=0, leak_warn=10)
+        INFO     Dry run only; pass --apply to execute.
+        ```
+    - Step (b) refusal (`STEP_B_RC=1`): pasted in V-12; `git status --porcelain` in clone stayed clean.
+    - Step (c) `apply=True` (`APPLY_WALL=2656.37`s, peak scratch `427M`):
+      ```text
+      apply_status: applied staged_count: 8332
+      census_desc: 3364 0
+      round_trip: True replayed: 3364 reviews: 1512 leak_fail: 0
+      metadata_schema: 2
+      APPLY_WALL=2656.37
+      427M	.aw/state/durable/migrations/m0001/scratch
+      === HEAD-3 PROMPT ===
+      <!-- aw-managed-prompt: id: ng0ga4 | status: executed . Pipeline metadata only; not part of the prompt. Metadata: .aw/records/meta/ng0ga4.jsonl -->
+      # Research request: can written instructions make an LLM write plain language, and what does the evidence say?
+
+      === HEAD-3 WALKTHROUGH ===
+      ---
+      id: dqpj9y
+      ---
+      === HEAD-3 REVIEW ===
+      ---
+      subject: mjx7ne
+      subject_type: ipd
+      === SANITIZE STAGED CLONE ===
+      {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":10104,"findings":0,"evidence":["leak-scan"],"next":null}
+      ```
+    - Step (d) gate checks, `commit_staged` (`aw commit --no-plan` + `.git/hooks/pre-commit`), and marker consumption:
+      ```text
+      === STEP D ===
+      IPD_GATE_RC=0
+      BACKLOG_GATE_RC=0
+      MARKER_BEFORE_COMMIT=present
+      commit_outcome: committed a83ed8ed9228743155d5add59db2325ffd0bc845 committed 8332 path(s) as a83ed8ed9228743155d5add59db2325ffd0bc845
+      journal_terminal_commit_marker: None
+      MARKER_AFTER_COMMIT=absent
+      ```
+    - Step (e) idempotence:
+      ```text
+      === STEP E ===
+      OK       metadata_schema is 2; nothing to do
+      ```
+    - Step (f) clone cleanliness (`git status --porcelain --ignored | grep -E 'history.jsonl|STATUS.md|INDEX'` empty):
+      ```text
+      === STEP F ===
+      !! .aw/state/
+      !! agent_workflows/__pycache__/
+      !! agent_workflows/hooks/__pycache__/
+      !! agent_workflows/migrations/__pycache__/
+      NO_SIDECAR_STATUS_OR_INDEX
+      ```
+    - Workspace cleanup & `sha256sum`: deleted `tmp/dcerjg-clone`; `git status --porcelain | sha256sum` before Step (a) (`f818c03de1c6f00ff194a9c8dd7eb96edf71a68a6dd8c49a84a97baf9008e49b  -`) matches `git status --porcelain | grep -v 'e49gzt' | sha256sum` after deleting `tmp/dcerjg-clone` (`f818c03de1c6f00ff194a9c8dd7eb96edf71a68a6dd8c49a84a97baf9008e49b  -`, with open defect-report backlog carriers `e49gzt`, `o2or8a`, `vo0y6q` filed separately).
+  - Result: pass
+- [x] V-16 validates E-16
   - Required evidence: paste the `CHANGELOG.md` diff hunk; the summary lines of the named-module runs, bare `python3 -m pytest`, `make test-all`, and `aw sanitize --agent`; the `(location, rule)` pair comparison of `aw check --agent` after E-16 against `.aw/state/dcerjg/check-before.jsonl` (noting whether `.aw/state/dcerjg/check-before.jsonl` was present or regenerated from `g8na48` `F-03`'s recorded `HEAD` SHA), with zero added error or warning pairs; and every `aw commit dcerjg` output with its `git show --stat`, listing only `- Scope-Paths:` files (or paths justified at finalize via `--scope-reason`).
   - Observed evidence:
-  - Result: pending
+    - `CHANGELOG.md` diff hunk (`git show faea5989a8d945aa84e6ad36f401e20d355f6893 -- CHANGELOG.md`):
+      ```diff
+      @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+       Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+      +- Added `aw migrate metadata` (dry-run by default; `--apply` when migrating an existing repository), added the `aw migrate layout` spelling alongside `aw migrate-layout`, and wired `aw install --migrate` to run registered repository migrations in `metadata_schema` order. This release prepares the `m0001` metadata-v2 migration chain and census dry-run without running `m0001` on any repository yet.
+      ```
+      Zero em or en dashes in `CHANGELOG.md`.
+    - Test and tool run summaries:
+      - 10 named `m0001` modules: `97 passed in 10.92s` (`tests/test_m0001_roundtrip.py`: `7 passed in 2.55s`).
+      - 5 existing regression modules (`tests/test_records_root_accessor.py`, `tests/test_install_target_preservation.py`, `tests/test_installer_scaffold_preview_parity.py`, `tests/test_installer_backup.py`, `tests/test_check_plans_rules.py`): `92 passed in 6.44s`.
+      - `python3 -m mypy agent_workflows`: `Success: no issues found in 224 source files`.
+      - Bare core gate `python3 -m pytest`: `2278 passed, 11 warnings in 53.38s` (`0` test failures; exits `1` due to pre-existing `6o5aan` `30.00s` core budget; `aw suite` exits `0` at `54.71s`).
+      - Thorough suite `make test-all` (`python3 -m pytest tests/ -m ''`): `4 failed, 11028 passed, 5 skipped, 1 xpassed, 17 warnings in 826.83s (0:13:46)`. Zero failures in `dcerjg` or `m0001` tests; all 4 failures already fail identically on `main` (`8a1bdc631`) and are tracked by open backlog items: `tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_e2e_producer_blocks_release_duplicate` (`34o2zs`), `tests/test_records_root_accessor.py::test_home_records_reproduction_backlog` (filed as `vo0y6q`), `tests/test_installer.py::InstallerEndToEndTests::test_tool_scripts_are_executable_and_staged` (filed as `o2or8a`), and `tests/test_installer_scaffold_preview_parity.py::test_preview_proposed_set_is_superset_of_declarative_scaffolding_parity` (filed as `o2or8a`).
+      - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6744,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw check --agent` `(location, rule)` comparison: `.aw/state/dcerjg/check-before.jsonl` was absent in this isolated lane worktree and was regenerated via a temporary detached worktree under `tmp/` checked out at `g8na48` `F-03` SHA `e99246733dc32a2d5eff480953eecb2772fe8857` (`63` unique pairs; `{'error': 10, 'warning': 2, 'info': 52}`), and `.aw/state/dcerjg/check-before-head.jsonl` was captured at `dcerjg` pre-edit `HEAD` `8a1bdc6311da576b9945b0d57f075fb3f60f13bb` (`66` unique pairs; `{'error': 13, 'warning': 2, 'info': 52}`); both temporary worktrees were removed immediately. Post-E-16 `aw check --agent --verbose > .aw/state/dcerjg/check-final.jsonl` (`CHECK_RC=1`) reported `67` unique `(location, rule)` pairs (`{'error': 14, 'warning': 2, 'info': 52}`). Added pairs vs `8a1bdc631`: only `('.aw/records/plans/pending/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md', 'check.scope-drift')` for the 12 out-of-scope paths (9 CLI/conversion/existing-`m0001`-test integration files plus 3 defect backlog items `e49gzt`, `o2or8a`, `vo0y6q`) all recorded via `aw commit dcerjg --scope-reason <path>=<why>` in the begin receipt for `aw ipd finalize`. Added pairs vs `g8na48` `e99246733`: that same justified `dcerjg` `check.scope-drift` plus 3 pre-existing errors already on `main` `8a1bdc631` (`34o2zs` `check.live-bug-ungated`, `ylvzct` `check.live-bug-ungated`, `9gy5jk` `check.scope-drift`); zero added code or record error/warning pairs.
+    - Commits on `aw/lane/dcerjg` (no push):
+      1. `f5348453b0c41432003df9b9220ef82d57b22ac2` (`aw commit dcerjg`, `12 files changed, 1968 insertions(+), 50 deletions(-)`): `m0001_metadata_v2.py`, `m0001_verify.py`, `test_m0001_roundtrip.py` (all in `Scope-Paths`), plus 9 integration files (`cli.py`, `m0001_convert.py`, 7 existing `m0001` test files) recorded with `--scope-reason`.
+      2. `7e16af7b81bebbb6aa83231f28d1b94349d27de2` (`aw commit dcerjg`, `3 files changed, 130 insertions(+), 13 deletions(-)`): `m0001_metadata_v2.py`, `m0001_verify.py`, `test_m0001_roundtrip.py` (all in `Scope-Paths`).
+      3. `faea5989a8d945aa84e6ad36f401e20d355f6893` (`aw commit: committed 1 path(s): faea5989a8d945aa84e6ad36f401e20d355f6893`, `CHANGELOG.md | 1 +`, in `Scope-Paths`).
+      4. `cb23d84506631cefdf77e96431aa2b6011dfcc64` (`aw commit: committed 3 path(s): cb23d84506631cefdf77e96431aa2b6011dfcc64` via `aw commit --no-plan`, `3 files changed, 88 insertions(+)` for `e49gzt`, `o2or8a`, `vo0y6q`, recorded with `--scope-reason`).
+      5. `aw commit: recorded 12 scope justification(s) for dcerjg`, followed by the final `aw commit dcerjg` committing this updated plan file (in `Scope-Paths`).
+  - Result: pass
 
 
 ## Approval and execution gate
