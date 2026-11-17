@@ -614,6 +614,7 @@ class AdoptionPlan(NamedTuple):
     leaks: LeakReport
     already_adopted: Optional[AlreadyAdopted]
     collision_set_size: int
+    short_description: Optional[str] = None
 
     @property
     def content(self) -> str:
@@ -753,6 +754,7 @@ def plan_adoption(
         kind=suggestion.kind,
         slug=suggestion.slug,
         summary=summary or heading_text or suggestion.slug,
+        short_description=summary,
         set_id=suggestion.set_id,
         model=suggestion.model,
         topic=list(topic or []),
@@ -801,6 +803,7 @@ def plan_adoption(
             leaks=leaks,
             already_adopted=already,
             collision_set_size=len(existing),
+            short_description=(summary if summary and summary.strip() else None),
         ),
         None,
     )
@@ -896,11 +899,17 @@ def apply_adoption(
                 fields["consumed_by"] = fm["consumed-by"]
             if fm.get("priority"):
                 fields["priority"] = fm["priority"]
+            if fm.get("short-description"):
+                fields["short_description"] = fm["short-description"]
+            elif plan.short_description and plan.short_description.strip():
+                fields["short_description"] = plan.short_description
         else:
             fields["set"] = plan.suggestion.set_id
             fields["research_kind"] = plan.suggestion.kind
             if plan.suggestion.model:
                 fields["model"] = plan.suggestion.model
+            if plan.short_description and plan.short_description.strip():
+                fields["short_description"] = plan.short_description
 
         base_ctx = _meta.legacy_context(repo_root)
         records_root = _R.resolve_research_root(repo_root).resolve().parent

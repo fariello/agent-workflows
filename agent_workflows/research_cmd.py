@@ -204,6 +204,7 @@ def plan_new(
     kind: str,
     slug: str,
     summary: str,
+    short_description: Optional[str] = None,
     set_id: Optional[str] = None,
     model: Optional[str] = None,
     topic: Optional[List[str]] = None,
@@ -236,6 +237,12 @@ def plan_new(
     sum_err = _refuse_unsafe_descriptive("aw research new", "--summary", summary)
     if sum_err:
         return None, sum_err
+    if short_description is not None and short_description != summary:
+        sd_err = _refuse_unsafe_descriptive(
+            "aw research new", "--summary", short_description
+        )
+        if sd_err:
+            return None, sd_err
 
     # E-03: Refuse unsafe descriptive values for each --topic token before minting an id6.
     if topic:
@@ -307,6 +314,7 @@ def plan_new(
             model=model,
             kind=kind,
             summary=summary,
+            short_description=short_description,
             priority=priority,
         )
     except ValueError as exc:
@@ -512,6 +520,7 @@ def _render_research_create(
     model: Optional[str],
     kind: str,
     summary: str,
+    short_description: Optional[str] = None,
     priority: Optional[str] = None,
 ) -> str:
     """Render a new research document via ``artifact_meta.create(..., dry_run=True)``."""
@@ -535,6 +544,8 @@ def _render_research_create(
         fields["status"] = "todo"
     if priority:
         fields["priority"] = priority
+    if short_description and short_description.strip():
+        fields["short_description"] = short_description
     preview = _meta.create(
         id6,
         "research",
@@ -1167,11 +1178,13 @@ def run_new(args: argparse.Namespace) -> int:
         return _emit_new_error(args, _setid_err)
     if _setid_warn:
         print(f"note: {_setid_warn}")
+    summary_val = getattr(args, "summary", "") or ""
     files, err = plan_new(
         research_root=root,
         kind=getattr(args, "kind", ""),
         slug=getattr(args, "slug", "") or "",
-        summary=getattr(args, "summary", "") or "",
+        summary=summary_val,
+        short_description=summary_val,
         set_id=getattr(args, "set", None),
         model=getattr(args, "model", None),
         topic=topic,

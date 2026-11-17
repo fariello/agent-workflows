@@ -4,6 +4,7 @@ Covers `4sd62s` 4.2 SHORT DESCRIPTION and AC-36 case 1 for:
 - `aw backlog new` (IPD fekdwv E-01)
 - `aw specs new` (IPD fekdwv E-02)
 - `aw releases new` (IPD fekdwv E-03)
+- `aw research new`, `aw adopt`, and research YAML create rendering (IPD bir7xm E-01..E-03)
 """
 
 from __future__ import annotations
@@ -17,9 +18,11 @@ from pathlib import Path
 
 import pytest
 
+from agent_workflows import artifact_adopt as _adopt
 from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention_contract as A
 from agent_workflows import cli
+from agent_workflows import research_cmd as _research_cmd
 
 pytestmark = pytest.mark.core
 
@@ -35,6 +38,8 @@ def _init_repo(tmp_path: Path) -> Path:
     (repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True, exist_ok=True)
     (repo / ".aw" / "records" / "specs" / "draft").mkdir(parents=True, exist_ok=True)
     (repo / ".aw" / "records" / "releases").mkdir(parents=True, exist_ok=True)
+    (repo / ".aw" / "records" / "research").mkdir(parents=True, exist_ok=True)
+    (repo / ".aw" / "inbox").mkdir(parents=True, exist_ok=True)
     return repo
 
 
@@ -535,5 +540,488 @@ def test_releases_new_check_all_agent_clean_for_short_description(
     assert diags == []
     assert not any(
         "short_description" in json.dumps(d) or "Short-Description" in json.dumps(d)
+        for d in diags
+    )
+
+
+# --------------------------------------------------------------------------------------
+# Research YAML front matter rendering (`artifact_meta.create`, IPD bir7xm E-03)
+# --------------------------------------------------------------------------------------
+
+
+def _yaml_frontmatter_lines(text: str) -> list[str]:
+    lines = text.splitlines()
+    assert lines and lines[0] == "---", f"missing opening fence in:\n{text}"
+    end_idx = lines.index("---", 1)
+    return lines[: end_idx + 1]
+
+
+def _extract_research_id6(text: str) -> str:
+    m = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)
+    assert m is not None, f"missing id: in:\n{text}"
+    return m.group(1)
+
+
+def test_yaml_short_description_rendered_last_before_closing_fence(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    ctx = _meta.legacy_context(repo)
+    fields = {
+        "created": "20261109",
+        "set": "widget",
+        "order": 1,
+        "topic": [],
+        "model": None,
+        "research_kind": "findings",
+        "status": "todo",
+        "outcome": "none-yet",
+        "summary": "Widget summary.",
+        "consumed_by": [],
+        "priority": "high",
+        "short_description": "Adds a widget.",
+    }
+    res = _meta.create(
+        "ab12cd",
+        "research",
+        fields,
+        "",
+        destination="research/20261109-widget-01-ab12cd-widget.findings.md",
+        dry_run=True,
+        project_context=ctx,
+        legacy_render=_meta.LegacyRender(
+            tag="created",
+            day="2026-11-09",
+            actor_label="aw research",
+            history=False,
+        ),
+    )
+    fm_lines = _yaml_frontmatter_lines(res.text)
+    assert fm_lines[-1] == "---"
+    assert fm_lines[-3:-1] == [
+        "priority: high",
+        "short-description: Adds a widget.",
+    ]
+
+
+def test_yaml_short_description_absent_or_none_renders_no_line(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    ctx = _meta.legacy_context(repo)
+    base_fields = {
+        "created": "20261109",
+        "set": "widget",
+        "order": 1,
+        "topic": [],
+        "model": None,
+        "research_kind": "findings",
+        "status": "todo",
+        "outcome": "none-yet",
+        "summary": "Widget summary.",
+        "consumed_by": [],
+    }
+    render = _meta.LegacyRender(
+        tag="created",
+        day="2026-11-09",
+        actor_label="aw research",
+        history=False,
+    )
+    dest = "research/20261109-widget-01-ab12cd-widget.findings.md"
+    omitted = _meta.create(
+        "ab12cd",
+        "research",
+        dict(base_fields),
+        "",
+        destination=dest,
+        dry_run=True,
+        project_context=ctx,
+        legacy_render=render,
+    )
+    none_val = _meta.create(
+        "ab12cd",
+        "research",
+        {**base_fields, "short_description": None},
+        "",
+        destination=dest,
+        dry_run=True,
+        project_context=ctx,
+        legacy_render=render,
+    )
+    empty_val = _meta.create(
+        "ab12cd",
+        "research",
+        {**base_fields, "short_description": ""},
+        "",
+        destination=dest,
+        dry_run=True,
+        project_context=ctx,
+        legacy_render=render,
+    )
+    assert "short-description:" not in omitted.text
+    assert omitted.text == none_val.text == empty_val.text
+
+
+# --------------------------------------------------------------------------------------
+# Research (`aw research new`, IPD bir7xm E-01)
+# --------------------------------------------------------------------------------------
+
+
+def test_research_new_stores_short_description(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, err = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    files = [
+        p
+        for p in (repo / ".aw" / "records" / "research").rglob("*.md")
+        if p.name != "INDEX.md"
+    ]
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    fm_lines = _yaml_frontmatter_lines(text)
+    assert fm_lines[-2] == "short-description: Adds a widget."
+
+    id6 = _extract_research_id6(text)
+    state = _read_after_cache_unlink(repo, id6)
+    assert state.fields["short_description"] == "Adds a widget."
+    assert state.short_description == "Adds a widget."
+
+
+def test_research_new_omitted_summary_omits_short_description(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, err = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    files = [
+        p
+        for p in (repo / ".aw" / "records" / "research").rglob("*.md")
+        if p.name != "INDEX.md"
+    ]
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    assert "short-description:" not in text
+
+    id6 = _extract_research_id6(text)
+    state = _read_after_cache_unlink(repo, id6)
+    assert state.fields.get("short_description") is None
+    assert state.short_description is None
+
+
+def test_research_new_refuses_301_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, out, err = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--summary",
+            "x" * (A.MAX_DESCRIPTIVE_LEN + 1),
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "300" in (out + err)
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_research_new_refuses_embedded_newline_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, out, err = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--summary",
+            "Adds a widget.\nstatus: done",
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "newlines" in (out + err)
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_research_new_refuses_control_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, out, err = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--summary",
+            "Adds a\x07widget.",
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "control characters" in (out + err)
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_research_new_plan_refuses_unsafe_direct_short_description(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    files, err = _research_cmd.plan_new(
+        research_root=repo / ".aw" / "records" / "research",
+        kind="findings",
+        slug="widget",
+        summary="Safe summary.",
+        short_description="x" * (A.MAX_DESCRIPTIVE_LEN + 1),
+    )
+    assert files is None
+    assert err is not None and "300" in err
+
+
+def test_research_new_check_all_agent_clean_for_short_description(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, err = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    _check_rc, diags = _check_all_diagnostics(repo)
+    assert not any(
+        "short-description" in json.dumps(d) or "short_description" in json.dumps(d)
+        for d in diags
+    )
+
+
+# --------------------------------------------------------------------------------------
+# Adopt (`aw adopt`, IPD bir7xm E-02)
+# --------------------------------------------------------------------------------------
+
+
+def test_adopt_stores_short_description_and_preview_frontmatter(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "widget-findings.md"
+    drop.write_text("# Widget\n\nBody.\n", encoding="utf-8")
+
+    plan, plan_err = _adopt.plan_adoption(
+        repo_root=repo,
+        source=drop,
+        summary="Adds a widget.",
+    )
+    assert plan_err is None
+    assert plan is not None
+    preview_fm_lines = _yaml_frontmatter_lines(plan.frontmatter)
+    assert preview_fm_lines[-2] == "short-description: Adds a widget."
+
+    p_rc, _p_out, p_err = _run_cli(
+        ["adopt", str(drop), "--summary", "Adds a widget.", "--dir", str(repo)]
+    )
+    assert p_rc == 0, p_err
+    assert drop.is_file()
+    assert list((repo / ".aw" / "records" / "research").rglob("*.md")) == []
+
+    a_rc, _a_out, a_err = _run_cli(
+        [
+            "adopt",
+            str(drop),
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert a_rc == 0, a_err
+    assert not drop.exists()
+    files = [
+        p
+        for p in (repo / ".aw" / "records" / "research").rglob("*.md")
+        if p.name != "INDEX.md"
+    ]
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    adopted_fm_lines = _yaml_frontmatter_lines(text)
+    assert adopted_fm_lines[-2] == "short-description: Adds a widget."
+
+    id6 = _extract_research_id6(text)
+    state = _read_after_cache_unlink(repo, id6)
+    assert state.fields["short_description"] == "Adds a widget."
+    assert state.short_description == "Adds a widget."
+
+
+def test_adopt_derived_heading_no_summary_omits_short_description(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "heading-findings.md"
+    drop.write_text("# Derived Heading\n\nBody.\n", encoding="utf-8")
+
+    rc, _out, err = _run_cli(["adopt", str(drop), "--apply", "--dir", str(repo)])
+    assert rc == 0, err
+    files = [
+        p
+        for p in (repo / ".aw" / "records" / "research").rglob("*.md")
+        if p.name != "INDEX.md"
+    ]
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    assert "summary: derived heading" in text
+    assert "short-description:" not in text
+
+    id6 = _extract_research_id6(text)
+    state = _read_after_cache_unlink(repo, id6)
+    assert state.fields.get("short_description") is None
+    assert state.short_description is None
+
+
+def test_adopt_refuses_301_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "widget-findings.md"
+    drop.write_text("# Widget\n\nBody.\n", encoding="utf-8")
+    rc, out, err = _run_cli(
+        [
+            "adopt",
+            str(drop),
+            "--summary",
+            "x" * (A.MAX_DESCRIPTIVE_LEN + 1),
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "300" in (out + err)
+    assert drop.is_file()
+    assert list((repo / ".aw" / "records" / "research").rglob("*.md")) == []
+
+
+def test_adopt_refuses_embedded_newline_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "widget-findings.md"
+    drop.write_text("# Widget\n\nBody.\n", encoding="utf-8")
+    rc, out, err = _run_cli(
+        [
+            "adopt",
+            str(drop),
+            "--summary",
+            "Adds a widget.\nstatus: done",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "newlines" in (out + err)
+    assert drop.is_file()
+    assert list((repo / ".aw" / "records" / "research").rglob("*.md")) == []
+
+
+def test_adopt_refuses_control_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "widget-findings.md"
+    drop.write_text("# Widget\n\nBody.\n", encoding="utf-8")
+    rc, out, err = _run_cli(
+        [
+            "adopt",
+            str(drop),
+            "--summary",
+            "Adds a\x07widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "control characters" in (out + err)
+    assert drop.is_file()
+    assert list((repo / ".aw" / "records" / "research").rglob("*.md")) == []
+
+
+def test_adopt_allow_leaks_refuses_unsafe_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "leaky-findings.md"
+    leak_path = "/" + "Users/" + "alice/secret"
+    drop.write_text(f"# Leaky\n\nPath {leak_path}.\n", encoding="utf-8")
+    rc, out, err = _run_cli(
+        [
+            "adopt",
+            str(drop),
+            "--allow-leaks",
+            "--yes",
+            "--summary",
+            "x" * (A.MAX_DESCRIPTIVE_LEN + 1),
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert "300" in (out + err)
+    assert drop.is_file()
+    assert list((repo / ".aw" / "records" / "research").rglob("*.md")) == []
+
+
+def test_adopt_check_all_agent_clean_for_short_description(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    drop = repo / ".aw" / "inbox" / "widget-findings.md"
+    drop.write_text("# Widget\n\nBody.\n", encoding="utf-8")
+    rc, _out, err = _run_cli(
+        [
+            "adopt",
+            str(drop),
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    _check_rc, diags = _check_all_diagnostics(repo)
+    assert not any(
+        "short-description" in json.dumps(d) or "short_description" in json.dumps(d)
         for d in diags
     )

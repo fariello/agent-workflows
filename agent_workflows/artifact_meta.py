@@ -4888,6 +4888,8 @@ def _render_create_fields(
             for fk, fv in fields.items():
                 if fk == "type" or fv is None:
                     continue
+                if fk == "short_description" and not str(fv).strip():
+                    continue
                 yk = _RESEARCH_YAML_KEY.get(fk)
                 if yk is not None:
                     out = _render_yaml_field(out, yk, fv)
@@ -4935,11 +4937,15 @@ def _render_create_fields(
         fm_lines.append(f"consumed-by: {_format_yaml_value(cb_val, key='consumed-by')}")
         if fields.get("priority"):
             fm_lines.append(f"priority: {fields['priority']}")
-        for extra_fk in ("short_description", "ace"):
-            if fields.get(extra_fk) is not None:
-                fm_lines.append(
-                    f"{_RESEARCH_YAML_KEY[extra_fk]}: {_format_yaml_value(fields[extra_fk])}"
-                )
+        if fields.get("ace") is not None:
+            fm_lines.append(
+                f"{_RESEARCH_YAML_KEY['ace']}: {_format_yaml_value(fields['ace'])}"
+            )
+        sd_val = fields.get("short_description")
+        if sd_val is not None and str(sd_val).strip():
+            fm_lines.append(
+                f"{_RESEARCH_YAML_KEY['short_description']}: {_format_yaml_value(sd_val)}"
+            )
         fm_lines.append("---")
         fm = "\n".join(fm_lines) + "\n"
         return fm + text
