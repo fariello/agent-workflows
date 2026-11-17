@@ -94,6 +94,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-126-py2vu9-add-summary-to-aw-ipd-scaffold-and-aw-prompts-new.ipd.md
 - E-02 (`aw describe` with `docs/cli-output-contract.md`): Moved to h06gs7 (round-3 split 2026-11-09 per research nj8zdp guidance)
   - Carrier: h06gs7
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-136-h06gs7-add-the-aw-describe-short-description-setter.ipd.md
 - The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` reconciliation of the `--summary` options and the `CHANGELOG.md` line, and the full-suite gates of the writer move.
   - Carrier: xexn45
 - The walkthrough-creating command `aw walkthrough new` (named in `xexn45` Deferred), which lands with the documents that describe it.
