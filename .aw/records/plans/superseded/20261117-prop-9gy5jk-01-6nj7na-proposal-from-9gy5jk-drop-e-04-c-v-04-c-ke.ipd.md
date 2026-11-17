@@ -6,7 +6,7 @@
 - Scope: TODO.
 - Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Item-Dependencies: unresolved
-- Status: draft
+- Status: superseded
 - Blocks-Release: next
 - Work-Kind: feature
 - Priority: high
@@ -20,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-11-17 superseded (aw set): Superseded: 9gy5jk completed via maintainer answers and finalized as executed; 6nj7na was scaffolded from stale attempt-1 proposal
 - 2026-11-17 draft (aw agy run model=Gemini-4-Hydrogen-High): created.
 
 ## Goal
