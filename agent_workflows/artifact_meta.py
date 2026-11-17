@@ -306,7 +306,10 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
     },
     "release": {
         **_COMMON_FIELDS,
+        "set": FieldDef("set", "string", "generic"),
+        "order": FieldDef("order", "integer", "generic"),
         "status": FieldDef("status", "closed enum", "transition-owned"),
+        "version": FieldDef("version", "string", "generic"),
     },
     "prompt": {
         **_COMMON_FIELDS,
@@ -4070,6 +4073,55 @@ def _check_owned_fields(
         )
 
 
+def set_legacy_bullet_line(
+    text: str,
+    label: str,
+    value: Optional[str],
+    *,
+    anchors: Tuple[Union[str, Tuple[str, str]], ...] = (
+        ("Status", "after"),
+        ("Id", "after"),
+    ),
+) -> str:
+    """Update, heal duplicates of, or strip ``- <label>:`` inside ``selectors.metadata_region``.
+
+    Preserves the bounded ``releases.set_*_line`` contract (``3466h8`` D-2): ``'-'`` and
+    ``None`` strip matching lines in the metadata region with zero residue; existing matches
+    replace the first occurrence in place and heal any duplicates to one line; absent bullets
+    insert relative to the first matching anchor in ``anchors`` (supporting ``(label, 'before')``
+    or ``(label, 'after')``); and anchor-less or YAML-fenced regions return ``text`` unchanged.
+    """
+    from agent_workflows import selectors as _sel
+
+    region = _sel.metadata_region(text)
+    rest = text[len(region) :]
+    pat = re.compile(r"(?m)^-\s*" + re.escape(label) + r":[^\n]*\n?")
+    if value in (None, "-"):
+        return pat.sub("", region) + rest
+    new_line = f"- {label}: {value}\n"
+    matches = list(pat.finditer(region))
+    if matches:
+        first = matches[0]
+        tail = pat.sub("", region[first.end() :])
+        return region[: first.start()] + new_line + tail + rest
+    for anchor_spec in anchors:
+        if isinstance(anchor_spec, tuple):
+            anchor_label, pos = anchor_spec
+        else:
+            anchor_label, pos = anchor_spec, "after"
+        am = re.search(
+            r"(?m)^-\s*" + re.escape(anchor_label) + r":[^\n]*(?:\n|$)",
+            region,
+        )
+        if am:
+            if pos == "before":
+                return region[: am.start()] + new_line + region[am.start() :] + rest
+            if am.group(0).endswith("\n"):
+                return region[: am.end()] + new_line + region[am.end() :] + rest
+            return region[: am.end()] + "\n" + new_line + region[am.end() :] + rest
+    return region + rest
+
+
 def _set_bullet(
     text: str, label: str, value: Optional[str], *, anchors: Tuple[str, ...]
 ) -> str:
@@ -4568,19 +4620,26 @@ def _render_field(
         )
         return _render_yaml_field(text, _RESEARCH_YAML_KEY[field], val)
 
+    bullet_writers: Dict[str, Tuple[str, Tuple[Tuple[str, str], ...]]] = {
+        "blocks_release": ("Blocks-Release", (("Status", "after"), ("Id", "after"))),
+        "priority": ("Priority", (("Status", "after"), ("Id", "after"))),
+        "work_kind": ("Work-Kind", (("Status", "after"), ("Id", "after"))),
+        "from_backlog": ("From-Backlog", (("Status", "after"), ("Id", "after"))),
+        "from_spec": ("From-Spec", (("Status", "after"), ("Id", "after"))),
+        "item_dependencies": (
+            "Item-Dependencies",
+            (("Scope-Paths", "after"), ("Status", "before"), ("Id", "after")),
+        ),
+        "graduated_to": ("Graduated-To", (("Status", "after"), ("Id", "after"))),
+    }
+    if field in bullet_writers:
+        wlabel, wanchors = bullet_writers[field]
+        formatted = _format_legacy_value(field, value) if value is not None else "-"
+        return set_legacy_bullet_line(text, wlabel, formatted, anchors=wanchors)
+
     from agent_workflows import backlog as _backlog
 
     writers = {
-        "blocks_release": ("Blocks-Release", _releases.set_blocks_release_line),
-        "priority": ("Priority", _releases.set_priority_line),
-        "work_kind": ("Work-Kind", _releases.set_work_kind_line),
-        "from_backlog": ("From-Backlog", _releases.set_from_backlog_line),
-        "from_spec": ("From-Spec", _releases.set_from_spec_line),
-        "item_dependencies": (
-            "Item-Dependencies",
-            _releases.set_item_dependencies_line,
-        ),
-        "graduated_to": ("Graduated-To", _releases.set_graduated_to_line),
         "release_exempt_kind": (
             "Release-Exempt-Kind",
             _backlog.set_release_exempt_kind_line,

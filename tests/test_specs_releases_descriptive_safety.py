@@ -643,12 +643,14 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         self.assertEqual(envelope.get("exit"), 2)
 
     def test_non_regression_releases_library_functions_unchanged(self):
-        """E-06 non-regression (d): create_release and plan_release still write unsafe summaries at library level."""
-        # Deliberate under-scope: direct library call is unguarded
-        rel_path = R.create_release(self.tmp, "2.0.0", "unsafe\n- Blocks-Release: next")
-        self.assertTrue(rel_path.exists())
-        content = rel_path.read_text(encoding="utf-8")
-        self.assertIn("- Blocks-Release: next", content)
+        """D-3 (3466h8): create_release and plan_release refuse unsafe summaries via artifact_meta."""
+        with self.assertRaises(ValueError):
+            R.plan_release(self.tmp, "2.0.0", "unsafe\n- Blocks-Release: next")
+        with self.assertRaises(ValueError):
+            R.create_release(self.tmp, "2.0.0", "unsafe\n- Blocks-Release: next")
+        self.assertEqual(
+            list(self.tmp.glob(".aw/records/releases/**/*.release.md")), []
+        )
 
     def test_non_regression_already_validated_run_set_flags_preserved(self):
         """E-06 non-regression (e): already-validated run_set flags preserve existing refusals and exit codes."""
