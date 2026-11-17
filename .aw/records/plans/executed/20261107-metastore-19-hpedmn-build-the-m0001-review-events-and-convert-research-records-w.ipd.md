@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2 step 4 converts every record into a log plus compact front matter, and 4.1a turns each review round into one `review` event on its subject. Plan `dcerjg` E-09 and E-10 owned the conversion of every record type in two items; the conversion was split by record type on 2026-11-07 per the maintainer's step-complexity rule (see `ghhzb6` F-01: 99 distinct keys, 55 needing an explicit destination). This part owns the types `ghhzb6` does not.
 - Scope: In `agent_workflows/migrations/m0001_convert.py`, add the `review` events of every subject, the log builder for research records, walkthroughs and the roadmap, and the `roadmap` registry entry in `artifact_meta.py` (`dcerjg` E-09 subset), and the file rewrite for research records, walkthroughs, the roadmap and review files (`dcerjg` E-10 subset), with their tests (subset of `dcerjg` E-14). EXCLUDES: the five types `ghhzb6` converts; the census and round trip (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_convert.py, agent_workflows/artifact_meta.py, tests/test_m0001_review_conversion.py, .aw/records/plans/pending/20261107-metastore-19-hpedmn-build-the-m0001-review-events-and-convert-research-records-w.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261117-metastore-01-kx0ns1-wire-m0001-metadata-v2-run-to-pass-all-record-type.backlog.md (Defect report backlog item filed per driver turn defect-report obligation for wiring m0001_metadata_v2.run to pass ALL_RECORD_TYPES.); .aw/records/backlog/open/20261117-metastore-01-lz1igw-fix-load-legacy-review-round-parsing-to-match-anch.backlog.md (Defect report backlog item filed per driver turn defect-report obligation for anchored round parsing and sparse round preservation in artifact_meta.load_legacy_review.)
 - Item-Dependencies: executed:tve77h, executed:vxevph, executed:dky26u, executed:ghhzb6
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +19,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hpedmn
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: hpedmn verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261117-metastore-01-kx0ns1-wire-m0001-metadata-v2-run-to-pass-all-record-type.backlog.md: Defect report backlog item filed per driver turn defect-report obligation for wiring m0001_metadata_v2.run to pass ALL_RECORD_TYPES.; out-of-scope .aw/records/backlog/open/20261117-metastore-01-lz1igw-fix-load-legacy-review-round-parsing-to-match-anch.backlog.md: Defect report backlog item filed per driver turn defect-report obligation for anchored round parsing and sparse round preservation in artifact_meta.load_legacy_review.]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
