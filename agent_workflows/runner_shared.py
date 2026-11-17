@@ -6511,12 +6511,59 @@ def build_fix_it_notice(
     return "\n".join(lines)
 
 
-def build_answer_notice(answers: Sequence[Mapping[str, Any]] | None) -> str:
+def _safe_oq_author(raw: Any) -> str:
+    """Return a leak-safe author label for tracked OQ resolution lines.
+
+    Never emit the local OS login handle (which fails ``no-local-leaks`` and
+    causes ``offer_commit`` to leave tracked plan files dirty on ``main``).
+    """
+    import getpass
+
+    candidate = str(raw or "").strip()
+    if not candidate:
+        return "maintainer"
+    local_handles = {getpass.getuser().strip().lower()}
+    home_name = Path.home().name.strip().lower()
+    if home_name:
+        local_handles.add(home_name)
+    if candidate.lower() in local_handles:
+        return "maintainer"
+    return candidate
+
+
+def _snapshot_files(paths: Sequence[Path | None]) -> dict[Path, bytes]:
+    """Read original file bytes before mutating tracked artifacts on disk."""
+    snaps: dict[Path, bytes] = {}
+    for p in paths:
+        if p is not None and p not in snaps and p.is_file():
+            try:
+                snaps[p] = p.read_bytes()
+            except OSError:
+                pass
+    return snaps
+
+
+def _restore_snapshots(snaps: Mapping[Path, bytes]) -> None:
+    """Restore files to their pre-mutation bytes (best-effort rollback on failed commit)."""
+    for p, data in snaps.items():
+        try:
+            p.write_bytes(data)
+        except OSError:
+            pass
+
+
+def build_answer_notice(
+    answers: Sequence[Mapping[str, Any]] | None,
+    *,
+    submission_paths: Any = None,
+) -> str:
     """Build the answer notice for an agent resumed with maintainer answers (spec 6kwd2e R9.4, qchan-04 j0ufrj E-03).
 
     Shaped like build_fix_it_notice (a '## Answers from the maintainer' header,
     then per question its text, the answer inside a fenced block labelled as quoted human input,
     and the channel; absolute paths redacted with _redact_absolute_paths).
+    When ``submission_paths`` is provided (e.g. session resume on attempt >= 2), also
+    directs the resumed session to the current attempt's submission paths.
     """
     if not answers:
         return ""
@@ -6553,6 +6600,20 @@ def build_answer_notice(answers: Sequence[Mapping[str, Any]] | None) -> str:
         if channel:
             lines.append(f"Channel: {channel}")
         lines.append("")
+    if submission_paths is not None:
+        lines.extend(
+            [
+                "## Submission paths for this resumed attempt",
+                "",
+                "Write your updated submission files for this resumed turn to the paths below "
+                "(do not write to an earlier attempt directory):",
+                f"{submission_paths.prompt_run_dir_label}: {submission_paths.prompt_run_dir}",
+                f"Decisions/questions register: {submission_paths.prompt_decisions}",
+                f"Required JSON outcome: {submission_paths.prompt_outcome}",
+                f"{submission_paths.prompt_report_label}: {submission_paths.prompt_report}",
+                "",
+            ]
+        )
     return "\n".join(lines).strip()
 
 
@@ -12741,9 +12802,29 @@ def reattempt_deferred_integrations(
             continue
 
         if poll:
+            poll_paths = list(item.get("integration_changed_files") or ())
+            base_commit = getattr(handle, "base_commit", "")
+            branch_name = getattr(handle, "branch", "")
+            if base_commit and branch_name:
+                rc, diff_out, _err = _run_git(
+                    repo,
+                    [
+                        "diff",
+                        "--no-renames",
+                        "--name-only",
+                        f"{base_commit}..{branch_name}",
+                    ],
+                )
+                if rc == 0:
+                    seen_paths = set(poll_paths)
+                    for line in diff_out.splitlines():
+                        p = line.strip()
+                        if p and p not in seen_paths:
+                            poll_paths.append(p)
+                            seen_paths.add(p)
             outcome = poll_for_integration_window(
                 repo,
-                tuple(item.get("integration_changed_files") or ()),
+                tuple(poll_paths),
             )
             item["integration_poll"] = {
                 "bound": outcome.bound,
@@ -25619,12 +25700,13 @@ def consume_answers(
                         oq_id = m_oq.group(0)
 
                 ans_text = str(ans.get("answer") or "")
-                who = str(ans.get("sender") or ans.get("who") or "human")
+                who = _safe_oq_author(ans.get("sender") or ans.get("who"))
                 channel = str(ans.get("channel") or "aw runs answer")
                 ans_date = str(ans.get("answered_at") or utc_now()[:10])
                 if len(ans_date) > 10:
                     ans_date = ans_date[:10]
 
+                pre_answer_snaps = _snapshot_files([art_full])
                 recorded = record_oq_answer(
                     repo,
                     rel_art_path,
@@ -25659,6 +25741,7 @@ def consume_answers(
                 commit_msg = (
                     f"{item.get('id6', rel_art_path)} {oq_id}: pre-flight sweep answer"
                 )
+                commit_sha = None
                 try:
                     commit_outcome = _gch.offer_commit(
                         repo,
@@ -25682,6 +25765,26 @@ def consume_answers(
                         )
                 except Exception as c_err:
                     print(f"preflight answer commit failed: {c_err}", file=sys.stderr)
+
+                if not commit_sha:
+                    _restore_snapshots(pre_answer_snaps)
+                    item_commit_failed = True
+                    question_inbox.set_question_status(
+                        run_dir,
+                        qid,
+                        question_inbox.QUESTION_STATUS_STALE,
+                        reason="preflight answer commit failed; restored file cleanly",
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "answer-commit-failed",
+                            "id6": item.get("id6"),
+                            "question_id": qid,
+                        },
+                    )
+                    break
 
                 append_jsonl(
                     run_dir / "events.jsonl",
@@ -37643,14 +37746,13 @@ def initialize_run_core(
             artifacts_affected = {q.artifact_id6 for q in preflight_qs}
             from agent_workflows import git_commit_helper as _gch
             from agent_workflows import question_inbox
-            import getpass
 
             host_lbl = (
                 labels.id
                 if labels is not None
                 else (AGY_HOST_LABELS.id if host == "agy" else OC_HOST_LABELS.id)
             )
-            user_who = getpass.getuser()
+            user_who = "maintainer"
             channel_str = f"aw {host} run pre-flight"
             today_date = utc_now()[:10]
 
@@ -37716,6 +37818,13 @@ def initialize_run_core(
                     ans_clean = ans_text.strip()
                     recorded_members: list[tuple[Any, PreflightQuestion]] = []
                     paths_to_commit: list[str] = []
+                    pre_edit_snaps = _snapshot_files(
+                        [
+                            (repo / m.raw["preflight_obj"].artifact_path).resolve()
+                            for m in g.members
+                            if m.raw.get("preflight_obj") is not None
+                        ]
+                    )
 
                     for m in g.members:
                         q_obj = m.raw.get("preflight_obj")
@@ -37810,6 +37919,12 @@ def initialize_run_core(
                                 }
                             )
                     else:
+                        _restore_snapshots(pre_edit_snaps)
+                        print(
+                            f"[{g.group_id}] reverted uncommitted pre-flight edit(s) after commit failure",
+                            file=sys.stderr,
+                            flush=True,
+                        )
                         for m, q_obj in recorded_members:
                             owning_item = q_item_map.get(m.artifact_id6)
                             if owning_item:
@@ -43734,7 +43849,18 @@ def execute_item_core(
         except DriverError:
             lane_plan_path = plan_path
         if attempt.get("answer_resume") == "session":
-            prompt_text = build_answer_notice(consumed_answers)
+            resume_paths = lane_containment.project_worker_paths(
+                item=item,
+                run_id=state["run_id"],
+                run_dir=run_dir,
+                plan_path=lane_plan_path,
+                lane_root=lane_root,
+            )
+            lane_containment.prepare_lane_submission_dir(resume_paths)
+            prompt_text = build_answer_notice(
+                consumed_answers,
+                submission_paths=resume_paths,
+            )
         elif is_answer_resume or attempt.get("answer_resume", "").startswith("fresh"):
             notice = build_answer_notice(consumed_answers)
             normal_p = build_prompt(
@@ -44823,8 +44949,8 @@ def execute_item_core(
                 )
                 return
 
-        # fixfirst-02 (tha7a6) E-03: Proposal channel check
-        if not is_review and not is_production:
+        # fixfirst-02 (tha7a6) E-03: Proposal channel check (only when this attempt wrote a fresh outcome)
+        if outcome_fresh and not is_review and not is_production:
             proposal_verdict = validate_proposal(outcome)
             if proposal_verdict.is_valid:
                 proposal_data = (

@@ -3126,6 +3126,105 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             assert age is not None
             self.assertLess(age, 120.0)
 
+    def test_reattempt_deferred_integrations_poll_includes_rename_source(self):
+        """Poll checks both rename destination and rename source so dirty orig does not report dirt-cleared."""
+        import subprocess
+        from agent_workflows import worktree_lease
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_template_repo(pathlib.Path(tmp) / "repo")
+            orig = ".aw/records/plans/pending/20261109-test-01-ren001-plan.ipd.md"
+            dest = ".aw/records/plans/executed/20261109-test-01-ren001-plan.ipd.md"
+            renamable_body = "".join(f"line {i}\n" for i in range(40))
+            (repo / orig).parent.mkdir(parents=True, exist_ok=True)
+            (repo / dest).parent.mkdir(parents=True, exist_ok=True)
+            (repo / orig).write_text(renamable_body, encoding="utf-8")
+            subprocess.run(["git", "add", orig], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add pending plan"], cwd=repo, check=True
+            )
+
+            base = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            branch = "aw/lane/ren001"
+            subprocess.run(["git", "branch", branch], cwd=repo, check=True)
+            wt = pathlib.Path(tmp) / "wt-ren001"
+            subprocess.run(
+                ["git", "worktree", "add", "-q", str(wt), branch],
+                cwd=repo,
+                check=True,
+            )
+            (wt / dest).parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "mv", orig, dest], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "lane ren001: rename pending -> executed"],
+                cwd=wt,
+                check=True,
+            )
+            handle = worktree_lease.WorktreeHandle(
+                lane_id="ren001", path=wt, branch=branch, base_commit=base
+            )
+            # Dirty the rename source on main, matching real pre-flight dirt
+            (repo / orig).write_text(renamable_body + "dirty line\n", encoding="utf-8")
+
+            seen_poll_paths: list[tuple[str, ...]] = []
+
+            def _fake_poll(_repo, paths):
+                seen_poll_paths.append(tuple(paths))
+                return runner_shared.PollOutcome(
+                    cleared=False,
+                    bound=runner_shared.POLL_BOUND_COUNT,
+                    polls=1,
+                    last_activity_age=0.0,
+                    detail="poll saw overlap",
+                )
+
+            item = {
+                "id6": "ren001",
+                "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+                "integration_changed_files": [dest],
+                "preserved_branch": handle.branch,
+                "preserved_base": handle.base_commit,
+                "preserved_worktree": str(handle.path),
+                "attempts": [{"number": 1}],
+            }
+            state = {"repo": str(repo), "run_id": "run-poll-ren", "queue": [item]}
+            run_dir = repo / ".aw" / "records" / "runs" / "run-poll-ren"
+            run_dir.mkdir(parents=True, exist_ok=True)
+
+            with mock.patch.object(
+                runner_shared, "poll_for_integration_window", side_effect=_fake_poll
+            ):
+                runner_shared.retry_deferred_integrations(
+                    run_dir,
+                    state,
+                    poll=True,
+                    ask=False,
+                    integrate_lane_branch=lambda *_a, **_kw: (
+                        False,
+                        "dirty overlap",
+                        runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+                    ),
+                    integrate_review_lane_branch=lambda *_a, **_kw: (
+                        False,
+                        "unused",
+                        "",
+                    ),
+                    make_validation_runner=lambda *_a, **_kw: lambda _d, _f: True,
+                    run_suite_check=lambda *_a, **_kw: None,
+                    process_backlog_close=lambda *_a, **_kw: None,
+                    save_state=runner_shared.save_state,
+                )
+
+            self.assertEqual(len(seen_poll_paths), 1)
+            self.assertIn(dest, seen_poll_paths[0])
+            self.assertIn(orig, seen_poll_paths[0])
+
     # ---- rung 3: the ask, which must never hang ---------------------------------------------------
 
     def test_interactive_ask_behavior_and_prompt_predicate(self):

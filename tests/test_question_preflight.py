@@ -916,3 +916,90 @@ def test_preflight_prompt_shows_the_whole_question(tmp_path: Path):
     assert "Recommendation: (a)." in shown
     assert "Asked by: art010 OQ-01" in shown
     assert shown.rstrip().endswith("Answer:")
+
+
+def test_safe_oq_author_strips_local_handle_and_consume_restores_on_commit_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """_safe_oq_author avoids leaking OS usernames, and failed OQ commits restore the file cleanly."""
+    import getpass
+    from agent_workflows import git_commit_helper as _gch
+
+    os_user = getpass.getuser()
+    assert runner_shared._safe_oq_author(os_user) == "maintainer"
+    assert runner_shared._safe_oq_author("") == "maintainer"
+    assert runner_shared._safe_oq_author("developer") == "developer"
+
+    repo = _create_test_repo(tmp_path)
+    p1 = _create_plan_with_oqs(
+        repo,
+        "rst001",
+        oqs=[{"id": "OQ-01", "title": "Choice", "blocking": True, "status": "open"}],
+    )
+    rel = str(p1.relative_to(repo))
+    original_bytes = p1.read_bytes()
+    orig_hash = runner_shared.sha256_file(p1)
+
+    run_dir = repo / ".aw" / "records" / "runs" / "run-rst001"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    qid = "01-rst001-a1-OQ-01"
+    state = {
+        "repo": str(repo),
+        "run_id": "run-rst001",
+        "driver": {"id": "agy_runipd"},
+        "queue": [
+            {
+                "id6": "rst001",
+                "position": 1,
+                "status": "awaiting-human",
+                "preflight_parked": True,
+                "artifact_path": rel,
+                "question_ids": [qid],
+                "questions": [
+                    {
+                        "oq_id": "OQ-01",
+                        "question_id": "OQ-01",
+                        "artifact_path": rel,
+                        "artifact_hash": orig_hash,
+                    }
+                ],
+            }
+        ],
+    }
+    question_inbox.write_question(
+        run_dir=run_dir,
+        item=state["queue"][0],
+        question={
+            "question_id": qid,
+            "oq_id": "OQ-01",
+            "text": "Choice?",
+            "artifact_path": rel,
+            "artifact_hash": orig_hash,
+        },
+        attempt=1,
+        repo=repo,
+    )
+    ans_res = question_inbox.write_answer(
+        run_dir,
+        qid,
+        answer="Option A",
+        actor="human",
+        sender=os_user,
+        channel="cli",
+    )
+    assert ans_res.recorded is True
+
+    monkeypatch.setattr(
+        _gch,
+        "offer_commit",
+        lambda *a, **kw: _gch.CommitOutcome("error", None, (), "hook rejected"),
+    )
+    requeued = runner_shared.consume_answers(run_dir, state)
+    assert requeued == []
+    assert p1.read_bytes() == original_bytes
+    events = [
+        json.loads(line)
+        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(e.get("event") == "answer-commit-failed" for e in events)

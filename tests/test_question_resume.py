@@ -666,11 +666,13 @@ class TestQuestionResume:
         att2 = item["attempts"][1]
         assert att2.get("answer_resume") == "session"
 
-        # Prompt for session resume contains only the answer notice
+        # Prompt for session resume contains the answer notice and updated attempt submission paths
         prompt_path = Path(att2["prompt"])
         prompt_content = prompt_path.read_text(encoding="utf-8")
         assert "## Answers from the maintainer" in prompt_content
         assert "use redis clustered cache" in prompt_content
+        assert "Required JSON outcome:" in prompt_content
+        assert "attempt-2/outcomes/" in prompt_content
         assert "IPD Driver Turn" not in prompt_content  # Not normal full prompt!
 
         print("V-03 session resume: answer_resume=", att2.get("answer_resume"))

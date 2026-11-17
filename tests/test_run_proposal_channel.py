@@ -1103,3 +1103,94 @@ def test_attended_field_value_is_linted() -> None:
     assert [e for e in bad if e.field == "Attended"]
     none = ipd_schema.validate_metadata({})
     assert not [e for e in none if e.field == "Attended"]
+
+
+def test_stale_attempt1_proposal_ignored_when_attempt2_outcome_not_collected(
+    tmp_path: Path,
+) -> None:
+    """When attempt 2 in an isolated lane yields no fresh outcome, a prior attempt's stale proposal is never re-filed."""
+    from tests import support
+
+    repo = _create_test_repo(tmp_path)
+    p = _create_plan_file(repo, "stl001", order=1)
+    run_id = "run-stale-proposal"
+    run_dir = repo / ".aw" / "records" / "runs" / run_id
+    (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+    (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+    # Prior attempt left an outcome file containing a proposal on run_dir/outcomes/
+    stale_outcome = {
+        "schema_version": 1,
+        "id6": "stl001",
+        "disposition": "partial",
+        "proposal": {
+            "kind": "different-approach",
+            "blocked_by": "stale attempt 1 blocker",
+            "why": "prior attempt could not resolve it",
+            "proposed_change": "stale proposal from attempt 1",
+            "paths": ["README.md"],
+            "size": "small",
+        },
+        "defect_report": {"state": "none-found", "findings": []},
+        "pushed": False,
+    }
+    (run_dir / "outcomes" / "01-stl001.json").write_text(
+        json.dumps(stale_outcome), encoding="utf-8"
+    )
+
+    silent_agent = support.make_fake_executable(
+        tmp_path / "silent_agent",
+        """#!/usr/bin/env python3
+import json, sys
+print(json.dumps({"event": "init", "conversation_id": "ses-2", "init": {"model": "test-model"}}), flush=True)
+print(json.dumps({"type": "text", "sessionID": "ses-2", "part": {"text": "done without writing outcome"}}), flush=True)
+sys.exit(0)
+""",
+    )
+    item: dict[str, Any] = {
+        "id6": "stl001",
+        "setid": "testset",
+        "position": 1,
+        "action": "execute",
+        "status": "queued",
+        "configured_file": str(p.relative_to(repo)),
+        "attempts": [
+            {"number": 1, "disposition": "awaiting-human", "session_id": "ses-1"}
+        ],
+    }
+    state: dict[str, Any] = {
+        "repo": str(repo),
+        "run_id": run_id,
+        "queue": [item],
+        "options": {
+            "opencode": str(silent_agent),
+            "no_verify": True,
+            "validate": False,
+            "no_audit": True,
+            "self_finalize": False,
+            "isolate_worktree": True,
+        },
+    }
+    runner_shared.save_state(run_dir, state)
+
+    with (
+        mock.patch.object(oc_runipd, "driver_begin", return_value=(0, "ok")),
+        mock.patch.object(
+            oc_runipd,
+            "run_suite_check",
+            return_value=runner_shared.SuiteCheckResult(
+                True, 0, "ok", "ok", "", 0.1, 0.1
+            ),
+        ),
+        coordinator_role(),
+    ):
+        oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+    assert "proposal_record" not in item
+    assert "proposal_record" not in item["attempts"][-1]
+    events = [
+        json.loads(line)
+        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert not any(e.get("event") == "agent-proposal-filed" for e in events)
