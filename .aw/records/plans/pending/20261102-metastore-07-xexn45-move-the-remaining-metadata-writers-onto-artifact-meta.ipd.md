@@ -131,6 +131,7 @@ flowchart TD
 
 - E-12 (the merge-independence test `tests/test_writers_merge_independence.py`, AC-3 phase-B form): Moved to b4y4ee (round-3 split 2026-11-09 per research nj8zdp guidance)
   - Carrier: b4y4ee
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-133-b4y4ee-prove-the-phase-b-writers-keep-different-record-merges-confl.ipd.md
 - E-01 (the phase-B legacy writer, and the `.aw/state/xexn45/` baselines) and E-11 (runner writer helpers), with OQ-04: Moved to 7yr827 (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: 7yr827
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-21-7yr827-add-the-phase-b-legacy-writer-and-move-the-runner-writer-hel.ipd.md
