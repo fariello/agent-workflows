@@ -118,6 +118,7 @@ flowchart TD
   - Carrier: n5sxxk, b4y4ee, xexn45
 - Moving plan scaffold, plan sync, and prompts writers (`ernmom`) and adopt and `set_records` writers (`x2dxvf`).
   - Carrier: ernmom, x2dxvf
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.ipd.md
 - Writing `--summary` as `short_description` in `aw research new` and `aw adopt` at creation.
   - Carrier: bir7xm
 - Retiring direct unit-test callers and definitions of low-level text helpers `build_frontmatter`, `update_frontmatter_fields`, and `_set_priority_line`.

@@ -118,6 +118,7 @@ flowchart TD
   - Carrier: n5sxxk, b4y4ee, xexn45
 - Moving `research_cmd` create and field-setter commands (`run_new`, `run_new_comparison`, `run_set_outcome`, `run_set_priority`) and `ipd_authoring` / `prompts` create and sync commands.
   - Carrier: s95hj6, ernmom
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.ipd.md
 - Creation-time `short_description` (`--summary`) for `aw adopt` and `aw backlog new`, and `aw describe`.
   - Carrier: py2vu9, fekdwv
 

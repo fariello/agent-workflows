@@ -109,6 +109,7 @@ flowchart TD
   - Carrier: s95hj6
 - `E-01` scaffold and prompts subset (`agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/prompts.py::run_new` with `render_metadata_comment`) and `E-02` sync subset (`agent_workflows/ipd_authoring.py::run_sync`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: ernmom
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.ipd.md
 - `E-01` adopt and walkthrough subset (`agent_workflows/artifact_adopt.py::apply_adoption`, `agent_workflows/set_records.py::write_walkthrough`) and `E-02` `set_records` subset (`close_on_answer`, `promote_question_to_backlog`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: x2dxvf
 - The phase-B merge-independence test (`tests/test_writers_merge_independence.py`, AC-3 phase-B form), moved from `xexn45` E-12 in round 3.
