@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import record_history as _rh
 from agent_workflows import research_cmd as _rcmd
@@ -362,6 +363,21 @@ def _planned_frontmatter_updates(parsed: R.ResearchName) -> Dict[str, str]:
     return updates
 
 
+def _first_frontmatter_keys(text: str) -> set[str]:
+    """Return YAML keys present in the first ``---`` frontmatter block (D-5)."""
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return set()
+    keys: set[str] = set()
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            return keys
+        if ":" in stripped and not stripped.startswith("#"):
+            keys.add(stripped.split(":", 1)[0].strip())
+    return set()
+
+
 def _refuse_uncontained_destination(
     repo_root: Path, plans: List[RenamePlan]
 ) -> Optional[str]:
@@ -582,9 +598,30 @@ def _apply_renames(
             updates = _planned_frontmatter_updates(parsed)
             try:
                 old_text = p.new_path.read_text(encoding="utf-8")
-                new_text = _rcmd.update_frontmatter_fields(old_text, updates)
-                if new_text != old_text:
-                    _atomic_write(p.new_path, new_text)
+                present_keys = _first_frontmatter_keys(old_text)
+                event_fields: Dict[str, object] = {}
+                if "set" in updates and "set" in present_keys:
+                    event_fields["set"] = updates["set"]
+                if "order" in updates and "order" in present_keys:
+                    event_fields["order"] = int(updates["order"])
+                if "model" in updates and "model" in present_keys:
+                    event_fields["model"] = updates["model"]
+                if "kind" in updates and "kind" in present_keys:
+                    event_fields["research_kind"] = updates["kind"]
+                if event_fields:
+                    artifact_meta.append(
+                        artifact_meta.LegacyTarget(
+                            p.new_path, "research", target_id6 or None
+                        ),
+                        [{"op": "set", "fields": event_fields}],
+                        legacy_render=artifact_meta.LegacyRender(
+                            tag=verb,
+                            day=_core.utc_history_date(),
+                            actor_label="aw",
+                            history=False,
+                        ),
+                        repo_root=repo_root,
+                    )
                 if emit_human:
                     print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
                 targets_applied.append(

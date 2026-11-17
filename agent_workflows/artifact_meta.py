@@ -4602,6 +4602,7 @@ def _render_status(
     in_front = True
     fenced = bool(lines and lines[0].strip() == "---")
     status_bullet = re.compile(r"^-\s*Status:\s*(\S+)\s*$")
+    status_pat = r"^status:(?:\s.*|\s*$)" if plural == "research" else r"^status:\s*\S+"
     for line in lines:
         if fenced:
             if in_front and line.strip() == "---" and new_lines:
@@ -4609,7 +4610,7 @@ def _render_status(
             if (
                 in_front
                 and not status_updated
-                and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
+                and re.match(status_pat, line, re.IGNORECASE)
             ):
                 new_lines.append(f"status: {status}")
                 status_updated = True
@@ -5140,6 +5141,13 @@ def _render_field(
             val = None
         else:
             val = value
+        if (
+            plural == "research"
+            and field == "order"
+            and isinstance(val, int)
+            and not isinstance(val, bool)
+        ):
+            val = f"{val:02d}"
         return _render_yaml_field(text, _RESEARCH_YAML_KEY[field], val)
 
     bullet_writers: Dict[str, Tuple[str, Tuple[Tuple[str, str], ...]]] = {
