@@ -284,9 +284,11 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
     },
     "backlog": {
         **_COMMON_FIELDS,
+        "set": FieldDef("set", "string", "generic"),
         "status": FieldDef("status", "closed enum", "transition-owned"),
         "priority": FieldDef("priority", "string", "generic"),
         "work_kind": FieldDef("work_kind", "string", "generic"),
+        "summary": FieldDef("summary", "string", "migration-only"),
         "close_evidence": FieldDef("close_evidence", "string", "transition-owned"),
         "release_exempt_kind": FieldDef("release_exempt_kind", "string", "generic"),
         "release_exempt_ref": FieldDef("release_exempt_ref", "string", "generic"),
@@ -413,9 +415,13 @@ def validate_transition_edge(
 
     elif artifact_type == "backlog":
         if from_status is None:
-            if to_status in ("open", "draft"):
+            initial = frozenset(_att.BACKLOG_TRANSITIONS.keys()) | {"draft"}
+            if to_status in initial:
                 return True, ""
-            return False, f"backlog must start at open or draft, not {to_status!r}"
+            return (
+                False,
+                f"backlog must start in {sorted(initial)}, not {to_status!r}",
+            )
         allowed = _att.BACKLOG_TRANSITIONS.get(from_status, frozenset())
         if to_status in allowed:
             return True, ""
@@ -3886,6 +3892,9 @@ class LegacyRender:
     #: Model attribution for `- Coverage-Checked: <day> by <checked_by>` on `op == "coverage"`,
     #: decoupled from `actor_label` (which labels the `## Workflow history` entry).
     checked_by: Optional[str] = None
+    #: When True and `## Workflow history` is absent, append the created heading at EOF
+    #: (preserving pre-history header prose containing `## ` subheadings).
+    history_at_end: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -3967,6 +3976,7 @@ _LEGACY_BULLET_LABEL: Dict[str, str] = {
     "highest_e_allocated": "Highest E allocated",
     "author": "Author",
     "canonical": "Canonical",
+    "summary": "Summary",
 }
 
 #: Registry field -> YAML front-matter key for `research` records.
@@ -4632,6 +4642,7 @@ def _render_create_fields(
         "order",
         "work_kind",
         "priority",
+        "summary",
         "short_description",
         "pipeline",
         "from_backlog",
@@ -4795,6 +4806,8 @@ def _render_field(
         "coverage": ("Readiness", "Status", "Id"),
         "order": ("Set", "Status", "Id"),
         "author": ("Id", "Status"),
+        "gate_ref": ("Gate-Kind", "Status", "Id"),
+        "gate_summary": ("Gate-Ref", "Gate-Kind", "Status", "Id"),
     }.get(field, ("Status", "Id"))
     return _set_bullet(text, label, _format_legacy_value(field, value), anchors=anchors)
 
@@ -4892,7 +4905,9 @@ def _render_approval(text: str, value: str) -> str:
     return "\n".join(lines)
 
 
-def _render_history(text: str, entry: str, *, is_prompt: bool) -> str:
+def _render_history(
+    text: str, entry: str, *, is_prompt: bool, history_at_end: bool = False
+) -> str:
     """Prepend a newest-first record under `## Workflow history`, creating the heading if absent.
 
     D-1: preserves an existing single blank line directly under `## Workflow history` when present
@@ -4903,6 +4918,11 @@ def _render_history(text: str, entry: str, *, is_prompt: bool) -> str:
             insert_at = i + 2 if (i + 1 < len(lines) and lines[i + 1] == "") else i + 1
             lines.insert(insert_at, entry)
             return "\n".join(lines)
+    if history_at_end:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.extend(["## Workflow history", entry])
+        return "\n".join(lines)
     idx = len(lines)
     if not is_prompt:
         idx = next(
@@ -4921,18 +4941,50 @@ def render_legacy(
     label: str = "",
     repo_root: Optional[Path] = None,
     quiet: bool = True,
+    _trailing_body_only: bool = False,
 ) -> Tuple[str, List[str]]:
     """Render ONE append's events into a record's legacy Markdown text. Pure.
 
     Event order is the append's order; the history line is written last. Returns the rendered text
     (ending in exactly one newline) and the notes the setter prints."""
+    from agent_workflows import selectors as _sel
+
     notes: List[str] = []
     # Today's setter worked on `text.splitlines()` and re-split after every value writer, so the
     # renderer normalizes the same way (no trailing empty line, CRLF folded) between edits.
     out = "\n".join(text.splitlines())
+    is_backlog_create = plural == "backlog" and any(
+        e.get("op") == "create" for e in events
+    )
+    trailing_body = ""
+    is_headerless_backlog = False
+    if is_backlog_create and (
+        _trailing_body_only
+        or (
+            not render.history_at_end
+            and not _META_BULLET_LINE_RE.search(_sel.metadata_region(out))
+        )
+    ):
+        is_headerless_backlog = True
+        pointer = _core.writing_standard_pointer("backlog item")
+        hist_m = re.search(r"(?m)^##\s*Workflow history\s*$", out)
+        if hist_m:
+            pre_part = out[: hist_m.start()].strip()
+            trailing_body = out[hist_m.end() :].lstrip("\r\n").rstrip()
+            out = pre_part if pre_part else pointer
+        elif pointer in out:
+            before_ptr, after_ptr = out.split(pointer, 1)
+            out = (before_ptr.strip() + "\n\n" + pointer).strip()
+            trailing_body = after_ptr.lstrip("\r\n").rstrip()
+        else:
+            trailing_body = out.lstrip("\r\n").rstrip()
+            out = pointer
+    elif plural == "backlog":
+        out = _canonicalize_work_kind(out)
+
     trans = next((e for e in events if e.get("op") == "transition"), None)
     mirror = render.status or (trans.get("to") if trans else None)
-    if mirror:
+    if mirror and not is_headerless_backlog:
         out, n = _render_status(out, plural, mirror, quiet=quiet, label=label)
         notes.extend(n)
     legacy_history_lines: List[str] = []
@@ -4940,7 +4992,16 @@ def render_legacy(
         op = ev["op"]
         if op == "create":
             fields = dict(ev.get("fields") or {})
-            out = _render_create_fields(out, plural, fields, repo_root=repo_root)
+            if is_headerless_backlog:
+                if mirror and "status" not in fields:
+                    fields["status"] = mirror
+                bullet_block = _render_create_fields(
+                    "", plural, fields, repo_root=repo_root
+                )
+                if bullet_block:
+                    out = f"{bullet_block}\n\n{out}" if out else bullet_block
+            else:
+                out = _render_create_fields(out, plural, fields, repo_root=repo_root)
         elif op == "transition":
             pass
         elif op == "set":
@@ -5002,8 +5063,11 @@ def render_legacy(
             raise ValueError(f"legacy writer cannot render op {op!r}")
     if plural == "backlog":
         out = _canonicalize_work_kind(out)
+    hist_at_end = render.history_at_end or is_headerless_backlog
     for hline in reversed(legacy_history_lines):
-        out = _render_history(out, hline, is_prompt=render.is_prompt)
+        out = _render_history(
+            out, hline, is_prompt=render.is_prompt, history_at_end=hist_at_end
+        )
     if render.history:
         has_non_legacy_hist_event = any(
             ev.get("op") in ("note", "transition", "review", "coverage", "create")
@@ -5022,7 +5086,11 @@ def render_legacy(
         )
         if has_non_legacy_hist_event or msg or not legacy_history_lines:
             entry = f"- {render.day} {render.tag} ({render.actor_label}): {msg}"
-            out = _render_history(out, entry, is_prompt=render.is_prompt)
+            out = _render_history(
+                out, entry, is_prompt=render.is_prompt, history_at_end=hist_at_end
+            )
+    if trailing_body:
+        out = out.rstrip() + "\n\n" + trailing_body
     return out.rstrip() + "\n", notes
 
 
@@ -5248,6 +5316,7 @@ def write_legacy(
     from_status: Optional[str] = None,
     notes_out: Optional[List[str]] = None,
     initial_text: Optional[str] = None,
+    _trailing_body_only: bool = False,
 ) -> WritePreview:
     """The single phase-B legacy writer: validate, render, lock, move, atomic-write, sidecar.
 
@@ -5315,6 +5384,7 @@ def write_legacy(
         label=ltarget.id6 or src.name,
         repo_root=rroot,
         quiet=quiet,
+        _trailing_body_only=_trailing_body_only,
     )
     if notes_out is not None:
         notes_out.extend(notes)
@@ -5678,6 +5748,7 @@ def create(
                 dry_run=dry_run,
                 actor=actor,
                 initial_text=body,
+                _trailing_body_only=(plural == "backlog"),
                 **legacy_kwargs,
             )
 

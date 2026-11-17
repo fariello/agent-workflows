@@ -855,170 +855,74 @@ def _render_item(
     *,
     source_text: Optional[str] = None,
 ) -> str:
-    if source_text is None:
-        lines = [
-            f"- Id: {item.id}",
-            f"- Status: {item.status}",
-            f"- Set: {item.set}",
-            f"- Priority: {item.priority}",
-            # E-02: only the canonical spelling is ever WRITTEN (the legacy one stays readable).
-            f"- Work-Kind: {item.kind}",
-            f"- Summary: {item.summary}",
-        ]
-        if item.status == "blocked":
-            lines.append(f"- Gate-Kind: {item.gate_kind}")
-            lines.append(f"- Gate-Ref: {item.gate_ref}")
-        today = core.utc_history_date()
-        msg = (message or "").strip() or item.summary
-        lines.append("")
-        lines.append(core.writing_standard_pointer("backlog item"))
-        lines.append("")
-        lines.append("## Workflow history")
-        lines.append(f"- {today} created (aw backlog): {msg}")
-        lines.append("")
-        lines.append(body.rstrip() + "\n" if body.strip() else "")
-        return "\n".join(lines).rstrip() + "\n"
+    """Render a backlog item through ``artifact_meta.render_legacy_text``.
 
-    # rendrop 2yqt0a E-01 / E-07: walk source text to preserve unrecognized fields in original order,
-    # and preserve header prose written between the leading bullets and ## Workflow history.
-    if "\n## Workflow history" in source_text:
-        pre_hist = source_text.split("\n## Workflow history", 1)[0]
-    elif source_text.startswith("## Workflow history"):
-        pre_hist = ""
-    else:
-        pre_hist = source_text
+    When ``source_text`` is supplied, preserves unknown bullets, unparseable lines, and header
+    prose preceding the history section; otherwise renders a fresh headerless backlog skeleton.
+    """
+    from agent_workflows import artifact_meta as _meta
 
-    source_lines = pre_hist.split("\n")
-    last_bullet_idx = -1
-    for i, line in enumerate(source_lines):
-        if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
-            break
-        if line.startswith("- "):
-            last_bullet_idx = i
-
-    bullet_lines = source_lines[: last_bullet_idx + 1] if last_bullet_idx >= 0 else []
-    bullet_text = "\n".join(bullet_lines)
-    header_prose = pre_hist[len(bullet_text) :]
-
-    source_keys = set()
-    for line in bullet_lines:
-        m = _TOP_KEY_RE.match(line)
-        if m:
-            k = m.group(1)
-            source_keys.add("Work-Kind" if k == "Kind" else k)
-
-    emitted_keys = set()
-    out_bullets: List[str] = []
-
-    def _insert_absent_gate_fields():
-        if item.status == "blocked":
-            if "Gate-Kind" not in emitted_keys and "Gate-Kind" not in source_keys:
-                out_bullets.append(f"- Gate-Kind: {item.gate_kind}")
-                emitted_keys.add("Gate-Kind")
-            if "Gate-Ref" not in emitted_keys and "Gate-Ref" not in source_keys:
-                out_bullets.append(f"- Gate-Ref: {item.gate_ref}")
-                emitted_keys.add("Gate-Ref")
-
-    for line in bullet_lines:
-        m = _TOP_KEY_RE.match(line)
-        if not m:
-            # Rule (3): An unparseable bullet is emitted verbatim, not dropped.
-            out_bullets.append(line)
-            continue
-
-        raw_key = m.group(1)
-        canon_key = "Work-Kind" if raw_key == "Kind" else raw_key
-
-        # Rule (2): Gate-Summary dropped when not blocked, kept when blocked.
-        if raw_key == "Gate-Summary" or A.GATE_SUMMARY_RE.match(line):
-            if item.status == "blocked":
-                out_bullets.append(line)
-            continue
-
-        if canon_key not in _TEMPLATE_OWNED_KEYS:
-            # Non-template-owned field (e.g. Blocks-Release, Custom-Field, Graduated-To, etc.)
-            out_bullets.append(line)
-            continue
-
-        # Template-owned field.
-        # Rule (1): emit each template-owned key at most once.
-        # Track emitted keys; the legacy - Kind: line is substituted in place ONLY when no
-        # - Work-Kind: line was already emitted for it, and is otherwise DROPPED.
-        if canon_key in emitted_keys:
-            continue
-
-        if canon_key == "Id":
-            out_bullets.append(f"- Id: {item.id}")
-            emitted_keys.add("Id")
-        elif canon_key == "Status":
-            out_bullets.append(f"- Status: {item.status}")
-            emitted_keys.add("Status")
-            _insert_absent_gate_fields()
-        elif canon_key == "Set":
-            out_bullets.append(f"- Set: {item.set}")
-            emitted_keys.add("Set")
-        elif canon_key == "Priority":
-            out_bullets.append(f"- Priority: {item.priority}")
-            emitted_keys.add("Priority")
-        elif canon_key == "Work-Kind":
-            out_bullets.append(f"- Work-Kind: {item.kind}")
-            emitted_keys.add("Work-Kind")
-        elif canon_key == "Summary":
-            out_bullets.append(f"- Summary: {item.summary}")
-            emitted_keys.add("Summary")
-        elif canon_key == "Gate-Kind":
-            if item.status == "blocked":
-                out_bullets.append(f"- Gate-Kind: {item.gate_kind}")
-                emitted_keys.add("Gate-Kind")
-        elif canon_key == "Gate-Ref":
-            if item.status == "blocked":
-                out_bullets.append(f"- Gate-Ref: {item.gate_ref}")
-                emitted_keys.add("Gate-Ref")
-
-    # Template-owned lines absent from the source are inserted directly after - Status:
-    # (gate fields) or in template order at the end of the block (anything else).
-    for key in ("Id", "Status", "Set", "Priority", "Work-Kind", "Summary"):
-        if key not in emitted_keys:
-            if key == "Id":
-                out_bullets.append(f"- Id: {item.id}")
-            elif key == "Status":
-                out_bullets.append(f"- Status: {item.status}")
-                _insert_absent_gate_fields()
-            elif key == "Set":
-                out_bullets.append(f"- Set: {item.set}")
-            elif key == "Priority":
-                out_bullets.append(f"- Priority: {item.priority}")
-            elif key == "Work-Kind":
-                out_bullets.append(f"- Work-Kind: {item.kind}")
-            elif key == "Summary":
-                out_bullets.append(f"- Summary: {item.summary}")
-            emitted_keys.add(key)
-
-    if item.status == "blocked":
-        if "Gate-Kind" not in emitted_keys:
-            out_bullets.append(f"- Gate-Kind: {item.gate_kind}")
-            emitted_keys.add("Gate-Kind")
-        if "Gate-Ref" not in emitted_keys:
-            out_bullets.append(f"- Gate-Ref: {item.gate_ref}")
-            emitted_keys.add("Gate-Ref")
-
-    rendered_bullets = "\n".join(out_bullets)
-    if header_prose.strip():
-        if not header_prose.startswith("\n"):
-            header_prose = "\n\n" + header_prose.lstrip()
-        rendered_head = rendered_bullets + header_prose
-    else:
-        rendered_head = rendered_bullets + "\n"
-
-    lines = [rendered_head.rstrip()]
     today = core.utc_history_date()
-    msg = (message or "").strip() or item.summary
-    lines.append("")
-    lines.append("## Workflow history")
-    lines.append(f"- {today} created (aw backlog): {msg}")
-    lines.append("")
-    lines.append(body.rstrip() + "\n" if body.strip() else "")
-    return "\n".join(lines).rstrip() + "\n"
+    msg = (message or "").strip() or item.summary or ""
+    fields: Dict[str, object] = {"type": "backlog"}
+    for key, val in (
+        ("id", item.id),
+        ("status", item.status),
+        ("set", item.set),
+        ("priority", item.priority),
+        ("work_kind", item.kind),
+        ("summary", item.summary),
+    ):
+        if val is not None:
+            fields[key] = val
+    if item.status == "blocked":
+        if item.gate_kind is not None:
+            fields["gate_kind"] = item.gate_kind
+        if item.gate_ref is not None:
+            fields["gate_ref"] = item.gate_ref
+
+    create_ev: Dict[str, object] = {
+        "op": "create",
+        "path": f"backlog/{item.status or 'open'}/{item.id or 'item'}.backlog.md",
+        "fields": fields,
+    }
+    if msg:
+        create_ev["message"] = msg
+    events: List[Dict[str, object]] = [create_ev]
+    if item.status != "blocked":
+        events.append(
+            {"op": "unset", "fields": ["gate_kind", "gate_ref", "gate_summary"]}
+        )
+
+    if source_text is None:
+        rendered = _meta.render_legacy_text(
+            "",
+            events,
+            record_type="backlog",
+            render=_meta.LegacyRender(
+                tag="created",
+                day=today,
+                actor_label="aw backlog",
+                history=True,
+            ),
+        )
+    else:
+        pre_hist = _WORKFLOW_HISTORY_HEADING_RE.split(source_text, maxsplit=1)[0]
+        rendered = _meta.render_legacy_text(
+            pre_hist,
+            events,
+            record_type="backlog",
+            render=_meta.LegacyRender(
+                tag="created",
+                day=today,
+                actor_label="aw backlog",
+                history=True,
+                history_at_end=True,
+            ),
+        )
+    if body.strip():
+        return rendered.rstrip() + "\n\n" + body.rstrip() + "\n"
+    return rendered.rstrip() + "\n"
 
 
 # --------------------------------------------------------------------------------------
@@ -1298,27 +1202,79 @@ def run_new(args) -> int:
         getattr(args, "slug", None) or item.summary or "item", 50, "item"
     )
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
-    dest = (
-        _resolve_backlog_root(repo_root)  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
-        / _rp.target_subdir("backlog", status)
-        / filename
-    )
+    backlog_root = _resolve_backlog_root(repo_root)
+    records_root = backlog_root.parent
+    subdir = _rp.target_subdir("backlog", status) or status
+    dest = backlog_root / subdir / filename
+    rel_dest = f"{backlog_root.name}/{subdir}/{filename}"
     body = getattr(args, "body", None) or ""
-    rendered = _render_item(item, body, message=message)
-    if br is not None:
-        from agent_workflows import releases as _releases
 
-        rendered = _releases.set_blocks_release_line(rendered, br)
+    create_fields: Dict[str, object] = {
+        "status": item.status,
+        "set": item.set,
+        "priority": item.priority,
+        "work_kind": item.kind,
+        "summary": item.summary,
+    }
+    if item.status == "blocked":
+        create_fields["gate_kind"] = item.gate_kind
+        create_fields["gate_ref"] = item.gate_ref
+    if br is not None and br != "-":
+        create_fields["blocks_release"] = br
+    if (
+        rel_exempt_kind
+        and rel_exempt_kind != "-"
+        and rel_exempt_ref
+        and rel_exempt_ref != "-"
+    ):
+        create_fields["release_exempt_kind"] = rel_exempt_kind
+        create_fields["release_exempt_ref"] = rel_exempt_ref
 
-    if rel_exempt_kind is not None or rel_exempt_ref is not None:
-        if rel_exempt_kind == "-":
-            rendered = set_release_exempt_kind_line(rendered, "-")
-            rendered = set_release_exempt_ref_line(rendered, "-")
-        else:
-            if rel_exempt_ref is not None:
-                rendered = set_release_exempt_ref_line(rendered, rel_exempt_ref)
-            if rel_exempt_kind is not None:
-                rendered = set_release_exempt_kind_line(rendered, rel_exempt_kind)
+    hist_message = ((message or "").strip() or item.summary).strip()
+    apply = bool(getattr(args, "apply", False))
+
+    from agent_workflows import artifact_meta as _meta
+
+    base_ctx = _meta.legacy_context(repo_root)
+    create_ctx = type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {
+                "records": str(records_root),
+                "state": base_ctx.logical_roots["state"],
+            },
+            "repo_root": Path(repo_root).resolve(),
+        },
+    )()
+    preview = _meta.create(
+        item.id,
+        "backlog",
+        create_fields,
+        body,
+        destination=rel_dest,
+        dry_run=not apply,
+        project_context=create_ctx,
+        legacy_render=_meta.LegacyRender(
+            tag="created",
+            day=core.utc_history_date(),
+            actor_label="aw backlog",
+            history=True,
+        ),
+        repo_root=repo_root,
+        message=hist_message,
+        sidecar=(
+            _meta.SidecarRecord(
+                tree="backlog",
+                workflow="aw backlog new",
+                actor="aw backlog",
+                message=hist_message,
+            )
+            if apply
+            else None
+        ),
+    )
+    rendered = preview.text
 
     # IPD fwgq2u E-02 / OQ-01: near-duplicate advisory guard. Reuses the existing_items_data walk
     # performed above rather than doing a second corpus pass (which would be 59t9x5 double-read in
@@ -1445,7 +1401,7 @@ def run_new(args) -> int:
             lines.append(f"  {BACKLOG_DUPLICATE_GUARD_COVERAGE}")
         return "\n".join(lines) + "\n"
 
-    if not getattr(args, "apply", False):
+    if not apply:
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(
                 command="backlog new",
@@ -1465,29 +1421,9 @@ def run_new(args) -> int:
         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
         return 0
 
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    core.atomic_write(dest, rendered)
-
-    # plan `vhbvwz` E-04: REPORT a failed sidecar write instead of swallowing it in a bare
-    # `except Exception: pass`. The inline `## Workflow history` record is already in `rendered` and
-    # was written by the `atomic_write` directly above, so it is unaffected either way; the sidecar is
-    # a machine-local activity log (OQ-01) and must never gate a durable write.
-    # Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
-    # because an event for a transition that did not happen is worse than a missing event; see
-    # `record_history.append_advisory`.
-    if item.id:
-        from agent_workflows import record_history as _rh
-
-        _rh.append_advisory(
-            repo_root,
-            id6=item.id,
-            tree="backlog",
-            workflow="aw backlog new",
-            actor="aw backlog",
-            message=((message or "").strip() or item.summary).strip(),
-            artifact=dest.name,
-        )
-
+    # plan `vhbvwz` E-04 and spec `4sd62s` C6: inline history is rendered and durably written by
+    # `artifact_meta.create` BEFORE the advisory sidecar append runs, so the sidecar never precedes
+    # the durable write and never gates it.
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="backlog new",
@@ -1636,42 +1572,40 @@ def run_note(args) -> int:
     text = src.read_text(encoding="utf-8")
     item = parse_item(text)
     date = getattr(args, "date", None) or core.utc_history_date()
-    record = f"- {date} note (aw backlog): {message}"
 
-    # PREPEND under the existing heading (newest-first, matching every other writer). No status is
-    # read or written, and the file is NOT moved, so the item's directory keeps agreeing with it.
-    lines = text.split("\n")
-    out: List[str] = []
-    inserted = False
-    for line in lines:
-        out.append(line)
-        if not inserted and line.strip() == "## Workflow history":
-            out.append(record)
-            inserted = True
-    if not inserted:
-        if out and out[-1].strip() != "":
-            out.append("")
-        out.append("## Workflow history")
-        out.append(record)
-    core.atomic_write(src, "\n".join(out).rstrip() + "\n")
+    from agent_workflows import artifact_meta as _meta
 
-    # plan `vhbvwz` E-04 / OQ-01: the sidecar remains a machine-local activity log and can never gate
-    # this write.
-    # Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
-    # because an event for a transition that did not happen is worse than a missing event; see
-    # `record_history.append_advisory`.
-    if item.id:
-        from agent_workflows import record_history as _rh
-
-        _rh.append_advisory(
-            repo_root,
-            id6=item.id,
+    base_ctx = _meta.legacy_context(repo_root)
+    records_root = _resolve_backlog_root(repo_root).parent
+    note_ctx = type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {
+                "records": str(records_root),
+                "state": base_ctx.logical_roots["state"],
+            },
+            "repo_root": Path(repo_root).resolve(),
+        },
+    )()
+    _meta.append(
+        _meta.LegacyTarget(src, "backlog", item.id),
+        [{"op": "note", "message": message}],
+        repo_root=repo_root,
+        project_context=note_ctx,
+        legacy_render=_meta.LegacyRender(
+            tag="note",
+            day=date,
+            actor_label="aw backlog",
+            history=True,
+        ),
+        sidecar=_meta.SidecarRecord(
             tree="backlog",
             workflow="aw backlog note",
             actor="aw backlog",
             message=f"note: {message}",
-            artifact=src.name,
-        )
+        ),
+    )
     sys.stdout.write(f"aw backlog note: appended a history record to {src}\n")
     return 0
 
@@ -1711,57 +1645,38 @@ def _reattach_history(
     label: str = "set",
     write_record: bool = True,
 ) -> str:
-    """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
+    """Prepend one transition record to the inline history section, PRESERVING prior records.
 
-    NEWEST-FIRST, and prior records are KEPT (plan `vhbvwz` E-08). This function used to emit ONLY the
-    new record, discarding every earlier one, per awhistory Order 02 / spec `20260818-1525-02` OQ-2,
-    whose stated premise was that "the full chronological log lives in the global
-    .aw/records/history.jsonl sidecar". That premise is false: `.aw/.gitignore` ignores the sidecar, so
-    the slimmed records did not survive a clone and the item's provenance was destroyed for every
-    reader but this machine. The maintainer ruled on 2026-09-10 (plan `vhbvwz` OQ-01) that inline
-    history is the DURABLE home for backlog items and specs, matching plans; spec `20260818-1525-02`
-    is amended in the same change.
-
-    THE PRIOR RECORDS COME FROM `old_text`, NOT FROM `rendered`, AND THAT IS NOT INTERCHANGEABLE.
-    `_strip_metadata_and_history` deliberately discards the history block, and `_render_item` then
-    MINTS A FRESH `created` record stamped with TODAY's date, so `rendered`'s history section holds a
-    synthetic line rather than the item's real past. Reading prior records from `rendered` therefore
-    preserved a re-dated forgery of the oldest record and lost every other one (measured while
-    implementing E-08: an item whose records were 2026-01-01 and 2026-01-02 came back with a single
-    `created` line dated today). `old_text` is the file as it was on disk, so it is the only honest
-    source. The re-minted `created` line is dropped for the same reason.
-
-    THE LABEL PARAMETER (plan `jbipfa`, backlog `awqzuh`) allows the caller to specify the transition
-    token (e.g. "graduated", "done", or "same-status"), aligning with `status_set.apply_status_change`
-    which names the transition rather than writing an uninformative "set". The default "set" preserves
-    the legacy record token for an unaware caller.
-
-    THE WRITE_RECORD PARAMETER (plan `evbx9s`, backlog `r74211`) allows the caller to suppress the
-    new record on an idempotent same-status re-assertion, preserving prior history while writing no
-    duplicate record. The caller consults `status_set.same_status_message_is_duplicate` to decide;
-    the default True preserves existing behavior for an unaware caller.
-
-    THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
-    store, so it can never gate this write (see `record_history.append_advisory`).
+    NEWEST-FIRST, and prior records are KEPT (plan `vhbvwz` E-08). Reads prior records from
+    `old_text` (never from `rendered`'s synthetic `created` entry), preserves wrapped continuation
+    lines via `_prior_history_records`, optionally suppresses the new entry when `write_record` is
+    False (`evbx9s`), and renders through `artifact_meta.render_legacy_text` (`g6tw94` / `jlwedt`).
     """
+    from agent_workflows import artifact_meta as _meta
 
-    today = core.utc_history_date()
-    msg = message.strip() or f"status -> {new_status}"
-    new_record = f"- {today} {label} (aw backlog): {msg}"
-    # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by
-    # every prior record from the FILE AS IT WAS (newest-first, matching status_set's plan writer),
-    # then the prose body.
-    head = rendered.split("\n## Workflow history", 1)[0]
-    body = ""
-    if "\n## Workflow history" in rendered:
-        tail = rendered.split("\n## Workflow history", 1)[1]
-        body_parts = tail.split("\n\n", 1)
-        body = body_parts[1] if len(body_parts) > 1 else ""
+    head = _WORKFLOW_HISTORY_HEADING_RE.split(rendered, maxsplit=1)[0].rstrip()
+    body = A.history_block(rendered).body
     prior = _prior_history_records(old_text)
-    hist_block = "\n".join(([new_record] + prior) if write_record else prior)
-    result = head + "\n## Workflow history\n" + hist_block
+    events: List[Dict[str, object]] = [
+        {"op": "legacy", "source": "history", "line": line} for line in prior
+    ]
+    if write_record:
+        msg = message.strip() or f"status -> {new_status}"
+        events.append({"op": "note", "message": msg})
+    result = _meta.render_legacy_text(
+        head,
+        events,
+        record_type="backlog",
+        render=_meta.LegacyRender(
+            tag=label,
+            day=core.utc_history_date(),
+            actor_label="aw backlog",
+            history=write_record,
+            history_at_end=True,
+        ),
+    )
     if body.strip():
-        result += "\n\n" + body.rstrip()
+        return result.rstrip() + "\n\n" + body.rstrip() + "\n"
     return result.rstrip() + "\n"
 
 
