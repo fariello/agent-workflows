@@ -144,6 +144,7 @@ flowchart TD
 
 - E-01 (tracked prompt `agent_workflows/data/short-description-prompt.md` and loader), E-02 (`descriptions.jsonl` journal), E-03 (base tool-less argv and env), E-04 (scratch directory and guarded `generate`), and E-06 (`describe_record` regenerate-once rule), with their unit tests in `tests/test_m0001_describe.py`: Moved to `odeo9z` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: odeo9z
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-20-odeo9z-build-the-m0001-description-journal-tool-less-model-call-and.ipd.md
 - E-05 (`m0001_describe.validate` descriptive-value, leak-sanitizer `include_warn`, and absolute-path refusals) and its `-k validate` unit tests: Moved from `odeo9z` to `830wku` (round-3 split 2026-11-09 per research `nj8zdp` guidance).
   - Carrier: 830wku
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-106-830wku-build-the-m0001-short-description-validation.ipd.md
