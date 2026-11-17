@@ -6,7 +6,7 @@
 - Scope: Extend `REGISTRY["research"]`, string-list `validate_new_events` checks, and phase-B `research` YAML `create` and `set`/`unset` rendering in `agent_workflows/artifact_meta.py`, move `agent_workflows/research_cmd.py::plan_new`, `plan_new_comparison`, `_emit_and_write`, `run_new`, and `run_new_comparison` onto `artifact_meta.create` (`n5sxxk` E-01, research subset), move `agent_workflows/research_cmd.py::plan_set_outcome`, `run_set_outcome`, `plan_set_priority`, and `run_set_priority` onto `artifact_meta.append` (`n5sxxk` E-02, research subset), and delete the unused `_atomic_write` helper from `agent_workflows/research_cmd.py`. EXCLUDES: prompts and plan scaffold (`ernmom`), adopt and `set_records` (`x2dxvf`), creation-time `--summary` as `short_description` (`bir7xm`), and retiring direct test callers of low-level text helpers `build_frontmatter`, `update_frontmatter_fields`, and `_set_priority_line` (`h1kfyp`, `tfvby1`, `6v4uao`, `zs7a45`).
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-122-s95hj6-move-the-research-create-and-setter-writers-onto-artifact-me.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s95hj6
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: s95hj6 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
