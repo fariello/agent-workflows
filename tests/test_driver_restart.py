@@ -18,6 +18,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import (
     loaded_code,
@@ -410,7 +411,7 @@ class DriverRestartBoundaryTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_limit_reached_records_refusal_and_breaks_loop(self) -> None:
-        """When restart count reaches limit, refusal is stored, event appended, and loop exits 1."""
+        """When consecutive no-progress restarts reach limit, refusal is stored, event appended, and loop exits 1."""
         run_id = "run-20261006T120000Z-limit"
         run_dir = self.root / ".aw" / "runs" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -420,6 +421,7 @@ class DriverRestartBoundaryTests(unittest.TestCase):
             "run_id": run_id,
             "repo": str(self.root),
             "driver_restarts": 20,
+            "driver_restarts_without_progress": 20,
             "queue": [
                 {
                     "id6": "it0001",
@@ -607,6 +609,191 @@ class DriverRestartBoundaryTests(unittest.TestCase):
             )
             self.assertEqual(decision, "none")
             self.assertEqual(len(replaces), 0)
+
+    def test_forward_progress_restarts_past_20_do_not_hit_limit(self) -> None:
+        """Cumulative restarts > 20 still restart when an item made progress in this process."""
+        run_id = "run-20261117T120000Z-prog"
+        run_dir = self.root / ".aw" / "runs" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        initial_fp = loaded_code.fingerprint(self.root)
+        state = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "repo": str(self.root),
+            "driver_restarts": 25,
+            "driver_restarts_without_progress": 3,
+            "queue": [
+                {
+                    "id6": "it0026",
+                    "position": 26,
+                    "status": "queued",
+                    "setid": "testset",
+                }
+            ],
+            "options": {"output_mode": "clean", "verbosity": 0},
+            "driver": {"id": "agy_runipd", "loaded_code": []},
+        }
+        runner_shared.save_state(run_dir, state)
+        loaded_code.loaded_code_record(self.root, package_root=self.root)
+        (self.pkg_dir / "mod.py").write_text("x = 26\n", encoding="utf-8")
+
+        replaces: list[tuple[list[str], dict[str, str]]] = []
+
+        def fake_replace(argv: list[str], env: dict[str, str]) -> None:
+            replaces.append((argv, env))
+
+        with runner_shared.locked_run(run_dir):
+            decision = runner_shared.restart_on_new_code_if_needed(
+                run_dir,
+                state,
+                host_labels=runner_shared.AGY_HOST_LABELS,
+                previous_id6="it0025",
+                stop_level=None,
+                replace=fake_replace,
+                package_root=self.root,
+            )
+
+        self.assertEqual(decision, "restart")
+        self.assertEqual(len(replaces), 1)
+        updated_state = runner_shared.load_state(run_dir)
+        self.assertEqual(updated_state["driver_restarts"], 26)
+        self.assertEqual(updated_state["driver_restarts_without_progress"], 0)
+        self.assertNotIn("driver_restart_refusal", updated_state)
+
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        restarted = [e for e in events if e.get("event") == "driver-restarted"]
+        self.assertEqual(len(restarted), 1)
+        self.assertEqual(restarted[0]["restart_count"], 26)
+        self.assertEqual(restarted[0]["no_progress_restarts"], 0)
+        self.assertTrue(restarted[0]["made_progress"])
+        self.assertEqual(restarted[0]["previous_id6"], "it0025")
+        self.assertEqual(restarted[0]["old_fingerprint"], initial_fp)
+
+    def test_no_progress_restart_increments_streak_and_hits_limit_at_20(self) -> None:
+        """Restarts with no item progress increment the no-progress streak and stop at 20."""
+        run_id = "run-20261117T120001Z-noprogress"
+        run_dir = self.root / ".aw" / "runs" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "repo": str(self.root),
+            "driver_restarts": 4,
+            "driver_restarts_without_progress": 19,
+            "queue": [{"id6": "it0005", "position": 5, "status": "queued"}],
+            "options": {"output_mode": "clean", "verbosity": 0},
+            "driver": {"id": "oc_runipd", "loaded_code": []},
+        }
+        runner_shared.save_state(run_dir, state)
+        loaded_code.loaded_code_record(self.root, package_root=self.root)
+        (self.pkg_dir / "mod.py").write_text("x = 20\n", encoding="utf-8")
+
+        replaces: list[tuple[list[str], dict[str, str]]] = []
+        with runner_shared.locked_run(run_dir):
+            dec_20 = runner_shared.restart_on_new_code_if_needed(
+                run_dir,
+                state,
+                host_labels=runner_shared.OC_HOST_LABELS,
+                previous_id6=None,
+                made_progress=False,
+                stop_level=None,
+                replace=lambda a, e: replaces.append((a, e)),
+                package_root=self.root,
+            )
+        self.assertEqual(dec_20, "restart")
+        self.assertEqual(len(replaces), 1)
+        state = runner_shared.load_state(run_dir)
+        self.assertEqual(state["driver_restarts"], 5)
+        self.assertEqual(state["driver_restarts_without_progress"], 20)
+
+        (self.pkg_dir / "mod.py").write_text("x = 21\n", encoding="utf-8")
+        with runner_shared.locked_run(run_dir):
+            dec_21 = runner_shared.restart_on_new_code_if_needed(
+                run_dir,
+                state,
+                host_labels=runner_shared.OC_HOST_LABELS,
+                previous_id6=None,
+                made_progress=False,
+                stop_level=None,
+                replace=lambda a, e: replaces.append((a, e)),
+                package_root=self.root,
+            )
+        self.assertEqual(dec_21, "limit-reached")
+        self.assertEqual(len(replaces), 1)
+        updated = runner_shared.load_state(run_dir)
+        self.assertEqual(
+            updated["driver_restart_refusal"]["code"], "driver-restart-limit"
+        )
+
+    def test_manual_resume_clears_refusal_while_self_restart_preserves(self) -> None:
+        """CLI resume clears stale refusal & no-progress streak when AW_DRIVER_RESTART is unset."""
+        for host_mod, driver_id in (
+            (agy_runipd, "agy_runipd"),
+            (oc_runipd, "oc_runipd"),
+        ):
+            run_id = f"run-20261117T120002Z-{driver_id}"
+            run_dir = self.root / ".aw" / "runs" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            state = {
+                "schema_version": 1,
+                "run_id": run_id,
+                "repo": str(self.root),
+                "driver_restarts": 20,
+                "driver_restarts_without_progress": 20,
+                "driver_restart_refusal": {
+                    "code": "driver-restart-limit",
+                    "reason": "old refusal",
+                    "remedy": "Resume",
+                },
+                "queue": [
+                    {
+                        "id6": "it0001",
+                        "position": 1,
+                        "status": "queued",
+                        "setid": "testset",
+                    }
+                ],
+                "options": {"output_mode": "clean", "verbosity": 0},
+                "driver": {"id": driver_id, "loaded_code": []},
+            }
+            runner_shared.save_state(run_dir, state)
+
+            # Self-restart keeps refusal & streak untouched
+            with (
+                mock.patch.dict(os.environ, {"AW_DRIVER_RESTART": "20"}),
+                mock.patch.object(host_mod, "resolve_run_dir", return_value=run_dir),
+                mock.patch.object(host_mod, "install_stop_triggers"),
+                mock.patch.object(host_mod, "run_queue", return_value=0),
+            ):
+                rc_self = host_mod.main(["resume", run_id, "--repo", str(self.root)])
+            self.assertEqual(rc_self, 0)
+            self_state = runner_shared.load_state(run_dir)
+            self.assertIn("driver_restart_refusal", self_state)
+            self.assertEqual(self_state["driver_restarts_without_progress"], 20)
+            self.assertEqual(self_state["driver_restarts"], 20)
+
+            # Manual resume clears refusal & resets streak while keeping cumulative driver_restarts
+            env_without_restart = {
+                k: v for k, v in os.environ.items() if k != "AW_DRIVER_RESTART"
+            }
+            with (
+                mock.patch.dict(os.environ, env_without_restart, clear=True),
+                mock.patch.object(host_mod, "resolve_run_dir", return_value=run_dir),
+                mock.patch.object(host_mod, "install_stop_triggers"),
+                mock.patch.object(host_mod, "run_queue", return_value=0),
+            ):
+                rc_manual = host_mod.main(["resume", run_id, "--repo", str(self.root)])
+            self.assertEqual(rc_manual, 0)
+            manual_state = runner_shared.load_state(run_dir)
+            self.assertNotIn("driver_restart_refusal", manual_state)
+            self.assertEqual(manual_state["driver_restarts_without_progress"], 0)
+            self.assertEqual(manual_state["driver_restarts"], 20)
 
 
 class RealSubprocessExecTests(unittest.TestCase):

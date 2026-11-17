@@ -39335,12 +39335,31 @@ def _default_replace(argv: list[str], env: dict[str, str]) -> None:
         os.execve(sys.executable, argv, env)
 
 
+def reset_driver_restart_loop_state_on_manual_resume(state: dict[str, Any]) -> bool:
+    """Clear stale restart refusal and no-progress streak when a human manually resumes.
+
+    Self-restarts spawned by ``restart_on_new_code_if_needed`` carry ``AW_DRIVER_RESTART``
+    in the environment and keep both fields intact so consecutive loop protection works.
+    """
+    if os.environ.get("AW_DRIVER_RESTART"):
+        return False
+    changed = False
+    if "driver_restart_refusal" in state:
+        state.pop("driver_restart_refusal", None)
+        changed = True
+    if state.get("driver_restarts_without_progress", 0) != 0:
+        state["driver_restarts_without_progress"] = 0
+        changed = True
+    return changed
+
+
 def restart_on_new_code_if_needed(
     run_dir: Path,
     state: dict[str, Any],
     *,
     host_labels: Any,
     previous_id6: str | None = None,
+    made_progress: bool | None = None,
     stop_level: int | None = None,
     replace: Callable[[list[str], dict[str, str]], None] | None = None,
     package_root: Path | str | None = None,
@@ -39349,9 +39368,12 @@ def restart_on_new_code_if_needed(
     """Check if toolkit code changed; if so, record and restart driver into resume.
 
     Acts on the pure restart_decision ('none', 'restart', 'unavailable', 'limit-reached').
+    Forward-progress restarts (when an item executed or a deferred integration landed in
+    this process) reset the consecutive no-progress streak so large queues can reload new
+    toolkit code across items without hitting the consecutive loop ceiling of 20.
     When 'restart' is decided:
       - verifies a held run lock exists (otherwise records driver-restart-unavailable and returns 'unavailable')
-      - increments state['driver_restarts']
+      - increments cumulative state['driver_restarts'] and updates state['driver_restarts_without_progress']
       - appends entry to state['driver']['loaded_code']
       - appends driver-restarted event to events.jsonl
       - saves state
@@ -39363,7 +39385,16 @@ def restart_on_new_code_if_needed(
 
     repo = Path(state.get("repo", "."))
     change = loaded_code.code_changed(repo, package_root=package_root)
-    restart_count = state.get("driver_restarts", 0)
+    restart_count = int(state.get("driver_restarts", 0))
+    progressed = (
+        (previous_id6 is not None) if made_progress is None else bool(made_progress)
+    )
+    if progressed and state.get("driver_restarts_without_progress", 0) != 0:
+        state["driver_restarts_without_progress"] = 0
+        save_state(run_dir, state)
+    no_progress_count = (
+        0 if progressed else int(state.get("driver_restarts_without_progress", 0))
+    )
     if has_work is None:
         has_work = any(
             item.get("status") == "queued" for item in state.get("queue", [])
@@ -39372,7 +39403,7 @@ def restart_on_new_code_if_needed(
 
     decision = restart_decision(
         change,
-        restart_count,
+        no_progress_count,
         disabled=disabled,
         stop_level=stop_level,
         has_work=has_work,
@@ -39388,13 +39419,20 @@ def restart_on_new_code_if_needed(
                 "at": utc_now(),
                 "event": "driver-restart-limit",
                 "restart_count": restart_count,
+                "no_progress_restarts": no_progress_count,
                 "limit": 20,
                 "old_fingerprint": change.old,
                 "new_fingerprint": change.new,
             },
         )
-        reason = "Driver restart limit of 20 reached with toolkit code still changing"
-        remedy = "Resume the run once the toolkit code has settled"
+        reason = (
+            "Driver restart limit of 20 consecutive restarts without item progress "
+            "reached with toolkit code still changing"
+        )
+        remedy = (
+            "Resume the run after resolving what is changing toolkit code between "
+            "starts without item progress"
+        )
         refusal = {
             "code": "driver-restart-limit",
             "reason": reason,
@@ -39420,7 +39458,9 @@ def restart_on_new_code_if_needed(
         return "unavailable"
 
     new_count = restart_count + 1
+    new_no_progress_count = 0 if progressed else no_progress_count + 1
     state["driver_restarts"] = new_count
+    state["driver_restarts_without_progress"] = new_no_progress_count
 
     if package_root is not None:
         pkg_root_str = str(Path(package_root).resolve())
@@ -39447,7 +39487,9 @@ def restart_on_new_code_if_needed(
             "new_fingerprint": change.new,
             "changed_files": list(change.changed_files),
             "previous_id6": previous_id6,
+            "made_progress": progressed,
             "restart_count": new_count,
+            "no_progress_restarts": new_no_progress_count,
         },
     )
 

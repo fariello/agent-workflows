@@ -3452,6 +3452,7 @@ def run_queue(
     wind_down: runner_stop.WindDown | None = None
     current_setid: str | None = None
     previous_id6: str | None = None
+    integration_progressed = False
     # Recorded EXACTLY ONCE, whichever boundary the loop exits at (kept symmetric with `oc_runipd`).
     stop_recorded = False
     # runstop foi1b3: True once a level-3 stop cut the running TURN at an observed safe checkpoint
@@ -3474,11 +3475,13 @@ def run_queue(
             state,
             host_labels=runner_shared.AGY_HOST_LABELS,
             previous_id6=previous_id6,
+            made_progress=(previous_id6 is not None) or integration_progressed,
             stop_level=level,
             replace=replace,
             package_root=package_root,
         ) in ("restart", "limit-reached"):
             break
+        integration_progressed = False
         if state.get("runaway_escalation"):
             break
         # qchan-10 (qrup8m) E-03: ensure receiver is running or take over if holder exited
@@ -3520,7 +3523,10 @@ def run_queue(
         # Ordered AFTER the cascade for the same reason as on the oc host: `integration-deferred` is not
         # terminal, so the cascade spares a deferred item's dependents, and an integration landing here
         # promotes the item BEFORE selection asks what depends on it.
-        if runner_shared.deferred_integration_items(state):
+        deferred_before = {
+            it.get("id6") for it in runner_shared.deferred_integration_items(state)
+        }
+        if deferred_before:
             retry_deferred_integrations(run_dir, state)
             save_state(run_dir, state)
             state = load_state(run_dir)
@@ -3534,6 +3540,11 @@ def run_queue(
             # never runs off a stale snapshot". This host omitted it at BOTH ladder reload points;
             # that omission was a DEFECT, not a host difference, and no test covered it.
             register_signal_report(run_dir, state)
+            if any(
+                it.get("id6") in deferred_before and it.get("status") == "executed"
+                for it in state.get("queue", [])
+            ):
+                integration_progressed = True
         runner_shared.update_awaiting_upstream(state)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued and not runner_shared.deferred_integration_items(state):
@@ -4623,6 +4634,8 @@ def main(argv: list[str] | None = None) -> int:
             # overwrite-when-passed behavior exactly.
             runner_shared.refuse_frozen_flags_on_resume(args)
             state = load_state(run_dir)
+            if runner_shared.reset_driver_restart_loop_state_on_manual_resume(state):
+                save_state(run_dir, state)
             if runner_shared.apply_run_policy_flags_on_resume(state, args):
                 save_state(run_dir, state)
             if getattr(args, "stall_timeout", None) is not None:
