@@ -6,7 +6,7 @@
 - Scope: On top of the migration chain and `metadata_schema` stamp built by `g8na48` (round-3 split of this plan's E-01): the step-1 preflight, `--force`/`--force-worktree`, and apply-time integration-lock hold (`dcerjg` E-04); the `m0001_metadata_v2.run`/`resume`/`rollback` entry points and migration journal over `layout_migration.MigrationManager`'s lock and atomic persistence (`dcerjg` E-05); and the step-2 sidecar expectedness check, `legacy` event queue, orphan export, and target `.aw/.gitignore` cleanup (`dcerjg` E-06); plus `tests/test_m0001_preflight.py` and `tests/test_m0001_sidecar.py` (subset of `dcerjg` E-14). Everything runs only on `tmp_path` test fixtures. EXCLUDES: the chain, stamp, read-path hook, and `tests/test_migrations_chain.py` (`g8na48`); the `aw migrate` CLI group and the install prompt (`1vfqdu`); renames and citations (`dky26u`); conversion (`ghhzb6`, `hpedmn`); terminal-commit marker and INDEX cleanup (`o19353`); census, round trip, clone proof, and changelog (`dcerjg`); descriptions (`830wku`, `odeo9z`, `ya4ee4`); stage-1 layout chaining (`bv4kkj`, `g5hpbb`).
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_preflight.py, tests/test_m0001_preflight.py, tests/test_m0001_sidecar.py, .aw/records/plans/pending/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
 - Item-Dependencies: executed:tve77h, executed:g8na48
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vxevph
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: vxevph verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
