@@ -562,19 +562,64 @@ def run_new(args) -> int:
     )
     dest = root / PENDING_BUCKET / filename
 
-    rendered = (
-        render_metadata_comment(
-            kind=kind,
-            status=status,
-            created=date_iso,
-            id6=id6,
-            set_id=set_id,
-            author=getattr(args, "author", None),
-            targets=getattr(args, "targets", None),
-            concerns=getattr(args, "concerns", None),
-        )
-        + "\n"
+    from agent_workflows import artifact_meta as _meta
+
+    apply = bool(getattr(args, "apply", False))
+    fields = {
+        "prompt_kind": kind,
+        "set": set_id,
+        "status": status,
+        "created_day": date_iso,
+    }
+    for attr, key in (
+        ("author", "author"),
+        ("targets", "targets"),
+        ("concerns", "concerns"),
+    ):
+        raw_val = getattr(args, attr, None)
+        if raw_val is not None:
+            text_val = str(raw_val).strip()
+            if text_val:
+                fields[key] = text_val
+
+    base_ctx = _meta.legacy_context(repo_root)
+    records_root = root.resolve().parent
+    create_ctx = type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {
+                "records": str(records_root),
+                "state": base_ctx.logical_roots["state"],
+            },
+            "repo_root": Path(repo_root).resolve(),
+        },
+    )()
+    rel_dest = dest.resolve().relative_to(records_root).as_posix()
+    legacy_render = _meta.LegacyRender(
+        tag="created",
+        day=core.utc_history_date(),
+        actor_label="aw prompts new",
+        history=False,
+        is_prompt=True,
     )
+    try:
+        preview = _meta.create(
+            id6,
+            "prompt",
+            fields,
+            "",
+            destination=rel_dest,
+            dry_run=not apply,
+            project_context=create_ctx,
+            legacy_render=legacy_render,
+            repo_root=repo_root,
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        prefix = "" if msg.startswith("aw prompts new:") else "aw prompts new: "
+        return _refuse(f"{prefix}{msg}")
+    rendered = preview.text
 
     data = {
         "path": str(dest),
@@ -588,7 +633,7 @@ def run_new(args) -> int:
         "sequence": order,
     }
 
-    if not getattr(args, "apply", False):
+    if not apply:
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(
                 command="prompts new",
@@ -603,9 +648,6 @@ def run_new(args) -> int:
             return get_renderer(ctx).emit(res, ctx)
         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
         return 0
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    core.atomic_write(dest, rendered)
 
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(

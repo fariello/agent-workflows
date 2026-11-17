@@ -240,6 +240,7 @@ def build_skeleton(
     from_backlog: Optional[str] = None,
     blocks_release: Optional[str] = None,
     history_date: Optional[str] = None,
+    history_record: bool = True,
 ) -> str:
     """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order.
 
@@ -347,8 +348,9 @@ def build_skeleton(
         elif h == S.H_APPROVAL_GATE:
             lines.append(_gate_body())
         elif h == S.H_WORKFLOW_HISTORY:
-            body = _SECTION_BODY.get(h, "TODO.")
-            lines.append(body.format(date=hist_date, author=author))
+            if history_record:
+                body = _SECTION_BODY.get(h, "TODO.")
+                lines.append(body.format(date=hist_date, author=author))
         else:
             if kind == S.KIND_ORCHESTRATOR and h in _ORCH_SECTION_BODY:
                 body = _ORCH_SECTION_BODY[h]
@@ -596,7 +598,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         )
         path = pending / name
         target = str(path)
-    text = build_skeleton(
+    skeleton_body = build_skeleton(
         kind=kind,
         title=title,
         author=author,
@@ -609,7 +611,9 @@ def run_scaffold(args: argparse.Namespace) -> int:
         from_backlog=from_backlog,
         blocks_release=blocks_release,
         history_date=history_date,
+        history_record=False,
     )
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         Change,
@@ -630,7 +634,95 @@ def run_scaffold(args: argparse.Namespace) -> int:
         )
         return 1
 
-    if not getattr(args, "apply", False):
+    apply = bool(getattr(args, "apply", False))
+    fields = {
+        "status": "draft",
+        "plan_role": kind,
+        "set": set_name,
+        "order": order,
+        "work_kind": work_kind,
+        "priority": priority,
+        "scope_paths": "TODO (comma-separated repo-relative paths or pathspecs)",
+        "item_dependencies": "unresolved",
+        "author": author,
+        "highest_e_allocated": "01",
+    }
+    if from_backlog:
+        fields["from_backlog"] = from_backlog
+    if blocks_release:
+        fields["blocks_release"] = blocks_release
+
+    legacy_render = _meta.LegacyRender(
+        tag="draft",
+        day=history_date,
+        actor_label=author,
+    )
+    meta_ctx = _meta.legacy_context(repo_root)
+    records_root = Path(meta_ctx.logical_roots["records"]).resolve()
+    resolved_path = path.resolve()
+    rel_dest: Optional[str] = None
+    try:
+        rel_candidate = resolved_path.relative_to(records_root)
+        if resolved_path != records_root:
+            rel_dest = rel_candidate.as_posix()
+    except ValueError:
+        rel_dest = None
+
+    def _emit_write_failed(exc: Exception) -> int:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd scaffold",
+                status="cannot-run",
+                exit_code=2,
+                summary=f"scaffold write failed: {exc}",
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"error: scaffold write failed: {exc}")
+        return 2
+
+    if rel_dest is not None and not path.exists():
+        try:
+            preview = _meta.create(
+                plan_id,
+                "ipd",
+                fields,
+                skeleton_body,
+                destination=rel_dest,
+                dry_run=not apply,
+                project_context=meta_ctx,
+                legacy_render=legacy_render,
+                repo_root=repo_root,
+                message="created.",
+            )
+            text = preview.text
+        except ValueError as exc:
+            return _refuse_scaffold(str(exc), ctx)
+        except Exception as exc:
+            return _emit_write_failed(exc)
+    else:
+        create_ev = {
+            "op": "create",
+            "path": f"plans/pending/{plan_id}.ipd.md",
+            "fields": {**fields, "id": plan_id, "type": "ipd"},
+            "message": "created.",
+        }
+        try:
+            text = _meta.render_legacy_text(
+                skeleton_body,
+                [create_ev],
+                record_type="ipd",
+                render=legacy_render,
+                repo_root=repo_root,
+            )
+        except ValueError as exc:
+            return _refuse_scaffold(str(exc), ctx)
+        if apply:
+            try:
+                _atomic_write(path, text)
+            except Exception as exc:
+                return _emit_write_failed(exc)
+
+    if not apply:
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(
                 command="ipd scaffold",
@@ -646,20 +738,6 @@ def run_scaffold(args: argparse.Namespace) -> int:
         print(f"--- would write {target} ({text.count(chr(10))} lines) ---")
         print(text)
         return 0
-
-    try:
-        _atomic_write(path, text)
-    except Exception as exc:
-        if ctx.is_agent or ctx.is_json:
-            res = CommandResult(
-                command="ipd scaffold",
-                status="cannot-run",
-                exit_code=2,
-                summary=f"scaffold write failed: {exc}",
-            )
-            return get_renderer(ctx).emit(res, ctx)
-        print(f"error: scaffold write failed: {exc}")
-        return 2
 
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
@@ -698,6 +776,7 @@ class SyncResult:
         self.assigned: List[str] = []
         self.errors: List[str] = []
         self.changed = False
+        self.new_watermark: Optional[str] = None
 
 
 def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
@@ -785,12 +864,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
         res.changed = False
         return res
 
-    new_watermark = next_suffix - 1
-    # Advance the watermark line.
-    for i, raw in enumerate(out):
-        if _WATERMARK_RE.match(raw):
-            out[i] = f"- Highest E allocated: {_fmt_suffix(new_watermark)}"
-            break
+    res.new_watermark = _fmt_suffix(next_suffix - 1)
 
     # Insert the new V rows immediately before the approval gate, appended after existing V rows.
     # Find the gate heading; insert new V rows just before its preceding blank line.
@@ -1077,6 +1151,27 @@ def run_sync(args: argparse.Namespace) -> int:
             res = SyncResult()
             res.new_text = text_after_id
             res.changed = True
+        elif not res.errors and res.new_watermark is not None:
+            from agent_workflows import artifact_meta as _meta
+
+            sync_repo_root = _core.repo_root_of(path.parent)
+            res.new_text = _meta.render_legacy_text(
+                res.new_text,
+                [
+                    {
+                        "op": "set",
+                        "fields": {"highest_e_allocated": res.new_watermark},
+                    }
+                ],
+                record_type="ipd",
+                render=_meta.LegacyRender(
+                    tag="sync",
+                    day=_core.utc_history_date(),
+                    actor_label="aw ipd sync",
+                    history=False,
+                ),
+                repo_root=sync_repo_root,
+            )
     except Exception as exc:
         print(f"error: sync failed to run: {exc}")
         return 2

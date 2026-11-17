@@ -265,6 +265,8 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "scope_exceeded_raw": FieldDef(
             "scope_exceeded_raw", "string", "migration-only"
         ),
+        "author": FieldDef("author", "string", "generic"),
+        "highest_e_allocated": FieldDef("highest_e_allocated", "string", "generic"),
     },
     "spec": {
         **_COMMON_FIELDS,
