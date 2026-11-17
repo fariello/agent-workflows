@@ -366,8 +366,10 @@ def test_offline_does_not_contact_remotes(tmp_path: Path) -> None:
 
 
 def _fake_aw(tmp_path: Path, touch: bool) -> Path:
-    script = tmp_path / "bin" / "aw"
-    script.parent.mkdir(parents=True, exist_ok=True)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    # Windows CreateProcess cannot execute extensionless shebang scripts directly; wrap in .cmd.
+    script = bin_dir / ("aw.py" if sys.platform == "win32" else "aw")
     body = [
         "#!" + sys.executable,
         "import json, pathlib, sys",
@@ -388,6 +390,10 @@ def _fake_aw(tmp_path: Path, touch: bool) -> Path:
         body.append("pathlib.Path('.aw/written-by-doctor.txt').write_text('x')")
     body += ["print('not json'); sys.stderr.write('boom'); sys.exit(2)"]
     script.write_text("\n".join(body) + "\n", encoding="utf-8")
+    if sys.platform == "win32":
+        cmd = bin_dir / "aw.cmd"
+        cmd.write_text(f'@"{sys.executable}" "{script}" %*\n', encoding="utf-8")
+        return cmd
     script.chmod(0o755)
     return script
 
@@ -425,7 +431,7 @@ def test_aw_runs_recorded_and_side_effects_detected(tmp_path: Path) -> None:
     assert cmds["doctor"]["stderr_tail"] == "boom"
     se = runs["side_effects"]
     assert se["git_status_added"] == ["?? .aw/written-by-doctor.txt"]
-    assert str(repo / ".aw" / "written-by-doctor.txt") in se["files_modified"]
+    assert str(repo.resolve() / ".aw" / "written-by-doctor.txt") in se["files_modified"]
     assert "WARNING: aw commands changed files in:" in err
 
 
