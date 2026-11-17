@@ -28,7 +28,6 @@ never marks an IPD executed.
 from __future__ import annotations
 
 import datetime
-import re
 from pathlib import Path
 from typing import List, Mapping, NamedTuple, Optional, Sequence
 
@@ -223,6 +222,24 @@ def _existing_walkthrough_ids(wdir: Path) -> set:
     return ids
 
 
+def _records_legacy_context(repo_root: Path, records_root: Path):
+    """Build a phase-B LegacyContext rooted at ``records_root``."""
+    from agent_workflows import artifact_meta as _meta
+
+    base_ctx = _meta.legacy_context(repo_root)
+    return type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {
+                "records": str(records_root.resolve()),
+                "state": base_ctx.logical_roots["state"],
+            },
+            "repo_root": Path(repo_root).resolve(),
+        },
+    )()
+
+
 def write_walkthrough(
     repo_root: Path,
     *,
@@ -250,22 +267,6 @@ def write_walkthrough(
 
     minted_id6 = _core.mint_id6(repo_root, _existing_walkthrough_ids(wdir))
 
-    meta = f"- Id: {minted_id6}\n- Target-Id: {target_id6}"
-    if re.search(r"(?m)^- Set:[ \t]*.*$", body):
-        body = re.sub(
-            r"(?m)^(- Set:[ \t]*.*)$",
-            rf"\1\n{meta}",
-            body,
-            count=1,
-        )
-    else:
-        m = re.search(r"(?m)^(#[ \t]+[^\n]*\n+)", body)
-        if m:
-            idx = m.end()
-            body = body[:idx] + f"{meta}\n\n" + body[idx:]
-        else:
-            body = f"{meta}\n\n" + body
-
     date = datetime.date.today().strftime("%Y%m%d")
     name = _naming.build_clustered_name(
         date=date,
@@ -277,7 +278,26 @@ def write_walkthrough(
     )
     wdir.mkdir(parents=True, exist_ok=True)
     dest = wdir / name
-    _core.atomic_write(dest, body)
+
+    from agent_workflows import artifact_meta as _meta
+
+    ctx = _records_legacy_context(repo_root, wdir.resolve().parent)
+    _meta.create(
+        minted_id6,
+        "walkthrough",
+        {"set": set_id, "order": int(order), "target_id": target_id6},
+        body,
+        destination=dest,
+        dry_run=False,
+        project_context=ctx,
+        repo_root=repo_root,
+        legacy_render=_meta.LegacyRender(
+            tag="created",
+            day=_core.utc_history_date(),
+            actor_label="aw walkthrough",
+            history=False,
+        ),
+    )
     return dest
 
 
@@ -319,18 +339,11 @@ def promote_question_to_backlog(
         pid = _backlog.parse_item(f.read_text(encoding="utf-8")).id
         if pid:
             existing_ids.add(pid)
-    item = _backlog.BacklogItem()
     # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6). This site was absent from
     # the plan's original call-site list and mints a BACKLOG id6, so it needs the global set exactly
     # as `backlog.run_new` does.
-    item.id = _core.mint_id6(repo_root, existing_ids)
-    item.status = "blocked"
-    item.set = set_id or item.id
-    item.priority = "high"
-    item.kind = "followup"
-    item.summary = summary.strip()
-    item.gate_kind = "decision"
-    item.gate_ref = gate_ref
+    minted_id = _core.mint_id6(repo_root, existing_ids)
+    set_val = set_id or minted_id
 
     body_lines = [
         "## Question context",
@@ -343,79 +356,141 @@ def promote_question_to_backlog(
         "",
     ]
     body = "\n".join(body_lines)
-    rendered = _backlog._render_item(item, body)
 
     # Validate BEFORE writing (fail-closed): the promoted item must pass backlog validation.
     root = _backlog._resolve_backlog_root(repo_root)
     today = datetime.date.today().strftime("%Y%m%d")
     slug = _core.kebab_slug(summary or "question", 50, "question")
-    filename = "{0}-{1}-01-{2}-{3}.backlog.md".format(today, item.set, item.id, slug)
+    filename = "{0}-{1}-01-{2}-{3}.backlog.md".format(today, set_val, minted_id, slug)
     dest = root / "blocked" / filename
-    drift = _backlog.validate_item(dest, rendered)
+
+    from agent_workflows import artifact_meta as _meta
+
+    ctx = _records_legacy_context(repo_root, root.resolve().parent)
+    fields = {
+        "status": "blocked",
+        "set": set_val,
+        "priority": "high",
+        "work_kind": "followup",
+        "summary": summary.strip(),
+        "gate_kind": "decision",
+        "gate_ref": gate_ref,
+    }
+    hist_message = f"promoted blocking question ({gate_ref})"
+    render = _meta.LegacyRender(
+        tag="created",
+        day=_core.utc_history_date(),
+        actor_label="aw backlog",
+        history=True,
+    )
+    preview = _meta.create(
+        minted_id,
+        "backlog",
+        fields,
+        body,
+        destination=dest,
+        dry_run=True,
+        project_context=ctx,
+        repo_root=repo_root,
+        message=hist_message,
+        legacy_render=render,
+    )
+    drift = _backlog.validate_item(dest, preview.text)
     if drift:
         raise ValueError(
             "promoted backlog item failed validation: "
             + "; ".join("{0}: {1}".format(d.rule, d.detail) for d in drift)
         )
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    _core.atomic_write(dest, rendered)
-    return PromotionResult(path=dest, backlog_id=item.id, decision_ref=gate_ref)
+    _meta.create(
+        minted_id,
+        "backlog",
+        fields,
+        body,
+        destination=dest,
+        dry_run=False,
+        project_context=ctx,
+        repo_root=repo_root,
+        message=hist_message,
+        legacy_render=render,
+    )
+    return PromotionResult(path=dest, backlog_id=minted_id, decision_ref=gate_ref)
 
 
 def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
     """Close a promoted blocked decision item once its question is answered (net-new behaviour).
 
     Transitions the item Status ``blocked -> done``, drops the (now irrelevant) gate fields, appends
-    a workflow-history line, and moves the file into the ``done/`` disposition dir. Returns the new
-    path. Reuses ``backlog.parse_item``/``_render_item`` so the result stays validation-conformant.
+    a workflow-history line, and moves the file into the ``done/`` disposition dir via
+    ``artifact_meta.append``. Returns the new path.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
+    from agent_workflows import check_engine as _check_engine
 
     text = backlog_path.read_text(encoding="utf-8")
     item = _backlog.parse_item(text)
-    item.status = "done"
-    item.gate_kind = None
-    item.gate_ref = None
-    # Preserve the existing body (everything after the first blank line following the metadata block
-    # and history) by re-extracting the prose that is not the metadata/history header.
-    body = _extract_body(text)
-    rendered = _backlog._render_item(item, body, source_text=text)
-    rendered = _backlog._reattach_history(
-        text, rendered, "done", "question answered; close-on-answer", label="done"
+    if item.status != "blocked":
+        raise ValueError(
+            f"close_on_answer requires status 'blocked', got {item.status!r}"
+        )
+
+    root = _backlog._resolve_backlog_root(repo_root)
+    dest = root / "done" / backlog_path.name
+    ctx = _records_legacy_context(repo_root, root.resolve().parent)
+    target = _meta.LegacyTarget(backlog_path, "backlog", item.id or None)
+    events = [
+        {
+            "op": "transition",
+            "from": item.status,
+            "to": "done",
+            "message": "question answered; close-on-answer",
+        },
+        {"op": "unset", "fields": ["gate_kind", "gate_ref", "gate_summary"]},
+    ]
+    render = _meta.LegacyRender(
+        tag="done",
+        day=_core.utc_history_date(),
+        actor_label="aw backlog",
+        history=True,
     )
+
+    preview = _meta.append(
+        target,
+        events,
+        dry_run=True,
+        project_context=ctx,
+        legacy_render=render,
+        repo_root=repo_root,
+        destination=dest,
+    )
+    drift = _backlog.validate_item(dest, preview.text)
+    if drift:
+        raise ValueError(
+            "closed backlog item failed validation: "
+            + "; ".join("{0}: {1}".format(d.rule, d.detail) for d in drift)
+        )
 
     # rendrop 2yqt0a E-08 (review PR-004, F-11): refuse closing an item that carries a live release
     # gate with no handoff and no evidence, so close_on_answer cannot manufacture a done item
     # carrying a dropped release gate that escapes the commit-staged check.
-    from agent_workflows import check_engine as _check_engine
-
     verdict = _check_engine.evaluate_blocking_close(
-        repo_root, backlog_path, "done", item_text=rendered
+        repo_root, backlog_path, "done", item_text=preview.text
     )
     if not verdict.legitimate and verdict.severity == "error":
         fixes = "; ".join(verdict.fixes)
         msg = f"{verdict.reason}; fixes: {fixes}" if fixes else verdict.reason
         raise ValueError(msg)
 
-    root = _backlog._resolve_backlog_root(repo_root)
-    dest = root / "done" / backlog_path.name
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    _core.atomic_write(dest, rendered)
-    if backlog_path.resolve() != dest.resolve() and backlog_path.exists():
-        backlog_path.unlink()
+    _meta.append(
+        target,
+        events,
+        dry_run=False,
+        project_context=ctx,
+        legacy_render=render,
+        repo_root=repo_root,
+        destination=dest,
+    )
     return dest
-
-
-def _extract_body(text: str) -> str:
-    """Extract the prose body after the ``## Workflow history`` block.
-
-    Delegates to :func:`attention_contract.history_block` (F-06). Keeping the body boundary
-    identical to the prior-history boundary ensures wrapped records and following records are
-    not duplicated on reattach.
-    The pre-history prose region is deliberately not this function's job;
-    ``backlog._render_item(..., source_text=...)`` preserves and re-emits it.
-    """
-    return _ac.history_block(text).body
 
 
 # --------------------------------------------------------------------------------------------------

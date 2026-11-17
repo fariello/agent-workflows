@@ -861,9 +861,78 @@ def apply_adoption(
             f"refusing to overwrite existing path (pass --overwrite): {plan.destination}",
         )
 
-    # Step 1: write the destination.
+    # Step 1: write the destination through artifact_meta.create.
     try:
-        _core.atomic_write(plan.destination, plan.content, prefix=".aw-adopt-tmp-")
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import research_contract as _R
+
+        fm = _R.parse_frontmatter(plan.frontmatter)
+        fields: Dict[str, object] = {}
+        if fm is not None:
+            if "created" in fm:
+                fields["created"] = fm["created"]
+            if "set" in fm:
+                fields["set"] = fm["set"]
+            if "order" in fm:
+                raw_order = fm["order"]
+                fields["order"] = (
+                    int(raw_order)
+                    if isinstance(raw_order, str) and raw_order.isdigit()
+                    else raw_order
+                )
+            if "topic" in fm:
+                fields["topic"] = fm["topic"]
+            if "model" in fm:
+                fields["model"] = fm["model"] or None
+            if "kind" in fm:
+                fields["research_kind"] = fm["kind"]
+            if "status" in fm:
+                fields["status"] = fm["status"]
+            if "outcome" in fm:
+                fields["outcome"] = fm["outcome"]
+            if "summary" in fm:
+                fields["summary"] = fm["summary"]
+            if "consumed-by" in fm:
+                fields["consumed_by"] = fm["consumed-by"]
+            if fm.get("priority"):
+                fields["priority"] = fm["priority"]
+        else:
+            fields["set"] = plan.suggestion.set_id
+            fields["research_kind"] = plan.suggestion.kind
+            if plan.suggestion.model:
+                fields["model"] = plan.suggestion.model
+
+        base_ctx = _meta.legacy_context(repo_root)
+        records_root = _R.resolve_research_root(repo_root).resolve().parent
+        ctx = type(
+            "LegacyContext",
+            (),
+            {
+                "logical_roots": {
+                    "records": str(records_root),
+                    "state": base_ctx.logical_roots["state"],
+                },
+                "repo_root": repo_root.resolve(),
+            },
+        )()
+        _meta.create(
+            plan.id6,
+            "research",
+            fields,
+            plan.provenance + plan.body,
+            destination=plan.destination,
+            dry_run=False,
+            overwrite=overwrite,
+            migration_import=plan.leaks.has_fail,
+            project_context=ctx,
+            repo_root=repo_root,
+            legacy_render=_meta.LegacyRender(
+                tag="created",
+                day=_core.utc_history_date(),
+                actor_label="aw adopt",
+                history=False,
+            ),
+        )
     except Exception as exc:  # noqa: BLE001
         return None, f"destination write failed (original left in place): {exc}"
 

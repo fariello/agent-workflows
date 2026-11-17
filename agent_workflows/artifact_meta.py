@@ -341,6 +341,9 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
     },
     "walkthrough": {
         **_COMMON_FIELDS,
+        "set": FieldDef("set", "string", "generic"),
+        "order": FieldDef("order", "integer", "generic"),
+        "target_id": FieldDef("target_id", "reference", "generic"),
     },
 }
 
@@ -4212,6 +4215,7 @@ _LEGACY_BULLET_LABEL: Dict[str, str] = {
     "author": "Author",
     "canonical": "Canonical",
     "summary": "Summary",
+    "target_id": "Target-Id",
 }
 
 #: Registry field -> YAML front-matter key for `research` records.
@@ -4898,6 +4902,46 @@ def _render_create_fields(
         fm = "\n".join(fm_lines) + "\n"
         return fm + text
 
+    if plural == "walkthroughs":
+        from agent_workflows import selectors as _sel
+
+        out = text
+        region = _sel.metadata_region(out)
+        id_val = fields.get("id")
+        target_id = fields.get("target_id")
+        has_id = bool(re.search(r"(?m)^-\s*Id:", region))
+        has_target = bool(re.search(r"(?m)^-\s*Target-Id:", region))
+        if has_id and id_val is not None:
+            out = _set_bullet(out, "Id", str(id_val), anchors=("Set",))
+        if has_target and target_id is not None:
+            out = _set_bullet(out, "Target-Id", str(target_id), anchors=("Id", "Set"))
+        missing_lines: List[str] = []
+        if id_val is not None and not has_id:
+            missing_lines.append(f"- Id: {id_val}")
+        if target_id is not None and not has_target:
+            missing_lines.append(f"- Target-Id: {target_id}")
+        if not missing_lines:
+            return out
+        meta = "\n".join(missing_lines)
+        region = _sel.metadata_region(out)
+        set_m = re.search(r"(?m)^(-[ \t]*Set:[ \t]*[^\n]*)$", region)
+        if set_m:
+            idx = set_m.end(1)
+            return out[:idx] + "\n" + meta + out[idx:]
+        head_m = re.search(r"(?m)^(# [^\n]*)", region)
+        if head_m:
+            idx = head_m.end(1)
+            after_head = out[idx:].lstrip("\n")
+            if not after_head:
+                return out[:idx] + "\n\n" + meta
+            sep = "\n" if after_head.startswith("- ") else "\n\n"
+            return out[:idx] + "\n\n" + meta + sep + after_head
+        stripped = out.lstrip("\n")
+        if not stripped:
+            return meta
+        sep = "\n" if stripped.startswith("- ") else "\n\n"
+        return meta + sep + stripped
+
     from agent_workflows import selectors as _sel
 
     region = _sel.metadata_region(text)
@@ -5485,6 +5529,7 @@ def _prepare_legacy_events(
     actor: Optional[Dict[str, Any]],
     by_human: bool,
     overrides: Optional[List[str]],
+    migration_import: bool = False,
 ) -> List[Dict[str, Any]]:
     """Give the events a v1 envelope and run the SAME writer-side refusals as the log branch."""
     now_utc = datetime.datetime.now(timezone.utc).isoformat()
@@ -5538,7 +5583,13 @@ def _prepare_legacy_events(
                 continue
             if fk not in reg and fk not in legacy_vocab:
                 raise ValueError(f"unknown field '{fk}' for type '{record_type}'")
-    validate_new_events("", prepared, records_root=records_root, repo_root=repo_root)
+    validate_new_events(
+        "",
+        prepared,
+        records_root=records_root,
+        repo_root=repo_root,
+        migration_import=migration_import,
+    )
     return prepared
 
 
@@ -5594,6 +5645,7 @@ def render_legacy_text(
     actor: Optional[Dict[str, Any]] = None,
     by_human: bool = False,
     overrides: Optional[List[str]] = None,
+    migration_import: bool = False,
     quiet: bool = True,
     label: str = "",
 ) -> str:
@@ -5613,6 +5665,7 @@ def render_legacy_text(
         actor=actor,
         by_human=by_human,
         overrides=overrides,
+        migration_import=migration_import,
     )
     _check_owned_fields(reg_type or plural, prepared, from_status)
     rendered, _notes = render_legacy(
@@ -5720,6 +5773,7 @@ def write_legacy(
     actor: Optional[Dict[str, Any]] = None,
     by_human: bool = False,
     overrides: Optional[List[str]] = None,
+    migration_import: bool = False,
     sidecar: Optional[SidecarRecord] = None,
     quiet: bool = True,
     from_status: Optional[str] = None,
@@ -5766,6 +5820,7 @@ def write_legacy(
         actor=actor,
         by_human=by_human,
         overrides=overrides,
+        migration_import=migration_import,
     )
     _check_owned_fields(reg_type or plural, prepared, from_status)
 
@@ -5872,6 +5927,7 @@ def append_legacy(
     actor: Optional[Dict[str, Any]] = None,
     by_human: bool = False,
     overrides: Optional[List[str]] = None,
+    migration_import: bool = False,
     sidecar: Optional[SidecarRecord] = None,
     quiet: bool = True,
     from_status: Optional[str] = None,
@@ -5890,6 +5946,7 @@ def append_legacy(
         actor=actor,
         by_human=by_human,
         overrides=overrides,
+        migration_import=migration_import,
         sidecar=sidecar,
         quiet=quiet,
         from_status=from_status,
@@ -5957,6 +6014,7 @@ def append(
                 actor=actor,
                 by_human=by_human,
                 overrides=overrides,
+                migration_import=migration_import,
                 **legacy_kwargs,
             )
         id6 = (target.id6 or "") if isinstance(target, LegacyTarget) else str(target)
@@ -6102,10 +6160,11 @@ def create(
     fields: Dict[str, Any],
     body: str,
     *,
-    destination: Optional[str] = None,
+    destination: Optional[Union[str, Path]] = None,
     dry_run: bool = False,
     project_context: Any = None,
     actor: Optional[Dict[str, Any]] = None,
+    migration_import: bool = False,
     legacy_render: Optional[LegacyRender] = None,
     **legacy_kwargs: Any,
 ) -> Any:
@@ -6123,11 +6182,20 @@ def create(
         if _storage_format(records_root, id6) == "legacy":
             if not destination:
                 destination = f"{artifact_type}s/pending/{id6}.md"
-            dest_path = (
-                Path(destination)
-                if Path(destination).is_absolute()
-                else (records_root / destination)
-            )
+            dest_input = Path(destination)
+            if dest_input.is_absolute():
+                dest_path = dest_input
+                try:
+                    ev_path = (
+                        dest_path.resolve()
+                        .relative_to(records_root.resolve())
+                        .as_posix()
+                    )
+                except (OSError, ValueError):
+                    ev_path = str(destination).replace("\\", "/")
+            else:
+                dest_path = records_root / dest_input
+                ev_path = str(destination).replace("\\", "/")
             _, plural = _normalize_legacy_types(artifact_type, dest_path, records_root)
             source_digest = legacy_kwargs.pop("source_digest", None)
             repo_root = (
@@ -6138,7 +6206,7 @@ def create(
             )
             create_ev: Dict[str, Any] = {
                 "op": "create",
-                "path": str(destination).replace("\\", "/"),
+                "path": ev_path,
                 "fields": {**fields, "id": id6, "type": artifact_type},
             }
             msg = legacy_kwargs.pop("message", None)
@@ -6154,6 +6222,7 @@ def create(
                 project_context=ctx,
                 dry_run=dry_run,
                 actor=actor,
+                migration_import=migration_import,
                 initial_text=body,
                 _trailing_body_only=(plural == "backlog"),
                 **legacy_kwargs,
@@ -6165,6 +6234,17 @@ def create(
 
     if not destination:
         destination = f"{artifact_type}s/pending/{id6}.md"
+    dest_str = str(destination).replace("\\", "/")
+    if Path(destination).is_absolute():
+        try:
+            dest_str = (
+                Path(destination)
+                .resolve()
+                .relative_to(records_root.resolve())
+                .as_posix()
+            )
+        except (OSError, ValueError):
+            pass
 
     # Retain operation journal before step 1
     j_dir = _journal_dir(state_root)
@@ -6173,7 +6253,7 @@ def create(
         "op": "create",
         "id6": id6,
         "type": artifact_type,
-        "destination": destination,
+        "destination": dest_str,
         "body": body,
     }
     j_file.write_text(json.dumps(journal_data, indent=2), encoding="utf-8")
@@ -6182,7 +6262,7 @@ def create(
         # Create event
         create_ev = {
             "op": "create",
-            "path": destination,
+            "path": dest_str,
             "fields": {**fields, "id": id6, "type": artifact_type},
         }
         res = append(
@@ -6192,6 +6272,7 @@ def create(
             dry_run=dry_run,
             project_context=ctx,
             actor=actor,
+            migration_import=migration_import,
             _from_create=True,
         )
 
@@ -6200,7 +6281,7 @@ def create(
             return res
 
         # Materialize artifact body
-        dest_path = records_root / destination
+        dest_path = records_root / dest_str
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         mirror_prefix = render_in_file_mirror(id6, artifact_type, fields.get("status"))
         _core.atomic_write(dest_path, mirror_prefix + body)
