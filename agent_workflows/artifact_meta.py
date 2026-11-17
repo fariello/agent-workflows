@@ -3883,6 +3883,9 @@ class LegacyRender:
     #: even on a same-status write (normalizing an alias or an annotated legacy value), which a
     #: `note` event cannot express; `None` means "the transition's target, if any".
     status: Optional[str] = None
+    #: Model attribution for `- Coverage-Checked: <day> by <checked_by>` on `op == "coverage"`,
+    #: decoupled from `actor_label` (which labels the `## Workflow history` entry).
+    checked_by: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -4975,10 +4978,15 @@ def render_legacy(
                 ev["coverage_fingerprint"],
                 anchors=("Coverage",),
             )
+            checked_by_label = (
+                render.checked_by
+                or (ev.get("actor") or {}).get("model")
+                or render.actor_label
+            )
             out = _set_bullet(
                 out,
                 "Coverage-Checked",
-                f"{render.day} by {render.actor_label}",
+                f"{render.day} by {checked_by_label}",
                 anchors=("Coverage-Fingerprint",),
             )
         elif op == "note":

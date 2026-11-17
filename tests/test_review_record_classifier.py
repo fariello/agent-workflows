@@ -338,7 +338,7 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                     f"- Status: {disp}\n"
                     f"- Readiness: no-go\n\n"
                     f"## Workflow history\n"
-                    f"- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                    f"- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
                     encoding="utf-8",
                 )
                 res = plan_readiness.recheck_conditions(root, p)
@@ -382,7 +382,7 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                 "- Status: to-review\n"
                 "- Readiness: no-go\n\n"
                 "## Workflow history\n"
-                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(root, p)
@@ -427,7 +427,7 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                 "- Status: resolved\n"
                 "- Finding: PR-001\n\n"
                 "## Workflow history\n"
-                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
                 encoding="utf-8",
             )
             r_file = rev_dir / "20260901-test-01-stale1-test.review.md"
@@ -495,7 +495,7 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                 "- Status: executed\n"
                 "- Readiness: no-go\n\n"
                 "## Workflow history\n"
-                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(root, p)
@@ -519,7 +519,7 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                 "- Status: to-review\n"
                 "- Readiness: no-go\n\n"
                 "## Workflow history\n"
-                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(root, p)
@@ -553,7 +553,7 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                 "- Status: not-executed\n"
                 "- Readiness: no-go\n\n"
                 "## Workflow history\n"
-                "- 2026-09-01 /plan-review: APPROVE; PR-001\n",
+                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(comp_root, p)

@@ -16,8 +16,10 @@ All first-party imports are function-local.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import re
 import subprocess
+import tempfile
 from typing import NamedTuple, Sequence
 
 COVERAGE_PASS = "pass"
@@ -31,10 +33,7 @@ _FINGERPRINT_LINE_RE = re.compile(
 _CHECKED_LINE_RE = re.compile(
     r"^-\s*Coverage-Checked:\s*(\S+)(?:\s+by\s+(.*))?$", re.MULTILINE
 )
-_STATUS_LINE_RE = re.compile(r"^-\s*Status:\s*(\S+)\s*$", re.MULTILINE)
-_READINESS_LINE_RE = re.compile(r"^-\s*Readiness:\s*(.*)$", re.MULTILINE)
 _ID_LINE_RE = re.compile(r"^-\s*Id:\s*([0-9a-z]{6})\b", re.MULTILINE)
-_HISTORY_HDR_RE = re.compile(r"^##\s*Workflow history\s*$", re.MULTILINE)
 _VALIDATION_HDR_RE = re.compile(r"^##\s*Validation and cross-check\b.*$", re.MULTILINE)
 _FINDINGS_HDR_RE = re.compile(r"^##\s*Coverage findings\s*$", re.MULTILINE)
 
@@ -122,6 +121,55 @@ def is_current(plan_text: str) -> bool:
     return rec.fingerprint == probe_cache_digest(plan_text)
 
 
+def _update_coverage_findings_section(
+    text: str, verdict: str, quotes: Sequence[str]
+) -> str:
+    """Update or remove the `## Coverage findings` H2 body section (`4sd62s` N3)."""
+    updated = text
+    f_match = _FINDINGS_HDR_RE.search(updated)
+    if f_match:
+        start_pos = f_match.start()
+        rest = updated[f_match.end() :]
+        next_h2 = re.search(r"^##\s+", rest, re.MULTILINE)
+        end_pos = (f_match.end() + next_h2.start()) if next_h2 else len(updated)
+        updated = (
+            updated[:start_pos].rstrip() + "\n\n" + updated[end_pos:].lstrip()
+        ).rstrip() + "\n"
+
+    if verdict == COVERAGE_FAIL:
+        findings_block = ["## Coverage findings", ""]
+        for q in quotes:
+            findings_block.append(f'- "{q}"')
+        findings_str = "\n".join(findings_block) + "\n\n"
+
+        v_match = _VALIDATION_HDR_RE.search(updated)
+        if v_match:
+            insert_pos = v_match.start()
+            updated = (
+                updated[:insert_pos].rstrip()
+                + "\n\n"
+                + findings_str
+                + updated[insert_pos:]
+            )
+        else:
+            updated = updated.rstrip() + "\n\n" + findings_str
+        updated = updated.rstrip() + "\n"
+    return updated
+
+
+def _restore_file_bytes(path: Path, raw_bytes: bytes) -> None:
+    """Atomically restore `raw_bytes` to `path` so a failed append leaves zero partial write."""
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=".aw-restore-")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(raw_bytes)
+        os.replace(tmp_name, path)
+    except Exception:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+        raise
+
+
 def write(
     plan_path: Path | str,
     verdict: str,
@@ -133,15 +181,17 @@ def write(
     host: str | None = None,
     repo: Path | str | None = None,
 ) -> CoverageWriteResult:
-    """Write the coverage record into `plan_path`.
+    """Write the coverage record into `plan_path` through `artifact_meta.append`.
 
-    Sets `- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:` metadata fields,
-    replaces or removes `## Coverage findings`, and appends the workflow history line.
-    All first-party imports function-local.
+    Sets `- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:` metadata fields
+    and prepends the workflow history line via one `op: "coverage"` event, while updating or
+    removing the `## Coverage findings` body section (`4sd62s` N3). All first-party imports
+    are function-local.
 
     When `commit=True`, checks if `git status --porcelain -- <plan>` shows uncommitted changes
     BEFORE writing; if so, writes the record without committing and returns `written=True, committed=False`.
     Otherwise makes one path-scoped commit of the plan file. A failed commit restores staged index and never raises.
+    If `artifact_meta.append` raises, restores the pre-call bytes and returns `written=False, committed=False`.
     """
     path = Path(plan_path)
     if not path.is_file():
@@ -149,45 +199,50 @@ def write(
             written=False, committed=False, detail=f"plan file not found: {path}"
         )
 
-    plan_text = path.read_text(encoding="utf-8")
+    pre_bytes = path.read_bytes()
+    plan_text = pre_bytes.decode("utf-8")
 
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
     from agent_workflows.runner_shared import probe_cache_digest
 
     fingerprint = probe_cache_digest(plan_text)
-    from agent_workflows import artifact_core as _core
-
     today = _core.utc_history_date()
 
     raw_model = (model or "").strip()
     if not raw_model or raw_model in ("host-default", "by host-default"):
-        checked_model = "by host-default"
+        clean_model = ""
         hist_model = "by host-default"
     else:
-        clean = raw_model.removeprefix("by ").strip()
-        checked_model = f"by {clean}"
-        hist_model = clean
+        clean_model = raw_model.removeprefix("by ").strip()
+        hist_model = clean_model or "by host-default"
 
     tool_str = (tool or "").strip() or "aw oc run"
     resolved_host = host if host is not None else ("agy" if "agy" in tool_str else "oc")
 
-    # 1. Dirty-plan check before writing if commit=True
-    resolved_repo = (
-        Path(repo)
-        if repo is not None
-        else (path.parent if (path.parent / ".git").is_dir() else Path.cwd())
-    )
+    if repo is not None:
+        resolved_repo = Path(repo)
+    else:
+        owner = _proj_ctx.record_owner_root(path)
+        if owner is not None:
+            resolved_repo = owner
+        else:
+            cand = _core.repo_root_of(path)
+            resolved_repo = path.parent if cand == path.resolve() else cand
+
+    git_repo = _proj_ctx.record_git_root(path) or resolved_repo
     rel_path = (
-        str(path.relative_to(resolved_repo))
-        if path.is_relative_to(resolved_repo)
-        else str(path)
+        str(path.relative_to(git_repo)) if path.is_relative_to(git_repo) else str(path)
     )
 
+    # 1. Dirty-plan check before writing if commit=True
     dirty = False
     dirty_reason = ""
     if commit:
         st_proc = subprocess.run(
             ["git", "--no-optional-locks", "status", "--porcelain", "--", rel_path],
-            cwd=str(resolved_repo),
+            cwd=str(git_repo),
             capture_output=True,
             text=True,
             check=False,
@@ -199,115 +254,49 @@ def write(
                 "record written without commit"
             )
 
-    # 2. Update metadata fields:
-    # Remove existing Coverage fields if present
-    lines = plan_text.splitlines()
-    filtered_lines: list[str] = []
-    first_cov_idx: int | None = None
-    for idx, line in enumerate(lines):
-        if _COVERAGE_LINE_RE.match(line):
-            if first_cov_idx is None:
-                first_cov_idx = len(filtered_lines)
-            continue
-        if _FINGERPRINT_LINE_RE.match(line) or _CHECKED_LINE_RE.match(line):
-            continue
-        filtered_lines.append(line)
+    # 2. Update/remove ## Coverage findings body section (N3) and append op="coverage".
+    id6_match = _ID_LINE_RE.search(plan_text)
+    id6_or_none = id6_match.group(1).strip() if id6_match else None
+    body_text = _update_coverage_findings_section(plan_text, verdict, quotes)
 
-    cov_block = [
-        f"- Coverage: {verdict}",
-        f"- Coverage-Fingerprint: {fingerprint}",
-        f"- Coverage-Checked: {today} {checked_model}",
-    ]
+    event: dict[str, object] = {
+        "op": "coverage",
+        "coverage": verdict,
+        "coverage_fingerprint": fingerprint,
+        "message": f"fingerprint {fingerprint[:12]}, model {hist_model}",
+    }
+    actor_dict: dict[str, str] = {"tool": tool_str}
+    if clean_model:
+        actor_dict["model"] = clean_model
+    render = _meta.LegacyRender(
+        tag=f"coverage {verdict}",
+        day=today,
+        actor_label=tool_str,
+        checked_by=clean_model or "host-default",
+        history=True,
+    )
 
-    if first_cov_idx is not None:
-        # Replaced in place
-        insert_idx = first_cov_idx
-    else:
-        # Inserted after - Status: and any - Readiness:
-        status_idx = None
-        readiness_idx = None
-        for idx, line in enumerate(filtered_lines):
-            if _STATUS_LINE_RE.match(line):
-                status_idx = idx
-            elif (
-                status_idx is not None
-                and readiness_idx is None
-                and _READINESS_LINE_RE.match(line)
-            ):
-                readiness_idx = idx
-            elif line.startswith("## "):
-                break
-        if readiness_idx is not None:
-            insert_idx = readiness_idx + 1
-        elif status_idx is not None:
-            insert_idx = status_idx + 1
-        else:
-            # Fallback: after first heading or at top
-            insert_idx = 1 if len(filtered_lines) > 1 else 0
-
-    for offset, new_line in enumerate(cov_block):
-        filtered_lines.insert(insert_idx + offset, new_line)
-
-    intermediate_text = "\n".join(filtered_lines)
-    if plan_text.endswith("\n"):
-        intermediate_text += "\n"
-
-    # 3. Handle ## Coverage findings section:
-    # Remove any existing ## Coverage findings section
-    f_match = _FINDINGS_HDR_RE.search(intermediate_text)
-    if f_match:
-        start_pos = f_match.start()
-        rest = intermediate_text[f_match.end() :]
-        next_h2 = re.search(r"^##\s+", rest, re.MULTILINE)
-        end_pos = (
-            (f_match.end() + next_h2.start()) if next_h2 else len(intermediate_text)
+    try:
+        if body_text != plan_text:
+            _core.atomic_write(path, body_text)
+        _meta.append(
+            _meta.LegacyTarget(path, "plans", id6_or_none),
+            [event],
+            actor=actor_dict,
+            legacy_render=render,
+            repo_root=resolved_repo,
+            project_context=_meta.legacy_context(resolved_repo),
         )
-        intermediate_text = (
-            intermediate_text[:start_pos].rstrip()
-            + "\n\n"
-            + intermediate_text[end_pos:].lstrip()
+    except Exception as exc:
+        if path.is_file() and path.read_bytes() != pre_bytes:
+            _restore_file_bytes(path, pre_bytes)
+        return CoverageWriteResult(
+            written=False,
+            committed=False,
+            detail=str(exc),
         )
 
-    if verdict == COVERAGE_FAIL:
-        findings_block = ["## Coverage findings", ""]
-        for q in quotes:
-            findings_block.append(f'- "{q}"')
-        findings_str = "\n".join(findings_block) + "\n\n"
-
-        v_match = _VALIDATION_HDR_RE.search(intermediate_text)
-        if v_match:
-            insert_pos = v_match.start()
-            intermediate_text = (
-                intermediate_text[:insert_pos].rstrip()
-                + "\n\n"
-                + findings_str
-                + intermediate_text[insert_pos:]
-            )
-        else:
-            # Append before end
-            intermediate_text = intermediate_text.rstrip() + "\n\n" + findings_str
-
-    # 4. Append history line to ## Workflow history
-    hist_entry = f"- {today} coverage {verdict} ({tool_str}): fingerprint {fingerprint[:12]}, model {hist_model}"
-    h_match = _HISTORY_HDR_RE.search(intermediate_text)
-    if h_match:
-        hdr_end = h_match.end()
-        # insert directly below ## Workflow history
-        intermediate_text = (
-            intermediate_text[:hdr_end]
-            + "\n"
-            + hist_entry
-            + intermediate_text[hdr_end:]
-        )
-    else:
-        # No workflow history heading; add one after metadata
-        intermediate_text = (
-            intermediate_text.rstrip() + f"\n\n## Workflow history\n{hist_entry}\n"
-        )
-
-    # Clean up excess blank lines and write
-    final_text = intermediate_text.rstrip() + "\n"
-    path.write_text(final_text, encoding="utf-8")
+    final_text = path.read_text(encoding="utf-8")
 
     if not commit:
         return CoverageWriteResult(written=True, committed=False, detail="")
@@ -315,10 +304,10 @@ def write(
     if dirty:
         return CoverageWriteResult(written=True, committed=False, detail=dirty_reason)
 
-    # 5. Git add and commit
+    # 3. Git add and commit
     add_proc = subprocess.run(
         ["git", "add", "--", rel_path],
-        cwd=str(resolved_repo),
+        cwd=str(git_repo),
         capture_output=True,
         text=True,
         check=False,
@@ -331,11 +320,10 @@ def write(
         )
 
     # Derive id6 from plan text or filename
-    id6_match = _ID_LINE_RE.search(final_text)
-    if id6_match:
-        id6 = id6_match.group(1).strip()
+    id6_match_after = _ID_LINE_RE.search(final_text)
+    if id6_match_after:
+        id6 = id6_match_after.group(1).strip()
     else:
-        # Fallback to id6 in path filename
         fname_match = re.search(r"\b([0-9a-z]{6})\b", path.name)
         id6 = fname_match.group(1) if fname_match else path.stem
 
@@ -343,14 +331,14 @@ def write(
 
     commit_msg = f"coverage({resolved_host}): record the coverage answer for {id6}"
     ident = _gch.agent_commit_identity(
-        resolved_repo,
+        git_repo,
         model=None if hist_model == "by host-default" else hist_model,
         item_id6=id6,
         message=commit_msg,
     )
     commit_proc = subprocess.run(
         ["git", "commit", "-m", ident.message, "--", rel_path],
-        cwd=str(resolved_repo),
+        cwd=str(git_repo),
         env=ident.env,
         capture_output=True,
         text=True,
@@ -359,7 +347,7 @@ def write(
     if commit_proc.returncode != 0:
         subprocess.run(
             ["git", "restore", "--staged", "--", rel_path],
-            cwd=str(resolved_repo),
+            cwd=str(git_repo),
             capture_output=True,
             text=True,
             check=False,

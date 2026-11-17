@@ -976,8 +976,9 @@ def recheck_conditions(
             "(an ABSENT review artifact is silent by that predicate's documented contract)",
         )
 
-    # ---- Condition 3: a NEGATIVE verdict in the newest REVIEW history record.
+    # ---- Condition 3: a NEGATIVE, ABSENT, or UNRECOGNIZED verdict in the newest REVIEW history record.
     polarity, entry = newest_verdict(plan_text)
+    verdict_token = _extract_verdict_token(entry)
     if polarity == NEGATIVE:
         c3 = ConditionResult(
             C_NEGATIVE_VERDICT,
@@ -985,12 +986,22 @@ def recheck_conditions(
             "the newest review record states a verdict that does not clear this plan; "
             "`newest_verdict` -> negative. Record: {0}".format(_one_line(entry)),
         )
+    elif not entry or verdict_token is None or verdict_token not in VERDICTS:
+        c3 = ConditionResult(
+            C_NEGATIVE_VERDICT,
+            True,
+            "the newest review record carries no verdict token in `plan_readiness.VERDICTS` ({0}); "
+            "failing closed rather than minting or omitting `verdict` (`4sd62s` 4.1a K2){1}".format(
+                ", ".join(VERDICTS),
+                ". Record: {0}".format(_one_line(entry)) if entry else "",
+            ),
+        )
     else:
         c3 = ConditionResult(
             C_NEGATIVE_VERDICT,
             False,
             "the newest review record's verdict is not negative; `newest_verdict` -> {0}".format(
-                polarity if polarity is not None else "none (no verdict token read)"
+                polarity
             ),
         )
 
@@ -1107,6 +1118,44 @@ def cite_review_entry(entry: str) -> str:
     return "the review of {0}, findings {1}".format(date, span)
 
 
+def _format_recheck_history_message(
+    result: RecheckResult,
+    *,
+    reviewed_entry: str = "",
+    head: str = "",
+) -> str:
+    """Render the message body (after `- <date> readiness re-check (<actor>): `) for a re-check."""
+    target_readiness = RECHECK_TARGET_READINESS
+    parts: List[str] = [
+        "`- Readiness:` CHANGED `{0}` -> `{1}`.".format(
+            RECHECK_SOURCE_READINESS, target_readiness
+        ),
+        "THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was "
+        "re-critiqued.",
+        "The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found "
+        "clear:",
+    ]
+    clauses = []
+    for cond in result.conditions:
+        clauses.append("{0} -> clear ({1})".format(cond.name, cond.reason))
+    parts.append("; ".join(clauses) + ".")
+    # CITED BY DATE AND FINDING SPAN, NEVER QUOTED. A review record states its own verdict in its
+    # message, so quoting it would import a verdict token and make `newest_verdict` read THIS entry as
+    # the newest review. See `cite_review_entry`.
+    citation = cite_review_entry(reviewed_entry)
+    if citation:
+        parts.append("RE-CHECKED REVIEW: {0}.".format(citation))
+    if head:
+        parts.append("Recomputed at HEAD `{0}`.".format(head))
+    parts.append(
+        "HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `{0}` means the plan awaits sign-off, "
+        "and nothing here approves it or clears it to execute. Only a review may set `go`.".format(
+            target_readiness
+        )
+    )
+    return " ".join(parts)
+
+
 def format_recheck_history_entry(
     result: RecheckResult,
     *,
@@ -1133,34 +1182,56 @@ def format_recheck_history_entry(
     review states its verdict in its own message and copying that would import the token. ``head`` is
     the commit the recomputation was performed at.
     """
-    parts: List[str] = [
-        "- {0} readiness re-check ({1}): `- Readiness:` CHANGED `{2}` -> `{3}`.".format(
-            date, actor, RECHECK_SOURCE_READINESS, RECHECK_TARGET_READINESS
-        ),
-        "THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was "
-        "re-critiqued.",
-        "The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found "
-        "clear:",
-    ]
-    clauses = []
-    for cond in result.conditions:
-        clauses.append("{0} -> clear ({1})".format(cond.name, cond.reason))
-    parts.append("; ".join(clauses) + ".")
-    # CITED BY DATE AND FINDING SPAN, NEVER QUOTED. A review record states its own verdict in its
-    # message, so quoting it would import a verdict token and make `newest_verdict` read THIS entry as
-    # the newest review. See `cite_review_entry`.
-    citation = cite_review_entry(reviewed_entry)
-    if citation:
-        parts.append("RE-CHECKED REVIEW: {0}.".format(citation))
-    if head:
-        parts.append("Recomputed at HEAD `{0}`.".format(head))
-    parts.append(
-        "HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `{0}` means the plan awaits sign-off, "
-        "and nothing here approves it or clears it to execute. Only a review may set `go`.".format(
-            RECHECK_TARGET_READINESS
-        )
+    msg_body = _format_recheck_history_message(
+        result, reviewed_entry=reviewed_entry, head=head
     )
-    return " ".join(parts)
+    return "- {0} readiness re-check ({1}): {2}".format(date, actor, msg_body)
+
+
+def _extract_verdict_token(entry: str) -> Optional[str]:
+    """Read the canonical `VERDICTS` token from a single history record line, or None."""
+    if not entry:
+        return None
+    m_parts = _HISTORY_RECORD_PARTS_RE.match(entry.strip())
+    verdict_msg = m_parts.group("msg") if m_parts else entry
+    token, _ = classify_verdict(verdict_msg)
+    return token
+
+
+def _resolve_recheck_review_binding(
+    repo_root: Path, id6: str
+) -> Tuple[int, Optional[str]]:
+    """Return `(round_num, review_ref)` from conforming review files inside `repo_root`."""
+    if not id6:
+        return 1, None
+    try:
+        from agent_workflows import review_findings as _rf
+
+        candidates = _rf.subject_review_records(repo_root, id6)
+    except Exception:
+        return 1, None
+    resolved_root = repo_root.resolve()
+    matched: Optional[Tuple[int, str]] = None
+    for rev_path in candidates:
+        try:
+            doc = _rf.parse_review_file(rev_path)
+        except Exception:
+            continue
+        if doc.diagnostics:
+            continue
+        try:
+            resolved_rev = Path(rev_path).resolve()
+            if not resolved_rev.is_relative_to(resolved_root):
+                continue
+            rel_posix = resolved_rev.relative_to(resolved_root).as_posix()
+        except Exception:
+            continue
+        cur_round = doc.current_round()
+        round_num = cur_round.number if cur_round is not None else 1
+        matched = (round_num, rel_posix)
+    if matched is not None:
+        return matched
+    return 1, None
 
 
 def recheck_readiness(
@@ -1187,8 +1258,12 @@ def recheck_readiness(
     attestation: if the rendered entry ever contained a review verdict token, :func:`newest_verdict`
     would read this re-check as a review. That is checked here rather than trusted.
     """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
+
+    repo_root_path = Path(repo_root)
     path = Path(plan_path)
-    result = recheck_conditions(repo_root, path)
+    result = recheck_conditions(repo_root_path, path)
     if not result.may_write:
         return result, None
 
@@ -1198,8 +1273,17 @@ def recheck_readiness(
         return result, None
 
     _, reviewed_entry = newest_verdict(text)
+    verdict_token = _extract_verdict_token(reviewed_entry)
+    resolved_date = (date or "").strip() or _core.utc_history_date()
+    msg_body = _format_recheck_history_message(
+        result, reviewed_entry=reviewed_entry, head=head
+    )
     entry = format_recheck_history_entry(
-        result, date=date, actor=actor, reviewed_entry=reviewed_entry, head=head
+        result,
+        date=resolved_date,
+        actor=actor,
+        reviewed_entry=reviewed_entry,
+        head=head,
     )
     # GUARD THE ENTRY, NOT JUST THE FIELD, because the history record is the other half of the
     # attestation: an entry `newest_verdict` could read as a review would forge the very verdict this
@@ -1220,53 +1304,50 @@ def recheck_readiness(
         "middle must remain `readiness re-check`"
     )
 
-    new_text, n = _READINESS_LINE_SUB_RE.subn(
-        "- Readiness: " + RECHECK_TARGET_READINESS, text, count=1
+    # Read RECHECK_TARGET_READINESS dynamically at call time (never caller input / baked literal).
+    target_readiness = RECHECK_TARGET_READINESS
+    id6 = result.id6 or None
+    round_num, review_ref = _resolve_recheck_review_binding(repo_root_path, result.id6)
+    event: dict[str, object] = {
+        "op": "review",
+        "review_kind": "gate",
+        "round": round_num,
+        "readiness": target_readiness,
+        "message": msg_body,
+    }
+    if verdict_token is not None:
+        event["verdict"] = verdict_token
+    if review_ref is not None:
+        event["review_ref"] = review_ref
+
+    render = _meta.LegacyRender(
+        tag="readiness re-check",
+        day=resolved_date,
+        actor_label=actor,
+        history=True,
     )
-    if n != 1:  # pragma: no cover - the field was proven present by recheck_conditions
-        return result, None
+    write_res = _meta.append(
+        _meta.LegacyTarget(path, "plans", id6),
+        [event],
+        actor={"tool": "aw ipd recheck-readiness"},
+        legacy_render=render,
+        repo_root=repo_root_path,
+        project_context=_meta.legacy_context(repo_root_path),
+        dry_run=not apply,
+    )
+    new_text = write_res.text
     # Guard the WRITE TARGET. Re-read the amended text through the same reader every consumer uses,
     # so the assertion tests the OBSERVABLE value rather than the string we intended to write.
     written = _schema.read_readiness(new_text)
     assert (
-        written == RECHECK_TARGET_READINESS
+        written == target_readiness
     ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
-        RECHECK_TARGET_READINESS, written
+        target_readiness, written
     )
-
-    new_text = _prepend_history_entry(new_text, entry)
-    if apply:
-        path.write_text(new_text, encoding="utf-8")
     return result, new_text
 
 
 _READINESS_LINE_SUB_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*.*$")
-
-
-def _prepend_history_entry(text: str, entry: str) -> str:
-    """Insert ``entry`` as the NEWEST record directly under ``## Workflow history``.
-
-    NEWEST-FIRST, matching `aw set`'s own writer (`status_set.py`, ``new_lines.insert(i + 1, ...)``)
-    and therefore matching what :func:`extract_newest_history_entry` reads. Appending instead would
-    make the newest record unreadable by every consumer in this module.
-
-    When the section is absent the entry is placed after the front matter, before the first ``## ``
-    heading, so the file stays conformant rather than growing a trailing orphan section.
-    """
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if line.strip() == "## Workflow history":
-            insert_at = i + 1
-            # Keep the customary blank line directly under the heading intact.
-            if insert_at < len(lines) and lines[insert_at].strip() == "":
-                insert_at += 1
-            lines.insert(insert_at, entry)
-            return "\n".join(lines)
-    for i, line in enumerate(lines):
-        if line.startswith("## "):
-            lines[i:i] = ["## Workflow history", "", entry, ""]
-            return "\n".join(lines)
-    return "\n".join(lines + ["", "## Workflow history", "", entry, ""])
 
 
 # ------------------------------------------------------------------------------------------------
