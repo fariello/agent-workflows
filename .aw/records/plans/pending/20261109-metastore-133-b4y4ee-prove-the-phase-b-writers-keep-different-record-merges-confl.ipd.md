@@ -40,10 +40,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: merge independence
 
-- [ ] E-01 Add `tests/test_writers_merge_independence.py` (AC-3, phase-B form; the commands it drives are moved by `g6tw94`, `6e93gt` and `8q27jt`): in a real git repository fixture, branch A runs `aw backlog note` and `aw describe` on backlog item X while branch B runs `aw specs note` and `aw ipd recheck-readiness` on a different spec and plan; `git merge` of B into A completes with no conflict, and `artifact_meta.read` on all three records afterwards shows both branches' changes. A second case changes the SAME record on both branches (one history line each) and asserts that `git merge` exits nonzero with that file in `git diff --name-only --diff-filter=U`: measured at review, two branches that each prepend one line directly under `## Workflow history` of the same file conflict, which is the phase-B limit that 4.7 removes at the cutover. The test pins that outcome; it does not accept either result.
+- [x] E-01 Add `tests/test_writers_merge_independence.py` (AC-3, phase-B form; the commands it drives are moved by `g6tw94`, `6e93gt` and `8q27jt`): in a real git repository fixture, branch A runs `aw backlog note` and `aw describe` on backlog item X while branch B runs `aw specs note` and `aw ipd recheck-readiness` on a different spec and plan; `git merge` of B into A completes with no conflict, and `artifact_meta.read` on all three records afterwards shows both branches' changes. A second case changes the SAME record on both branches (one history line each) and asserts that `git merge` exits nonzero with that file in `git diff --name-only --diff-filter=U`: measured at review, two branches that each prepend one line directly under `## Workflow history` of the same file conflict, which is the phase-B limit that 4.7 removes at the cutover. The test pins that outcome; it does not accept either result.
   - Depends on: none
   - Expected outcome: the different-artifacts merge has exit 0 and no conflict markers; the same-record merge exits nonzero naming the shared file.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -110,10 +110,10 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_writers_merge_independence.py` with both cases PASSED by name, and from the test log the `git merge` exit code `0` and empty `git diff --name-only --diff-filter=U` for the different-artifacts case, plus the nonzero exit code and the `--diff-filter=U` file name for the same-record case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -o addopts="" -v tests/test_writers_merge_independence.py` (exit 0): `tests/test_writers_merge_independence.py::test_same_record_history_prepends_conflict_in_phase_b PASSED [ 50%]`, `tests/test_writers_merge_independence.py::test_different_record_merges_are_conflict_free PASSED [100%]`, `2 passed in 1.66s`. With `-s` test log (`python3 -m pytest -o addopts="" -v -s tests/test_writers_merge_independence.py`, exit 0): `[same-record] git merge exit=1 unmerged=['.aw/records/backlog/open/20261117-i00fx7-01-i00fx7-shared-record.backlog.md']` (`PASSED`), `[different-artifacts] git merge exit=0 unmerged=[]` (`PASSED`), `2 passed in 1.69s`. Core tier suite (`aw suite`, exit 0): `2421 passed, 11 warnings in 59.80s`.
+  - Result: pass
 
 ## Approval and execution gate
 
