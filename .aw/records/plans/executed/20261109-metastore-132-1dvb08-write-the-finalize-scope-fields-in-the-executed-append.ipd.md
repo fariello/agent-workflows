@@ -6,7 +6,7 @@
 - Scope: Render and load `- Scope-Exceeded:` plus enforce finalize-owned field invariants in `agent_workflows/artifact_meta.py`, thread same-append `extra_events` through `agent_workflows/status_set.py` so `agent_workflows/ipd_lifecycle.py::_finalize_transaction` emits `scope_result`, `out_of_scope_paths`, and `widened_paths` in the `executed` append and deletes `_insert_scope_exceeded_metadata`, and add behavioral coverage in `tests/test_writers_scope_fields.py` (`8q27jt` E-03, finalize subset). Depends on plan `9qhtrc` (finalize scope path-root rule). EXCLUDES: orchestrator retirement checklist prose (`8q27jt`) and the `finalize` event payload (`nq1src`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/status_set.py, agent_workflows/ipd_lifecycle.py, tests/test_writers_scope_fields.py, .aw/records/plans/pending/20261109-metastore-132-1dvb08-write-the-finalize-scope-fields-in-the-executed-append.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:9qhtrc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1dvb08
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 1dvb08 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
