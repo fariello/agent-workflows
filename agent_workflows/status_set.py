@@ -18,6 +18,7 @@ Enforces:
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, Sequence
 import contextlib
 import dataclasses
 import json
@@ -1190,6 +1191,8 @@ def _prepare_status_change(
     gate_root: Path | None = None,
     lane_carrier_ref: str | None = None,
     lane_carrier_path: str | None = None,
+    *,
+    extra_events: Sequence[Mapping[str, Any]] | None = None,
 ) -> _PreparedStatusChange:
     """Compute candidate status change in memory without modifying disk."""
     effective_gate_root = gate_root
@@ -1583,6 +1586,9 @@ def _prepare_status_change(
     else:
         next(e for e in events if e["op"] == "transition")["message"] = message
 
+    if extra_events:
+        events.extend(dict(ev) for ev in extra_events)
+
     from agent_workflows import record_placement as _placement
 
     dest_path = _placement.resolve_transition_path(
@@ -1695,6 +1701,8 @@ def apply_status_change(
     gate_root: Path | None = None,
     lane_carrier_ref: str | None = None,
     lane_carrier_path: str | None = None,
+    *,
+    extra_events: Sequence[Mapping[str, Any]] | None = None,
 ) -> tuple[Path, str]:
     """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
     PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
@@ -1718,6 +1726,7 @@ def apply_status_change(
         gate_root=gate_root,
         lane_carrier_ref=lane_carrier_ref,
         lane_carrier_path=lane_carrier_path,
+        extra_events=extra_events,
     )
 
     if (

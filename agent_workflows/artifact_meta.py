@@ -29,8 +29,10 @@ from typing import (
     FrozenSet,
     Iterable,
     List,
+    Mapping,
     NamedTuple,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Union,
@@ -662,6 +664,12 @@ def validate_event(
                         raise ValueError(
                             f"unknown field '{f}' for type '{artifact_type}'"
                         )
+            if "scope_result" in fields:
+                sr = fields["scope_result"]
+                if sr not in ("within", "widened", "exceeded"):
+                    raise ValueError(
+                        f"invalid scope_result {sr!r}; expected one of ('exceeded', 'widened', 'within')"
+                    )
 
 
 # --------------------------------------------------------------------------------------
@@ -1360,6 +1368,8 @@ def replay(
                             raise ValueError(
                                 "refuse unset of approval outside transition away from approved"
                             )
+                    if fk in ("scope_result", "out_of_scope_paths", "widened_paths"):
+                        raise ValueError(f"refuse unset of finalize-owned field {fk!r}")
 
                     old_v = current_fields.pop(fk, None)
                     field_changes.append(
@@ -1768,7 +1778,9 @@ LAYOUT_VERSION = "layout_v1"
 #: `load_legacy_artifact` or its parsers change what they produce for an unchanged file.
 #: "legacy_v3" (2026-11-07, suth7l): bullet blocks without a `# ` title are read; YAML front matter
 #: is read for every record that opens with `---`; per-type fields are written to their tables.
-LEGACY_LOADER_VERSION = "legacy_v3"
+#: "legacy_v4" (2026-11-17, 1dvb08): parse `- Scope-Exceeded:` in metadata_region into `scope_result`
+#: / `out_of_scope_paths` / `scope_exceeded_raw` and project unlogged `scope_exceptions`.
+LEGACY_LOADER_VERSION = "legacy_v4"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
@@ -2227,6 +2239,26 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
 _LEGACY_MINT_POOLS: Dict[str, Set[str]] = {}
 
 
+def _parse_scope_exceeded_bullet(raw_text: str) -> Tuple[List[Dict[str, str]], bool]:
+    """Parse `- Scope-Exceeded:` bullet text into `{path, reason}` entries and a malformed flag."""
+    entries: List[Dict[str, str]] = []
+    malformed = False
+    stripped = raw_text.strip()
+    if not stripped:
+        return entries, True
+    for segment in raw_text.split(";"):
+        seg = segment.strip()
+        if not seg:
+            malformed = True
+            continue
+        m = re.match(r"^(?P<path>[^()\s]+)\s+\((?P<reason>.*)\)$", seg)
+        if not m:
+            malformed = True
+            continue
+        entries.append({"path": m.group("path"), "reason": m.group("reason")})
+    return entries, malformed
+
+
 def load_legacy_artifact(
     path: Path,
     records_root: Path,
@@ -2469,6 +2501,19 @@ def load_legacy_artifact(
         else:
             # Unregistered legacy bullet (OQ-02): keep in mapped_fields but mark legacy
             mapped_fields[target_k] = bv
+
+    if art_type == "ipd" and not (_yaml_probe and not _BULLET_RE.search(_after_fence)):
+        from agent_workflows import selectors as _sel
+
+        meta_region = _sel.metadata_region(text)
+        se_match = re.search(r"(?m)^-\s*Scope-Exceeded:\s*(.*)$", meta_region)
+        if se_match is not None:
+            raw_se = se_match.group(1).strip()
+            parsed_oos, se_malformed = _parse_scope_exceeded_bullet(raw_se)
+            mapped_fields["scope_result"] = "exceeded"
+            mapped_fields["out_of_scope_paths"] = parsed_oos
+            if se_malformed:
+                mapped_fields["scope_exceeded_raw"] = raw_se
 
     # Item-Dependencies
     raw_deps = bullets.get("Item-Dependencies") or bullets.get("item-dependencies")
@@ -3078,6 +3123,30 @@ def _load_sources(
                                     else _fv.get(f)
                                     for f in _reg_fields
                                 ],
+                            )
+                        for idx, oos_item in enumerate(
+                            _fv.get("out_of_scope_paths") or [], start=1
+                        ):
+                            p_val = (
+                                oos_item.get("path")
+                                if isinstance(oos_item, dict)
+                                else str(oos_item)
+                            )
+                            r_val = (
+                                oos_item.get("reason", "")
+                                if isinstance(oos_item, dict)
+                                else ""
+                            )
+                            conn.execute(
+                                "INSERT OR REPLACE INTO scope_exceptions VALUES (?, ?, ?, ?, ?, ?)",
+                                (
+                                    art_row["id6"],
+                                    idx,
+                                    p_val,
+                                    r_val,
+                                    "out-of-scope",
+                                    "checkpoint",
+                                ),
                             )
                     conn.execute(
                         """INSERT OR REPLACE INTO files (
@@ -4175,6 +4244,8 @@ def _check_owned_fields(
                     raise ValueError(
                         "refuse unset of approval outside transition away from approved"
                     )
+                if fk in ("scope_result", "out_of_scope_paths", "widened_paths"):
+                    raise ValueError(f"refuse unset of finalize-owned field {fk!r}")
                 unset_fields.add(fk)
     if leaving_approved and record_type == "ipd" and "approval" not in unset_fields:
         raise ValueError(
@@ -4932,6 +5003,39 @@ def _render_history(
     return "\n".join(lines)
 
 
+def _format_scope_exceeded_value(
+    reasons_or_items: Union[Mapping[str, str], Sequence[Any]],
+) -> str:
+    """Format the - Scope-Exceeded: field value from out-of-scope paths and reasons."""
+    pairs: List[Tuple[str, str]] = []
+    if isinstance(reasons_or_items, Mapping):
+        for p in sorted(reasons_or_items.keys()):
+            pairs.append((str(p), str(reasons_or_items[p] or "")))
+    else:
+        for item in reasons_or_items:
+            if isinstance(item, Mapping):
+                p = str(item.get("path") or "")
+                r = str(item.get("reason") or "")
+            else:
+                p = str(item)
+                r = ""
+            pairs.append((p, r))
+        pairs.sort(key=lambda pr: pr[0])
+    entries: List[str] = []
+    for p, raw in pairs:
+        clean = (
+            re.sub(r"[\r\n]+", " ", raw)
+            .replace(";", "")
+            .replace("(", "")
+            .replace(")", "")
+            .strip()
+        )
+        if len(clean) > 200:
+            clean = clean[:200] + "..."
+        entries.append(f"{p} ({clean})")
+    return "; ".join(entries)
+
+
 def render_legacy(
     text: str,
     plural: str,
@@ -5011,6 +5115,21 @@ def render_legacy(
                 out = _render_gate(out, gate)
             if "approval" in fields:
                 out = _render_approval(out, fields.pop("approval"))
+            fields.pop("scope_result", None)
+            fields.pop("widened_paths", None)
+            if "out_of_scope_paths" in fields:
+                oos_val = fields.pop("out_of_scope_paths")
+                if oos_val:
+                    formatted_oos = _format_scope_exceeded_value(oos_val)
+                    if formatted_oos:
+                        out = "\n".join(
+                            _set_bullet(
+                                out,
+                                "Scope-Exceeded",
+                                formatted_oos,
+                                anchors=("Scope-Paths", "Status", "Id"),
+                            ).splitlines()
+                        )
             for fk, fv in fields.items():
                 out = "\n".join(
                     _render_field(out, plural, fk, fv, repo_root=repo_root).splitlines()
@@ -5615,12 +5734,22 @@ def append(
             migration_import=migration_import,
         )
 
+        # Replay full log before dry_run or commit so illegal transitions/owned-field
+        # mutations raise ValueError before touching meta/<id6>.jsonl.
+        all_lines = existing_lines + [encode_event(e) for e in prepared_events]
+        state, _, _, _ = replay(
+            id6,
+            art_type,
+            all_lines,
+            records_root=records_root,
+            migration_import=migration_import,
+        )
+
         # Dry run check
         if dry_run:
             return {"committed": False, "dry_run": True, "events": prepared_events}
 
         # Step 1: Write log via temp file, fsync, os.replace (THE COMMIT POINT)
-        all_lines = existing_lines + [encode_event(e) for e in prepared_events]
         log_content = "".join(all_lines)
         try:
             _atomic_replace_fsync(log_path, log_content)
@@ -5629,9 +5758,6 @@ def append(
 
         # After step 1: Change is recorded. Subsequent steps are best effort/recovery
         try:
-            # Replay full log to get current state
-            state, _, _, _ = replay(id6, art_type, all_lines, records_root=records_root)
-
             # Step 2: In-file mirror
             if state.path:
                 art_abs_p = records_root / state.path

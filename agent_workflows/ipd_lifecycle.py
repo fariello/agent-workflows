@@ -4402,7 +4402,7 @@ def _reconciliation_history_note(
 
     def _one_line(text: object) -> str:
         # A history record is ONE line, so an operator-supplied reason with a line break is
-        # collapsed here (as `_format_scope_exceeded_value` already does for the metadata field).
+        # collapsed here (as `artifact_meta._format_scope_exceeded_value` already does for the metadata field).
         # Without it the reason broke the history line, and since 2xwb9b the metadata writer
         # refuses such a message outright, which rolled the whole finalize back.
         return re.sub(r"\s+", " ", str(text or "")).strip()
@@ -5775,39 +5775,6 @@ def finalize(
         release_finalize_lock(repo_root)
 
 
-def _format_scope_exceeded_value(reasons: Mapping[str, str]) -> str:
-    """Format the - Scope-Exceeded: field value from reconciled out-of-scope paths and reasons."""
-    entries = []
-    for p in sorted(reasons.keys()):
-        raw = str(reasons[p] or "")
-        clean = (
-            re.sub(r"[\r\n]+", " ", raw)
-            .replace(";", "")
-            .replace("(", "")
-            .replace(")", "")
-            .strip()
-        )
-        if len(clean) > 200:
-            clean = clean[:200] + "..."
-        entries.append(f"{p} ({clean})")
-    return "; ".join(entries)
-
-
-def _insert_scope_exceeded_metadata(text: str, reasons: Mapping[str, str]) -> str:
-    """Insert or update - Scope-Exceeded: in the plan front-matter metadata block."""
-    if not reasons:
-        return text
-    val = _format_scope_exceeded_value(reasons)
-    line = f"- Scope-Exceeded: {val}"
-    if re.search(r"(?m)^- Scope-Exceeded:.*$", text):
-        return re.sub(r"(?m)^- Scope-Exceeded:.*$", line, text)
-    if re.search(r"(?m)^- Scope-Paths:.*$", text):
-        return re.sub(r"(?m)^(- Scope-Paths:.*)$", rf"\1\n{line}", text, count=1)
-    if re.search(r"(?m)^- Status:.*$", text):
-        return re.sub(r"(?m)^(- Status:.*)$", rf"\1\n{line}", text, count=1)
-    return line + "\n" + text
-
-
 def _finalize_transaction(
     repo_root: Path,
     plan_path: Path,
@@ -6057,25 +6024,44 @@ def _finalize_transaction(
                 raise RuntimeError(
                     f"could not read the plan record inside the coordinator worktree ({wt_plan})"
                 )
+            extra_events: Optional[List[Dict[str, Any]]] = None
+            if evidence.get("transition") == "orchestrator-rollup":
+                evidence["finalize_scope_fields"] = None
+            else:
+                scope_recon = evidence.get("scope_reconciliation", {}) or {}
+                recon_reasons = scope_recon.get("reasons", {}) or {}
+                widened_set = set(scope_recon.get("widened_paths", []) or [])
+                out_of_scope_paths = [
+                    {"path": p, "reason": str(recon_reasons[p])}
+                    for p in sorted(recon_reasons)
+                    if p not in widened_set
+                ]
+                widened_paths = [
+                    {"path": p, "reason": str(recon_reasons.get(p, ""))}
+                    for p in sorted(widened_set)
+                ]
+                scope_result = (
+                    "exceeded"
+                    if out_of_scope_paths
+                    else ("widened" if widened_paths else "within")
+                )
+                scope_fields: Dict[str, Any] = {
+                    "scope_result": scope_result,
+                    "out_of_scope_paths": out_of_scope_paths,
+                    "widened_paths": widened_paths,
+                }
+                evidence["finalize_scope_fields"] = scope_fields
+                extra_events = [{"op": "set", "fields": scope_fields}]
+
             ns = argparse.Namespace(actor=actor, message=message, by_human=False)
-            wt_dest, _norm = _ss.apply_status_change(wt_rec, "executed", coord.path, ns)
+            wt_dest, _norm = _ss.apply_status_change(
+                wt_rec, "executed", coord.path, ns, extra_events=extra_events
+            )
             if evidence.get("transition") == "orchestrator-rollup":
                 moved_text = wt_dest.read_text(encoding="utf-8")
                 updated_text = _insert_rollup_checklist_statement(moved_text)
                 if updated_text != moved_text:
                     wt_dest.write_text(updated_text, encoding="utf-8")
-            scope_recon = evidence.get("scope_reconciliation", {}) or {}
-            recon_reasons = scope_recon.get("reasons", {}) or {}
-            widened_set = set(scope_recon.get("widened_paths", []) or [])
-            out_of_scope_reasons = {
-                p: r for p, r in recon_reasons.items() if p not in widened_set
-            }
-            if out_of_scope_reasons:
-                cur_text = wt_dest.read_text(encoding="utf-8")
-                wt_dest.write_text(
-                    _insert_scope_exceeded_metadata(cur_text, out_of_scope_reasons),
-                    encoding="utf-8",
-                )
             dest_rel = _repo_relative(coord.path, wt_dest)
             # Record the moved bytes so rollback can distinguish our write from a concurrent one, and
             # so the post-reconciliation checks read the same content the commit carries.
