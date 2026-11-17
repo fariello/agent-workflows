@@ -65,6 +65,7 @@ SUPPORTED_TYPES: Tuple[str, ...] = (
     "release",
     "prompt",
     "walkthrough",
+    "roadmap",
 )
 
 RESERVED_OPS: Tuple[str, ...] = ("finalize", "turn")
@@ -345,6 +346,12 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "order": FieldDef("order", "integer", "generic"),
         "target_id": FieldDef("target_id", "reference", "generic"),
     },
+    "roadmap": {
+        **_COMMON_FIELDS,
+        "set": FieldDef("set", "string", "generic"),
+        "order": FieldDef("order", "integer", "generic"),
+        "target_id": FieldDef("target_id", "reference", "generic"),
+    },
 }
 
 
@@ -380,8 +387,11 @@ def validate_transition_edge(
     from_status = (from_status or "").strip() if from_status else None
     overrides_set = frozenset(overrides or ())
 
-    if artifact_type == "walkthrough":
-        return False, "walkthrough artifacts have no status and accept no transitions"
+    if artifact_type in ("walkthrough", "roadmap"):
+        return (
+            False,
+            f"{artifact_type} artifacts have no status and accept no transitions",
+        )
 
     if artifact_type == "ipd":
         # Check retirement statuses accepted by status_set.TYPE_STATUSES["plans"]
@@ -1776,6 +1786,31 @@ def render_in_file_mirror(
     return f"---\nid: {id6}\nstatus: {eff_status}\n---\n{banner}"
 
 
+def render_review_mirror(
+    subject_id: str,
+    subject_type: str,
+    review_ref: Optional[str] = None,
+) -> str:
+    """Render the canonical 4.1 / 4.1a in-file mirror and banner for a review file."""
+    validate_id6(subject_id)
+    stype = (subject_type or "").strip().lower()
+    if not stype:
+        raise ValueError("review mirror requires non-empty subject_type")
+    fm_lines = [
+        "---",
+        f"subject: {subject_id}",
+        f"subject_type: {stype}",
+    ]
+    if review_ref is not None and str(review_ref).strip():
+        fm_lines.append(f"ref: {str(review_ref).strip()}")
+    fm_lines.append("---")
+    banner = (
+        f"<!-- aw-managed: review metadata lives in .aw/records/meta/{subject_id}.jsonl; "
+        f"use aw show {subject_id}; agents read .aw/AGENT_QUICKSTART.md -->\n"
+    )
+    return "\n".join(fm_lines) + "\n" + banner
+
+
 def _strip_leading_yaml_mirror(text: str) -> str:
     """Strip a leading ``---`` front-matter block and any immediately following ``aw-managed`` banner."""
     rest = text
@@ -1975,6 +2010,7 @@ CACHE_TABLES_4_5A: Tuple[str, ...] = (
     "rev_mirrors",
     "review_files",
     "reviews",
+    "roadmap",
     "scope_exceptions",
     "scope_paths",
     "spec",
@@ -2464,6 +2500,7 @@ def load_legacy_artifact(
         "releases": "release",
         "prompts": "prompt",
         "walkthroughs": "walkthrough",
+        "roadmaps": "roadmap",
     }
     art_type = type_map.get(top_dir, "ipd")
 
@@ -2511,7 +2548,10 @@ def load_legacy_artifact(
     # by the records tree the file lives in when the facet is not itself a registry type, and the
     # facet is kept as the record's `research_kind`.
     facet_kind: Optional[str] = None
-    if art_type not in REGISTRY:
+    if top_dir == "research" and art_type != "research":
+        facet_kind = art_type
+        art_type = "research"
+    elif art_type not in REGISTRY:
         facet_kind = art_type
         # A roadmap is research-shaped (YAML front matter, a `kind`), so it shares that table.
         art_type = type_map.get(top_dir, "research")
@@ -2664,6 +2704,8 @@ def load_legacy_artifact(
         if bk in ("Id", "id", "Status", "status"):
             continue
         target_k = field_map.get(bk, bk.lower().replace("-", "_"))
+        if bv == "" and target_k in mapped_fields:
+            continue
         reg = REGISTRY.get(art_type, {})
         if target_k in reg:
             mapped_fields[target_k] = bv
