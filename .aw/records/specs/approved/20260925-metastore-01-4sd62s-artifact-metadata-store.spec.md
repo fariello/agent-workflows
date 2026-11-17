@@ -580,7 +580,11 @@ spec owns it.
     pattern in `leak_sanitizer.py`), command lines, absolute or home-directory file-system paths,
     user names and host names. These values stay in the gitignored run records. Relative paths in
     the payload keys and field values `path`, `from_path`, `out_of_scope_paths` and
-    `widened_paths` (spec `37am1y` adds `changed_paths`) are allowed and are checked by the path rules (PATH HISTORY below). The
+    `widened_paths` (spec `37am1y` adds `changed_paths`) are allowed: `path` is
+    records-root-relative and checked by the path rules (PATH HISTORY below), while
+    `out_of_scope_paths` and `widened_paths` (along with `from_path` and spec `37am1y`'s
+    `changed_paths`) are repository-relative (relative, no `..`, not absolute,
+    leak-sanitizer-scanned, and resolving inside the repository root). The
     REQUESTED model is not part of the actor; spec `37am1y`'s `turn` event carries it as the payload key
     `requested_model`. The actor of a `turn` event is specified in spec `37am1y`.
     The actor is an object now because the log is tracked, and its schema cannot be reversed after
@@ -2407,6 +2411,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-11-17 note (aw specs): Amended 4.2 path-root sentence (plan 9qhtrc OQ-03): out_of_scope_paths and widened_paths (plus 37am1y changed_paths/from_path) are repository-relative while path stays records-root-relative; spec stays approved.
 - 2026-11-07 note (aw specs): amended at maintainer direction 2026-11-07: new C12 [Must] (the migration migrates ANY repository from ANY prior format this toolkit has written, and the Set builds that tool), new 5.2a (generic rules; layout stage chained; records root via project_context; id-less records minted; no-sidecar is normal; tool ships before cutover), new AC-42 (anonymized real-shape corpus, shapes a-e, plus this repo), section 7 step 3a, and an honest limit. Trigger: phase-A cache returned 0 of 201 records on a copy of a .agents-layout repo. All 10 pending metastore plans demoted to to-review for re-review against this amendment.
 - 2026-11-07 approved (aw set): Inherits the release-gate handoff of backlog ms06pi from superseded spec 2vev8j (4sd62s OQ-4; plan 7ehv8l). Status unchanged.
 

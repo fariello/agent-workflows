@@ -725,9 +725,17 @@ def _check_leak_sanitizer(text: str, prefix: str, ruleset: _leak.Ruleset) -> Non
         )
 
 
-def _check_path_safety(p_str: str, records_root: Path, label: str) -> None:
+def _check_path_safety(
+    p_str: str,
+    root: Path,
+    label: str,
+    *,
+    root_label: str = "records root",
+) -> None:
     if not isinstance(p_str, str):
         raise ValueError(f"{label} must be a string")
+    if not p_str or not p_str.strip() or p_str == ".":
+        raise ValueError(f"{label} must be a non-empty relative path (not '.')")
     p = Path(p_str)
     if (
         p.is_absolute()
@@ -739,12 +747,48 @@ def _check_path_safety(p_str: str, records_root: Path, label: str) -> None:
     if ".." in p.parts:
         raise ValueError(f"{label} must not contain '..' segments: {p_str!r}")
     try:
-        resolved = (records_root / p).resolve()
-        resolved_root = records_root.resolve()
-        if not (resolved == resolved_root or resolved_root in resolved.parents):
-            raise ValueError(f"{label} must resolve inside records root: {p_str!r}")
+        resolved = (root / p).resolve()
+        resolved_root = root.resolve()
+        if resolved_root not in resolved.parents:
+            raise ValueError(f"{label} must resolve inside {root_label}: {p_str!r}")
+    except ValueError:
+        raise
     except Exception as exc:
         raise ValueError(f"failed to resolve {label} {p_str!r}: {exc}") from exc
+
+
+def _resolve_repo_root(
+    records_root: Path,
+    repo_root: Optional[Union[str, Path]] = None,
+) -> Path:
+    """Resolve repository root from explicit arg, standard .aw/.agents layout, owner, or git root."""
+    if repo_root is not None:
+        return Path(repo_root)
+    abs_records = Path(os.path.abspath(records_root))
+    if abs_records.name == "records" and abs_records.parent.name in (".aw", ".agents"):
+        return abs_records.parent.parent
+    return (
+        _proj_ctx.record_owner_root(records_root)
+        or _proj_ctx.record_git_root(records_root)
+        or records_root
+    )
+
+
+def _validate_path_value(
+    p_str: Any,
+    root: Path,
+    label: str,
+    *,
+    root_label: str,
+    ruleset: "_leak.Ruleset",
+    migration_import: bool,
+) -> None:
+    """Validate one path string against single-line safety, root containment, and leak rules."""
+    if not isinstance(p_str, str):
+        raise ValueError(f"{label} must be a string")
+    _check_string_safety(label, p_str, prose=False, migration_import=migration_import)
+    _check_path_safety(p_str, root, label, root_label=root_label)
+    _check_leak_sanitizer(p_str, label, ruleset)
 
 
 #: Field values that are prose or carry a list, so they take the prose length class rather than the
@@ -782,14 +826,12 @@ def validate_new_events(
     events: List[Dict[str, Any]],
     *,
     records_root: Path,
-    repo_root: Optional[Path] = None,
+    repo_root: Optional[Union[str, Path]] = None,
     migration_import: bool = False,
 ) -> None:
     """Run writer-side refusals on events to be committed."""
     records_root = Path(records_root)
-    if repo_root is None:
-        repo_root = _proj_ctx.record_git_root(records_root) or records_root
-    repo_root = Path(repo_root)
+    repo_root = _resolve_repo_root(records_root, repo_root)
 
     # Build ruleset with include_warn=True once per call
     ruleset = _writer_ruleset(repo_root)
@@ -813,10 +855,16 @@ def validate_new_events(
             _check_no_absolute_paths_in_text("message", msg)
             _check_leak_sanitizer(msg, "message", ruleset)
 
-        # Path checks on event envelope
-        ev_path = ev.get("path")
-        if ev_path:
-            _check_path_safety(ev_path, records_root, f"{ev['op']}.path")
+        # Path checks on event envelope (records-root-relative)
+        if "path" in ev and ev["path"] is not None:
+            _validate_path_value(
+                ev["path"],
+                records_root,
+                f"{ev['op']}.path",
+                root_label="records root",
+                ruleset=ruleset,
+                migration_import=migration_import,
+            )
 
         # Payload checks
         if ev["op"] == "legacy":
@@ -858,16 +906,43 @@ def validate_new_events(
         if isinstance(fields, dict):
             for fk, fv in fields.items():
                 if fk in ("out_of_scope_paths", "widened_paths"):
-                    if isinstance(fv, list):
-                        for item in fv:
-                            p_val = (
-                                item.get("path")
-                                if isinstance(item, dict)
-                                else str(item)
+                    if not isinstance(fv, list):
+                        raise ValueError(f"fields.{fk} must be a list")
+                    for item in fv:
+                        if isinstance(item, dict):
+                            p_val = item.get("path")
+                            if "reason" in item and item["reason"] is not None:
+                                r_val = item["reason"]
+                                if not isinstance(r_val, str):
+                                    raise ValueError(
+                                        f"fields.{fk} item 'reason' must be a string"
+                                    )
+                                _check_leak_sanitizer(
+                                    r_val, f"fields.{fk}.reason", ruleset
+                                )
+                        elif isinstance(item, str):
+                            p_val = item
+                        else:
+                            raise ValueError(
+                                f"fields.{fk} entries must be dict or str, got {type(item).__name__}"
                             )
-                            _check_path_safety(p_val, records_root, f"fields.{fk}")
+                        _validate_path_value(
+                            p_val,
+                            repo_root,
+                            f"fields.{fk}",
+                            root_label="repository root",
+                            ruleset=ruleset,
+                            migration_import=migration_import,
+                        )
                 elif fk == "path":
-                    _check_path_safety(str(fv), records_root, "fields.path")
+                    _validate_path_value(
+                        fv,
+                        records_root,
+                        "fields.path",
+                        root_label="records root",
+                        ruleset=ruleset,
+                        migration_import=migration_import,
+                    )
                 elif isinstance(fv, str):
                     is_prose = fk in _PROSE_FIELDS
                     _check_string_safety(
@@ -4922,6 +4997,7 @@ def _prepare_legacy_events(
     events: List[Dict[str, Any]],
     *,
     records_root: Path,
+    repo_root: Optional[Path] = None,
     actor: Optional[Dict[str, Any]],
     by_human: bool,
     overrides: Optional[List[str]],
@@ -4977,7 +5053,7 @@ def _prepare_legacy_events(
                 continue
             if fk not in reg and fk not in legacy_vocab:
                 raise ValueError(f"unknown field '{fk}' for type '{record_type}'")
-    validate_new_events("", prepared, records_root=records_root)
+    validate_new_events("", prepared, records_root=records_root, repo_root=repo_root)
     return prepared
 
 
@@ -5006,6 +5082,7 @@ def render_legacy_text(
         reg_type,
         events,
         records_root=records_root,
+        repo_root=rroot,
         actor=actor,
         by_human=by_human,
         overrides=overrides,
@@ -5139,6 +5216,8 @@ def write_legacy(
         rroot = Path(repo_root)
     elif project_context is not None and getattr(project_context, "repo_root", None):
         rroot = Path(project_context.repo_root)
+    elif project_context is not None and getattr(project_context, "target_repo", None):
+        rroot = Path(project_context.target_repo)
     else:
         rroot = _proj_ctx.record_git_root(ltarget.path) or _core.repo_root_of(
             ltarget.path
@@ -5153,6 +5232,7 @@ def write_legacy(
         reg_type,
         events,
         records_root=records_root,
+        repo_root=rroot,
         actor=actor,
         by_human=by_human,
         overrides=overrides,
@@ -5323,7 +5403,8 @@ def append(
             repo_root = (
                 legacy_kwargs.pop("repo_root", None)
                 or getattr(ctx, "repo_root", None)
-                or records_root.parent.parent
+                or getattr(ctx, "target_repo", None)
+                or _resolve_repo_root(records_root)
             )
             return write_legacy(
                 target,
@@ -5407,6 +5488,9 @@ def append(
             art_type,
             prepared_events,
             records_root=records_root,
+            repo_root=(
+                getattr(ctx, "repo_root", None) or getattr(ctx, "target_repo", None)
+            ),
             migration_import=migration_import,
         )
 
@@ -5521,7 +5605,8 @@ def create(
             repo_root = (
                 legacy_kwargs.pop("repo_root", None)
                 or getattr(ctx, "repo_root", None)
-                or records_root.parent.parent
+                or getattr(ctx, "target_repo", None)
+                or _resolve_repo_root(records_root)
             )
             create_ev: Dict[str, Any] = {
                 "op": "create",
