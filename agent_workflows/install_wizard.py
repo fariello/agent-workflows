@@ -1322,6 +1322,7 @@ def persist_project_policy(
     # 1. Write portable project policy
     existing_cutovers: Optional[Dict[str, str]] = None
     existing_setids: Optional[Dict[str, Any]] = None
+    existing_metadata_schema: Optional[int] = None
     existing_unknown: Dict[str, Any] = {}
     existing_consent: Dict[str, bool] = {}
 
@@ -1334,6 +1335,7 @@ def persist_project_policy(
                     parsed_proj = parse_portable_policy(raw_proj)
                     existing_cutovers = parsed_proj.cutovers
                     existing_setids = parsed_proj.setids
+                    existing_metadata_schema = parsed_proj.metadata_schema
                     existing_unknown = dict(parsed_proj.unknown_fields or {})
                     existing_consent = dict(parsed_proj.non_secret_consent or {})
                 except ValueError:
@@ -1349,11 +1351,19 @@ def persist_project_policy(
                         "records_backend",
                         "cutovers",
                         "setids",
+                        "metadata_schema",
                     }
                     if isinstance(raw_proj.get("cutovers"), dict):
                         existing_cutovers = dict(raw_proj["cutovers"])
                     if isinstance(raw_proj.get("setids"), dict):
                         existing_setids = dict(raw_proj["setids"])
+                    raw_meta_schema = raw_proj.get("metadata_schema")
+                    if (
+                        isinstance(raw_meta_schema, int)
+                        and not isinstance(raw_meta_schema, bool)
+                        and raw_meta_schema >= 1
+                    ):
+                        existing_metadata_schema = raw_meta_schema
                     if isinstance(raw_proj.get("non_secret_consent"), dict):
                         existing_consent = dict(raw_proj["non_secret_consent"])
                     existing_unknown = {
@@ -1376,6 +1386,7 @@ def persist_project_policy(
         records_backend=policy.records_backend,
         cutovers=existing_cutovers,
         setids=existing_setids,
+        metadata_schema=existing_metadata_schema,
         unknown_fields=existing_unknown if existing_unknown else None,
     )
     tmp_proj = config_dir / ".tmp_project.json"

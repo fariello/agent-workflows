@@ -3013,11 +3013,46 @@ def _load_sources(
                         )
 
 
+def _require_schema(project_context: Any, records_root: Path) -> None:
+    """Enforce the repository metadata_schema gate before reading metadata."""
+    from agent_workflows.migrations import chain as _chain
+
+    records_path = Path(records_root)
+    repo: Any = getattr(project_context, "target_repo", None) or getattr(
+        project_context, "repo_root", None
+    )
+    if not repo:
+        owner = _proj_ctx.record_owner_root(records_path)
+        if owner is not None:
+            repo = owner
+        elif records_path.name == "records" and records_path.parent.name in (
+            ".aw",
+            ".agents",
+        ):
+            repo = records_path.parent.parent
+        else:
+            repo = records_path
+    physical = getattr(project_context, "physical_classes", None) or {}
+    config_project = (
+        physical.get("config_project") if isinstance(physical, dict) else None
+    )
+    _chain.require_current_schema(
+        repo,
+        config_project=config_project,
+        records_root=records_path,
+    )
+
+
 def check_freshness(
-    conn: sqlite3.Connection, records_root: Path, *, force: bool = False
+    conn: sqlite3.Connection,
+    records_root: Path,
+    *,
+    force: bool = False,
+    project_context: Any = None,
 ) -> None:
     """Run directory membership and file content freshness checks before read operations."""
     records_root = Path(records_root)
+    _require_schema(project_context, records_root)
     if not records_root.exists():
         return
 
@@ -3193,7 +3228,7 @@ def read(id6: str, *, project_context: Any = None) -> State:
 
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root)
+        check_freshness(conn, records_root, project_context=ctx)
 
         row = conn.execute(
             """SELECT id6, type, path, disposition, status, title, short_description,
@@ -3264,7 +3299,7 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
 
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root)
+        check_freshness(conn, records_root, project_context=ctx)
 
         # Check if we have events
         events = conn.execute(
@@ -3355,7 +3390,7 @@ def resolve(
 
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root)
+        check_freshness(conn, records_root, project_context=ctx)
 
         val = str(path_or_id6).strip()
         if _core.ID6_RE.fullmatch(val):
@@ -3394,7 +3429,7 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
 
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root)
+        check_freshness(conn, records_root, project_context=ctx)
 
         where_clauses: List[str] = ["a.valid = 1"]
         params: List[Any] = []
@@ -3503,7 +3538,7 @@ def review_rows(
     state_root = Path(ctx.logical_roots["state"])
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root)
+        check_freshness(conn, records_root, project_context=ctx)
         rows = conn.execute(
             "SELECT path, parse_ok, round_count FROM review_files WHERE subject_id6 = ? ORDER BY path",
             (subject_id6,),
@@ -3544,6 +3579,7 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
     ctx = project_context or _proj_ctx.resolve_project_context()
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
+    _require_schema(ctx, records_root)
 
     repo_dir = _proj_ctx.record_git_root(records_root)
     if repo_dir is None:

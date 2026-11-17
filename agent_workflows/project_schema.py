@@ -527,6 +527,7 @@ class ProjectPolicySchema:
     # `config.resolve_cutover_date`. Recognized explicitly (rather than surviving via
     # `unknown_fields`) so `config.get_setid_policy` reads a documented schema member.
     setids: Optional[Dict[str, Any]] = None
+    metadata_schema: Optional[int] = None
     unknown_fields: Dict[str, Any] = None  # type: ignore
 
     def to_dict(self) -> Dict[str, Any]:
@@ -547,6 +548,8 @@ class ProjectPolicySchema:
             res["cutovers"] = dict(self.cutovers)
         if self.setids is not None:
             res["setids"] = dict(self.setids)
+        if self.metadata_schema is not None:
+            res["metadata_schema"] = self.metadata_schema
         if self.unknown_fields:
             for k, v in self.unknown_fields.items():
                 if k not in res:
@@ -614,6 +617,7 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
         "records_backend",
         "cutovers",
         "setids",
+        "metadata_schema",
     }
     unknown_fields = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -623,6 +627,16 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
     cutovers = dict(cutovers_val) if isinstance(cutovers_val, dict) else None
     setids_val = data.get("setids")
     setids = dict(setids_val) if isinstance(setids_val, dict) else None
+    metadata_schema_val = data.get("metadata_schema")
+    if metadata_schema_val is not None:
+        if (
+            isinstance(metadata_schema_val, bool)
+            or not isinstance(metadata_schema_val, int)
+            or metadata_schema_val < 1
+        ):
+            raise ValueError(
+                f"Invalid metadata_schema {metadata_schema_val!r}: expected integer >= 1"
+            )
 
     return ProjectPolicySchema(
         schema_version=ver,
@@ -638,6 +652,7 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
         records_backend=data.get("records_backend"),
         cutovers=cutovers,
         setids=setids,
+        metadata_schema=metadata_schema_val,
         unknown_fields=unknown_fields,
     )
 
