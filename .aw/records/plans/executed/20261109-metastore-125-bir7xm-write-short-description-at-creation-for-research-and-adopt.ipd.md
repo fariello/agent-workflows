@@ -6,7 +6,7 @@
 - Scope: Make `aw research new` and `aw adopt` write `--summary` as `short_description` in their `create` event (`6e93gt` E-01, research and adopt subset). Research renders the value as a `short-description:` YAML key, not a bullet (OQ-02). EXCLUDES: backlog, specs, releases (`fekdwv`); plan scaffold and prompts (`py2vu9`).
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, agent_workflows/artifact_meta.py, tests/test_writers_create_summary.py, .aw/records/plans/pending/20261109-metastore-125-bir7xm-write-short-description-at-creation-for-research-and-adopt.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:fekdwv
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: bir7xm
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: bir7xm verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED; review record .aw/records/reviews/20261109-metastore-125-bir7xm-write-short-description-at-creation-for-research-and-adopt.review.md
