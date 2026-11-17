@@ -91,6 +91,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-125-bir7xm-write-short-description-at-creation-for-research-and-adopt.ipd.md
 - E-01 scaffold and prompts subset (the two new `--summary` options in `cli` and `command_surface`, the `Short-Description` entry in `ipd_schema.META_RECOGNIZED`, the prompt comment key): Moved to py2vu9 (round-3 split 2026-11-09 per research nj8zdp guidance)
   - Carrier: py2vu9
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-126-py2vu9-add-summary-to-aw-ipd-scaffold-and-aw-prompts-new.ipd.md
 - E-02 (`aw describe` with `docs/cli-output-contract.md`): Moved to h06gs7 (round-3 split 2026-11-09 per research nj8zdp guidance)
   - Carrier: h06gs7
 - The final merge-independence test, the AC-21 obligations test, the raw-write audit (F-09), the `docs/cli-output-contract.md` reconciliation of the `--summary` options and the `CHANGELOG.md` line, and the full-suite gates of the writer move.
