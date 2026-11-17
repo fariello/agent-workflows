@@ -231,33 +231,6 @@ def _repo_root_of(spec_path: Path) -> Path:
     return p.parent if p.is_file() else p
 
 
-def _sidecar_append(repo_root, text: str, message: str) -> None:
-    """awhistory Order 02: append a transition to the global history sidecar IF the spec carries an
-    id6. A spec joins the sidecar only once it has an id6 handle, so this is a no-op for a legacy
-    `YYYYMMDD-HHMM-NN` spec and is future-safe for the id6-named ones.
-
-    plan `vhbvwz` E-04: a failed sidecar write is REPORTED, not swallowed by a bare
-    `except Exception: pass`. The inline `## Workflow history` record is the durable one (OQ-01) and is
-    written by the caller regardless of what happens here, so this never gates provenance; see
-    `record_history.append_advisory`.
-    Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
-    because an event for a transition that did not happen is worse than a missing event.
-    """
-    m = _SPEC_ID_RE.search(text)
-    if not m:
-        return
-    from agent_workflows import record_history as _rh
-
-    _rh.append_advisory(
-        repo_root,
-        id6=m.group(1),
-        tree="specs",
-        workflow="aw specs",
-        actor="aw specs",
-        message=message.strip(),
-    )
-
-
 def _read_blocks_release(lines: List[str]) -> Optional[str]:
     """Read a spec's `- Blocks-Release:` value (a release id6 or 'next'), or None. Awrelease Order 02."""
     end = _metadata_end(lines)
@@ -559,95 +532,6 @@ def _today() -> str:
     return datetime.date.today().isoformat()
 
 
-def _append_history(lines: List[str], record: str) -> List[str]:
-    """PREPEND ``record`` to the inline ``## Workflow history`` section, PRESERVING prior records.
-
-    NEWEST-FIRST, and prior records are KEPT. Plan ``vhbvwz`` E-08 reversed the slimming this
-    function used to do (awhistory Order 02, spec ``20260818-1525-02`` OQ-2, which replaced the whole
-    section with the one new record) because the premise it rested on does not hold: the "full
-    chronological log" it deferred to is ``.aw/records/history.jsonl``, which
-    ``.aw/.gitignore`` IGNORES, so every slimmed record was destroyed for anyone who clones the
-    repository. Measured: three ``aw specs note`` records from the 2026-09-10 setid cleanup existed
-    ONLY in that gitignored sidecar. The maintainer ruled on 2026-09-10 (plan ``vhbvwz`` OQ-01) that
-    inline history is the DURABLE home for specs and backlog items, matching what plans already do;
-    the spec is amended accordingly.
-
-    THE SIDECAR IS STILL WRITTEN and is still useful: it is a machine-local, cross-tree activity log
-    (``aw record-history <id6>``). It is simply no longer load-bearing for provenance, so a failure to
-    write it can never cost a record (see ``record_history.append_advisory``).
-
-    ORDER IS LOAD-BEARING: prepending matches ``status_set.apply_status_change``'s plan writer and is
-    what ``attention_contract.newest_history_record`` reads. Appending instead would make every
-    multi-record spec report its OLDEST date as ``last_history_at``, which is precisely the bug
-    E-02 had to fix in the reader BEFORE this item was safe to land.
-    """
-    out = list(lines)
-    for i, line in enumerate(out):
-        if line.strip() == "## Workflow history":
-            j = i + 1
-            end = len(out)
-            while j < len(out):
-                if out[j].startswith("## "):
-                    end = j
-                    break
-                j += 1
-            prior = out[i + 1 : end]
-            # Drop the leading blank line the section conventionally carries, re-emit it once, then
-            # the NEW record, then everything that was already there. Prior records (and any prose
-            # inside the section) survive verbatim; nothing is rewritten or reordered.
-            while prior and not prior[0].strip():
-                prior = prior[1:]
-            out[i + 1 : end] = ["", record] + prior
-            return out
-    # no history section: create one at EOF
-    if out and out[-1].strip() != "":
-        out.append("")
-    out.append("## Workflow history")
-    out.append(record)
-    return out
-
-
-def _set_status(lines: List[str], new_status: str) -> List[str]:
-    out = list(lines)
-    i = _find_status_index(out)
-    if i >= 0:
-        out[i] = f"- Status: {new_status}"
-    return out
-
-
-def _gate_field_indices(lines: List[str]) -> List[int]:
-    idx = []
-    end = _metadata_end(lines)
-    for i in range(end):
-        line = lines[i]
-        if (
-            A.GATE_KIND_RE.match(line)
-            or A.GATE_REF_RE.match(line)
-            or A.GATE_SUMMARY_RE.match(line)
-        ):
-            idx.append(i)
-    return idx
-
-
-def _remove_gate_fields(lines: List[str]) -> List[str]:
-    drop = set(_gate_field_indices(lines))
-    return [line for i, line in enumerate(lines) if i not in drop]
-
-
-def _add_gate_fields(
-    lines: List[str], kind: str, ref: str, summary: Optional[str]
-) -> List[str]:
-    out = list(lines)
-    i = _find_status_index(out)
-    insert = [f"- Gate-Kind: {kind}", f"- Gate-Ref: {ref}"]
-    if summary:
-        insert.append(f"- Gate-Summary: {summary}")
-    if i >= 0:
-        for k, line in enumerate(insert):
-            out.insert(i + 1 + k, line)
-    return out
-
-
 # --------------------------------------------------------------------------------------
 # CLI entrypoints
 # --------------------------------------------------------------------------------------
@@ -863,74 +747,6 @@ def run_migrate(args) -> int:
         )
         return 1
     lines = _lines(text)
-
-    # capture the old status prose (from a `- Status:` bullet or a bare `Status:` body line) for history
-    old_prose = None
-    status_bullet_idx = _find_status_index(lines)
-    bare_status_idx = -1
-    if status_bullet_idx >= 0:
-        old_prose = lines[status_bullet_idx][len("- Status:") :].strip()
-    else:
-        for i, line in enumerate(lines):
-            if line.startswith("Status:"):
-                bare_status_idx = i
-                old_prose = line[len("Status:") :].strip()
-                break
-            m = re.match(r"^- Status:\s*(.*)$", line)
-            if m:
-                status_bullet_idx = i
-                old_prose = m.group(1).strip()
-                break
-
-    out: List[str] = []
-    implemented_prose = None
-    inserted_status = False
-    for i, line in enumerate(lines):
-        if i == status_bullet_idx:
-            out.append(f"- Status: {new}")
-            inserted_status = True
-            if getattr(args, "canonical", False):
-                out.append("- Canonical: true")
-            if new == "deferred":
-                gk, gr, gs = (
-                    args.gate_kind,
-                    args.gate_ref,
-                    getattr(args, "gate_summary", None),
-                )
-                out.append(f"- Gate-Kind: {gk}")
-                out.append(f"- Gate-Ref: {gr}")
-                if gs:
-                    out.append(f"- Gate-Summary: {gs}")
-            continue
-        if i == bare_status_idx:
-            # a bare `Status:` body line -> drop it; a proper metadata bullet is created below
-            continue
-        if line.startswith("- Implemented:"):
-            implemented_prose = line[len("- Implemented:") :].strip()
-            continue
-        out.append(line)
-
-    if not inserted_status:
-        # no status bullet existed (only a bare body line, or none): insert into the metadata block
-        # after the last metadata bullet (before the first `## ` heading), else right after the H1.
-        meta_end = _metadata_end(out)
-        insert_at = 0
-        for i in range(meta_end):
-            if out[i].startswith("# "):  # H1 title
-                insert_at = i + 1
-            if out[i].startswith("- "):  # a metadata bullet
-                insert_at = i + 1
-        add = [f"- Status: {new}"]
-        if getattr(args, "canonical", False):
-            add.append("- Canonical: true")
-        if new == "deferred":
-            add.append(f"- Gate-Kind: {args.gate_kind}")
-            add.append(f"- Gate-Ref: {args.gate_ref}")
-            if getattr(args, "gate_summary", None):
-                add.append(f"- Gate-Summary: {args.gate_summary}")
-        for k, a in enumerate(add):
-            out.insert(insert_at + k, a)
-
     if new == "deferred":
         if (
             not args.gate_kind
@@ -943,6 +759,31 @@ def run_migrate(args) -> int:
             )
             return 1
 
+    # Capture the old status prose (from an in-front `- Status:` bullet or a bare `Status:` line)
+    # and any `- Implemented:` line for the migration history record.
+    old_prose = None
+    status_bullet_idx = _find_status_index(lines)
+    if status_bullet_idx >= 0:
+        old_prose = lines[status_bullet_idx][len("- Status:") :].strip()
+    else:
+        meta_end = _metadata_end(lines)
+        for line in lines[:meta_end]:
+            m = re.match(r"^- Status:\s*(.*)$", line)
+            if m:
+                old_prose = m.group(1).strip()
+                break
+        if old_prose is None:
+            for line in lines:
+                if line.startswith("Status:"):
+                    old_prose = line[len("Status:") :].strip()
+                    break
+
+    implemented_prose = None
+    for line in lines:
+        if line.startswith("- Implemented:"):
+            implemented_prose = line[len("- Implemented:") :].strip()
+            break
+
     date = getattr(args, "date", None) or core.utc_history_date()
     hist_msg = f"normalized status to `{new}`"
     if old_prose:
@@ -951,16 +792,49 @@ def run_migrate(args) -> int:
         hist_msg += (
             f"; folded Implemented line: {A.escape_detail(implemented_prose)[:160]}"
         )
-    hist = f"- {date} migrated (aw specs): {hist_msg}"
+
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows.status_set import same_status_message_is_duplicate
 
-    if not same_status_message_is_duplicate(
+    is_dup = same_status_message_is_duplicate(
         text, status="migrated", date=date, message=hist_msg
-    ):
-        out = _append_history(out, hist)
+    )
+    trans_ev: Dict[str, object] = {"op": "transition", "to": new}
+    if not is_dup:
+        trans_ev["message"] = hist_msg
+    events: List[Dict[str, object]] = [trans_ev]
 
-    new_text = "\n".join(out)
-    residual = validate_spec(path, new_text)
+    set_fields: Dict[str, object] = {}
+    if getattr(args, "canonical", False):
+        set_fields["canonical"] = "true"
+    if new == "deferred":
+        set_fields["gate_kind"] = args.gate_kind
+        set_fields["gate_ref"] = args.gate_ref
+        if getattr(args, "gate_summary", None):
+            set_fields["gate_summary"] = args.gate_summary
+    if set_fields:
+        events.append({"op": "set", "fields": set_fields})
+    events.append({"op": "unset", "fields": ["implemented"]})
+
+    m_id = _SPEC_ID_RE.search(text)
+    id6 = m_id.group(1) if m_id else None
+    target = _meta.LegacyTarget(path, "specs", id6)
+    repo_root = _repo_root_of(path)
+    render_cfg = _meta.LegacyRender(
+        tag="migrated",
+        day=date,
+        actor_label="aw specs",
+        history=not is_dup,
+    )
+
+    preview = _meta.append(
+        target,
+        events,
+        dry_run=True,
+        repo_root=repo_root,
+        legacy_render=render_cfg,
+    )
+    residual = validate_spec(path, preview.text)
     if residual:
         sys.stderr.write(
             "aw specs migrate: the resulting spec would not conform; refused (file unchanged):\n"
@@ -968,7 +842,13 @@ def run_migrate(args) -> int:
         for d in residual:
             sys.stderr.write(f"  {d.rule}: {d.detail}\n")
         return 1
-    core.atomic_write(path, new_text)
+    _meta.append(
+        target,
+        events,
+        dry_run=False,
+        repo_root=repo_root,
+        legacy_render=render_cfg,
+    )
     sys.stdout.write(f"aw specs migrate: {path} -> {new}\n")
     return 0
 
@@ -991,20 +871,32 @@ def run_note(args) -> int:
             sys.stderr.write(f"{_msg_err}\n")
             return 2
 
-    lines = _lines(text)
     date = getattr(args, "date", None) or core.utc_history_date()
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows.status_set import same_status_message_is_duplicate
 
     if not same_status_message_is_duplicate(
         text, status="note", date=date, message=args.message
     ):
-        out = _append_history(lines, f"- {date} note (aw specs): {args.message}")
-        core.atomic_write(path, "\n".join(out))
-        # Spec `4sd62s` C6 first clause: the sidecar may never precede the durable write it describes,
-        # because an event for a transition that did not happen is worse than a missing event. The sidecar
-        # remains a machine-local activity log (OQ-01) and may never gate a durable write; see
-        # `record_history.append_advisory`.
-        _sidecar_append(_repo_root_of(path), text, f"note: {args.message}")
+        m = _SPEC_ID_RE.search(text)
+        id6 = m.group(1) if m else None
+        _meta.append(
+            _meta.LegacyTarget(path, "specs", id6),
+            [{"op": "note", "message": args.message}],
+            repo_root=_repo_root_of(path),
+            legacy_render=_meta.LegacyRender(
+                tag="note",
+                day=date,
+                actor_label="aw specs",
+                history=True,
+            ),
+            sidecar=_meta.SidecarRecord(
+                tree="specs",
+                workflow="aw specs",
+                actor="aw specs",
+                message=f"note: {args.message}",
+            ),
+        )
     sys.stdout.write(f"aw specs note: appended a history record to {path}\n")
     return 0
 
@@ -1022,6 +914,16 @@ def _existing_spec_ids(repo_root: Path) -> set:
     return ids
 
 
+def _new_spec_body(title: str, summary: str) -> str:
+    """Build the Markdown body prose for a new spec (title, pointer, optional Scope section)."""
+    body = f"# Spec: {title}\n\n{core.writing_standard_pointer('spec')}\n"
+    if summary:
+        body += f"\n## Scope\n\n{summary}\n"
+    else:
+        body += "\n"
+    return body
+
+
 def _render_new_spec(
     *,
     title: str,
@@ -1032,30 +934,36 @@ def _render_new_spec(
 ) -> str:
     """A minimal but contract-conformant spec skeleton (IPD ha55fi E-01).
 
-    Carries a bare-enum `- Status: draft`, the minted `- Id:`, and a conformant
-    `## Workflow history` record so `validate_spec` passes immediately.
+    Carries a bare-enum `- Status: draft`, the minted `- Id:`, `- Author: aw specs new`,
+    and a conformant history record rendered through ``artifact_meta.render_legacy_text``.
     """
-    lines = [
-        f"# Spec: {title}",
-        "",
-        f"- Date: {date_iso}",
-        "- Status: draft",
-        f"- Id: {id6}",
-        "- Author: aw specs new",
-    ]
-    if summary:
-        lines.append(f"- Scope: {summary}")
+    from agent_workflows import artifact_meta as _meta
+
     hdate = history_date_iso or date_iso
-    lines += [
-        "",
-        core.writing_standard_pointer("spec"),
-        "",
-        "## Workflow history",
-        "",
-        f"- {hdate} created (aw specs): {summary or title}",
-        "",
-    ]
-    return "\n".join(lines).rstrip() + "\n"
+    body = _new_spec_body(title, summary)
+    create_ev = {
+        "op": "create",
+        "path": f"specs/draft/{id6}.spec.md",
+        "fields": {
+            "id": id6,
+            "type": "spec",
+            "status": "draft",
+            "title": title,
+            "author": "aw specs new",
+        },
+        "message": summary or title,
+    }
+    return _meta.render_legacy_text(
+        body,
+        [create_ev],
+        record_type="spec",
+        render=_meta.LegacyRender(
+            tag="created",
+            day=hdate,
+            actor_label="aw specs",
+            history=True,
+        ),
+    )
 
 
 def _specs_root(repo_root: Path) -> Path:
@@ -1192,15 +1100,44 @@ def run_new(args) -> int:
             machine_msg=f"destination {norm_dest} escapes records tree {norm_specs_dir}",
         )
 
-    rendered = _render_new_spec(
-        title=title,
-        id6=id6,
-        date_iso=date_iso,
-        summary=summary,
-        history_date_iso=history_date,
-    )
+    from agent_workflows import artifact_meta as _meta
 
-    if not getattr(args, "apply", False):
+    apply = bool(getattr(args, "apply", False))
+    body = _new_spec_body(title, summary)
+    base_ctx = _meta.legacy_context(repo_root)
+    records_root = resolved_specs_dir.parent
+    create_ctx = type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {
+                "records": str(records_root),
+                "state": base_ctx.logical_roots["state"],
+            },
+            "repo_root": Path(repo_root).resolve(),
+        },
+    )()
+    rel_dest = resolved_dest.relative_to(records_root).as_posix()
+    preview = _meta.create(
+        id6,
+        "spec",
+        {"status": "draft", "title": title, "author": "aw specs new"},
+        body,
+        destination=rel_dest,
+        dry_run=not apply,
+        project_context=create_ctx,
+        legacy_render=_meta.LegacyRender(
+            tag="created",
+            day=history_date,
+            actor_label="aw specs",
+            history=True,
+        ),
+        repo_root=Path(repo_root).resolve(),
+        message=summary or title,
+    )
+    rendered = preview.text
+
+    if not apply:
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(
                 command="specs new",
@@ -1215,9 +1152,6 @@ def run_new(args) -> int:
             return get_renderer(ctx).emit(res, ctx)
         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
         return 0
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    core.atomic_write(dest, rendered)
 
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(

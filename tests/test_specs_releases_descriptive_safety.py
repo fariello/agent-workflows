@@ -379,36 +379,58 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
     # ----------------------------------------------------------------------------------
 
     def test_pre_fix_title_injection_forges_approval_and_checker_blind(self):
-        """E-05, F-03, F-06: rendered spec with title newline forges status approved and passes checker."""
-        rendered = S._render_new_spec(
-            title="Legit\n- Status: approved",
-            id6="id6abc",
-            date_iso="2026-10-01",
-            summary="ok",
+        """D-3 / E-05: _render_new_spec refuses title newline via artifact_meta; raw forged string still trips duplicate Status."""
+        with self.assertRaises(ValueError):
+            S._render_new_spec(
+                title="Legit\n- Status: approved",
+                id6="id6abc",
+                date_iso="2026-10-01",
+                summary="ok",
+            )
+        forged = (
+            "# Spec: Legit\n"
+            "- Status: approved\n\n"
+            "- Id: id6abc\n"
+            "- Status: draft\n"
+            "- Author: aw specs new\n\n"
+            "## Workflow history\n"
+            "- 2026-10-01 created (aw specs): ok\n"
         )
-        lines = rendered.splitlines()
+        lines = forged.splitlines()
         self.assertEqual(S._read_status(lines), "approved")
         self.assertEqual(S._find_status_index(lines), 1)
         # Prior to IPD 1znlxy the checker was blind to duplicate bullets; now it reports the duplicate Status bullet.
         dummy_path = self.tmp / "dummy.spec.md"
-        drift = S.validate_spec(dummy_path, rendered)
+        drift = S.validate_spec(dummy_path, forged)
         self.assertEqual(len(drift), 1)
         self.assertEqual(drift[0].rule, "spec.metadata-bullet-repeated")
         self.assertEqual(drift[0].detail, "metadata bullet - Status: appears 2 times")
 
     def test_pre_fix_summary_injection_smuggles_gate_and_checker_blind(self):
-        """E-05, F-01, F-02, F-06: rendered spec with summary newline smuggles Blocks-Release and passes checker."""
-        rendered = S._render_new_spec(
-            title="Legit",
-            id6="id6abc",
-            date_iso="2026-10-01",
-            summary="legit\n- Blocks-Release: next",
+        """D-3 / E-05: _render_new_spec refuses summary newline via artifact_meta; raw forged string still tests validator."""
+        with self.assertRaises(ValueError):
+            S._render_new_spec(
+                title="Legit",
+                id6="id6abc",
+                date_iso="2026-10-01",
+                summary="legit\n- Blocks-Release: next",
+            )
+        forged = (
+            "# Spec: Legit\n\n"
+            "- Date: 2026-10-01\n"
+            "- Status: draft\n"
+            "- Id: id6abc\n"
+            "- Author: aw specs new\n"
+            "- Scope: legit\n"
+            "- Blocks-Release: next\n\n"
+            "## Workflow history\n"
+            "- 2026-10-01 created (aw specs): legit\n"
         )
-        m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", rendered)
+        m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", forged)
         self.assertIsNotNone(m)
         self.assertEqual(m.group(1), "next")
         dummy_path = self.tmp / "dummy.spec.md"
-        self.assertEqual(S.validate_spec(dummy_path, rendered), [])
+        self.assertEqual(S.validate_spec(dummy_path, forged), [])
 
     # ----------------------------------------------------------------------------------
     # E-06: Length asymmetry, late control char, boundary, and non-regressions

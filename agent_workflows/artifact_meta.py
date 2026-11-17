@@ -278,6 +278,9 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "gate_kind": FieldDef("gate_kind", "string", "generic"),
         "gate_ref": FieldDef("gate_ref", "string", "generic"),
         "gate_summary": FieldDef("gate_summary", "string", "generic"),
+        "author": FieldDef("author", "string", "generic"),
+        "canonical": FieldDef("canonical", "string", "generic"),
+        "implemented": FieldDef("implemented", "string", "migration-only"),
     },
     "backlog": {
         **_COMMON_FIELDS,
@@ -799,10 +802,24 @@ _PROSE_FIELDS: FrozenSet[str] = frozenset(
 )
 
 
+_GENERIC_FIXTURE_GIT_TOKENS: FrozenSet[str] = frozenset(
+    {
+        "test",
+        "tester",
+        "test user",
+        "test runner",
+        "test agent",
+        "test committer",
+        "test@example.com",
+    }
+)
+
+
 def _writer_ruleset(repo_root: Path) -> "_leak.Ruleset":
     """The leak ruleset the writer scans with: every `fail` rule plus every auto-derived `warn`
     token EXCEPT, inside a runner lane (`.aw/worktrees/<lane>`), the sibling LANE directory names
-    (2xwb9b D-02).
+    (2xwb9b D-02) and synthetic test-fixture git identities (e.g. `tests/support.py::init_repo`
+    setting `git user.name = "Test"`).
 
     Spec 4.2 lists what the writer refuses: session ids, command lines, absolute or home paths, user
     names and host names. A sibling directory name is none of those; in a runner lane the siblings
@@ -812,11 +829,16 @@ def _writer_ruleset(repo_root: Path) -> "_leak.Ruleset":
     ruleset = _leak.build_ruleset(repo_root, include_warn=True)
     try:
         in_lane = Path(repo_root).resolve().parent.name == "worktrees"
-        derived = _leak.derive_warn_tokens(repo_root) if in_lane else {}
+        derived = _leak.derive_warn_tokens(repo_root)
     except Exception:
         return ruleset
     for tok, reason in derived.items():
-        if reason == "sibling checkout dir name":
+        if in_lane and reason == "sibling checkout dir name":
+            ruleset.warn.pop(f"derived:{tok}", None)
+        elif (
+            reason in ("git user.name", "git user.email")
+            and tok.lower() in _GENERIC_FIXTURE_GIT_TOKENS
+        ):
             ruleset.warn.pop(f"derived:{tok}", None)
     return ruleset
 
@@ -3940,6 +3962,8 @@ _LEGACY_BULLET_LABEL: Dict[str, str] = {
     "supersedes": "Supersedes",
     "scope_paths": "Scope-Paths",
     "highest_e_allocated": "Highest E allocated",
+    "author": "Author",
+    "canonical": "Canonical",
 }
 
 #: Registry field -> YAML front-matter key for `research` records.
@@ -4034,6 +4058,7 @@ _LEGACY_REMOVE_RE: Dict[str, "re.Pattern[str]"] = {
     "gate_summary": re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$"),
     "approval": re.compile(r"^- Approval:\s*"),
     "readiness": re.compile(r"^- Readiness:\s*"),
+    "implemented": re.compile(r"^-\s*Implemented:.*$"),
 }
 
 
@@ -4303,6 +4328,22 @@ def _render_status(
             ]
             status_updated = True
             break
+
+    if not status_updated and not fenced and plural == "specs":
+        # Replace an in-front free-form `- Status: <prose>` bullet in place, or drop a bare
+        # `Status:` line before inserting `- Status: <status>`.
+        for i, line in enumerate(new_lines):
+            if line.startswith("## "):
+                break
+            if re.match(r"^-\s*Status:\s*(.*)$", line):
+                new_lines[i] = f"- Status: {status}"
+                status_updated = True
+                break
+        if not status_updated:
+            for i, line in enumerate(new_lines):
+                if line.startswith("Status:"):
+                    del new_lines[i]
+                    break
 
     if not status_updated:
         res: List[str] = []
@@ -4738,18 +4779,19 @@ def _render_field(
     if field == "close_evidence":
         formatted = _format_legacy_value(field, value) if value is not None else "-"
         return _backlog.set_close_evidence_line(text, formatted, repo_root=repo_root)
+    if value is None and field in _LEGACY_REMOVE_RE:
+        pat = _LEGACY_REMOVE_RE[field]
+        return "\n".join(ln for ln in text.split("\n") if not pat.match(ln))
     label = _LEGACY_BULLET_LABEL.get(field)
     if label is None:
         raise ValueError(f"legacy writer has no bullet form for field {field!r}")
     if value is None:
-        if field in _LEGACY_REMOVE_RE:
-            pat = _LEGACY_REMOVE_RE[field]
-            return "\n".join(ln for ln in text.split("\n") if not pat.match(ln))
         return _set_bullet(text, label, None, anchors=("Status", "Id"))
     anchors = {
         "review_depth": ("Readiness", "Status", "Id"),
         "coverage": ("Readiness", "Status", "Id"),
         "order": ("Set", "Status", "Id"),
+        "author": ("Id", "Status"),
     }.get(field, ("Status", "Id"))
     return _set_bullet(text, label, _format_legacy_value(field, value), anchors=anchors)
 
@@ -5041,6 +5083,7 @@ def _prepare_legacy_events(
             "release_exempt_kind",
             "release_exempt_ref",
             "close_evidence",
+            "implemented",
         }
     )
     reg = REGISTRY.get(record_type or "", {})

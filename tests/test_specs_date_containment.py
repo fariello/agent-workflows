@@ -363,14 +363,14 @@ class TestFabricatedDatesAndNonRegressions(_ContainmentRepoTestCase):
         self.assertTrue(created.exists())
         expected = (
             "# Spec: Conforming Spec Title\n\n"
-            "- Date: 2026-09-29\n"
-            "- Status: draft\n"
             "- Id: 8rt43x\n"
-            "- Author: aw specs new\n"
-            "- Scope: Conforming summary text.\n\n"
+            "- Status: draft\n"
+            "- Author: aw specs new\n\n"
             f"{specs.core.writing_standard_pointer('spec')}\n\n"
-            "## Workflow history\n\n"
-            "- 2026-09-29 created (aw specs): Conforming summary text.\n"
+            "## Workflow history\n"
+            "- 2026-09-29 created (aw specs): Conforming summary text.\n\n"
+            "## Scope\n\n"
+            "Conforming summary text.\n"
         )
         self.assertEqual(created.read_text(encoding="utf-8"), expected)
 
