@@ -107,6 +107,7 @@ flowchart TD
 
 - `E-01` research subset (`agent_workflows/research_cmd.py::run_new`, `run_new_comparison`) and `E-02` research subset (`run_set_outcome`, `run_set_priority`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: s95hj6
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-122-s95hj6-move-the-research-create-and-setter-writers-onto-artifact-me.ipd.md
 - `E-01` scaffold and prompts subset (`agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/prompts.py::run_new` with `render_metadata_comment`) and `E-02` sync subset (`agent_workflows/ipd_authoring.py::run_sync`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: ernmom
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.ipd.md
