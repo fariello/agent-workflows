@@ -100,6 +100,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-103-6oi2nu-make-the-artifact-meta-cache-scan-every-record-tree-and-give.ipd.md
 - E-04 (`m0001_discover.py` and constant removal) and E-05 (id-less conversion): Moved to 3g20ms (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 3g20ms
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-104-3g20ms-make-m0001-discover-its-inputs-and-convert-id-less-records.ipd.md
 - E-06 (layout stage chaining, companion backends, no-sidecar rule): Moved to bv4kkj (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: bv4kkj
 - This repository's own attended cutover commit. It still runs once, attended, after this plan.
