@@ -2107,6 +2107,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "item's Priority, Work-Kind and Blocks-Release.",
     )
     p_ipd_scaffold.add_argument(
+        "--summary",
+        default=None,
+        help="Optional one-line short description (stored as Short-Description).",
+    )
+    p_ipd_scaffold.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."
     )
     p_ipd_scaffold.add_argument(
@@ -7719,6 +7724,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--concerns",
         default=None,
         help="One-line statement of what the prompt is about (optional metadata field).",
+    )
+    p_prompts_new.add_argument(
+        "--summary",
+        default=None,
+        help="Optional one-line short description (stored as Short-Description in the metadata comment).",
     )
     p_prompts_new.add_argument(
         "--date", default=None, help="Override the created date (YYYY-MM-DD)."

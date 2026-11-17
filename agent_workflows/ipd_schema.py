@@ -360,6 +360,9 @@ META_REVIEW_DEPTH = "Review-Depth"
 REVIEW_DEPTH_VALUES: FrozenSet[str] = frozenset(
     ("simple", "standard", "complex", "orchestrator")
 )
+# `- Short-Description: <text>` (spec 4sd62s 4.2; Set metastore, IPD py2vu9).
+# Recognized but OPTIONAL (NOT in META_REQUIRED) so existing plans without it stay valid.
+META_SHORT_DESCRIPTION = "Short-Description"
 
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
@@ -384,6 +387,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_SCOPE_EXCEEDED,
         META_ATTENDED,
         META_REVIEW_DEPTH,
+        META_SHORT_DESCRIPTION,
     )
 )
 

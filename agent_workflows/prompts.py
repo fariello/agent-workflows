@@ -274,6 +274,7 @@ def render_metadata_comment(
     author: Optional[str] = None,
     targets: Optional[str] = None,
     concerns: Optional[str] = None,
+    short_description: Optional[str] = None,
 ) -> str:
     """The single leading `aw-prompt` line. ONE line, an HTML comment, no trailing body.
 
@@ -300,6 +301,7 @@ def render_metadata_comment(
         ("Author", author),
         ("Targets", targets),
         ("Concerns", concerns),
+        ("Short-Description", short_description),
     ):
         text = (value or "").strip()
         if text:
@@ -537,6 +539,25 @@ def run_new(args) -> int:
     if hhmm and not re.match(r"\A\d{4}\Z", hhmm):
         return _refuse(f"aw prompts new: --time must be HHMM (got {hhmm!r})")
 
+    # Validate raw --summary before stripping and before mint_id6, and block comment-closing
+    # or pipe-delimiter tokens that could break out of <!-- aw-prompt: ... --> (D-2, D-3).
+    raw_summary = getattr(args, "summary", None)
+    short_description: Optional[str] = None
+    if raw_summary is not None:
+        from agent_workflows import attention_contract as _att
+
+        raw_summary_str = str(raw_summary)
+        summary_err = _att.refuse_unsafe_descriptive(
+            "aw prompts new", "--summary", raw_summary_str, bound_length=True
+        )
+        if summary_err:
+            return _refuse(summary_err)
+        if "-->" in raw_summary_str or "|" in raw_summary_str:
+            return _refuse("aw prompts new: --summary must not contain '-->' or '|'")
+        stripped_summary = raw_summary_str.strip()
+        if stripped_summary:
+            short_description = stripped_summary
+
     root = prompts_root(repo_root)
     # IPD sk7ggr E-01: repository-wide mint, unioned with the prompts tree's own ids. Minted BEFORE
     # the set id is resolved, because a derived set id may legitimately FALL BACK to this id6.
@@ -581,6 +602,8 @@ def run_new(args) -> int:
             text_val = str(raw_val).strip()
             if text_val:
                 fields[key] = text_val
+    if short_description:
+        fields["short_description"] = short_description
 
     base_ctx = _meta.legacy_context(repo_root)
     records_root = root.resolve().parent

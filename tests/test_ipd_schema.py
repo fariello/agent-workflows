@@ -443,6 +443,12 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             False,
             "OPTIONAL review depth (spec k3yx72 Section 7.2; Set revsteps, IPD gv3smb); written by review finalize",
         ),
+        (
+            "Short-Description",
+            "META_SHORT_DESCRIPTION",
+            False,
+            "OPTIONAL short description (spec 4sd62s 4.2, IPD py2vu9); written by `aw ipd scaffold --summary` and `aw describe`",
+        ),
     )
 
     def test_every_recognized_field_has_the_requiredness_the_schema_promises(self):

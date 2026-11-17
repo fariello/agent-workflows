@@ -5,6 +5,7 @@ Covers `4sd62s` 4.2 SHORT DESCRIPTION and AC-36 case 1 for:
 - `aw specs new` (IPD fekdwv E-02)
 - `aw releases new` (IPD fekdwv E-03)
 - `aw research new`, `aw adopt`, and research YAML create rendering (IPD bir7xm E-01..E-03)
+- `aw ipd scaffold`, `aw prompts new`, `ipd_schema.META_RECOGNIZED`, and prompt trailer stripping (IPD py2vu9 E-01..E-04)
 """
 
 from __future__ import annotations
@@ -22,6 +23,9 @@ from agent_workflows import artifact_adopt as _adopt
 from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention_contract as A
 from agent_workflows import cli
+from agent_workflows import command_surface as _cs
+from agent_workflows import ipd_lint as _ipd_lint
+from agent_workflows import prompts as _prompts
 from agent_workflows import research_cmd as _research_cmd
 
 pytestmark = pytest.mark.core
@@ -39,6 +43,10 @@ def _init_repo(tmp_path: Path) -> Path:
     (repo / ".aw" / "records" / "specs" / "draft").mkdir(parents=True, exist_ok=True)
     (repo / ".aw" / "records" / "releases").mkdir(parents=True, exist_ok=True)
     (repo / ".aw" / "records" / "research").mkdir(parents=True, exist_ok=True)
+    (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True, exist_ok=True)
+    (repo / ".aw" / "records" / "prompts" / "pending").mkdir(
+        parents=True, exist_ok=True
+    )
     (repo / ".aw" / "inbox").mkdir(parents=True, exist_ok=True)
     return repo
 
@@ -1025,3 +1033,483 @@ def test_adopt_check_all_agent_clean_for_short_description(tmp_path: Path) -> No
         "short-description" in json.dumps(d) or "short_description" in json.dumps(d)
         for d in diags
     )
+
+
+# --------------------------------------------------------------------------------------
+# IPD Schema (`ipd_schema.META_RECOGNIZED` / `aw ipd lint`, IPD py2vu9 E-01)
+# --------------------------------------------------------------------------------------
+
+
+def test_ipd_schema_lint_accepts_short_description_bullet(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, err = _run_cli(
+        [
+            "ipd",
+            "scaffold",
+            "--kind",
+            "child",
+            "--title",
+            "Widget plan",
+            "--set",
+            "widget",
+            "--order",
+            "1",
+            "--author",
+            "tester",
+            "--priority",
+            "high",
+            "--work-kind",
+            "feature",
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    files = list((repo / ".aw" / "records" / "plans").rglob("*.ipd.md"))
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    assert "- Short-Description: Adds a widget." in text
+
+    lint_res = _ipd_lint.lint_file(files[0])
+    m103 = [d for d in lint_res.diagnostics if d.code == _ipd_lint.C_META_UNKNOWN]
+    assert m103 == []
+
+
+# --------------------------------------------------------------------------------------
+# IPD Scaffold (`aw ipd scaffold`, IPD py2vu9 E-02)
+# --------------------------------------------------------------------------------------
+
+
+def _scaffold_args(repo: Path, *extra: str, apply: bool = True) -> list[str]:
+    args = [
+        "ipd",
+        "scaffold",
+        "--kind",
+        "child",
+        "--title",
+        "Widget plan",
+        "--set",
+        "widget",
+        "--order",
+        "1",
+        "--author",
+        "tester",
+        "--priority",
+        "high",
+        "--work-kind",
+        "feature",
+        *extra,
+        "--dir",
+        str(repo),
+    ]
+    if apply:
+        args.append("--apply")
+    return args
+
+
+def test_ipd_scaffold_stores_short_description_and_preview_parity(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    p_rc, p_out, p_err = _run_cli(
+        _scaffold_args(repo, "--summary", "Adds a widget.", apply=False)
+    )
+    assert p_rc == 0, p_err
+    assert list((repo / ".aw" / "records" / "plans").rglob("*.ipd.md")) == []
+    assert "- Short-Description: Adds a widget." in p_out
+
+    a_rc, _a_out, a_err = _run_cli(
+        _scaffold_args(repo, "--summary", "Adds a widget.", apply=True)
+    )
+    assert a_rc == 0, a_err
+    files = list((repo / ".aw" / "records" / "plans").rglob("*.ipd.md"))
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    assert "- Short-Description: Adds a widget." in text
+
+    id6 = _extract_id6(text)
+    state_cached = _meta.read(id6, project_context=_meta.legacy_context(repo))
+    assert state_cached.short_description == "Adds a widget."
+    assert state_cached.fields["short_description"] == "Adds a widget."
+
+    state_rebuilt = _read_after_cache_unlink(repo, id6)
+    assert state_rebuilt.short_description == "Adds a widget."
+    assert state_rebuilt.fields["short_description"] == "Adds a widget."
+
+
+def test_ipd_scaffold_omitted_and_blank_summary_omits_short_description(
+    tmp_path: Path,
+) -> None:
+    repo_omitted = _init_repo(tmp_path / "omitted")
+    rc1, _out1, err1 = _run_cli(_scaffold_args(repo_omitted, apply=True))
+    assert rc1 == 0, err1
+    f1 = list((repo_omitted / ".aw" / "records" / "plans").rglob("*.ipd.md"))[0]
+    t1 = f1.read_text(encoding="utf-8")
+    assert "- Short-Description:" not in t1
+    s1 = _read_after_cache_unlink(repo_omitted, _extract_id6(t1))
+    assert s1.short_description is None
+    assert s1.fields.get("short_description") is None
+
+    repo_blank = _init_repo(tmp_path / "blank")
+    rc2, _out2, err2 = _run_cli(
+        _scaffold_args(repo_blank, "--summary", "   \t ", apply=True)
+    )
+    # Tab is a control character in attention_contract; test spaces-only separately below.
+    assert rc2 == 2
+    assert _git_status_porcelain(repo_blank) == ""
+
+    repo_spaces = _init_repo(tmp_path / "spaces")
+    rc3, _out3, err3 = _run_cli(
+        _scaffold_args(repo_spaces, "--summary", "   ", apply=True)
+    )
+    assert rc3 == 0, err3
+    f3 = list((repo_spaces / ".aw" / "records" / "plans").rglob("*.ipd.md"))[0]
+    t3 = f3.read_text(encoding="utf-8")
+    assert "- Short-Description:" not in t3
+    s3 = _read_after_cache_unlink(repo_spaces, _extract_id6(t3))
+    assert s3.short_description is None
+    assert s3.fields.get("short_description") is None
+
+
+def test_ipd_scaffold_refuses_301_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        _scaffold_args(repo, "--summary", "x" * (A.MAX_DESCRIPTIVE_LEN + 1), apply=True)
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+@pytest.mark.parametrize(
+    "bad_summary",
+    [
+        "Adds a widget.\n- Status: approved",
+        "Adds a widget.\n",
+        "Adds a widget.\r",
+    ],
+)
+def test_ipd_scaffold_refuses_newline_and_trailing_newline_summary(
+    tmp_path: Path, bad_summary: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        _scaffold_args(repo, "--summary", bad_summary, apply=True)
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_ipd_scaffold_refuses_control_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        _scaffold_args(repo, "--summary", "Adds a\x07widget.", apply=True)
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_ipd_scaffold_help_and_command_surface_include_summary() -> None:
+    rc, out, _err = _run_cli(["ipd", "scaffold", "--help"])
+    assert rc == 0
+    assert "--summary" in out
+    decl = _cs.get_declaration("ipd scaffold")
+    assert decl is not None
+    assert "--summary" in decl.legacy_flags
+
+
+def test_ipd_scaffold_check_all_agent_clean_for_short_description(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, err = _run_cli(
+        _scaffold_args(repo, "--summary", "Adds a widget.", apply=True)
+    )
+    assert rc == 0, err
+    _check_rc, diags = _check_all_diagnostics(repo)
+    assert not any(
+        "short_description" in json.dumps(d) or "Short-Description" in json.dumps(d)
+        for d in diags
+    )
+
+
+# --------------------------------------------------------------------------------------
+# Prompts (`aw prompts new` and legacy comment trailer stripping, IPD py2vu9 E-03 & E-04)
+# --------------------------------------------------------------------------------------
+
+
+def _extract_prompt_id6(text: str) -> str:
+    id6 = _prompts.read_metadata_id6(text)
+    assert id6 is not None, f"missing Id: in prompt comment:\n{text}"
+    return id6
+
+
+def test_prompts_new_stores_short_description_and_purity(tmp_path: Path) -> None:
+    repo_plain = _init_repo(tmp_path / "plain")
+    rc_plain, _out_p, err_p = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--date",
+            "2026-11-17",
+            "--apply",
+            "--dir",
+            str(repo_plain),
+        ]
+    )
+    assert rc_plain == 0, err_p
+    plain_files = list(
+        (repo_plain / ".aw" / "records" / "prompts").rglob("*.prompt.md")
+    )
+    assert len(plain_files) == 1
+    plain_text = plain_files[0].read_text(encoding="utf-8")
+
+    repo = _init_repo(tmp_path / "with_summary")
+    rc, _out, err = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--date",
+            "2026-11-17",
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    files = list((repo / ".aw" / "records" / "prompts").rglob("*.prompt.md"))
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+
+    lines = text.splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith("<!-- aw-prompt:")
+    assert lines[0].endswith("-->")
+    assert "Short-Description: Adds a widget." in lines[0]
+    assert "- Short-Description:" not in text
+    assert text.split("\n", 1)[1] == plain_text.split("\n", 1)[1] == ""
+
+    id6 = _extract_prompt_id6(text)
+    state_cached = _meta.read(id6, project_context=_meta.legacy_context(repo))
+    assert state_cached.short_description == "Adds a widget."
+    assert state_cached.fields["short_description"] == "Adds a widget."
+
+    state_rebuilt = _read_after_cache_unlink(repo, id6)
+    assert state_rebuilt.short_description == "Adds a widget."
+    assert state_rebuilt.fields["short_description"] == "Adds a widget."
+
+
+def test_prompts_new_omitted_and_blank_summary_omits_short_description(
+    tmp_path: Path,
+) -> None:
+    for label, extra in (("omitted", ()), ("spaces", ("--summary", "   "))):
+        repo = _init_repo(tmp_path / label)
+        rc, _out, err = _run_cli(
+            [
+                "prompts",
+                "new",
+                "--slug",
+                "widget",
+                "--date",
+                "2026-11-17",
+                *extra,
+                "--apply",
+                "--dir",
+                str(repo),
+            ]
+        )
+        assert rc == 0, err
+        files = list((repo / ".aw" / "records" / "prompts").rglob("*.prompt.md"))
+        assert len(files) == 1
+        text = files[0].read_text(encoding="utf-8")
+        assert "Short-Description:" not in text
+        state = _read_after_cache_unlink(repo, _extract_prompt_id6(text))
+        assert state.short_description is None
+        assert state.fields.get("short_description") is None
+
+
+def test_prompts_new_refuses_301_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--summary",
+            "x" * (A.MAX_DESCRIPTIVE_LEN + 1),
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+@pytest.mark.parametrize(
+    "bad_summary",
+    [
+        "Adds a widget.\n- Status: executed",
+        "Adds a widget.\n",
+        "Adds a widget.\r",
+    ],
+)
+def test_prompts_new_refuses_newline_and_trailing_newline_summary(
+    tmp_path: Path, bad_summary: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--summary",
+            bad_summary,
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_prompts_new_refuses_control_char_summary(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--summary",
+            "Adds a\x07widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+@pytest.mark.parametrize(
+    "bad_summary",
+    [
+        "Adds --> breakout",
+        "Adds | Status: executed",
+    ],
+)
+def test_prompts_new_refuses_html_comment_breakout_and_pipe_delimiter(
+    tmp_path: Path, bad_summary: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, _err = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--summary",
+            bad_summary,
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_prompts_new_help_and_command_surface_include_summary() -> None:
+    rc, out, _err = _run_cli(["prompts", "new", "--help"])
+    assert rc == 0
+    assert "--summary" in out
+    decl = _cs.get_declaration("prompts new")
+    assert decl is not None
+    assert "--summary" in decl.legacy_flags
+
+
+def test_prompts_new_check_all_agent_clean_for_short_description(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc, _out, err = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--date",
+            "2026-11-17",
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    _check_rc, diags = _check_all_diagnostics(repo)
+    assert not any(
+        "short_description" in json.dumps(d) or "Short-Description" in json.dumps(d)
+        for d in diags
+    )
+
+
+def test_prompts_render_metadata_comment_optional_short_description() -> None:
+    with_sd = _prompts.render_metadata_comment(
+        kind="research",
+        status="pending",
+        created="2026-11-17",
+        id6="ab12cd",
+        set_id="widget",
+        short_description="Adds a widget.",
+    )
+    assert (
+        f"Short-Description: Adds a widget. . {_prompts._METADATA_TRAILER}" in with_sd
+    )
+
+    without_sd = _prompts.render_metadata_comment(
+        kind="research",
+        status="pending",
+        created="2026-11-17",
+        id6="ab12cd",
+        set_id="widget",
+    )
+    assert "Short-Description:" not in without_sd
+
+
+def test_prompts_load_legacy_artifact_strips_metadata_trailer(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    records_root = repo / ".aw" / "records"
+    prompt_path = (
+        records_root
+        / "prompts"
+        / "pending"
+        / "20261117-widget-01-ab12cd-widget.prompt.md"
+    )
+    comment = (
+        "<!-- aw-prompt: Kind: research | Id: ab12cd | Set: widget | Status: pending "
+        "| Created: 2026-11-17 | Short-Description: Adds a widget. . "
+        f"{_prompts._METADATA_TRAILER} -->\n"
+    )
+    prompt_path.write_text(comment, encoding="utf-8")
+
+    row, _hist = _meta.load_legacy_artifact(prompt_path, records_root)
+    assert row["short_description"] == "Adds a widget."
+    assert row["fields"]["short_description"] == "Adds a widget."
+
+    state = _read_after_cache_unlink(repo, "ab12cd")
+    assert state.short_description == "Adds a widget."
+    assert state.fields["short_description"] == "Adds a widget."

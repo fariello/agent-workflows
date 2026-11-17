@@ -542,6 +542,22 @@ def run_scaffold(args: argparse.Namespace) -> int:
         return _refuse_scaffold(
             f"work kind must be one of {sorted(_bk_vocab.KINDS)}: {work_kind!r}", ctx
         )
+    # Validate raw --summary before stripping and before mint_id6 so trailing newlines,
+    # control characters, or overlong values exit 2 with nothing minted or written (D-3).
+    raw_summary = getattr(args, "summary", None)
+    short_description: Optional[str] = None
+    if raw_summary is not None:
+        from agent_workflows import attention_contract as _att
+
+        raw_summary_str = str(raw_summary)
+        summary_err = _att.refuse_unsafe_descriptive(
+            "aw ipd scaffold", "--summary", raw_summary_str, bound_length=True
+        )
+        if summary_err:
+            return _refuse_scaffold(summary_err, ctx)
+        stripped_summary = raw_summary_str.strip()
+        if stripped_summary:
+            short_description = stripped_summary
     when = date.today().strftime("%Y-%m-%d")
     # History records record UTC per spec 4sd62s Section 4.2b (reusing artifact_core.utc_history_date,
     # added by 5ivkdh E-01); human-facing names (- Date: and filename prefixes) remain machine-local
@@ -651,6 +667,8 @@ def run_scaffold(args: argparse.Namespace) -> int:
         fields["from_backlog"] = from_backlog
     if blocks_release:
         fields["blocks_release"] = blocks_release
+    if short_description:
+        fields["short_description"] = short_description
 
     legacy_render = _meta.LegacyRender(
         tag="draft",

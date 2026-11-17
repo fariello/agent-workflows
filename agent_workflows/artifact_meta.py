@@ -2601,7 +2601,22 @@ def load_legacy_artifact(
             # Check for legacy <!-- aw-prompt: ... -->
             m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
             if m_aw:
-                for item in m_aw.group(1).split("|"):
+                inner = m_aw.group(1)
+                split_aw = _split_prompt_comment(first_line)
+                if split_aw is not None and split_aw[2]:
+                    inner = split_aw[1]
+                else:
+                    from agent_workflows import prompts as _prompts
+
+                    for marker in (
+                        f" . {_prompts._METADATA_TRAILER}",
+                        " . This HTML comment is",
+                        _prompts._METADATA_TRAILER,
+                    ):
+                        if marker in inner:
+                            inner = inner.split(marker, 1)[0].strip()
+                            break
+                for item in inner.split("|"):
                     if ":" in item:
                         k, v = item.split(":", 1)
                         bullets[k.strip()] = v.strip()
