@@ -2,7 +2,8 @@
 
 Implements spec 4sd62s Sections 5.1 (MigrationManager journal reuse), 5.2 step 0
 (dry-run default and resume), 5.2 step 2 (sidecar expectedness, op:legacy queueing,
-orphan export, sidecar move, and .aw/.gitignore cleanup), and 5.2a item 5.
+orphan export, sidecar move, and .aw/.gitignore cleanup), 5.2 step 4a (terminal-commit
+marker lifecycle), 5.2 step 5 (STATUS.md and INDEX cleanup), and 5.2a item 5.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
@@ -19,6 +21,7 @@ from agent_workflows import (
     artifact_core,
     artifact_meta,
     artifact_naming,
+    git_commit_helper,
     layout_migration,
     project_context,
     record_history,
@@ -46,6 +49,11 @@ _PROMPT_COMMENT_RE = re.compile(
 _SIDECAR_GITIGNORE_LINES = frozenset(
     {"records/history.jsonl", "/records/history.jsonl"}
 )
+_INDEX_GITIGNORE_LINE_RE = re.compile(
+    r"^(?:/?(?:\.aw|\.agents)/)?/?(?:records/)?(?:plans|research|prompts)/INDEX\.(?:json|md)$"
+)
+_STEP5_INDEX_TREES = ("plans", "research", "prompts")
+_STEP5_INDEX_NAMES = ("INDEX.json", "INDEX.md")
 
 
 def _utc_now() -> str:
@@ -245,6 +253,194 @@ def _clean_gitignore_history_lines(text: str) -> Tuple[str, bool]:
     return "".join(kept), True
 
 
+def _clean_gitignore_index_lines(text: str) -> Tuple[str, List[str], bool]:
+    """Remove anchored ``records/*/INDEX.*`` ignore lines, preserving surrounding lines and trailing newlines."""
+    lines = text.splitlines(keepends=True)
+    kept: List[str] = []
+    removed: List[str] = []
+    for ln in lines:
+        stripped = ln.rstrip("\r\n").strip()
+        if _INDEX_GITIGNORE_LINE_RE.match(stripped):
+            removed.append(stripped)
+        else:
+            kept.append(ln)
+    if not removed:
+        return text, [], False
+    return "".join(kept), removed, True
+
+
+def _step5_target_paths(
+    repo_path: Path, records_root: Path
+) -> Tuple[List[Path], List[Path], List[Path]]:
+    """Return ``(status_files, index_files, gitignore_files)`` candidate paths for step 5."""
+    status_files: List[Path] = []
+    index_files: List[Path] = []
+    roots_to_check: List[Path] = [records_root]
+    legacy_agents = repo_path / ".agents"
+    try:
+        if legacy_agents.is_dir() and legacy_agents.resolve() != records_root.resolve():
+            roots_to_check.append(legacy_agents)
+    except OSError:
+        pass
+
+    seen_files: Set[Path] = set()
+    for root in roots_to_check:
+        status_candidate = root / "plans" / "STATUS.md"
+        if status_candidate.is_file():
+            try:
+                key = status_candidate.resolve()
+            except OSError:
+                key = status_candidate
+            if key not in seen_files:
+                seen_files.add(key)
+                status_files.append(status_candidate)
+        for tree in _STEP5_INDEX_TREES:
+            for idx_name in _STEP5_INDEX_NAMES:
+                idx_candidate = root / tree / idx_name
+                if idx_candidate.is_file():
+                    try:
+                        key = idx_candidate.resolve()
+                    except OSError:
+                        key = idx_candidate
+                    if key not in seen_files:
+                        seen_files.add(key)
+                        index_files.append(idx_candidate)
+
+    gitignore_files: List[Path] = []
+    for gi in (repo_path / ".aw" / ".gitignore", repo_path / ".agents" / ".gitignore"):
+        if gi.is_file():
+            gitignore_files.append(gi)
+    return status_files, index_files, gitignore_files
+
+
+def _step_5_cleanup(
+    repo: Union[str, Path],
+    *,
+    scratch: bool = False,
+    apply: bool = False,
+    records_root: Optional[Path] = None,
+    journal_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Delete ``plans/STATUS.md``, ``INDEX.{json,md}`` manifests, and INDEX ignore lines (5.2 step 5).
+
+    On ``apply=True`` (and ``scratch=False``), backs up each deleted or modified file under
+    ``journal_dir / 'backups'`` and records ``restore_bytes`` entries in ``journal.json`` so
+    ``rollback(repo)`` restores them byte-for-byte. On ``apply=False``, reports planned deletions
+    without modifying target files (unless ``scratch=True``, which cleans the scratch tree only).
+    """
+    repo_path = Path(repo)
+    resolved_jdir, resolved_rroot = _journal_dir_for(repo_path)
+    eff_jdir = journal_dir or resolved_jdir
+
+    if scratch:
+        target_repo = eff_jdir / "scratch" / "repo"
+        eff_rroot = target_repo / ".aw" / "records"
+    else:
+        target_repo = repo_path
+        eff_rroot = records_root or resolved_rroot
+
+    status_files, index_files, gitignore_files = _step5_target_paths(
+        target_repo, eff_rroot
+    )
+
+    removed_lines: List[str] = []
+    gitignore_updates: List[Tuple[Path, str, List[str]]] = []
+    for gi_path in gitignore_files:
+        orig_text = gi_path.read_text(encoding="utf-8")
+        cleaned_text, removed, changed = _clean_gitignore_index_lines(orig_text)
+        if changed:
+            gitignore_updates.append((gi_path, cleaned_text, removed))
+            removed_lines.extend(removed)
+
+    if scratch:
+        for p in [*status_files, *index_files]:
+            p.unlink(missing_ok=True)
+        for gi_path, cleaned_text, _removed in gitignore_updates:
+            _write_bytes_atomic(gi_path, cleaned_text.encode("utf-8"))
+    elif apply:
+        backups_dir = eff_jdir / "backups"
+        mgr = _make_rebound_manager(repo_path, eff_jdir)
+        tx_data = mgr._load_transaction()
+        if tx_data is None:
+            now_utc = _utc_now()
+            tx_data = {
+                "schema_version": mgr.SCHEMA_VERSION,
+                "migration_id": "m0001",
+                "transaction_id": f"m0001-step5-{os.getpid()}",
+                "status": "applied",
+                "timestamps": {"started_at": now_utc, "updated_at": now_utc},
+                "records_root": str(eff_rroot),
+                "minted_ids": {},
+                "rename_map": {},
+                "steps": {},
+                "applied_files": [],
+                "backups": [],
+                "operations": [],
+                "descriptions": {},
+                "sidecar_events": {},
+                "orphan_export_path": None,
+                "orphan_counts": {},
+                "terminal_commit_marker": None,
+            }
+        tx_data.setdefault("backups", [])
+        tx_data.setdefault("applied_files", [])
+
+        for idx_num, target in enumerate([*status_files, *index_files]):
+            op_id = f"step5_delete:{idx_num}:{target.name}"
+            existed, backup_name = _save_backup_bytes(backups_dir, op_id, target)
+            tx_data["backups"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "restore_bytes",
+                    "target": str(target),
+                    "existed": existed,
+                    "backup_file": backup_name,
+                }
+            )
+            target.unlink(missing_ok=True)
+            tx_data["applied_files"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "delete_file",
+                    "path": str(target),
+                }
+            )
+
+        for gi_num, (gi_path, cleaned_text, _removed) in enumerate(gitignore_updates):
+            op_id = f"step5_gitignore:{gi_num}:{gi_path.parent.name}"
+            existed, backup_name = _save_backup_bytes(backups_dir, op_id, gi_path)
+            tx_data["backups"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "restore_bytes",
+                    "target": str(gi_path),
+                    "existed": existed,
+                    "backup_file": backup_name,
+                }
+            )
+            _write_bytes_atomic(gi_path, cleaned_text.encode("utf-8"))
+            tx_data["applied_files"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "write_from_scratch",
+                    "path": str(gi_path),
+                }
+            )
+
+        mgr._save_transaction(tx_data)
+
+    deleted_all = [str(p) for p in [*status_files, *index_files]]
+    return {
+        "status_files": [str(p) for p in status_files],
+        "index_files": [str(p) for p in index_files],
+        "deleted_files": deleted_all,
+        "gitignore_files": [str(gi_path) for gi_path, _, _ in gitignore_updates],
+        "gitignore_lines_removed": removed_lines,
+        "applied": bool(apply and not scratch),
+        "scratch": bool(scratch),
+    }
+
+
 _SCRATCH_COPY_IGNORE = shutil.ignore_patterns(
     "__pycache__",
     "*.pyc",
@@ -310,7 +506,20 @@ def _stage_scratch(
         dst = scratch_dir / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_text(cleaned_text if changed else orig_text, encoding="utf-8")
+        agents_gi = repo_path / ".agents" / ".gitignore"
+        if agents_gi.is_file():
+            agents_dst = scratch_dir / "repo/.agents/.gitignore"
+            agents_dst.parent.mkdir(parents=True, exist_ok=True)
+            agents_dst.write_text(
+                agents_gi.read_text(encoding="utf-8"), encoding="utf-8"
+            )
         return rel, changed
+
+    agents_gi = repo_path / ".agents" / ".gitignore"
+    if agents_gi.is_file():
+        agents_dst = scratch_dir / "repo/.agents/.gitignore"
+        agents_dst.parent.mkdir(parents=True, exist_ok=True)
+        agents_dst.write_text(agents_gi.read_text(encoding="utf-8"), encoding="utf-8")
 
     return None, False
 
@@ -434,6 +643,26 @@ def _execute_planned_operations(
                     "path": str(target),
                 }
             )
+        elif kind == "delete_file":
+            target = Path(op["target"])
+            existed, backup_name = _save_backup_bytes(backups_dir, op_id, target)
+            tx_data["backups"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "restore_bytes",
+                    "target": str(target),
+                    "existed": existed,
+                    "backup_file": backup_name,
+                }
+            )
+            target.unlink(missing_ok=True)
+            tx_data["applied_files"].append(
+                {
+                    "op_id": op_id,
+                    "kind": kind,
+                    "path": str(target),
+                }
+            )
         else:
             raise layout_migration.MigrationError(
                 f"Unknown m0001 operation kind: {kind!r}"
@@ -446,6 +675,235 @@ def _execute_planned_operations(
 
     tx_data["status"] = "applied"
     mgr._save_transaction(tx_data)
+
+
+def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[str]:
+    """Collect repo-relative paths touched by migration operations that can be staged with ``git add``."""
+    try:
+        repo_resolved = repo_path.resolve()
+    except OSError:
+        repo_resolved = repo_path
+
+    candidates: List[str] = []
+    seen: Set[str] = set()
+
+    def _add_candidate(raw: Optional[str]) -> None:
+        if not raw:
+            return
+        p = Path(raw)
+        try:
+            rel = p.resolve().relative_to(repo_resolved).as_posix()
+        except (OSError, ValueError):
+            try:
+                rel = p.relative_to(repo_path).as_posix()
+            except ValueError:
+                return
+        if rel not in seen:
+            seen.add(rel)
+            candidates.append(rel)
+
+    for op in tx_data.get("operations") or []:
+        kind = op.get("kind")
+        if kind in ("write_from_scratch", "delete_file"):
+            _add_candidate(op.get("target"))
+        elif kind == "move_to_journal":
+            _add_candidate(op.get("src"))
+
+    if not candidates:
+        return []
+
+    tracked_set: Set[str] = set()
+    for i in range(0, len(candidates), 200):
+        batch = candidates[i : i + 200]
+        proc = subprocess.run(
+            ["git", "-C", str(repo_path), "ls-files", "-z", "--", *batch],
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout:
+            for item in proc.stdout.decode("utf-8", errors="replace").split("\0"):
+                if item:
+                    tracked_set.add(item)
+
+    stageable: List[str] = []
+    for rel in candidates:
+        if rel in tracked_set:
+            stageable.append(rel)
+            continue
+        disk_path = repo_path / rel
+        if disk_path.exists() or disk_path.is_symlink():
+            ign = subprocess.run(
+                ["git", "-C", str(repo_path), "check-ignore", "-q", "--", rel],
+                capture_output=True,
+                check=False,
+            )
+            if ign.returncode != 0:
+                stageable.append(rel)
+    return stageable
+
+
+def _stage_migration_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[str]:
+    """Stage the migration's complete path list in ``repo_path`` and return staged repo-relative paths."""
+    staged = _collect_stageable_paths(repo_path, tx_data)
+    for i in range(0, len(staged), 200):
+        batch = staged[i : i + 200]
+        proc = subprocess.run(
+            ["git", "-C", str(repo_path), "add", "-A", "--", *batch],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise layout_migration.MigrationError(
+                f"Failed to stage m0001 migration paths: {proc.stderr.strip() or f'exit {proc.returncode}'}"
+            )
+    return staged
+
+
+def _unstage_migration_paths(repo_path: Path, paths: Sequence[str]) -> None:
+    """Restore the git index for ``paths`` during rollback without touching unrelated entries."""
+    rel_paths = [str(p) for p in paths if str(p).strip()]
+    if not rel_paths:
+        return
+    has_head = (
+        subprocess.run(
+            ["git", "-C", str(repo_path), "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+    for i in range(0, len(rel_paths), 200):
+        batch = rel_paths[i : i + 200]
+        cmd = (
+            ["git", "-C", str(repo_path), "reset", "-q", "HEAD", "--", *batch]
+            if has_head
+            else [
+                "git",
+                "-C",
+                str(repo_path),
+                "rm",
+                "--cached",
+                "-q",
+                "--ignore-unmatch",
+                "--",
+                *batch,
+            ]
+        )
+        subprocess.run(cmd, capture_output=True, check=False)
+
+
+def _step_4a_write_marker(
+    repo: Union[str, Path], journal_dir: Union[str, Path]
+) -> Path:
+    """Capture staged ``git write-tree`` id and write ``terminal_commit_marker.json`` (5.2 step 4a)."""
+    repo_path = Path(repo)
+    jdir = Path(journal_dir)
+    proc = subprocess.run(
+        ["git", "-C", str(repo_path), "write-tree"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout.strip():
+        raise layout_migration.PreflightGateError(
+            "m0001 step 4a failed to capture staged index tree via `git write-tree`: "
+            f"{proc.stderr.strip() or f'exit {proc.returncode}'}"
+        )
+    tree_id = proc.stdout.strip()
+    marker_payload = {
+        "migration_id": "m0001",
+        "tree_id": tree_id,
+        "created_at": artifact_core.utc_history_date(),
+    }
+    jdir.mkdir(parents=True, exist_ok=True)
+    marker_path = jdir / "terminal_commit_marker.json"
+    _write_bytes_atomic(
+        marker_path,
+        (json.dumps(marker_payload, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+
+    mgr = _make_rebound_manager(repo_path, jdir)
+    tx_data = mgr._load_transaction()
+    if tx_data is None:
+        now_utc = _utc_now()
+        tx_data = {
+            "schema_version": mgr.SCHEMA_VERSION,
+            "migration_id": "m0001",
+            "transaction_id": f"m0001-marker-{os.getpid()}",
+            "status": "applying",
+            "timestamps": {"started_at": now_utc, "updated_at": now_utc},
+        }
+    tx_data["terminal_commit_marker"] = {
+        "migration_id": "m0001",
+        "tree_id": tree_id,
+    }
+    mgr._save_transaction(tx_data)
+    return marker_path
+
+
+def _cleanup_marker(
+    journal_dir: Union[str, Path], *, repo: Optional[Union[str, Path]] = None
+) -> None:
+    """Remove ``terminal_commit_marker.json`` and clear ``journal.json['terminal_commit_marker']``."""
+    jdir = Path(journal_dir)
+    marker_file = jdir / "terminal_commit_marker.json"
+    marker_file.unlink(missing_ok=True)
+
+    tx_path = jdir / "journal.json"
+    if not tx_path.is_file():
+        return
+    tx_data = _peek_journal(jdir)
+    if tx_data is None:
+        return
+    tx_data["terminal_commit_marker"] = None
+    tx_data.setdefault(
+        "timestamps", {"started_at": _utc_now(), "updated_at": _utc_now()}
+    )
+    repo_hint = Path(repo) if repo is not None else jdir
+    mgr = _make_rebound_manager(repo_hint, jdir)
+    mgr._save_transaction(tx_data)
+
+
+def commit_staged(
+    repo: Union[str, Path],
+    paths: Optional[Sequence[str]] = None,
+    *,
+    message: str = "chore(migrate): apply m0001 metadata-v2 migration",
+) -> git_commit_helper.CommitOutcome:
+    """Execute step-7 path-scoped commit via ``git_commit_helper.offer_commit`` and clean marker."""
+    repo_path = Path(repo)
+    journal_dir, _records_root = _journal_dir_for(repo_path)
+    tx_data = _peek_journal(journal_dir) or {}
+    target_paths = (
+        list(paths) if paths is not None else list(tx_data.get("staged_paths") or [])
+    )
+    if not target_paths:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_path), "diff", "--cached", "--name-only"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            target_paths = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+
+    outcome = git_commit_helper.offer_commit(
+        repo_path,
+        target_paths,
+        message=message,
+        assume_yes=True,
+        runner=git_commit_helper.RUNNER_AW_COMMIT,
+    )
+    if outcome.status == git_commit_helper.STATUS_COMMITTED:
+        _cleanup_marker(journal_dir, repo=repo_path)
+    return outcome
 
 
 def _format_run_report(
@@ -472,10 +930,12 @@ def _format_run_report(
         "renames": steps.get("renames"),
         "citations": steps.get("citations"),
         "conversion": steps.get("conversion"),
+        "cleanup": steps.get("cleanup"),
         "sidecar_events": tx_data.get("sidecar_events") or {},
         "orphan_export_path": tx_data.get("orphan_export_path"),
         "orphan_counts": tx_data.get("orphan_counts") or {},
         "applied_files": list(tx_data.get("applied_files") or []),
+        "staged_paths": list(tx_data.get("staged_paths") or []),
         "minted_ids": dict(tx_data.get("minted_ids") or {}),
         "rename_map": dict(tx_data.get("rename_map") or {}),
         "terminal_commit_marker": tx_data.get("terminal_commit_marker"),
@@ -490,6 +950,7 @@ def _resume_applying_journal(
     force: bool = False,
     force_worktree: bool = False,
     fault_injection: Optional[str] = None,
+    commit: bool = False,
 ) -> Dict[str, Any]:
     """Resume an interrupted ``status == 'applying'`` run from ``journal_dir / 'scratch'``."""
     preflight = m0001_preflight.check_preflight(
@@ -523,6 +984,13 @@ def _resume_applying_journal(
             _execute_planned_operations(
                 mgr, tx_data, journal_dir, fault_injection=fault_injection
             )
+            staged_paths = _stage_migration_paths(repo_path, tx_data)
+            tx_data["staged_paths"] = staged_paths
+            mgr._save_transaction(tx_data)
+            _step_4a_write_marker(repo_path, journal_dir)
+            if commit:
+                commit_staged(repo_path, staged_paths)
+            tx_data = mgr._load_transaction() or tx_data
             return _format_run_report(tx_data, journal_dir, applied=True, resumed=True)
         finally:
             mgr._release_lock()
@@ -536,6 +1004,7 @@ def run(
     force_worktree: bool = False,
     describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
+    commit: bool = False,
 ) -> Dict[str, Any]:
     """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``."""
     repo_path = Path(repo)
@@ -554,6 +1023,7 @@ def run(
             force=force,
             force_worktree=force_worktree,
             fault_injection=fault_injection,
+            commit=commit,
         )
 
     # Step 1: preflight (writes nothing on refusal).
@@ -721,6 +1191,16 @@ def run(
             )
             tx_data["steps"]["conversion"] = convert_summary
 
+            # Step 5: cleanup STATUS.md, INDEX manifests, and INDEX ignore lines in scratch.
+            cleanup_summary = _step_5_cleanup(
+                repo_path,
+                scratch=True,
+                apply=False,
+                records_root=records_root,
+                journal_dir=journal_dir,
+            )
+            tx_data["steps"]["cleanup"] = cleanup_summary
+
             operations: List[Dict[str, Any]] = []
             if sidecar_present:
                 operations.append(
@@ -734,13 +1214,54 @@ def run(
             gitignore_rewritten = ".aw/.gitignore" in set(
                 step3_summary.get("rewritten_files") or []
             )
-            if (gitignore_changed or gitignore_rewritten) and gitignore_rel is not None:
+            aw_gi_src = repo_path / ".aw" / ".gitignore"
+            aw_gi_scratch = scratch_repo / ".aw" / ".gitignore"
+            aw_gi_step5_changed = (
+                aw_gi_src.is_file()
+                and aw_gi_scratch.is_file()
+                and aw_gi_scratch.read_text(encoding="utf-8")
+                != aw_gi_src.read_text(encoding="utf-8")
+            )
+            if (
+                gitignore_changed or gitignore_rewritten or aw_gi_step5_changed
+            ) and gitignore_rel is not None:
                 operations.append(
                     {
                         "op_id": "clean_gitignore",
                         "kind": "write_from_scratch",
-                        "target": str(repo_path / ".aw" / ".gitignore"),
+                        "target": str(aw_gi_src),
                         "scratch_rel": gitignore_rel,
+                    }
+                )
+
+            agents_gi_src = repo_path / ".agents" / ".gitignore"
+            agents_gi_scratch = scratch_repo / ".agents" / ".gitignore"
+            if (
+                agents_gi_src.is_file()
+                and agents_gi_scratch.is_file()
+                and agents_gi_scratch.read_text(encoding="utf-8")
+                != agents_gi_src.read_text(encoding="utf-8")
+            ):
+                operations.append(
+                    {
+                        "op_id": "clean_agents_gitignore",
+                        "kind": "write_from_scratch",
+                        "target": str(agents_gi_src),
+                        "scratch_rel": "repo/.agents/.gitignore",
+                    }
+                )
+
+            step5_status_targets, step5_index_targets, _ = _step5_target_paths(
+                repo_path, records_root
+            )
+            for idx_num, target in enumerate(
+                [*step5_status_targets, *step5_index_targets]
+            ):
+                operations.append(
+                    {
+                        "op_id": f"delete_step5:{idx_num}:{target.name}",
+                        "kind": "delete_file",
+                        "target": str(target),
                     }
                 )
 
@@ -819,6 +1340,13 @@ def run(
             _execute_planned_operations(
                 mgr, tx_data, journal_dir, fault_injection=fault_injection
             )
+            staged_paths = _stage_migration_paths(repo_path, tx_data)
+            tx_data["staged_paths"] = staged_paths
+            mgr._save_transaction(tx_data)
+            _step_4a_write_marker(repo_path, journal_dir)
+            if commit:
+                commit_staged(repo_path, staged_paths)
+            tx_data = mgr._load_transaction() or tx_data
             return _format_run_report(tx_data, journal_dir, applied=True)
         finally:
             mgr._release_lock()
@@ -882,10 +1410,11 @@ def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
 
             restored += 1
 
-        marker_file = journal_dir / "terminal_commit_marker.json"
-        if marker_file.exists():
-            marker_file.unlink()
+        _unstage_migration_paths(repo_path, tx_data.get("staged_paths") or [])
+        _cleanup_marker(journal_dir, repo=repo_path)
 
+        tx_data = mgr._load_transaction() or tx_data
+        tx_data["staged_paths"] = []
         tx_data["terminal_commit_marker"] = None
         tx_data["status"] = "rolled_back"
         mgr._save_transaction(tx_data)

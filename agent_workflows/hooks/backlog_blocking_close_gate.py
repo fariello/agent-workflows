@@ -51,6 +51,13 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     drift = [d for d in _ce.check_release_gate_consistency(root) if d.rule == _RULE]
     if not drift:
         return 0, []
+    from agent_workflows.hooks.executed_transition_gate import (
+        _migration_marker_accepts,
+        _repo_root,
+    )
+
+    if _migration_marker_accepts(_repo_root(root)):
+        return 0, []
     return 1, [f"{d.location}: {d.detail}" for d in drift]
 
 

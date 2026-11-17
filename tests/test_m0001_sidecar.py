@@ -339,6 +339,7 @@ def test_sidecar_apply_moves_history_cleans_gitignore_and_rollback_restores(
         "/config/local.json\n"
         "/records/history.jsonl\n"
         "records/plans/INDEX.json\n"
+        "/worktrees/\n"
     )
     gitignore_path.write_text(orig_gitignore, encoding="utf-8")
 
@@ -387,9 +388,10 @@ def test_sidecar_apply_moves_history_cleans_gitignore_and_rollback_restores(
     st = _git(repo, "status", "--porcelain", "--ignored")
     assert "history.jsonl" not in st.stdout
 
-    # .aw/.gitignore stripped only the sidecar line while preserving siblings & trailing newline
+    # .aw/.gitignore stripped the sidecar line (step 2) and INDEX line (step 5)
+    # while preserving non-migration siblings & trailing newline
     new_gitignore = gitignore_path.read_text(encoding="utf-8")
-    assert new_gitignore == ("/state/\n/config/local.json\nrecords/plans/INDEX.json\n")
+    assert new_gitignore == ("/state/\n/config/local.json\n/worktrees/\n")
     assert new_gitignore.endswith("\n")
 
     # Rollback restores both files byte-for-byte

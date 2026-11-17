@@ -344,6 +344,121 @@ def _intree_finalize_evidence_ok(
     return False
 
 
+def _candidate_state_durable_dirs(repo_root: Path) -> List[Path]:
+    """Resolve durable state root(s) via project_context, falling back to checkout_control_root.
+
+    Checking ``checkout_control_root(repo_root) / 'state' / 'durable'`` after the worktree-local
+    project context ensures ``commit_lock.commit_isolated``'s detached ``.aw-isocommit-*`` linked
+    worktree still finds the primary checkout's ``m0001`` journal marker.
+    """
+    from agent_workflows import ipd_lifecycle as _life
+    from agent_workflows import project_context as _pc
+
+    candidates: List[Path] = []
+    seen: set[Path] = set()
+
+    def _add(p: Optional[object]) -> None:
+        if not p:
+            return
+        cand = Path(str(p))
+        try:
+            key = cand.resolve()
+        except OSError:
+            key = cand
+        if key not in seen:
+            seen.add(key)
+            candidates.append(cand)
+
+    try:
+        ctx = _pc.resolve_project_context(target_repo=str(repo_root))
+        _add(ctx.physical_classes.get("state_durable"))
+        _add(ctx.logical_roots.get("state_durable"))
+        if ctx.logical_roots.get("state"):
+            _add(Path(ctx.logical_roots["state"]) / "durable")
+    except Exception:
+        pass
+
+    try:
+        _add(_life.checkout_control_root(repo_root) / "state" / "durable")
+    except Exception:
+        pass
+
+    return candidates
+
+
+def _read_m0001_marker(journal_dir: Path) -> Tuple[Optional[dict], bool]:
+    """Read marker dict from ``terminal_commit_marker.json`` or ``journal.json``.
+
+    Returns ``(marker_dict, corrupt_or_invalid)``. Read-only; never mutates journal state.
+    """
+    import json
+
+    marker_file = journal_dir / "terminal_commit_marker.json"
+    if marker_file.is_file():
+        try:
+            data = json.loads(marker_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None, True
+        if not isinstance(data, dict):
+            return None, True
+        return data, False
+
+    journal_file = journal_dir / "journal.json"
+    if journal_file.is_file():
+        try:
+            jdata = json.loads(journal_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None, True
+        if isinstance(jdata, dict):
+            marker = jdata.get("terminal_commit_marker")
+            if marker is None:
+                return None, False
+            if isinstance(marker, dict):
+                return marker, False
+            return None, True
+    return None, False
+
+
+def _migration_marker_accepts(repo_root: Path) -> bool:
+    """Return True iff an active ``m0001`` marker matches the current staged ``git write-tree`` id.
+
+    Read-only: reads marker files and runs ``git write-tree`` without mutating refs, index, or
+    working tree. Emits a single-line warning to stderr when ``tree_id`` mismatches.
+    """
+    import sys
+
+    staged_tree: Optional[str] = None
+    for state_durable in _candidate_state_durable_dirs(repo_root):
+        journal_dir = state_durable / "migrations" / "m0001"
+        marker, invalid = _read_m0001_marker(journal_dir)
+        if invalid:
+            return False
+        if marker is None:
+            continue
+        if marker.get("migration_id") != "m0001":
+            return False
+        expected_tree = marker.get("tree_id")
+        if not isinstance(expected_tree, str) or not expected_tree.strip():
+            return False
+        expected_tree = expected_tree.strip()
+
+        if staged_tree is None:
+            rc, out, _err = _git(repo_root, ["write-tree"])
+            if rc != 0 or not out.strip():
+                return False
+            staged_tree = out.strip()
+
+        if staged_tree == expected_tree:
+            return True
+
+        sys.stderr.write(
+            f"warning: m0001 terminal commit marker tree_id mismatch "
+            f"(expected {expected_tree}, staged {staged_tree}); falling back to standard gate checks.\n"
+        )
+        return False
+    return False
+
+
 def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     """Run the gate. Returns (exit_code, messages). exit 0 = ok/no-op, 1 = refused."""
     # The lifecycle subject grammar the refusal message QUOTES back to the operator, from the one
@@ -355,6 +470,9 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     transitions = _staged_plan_executed_transitions(root)
     if not transitions:
         return 0, []  # fast no-op: no plan executed-transition staged
+
+    if _migration_marker_accepts(root):
+        return 0, []
 
     # A merge in progress unlocks the SECOND (in-tree) accepting path, never a blanket exemption.
     # EMPTY means not-a-merge, in which case behavior is byte-identical to before integpath 29wvmj.

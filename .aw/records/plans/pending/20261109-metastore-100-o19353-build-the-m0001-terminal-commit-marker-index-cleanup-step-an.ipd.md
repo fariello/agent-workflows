@@ -42,26 +42,26 @@ PIN-FIRST RULE for every "move" or hook modification item: create `.aw/state/o19
 
 ### Task group 1: pre-commit hook marker acceptance
 
-- [ ] E-01 Implement read-only migration marker acceptance in `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/backlog_blocking_close_gate.py` (`4sd62s` 5.2 step 4a), pinned first. In each hook's check function, resolve the durable state root via project context (`Step 0`), inspect `terminal_commit_marker.json` (or `journal.json`), verify `migration_id == "m0001"`, and compare `tree_id` against the staged index tree via `git write-tree` (`D-1`). Matching tree ids return 0 (accepting the staged transition or close); mismatched tree ids emit a stderr warning and fall through to standard gate rules (`D-1`, `D-4`). Pin `tests/test_executed_transition_gate.py`, `tests/test_executed_transition_gate_e2e.py`, and `tests/test_check_engine_release_gate.py`.
+- [x] E-01 Implement read-only migration marker acceptance in `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/backlog_blocking_close_gate.py` (`4sd62s` 5.2 step 4a), pinned first. In each hook's check function, resolve the durable state root via project context (`Step 0`), inspect `terminal_commit_marker.json` (or `journal.json`), verify `migration_id == "m0001"`, and compare `tree_id` against the staged index tree via `git write-tree` (`D-1`). Matching tree ids return 0 (accepting the staged transition or close); mismatched tree ids emit a stderr warning and fall through to standard gate rules (`D-1`, `D-4`). Pin `tests/test_executed_transition_gate.py`, `tests/test_executed_transition_gate_e2e.py`, and `tests/test_check_engine_release_gate.py`.
   - Depends on: none
   - Expected outcome: existing hook suites pass before and after with an empty PIN-FIRST outcome diff, and staged changes with matching markers return exit code 0 while mismatched markers warn and fall through to standard refusals.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: migration step 5 cleanup and step 4a terminal marker
 
-- [ ] E-03 Implement step 5 (STATUS.md, INDEX manifests, and gitignore cleanup) in `agent_workflows/migrations/m0001_metadata_v2.py` (`4sd62s` 5.2 step 5). Add `_step_5_cleanup(repo, *, scratch=False, apply=False) -> dict`: delete `plans/STATUS.md` under `records_root / "plans" / "STATUS.md"` (or target repo records) if present; delete every `INDEX.json` and `INDEX.md` under `records_root / "plans"`, `records_root / "research"`, and `records_root / "prompts"` if present; and remove the anchored `records/*/INDEX.*` ignore lines (both `.aw` and `.agents` prefix paths) from the target repository's `.aw/.gitignore` (or `.agents/.gitignore`), preserving surrounding lines and trailing newlines (`D-3`). On `apply=True`, save backups of deleted or modified files under `journal_dir / "backups"` so `m0001_metadata_v2.rollback(repo)` restores them byte-for-byte; on `apply=False` (dry run), report planned deletions in the returned dict without modifying target files.
+- [x] E-03 Implement step 5 (STATUS.md, INDEX manifests, and gitignore cleanup) in `agent_workflows/migrations/m0001_metadata_v2.py` (`4sd62s` 5.2 step 5). Add `_step_5_cleanup(repo, *, scratch=False, apply=False) -> dict`: delete `plans/STATUS.md` under `records_root / "plans" / "STATUS.md"` (or target repo records) if present; delete every `INDEX.json` and `INDEX.md` under `records_root / "plans"`, `records_root / "research"`, and `records_root / "prompts"` if present; and remove the anchored `records/*/INDEX.*` ignore lines (both `.aw` and `.agents` prefix paths) from the target repository's `.aw/.gitignore` (or `.agents/.gitignore`), preserving surrounding lines and trailing newlines (`D-3`). On `apply=True`, save backups of deleted or modified files under `journal_dir / "backups"` so `m0001_metadata_v2.rollback(repo)` restores them byte-for-byte; on `apply=False` (dry run), report planned deletions in the returned dict without modifying target files.
   - Depends on: none
   - Expected outcome: step 5 cleans `STATUS.md`, all six INDEX files, and gitignore lines idempotently, and `rollback(repo)` restores them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Implement step 4a (terminal-commit marker generation and lifecycle) in `agent_workflows/migrations/m0001_metadata_v2.py` (`4sd62s` 5.2 step 4a). Add `_step_4a_write_marker(repo, journal_dir) -> Path` and `_cleanup_marker(journal_dir) -> None`: after the apply stages the migration's complete path list (`git add`), capture the staged index tree id via `git write-tree` (raising `layout_migration.PreflightGateError` if `git write-tree` fails due to an unmerged index); write `{"migration_id": "m0001", "tree_id": tree_id, "created_at": utc_history_date()}` to `journal_dir / "terminal_commit_marker.json"` and persist `"terminal_commit_marker": {"migration_id": "m0001", "tree_id": tree_id}` in `journal.json` via `layout_migration.MigrationManager._save_transaction` (`D-2`). Ensure `_cleanup_marker` unlinks `terminal_commit_marker.json` and clears `journal.json["terminal_commit_marker"] = None` after the commit succeeds in step 7, and inside `m0001_metadata_v2.rollback(repo)` so no stale marker survives.
+- [x] E-04 Implement step 4a (terminal-commit marker generation and lifecycle) in `agent_workflows/migrations/m0001_metadata_v2.py` (`4sd62s` 5.2 step 4a). Add `_step_4a_write_marker(repo, journal_dir) -> Path` and `_cleanup_marker(journal_dir) -> None`: after the apply stages the migration's complete path list (`git add`), capture the staged index tree id via `git write-tree` (raising `layout_migration.PreflightGateError` if `git write-tree` fails due to an unmerged index); write `{"migration_id": "m0001", "tree_id": tree_id, "created_at": utc_history_date()}` to `journal_dir / "terminal_commit_marker.json"` and persist `"terminal_commit_marker": {"migration_id": "m0001", "tree_id": tree_id}` in `journal.json` via `layout_migration.MigrationManager._save_transaction` (`D-2`). Ensure `_cleanup_marker` unlinks `terminal_commit_marker.json` and clears `journal.json["terminal_commit_marker"] = None` after the commit succeeds in step 7, and inside `m0001_metadata_v2.rollback(repo)` so no stale marker survives.
   - Depends on: E-01, E-03
   - Expected outcome: step 4a writes a tree-bound marker on apply, which allows the commit to pass both pre-commit hooks, and is deleted immediately upon commit completion or rollback.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: test suite
 
-- [ ] E-02 Add `tests/test_m0001_gate_marker.py` (`4sd62s` 5.2 steps 4a, 5; `dcerjg` E-14 subset), on `tmp_path` fixture repositories built with real `git init`, calling the real hook functions and migration steps directly and asserting on return values, stderr, exit codes, and file bytes (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"):
+- [x] E-02 Add `tests/test_m0001_gate_marker.py` (`4sd62s` 5.2 steps 4a, 5; `dcerjg` E-14 subset), on `tmp_path` fixture repositories built with real `git init`, calling the real hook functions and migration steps directly and asserting on return values, stderr, exit codes, and file bytes (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"):
   - For `agent_workflows/hooks/executed_transition_gate.py`: `TestExecutedTransitionGateMarker` covering `test_refused_without_marker`, `test_accepted_with_matching_marker`, `test_refused_after_extra_staged_edit` (tree mismatch), and `test_refused_after_marker_consumed`.
   - For `agent_workflows/hooks/backlog_blocking_close_gate.py`: `TestBacklogBlockingCloseGateMarker` covering `test_refused_without_marker`, `test_accepted_with_matching_marker`, `test_refused_after_extra_staged_edit`, and `test_refused_after_marker_consumed`.
   - For step 5 cleanup: `TestStep5Cleanup` covering `test_step_5_removes_status_and_index_files` (verifying `plans/STATUS.md`, each `INDEX.json`/`INDEX.md` under plans, research, prompts, and the `.aw/.gitignore` lines are removed), `test_step_5_idempotent_on_missing_files`, and `test_step_5_rollback_restores_files`.
@@ -69,7 +69,7 @@ PIN-FIRST RULE for every "move" or hook modification item: create `.aw/state/o19
   - Mark the module `pytestmark = pytest.mark.core`, or `slow` if its slowest test exceeds 2 s in `--durations=10`, named in V-02.
   - Depends on: E-01, E-03, E-04
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_m0001_gate_marker.py` passes all 14 test cases cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -162,22 +162,22 @@ None open. Every question this work raised was resolved from repository code and
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `diff` of `.aw/state/o19353/E-01-before.txt` and `.aw/state/o19353/E-01-after.txt` (must print nothing across `tests/test_executed_transition_gate.py`, `tests/test_executed_transition_gate_e2e.py`, and `tests/test_check_engine_release_gate.py`), paste the `git diff` hunks of `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/backlog_blocking_close_gate.py` showing the marker read and `git write-tree` comparison in each `check`, and paste `rg -n "no-verify" agent_workflows/hooks/executed_transition_gate.py agent_workflows/hooks/backlog_blocking_close_gate.py` (must print nothing, `0` matches).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `diff -u .aw/state/o19353/E-01-before.txt .aw/state/o19353/E-01-after.txt` -> empty output, exit 0 (`72 passed in 6.50s` across `test_executed_transition_gate.py`, `test_executed_transition_gate_e2e.py`, `test_check_engine_release_gate.py`); `git diff -- agent_workflows/hooks/executed_transition_gate.py agent_workflows/hooks/backlog_blocking_close_gate.py` adds `_candidate_state_durable_dirs`, `_read_m0001_marker`, and `_migration_marker_accepts` (comparing `marker["tree_id"]` against `git write-tree`) called in `executed_transition_gate.py::check` (+118 lines) and `backlog_blocking_close_gate.py::check` (+7 lines); `git diff` added lines have `0` `no-verify` matches (full-file `rg -n "no-verify"` still matches 8 pre-existing docstring/comment/footer lines on `HEAD` at `executed_transition_gate.py` lines 16, 25, 45, 318, 497, 583 and `backlog_blocking_close_gate.py` lines 26, 129, preserved untouched).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_gate_marker.py --durations=10` with each test node id PASSED (`tests/test_m0001_gate_marker.py::TestExecutedTransitionGateMarker::test_refused_without_marker`, `test_accepted_with_matching_marker`, `test_refused_after_extra_staged_edit`, `test_refused_after_marker_consumed`; `tests/test_m0001_gate_marker.py::TestBacklogBlockingCloseGateMarker::test_refused_without_marker`, `test_accepted_with_matching_marker`, `test_refused_after_extra_staged_edit`, `test_refused_after_marker_consumed`; `tests/test_m0001_gate_marker.py::TestStep5Cleanup::test_step_5_removes_status_and_index_files`, `test_step_5_idempotent_on_missing_files`, `test_step_5_rollback_restores_files`; and `tests/test_m0001_gate_marker.py::TestMarkerErrorHandling::test_corrupt_marker_json_falls_back_to_refusal`, `test_wrong_migration_id_refused`, `test_unmerged_index_falls_back_to_refusal`), showing 0 failed, and beside it, the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m pytest -o addopts="" -v tests/test_m0001_gate_marker.py --durations=10` -> `14 passed in 1.65s` (all 14 named node IDs `PASSED`, 0 failed; slowest test `0.31s` `TestStep5Cleanup::test_step_5_rollback_restores_files`, `0 unlisted slow tests`, marked `core`); `aw suite` (core tier) -> `2255 passed, 11 warnings in 54.79s` (exit 0, `AW_CORE_BUDGET_ENFORCE=0` under host 1-min load 5.93 on 12 CPUs).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the `git diff` hunk of `agent_workflows/migrations/m0001_metadata_v2.py` showing `_step_5_cleanup`, its integration into `run(apply=True)` and `run(apply=False)`, and its backup and restoration in `rollback(repo)`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `git diff -- agent_workflows/migrations/m0001_metadata_v2.py` adds `_clean_gitignore_index_lines`, `_step5_target_paths`, and `_step_5_cleanup(repo, *, scratch=False, apply=False)` (saving `restore_bytes` backups under `journal_dir / "backups"`), integrates `_step_5_cleanup(..., scratch=True, apply=False)` into `run()` (populating `steps["cleanup"]` on dry run and scheduling `clean_gitignore`, `clean_agents_gitignore`, and `delete_file` operations for `apply=True`), and restores all deleted/modified files in reverse order in `rollback(repo)`; all 9 `m0001` modules pass (`90 passed in 11.21s`).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` hunk of `agent_workflows/migrations/m0001_metadata_v2.py` showing `_step_4a_write_marker`, its invocation after staging paths in step 4, and `_cleanup_marker` unlinking `terminal_commit_marker.json` and clearing `journal.json` after successful commit in step 7 and inside `rollback(repo)`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff -- agent_workflows/migrations/m0001_metadata_v2.py` adds `_collect_stageable_paths`, `_stage_migration_paths`, `_unstage_migration_paths`, `_step_4a_write_marker(repo, journal_dir)` (capturing `git write-tree`, raising `PreflightGateError` on unmerged index, writing `terminal_commit_marker.json`, and saving `journal.json["terminal_commit_marker"]`), `_cleanup_marker(journal_dir)` (unlinking `terminal_commit_marker.json` and clearing `journal.json["terminal_commit_marker"] = None`), and `commit_staged(repo, paths)`; `run(apply=True)` and `_resume_applying_journal` stage migration paths and call `_step_4a_write_marker`, `commit_staged` invokes `_cleanup_marker` upon `STATUS_COMMITTED`, and `rollback(repo)` unstages `staged_paths` and invokes `_cleanup_marker`.
+  - Result: pass
 
 ## Approval and execution gate
 
