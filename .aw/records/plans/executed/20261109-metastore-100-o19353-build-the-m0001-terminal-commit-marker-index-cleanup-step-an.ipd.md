@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2 steps 4a and 5 need the migration to delete `plans/STATUS.md` and the INDEX files, and to let its own one big commit through the two pre-commit gates (`hooks/executed_transition_gate`, `hooks/backlog_blocking_close_gate`) by a positive, tree-bound marker. Plan `dcerjg` owned this as E-11 beside the census, round trip and clone proof, which made it a 6-item plan; research `nj8zdp` guidance (at most 5 E-items per plan) moves it here, split from `dcerjg` in round 3 on 2026-11-09.
 - Scope: Step 4a (journal marker holding the migration id and the staged `git write-tree` id, written after staging and deleted after commit and on rollback) and step 5 (delete `plans/STATUS.md`, every `INDEX.json`/`INDEX.md` under plans, research, prompts, and the INDEX ignore lines of the target repository's `.aw/.gitignore` or `.agents/.gitignore`) in `agent_workflows/migrations/m0001_metadata_v2.py`; read-only marker acceptance with tree-id validation in `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/backlog_blocking_close_gate.py`; and `tests/test_m0001_gate_marker.py` (the `dcerjg` E-14 subset that tests E-11). Everything runs only on `tmp_path` fixtures. EXCLUDES: the census, round trip, family test run, clone proof and changelog (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_m0001_gate_marker.py, .aw/records/plans/pending/20261109-metastore-100-o19353-build-the-m0001-terminal-commit-marker-index-cleanup-step-an.ipd.md
+- Scope-Exceeded: tests/test_m0001_sidecar.py (Updated pre-step-5 .aw/.gitignore sibling assertion after integrating step-5 INDEX ignore cleanup o19353 E-03 into m0001_metadata_v2.run)
 - Item-Dependencies: executed:tve77h, executed:g8na48, executed:vxevph, executed:1vfqdu, executed:dky26u, executed:ghhzb6, executed:hpedmn
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: o19353
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: o19353 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_m0001_sidecar.py: Updated pre-step-5 .aw/.gitignore sibling assertion after integrating step-5 INDEX ignore cleanup (o19353 E-03) into m0001_metadata_v2.run]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
