@@ -6,7 +6,7 @@
 - Scope: Add the top-level `aw describe <selector> (--summary <text> | --clear) [--apply]` setter (`6e93gt` E-02), register its parser and machine contract in `cli`, `command_surface`, `docs/cli-output-contract.md`, and the CLI conformance test harnesses, and add behavioral coverage in `tests/test_writers_create_summary.py`. EXCLUDES: `--summary` at creation (`fekdwv`, `bir7xm`, `py2vu9`) and the `CHANGELOG.md` entry (`xexn45` E-14).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/artifact_meta.py, docs/cli-output-contract.md, tests/conformance_matrix.py, tests/test_usage_refusal_agent_record.py, tests/test_writers_create_summary.py, .aw/records/plans/pending/20261109-metastore-136-h06gs7-add-the-aw-describe-short-description-setter.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:fekdwv, executed:bir7xm, executed:py2vu9
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: h06gs7
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: h06gs7 verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/artifact_meta.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 
