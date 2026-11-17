@@ -1258,6 +1258,15 @@ def run(
                 tx_data,
                 save_callback=lambda: mgr._save_transaction(tx_data),
             )
+            post_step3_dir = scratch_dir / "post_step3_records"
+            if post_step3_dir.exists():
+                shutil.rmtree(post_step3_dir)
+            if (scratch_repo / ".aw" / "records").is_dir():
+                shutil.copytree(
+                    scratch_repo / ".aw" / "records",
+                    post_step3_dir,
+                    symlinks=False,
+                )
             tx_data["rename_map"] = {e.old_rel: e.new_rel for e in rename_map.entries}
             tx_data["steps"]["renames"] = {
                 "entry_count": len(rename_map.entries),
@@ -1365,6 +1374,9 @@ def run(
                 repo_path,
                 pre_conversion_records_root=scratch_dir / "records",
                 converted_records_root=scratch_repo / ".aw" / "records",
+                post_step3_records_root=post_step3_dir
+                if post_step3_dir.is_dir()
+                else None,
                 rename_map=tx_data["rename_map"],
                 sidecar_events=sidecar_events,
                 unmapped_plan_duplicates=rename_map.unmapped_plan_duplicates,

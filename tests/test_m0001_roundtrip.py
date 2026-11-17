@@ -488,3 +488,77 @@ def test_step7_commit_with_installed_precommit_hooks_and_second_apply_idempotenc
         assert "metadata_schema is 2; nothing to do" in buf.getvalue()
     finally:
         os.chdir(old_cwd)
+
+
+def test_roundtrip_step3_rewritten_citations_and_prompt_hr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step-3 rewrites in fields/body round-trip while protected history stays pre-Step-3 verbatim; body --- in prompts is allowed."""
+    repo = _init_git_repo(tmp_path, monkeypatch, name="rt_step3_hr")
+    rec = repo / ".aw" / "records"
+    (rec / "specs" / "implemented").mkdir(parents=True)
+    (rec / "plans" / "executed").mkdir(parents=True)
+    (rec / "prompts" / "executed").mkdir(parents=True)
+
+    legacy_spec = "20260802-1904-01-sample-spec.spec.md"
+    (rec / "specs" / "implemented" / legacy_spec).write_text(
+        "# Spec: Sample\n\n"
+        "- Status: implemented\n"
+        "- Priority: medium\n"
+        "- Summary: Legacy spec without id.\n"
+        "- Short-Description: Sample legacy spec\n\n"
+        "## Body\n\nSpec body.\n",
+        encoding="utf-8",
+    )
+    (rec / "plans" / "executed" / "20261101-demo-01-pl5555-citer.ipd.md").write_text(
+        "# IPD: Citer\n\n"
+        "- Id: pl5555\n"
+        "- Status: executed\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+        f"- Concern: Implements `.aw/records/specs/implemented/{legacy_spec}` cleanly.\n"
+        f"- Scope-Paths: agent_workflows/cli.py, .aw/records/specs/implemented/{legacy_spec}\n"
+        "- Short-Description: Plan citing legacy spec\n\n"
+        "## Goal\n\nVerify Step-3 citation rewrite round-trip.\n\n"
+        "## Workflow history\n\n"
+        f"- 2026-11-01 executed (tester): covered .aw/records/specs/implemented/{legacy_spec}\n",
+        encoding="utf-8",
+    )
+    (
+        rec / "prompts" / "executed" / "20261101-demo-01-pr5555-hr-body.prompt.md"
+    ).write_text(
+        "<!-- aw-prompt: Kind: research | Id: pr5555 | Status: executed | Created: 2026-11-01 | Concerns: hr test -->\n"
+        "# Prompt with thematic break\n\n"
+        "Intro paragraph.\n\n"
+        "---\n\n"
+        "## Section 1\n\n"
+        "Body after horizontal rule.\n",
+        encoding="utf-8",
+    )
+    _commit_all(repo, "seed legacy spec citation + prompt horizontal rule fixture")
+
+    dry = m0001_metadata_v2.run(repo, apply=False)
+    assert dry["round_trip"]["round_trip_passed"] is True, dry["round_trip"]["errors"]
+    assert dry["round_trip"]["replayed_count"] == 3
+
+    # History log op keeps pre-Step-3 legacy citation verbatim while scope_paths uses new name.
+    log_path = (
+        Path(dry["scratch_dir"]) / "repo" / ".aw" / "records" / "meta" / "pl5555.jsonl"
+    )
+    events = _read_jsonl(log_path)
+    hist_lines = [
+        ev["line"]
+        for ev in events
+        if ev.get("op") == "legacy" and ev.get("source") == "history"
+    ]
+    assert any(legacy_spec in line for line in hist_lines)
+
+    new_spec_name = Path(dry["rename_map"][f"specs/implemented/{legacy_spec}"]).name
+    replayed_state, _, _, _ = artifact_meta.replay(
+        "pl5555",
+        "ipd",
+        log_path.read_text(encoding="utf-8").splitlines(keepends=True),
+        records_root=Path(dry["scratch_dir"]) / "repo" / ".aw" / "records",
+    )
+    assert any(new_spec_name in sp for sp in replayed_state.fields["scope_paths"])
+    assert _git(repo, "status", "--porcelain").stdout.strip() == ""

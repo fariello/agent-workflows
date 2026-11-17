@@ -656,6 +656,7 @@ def verify_round_trip(
     *,
     pre_conversion_records_root: Union[str, Path],
     converted_records_root: Union[str, Path],
+    post_step3_records_root: Optional[Union[str, Path]] = None,
     rename_map: Optional[Mapping[str, str]] = None,
     sidecar_events: Optional[Mapping[str, Sequence[Dict[str, Any]]]] = None,
     unmapped_plan_duplicates: Optional[Sequence[Any]] = None,
@@ -665,14 +666,22 @@ def verify_round_trip(
     Replays every generated ``meta/<id6>.jsonl`` log directly via
     ``artifact_meta.replay(id6, art_type, lines, records_root=converted_records_root)``,
     parses every rewritten record/review mirror, verifies byte-for-byte recovery of
-    legacy fields, inline history lines, sidecar JSON objects, and migrated review
-    rounds, confirms zero legacy-timestamp filenames remain (excluding OQ-02 templates)
-    and no newly created plan ``(set_id, order)`` collisions, and runs
-    ``leak_sanitizer.scan_text`` over every generated log and rewritten mirror.
+    legacy fields (against ``post_step3_records_root`` when provided, or
+    ``pre_conversion_records_root`` otherwise), inline history lines (always
+    against pre-Step-3 ``pre_conversion_records_root``), sidecar JSON objects, and
+    migrated review rounds, confirms zero legacy-timestamp filenames remain
+    (excluding OQ-02 templates) and no newly created plan ``(set_id, order)``
+    collisions, and runs ``leak_sanitizer.scan_text`` over every generated log
+    and rewritten mirror.
     """
     repo_path = Path(repo)
     pre_root = Path(pre_conversion_records_root)
     post_root = Path(converted_records_root)
+    field_source_root = (
+        Path(post_step3_records_root)
+        if post_step3_records_root is not None
+        else pre_root
+    )
     reverse_rename = {
         new_rel: old_rel for old_rel, new_rel in (rename_map or {}).items()
     }
@@ -704,7 +713,7 @@ def verify_round_trip(
             + ", ".join(legacy_filename_leftovers[:10])
         )
 
-    reviews_by_subject = m0001_convert._discover_review_files(pre_root)
+    reviews_by_subject = m0001_convert._discover_review_files(field_source_root)
     converted_records = _collect_converted_records(post_root)
     plan_set_orders: Dict[Tuple[str, int], List[str]] = {}
 
@@ -762,11 +771,15 @@ def verify_round_trip(
         # Mirror check
         try:
             if art_type == "prompt":
-                for line in rewritten_text.splitlines():
-                    if line.strip() == "---":
-                        raise ValueError(
-                            "staged prompt contains forbidden '---' delimiter"
-                        )
+                prompt_lines = rewritten_text.splitlines()
+                first_ln = prompt_lines[0].strip() if prompt_lines else ""
+                non_empty_after_c = [
+                    ln.strip() for ln in prompt_lines[1:] if ln.strip()
+                ]
+                if first_ln == "---" or (
+                    non_empty_after_c and non_empty_after_c[0] == "---"
+                ):
+                    raise ValueError("staged prompt contains forbidden '---' delimiter")
                 mirror = artifact_meta.parse_staged_prompt_mirror(rewritten_text)
                 if mirror.get("status") != state.status:
                     errors.append(
@@ -792,7 +805,8 @@ def verify_round_trip(
                 rel_path
             )
 
-        # Byte-for-byte legacy recovery against pre_conversion_records_root
+        # Byte-for-byte legacy recovery: inline history vs pre-Step-3 source,
+        # non-history fields and promoted body sections vs post-Step-3 source.
         old_rel = reverse_rename.get(rel_path)
         pre_path = pre_root / (old_rel or rel_path)
         if not pre_path.is_file():
@@ -801,9 +815,26 @@ def verify_round_trip(
             )
             continue
 
-        leg_status, _raw_fields, ordered_pairs, hist_entries = (
-            _legacy_field_pairs_for_record(pre_path, pre_root, art_type)
+        field_path = (
+            field_source_root / rel_path
+            if post_step3_records_root is not None
+            else pre_path
         )
+        if not field_path.is_file():
+            errors.append(
+                f"Missing post-step3 source for {rel_path} (looked at {field_path})"
+            )
+            continue
+
+        leg_status, _raw_fields, ordered_pairs, _post_hist = (
+            _legacy_field_pairs_for_record(field_path, field_source_root, art_type)
+        )
+        if post_step3_records_root is not None:
+            _pre_st, _pre_rf, _pre_pairs, hist_entries = _legacy_field_pairs_for_record(
+                pre_path, pre_root, art_type
+            )
+        else:
+            hist_entries = _post_hist
         if art_type not in ("walkthrough", "roadmap") and state.status != leg_status:
             errors.append(
                 f"Status round-trip mismatch for {rel_path}: {state.status!r} != {leg_status!r}"
