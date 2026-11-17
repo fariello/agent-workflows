@@ -168,6 +168,7 @@ flowchart TD
   - Carrier: cxxmyv
 - The legacy-format tests that must keep literal input (the legacy loader tests in `tve77h`, the legacy writer tests in `2xwb9b` and `xexn45`, the migration round-trip and conversion tests in `dcerjg` and `ya4ee4`; the F-03 EXCLUDED list).
   - Carrier: dcerjg
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-04-dcerjg-build-the-migration-chain-and-the-m0001-dry-run-with-census.ipd.md
 - The `tests/fixtures/review-pilot/plans/` corpus stays literal legacy input (F-05); its fate after the cutover belongs with the migrated corpus.
   - Carrier: cxxmyv
 - Deleting production parsers (the builder must not depend on them; it validates through the registry only).
