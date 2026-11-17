@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2a items 2, 3 and 5 require `aw migrate metadata` to run the existing transactional layout migration first in a `.agents/` or mixed repository (and report when skipped on an `.aw/`-only repository), resolve the records root through `project_context` (`companion` and `home` backends, `AC-18`), and treat a missing sidecar as normal unless `m0001_discover.discover` reports one is expected. Plan `g5hpbb` owned this (`g5hpbb` E-06) beside seven other items; research `nj8zdp` guidance split it in round 3 on 2026-11-09.
 - Scope: Add embedded stage-one plan, scratch-projection, apply (`backfill_ids=False`), resume, and snapshot-backed rollback helpers to `layout_migration.MigrationManager` (E-01); chain stage one, external `companion`/`home` `records_root` handling, `discover`-based sidecar expectedness, and cross-stage fault rollback in `m0001_metadata_v2.py` (E-02); report stage-one status (including `.aw/`-only skip) and `"no sidecar (none expected)"` in `m0001_verify.py` while keeping `tests/test_m0001_sidecar.py` aligned with `discover.sidecar_expected` (E-03); wire `--fault-injection` and two-stage reporting through `chain.py` and `cli.py` (E-04); and add behavioral fixture suite `tests/test_m0001_layout_stage.py` (E-05). EXCLUDES: `m0001_discover.py` and id-less record conversion (`3g20ms`), and the `AC-42` end-to-end proof plus `CHANGELOG.md` entry (`g5hpbb`).
 - Scope-Paths: agent_workflows/layout_migration.py, agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_verify.py, agent_workflows/migrations/chain.py, agent_workflows/cli.py, tests/test_m0001_sidecar.py, tests/test_m0001_layout_stage.py, .aw/records/plans/pending/20261109-metastore-105-bv4kkj-chain-the-layout-migration-as-stage-one-of-aw-migrate-metada.ipd.md
+- Scope-Exceeded: .aw/records/backlog/done/20261117-metastore-01-b4vfda-m0001-convert-backlog-map-omitted-legacy-kind-fiel.backlog.md (Durable defect carrier filed under execution defect-report requirement for m0001_convert.backlog_map omitting legacy Kind -> work_kind alias fixed in bv4kkj); agent_workflows/migrations/m0001_convert.py (Fix missing legacy Kind -> work_kind alias in backlog_map so mixed_layout qa1z04 converts cleanly during verification); tests/test_m0001_preflight.py (Add aw backlog setter history line to pre-3g20ms bk0001 fixture per E-03 discover.sidecar_expected alignment)
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv, executed:3g20ms
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: bv4kkj
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: bv4kkj verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/done/20261117-metastore-01-b4vfda-m0001-convert-backlog-map-omitted-legacy-kind-fiel.backlog.md: Durable defect carrier filed under execution defect-report requirement for m0001_convert.backlog_map omitting legacy Kind -> work_kind alias (fixed in bv4kkj); out-of-scope agent_workflows/migrations/m0001_convert.py: Fix missing legacy Kind -> work_kind alias in backlog_map so mixed_layout qa1z04 converts cleanly during verification; out-of-scope tests/test_m0001_preflight.py: Add aw backlog setter history line to pre-3g20ms bk0001 fixture per E-03 discover.sidecar_expected alignment]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini-4-carbon): /plan-review (antigravity/gemini-4-carbon): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
