@@ -129,6 +129,7 @@ flowchart TD
 
 - The chain and the stamp this CLI calls (`chain.MIGRATIONS`, `Migration.run`, `CURRENT_METADATA_SCHEMA`, `read_metadata_schema`, `write_metadata_schema`, `repo_has_legacy_records`).
   - Carrier: g8na48
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - The preflight and the journal this CLI calls.
   - Carrier: vxevph
 - The `--describe-host`, `--describe-model`, `--describe-limit` and `--no-describe` options on `aw migrate metadata`.

@@ -140,6 +140,7 @@ flowchart TD
 
 - E-01 (the `aw check` baseline, `migrations/__init__.py`, `migrations/chain.py`, the `metadata_schema` stamp and its `project_schema`/`install_wizard` round trip, the `artifact_meta` read-path hook) and the stamp-and-schema half of `tests/test_migrations_chain.py` from E-05: Moved to g8na48 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: g8na48
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - The `aw migrate` command group, bare `aw migrate`, and the install pending-migration prompt.
   - Carrier: 1vfqdu
 - Step-3 legacy-timestamp rename map and citation rewrites (`m0001_renames.py`).

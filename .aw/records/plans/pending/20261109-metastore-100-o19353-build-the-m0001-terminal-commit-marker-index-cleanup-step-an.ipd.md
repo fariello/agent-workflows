@@ -118,6 +118,7 @@ flowchart TD
 
 - Full migration chain, metadata_schema stamp, and read-path schema hook.
   - Carrier: g8na48
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - Step-1 preflight, migration journal, and step-2 sidecar import.
   - Carrier: vxevph
 - `aw migrate` CLI command group, bare `aw migrate`, and install prompt.

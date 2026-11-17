@@ -140,6 +140,7 @@ Every earlier `m0001` step is built by the parts in `- Item-Dependencies:`, whic
 
 - E-01 chain half (`migrations/__init__.py`, `chain.py`, `metadata_schema` stamp in `project_schema.py` and `install_wizard.py`, `artifact_meta._require_schema`, `aw check` baseline capture in `F-03`) and `tests/test_migrations_chain.py`: Moved to `g8na48` (round-3 split 2026-11-09 from `vxevph` per research `nj8zdp`).
   - Carrier: g8na48
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - E-04 (step-1 preflight), E-05 (migration journal), E-06 (step-2 sidecar import), and their tests from E-14 (`tests/test_m0001_preflight.py`, `tests/test_m0001_sidecar.py`): Moved to `vxevph` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: vxevph
 - E-02 (`aw migrate` group with `metadata` and `layout`), E-03 (install pending-migration prompt and `--migrate`), bare `aw migrate`, and their tests from E-14 (`tests/test_install_migrate_prompt.py`, `tests/test_migrate_cli.py`): Moved to `1vfqdu` (split 2026-11-07 per maintainer step-complexity rule).
