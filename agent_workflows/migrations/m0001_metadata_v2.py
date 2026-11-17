@@ -1,0 +1,705 @@
+"""Migration 0001 (metadata-v2): journaled execution, sidecar import, and rollback.
+
+Implements spec 4sd62s Sections 5.1 (MigrationManager journal reuse), 5.2 step 0
+(dry-run default and resume), 5.2 step 2 (sidecar expectedness, op:legacy queueing,
+orphan export, sidecar move, and .aw/.gitignore cleanup), and 5.2a item 5.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+from agent_workflows import (
+    artifact_core,
+    artifact_meta,
+    artifact_naming,
+    layout_migration,
+    project_context,
+    record_history,
+)
+from agent_workflows.migrations import m0001_preflight
+
+_EXCLUDED_DIRNAMES = frozenset(
+    {"comms", "prompt-library", "untracked", "runs", "meta", "reviews"}
+)
+_EXCLUDED_FILENAMES = frozenset(
+    {
+        "README.md",
+        "STATUS.md",
+        "conformance-results-template.md",
+        "20260712-0156-14-chatgpt-modular-report-template.md",
+    }
+)
+_PROMPT_COMMENT_RE = re.compile(
+    r"\A<!--\s*(?:aw-prompt|aw-managed-prompt):\s*(.*?)\s*-->", re.DOTALL
+)
+_SIDECAR_GITIGNORE_LINES = frozenset(
+    {"records/history.jsonl", "/records/history.jsonl"}
+)
+
+
+def _utc_now() -> str:
+    """Return current UTC ISO-8601 timestamp matching MigrationManager format."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _journal_dir_for(repo_path: Path) -> Tuple[Path, Path]:
+    """Return ``(journal_dir, records_root)`` resolved through ``project_context``."""
+    ctx = project_context.resolve_project_context(target_repo=str(repo_path))
+    state_durable = Path(ctx.physical_classes["state_durable"])
+    journal_dir = state_durable / "migrations" / "m0001"
+    records_root = project_context.project_records_dir(repo_path)
+    return journal_dir, records_root
+
+
+def _make_rebound_manager(
+    repo_path: Path, journal_dir: Path
+) -> layout_migration.MigrationManager:
+    """Instantiate MigrationManager rebound to ``journal_dir`` without touching layout files."""
+    mgr = layout_migration.MigrationManager(str(repo_path))
+    mgr.transaction_file = journal_dir / "journal.json"
+    mgr.lock_file = journal_dir / "writer.lock"
+    return mgr
+
+
+def _peek_journal(journal_dir: Path) -> Optional[Dict[str, Any]]:
+    """Read ``journal.json`` without creating directories or locks, or return None."""
+    tx_path = journal_dir / "journal.json"
+    if not tx_path.is_file():
+        return None
+    try:
+        data = json.loads(tx_path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _filename_id6(filename: str) -> Optional[str]:
+    """Extract a valid id6 from ``filename``, testing legacy timestamp names first."""
+    if artifact_naming._LEGACY_TIMESTAMP_RE.match(filename):
+        return None
+    m_attr = artifact_naming.parse_attributed(filename)
+    if m_attr and artifact_core.is_valid_id6(m_attr.id6):
+        return m_attr.id6
+    m_clust = artifact_naming.parse_clustered(filename)
+    if m_clust and artifact_core.is_valid_id6(m_clust.group("id6")):
+        return m_clust.group("id6")
+    m_prefix = artifact_naming.parse_clustered_prefix(filename)
+    if m_prefix and artifact_core.is_valid_id6(m_prefix.group("id6")):
+        return m_prefix.group("id6")
+    return None
+
+
+def _infile_id6(text: str) -> Optional[str]:
+    """Extract a valid in-file id6 from YAML, prompt comment, or bullet block."""
+    if text.startswith("---"):
+        yaml_probe, _ = artifact_meta._parse_yaml_front_matter(text)
+        after_fence = text.split("\n", 1)[1][:200] if "\n" in text else ""
+        if yaml_probe and not artifact_meta._BULLET_RE.search(after_fence):
+            cand = yaml_probe.get("id") or yaml_probe.get("Id")
+            if isinstance(cand, str) and artifact_core.is_valid_id6(cand.strip()):
+                return cand.strip()
+            return None
+
+    m_prompt = _PROMPT_COMMENT_RE.match(text.lstrip())
+    if m_prompt:
+        for item in m_prompt.group(1).split("|"):
+            if ":" in item:
+                k, v = item.split(":", 1)
+                if k.strip() in ("Id", "id") and artifact_core.is_valid_id6(v.strip()):
+                    return v.strip()
+
+    bullets, _, _ = artifact_meta._parse_bullet_metadata(text)
+    cand = bullets.get("Id") or bullets.get("id")
+    if isinstance(cand, str) and artifact_core.is_valid_id6(cand.strip()):
+        return cand.strip()
+    return None
+
+
+def _walk_record_files(root: Path, *, exclude_dirs: Set[str]) -> List[Path]:
+    """Walk ``root`` yielding non-excluded ``.md`` record files in sorted order."""
+    if not root.is_dir():
+        return []
+    found: List[Path] = []
+    for cur_dir, dirs, files in os.walk(root):
+        dirs[:] = sorted(
+            d for d in dirs if d not in exclude_dirs and not d.endswith(".data")
+        )
+        cur_path = Path(cur_dir)
+        for fname in sorted(files):
+            if not fname.endswith(".md"):
+                continue
+            if (
+                fname in _EXCLUDED_FILENAMES
+                or fname.startswith("INDEX.")
+                or fname.endswith(".review.md")
+            ):
+                continue
+            found.append(cur_path / fname)
+    return found
+
+
+def _is_sidecar_expected(records_root: Path) -> bool:
+    """Return True if ``records_root`` holds any tracked spec or backlog record with an id6."""
+    for sub in ("specs", "backlog"):
+        for path in _walk_record_files(
+            records_root / sub, exclude_dirs=set(_EXCLUDED_DIRNAMES)
+        ):
+            if _filename_id6(path.name) is not None:
+                return True
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if _infile_id6(text) is not None:
+                return True
+    return False
+
+
+def _collect_tracked_record_id6s(records_root: Path) -> Set[str]:
+    """Collect every tracked record id6 under ``records_root``."""
+    tracked: Set[str] = set()
+    for path in _walk_record_files(records_root, exclude_dirs=set(_EXCLUDED_DIRNAMES)):
+        fid = _filename_id6(path.name)
+        if fid is not None:
+            tracked.add(fid)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        iid = _infile_id6(text)
+        if iid is not None:
+            tracked.add(iid)
+    return tracked
+
+
+def _read_sidecar_records(sidecar_path: Path) -> List[Dict[str, Any]]:
+    """Read and parse JSONL records from ``sidecar_path`` in file order."""
+    records: List[Dict[str, Any]] = []
+    raw_text = sidecar_path.read_text(encoding="utf-8")
+    for lineno, raw_line in enumerate(raw_text.splitlines(), start=1):
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise layout_migration.MigrationError(
+                f"Malformed JSON in sidecar {sidecar_path} line {lineno}: {exc}"
+            ) from exc
+        if not isinstance(obj, dict):
+            raise layout_migration.MigrationError(
+                f"Expected JSON object in sidecar {sidecar_path} line {lineno}, got {type(obj).__name__}"
+            )
+        records.append(obj)
+    return records
+
+
+def _classify_sidecar_records(
+    records: List[Dict[str, Any]], tracked_id6s: Set[str]
+) -> Tuple[Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], Dict[str, int]]:
+    """Partition sidecar records into queued ``op: legacy`` events and unresolvable orphans."""
+    sidecar_events: Dict[str, List[Dict[str, Any]]] = {}
+    orphans: List[Dict[str, Any]] = []
+    orphan_counts: Dict[str, int] = {}
+
+    for idx, rec in enumerate(records):
+        key_kind = rec.get("key_kind")
+        rec_id6 = rec.get("id6")
+        if (
+            key_kind != "synthetic"
+            and isinstance(rec_id6, str)
+            and rec_id6 in tracked_id6s
+        ):
+            payload: Dict[str, Any] = {
+                "op": "legacy",
+                "source": "sidecar",
+                "observed_day": rec.get("date"),
+                "position": idx,
+                "ordering_confidence": "unknown",
+                "line": rec,
+            }
+            sidecar_events.setdefault(rec_id6, []).append(payload)
+        else:
+            orphans.append(rec)
+            orphan_key = (
+                str(rec_id6) if isinstance(rec_id6, str) and rec_id6 else "<missing>"
+            )
+            orphan_counts[orphan_key] = orphan_counts.get(orphan_key, 0) + 1
+
+    return sidecar_events, orphans, orphan_counts
+
+
+def _clean_gitignore_history_lines(text: str) -> Tuple[str, bool]:
+    """Remove ``records/history.jsonl`` / ``/records/history.jsonl`` lines, preserving all else."""
+    lines = text.splitlines(keepends=True)
+    kept = [
+        ln for ln in lines if ln.rstrip("\r\n").strip() not in _SIDECAR_GITIGNORE_LINES
+    ]
+    if len(kept) == len(lines):
+        return text, False
+    return "".join(kept), True
+
+
+def _stage_scratch(
+    repo_path: Path,
+    records_root: Path,
+    scratch_dir: Path,
+) -> Tuple[Optional[str], bool]:
+    """Populate ``scratch_dir`` cleanly and return ``(gitignore_scratch_rel, gitignore_changed)``."""
+    if scratch_dir.exists():
+        shutil.rmtree(scratch_dir)
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    if records_root.is_dir():
+        shutil.copytree(records_root, scratch_dir / "records", symlinks=False)
+
+    gitignore_path = repo_path / ".aw" / ".gitignore"
+    if gitignore_path.is_file():
+        orig_text = gitignore_path.read_text(encoding="utf-8")
+        cleaned_text, changed = _clean_gitignore_history_lines(orig_text)
+        if changed:
+            rel = "repo/.aw/.gitignore"
+            dst = scratch_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_text(cleaned_text, encoding="utf-8")
+            return rel, True
+
+    return None, False
+
+
+def _save_backup_bytes(
+    backups_dir: Path, op_id: str, target_path: Path
+) -> Tuple[bool, Optional[str]]:
+    """Save pre-apply bytes of ``target_path`` under ``backups_dir``."""
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    if not target_path.exists():
+        return False, None
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", op_id) + ".bak"
+    backup_path = backups_dir / safe_name
+    backup_path.write_bytes(target_path.read_bytes())
+    return True, safe_name
+
+
+def _write_bytes_atomic(target: Path, data: bytes) -> None:
+    """Atomically write ``data`` to ``target`` via a sibling temp file."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target.parent / f".aw-tmp-{target.name}-{os.getpid()}"
+    try:
+        with open(tmp_path, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, target)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _execute_planned_operations(
+    mgr: layout_migration.MigrationManager,
+    tx_data: Dict[str, Any],
+    journal_dir: Path,
+    *,
+    fault_injection: Optional[str] = None,
+) -> None:
+    """Apply remaining operations from ``journal_dir / 'scratch'``, backing up each target."""
+    done_ids = {
+        entry.get("op_id")
+        for entry in (tx_data.get("applied_files") or [])
+        if isinstance(entry, dict) and entry.get("op_id")
+    }
+    backups_dir = journal_dir / "backups"
+    scratch_dir = journal_dir / "scratch"
+
+    for op in tx_data.get("operations") or []:
+        op_id = op["op_id"]
+        if op_id in done_ids:
+            continue
+
+        kind = op["kind"]
+        if kind == "move_to_journal":
+            src = Path(op["src"])
+            dst = Path(op["dst"])
+            existed, backup_name = _save_backup_bytes(backups_dir, op_id, src)
+            tx_data["backups"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "restore_moved",
+                    "target": str(src),
+                    "moved_to": str(dst),
+                    "existed": existed,
+                    "backup_file": backup_name,
+                }
+            )
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(dst))
+            tx_data["applied_files"].append(
+                {
+                    "op_id": op_id,
+                    "kind": kind,
+                    "path": str(src),
+                    "dst": str(dst),
+                }
+            )
+        elif kind == "write_from_scratch":
+            target = Path(op["target"])
+            scratch_src = scratch_dir / op["scratch_rel"]
+            existed, backup_name = _save_backup_bytes(backups_dir, op_id, target)
+            tx_data["backups"].append(
+                {
+                    "op_id": op_id,
+                    "kind": "restore_bytes",
+                    "target": str(target),
+                    "existed": existed,
+                    "backup_file": backup_name,
+                }
+            )
+            _write_bytes_atomic(target, scratch_src.read_bytes())
+            tx_data["applied_files"].append(
+                {
+                    "op_id": op_id,
+                    "kind": kind,
+                    "path": str(target),
+                }
+            )
+        else:
+            raise layout_migration.MigrationError(
+                f"Unknown m0001 operation kind: {kind!r}"
+            )
+
+        mgr._save_transaction(tx_data)
+
+        if fault_injection == "interrupt-mid-apply" and tx_data["applied_files"]:
+            raise layout_migration.MigrationError("Injected fault: interrupt-mid-apply")
+
+    tx_data["status"] = "applied"
+    mgr._save_transaction(tx_data)
+
+
+def _format_run_report(
+    tx_data: Dict[str, Any],
+    journal_dir: Path,
+    *,
+    applied: bool,
+    resumed: bool = False,
+) -> Dict[str, Any]:
+    """Build the public return dictionary for ``run`` and ``resume``."""
+    steps = tx_data.get("steps") or {}
+    return {
+        "migration_id": tx_data.get("migration_id", "m0001"),
+        "transaction_id": tx_data.get("transaction_id"),
+        "status": tx_data.get("status"),
+        "applied": applied,
+        "dry_run": not applied,
+        "resumed": resumed,
+        "journal_dir": str(journal_dir),
+        "journal_path": str(journal_dir / "journal.json"),
+        "scratch_dir": str(journal_dir / "scratch"),
+        "preflight": steps.get("preflight"),
+        "sidecar": steps.get("sidecar"),
+        "sidecar_events": tx_data.get("sidecar_events") or {},
+        "orphan_export_path": tx_data.get("orphan_export_path"),
+        "orphan_counts": tx_data.get("orphan_counts") or {},
+        "applied_files": list(tx_data.get("applied_files") or []),
+        "minted_ids": dict(tx_data.get("minted_ids") or {}),
+        "rename_map": dict(tx_data.get("rename_map") or {}),
+        "terminal_commit_marker": tx_data.get("terminal_commit_marker"),
+    }
+
+
+def _resume_applying_journal(
+    repo_path: Path,
+    journal_dir: Path,
+    records_root: Path,
+    *,
+    force: bool = False,
+    force_worktree: bool = False,
+    fault_injection: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Resume an interrupted ``status == 'applying'`` run from ``journal_dir / 'scratch'``."""
+    preflight = m0001_preflight.check_preflight(
+        repo_path,
+        records_root=records_root,
+        force=force,
+        force_worktree=force_worktree,
+        skip_uncommitted=True,
+    )
+    mgr = _make_rebound_manager(repo_path, journal_dir)
+    existing = mgr._load_transaction()
+    if not existing or existing.get("status") != "applying":
+        raise layout_migration.MigrationError(
+            f"No applying m0001 migration journal found at {mgr.transaction_file}"
+        )
+    tx_id = str(existing.get("transaction_id") or f"m0001-resume-{os.getpid()}")
+
+    with m0001_preflight.acquire_apply_integration_lock(
+        repo_path,
+        apply=True,
+        lock_overridden=bool(preflight.get("lock_overridden")),
+        force=force,
+    ):
+        mgr._acquire_lock(tx_id)
+        try:
+            tx_data = mgr._load_transaction()
+            if not tx_data or tx_data.get("status") != "applying":
+                raise layout_migration.MigrationError(
+                    f"Journal at {mgr.transaction_file} is no longer in 'applying' state."
+                )
+            _execute_planned_operations(
+                mgr, tx_data, journal_dir, fault_injection=fault_injection
+            )
+            return _format_run_report(tx_data, journal_dir, applied=True, resumed=True)
+        finally:
+            mgr._release_lock()
+
+
+def run(
+    repo: Union[str, Path],
+    *,
+    apply: bool = False,
+    force: bool = False,
+    force_worktree: bool = False,
+    describer: Optional[Any] = None,
+    fault_injection: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``."""
+    _ = describer  # Used by later conversion/description steps (ya4ee4 / odeo9z).
+    repo_path = Path(repo)
+    journal_dir, records_root = _journal_dir_for(repo_path)
+
+    existing_peek = _peek_journal(journal_dir)
+    if (
+        apply
+        and existing_peek is not None
+        and existing_peek.get("status") == "applying"
+    ):
+        return _resume_applying_journal(
+            repo_path,
+            journal_dir,
+            records_root,
+            force=force,
+            force_worktree=force_worktree,
+            fault_injection=fault_injection,
+        )
+
+    # Step 1: preflight (writes nothing on refusal).
+    preflight = m0001_preflight.check_preflight(
+        repo_path,
+        records_root=records_root,
+        force=force,
+        force_worktree=force_worktree,
+    )
+
+    # Step 2 (pre-journal gate): sidecar expectedness check (writes nothing on refusal).
+    sidecar_path = record_history.history_path(repo_path)
+    sidecar_present = sidecar_path.is_file()
+    sidecar_expected = _is_sidecar_expected(records_root)
+    if sidecar_present:
+        sidecar_records = _read_sidecar_records(sidecar_path)
+        sidecar_status = f"present ({len(sidecar_records)} records)"
+    else:
+        sidecar_records = []
+        if sidecar_expected:
+            if not force:
+                raise layout_migration.PreflightGateError(
+                    f"SIDECAR: expected history sidecar missing at {sidecar_path}; "
+                    "pass --force to override if the sidecar is genuinely lost."
+                )
+            sidecar_status = "missing expected sidecar (overridden by --force)"
+            consequence = (
+                "History sidecar is missing and overridden with --force; "
+                "sidecar-only history records cannot be imported."
+            )
+            preflight["overridden"].append(
+                {
+                    "condition": "SIDECAR",
+                    "detail": f"Missing expected sidecar at {sidecar_path}",
+                    "consequence": consequence,
+                }
+            )
+            preflight["warnings"].append(
+                f"SIDECAR override (--force): {sidecar_path} missing. {consequence}"
+            )
+        else:
+            sidecar_status = "no sidecar (none expected)"
+
+    # Refusals cleared; enter journaled execution.
+    mgr = _make_rebound_manager(repo_path, journal_dir)
+    tx_id = f"m0001-{int(time.time())}-{os.getpid()}"
+
+    with m0001_preflight.acquire_apply_integration_lock(
+        repo_path,
+        apply=apply,
+        lock_overridden=bool(preflight.get("lock_overridden")),
+        force=force,
+    ):
+        mgr._acquire_lock(tx_id)
+        try:
+            prior_tx = mgr._load_transaction() or {}
+            tracked_id6s = _collect_tracked_record_id6s(records_root)
+            sidecar_events, orphans, orphan_counts = _classify_sidecar_records(
+                sidecar_records, tracked_id6s
+            )
+
+            orphan_file = journal_dir / "sidecar-orphans.jsonl"
+            if orphans:
+                journal_dir.mkdir(parents=True, exist_ok=True)
+                orphan_payload = "".join(
+                    json.dumps(rec, ensure_ascii=False) + "\n" for rec in orphans
+                )
+                orphan_file.write_text(orphan_payload, encoding="utf-8")
+                orphan_export_path: Optional[str] = str(orphan_file)
+            else:
+                if orphan_file.exists():
+                    orphan_file.unlink()
+                orphan_export_path = None
+
+            scratch_dir = journal_dir / "scratch"
+            gitignore_rel, gitignore_changed = _stage_scratch(
+                repo_path, records_root, scratch_dir
+            )
+
+            operations: List[Dict[str, Any]] = []
+            if sidecar_present:
+                operations.append(
+                    {
+                        "op_id": "move_sidecar",
+                        "kind": "move_to_journal",
+                        "src": str(sidecar_path),
+                        "dst": str(journal_dir / "history.jsonl.imported"),
+                    }
+                )
+            if gitignore_changed and gitignore_rel is not None:
+                operations.append(
+                    {
+                        "op_id": "clean_gitignore",
+                        "kind": "write_from_scratch",
+                        "target": str(repo_path / ".aw" / ".gitignore"),
+                        "scratch_rel": gitignore_rel,
+                    }
+                )
+
+            now_utc = _utc_now()
+            tx_data: Dict[str, Any] = {
+                "schema_version": mgr.SCHEMA_VERSION,
+                "migration_id": "m0001",
+                "transaction_id": tx_id,
+                "status": "applying" if apply else "dry_run",
+                "timestamps": {"started_at": now_utc, "updated_at": now_utc},
+                "records_root": str(records_root),
+                "minted_ids": dict(prior_tx.get("minted_ids") or {}),
+                "rename_map": {},
+                "steps": {
+                    "preflight": preflight,
+                    "sidecar": {
+                        "present": sidecar_present,
+                        "expected": sidecar_expected,
+                        "status": sidecar_status,
+                        "record_count": len(sidecar_records),
+                        "queued_id6_count": len(sidecar_events),
+                        "queued_event_count": sum(
+                            len(v) for v in sidecar_events.values()
+                        ),
+                        "orphan_record_count": len(orphans),
+                    },
+                },
+                "applied_files": [],
+                "backups": [],
+                "operations": operations,
+                "descriptions": dict(prior_tx.get("descriptions") or {}),
+                "sidecar_events": sidecar_events,
+                "orphan_export_path": orphan_export_path,
+                "orphan_counts": orphan_counts,
+                "terminal_commit_marker": None,
+            }
+            mgr._save_transaction(tx_data)
+
+            if not apply:
+                return _format_run_report(tx_data, journal_dir, applied=False)
+
+            _execute_planned_operations(
+                mgr, tx_data, journal_dir, fault_injection=fault_injection
+            )
+            return _format_run_report(tx_data, journal_dir, applied=True)
+        finally:
+            mgr._release_lock()
+
+
+def resume(
+    repo: Union[str, Path],
+    *,
+    fault_injection: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Resume an interrupted m0001 migration apply from its journal and scratch dir."""
+    repo_path = Path(repo)
+    journal_dir, records_root = _journal_dir_for(repo_path)
+    return _resume_applying_journal(
+        repo_path,
+        journal_dir,
+        records_root,
+        fault_injection=fault_injection,
+    )
+
+
+def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
+    """Restore pre-apply file bytes from ``journal_dir / 'backups'`` in reverse order."""
+    repo_path = Path(repo)
+    journal_dir, _records_root = _journal_dir_for(repo_path)
+    mgr = _make_rebound_manager(repo_path, journal_dir)
+    tx_id = f"m0001-rollback-{os.getpid()}"
+
+    mgr._acquire_lock(tx_id)
+    try:
+        tx_data = mgr._load_transaction()
+        if tx_data is None:
+            raise layout_migration.MigrationError(
+                f"No m0001 migration journal found at {mgr.transaction_file}"
+            )
+        if tx_data.get("status") == "rolled_back":
+            return {
+                "migration_id": "m0001",
+                "status": "rolled_back",
+                "restored_count": 0,
+                "already_rolled_back": True,
+                "journal_path": str(mgr.transaction_file),
+            }
+
+        backups_dir = journal_dir / "backups"
+        restored = 0
+        for entry in reversed(tx_data.get("backups") or []):
+            target = Path(entry["target"])
+            kind = entry.get("kind")
+            existed = bool(entry.get("existed"))
+            backup_file = entry.get("backup_file")
+
+            if existed and backup_file:
+                raw_bytes = (backups_dir / backup_file).read_bytes()
+                _write_bytes_atomic(target, raw_bytes)
+            else:
+                target.unlink(missing_ok=True)
+
+            if kind == "restore_moved" and entry.get("moved_to"):
+                Path(entry["moved_to"]).unlink(missing_ok=True)
+
+            restored += 1
+
+        marker_file = journal_dir / "terminal_commit_marker.json"
+        if marker_file.exists():
+            marker_file.unlink()
+
+        tx_data["terminal_commit_marker"] = None
+        tx_data["status"] = "rolled_back"
+        mgr._save_transaction(tx_data)
+
+        return {
+            "migration_id": "m0001",
+            "status": "rolled_back",
+            "restored_count": restored,
+            "already_rolled_back": False,
+            "journal_path": str(mgr.transaction_file),
+        }
+    finally:
+        mgr._release_lock()
