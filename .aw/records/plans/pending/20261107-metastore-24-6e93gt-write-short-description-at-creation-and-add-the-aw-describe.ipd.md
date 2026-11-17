@@ -85,6 +85,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 - E-01 backlog, specs and releases subset (`aw backlog new`, `aw specs new` with the over-300 rule, `aw releases new`) and the creation of `tests/test_writers_create_summary.py`: Moved to fekdwv (round-3 split 2026-11-09 per research nj8zdp guidance)
   - Carrier: fekdwv
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-124-fekdwv-write-short-description-at-creation-for-backlog-specs-and-re.ipd.md
 - E-01 research and adopt subset (`aw research new` with the `short-description:` YAML key, `aw adopt`): Moved to bir7xm (round-3 split 2026-11-09 per research nj8zdp guidance)
   - Carrier: bir7xm
 - E-01 scaffold and prompts subset (the two new `--summary` options in `cli` and `command_surface`, the `Short-Description` entry in `ipd_schema.META_RECOGNIZED`, the prompt comment key): Moved to py2vu9 (round-3 split 2026-11-09 per research nj8zdp guidance)
