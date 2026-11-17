@@ -6,7 +6,7 @@
 - Scope: `tests/migration_corpus.py`, a fixture builder (not a test module) with one function per C12 shape (a) to (e), each shape derived from recorded STRUCTURAL evidence (this repository's public git history, and the `g5hpbb` measurements of a private repository) with all text synthetic; and `tests/test_migration_corpus.py`, the builder's own behavioural test. EXCLUDES: the cache changes (`6oi2nu`), discovery and id-less conversion (`3g20ms`), layout chaining (`bv4kkj`), the AC-42 proof and changelog (`g5hpbb`).
 - Scope-Paths: tests/migration_corpus.py, tests/test_migration_corpus.py, .aw/records/plans/pending/20261109-metastore-102-9vf2iv-build-the-five-shape-migration-fixture-corpus-from-a-structu.ipd.md
 - Item-Dependencies: executed:dcerjg
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +18,9 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9vf2iv
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 9vf2iv verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 confirmed FIXED; scaffold removed
 - 2026-11-14 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
