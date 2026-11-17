@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/artifact_meta.py`: scan the same directory set as `selectors.record_dirs` (E-01, from `g5hpbb` E-02) and give an id-less record a stable path-derived identity (E-02, from `g5hpbb` E-03); route every in-module join of a stored path through one helper (E-04); pass the repository root to the scan from the readers and `meta_cli` (E-06); phase-B notes in spec `4sd62s` 5.2a item 3 and the 4.5a `ARTIFACTS` diagram (E-05); and the cache-case test module `tests/test_artifact_meta_shapes.py` (E-03, the `g5hpbb` E-07 subset for those two items). EXCLUDES: discovery and conversion (`3g20ms`), layout stage (`bv4kkj`), the AC-42 proof (`g5hpbb`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/meta_cli.py, tests/test_artifact_meta_shapes.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261109-metastore-103-6oi2nu-make-the-artifact-meta-cache-scan-every-record-tree-and-give.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:9vf2iv
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6oi2nu
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 6oi2nu verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 FIXED; review record .aw/records/reviews/20261109-metastore-103-6oi2nu-make-the-artifact-meta-cache-scan-every-record-tree-and-give.review.md
