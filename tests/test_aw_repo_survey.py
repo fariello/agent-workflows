@@ -36,9 +36,13 @@ def _commit(path: Path) -> None:
 
 
 def _run_survey(
-    tmp_path: Path, *args: str, out_rel: str = "out.json"
+    tmp_path: Path,
+    *args: str,
+    out_rel: str | None = "out.json",
+    isolated: bool = True,
 ) -> tuple[dict, str]:
-    out = tmp_path / out_rel
+    """Run the survey. `isolated` adds `--no-run-aw --offline` unless a test opts in to either."""
+    out = tmp_path / (out_rel or "unused")
     home_dir = tmp_path / "home"
     home_dir.mkdir(exist_ok=True)
     home_str = str(home_dir)
@@ -49,13 +53,21 @@ def _run_survey(
     for k in ("AW_CONFIG_DIR", "XDG_CONFIG_HOME", "AW_HOME", "HOMEDRIVE", "HOMEPATH"):
         env.pop(k, None)
     res = subprocess.run(
-        [sys.executable, str(SCRIPT), *args, "-o", str(out)],
+        [
+            sys.executable,
+            str(SCRIPT),
+            *args,
+            *(["--no-run-aw", "--offline"] if isolated else []),
+            *(["-o", str(out)] if out_rel else []),
+        ],
         capture_output=True,
         text=True,
         env=env,
         check=False,
     )
     assert res.returncode == 0, res.stderr
+    if out_rel is None:
+        [out] = (home_dir / "aw-survey").glob("*.json")
     return json.loads(out.read_text(encoding="utf-8")), res.stderr
 
 
@@ -272,3 +284,184 @@ def test_stderr_lists_created_files(tmp_path: Path) -> None:
     assert "Files created (UNMASKED; do not commit or share):" in err
     assert f"{tmp_path / 'survey-out'}/ (directory)" in err
     assert f"{out} (" in err and "bytes)" in err
+
+
+def _remote_pair(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """A bare remote, a clone with `.aw/`, and a second clone used to advance the remote."""
+    seed = _repo(tmp_path / "seed")
+    (seed / ".aw").mkdir()
+    (seed / ".aw" / "a.md").write_text("a\n", encoding="utf-8")
+    _commit(seed)
+    bare = tmp_path / "remote.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(seed), str(bare))
+    work = tmp_path / "src" / "work"
+    _git(tmp_path, "clone", "-q", str(bare), str(work))
+    _git(work, "config", "user.email", "t@example.com")
+    _git(work, "config", "user.name", "T")
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(bare), str(other))
+    _git(other, "config", "user.email", "t@example.com")
+    _git(other, "config", "user.name", "T")
+    return bare, work, other
+
+
+def test_git_state_reports_up_to_date_then_push_and_pull_needs(tmp_path: Path) -> None:
+    _, work, other = _remote_pair(tmp_path)
+
+    doc, _ = _run_survey(
+        tmp_path, str(work), "--no-registry", "--no-run-aw", isolated=False
+    )
+    g = doc["repos"][0]["git"]
+    assert g["current_branch_state"] == "up-to-date"
+    assert g["needs"] == [] and g["dirty"] is False
+    assert g["remotes"]["origin"]["reachable"] is True
+    assert g["remotes"]["origin"]["default_branch"] == "main"
+
+    (work / "local.txt").write_text("l\n", encoding="utf-8")
+    _commit(work)
+    (work / "dirty.txt").write_text("d\n", encoding="utf-8")
+    (other / "remote.txt").write_text("r\n", encoding="utf-8")
+    _commit(other)
+    _git(other, "push", "-q", "origin", "main")
+    _git(work, "checkout", "-q", "-b", "scratch")
+    _git(work, "checkout", "-q", "main")
+
+    doc, err = _run_survey(
+        tmp_path, str(work), "--no-registry", "--no-run-aw", isolated=False
+    )
+    g = doc["repos"][0]["git"]
+    main = next(b for b in g["branches"] if b["name"] == "main")
+    # The remote moved to a commit this clone never fetched: behind by an unknown count.
+    assert main["live"]["state"] == "behind-unfetched"
+    assert g["working_tree"]["untracked"] == 1 and g["dirty"] is True
+    assert "commit-or-clean" in g["needs"] and "pull:main" in g["needs"]
+    scratch = next(b for b in g["branches"] if b["name"] == "scratch")
+    # It holds the unpushed local commit and has no upstream, so it exists nowhere else.
+    assert scratch["live"]["state"] == "local-only"
+    assert "push:scratch" in g["needs"]
+    assert "Repositories needing attention:" in err
+
+    _git(work, "fetch", "-q")
+    doc, _ = _run_survey(
+        tmp_path, str(work), "--no-registry", "--no-run-aw", isolated=False
+    )
+    main = next(b for b in doc["repos"][0]["git"]["branches"] if b["name"] == "main")
+    assert main["live"] == {
+        "state": "diverged",
+        "ahead": 1,
+        "behind": 1,
+        "remote_sha": main["live"]["remote_sha"],
+    }
+
+
+def test_offline_does_not_contact_remotes(tmp_path: Path) -> None:
+    _, work, _ = _remote_pair(tmp_path)
+
+    doc, _ = _run_survey(tmp_path, str(work), "--no-registry")
+
+    g = doc["repos"][0]["git"]
+    assert g["online_checked"] is False
+    assert "reachable" not in g["remotes"]["origin"]
+    assert g["current_branch_state"] == "not-checked"
+
+
+def _fake_aw(tmp_path: Path, touch: bool) -> Path:
+    script = tmp_path / "bin" / "aw"
+    script.parent.mkdir(parents=True, exist_ok=True)
+    body = [
+        "#!" + sys.executable,
+        "import json, pathlib, sys",
+        "args = sys.argv[1:]",
+        "if args == ['--version']:",
+        "    print('agent-workflows 9.9.9'); sys.exit(0)",
+        "if args[0] == 'check':",
+        "    print(json.dumps({'kind': 'result', 'exit': 1, 'findings': 1,",
+        "        'diagnostics': [{'location': 'x.md', 'rule': 'check.name-nonconformant'}]}))",
+        "    sys.exit(1)",
+        "if args[0] == 'attention':",
+        "    print(json.dumps({'valid': False, 'items': [{'id': 'ab12cd', 'path': 'p',",
+        "        'tree': 'plans', 'native_status': 'draft', 'attention_class': 'ready',",
+        "        'detail_text': 'dropped'}], 'violations': [{'rule': 'attention.missing-status'}]}))",
+        "    sys.exit(1)",
+    ]
+    if touch:
+        body.append("pathlib.Path('.aw/written-by-doctor.txt').write_text('x')")
+    body += ["print('not json'); sys.stderr.write('boom'); sys.exit(2)"]
+    script.write_text("\n".join(body) + "\n", encoding="utf-8")
+    script.chmod(0o755)
+    return script
+
+
+def test_aw_runs_recorded_and_side_effects_detected(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "src" / "r")
+    (repo / ".aw").mkdir()
+    (repo / ".aw" / "a.md").write_text("a\n", encoding="utf-8")
+    _commit(repo)
+    aw = _fake_aw(tmp_path, touch=True)
+
+    doc, err = _run_survey(
+        tmp_path,
+        str(repo),
+        "--no-registry",
+        "--offline",
+        "--aw",
+        str(aw),
+        isolated=False,
+    )
+
+    assert doc["aw"]["version"] == "agent-workflows 9.9.9"
+    runs = doc["repos"][0]["aw_runs"]
+    cmds = runs["commands"]
+    assert cmds["check"]["exit"] == 1
+    assert cmds["check"]["result"]["diagnostics"] == [
+        {"location": "x.md", "rule": "check.name-nonconformant"}
+    ]
+    att = cmds["attention"]["result"]
+    assert att["valid"] is False and att["item_count"] == 1
+    assert att["violations"] == [{"rule": "attention.missing-status"}]
+    assert "detail_text" not in att["items"][0]
+    assert cmds["doctor"]["exit"] == 2
+    assert cmds["doctor"]["stdout_head"].startswith("not json")
+    assert cmds["doctor"]["stderr_tail"] == "boom"
+    se = runs["side_effects"]
+    assert se["git_status_added"] == ["?? .aw/written-by-doctor.txt"]
+    assert str(repo / ".aw" / "written-by-doctor.txt") in se["files_modified"]
+    assert "WARNING: aw commands changed files in:" in err
+
+
+def test_aw_runs_clean_when_aw_writes_nothing_and_skipped_with_no_run_aw(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path / "src" / "r")
+    (repo / ".aw").mkdir()
+    (repo / ".aw" / "a.md").write_text("a\n", encoding="utf-8")
+    _commit(repo)
+    aw = _fake_aw(tmp_path, touch=False)
+
+    doc, err = _run_survey(
+        tmp_path,
+        str(repo),
+        "--no-registry",
+        "--offline",
+        "--aw",
+        str(aw),
+        isolated=False,
+    )
+    assert not any(doc["repos"][0]["aw_runs"]["side_effects"].values())
+    assert "WARNING" not in err
+
+    doc, _ = _run_survey(tmp_path, str(repo), "--no-registry")
+    assert "aw_runs" not in doc["repos"][0]
+    assert doc["aw"] == {"requested": False}
+
+
+def test_default_output_name_sorts_by_date_then_host_then_time(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "src" / "r")
+    (repo / ".aw").mkdir()
+
+    doc, err = _run_survey(tmp_path, str(repo), "--no-registry", out_rel=None)
+
+    [out] = (tmp_path / "home" / "aw-survey").glob("*.json")
+    gen = doc["generated_at"]
+    assert out.name == f"aw-repo-survey-{gen[:8]}-{doc['host']}-{gen[9:15]}.json"
+    assert str(out) in err
