@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2 step 4 converts every record into a log plus compact front matter. Plan `dcerjg` E-09 and E-10 owned the conversion of every record type in two items; measured 2026-11-07, the corpus carries 99 distinct metadata keys (70 bullet names, 12 research YAML keys, 17 `aw-prompt` comment keys) across eight record trees, of which 55 have no same-named `artifact_meta.REGISTRY` field and so each need an explicit destination. That is more hidden work than one item may hold, so the conversion was split by record type on 2026-11-07 per the maintainer's step-complexity rule.
 - Scope: Create `agent_workflows/migrations/m0001_convert.py`: the log builder (checkpoint, rename, legacy events; `dcerjg` E-09 subset) and the file rewrite (`dcerjg` E-10 subset) for plans, backlog items, releases, specs and staged prompts, with their tests (subset of `dcerjg` E-14). EXCLUDES: research records, walkthroughs, the roadmap, review files and review events (`hpedmn`); the census and round trip (`dcerjg`).
 - Scope-Paths: agent_workflows/migrations/m0001_convert.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_conversion.py, .aw/records/plans/pending/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261117-metastore-01-o72vjz-spec-registry-graduated-to-from-plan.backlog.md (Defect report backlog item filed per driver turn defect-report obligation for missing graduated_to and from_plan on REGISTRY['spec'].); agent_workflows/artifact_meta.py (Fix missing shared 4.1 in-file mirror writer, filename_date validation/replay, parsed item_dependencies list replay, warn-tier bypass on migration_import, and ruleset caching from prerequisite tve77h.); tests/test_m0001_renames.py (Update pre-step-4 assertion in test_m0001_metadata_v2_step3_wiring to verify ## Workflow history moved to meta/pl0001.jsonl after step 4 wiring.)
 - Item-Dependencies: executed:tve77h, executed:vxevph, executed:dky26u
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +17,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ghhzb6
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: ghhzb6 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261117-metastore-01-o72vjz-spec-registry-graduated-to-from-plan.backlog.md: Defect report backlog item filed per driver turn defect-report obligation for missing graduated_to and from_plan on REGISTRY['spec'].; out-of-scope agent_workflows/artifact_meta.py: Fix missing shared 4.1 in-file mirror writer, filename_date validation/replay, parsed item_dependencies list replay, warn-tier bypass on migration_import, and ruleset caching from prerequisite tve77h.; out-of-scope tests/test_m0001_renames.py: Update pre-step-4 assertion in test_m0001_metadata_v2_step3_wiring to verify ## Workflow history moved to meta/pl0001.jsonl after step 4 wiring.]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
