@@ -103,6 +103,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-104-3g20ms-make-m0001-discover-its-inputs-and-convert-id-less-records.ipd.md
 - E-06 (layout stage chaining, companion backends, no-sidecar rule): Moved to bv4kkj (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: bv4kkj
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-105-bv4kkj-chain-the-layout-migration-as-stage-one-of-aw-migrate-metada.ipd.md
 - This repository's own attended cutover commit. It still runs once, attended, after this plan.
   - Carrier: cxxmyv
 - Short-description generation for migrated records of other repositories (same journal, different concern).
