@@ -108,6 +108,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-127-1hfmpb-move-the-artifact-rename-field-writers-onto-artifact-meta.ipd.md
 - `plans_refs` subset (`agent_workflows/plans_refs.py::_set_metadata`, `apply_renames`, pre-batch refusal before write; pins `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`) and the `agent_workflows/plans_archive.py::apply_shard_moves` pure-move check (`tests/test_plans_archive.py`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: fnu6kw
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-128-fnu6kw-move-the-plans-refs-regroup-field-writers-onto-artifact-meta.ipd.md
 - Research shelf subset (`agent_workflows/research_refs.py::_apply_renames` shared by `run_mv` and `run_set_assign`, `agent_workflows/research_archive.py::apply_moves` status transition, `artifact_meta` research `---` YAML extensions, and `tests/test_research_meta_writer_characterization.py`; pins `tests/test_research_rename_frontmatter.py`, `tests/test_research_set_assign_date_containment.py`, `tests/test_research_archive.py`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: 9gy5jk
 - Phase-B merge-independence test (`tests/test_writers_merge_independence.py`, `4sd62s` AC-3 phase-B form): split out of `xexn45` in round 3.
