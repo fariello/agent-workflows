@@ -118,6 +118,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-131-9qhtrc-apply-the-repository-root-path-rule-to-the-finalize-scope-pa.ipd.md
 - E-03 finalize subset (three scope fields in the executed append of `ipd_lifecycle._finalize_transaction`, phase-B `- Scope-Exceeded:` rendering, deletion of `_insert_scope_exceeded_metadata`): Moved to 1dvb08 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 1dvb08
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-132-1dvb08-write-the-finalize-scope-fields-in-the-executed-append.ipd.md
 - Path-bearing `transition` and `rename` events (`ev["path"]`) and removal of `LegacyRender` / `write_legacy` at the log-format cutover.
   - Carrier: cxxmyv
 - The final merge-independence test (`b4y4ee`), the `4sd62s` AC-21 and AC-6 obligations cases, the raw-write audit (F-09), `docs/cli-output-contract.md` and `CHANGELOG.md`, and the full writer-move suite gates.
