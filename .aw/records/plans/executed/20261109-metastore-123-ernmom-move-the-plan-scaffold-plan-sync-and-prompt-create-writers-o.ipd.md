@@ -6,7 +6,7 @@
 - Scope: Register the plan fields `author` and `highest_e_allocated` in `artifact_meta.REGISTRY["ipd"]`, move `ipd_authoring.run_scaffold` and `prompts.run_new` (with `prompts.render_metadata_comment` kept as a pure helper) onto `artifact_meta.create` (`n5sxxk` E-01, scaffold and prompts subset), and move the watermark write of `ipd_authoring.run_sync` onto the phase-B legacy writer `artifact_meta.render_legacy_text` (`n5sxxk` E-02, sync subset). EXCLUDES: research (`s95hj6`), adopt and set_records (`x2dxvf`), `--summary` (`py2vu9`); `ipd_authoring.backfill_plan_ids` and `ipd_authoring._atomic_write` are not named writers (`xexn45` F-09 records them).
 - Scope-Paths: agent_workflows/ipd_authoring.py, agent_workflows/prompts.py, agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ernmom
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: ernmom verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.review.md
