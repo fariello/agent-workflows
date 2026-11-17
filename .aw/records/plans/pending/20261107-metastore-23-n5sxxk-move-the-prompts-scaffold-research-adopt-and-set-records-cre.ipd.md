@@ -113,6 +113,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-123-ernmom-move-the-plan-scaffold-plan-sync-and-prompt-create-writers-o.ipd.md
 - `E-01` adopt and walkthrough subset (`agent_workflows/artifact_adopt.py::apply_adoption`, `agent_workflows/set_records.py::write_walkthrough`) and `E-02` `set_records` subset (`close_on_answer`, `promote_question_to_backlog`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: x2dxvf
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-135-x2dxvf-move-the-adopt-and-set-records-create-and-setter-writers-ont.ipd.md
 - The phase-B merge-independence test (`tests/test_writers_merge_independence.py`, AC-3 phase-B form), moved from `xexn45` E-12 in round 3.
   - Carrier: b4y4ee
 - The AC-21 obligations and AC-6 phase-B diff test (`E-13`), the ten-module raw-write audit `F-09` (`E-14`, `E-15`), the `docs/cli-output-contract.md` and `CHANGELOG.md` updates (`E-16`), and the full-suite gates (`E-17`) of the writer move.
