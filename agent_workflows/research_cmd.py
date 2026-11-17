@@ -150,17 +150,6 @@ def _set_date_for_set(research_root: Path, set_id: str, default: str) -> str:
     return default
 
 
-# --------------------------------------------------------------------------------------
-# atomic write (mirrors ipd_authoring._atomic_write)
-# --------------------------------------------------------------------------------------
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file (core)."""
-
-    _core.atomic_write(path, text, prefix=".research-tmp-")
-
-
 # A planned document: its resolved path and its starter content.
 class PlannedFile(NamedTuple):
     path: Path
@@ -305,21 +294,24 @@ def plan_new(
         kind=kind,
     )
     filename = R.format_name(name)
-    init_status = None if kind == "research-prompt" else "todo"
-    content = build_frontmatter(
-        id6=id6,
-        created=today,
-        set_id=derived_set,
-        order=f"{order_n:02d}",
-        topic=topic or [],
-        model=model,
-        kind=kind,
-        status=init_status,
-        outcome="none-yet",
-        summary=summary,
-        priority=priority,
-    )
-    return [PlannedFile(research_root / filename, content)], None
+    dest_path = research_root / filename
+    try:
+        content = _render_research_create(
+            research_root=research_root,
+            dest_path=dest_path,
+            id6=id6,
+            created=today,
+            set_id=derived_set,
+            order=order_n,
+            topic=topic or [],
+            model=model,
+            kind=kind,
+            summary=summary,
+            priority=priority,
+        )
+    except ValueError as exc:
+        return None, str(exc)
+    return [PlannedFile(dest_path, content)], None
 
 
 def _compose_comparison_summary(user_summary: str, role: str) -> str:
@@ -404,51 +396,54 @@ def plan_new_comparison(
             model=model,
             kind=kind,
         )
-        init_status = None if kind == "research-prompt" else "todo"
-        content = build_frontmatter(
+        dest_path = research_root / R.format_name(name)
+        content = _render_research_create(
+            research_root=research_root,
+            dest_path=dest_path,
             id6=id6,
             created=today,
             set_id=derived_set,
-            order=f"{order_n:02d}",
+            order=order_n,
             topic=topic or [],
             model=model,
             kind=kind,
-            status=init_status,
-            outcome="none-yet",
             summary=sm,
         )
-        return PlannedFile(research_root / R.format_name(name), content)
+        return PlannedFile(dest_path, content)
 
-    # 00 = originating prompt
-    files.append(
-        _mk(
-            0,
-            "research-prompt",
-            None,
-            _compose_comparison_summary(
-                summary, "Originating prompt for the comparison set."
-            ),
-        )
-    )
-    # 01..N = one report per model
-    for i, m in enumerate(norm_models, start=1):
+    try:
+        # 00 = originating prompt
         files.append(
             _mk(
-                i,
-                "research-report",
-                m,
-                _compose_comparison_summary(summary, f"{m} report."),
+                0,
+                "research-prompt",
+                None,
+                _compose_comparison_summary(
+                    summary, "Originating prompt for the comparison set."
+                ),
             )
         )
-    # N+1 = reconciliation
-    files.append(
-        _mk(
-            len(norm_models) + 1,
-            "reconciliation-report",
-            "reconciliation",
-            _compose_comparison_summary(summary, "Synthesis of the model reports."),
+        # 01..N = one report per model
+        for i, m in enumerate(norm_models, start=1):
+            files.append(
+                _mk(
+                    i,
+                    "research-report",
+                    m,
+                    _compose_comparison_summary(summary, f"{m} report."),
+                )
+            )
+        # N+1 = reconciliation
+        files.append(
+            _mk(
+                len(norm_models) + 1,
+                "reconciliation-report",
+                "reconciliation",
+                _compose_comparison_summary(summary, "Synthesis of the model reports."),
+            )
         )
-    )
+    except ValueError as exc:
+        return None, str(exc)
     return files, None
 
 
@@ -469,6 +464,170 @@ def _rel_posix(target: Path, root: Path) -> str:
         return target.relative_to(root).as_posix()
     except ValueError:
         return target.resolve().relative_to(root.resolve()).as_posix()
+
+
+def _research_legacy_context(research_root: Path, *, repo_root: Optional[Path] = None):
+    """Build a phase-B LegacyContext rooted at ``research_root.parent``."""
+    from agent_workflows import artifact_meta as _meta
+
+    resolved_repo = (
+        Path(repo_root).resolve()
+        if repo_root is not None
+        else _core.repo_root_of(research_root).resolve()
+    )
+    base_ctx = _meta.legacy_context(resolved_repo)
+    records_root = research_root.resolve().parent
+    return type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {
+                "records": str(records_root),
+                "state": base_ctx.logical_roots["state"],
+            },
+            "repo_root": resolved_repo,
+        },
+    )()
+
+
+def _research_root_for_file(target: Path, args: Optional[argparse.Namespace]) -> Path:
+    if args is not None:
+        return _research_root(args)
+    resolved_parent = target.resolve().parent
+    for cand in [resolved_parent] + list(resolved_parent.parents):
+        if cand.name == "research":
+            return cand
+    return resolved_parent
+
+
+def _render_research_create(
+    *,
+    research_root: Path,
+    dest_path: Path,
+    id6: str,
+    created: str,
+    set_id: str,
+    order: int,
+    topic: List[str],
+    model: Optional[str],
+    kind: str,
+    summary: str,
+    priority: Optional[str] = None,
+) -> str:
+    """Render a new research document via ``artifact_meta.create(..., dry_run=True)``."""
+    from agent_workflows import artifact_meta as _meta
+
+    ctx = _research_legacy_context(research_root)
+    records_root = Path(ctx.logical_roots["records"])
+    rel_dest = dest_path.resolve().relative_to(records_root).as_posix()
+    fields: dict = {
+        "created": created,
+        "set": set_id,
+        "order": int(order),
+        "topic": list(topic),
+        "model": model,
+        "research_kind": kind,
+        "outcome": "none-yet",
+        "summary": summary,
+        "consumed_by": [],
+    }
+    if kind != "research-prompt":
+        fields["status"] = "todo"
+    if priority:
+        fields["priority"] = priority
+    preview = _meta.create(
+        id6,
+        "research",
+        fields,
+        "",
+        destination=rel_dest,
+        dry_run=True,
+        project_context=ctx,
+        legacy_render=_meta.LegacyRender(
+            tag="created",
+            day=_core.utc_history_date(),
+            actor_label="aw research",
+            history=False,
+        ),
+    )
+    return preview.text
+
+
+def _write_planned_research_file(
+    planned: PlannedFile,
+    *,
+    research_root: Path,
+    overwrite: bool,
+) -> None:
+    """Persist one planned research file through ``artifact_meta.create(..., dry_run=False)``."""
+    from agent_workflows import artifact_meta as _meta
+
+    ctx = _research_legacy_context(research_root)
+    records_root = Path(ctx.logical_roots["records"])
+    rel_dest = planned.path.resolve().relative_to(records_root).as_posix()
+    fm = R.parse_frontmatter(planned.content)
+    body = ""
+    if fm is not None:
+        lines = planned.content.splitlines(keepends=True)
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                body = "".join(lines[i + 1 :])
+                break
+    else:
+        body = planned.content
+    parsed_name, _ = R.parse_name(planned.path.name)
+    id6 = (str(fm.get("id") or "") if fm is not None else "") or (
+        parsed_name.id6 if parsed_name is not None else ""
+    )
+    fields: dict = {}
+    if fm is not None:
+        if "created" in fm:
+            fields["created"] = fm["created"]
+        if "set" in fm:
+            fields["set"] = fm["set"]
+        if "order" in fm:
+            raw_order = fm["order"]
+            fields["order"] = (
+                int(raw_order)
+                if isinstance(raw_order, str) and raw_order.isdigit()
+                else raw_order
+            )
+        if "topic" in fm:
+            fields["topic"] = fm["topic"]
+        if "model" in fm:
+            fields["model"] = fm["model"] or None
+        if "kind" in fm:
+            fields["research_kind"] = fm["kind"]
+        if "status" in fm:
+            fields["status"] = fm["status"]
+        if "outcome" in fm:
+            fields["outcome"] = fm["outcome"]
+        if "summary" in fm:
+            fields["summary"] = fm["summary"]
+        if "consumed-by" in fm:
+            fields["consumed_by"] = fm["consumed-by"]
+        if fm.get("priority"):
+            fields["priority"] = fm["priority"]
+        if "short-description" in fm:
+            fields["short_description"] = fm["short-description"]
+        if "ace" in fm:
+            fields["ace"] = fm["ace"]
+    _meta.create(
+        id6,
+        "research",
+        fields,
+        body,
+        destination=rel_dest,
+        dry_run=False,
+        overwrite=overwrite,
+        project_context=ctx,
+        legacy_render=_meta.LegacyRender(
+            tag="created",
+            day=_core.utc_history_date(),
+            actor_label="aw research",
+            history=False,
+        ),
+    )
 
 
 def _research_root(args: argparse.Namespace) -> Path:
@@ -568,7 +727,8 @@ def _emit_and_write(
 
     try:
         for f in files:
-            _atomic_write(f.path, f.content)
+            r_root = _research_root_for_file(f.path, args)
+            _write_planned_research_file(f, research_root=r_root, overwrite=overwrite)
     except Exception as exc:  # noqa: BLE001
         if ctx and (ctx.is_agent or ctx.is_json):
             res = CommandResult(
@@ -639,6 +799,60 @@ def update_frontmatter_fields(text: str, updates: dict) -> str:
     return "".join(lines)
 
 
+def _resolved_research_id6(target: Path, requested_id: str) -> Optional[str]:
+    parsed, _ = R.parse_name(target.name)
+    if parsed is not None:
+        return parsed.id6
+    if R.is_valid_id6(requested_id):
+        return requested_id
+    return None
+
+
+def _apply_research_meta_events(
+    *,
+    research_root: Path,
+    repo_root: Path,
+    target: Path,
+    requested_id: str,
+    events: List[dict],
+    tag: str,
+    dry_run: bool,
+) -> str:
+    """Preview or apply field events on a research record via ``artifact_meta.append``."""
+    from agent_workflows import artifact_meta as _meta
+
+    ctx = _research_legacy_context(research_root, repo_root=repo_root)
+    target_id6 = _resolved_research_id6(target, requested_id)
+    preview = _meta.append(
+        _meta.LegacyTarget(target, "research", target_id6),
+        events,
+        dry_run=dry_run,
+        project_context=ctx,
+        legacy_render=_meta.LegacyRender(
+            tag=tag,
+            day=_core.utc_history_date(),
+            actor_label="aw research",
+            history=False,
+        ),
+    )
+    return preview.text
+
+
+def _outcome_update_fields(
+    outcome: Optional[str],
+    consumed_by: Optional[List[str]],
+    clear_consumed: bool,
+) -> dict:
+    fields: dict = {}
+    if outcome is not None:
+        fields["outcome"] = outcome
+    if clear_consumed:
+        fields["consumed_by"] = []
+    elif consumed_by is not None:
+        fields["consumed_by"] = list(consumed_by)
+    return fields
+
+
 def plan_set_outcome(
     research_root: Path,
     id6: str,
@@ -675,17 +889,22 @@ def plan_set_outcome(
         return None, None, err
     if target is None:
         return None, None, f"no research file has id6 '{id6}'"
-    text = target.read_text(encoding="utf-8")
-    updates: dict = {}
-    if outcome is not None:
-        updates["outcome"] = outcome
-    if clear_consumed:
-        updates["consumed-by"] = _render_list([])
-    elif consumed_by is not None:
-        updates["consumed-by"] = _render_list(consumed_by)
-    if not updates:
+    fields = _outcome_update_fields(outcome, consumed_by, clear_consumed)
+    if not fields:
         return None, None, "nothing to set (provide --to and/or --consumed-by)"
-    return target, update_frontmatter_fields(text, updates), None
+    try:
+        new_text = _apply_research_meta_events(
+            research_root=research_root,
+            repo_root=repo_root,
+            target=target,
+            requested_id=id6,
+            events=[{"op": "set", "fields": fields}],
+            tag="set-outcome",
+            dry_run=True,
+        )
+    except ValueError as exc:
+        return None, None, str(exc)
+    return target, new_text, None
 
 
 def run_set_outcome(args: argparse.Namespace) -> int:
@@ -706,10 +925,11 @@ def run_set_outcome(args: argparse.Namespace) -> int:
         repo_root = Path(repo_root)
     else:
         repo_root = _core.repo_root_of(root)
+    outcome_val = getattr(args, "to", None)
     target, new_text, err = plan_set_outcome(
         root,
         id6,
-        getattr(args, "to", None),
+        outcome_val,
         consumed_list,
         clear_consumed=clear,
         repo_root=repo_root,
@@ -720,15 +940,28 @@ def run_set_outcome(args: argparse.Namespace) -> int:
     rel = _rel_posix(target, root)
     if not getattr(args, "apply", False):
         bits = []
-        if getattr(args, "to", None) is not None:
-            bits.append(f"outcome={args.to}")
+        if outcome_val is not None:
+            bits.append(f"outcome={outcome_val}")
         if clear:
             bits.append("consumed-by=[] (cleared)")
         elif consumed_list is not None:
             bits.append(f"consumed-by={_render_list(consumed_list)}")
         print(f"--- would update {rel}: {', '.join(bits)} ---")
         return 0
-    _atomic_write(target, new_text)
+    fields = _outcome_update_fields(outcome_val, consumed_list, clear)
+    try:
+        _apply_research_meta_events(
+            research_root=root,
+            repo_root=repo_root,
+            target=target,
+            requested_id=id6,
+            events=[{"op": "set", "fields": fields}],
+            tag="set-outcome",
+            dry_run=False,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
     print(f"updated {rel}")
     # Refresh the index so INDEX.json carries the new consumed-by (E-02).
     try:
@@ -788,6 +1021,12 @@ def _set_priority_line(text: str, value: Optional[str]) -> str:
     return "".join(lines)
 
 
+def _priority_events(to: Optional[str]) -> List[dict]:
+    if to in (None, "-"):
+        return [{"op": "unset", "fields": ["priority"]}]
+    return [{"op": "set", "fields": {"priority": to}}]
+
+
 def plan_set_priority(
     research_root: Path,
     id6: str,
@@ -812,8 +1051,19 @@ def plan_set_priority(
         return None, None, err
     if target is None:
         return None, None, f"no research file has id6 '{id6}'"
-    text = target.read_text(encoding="utf-8")
-    return target, _set_priority_line(text, to), None
+    try:
+        new_text = _apply_research_meta_events(
+            research_root=research_root,
+            repo_root=repo_root,
+            target=target,
+            requested_id=id6,
+            events=_priority_events(to),
+            tag="set-priority",
+            dry_run=True,
+        )
+    except ValueError as exc:
+        return None, None, str(exc)
+    return target, new_text, None
 
 
 def run_set_priority(args: argparse.Namespace) -> int:
@@ -840,7 +1090,19 @@ def run_set_priority(args: argparse.Namespace) -> int:
         label = "priority=[] (cleared)" if to in (None, "-") else f"priority={to}"
         print(f"--- would update {rel}: {label} ---")
         return 0
-    _atomic_write(target, new_text)
+    try:
+        _apply_research_meta_events(
+            research_root=root,
+            repo_root=repo_root,
+            target=target,
+            requested_id=id6,
+            events=_priority_events(to),
+            tag="set-priority",
+            dry_run=False,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
     print(f"updated {rel}")
     try:
         from agent_workflows import research_index as _ridx

@@ -311,7 +311,9 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "outcome": FieldDef("outcome", "string", "generic"),
         "priority": FieldDef("priority", "string", "generic"),
         "consumed_by": FieldDef("consumed_by", "string list", "generic"),
-        "topic": FieldDef("topic", "string", "generic"),
+        "topic": FieldDef("topic", "string list", "generic"),
+        "created": FieldDef("created", "string", "migration-only"),
+        "summary": FieldDef("summary", "string", "migration-only"),
     },
     "release": {
         **_COMMON_FIELDS,
@@ -1023,6 +1025,43 @@ def validate_new_events(
                             not migration_import or fk == "short_description"
                         ),
                     )
+                elif isinstance(fv, list):
+                    is_prose = fk in _PROSE_FIELDS
+                    for elem in fv:
+                        if isinstance(elem, str):
+                            _check_string_safety(
+                                fk,
+                                elem,
+                                prose=is_prose,
+                                migration_import=migration_import,
+                            )
+                            _check_leak_sanitizer(
+                                elem,
+                                f"fields.{fk}",
+                                ruleset,
+                                include_warn=(
+                                    not migration_import or fk == "short_description"
+                                ),
+                            )
+                        elif isinstance(elem, dict) and fk == "item_dependencies":
+                            raw_val = elem.get("raw")
+                            if isinstance(raw_val, str):
+                                _check_string_safety(
+                                    fk,
+                                    raw_val,
+                                    prose=is_prose,
+                                    migration_import=migration_import,
+                                )
+                                _check_leak_sanitizer(
+                                    raw_val,
+                                    f"fields.{fk}",
+                                    ruleset,
+                                    include_warn=not migration_import,
+                                )
+                        else:
+                            raise ValueError(
+                                f"fields.{fk} entries must be strings, got {type(elem).__name__}"
+                            )
 
 
 # --------------------------------------------------------------------------------------
@@ -4178,11 +4217,13 @@ _LEGACY_BULLET_LABEL: Dict[str, str] = {
 #: Registry field -> YAML front-matter key for `research` records.
 _RESEARCH_YAML_KEY: Dict[str, str] = {
     "id": "id",
+    "created": "created",
     "status": "status",
     "set": "set",
     "order": "order",
     "research_kind": "kind",
     "outcome": "outcome",
+    "summary": "summary",
     "priority": "priority",
     "consumed_by": "consumed-by",
     "topic": "topic",
@@ -4592,11 +4633,29 @@ def _format_legacy_value(field: str, value: Any) -> str:
     return str(value)
 
 
-def _format_yaml_value(value: Any) -> str:
+def _format_yaml_value(value: Any, *, key: str = "") -> str:
     """Format a scalar or list value for YAML front matter."""
     if isinstance(value, (list, tuple)):
         return "[" + ", ".join(str(x) for x in value) + "]" if value else "[]"
+    if key == "order":
+        if isinstance(value, int) and not isinstance(value, bool):
+            return f"{value:02d}"
+        if isinstance(value, str) and value.isdigit() and len(value) < 2:
+            return f"{int(value):02d}"
+    if value is None:
+        return ""
     return str(value)
+
+
+def _split_yaml_frontmatter_block(text: str) -> Optional[Tuple[str, str]]:
+    """Split a leading ``--- ... ---`` YAML block from its post-fence body verbatim."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "".join(lines[: i + 1]), "".join(lines[i + 1 :])
+    return None
 
 
 def _render_yaml_field(text: str, yaml_key: str, value: Optional[Any]) -> str:
@@ -4622,11 +4681,13 @@ def _render_yaml_field(text: str, yaml_key: str, value: Optional[Any]) -> str:
         if key_idx is not None:
             del lines[key_idx]
         return "".join(lines)
-    formatted = _format_yaml_value(value)
+    formatted = _format_yaml_value(value, key=yaml_key)
     if key_idx is not None:
         newline = "\n" if lines[key_idx].endswith("\n") else ""
         lines[key_idx] = f"{yaml_key}: {formatted}{newline}"
     else:
+        if last_content_idx < len(lines) and not lines[last_content_idx].endswith("\n"):
+            lines[last_content_idx] += "\n"
         lines.insert(last_content_idx + 1, f"{yaml_key}: {formatted}\n")
     return "".join(lines)
 
@@ -4776,7 +4837,7 @@ def _render_create_fields(
         return comment + "\n" + text
 
     if plural == "research":
-        if _YAML_FENCE_OPEN_RE.match(text):
+        if _split_yaml_frontmatter_block(text) is not None:
             out = text
             for fk, fv in fields.items():
                 if fk == "type" or fv is None:
@@ -4785,34 +4846,57 @@ def _render_create_fields(
                 if yk is not None:
                     out = _render_yaml_field(out, yk, fv)
             return out
-        ordered_yaml = (
-            "id",
-            "created_day",
-            "set",
-            "order",
-            "research_kind",
-            "status",
-            "outcome",
-            "priority",
-            "consumed_by",
-            "topic",
-            "short_description",
-            "model",
-            "ace",
+        kind_val = fields.get("research_kind")
+        created_val = (
+            fields.get("created")
+            if fields.get("created") is not None
+            else fields.get("created_day")
         )
         fm_lines = ["---"]
-        for fk in ordered_yaml:
-            if fk in fields and fields[fk] is not None:
+        if fields.get("id") is not None:
+            fm_lines.append(f"id: {fields['id']}")
+        if created_val is not None:
+            fm_lines.append(f"created: {created_val}")
+        if fields.get("set") is not None:
+            fm_lines.append(f"set: {fields['set']}")
+        if fields.get("order") is not None:
+            fm_lines.append(
+                f"order: {_format_yaml_value(fields['order'], key='order')}"
+            )
+        topic_val = fields.get("topic") if fields.get("topic") is not None else []
+        fm_lines.append(f"topic: {_format_yaml_value(topic_val, key='topic')}")
+        model_val = fields.get("model") if fields.get("model") is not None else ""
+        fm_lines.append(f"model: {model_val}")
+        if kind_val is not None:
+            fm_lines.append(f"kind: {kind_val}")
+        status_val = fields.get("status")
+        if kind_val == "research-prompt":
+            if status_val not in (None, ""):
+                fm_lines.append(f"status: {status_val}")
+        else:
+            fm_lines.append(
+                f"status: {status_val if status_val is not None else 'todo'}"
+            )
+        outcome_val = (
+            fields.get("outcome") if fields.get("outcome") is not None else "none-yet"
+        )
+        fm_lines.append(f"outcome: {outcome_val}")
+        summary_val = fields.get("summary") if fields.get("summary") is not None else ""
+        fm_lines.append(f"summary: {summary_val}")
+        cb_val = (
+            fields.get("consumed_by") if fields.get("consumed_by") is not None else []
+        )
+        fm_lines.append(f"consumed-by: {_format_yaml_value(cb_val, key='consumed-by')}")
+        if fields.get("priority"):
+            fm_lines.append(f"priority: {fields['priority']}")
+        for extra_fk in ("short_description", "ace"):
+            if fields.get(extra_fk) is not None:
                 fm_lines.append(
-                    f"{_RESEARCH_YAML_KEY[fk]}: {_format_yaml_value(fields[fk])}"
+                    f"{_RESEARCH_YAML_KEY[extra_fk]}: {_format_yaml_value(fields[extra_fk])}"
                 )
         fm_lines.append("---")
-        fm = "\n".join(fm_lines)
-        if not text:
-            return fm
-        if text.startswith("\n"):
-            return fm + text
-        return fm + "\n\n" + text
+        fm = "\n".join(fm_lines) + "\n"
+        return fm + text
 
     from agent_workflows import selectors as _sel
 
@@ -4943,9 +5027,12 @@ def _render_field(
         return text
 
     if field in _RESEARCH_YAML_KEY and _YAML_FENCE_OPEN_RE.match(text):
-        val = (
-            None if (value is None or (field == "priority" and value == "-")) else value
-        )
+        if value is None:
+            val: Any = [] if field in ("consumed_by", "topic") else None
+        elif field == "priority" and value == "-":
+            val = None
+        else:
+            val = value
         return _render_yaml_field(text, _RESEARCH_YAML_KEY[field], val)
 
     bullet_writers: Dict[str, Tuple[str, Tuple[Tuple[str, str], ...]]] = {
@@ -5181,9 +5268,26 @@ def render_legacy(
     from agent_workflows import selectors as _sel
 
     notes: List[str] = []
-    # Today's setter worked on `text.splitlines()` and re-split after every value writer, so the
-    # renderer normalizes the same way (no trailing empty line, CRLF folded) between edits.
-    out = "\n".join(text.splitlines())
+    is_research_create = (
+        plural == "research"
+        and not render.history
+        and any(e.get("op") == "create" for e in events)
+    )
+    research_yaml_split = (
+        _split_yaml_frontmatter_block(text)
+        if (plural == "research" and not render.history and not is_research_create)
+        else None
+    )
+    if is_research_create:
+        out = text
+        post_fence_body = ""
+    elif research_yaml_split is not None:
+        out, post_fence_body = research_yaml_split
+    else:
+        # Today's setter worked on `text.splitlines()` and re-split after every value writer, so the
+        # renderer normalizes the same way (no trailing empty line, CRLF folded) between edits.
+        out = "\n".join(text.splitlines())
+        post_fence_body = ""
     is_backlog_create = plural == "backlog" and any(
         e.get("op") == "create" for e in events
     )
@@ -5215,8 +5319,14 @@ def render_legacy(
 
     trans = next((e for e in events if e.get("op") == "transition"), None)
     mirror = render.status or (trans.get("to") if trans else None)
-    if mirror and not is_headerless_backlog:
-        out, n = _render_status(out, plural, mirror, quiet=quiet, label=label)
+    if mirror and not is_headerless_backlog and not is_research_create:
+        if research_yaml_split is not None:
+            fm_had_nl = out.endswith("\n")
+            out, n = _render_status(out, plural, mirror, quiet=quiet, label=label)
+            if fm_had_nl and not out.endswith("\n"):
+                out += "\n"
+        else:
+            out, n = _render_status(out, plural, mirror, quiet=quiet, label=label)
         notes.extend(n)
     legacy_history_lines: List[str] = []
     for ev in events:
@@ -5258,15 +5368,21 @@ def render_legacy(
                             ).splitlines()
                         )
             for fk, fv in fields.items():
-                out = "\n".join(
-                    _render_field(out, plural, fk, fv, repo_root=repo_root).splitlines()
+                rendered_field = _render_field(out, plural, fk, fv, repo_root=repo_root)
+                out = (
+                    rendered_field
+                    if research_yaml_split is not None
+                    else "\n".join(rendered_field.splitlines())
                 )
         elif op == "unset":
             for fk in ev["fields"]:
-                out = "\n".join(
-                    _render_field(
-                        out, plural, fk, None, repo_root=repo_root
-                    ).splitlines()
+                rendered_field = _render_field(
+                    out, plural, fk, None, repo_root=repo_root
+                )
+                out = (
+                    rendered_field
+                    if research_yaml_split is not None
+                    else "\n".join(rendered_field.splitlines())
                 )
         elif op == "review":
             if ev.get("review_kind") == "gate":
@@ -5335,6 +5451,10 @@ def render_legacy(
             out = _render_history(
                 out, entry, is_prompt=render.is_prompt, history_at_end=hist_at_end
             )
+    if is_research_create:
+        return out, notes
+    if research_yaml_split is not None:
+        return out + post_fence_body, notes
     if trailing_body:
         out = out.rstrip() + "\n\n" + trailing_body
     return out.rstrip() + "\n", notes
@@ -5596,6 +5716,7 @@ def write_legacy(
     project_context: Any = None,
     destination: Optional[Path] = None,
     dry_run: bool = False,
+    overwrite: Optional[bool] = None,
     actor: Optional[Dict[str, Any]] = None,
     by_human: bool = False,
     overrides: Optional[List[str]] = None,
@@ -5659,8 +5780,16 @@ def write_legacy(
             raise ValueError(
                 f"refused: {src} does not exist (source digest mismatch); re-read and retry"
             )
+    is_create = any(e.get("op") == "create" for e in prepared)
+    if overwrite is False and is_create and src.is_file():
+        raise FileExistsError(f"refusing to overwrite existing path: {src}")
+    disk_text: Optional[str] = None
     if src.is_file():
-        text = src.read_text(encoding="utf-8")
+        disk_text = src.read_text(encoding="utf-8")
+    if initial_text is not None and (overwrite is True or disk_text is None):
+        text = initial_text
+    elif disk_text is not None:
+        text = disk_text
     elif initial_text is not None:
         text = initial_text
     else:
@@ -5679,11 +5808,12 @@ def write_legacy(
         notes_out.extend(notes)
     dest = Path(destination) if destination is not None else src
     moving = dest.resolve() != src.resolve()
+    baseline_text = disk_text if disk_text is not None else text
     preview = WritePreview(
         text=rendered,
         destination=dest,
         source=src,
-        changed=moving or (not src.is_file()) or rendered != text,
+        changed=moving or (disk_text is None) or rendered != baseline_text,
         events=prepared,
     )
     if dry_run:
