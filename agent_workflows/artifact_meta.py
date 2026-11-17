@@ -660,7 +660,12 @@ def validate_event(
             if artifact_type:
                 reg = REGISTRY.get(artifact_type, {})
                 for f in fields:
-                    if op in ("create", "checkpoint") and f in ("id", "type", "status"):
+                    if op in ("create", "checkpoint") and f in (
+                        "id",
+                        "type",
+                        "status",
+                        "filename_date",
+                    ):
                         continue
                     if f not in reg:
                         raise ValueError(
@@ -738,8 +743,14 @@ def _check_no_absolute_paths_in_text(token_source: str, text: str) -> None:
                 )
 
 
-def _check_leak_sanitizer(text: str, prefix: str, ruleset: _leak.Ruleset) -> None:
-    findings = _leak.scan_text(text, prefix, ruleset, include_warn=True)
+def _check_leak_sanitizer(
+    text: str,
+    prefix: str,
+    ruleset: _leak.Ruleset,
+    *,
+    include_warn: bool = True,
+) -> None:
+    findings = _leak.scan_text(text, prefix, ruleset, include_warn=include_warn)
     if findings:
         first = findings[0]
         raise ValueError(
@@ -869,13 +880,15 @@ def validate_new_events(
     records_root: Path,
     repo_root: Optional[Union[str, Path]] = None,
     migration_import: bool = False,
+    ruleset: Optional["_leak.Ruleset"] = None,
 ) -> None:
     """Run writer-side refusals on events to be committed."""
     records_root = Path(records_root)
     repo_root = _resolve_repo_root(records_root, repo_root)
 
-    # Build ruleset with include_warn=True once per call
-    ruleset = _writer_ruleset(repo_root)
+    # Build ruleset with include_warn=True once per call (or reuse caller-supplied ruleset)
+    if ruleset is None:
+        ruleset = _writer_ruleset(repo_root)
 
     for ev in events:
         validate_event(ev, artifact_type)
@@ -914,8 +927,13 @@ def validate_new_events(
         if ev["op"] == "legacy":
             line_val = ev.get("line")
             if isinstance(line_val, str):
-                # leak scan still runs on imported legacy lines
-                _check_leak_sanitizer(line_val, "legacy.line", ruleset)
+                # leak scan still runs on imported legacy lines (warn rules do not refuse import)
+                _check_leak_sanitizer(
+                    line_val,
+                    "legacy.line",
+                    ruleset,
+                    include_warn=not migration_import,
+                )
                 if not migration_import:
                     _check_string_safety(
                         "legacy.line", line_val, prose=True, migration_import=False
@@ -928,7 +946,12 @@ def validate_new_events(
                 )
             leg_verdict = ev.get("legacy_verdict")
             if leg_verdict and isinstance(leg_verdict, str):
-                _check_leak_sanitizer(leg_verdict, "legacy_verdict", ruleset)
+                _check_leak_sanitizer(
+                    leg_verdict,
+                    "legacy_verdict",
+                    ruleset,
+                    include_warn=not migration_import,
+                )
                 if not migration_import:
                     _check_string_safety(
                         "legacy_verdict",
@@ -992,7 +1015,14 @@ def validate_new_events(
                     _check_string_safety(
                         fk, fv, prose=is_prose, migration_import=migration_import
                     )
-                    _check_leak_sanitizer(fv, f"fields.{fk}", ruleset)
+                    _check_leak_sanitizer(
+                        fv,
+                        f"fields.{fk}",
+                        ruleset,
+                        include_warn=(
+                            not migration_import or fk == "short_description"
+                        ),
+                    )
 
 
 # --------------------------------------------------------------------------------------
@@ -1001,15 +1031,43 @@ def validate_new_events(
 
 
 def parse_item_dependencies_field(
-    value: Optional[str],
+    value: Any,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Parse Item-Dependencies into (declaration, conditions).
 
-    Distinguishes absent (None), 'none', 'unresolved', and listed edges.
+    Distinguishes absent (None), 'none', 'unresolved', and listed edges (string or parsed list).
     """
     if value is None:
         return "absent", []
-    v = value.strip()
+    if isinstance(value, list):
+        stored_list: List[Dict[str, Any]] = []
+        for entry in value:
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    f"malformed Item-Dependencies list entry: expected dict, got {type(entry).__name__}"
+                )
+            cond = entry.get("condition")
+            ttype = entry.get("target_type")
+            tid6 = entry.get("target_id6")
+            raw = entry.get("raw")
+            if (
+                cond not in ("executed", "exists", "state")
+                or not isinstance(ttype, str)
+                or not isinstance(tid6, str)
+                or not isinstance(raw, str)
+            ):
+                raise ValueError(f"malformed Item-Dependencies edge dict: {entry!r}")
+            stored_list.append(
+                {
+                    "condition": cond,
+                    "target_type": ttype,
+                    "required_status": entry.get("required_status"),
+                    "target_id6": tid6,
+                    "raw": raw,
+                }
+            )
+        return ("listed", stored_list) if stored_list else ("none", [])
+    v = str(value).strip()
     if v == "none":
         return "none", []
     if v == "unresolved":
@@ -1465,6 +1523,7 @@ def replay(
     state.last_seq = events[-1]["seq"]
     state.created_at = created_at_val
     state.updated_at = updated_at_val
+    state.filename_date = current_fields.get("filename_date")
     state.created_day = current_fields.get("created_day")
     state.last_history_day = current_fields.get("last_history_day")
     state.short_description = current_fields.get("short_description")
@@ -1529,9 +1588,13 @@ def replay(
         ordinal += 1
 
     # dependencies
-    dep_decl, dep_edges = parse_item_dependencies_field(
-        current_fields.get("item_dependencies")
-    )
+    raw_dep_val = current_fields.get("item_dependencies")
+    explicit_decl = current_fields.get("dependency_declaration")
+    dep_decl, dep_edges = parse_item_dependencies_field(raw_dep_val)
+    if (
+        raw_dep_val is None or (isinstance(raw_dep_val, list) and not raw_dep_val)
+    ) and explicit_decl in ("none", "unresolved"):
+        dep_decl = explicit_decl
     current_fields["dependency_declaration"] = dep_decl
     for i, e in enumerate(dep_edges, start=1):
         dependencies_rows.append(
@@ -1641,6 +1704,62 @@ def replay(
 _MANAGED_PROMPT_COMMENT_RE = re.compile(
     r"\A<!--\s*aw-managed-prompt:\s*(.*?)\s*-->", re.DOTALL
 )
+_MANAGED_BANNER_LINE_RE = re.compile(r"\A<!--\s*aw-managed:.*?-->\r?\n?", re.DOTALL)
+_LEADING_PROMPT_COMMENT_LINE_RE = re.compile(
+    r"\A<!--\s*(?:aw-managed-prompt|aw-prompt):.*?-->\r?\n?", re.DOTALL
+)
+
+
+def render_in_file_mirror(
+    id6: str,
+    artifact_type: str,
+    status: Optional[str] = None,
+) -> str:
+    """Render the canonical 4.1 / OQ-25 in-file mirror and banner for ``artifact_type``."""
+    validate_id6(id6)
+    if artifact_type == "prompt":
+        eff_status = (status or "pending").strip()
+        return (
+            f"<!-- aw-managed-prompt: id: {id6} | status: {eff_status} "
+            f". Pipeline metadata only; not part of the prompt. "
+            f"Metadata: .aw/records/meta/{id6}.jsonl -->\n"
+        )
+    banner = (
+        f"<!-- aw-managed: metadata lives in .aw/records/meta/{id6}.jsonl; "
+        f"use `aw show {id6}`; agents read .aw/AGENT_QUICKSTART.md -->\n"
+    )
+    if artifact_type in ("walkthrough", "roadmap"):
+        return f"---\nid: {id6}\n---\n{banner}"
+    eff_status = (status or "draft").strip()
+    return f"---\nid: {id6}\nstatus: {eff_status}\n---\n{banner}"
+
+
+def _strip_leading_yaml_mirror(text: str) -> str:
+    """Strip a leading ``---`` front-matter block and any immediately following ``aw-managed`` banner."""
+    rest = text
+    if rest.startswith("---\n") or rest.startswith("---\r\n"):
+        lines = rest.splitlines(keepends=True)
+        for idx in range(1, len(lines)):
+            if lines[idx].strip() == "---":
+                rest = "".join(lines[idx + 1 :])
+                break
+    rest = _MANAGED_BANNER_LINE_RE.sub("", rest, count=1)
+    return rest
+
+
+def apply_in_file_mirror(
+    text: str,
+    id6: str,
+    artifact_type: str,
+    status: Optional[str] = None,
+) -> str:
+    """Replace or prepend the canonical 4.1 in-file mirror and banner on ``text``."""
+    prefix = render_in_file_mirror(id6, artifact_type, status)
+    if artifact_type == "prompt":
+        body = _LEADING_PROMPT_COMMENT_LINE_RE.sub("", text.lstrip("\ufeff"), count=1)
+        return prefix + body
+    body = _strip_leading_yaml_mirror(text)
+    return prefix + body
 
 
 def parse_artifact_mirror(text: str) -> Dict[str, Any]:
@@ -5814,26 +5933,7 @@ def append(
                 art_abs_p = records_root / state.path
                 if art_abs_p.exists():
                     txt = art_abs_p.read_text(encoding="utf-8")
-                    if art_type == "walkthrough":
-                        new_txt = (
-                            f"---\nid: {id6}\n---\n" + txt.split("---\n", 2)[-1]
-                            if "---" in txt
-                            else f"---\nid: {id6}\n---\n" + txt
-                        )
-                    elif art_type == "prompt" and txt.startswith("<!--"):
-                        new_txt = re.sub(
-                            r"status:\s*\S+",
-                            f"status: {state.status}",
-                            txt,
-                            count=1,
-                        )
-                    else:
-                        new_fm = f"---\nid: {id6}\nstatus: {state.status}\n---\n"
-                        new_txt = (
-                            new_fm + txt.split("---\n", 2)[-1]
-                            if "---" in txt
-                            else new_fm + txt
-                        )
+                    new_txt = apply_in_file_mirror(txt, id6, art_type, state.status)
                     _core.atomic_write(art_abs_p, new_txt)
 
             # Step 3: Disposition move if needed
@@ -5972,9 +6072,7 @@ def create(
         # Materialize artifact body
         dest_path = records_root / destination
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        mirror_prefix = (
-            f"---\nid: {id6}\nstatus: {fields.get('status', 'draft')}\n---\n"
-        )
+        mirror_prefix = render_in_file_mirror(id6, artifact_type, fields.get("status"))
         _core.atomic_write(dest_path, mirror_prefix + body)
 
         # Clear journal on success
@@ -6075,12 +6173,7 @@ def repair(
             p = records_root / state.path
             if p.exists():
                 txt = p.read_text(encoding="utf-8")
-                mirror_prefix = f"---\nid: {id6}\nstatus: {state.status}\n---\n"
-                new_txt = (
-                    mirror_prefix + txt.split("---\n", 2)[-1]
-                    if "---" in txt
-                    else mirror_prefix + txt
-                )
+                new_txt = apply_in_file_mirror(txt, id6, art_type, state.status)
                 _core.atomic_write(p, new_txt)
 
         # Update cache

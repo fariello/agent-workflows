@@ -23,7 +23,11 @@ from agent_workflows import (
     project_context,
     record_history,
 )
-from agent_workflows.migrations import m0001_preflight, m0001_renames
+from agent_workflows.migrations import (
+    m0001_convert,
+    m0001_preflight,
+    m0001_renames,
+)
 
 _EXCLUDED_DIRNAMES = frozenset(
     {"comms", "prompt-library", "untracked", "runs", "meta", "reviews"}
@@ -467,6 +471,7 @@ def _format_run_report(
         "sidecar": steps.get("sidecar"),
         "renames": steps.get("renames"),
         "citations": steps.get("citations"),
+        "conversion": steps.get("conversion"),
         "sidecar_events": tx_data.get("sidecar_events") or {},
         "orphan_export_path": tx_data.get("orphan_export_path"),
         "orphan_counts": tx_data.get("orphan_counts") or {},
@@ -533,7 +538,6 @@ def run(
     fault_injection: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``."""
-    _ = describer  # Used by later conversion/description steps (ya4ee4 / odeo9z).
     repo_path = Path(repo)
     journal_dir, records_root = _journal_dir_for(repo_path)
 
@@ -704,6 +708,19 @@ def run(
                 "warning_count": len(citation_plan.warnings),
             }
 
+            # Step 4: build event logs and rewrite record mirrors/bodies in scratch.
+            convert_summary = m0001_convert.convert_records(
+                scratch_repo,
+                records_root=scratch_repo / ".aw" / "records",
+                pre_step3_records_root=scratch_dir / "records",
+                repo_root=repo_path,
+                rename_map=tx_data["rename_map"],
+                sidecar_events=sidecar_events,
+                describer=describer,
+                descriptions=tx_data.get("descriptions"),
+            )
+            tx_data["steps"]["conversion"] = convert_summary
+
             operations: List[Dict[str, Any]] = []
             if sidecar_present:
                 operations.append(
@@ -730,6 +747,7 @@ def run(
             renamed_old_rel_set = {
                 f".aw/records/{e.old_rel}" for e in rename_map.entries
             }
+            planned_record_rels: Set[str] = set()
             for rel_from_scratch in step3_summary.get("rewritten_files") or []:
                 if rel_from_scratch == ".aw/.gitignore":
                     continue
@@ -737,6 +755,7 @@ def run(
                     continue
                 if rel_from_scratch.startswith(".aw/records/"):
                     rec_tail = rel_from_scratch[len(".aw/records/") :]
+                    planned_record_rels.add(rec_tail)
                     target_path = records_root / rec_tail
                 else:
                     target_path = repo_path / rel_from_scratch
@@ -750,6 +769,7 @@ def run(
                 )
 
             for entry in rename_map.entries:
+                planned_record_rels.add(entry.new_rel)
                 operations.append(
                     {
                         "op_id": f"rename_rm:{entry.old_rel}",
@@ -764,6 +784,29 @@ def run(
                         "kind": "write_from_scratch",
                         "target": str(records_root / entry.new_rel),
                         "scratch_rel": f"repo/.aw/records/{entry.new_rel}",
+                    }
+                )
+
+            for rec_tail in convert_summary.get("rewritten_files") or []:
+                if rec_tail in planned_record_rels:
+                    continue
+                planned_record_rels.add(rec_tail)
+                operations.append(
+                    {
+                        "op_id": f"convert_md:{rec_tail}",
+                        "kind": "write_from_scratch",
+                        "target": str(records_root / rec_tail),
+                        "scratch_rel": f"repo/.aw/records/{rec_tail}",
+                    }
+                )
+
+            for log_rel in convert_summary.get("log_files") or []:
+                operations.append(
+                    {
+                        "op_id": f"write_log:{log_rel}",
+                        "kind": "write_from_scratch",
+                        "target": str(records_root / log_rel),
+                        "scratch_rel": f"repo/.aw/records/{log_rel}",
                     }
                 )
 

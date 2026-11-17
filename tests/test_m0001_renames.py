@@ -681,7 +681,9 @@ def test_m0001_metadata_v2_step3_wiring_dry_run_apply_rollback_and_missing_root(
         rec / "plans" / "executed" / "20261101-demo-01-pl0001-plan.ipd.md"
     ).read_text(encoding="utf-8")
     assert f"Cites {new_name}." in plan_text
-    assert f"- 2026-11-01 executed (tester): {old_spec}" in plan_text
+    assert "## Workflow history" not in plan_text
+    plan_log_text = (rec / "meta" / "pl0001.jsonl").read_text(encoding="utf-8")
+    assert f"- 2026-11-01 executed (tester): {old_spec}" in plan_log_text
 
     # Rollback restores exact pre-apply bytes across tracked checkout files
     rb = m0001_metadata_v2.rollback(repo)

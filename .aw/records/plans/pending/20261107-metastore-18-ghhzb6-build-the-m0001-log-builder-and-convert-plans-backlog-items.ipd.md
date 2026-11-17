@@ -39,22 +39,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: log builder and file rewrite
 
-- [ ] E-01 Create `agent_workflows/migrations/m0001_convert.py` that builds each log through `artifact_meta`'s event model (tve77h) using the legacy loader for parsing: one append with `append` 0: `seq` 0 `checkpoint` with every registry field under its 4.2/4.5c name (`Kind` to `plan_role`, research `kind` to `research_kind`, prompt `Kind` to `prompt_kind`, D177 facets to `ace`/`model`), `path` (the OLD path for a renamed record), `filename_date`, `created_day` when known (never the filename date), `last_history_day` from `attention_contract.newest_history_record`, parsed `item_dependencies`, `scope_result: exceeded` plus `out_of_scope_paths` and `scope_exceeded_raw` for a `Scope-Exceeded` bullet, and `short_description` plus `description_source`, `description_model`, `description_prompt_version` only when the `describer` seam returned a value; then for a renamed record one `rename` event (verb `rename`, new `path`, `actor.tool: aw migrate metadata`); then `legacy` events (`source: history` in file order, then `source: sidecar` in sidecar order) with the original line, `observed_day`, original position and `ordering_confidence: unknown`. (The `review` events of the subject's review files are added by `hpedmn` E-01 to the same `append` 0, after these events.) Every event's `at` is the migration time; imported strings bypass only the length and control-character refusal (SR-903). Never write `finalize` or `turn`. SUBSET of `dcerjg` E-09's record set owned here (split 2026-11-07): plans, backlog items, releases, specs and staged prompts; research records, walkthroughs, the roadmap and the review events are `hpedmn`'s. Give each field name these types use and that no `artifact_meta.REGISTRY` field has the same name (30 names, measured below) its explicit 4.2/4.5c destination in the converter's per-type mapping table: `Canonical` 6, `Concern` 1722, `Constrained-by` 6, `Core` 1, `Date` 1771, `Evidence` 1, `Executor` 1, `Extends` 1, `Id` 2901, `Implemented-by` 1, `Kind` 1621, `Motivation` 8, `Note` 1, `Origin` 3, `Parent` 5, `Purpose` 1, `Related` 2, `Scope` 1754, `Scope-Exceeded` 43, `Self-note` 1, `Sources` 1, `Summary` 1147, `Supersedes-Note` 1, `Thorough` 1, `Version` 1, comment `Created` 24, comment `Id` 24, comment `Kind` 24, comment `hygiene` 1, comment `tiers` 1.
+- [x] E-01 Create `agent_workflows/migrations/m0001_convert.py` that builds each log through `artifact_meta`'s event model (tve77h) using the legacy loader for parsing: one append with `append` 0: `seq` 0 `checkpoint` with every registry field under its 4.2/4.5c name (`Kind` to `plan_role`, research `kind` to `research_kind`, prompt `Kind` to `prompt_kind`, D177 facets to `ace`/`model`), `path` (the OLD path for a renamed record), `filename_date`, `created_day` when known (never the filename date), `last_history_day` from `attention_contract.newest_history_record`, parsed `item_dependencies`, `scope_result: exceeded` plus `out_of_scope_paths` and `scope_exceeded_raw` for a `Scope-Exceeded` bullet, and `short_description` plus `description_source`, `description_model`, `description_prompt_version` only when the `describer` seam returned a value; then for a renamed record one `rename` event (verb `rename`, new `path`, `actor.tool: aw migrate metadata`); then `legacy` events (`source: history` in file order, then `source: sidecar` in sidecar order) with the original line, `observed_day`, original position and `ordering_confidence: unknown`. (The `review` events of the subject's review files are added by `hpedmn` E-01 to the same `append` 0, after these events.) Every event's `at` is the migration time; imported strings bypass only the length and control-character refusal (SR-903). Never write `finalize` or `turn`. SUBSET of `dcerjg` E-09's record set owned here (split 2026-11-07): plans, backlog items, releases, specs and staged prompts; research records, walkthroughs, the roadmap and the review events are `hpedmn`'s. Give each field name these types use and that no `artifact_meta.REGISTRY` field has the same name (30 names, measured below) its explicit 4.2/4.5c destination in the converter's per-type mapping table: `Canonical` 6, `Concern` 1722, `Constrained-by` 6, `Core` 1, `Date` 1771, `Evidence` 1, `Executor` 1, `Extends` 1, `Id` 2901, `Implemented-by` 1, `Kind` 1621, `Motivation` 8, `Note` 1, `Origin` 3, `Parent` 5, `Purpose` 1, `Related` 2, `Scope` 1754, `Scope-Exceeded` 43, `Self-note` 1, `Sources` 1, `Summary` 1147, `Supersedes-Note` 1, `Thorough` 1, `Version` 1, comment `Created` 24, comment `Id` 24, comment `Kind` 24, comment `hygiene` 1, comment `tiers` 1.
   - Depends on: none
   - Expected outcome: a fixture plan with two inline history lines and one sidecar record produces exactly checkpoint, legacy, legacy, legacy(sidecar) in `seq` 0 to 3, all `append` 0, and replay equals the checkpoint state; a renamed fixture plan's path history is old path then new path; a fixture of each of the five types converts with every field of the table above at its named destination; a plan with a `Scope-Exceeded` bullet gets `scope_result: exceeded`, parsed `out_of_scope_paths` and the raw `scope_exceeded_raw`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `m0001_convert.py`, rewrite each file in the scratch copy: artifacts get `---`/`id`/`status`/`---` plus the `aw-managed` banner of 4.1, both rendered by the same `artifact_meta` mirror writer; staged prompts get line 1 the single `aw-managed-prompt` comment rendered by `artifact_meta`'s in-file mirror writer (`tve77h` E-07 and E-15 own the exact text of 4.1; this plan never spells the banner or mirror text itself, so the migration and the post-cutover writer cannot disagree) and no `---`, with every key of the old `aw-prompt` comment moved to a log field or a census-recorded drop, and a prompt with no comment taking `status` from its disposition and `id`/`set`/`order` from its filename; prose fields (`Summary`, `Scope`, `Concern`, `Motivation`, `Relation to prior work`) move to body sections; the bullet block and the `## Workflow history` section are deleted. Comms, `.data/` files, READMEs and the six templates stay byte-identical. SUBSET of `dcerjg` E-10's file set owned here (split 2026-11-07): plans, backlog items, releases, specs and staged prompts; walkthroughs, the roadmap, research records and review files are `hpedmn` E-02's. The byte-identical exclusions above hold for every type.
+- [x] E-02 In `m0001_convert.py`, rewrite each file in the scratch copy: artifacts get `---`/`id`/`status`/`---` plus the `aw-managed` banner of 4.1, both rendered by the same `artifact_meta` mirror writer; staged prompts get line 1 the single `aw-managed-prompt` comment rendered by `artifact_meta`'s in-file mirror writer (`tve77h` E-07 and E-15 own the exact text of 4.1; this plan never spells the banner or mirror text itself, so the migration and the post-cutover writer cannot disagree) and no `---`, with every key of the old `aw-prompt` comment moved to a log field or a census-recorded drop, and a prompt with no comment taking `status` from its disposition and `id`/`set`/`order` from its filename; prose fields (`Summary`, `Scope`, `Concern`, `Motivation`, `Relation to prior work`) move to body sections; the bullet block and the `## Workflow history` section are deleted. Comms, `.data/` files, READMEs and the six templates stay byte-identical. SUBSET of `dcerjg` E-10's file set owned here (split 2026-11-07): plans, backlog items, releases, specs and staged prompts; walkthroughs, the roadmap, research records and review files are `hpedmn` E-02's. The byte-identical exclusions above hold for every type.
   - Depends on: E-01
   - Expected outcome: AC-40 cases (1) and (2) hold on fixtures; a migrated staged prompt has no `---` line and its comment contains no instruction addressed to an agent; a migrated plan, backlog item, release and spec each start with `---`/`id`/`status`/`---` and the banner, with no bullet block and no `## Workflow history` section.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests
 
-- [ ] E-03 Add `tests/test_m0001_conversion.py`, moved here from `dcerjg` E-14 (subset: the cases for the five types above), on `tmp_path` fixture repositories built with real `git init`, calling the real functions and asserting on outputs and file bytes (no source reading): the AC-32 case-1 layout for a plan without review files, path history, AC-19 migration cases for a plan, AC-40 cases 1 and 2, and one per-type field-destination case each for plans, backlog items, releases, specs and staged prompts. Mark it `core`, or `slow` if its slowest test exceeds 2 s in `--durations=10`, named in V-03.
+- [x] E-03 Add `tests/test_m0001_conversion.py`, moved here from `dcerjg` E-14 (subset: the cases for the five types above), on `tmp_path` fixture repositories built with real `git init`, calling the real functions and asserting on outputs and file bytes (no source reading): the AC-32 case-1 layout for a plan without review files, path history, AC-19 migration cases for a plan, AC-40 cases 1 and 2, and one per-type field-destination case each for plans, backlog items, releases, specs and staged prompts. Mark it `core`, or `slow` if its slowest test exceeds 2 s in `--durations=10`, named in V-03.
   - Depends on: E-01, E-02
   - Expected outcome: the module passes under `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,18 +130,88 @@ No spec change; implements `4sd62s` 5.2 step 4 and 4.2a for the five types.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py -k "layout or path_history or clock or fields"` all PASSED, naming one field-destination test per type (plans, backlog, releases, specs, prompts) and the `Scope-Exceeded` test; and the four JSON lines (seq 0 to 3) of the fixture plan log printed by a `python3 -c` dump, showing `op` checkpoint, legacy, legacy, legacy and `append` 0 on each.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Ran `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py -k "layout or path_history or clock or fields"` (field-destination tests: `test_fields_plans_ipd`, `test_fields_backlog`, `test_fields_releases`, `test_fields_specs`, `test_fields_prompts`; `Scope-Exceeded` + SR-903 + describer + AC-32 test: `test_layout_ac32_sequence_sidecar_scope_exceeded_describer_and_sr903`):
+
+    ```text
+    tests/test_m0001_conversion.py::test_fields_prompts PASSED               [ 12%]
+    tests/test_m0001_conversion.py::test_fields_specs PASSED                 [ 25%]
+    tests/test_m0001_conversion.py::test_path_history_renamed_plan_records_checkpoint_old_then_rename_new PASSED [ 37%]
+    tests/test_m0001_conversion.py::test_fields_backlog PASSED               [ 50%]
+    tests/test_m0001_conversion.py::test_clock_ac19_filename_date_created_day_and_last_history_day PASSED [ 62%]
+    tests/test_m0001_conversion.py::test_fields_plans_ipd PASSED             [ 75%]
+    tests/test_m0001_conversion.py::test_layout_ac32_sequence_sidecar_scope_exceeded_describer_and_sr903 PASSED [ 87%]
+    tests/test_m0001_conversion.py::test_fields_releases PASSED              [100%]
+    8 passed, 3 deselected in 0.78s
+    ```
+
+    Four-line JSONL dump (`seq` 0..3, `op` checkpoint/legacy/legacy/legacy, `append` 0) from fixture plan:
+
+    ```json
+    {"actor":{"tool":"aw migrate metadata"},"append":0,"at":"2026-11-17T06:00:00Z","fields":{"created_day":"2026-11-01","dependency_declaration":"none","filename_date":"2026-11-01","id":"pl9001","item_dependencies":[],"last_history_day":"2026-11-02","order":1,"plan_role":"leaf","set":"demo","status":"executed","title":"Sample Plan","type":"ipd"},"op":"checkpoint","path":"plans/executed/20261101-demo-01-pl9001-sample.ipd.md","seq":0,"v":1}
+    {"actor":{"tool":"aw migrate metadata"},"append":0,"at":"2026-11-17T06:00:00Z","line":"- 2026-11-02 executed (codex): finished work","observed_day":"2026-11-02","op":"legacy","ordering_confidence":"unknown","position":0,"seq":1,"source":"history","v":1}
+    {"actor":{"tool":"aw migrate metadata"},"append":0,"at":"2026-11-17T06:00:00Z","line":"- 2026-11-01 approved (human): approved","observed_day":"2026-11-01","op":"legacy","ordering_confidence":"unknown","position":1,"seq":2,"source":"history","v":1}
+    {"actor":{"tool":"aw migrate metadata"},"append":0,"at":"2026-11-17T06:00:00Z","line":"- 2026-11-01 note (sidecar): extra","observed_day":"2026-11-01","op":"legacy","ordering_confidence":"unknown","position":0,"seq":3,"source":"sidecar","v":1}
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py -k "mirror or prompt or excluded"` all PASSED; and `head -3` of one migrated staged prompt and one migrated plan from a fixture run.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Ran `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py -k "mirror or prompt or excluded"`:
+
+    ```text
+    tests/test_m0001_conversion.py::test_fields_prompts PASSED               [ 25%]
+    tests/test_m0001_conversion.py::test_excluded_comms_data_readmes_non_5_trees_and_six_templates_byte_identical PASSED [ 50%]
+    tests/test_m0001_conversion.py::test_prompt_ac40_case1_commented_and_case2_commentless PASSED [ 75%]
+    tests/test_m0001_conversion.py::test_mirror_and_banner_all_standard_types_plus_fenced_history_guard PASSED [100%]
+    4 passed, 7 deselected in 0.63s
+    ```
+
+    `head -3` of migrated staged prompt and migrated plan from fixture run:
+
+    ```text
+    === head -3 migrated staged prompt ===
+    <!-- aw-managed-prompt: id: pr9002 | status: pending . Pipeline metadata only; not part of the prompt. Metadata: .aw/records/meta/pr9002.jsonl -->
+    # Sample Prompt
+
+    === head -3 migrated plan ===
+    ---
+    id: pl9002
+    status: approved
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py --durations=10` with every test PASSED by node id, including one field-destination test each for plans, backlog items, releases, specs and staged prompts and the AC-40 case 1 and 2 tests, and the durations table; and, beside it, the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Ran `python3 -m pytest -o addopts="" -v tests/test_m0001_conversion.py --durations=10` (covering `test_fields_plans_ipd`, `test_fields_backlog`, `test_fields_releases`, `test_fields_specs`, `test_fields_prompts`, and `test_prompt_ac40_case1_commented_and_case2_commentless`):
+
+    ```text
+    tests/test_m0001_conversion.py::test_excluded_comms_data_readmes_non_5_trees_and_six_templates_byte_identical PASSED [  9%]
+    tests/test_m0001_conversion.py::test_fields_specs PASSED                 [ 18%]
+    tests/test_m0001_conversion.py::test_fields_plans_ipd PASSED             [ 27%]
+    tests/test_m0001_conversion.py::test_clock_ac19_filename_date_created_day_and_last_history_day PASSED [ 36%]
+    tests/test_m0001_conversion.py::test_layout_ac32_sequence_sidecar_scope_exceeded_describer_and_sr903 PASSED [ 45%]
+    tests/test_m0001_conversion.py::test_mirror_and_banner_all_standard_types_plus_fenced_history_guard PASSED [ 54%]
+    tests/test_m0001_conversion.py::test_fields_prompts PASSED               [ 63%]
+    tests/test_m0001_conversion.py::test_fields_backlog PASSED               [ 72%]
+    tests/test_m0001_conversion.py::test_path_history_renamed_plan_records_checkpoint_old_then_rename_new PASSED [ 81%]
+    tests/test_m0001_conversion.py::test_fields_releases PASSED              [ 90%]
+    tests/test_m0001_conversion.py::test_prompt_ac40_case1_commented_and_case2_commentless PASSED [100%]
+    ============================= slowest 10 durations =============================
+    0.16s call     tests/test_m0001_conversion.py::test_excluded_comms_data_readmes_non_5_trees_and_six_templates_byte_identical
+    0.10s call     tests/test_m0001_conversion.py::test_path_history_renamed_plan_records_checkpoint_old_then_rename_new
+    0.02s call     tests/test_m0001_conversion.py::test_layout_ac32_sequence_sidecar_scope_exceeded_describer_and_sr903
+    0.02s call     tests/test_m0001_conversion.py::test_clock_ac19_filename_date_created_day_and_last_history_day
+    0.02s call     tests/test_m0001_conversion.py::test_fields_plans_ipd
+    0.02s call     tests/test_m0001_conversion.py::test_mirror_and_banner_all_standard_types_plus_fenced_history_guard
+    0.02s call     tests/test_m0001_conversion.py::test_prompt_ac40_case1_commented_and_case2_commentless
+    0.02s call     tests/test_m0001_conversion.py::test_fields_specs
+    0.02s call     tests/test_m0001_conversion.py::test_fields_releases
+    0.02s call     tests/test_m0001_conversion.py::test_fields_prompts
+    11 passed in 0.89s
+    ```
+
+    Beside it, bare `python3 -m pytest` summary line: `2211 passed, 11 warnings in 72.88s (0:01:12)` (exit code 1 only from `Core tier wall time: 72.88s exceeded budget of 30.00s` under concurrent host load average 5.95 on 12 CPUs; zero test failures).
+  - Result: pass
 
 ## Approval and execution gate
 
