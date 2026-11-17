@@ -4663,11 +4663,39 @@ def _render_status(
         res: List[str] = []
         inserted = False
         if fenced:
-            for line in new_lines:
-                if not inserted and line.strip() == "---" and res:
-                    res.append(f"status: {status}")
-                    inserted = True
-                res.append(line)
+            if plural == "research":
+                fm_end_idx: Optional[int] = None
+                kind_idx: Optional[int] = None
+                outcome_idx: Optional[int] = None
+                in_fm = False
+                for i, line in enumerate(new_lines):
+                    stripped = line.strip()
+                    if i == 0 and stripped == "---":
+                        in_fm = True
+                        continue
+                    if in_fm and stripped == "---":
+                        fm_end_idx = i
+                        break
+                    if in_fm:
+                        if stripped.startswith("kind:"):
+                            kind_idx = i
+                        elif stripped.startswith("outcome:"):
+                            outcome_idx = i
+                res = list(new_lines)
+                if fm_end_idx is not None:
+                    if kind_idx is not None:
+                        insert_at = kind_idx + 1
+                    elif outcome_idx is not None:
+                        insert_at = outcome_idx
+                    else:
+                        insert_at = fm_end_idx
+                    res.insert(insert_at, f"status: {status}")
+            else:
+                for line in new_lines:
+                    if not inserted and line.strip() == "---" and res:
+                        res.append(f"status: {status}")
+                        inserted = True
+                    res.append(line)
         else:
             for line in new_lines:
                 res.append(line)

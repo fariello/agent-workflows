@@ -78,10 +78,10 @@ def test_w04_plan_without_status_gets_one_after_the_title(repo: Path) -> None:
     )
 
 
-def test_w04_research_without_status_gets_one_before_the_closing_fence(
+def test_w04_research_without_status_inserts_after_kind(
     repo: Path,
 ) -> None:
-    """W-04 (YAML form) and W-18 heading creation at the end when there is no `## ` heading."""
+    """W-04 (YAML form) inserts missing `status:` after `kind:` (9gy5jk D-6) and creates `## Workflow history` at EOF."""
     p = _rec(
         repo,
         "research/20260101-rset-01-rs0001-x.research-report.md",
@@ -90,7 +90,7 @@ def test_w04_research_without_status_gets_one_before_the_closing_fence(
     rc, _ = _run(repo, ["set", "todo", "rs0001", "--yes", "--no-commit"])
     assert rc == 0
     assert p.read_text(encoding="utf-8") == (
-        "---\nid: rs0001\nkind: research-report\nset: rset\nstatus: todo\n---\n\n"
+        "---\nid: rs0001\nkind: research-report\nstatus: todo\nset: rset\n---\n\n"
         "# Research: X\n\nBody\n## Workflow history\n"
         f"- {DAY} todo (aw set): status set to todo\n"
     )

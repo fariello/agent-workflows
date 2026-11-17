@@ -25,6 +25,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
+from agent_workflows import artifact_core, artifact_meta
 from agent_workflows import research_contract as R
 from agent_workflows import research_index as RI
 from agent_workflows import research_refs as RF
@@ -77,51 +78,6 @@ def _all_docs(
             continue
         out.append((p, parsed, fm))
     return out
-
-
-def _rewrite_status_in_text(text: str, new_status: str) -> str:
-    """Return ``text`` with the frontmatter ``status:`` line set to ``new_status`` (first block).
-
-    If no ``status:`` line is present, insert ``status: <new_status>`` at the canonical position
-    (after ``kind:`` or before ``outcome:`` / closing ``---``).
-    """
-
-    lines = text.splitlines(keepends=True)
-    in_fm = False
-    fm_end_idx = None
-    kind_idx = None
-    outcome_idx = None
-    status_idx = None
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if i == 0 and stripped == "---":
-            in_fm = True
-            continue
-        if in_fm and stripped == "---":
-            fm_end_idx = i
-            break
-        if in_fm:
-            if stripped.startswith("status:"):
-                status_idx = i
-            elif stripped.startswith("kind:"):
-                kind_idx = i
-            elif stripped.startswith("outcome:"):
-                outcome_idx = i
-
-    if status_idx is not None:
-        newline = "\n" if lines[status_idx].endswith("\n") else ""
-        lines[status_idx] = f"status: {new_status}{newline}"
-    elif fm_end_idx is not None:
-        if kind_idx is not None:
-            insert_at = kind_idx + 1
-        elif outcome_idx is not None:
-            insert_at = outcome_idx
-        else:
-            insert_at = fm_end_idx
-        lines.insert(insert_at, f"status: {new_status}\n")
-
-    return "".join(lines)
 
 
 def _resolve_research_for_mutation(
@@ -376,7 +332,23 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
     for m in moves:
         # Rewrite status in the file's frontmatter first (in place at the old path).
         text = m.old_path.read_text(encoding="utf-8")
-        RF._atomic_write(m.old_path, _rewrite_status_in_text(text, m.new_status))
+        fm = R.parse_frontmatter(text) or {}
+        raw_status = fm.get("status")
+        current_status = str(raw_status).strip() if raw_status is not None else ""
+        event: Dict[str, object] = {"op": "transition", "to": m.new_status}
+        if current_status:
+            event["from"] = current_status
+        artifact_meta.append(
+            artifact_meta.LegacyTarget(m.old_path, "research", m.id6 or None),
+            [event],
+            legacy_render=artifact_meta.LegacyRender(
+                tag=m.new_status,
+                day=artifact_core.utc_history_date(),
+                actor_label="aw",
+                history=False,
+            ),
+            repo_root=repo_root,
+        )
         # Move as a tracked rename.
         src_rel = m.old_path.relative_to(repo_root).as_posix()
         dst_rel = m.new_path.relative_to(repo_root).as_posix()
