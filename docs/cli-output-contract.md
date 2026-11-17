@@ -514,3 +514,38 @@ the next command rebuilds it.
 - **`aw index plans`, `aw index research`, `aw index prompts`, `aw index all`**: Unchanged. They
   still write and check their INDEX files with the same output and exit codes, and after a write
   they also refresh the metadata cache. A cache problem never changes their output or exit code.
+
+## 14. Short-Description Setter: `aw describe`
+
+`aw describe <selector> (--summary <text> | --clear) [--apply]` previews, sets, or clears the
+`short_description` field on any single existing record across the seven metadata-store trees
+(`plans`, `specs`, `backlog`, `releases`, `research`, `prompts`, `walkthroughs`), including terminal
+records, without changing record status.
+
+- **Synopsis and flags**:
+  - `<selector>`: path, `id6`, filename stem, or unique filename fragment resolved across the seven
+    metadata-store trees (`reviews`, `comms`, and `other` excluded; global selector precedence
+    `path` > `id6` > `setid` > `status` > `stem` > `substring`, requiring exactly one match at the
+    winning tier).
+  - `--summary <text>` or `--clear` (mutually exclusive, one required): set a non-empty single-line
+    description (at most 300 characters, no newlines or control characters, leak-clean) or remove
+    the field.
+  - `--apply`: write the change to disk and prepend one `describe` history entry (default is
+    dry-run preview with zero disk writes).
+- **Preview and apply output**:
+  - Preview (default): exits `0` with `status: "preview"`, `applied: false`, `changes` marking
+    `applied: false`, and a `next_actions` entry carrying `--apply`. Under `--agent`, emits an
+    `aw.agent/v1` `result` record with `"outcome": "preview"` and `"applied": false`.
+  - Apply (`--apply`): exits `0` with `status: "clean"`, `applied: true`, and `changes` marking
+    `applied: true`. Under `--agent`, emits an `aw.agent/v1` `result` record with
+    `"outcome": "clean"` and `"applied": true`.
+  - `--json` emits the full `CommandResult` dictionary with `status`, `exit_code`, `changes`,
+    `next_actions`, and `data`.
+- **Exit 2 refusal cases**:
+  - Missing `<selector>`, missing `--summary`/`--clear`, or passing both `--summary` and `--clear`.
+  - Zero matches or multiple matches at the winning selector precedence tier.
+  - Empty, whitespace-only, >300-character, newline-containing, control-character-containing,
+    leak-flagged, or prompt-delimiter-breaking (`-->` or `|` on a prompt) `--summary` values.
+  - Emits `status: "cannot-run"` (`kind: "error"`, `outcome: "cannot-run"`, `exit: 2`) under
+    `--agent` and `--json`, and writes diagnostics to `stderr` (leaving `stdout` empty) in human
+    mode, with zero disk writes.

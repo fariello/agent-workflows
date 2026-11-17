@@ -421,6 +421,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="positional argument required",
         reason="Requires varname positional argument.",
     ),
+    "describe": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires <selector> positional argument and either --summary or --clear.",
+    ),
     "finish": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",

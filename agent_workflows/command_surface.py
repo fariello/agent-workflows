@@ -616,6 +616,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         ),
         exit_contract=(0, 2),
     ),
+    # metastore h06gs7 (spec 4sd62s 4.2 SHORT DESCRIPTION, OQ-30): set or clear short_description
+    # on a single existing record across the 7 artifact_meta record trees, including terminal records.
+    # Exit 2: Invalid selector, zero or multiple selector matches, or unsafe/invalid --summary value.
+    CommandDeclaration(
+        command="describe",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--summary", "--clear", "--apply", "--dir", "--json", "--agent"),
+        exit_contract=(0, 2),
+    ),
     CommandDeclaration(
         command="archive",
         command_class="mutation",

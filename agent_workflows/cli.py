@@ -712,6 +712,14 @@ _DESCRIPTIONS = {
         "Deliberately deep-shelve research docs: a targeted move, or a bare aged-and-uncited "
         "sweep (with a preview) that shelves stale, unreferenced research."
     ),
+    "describe": (
+        "Preview, set, or clear the short_description of any single existing record across plans, "
+        "specs, backlog, releases, research, prompts, or walkthroughs, including terminal records. "
+        "Dry-run (preview) by default; pass --apply to write. Takes a <selector> (path, id6, "
+        "stem, or unique fragment) and either --summary <text> (non-empty single line up to 300 "
+        "characters) or --clear. Refuses zero matches, multiple matches at the winning "
+        "precedence tier, and unsafe or leak-flagged text with exit 2."
+    ),
     "check-local-leaks": (
         "Detect (and, with --fix, rewrite) identifying info that must not appear in a public "
         "artifact: home paths, usernames, hostnames, private repo names, and session ids. "
@@ -7887,6 +7895,44 @@ OUTPUT & EXITS
         help="Allow overwriting an existing destination.",
     )
 
+    p_describe = sub.add_parser(
+        "describe",
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Set or clear the short_description of a single existing record (preview by default; --apply to write).",
+        epilog="""
+EXAMPLES
+  aw describe ab12cd --summary "Adds a widget."          # preview setting short_description
+  aw describe ab12cd --summary "Adds a widget." --apply  # write short_description and history
+  aw describe ab12cd --clear --apply                     # remove short_description
+""",
+    )
+    p_describe.add_argument(
+        "selector",
+        help="Record selector: path, id6, filename stem, or unique fragment.",
+    )
+    desc_action_grp = p_describe.add_mutually_exclusive_group(required=True)
+    desc_action_grp.add_argument(
+        "--summary",
+        default=None,
+        help="Single-line short description (non-empty, max 300 characters).",
+    )
+    desc_action_grp.add_argument(
+        "--clear",
+        action="store_true",
+        help="Remove the short_description field from the target record.",
+    )
+    p_describe.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the change to disk (default is preview only).",
+    )
+    p_describe.add_argument(
+        "--dir",
+        default=None,
+        help="Repo root to search for the record (default: current directory).",
+    )
+
     p_archive = sub.add_parser(
         "archive",
         parents=[common],
@@ -13937,6 +13983,269 @@ def _run_show_meta(
     if res.exit_code != 0:
         term.status("fail", res.summary)
     return res.exit_code
+
+
+def _run_describe(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
+    """Preview, set, or clear short_description on a single existing record via artifact_meta."""
+    import hashlib
+    import shlex
+
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import attention_contract as _att
+    from agent_workflows import prompts as _prompts
+    from agent_workflows import research_contract as _rc
+    from agent_workflows import selectors
+    from agent_workflows.agent_schema import redact_home_paths
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        NextAction,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+
+    def _emit_error(message: str, next_cmd: str = "aw describe --help") -> int:
+        safe_msg = str(redact_home_paths(message))
+        safe_next = str(redact_home_paths(next_cmd))
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="describe",
+                status="cannot-run",
+                exit_code=2,
+                summary=safe_msg,
+                next_actions=[NextAction(command=safe_next)],
+                verified=False,
+                complete=False,
+                repo_root=repo_root,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(f"aw describe: {safe_msg}\n")
+        return 2
+
+    clear_mode = bool(getattr(args, "clear", False))
+    raw_summary = getattr(args, "summary", None)
+    summary_text: Optional[str] = None
+    if not clear_mode:
+        if raw_summary is None:
+            return _emit_error("either --summary <text> or --clear is required")
+        raw_str = str(raw_summary)
+        err_msg = _att.refuse_unsafe_descriptive(
+            "aw describe", "--summary", raw_str, bound_length=True
+        )
+        if err_msg:
+            return _emit_error(err_msg.removeprefix("aw describe: "))
+        stripped = raw_str.strip()
+        if not stripped:
+            return _emit_error("--summary must not be empty or whitespace-only")
+        summary_text = stripped
+
+    selector = str(getattr(args, "selector", "") or "").strip()
+    if not selector:
+        return _emit_error("a non-empty <selector> is required")
+
+    trees = tuple(_meta._LEGACY_PLURAL_TO_TYPE.keys())
+    tier_hits: Dict[str, List[Tuple[str, Path]]] = {
+        tier: [] for tier in selectors._PRECEDENCE
+    }
+    for rt in trees:
+        res_sel = selectors.resolve(repo_root, rt, selector)
+        if not res_sel.paths or res_sel.kind is None:
+            continue
+        for p in res_sel.paths:
+            if (
+                res_sel.kind == selectors.MATCH_PATH
+                and not selectors.is_path_in_record_dirs(repo_root, rt, p)
+            ):
+                continue
+            if rt == "research" and _rc.companion_owner_stem(p) is not None:
+                continue
+            if p.name in selectors._SKIP_NAMES:
+                continue
+            tier_hits[res_sel.kind].append((rt, p.resolve()))
+
+    winning_tier: Optional[str] = None
+    winning_matches: List[Tuple[str, Path]] = []
+    for tier in selectors._PRECEDENCE:
+        if tier_hits[tier]:
+            winning_tier = tier
+            dedup: Dict[Tuple[str, str], Tuple[str, Path]] = {}
+            for rt, rp in tier_hits[tier]:
+                dedup[(rt, str(rp))] = (rt, rp)
+            winning_matches = [dedup[k] for k in sorted(dedup)]
+            break
+
+    if not winning_matches:
+        return emit_zero_match_selector_refusal(
+            ctx=ctx,
+            cmd="describe",
+            tokens=[selector],
+            next_cmd="aw find",
+            next_desc="search all artifact trees",
+            searched=", ".join(trees),
+            term=term,
+        )
+
+    if len(winning_matches) > 1:
+        rel_candidates: List[str] = []
+        for _rt, p in winning_matches:
+            try:
+                rel_candidates.append(p.relative_to(repo_root.resolve()).as_posix())
+            except ValueError:
+                rel_candidates.append(str(redact_home_paths(str(p))))
+        cand_str = ", ".join(rel_candidates)
+        return _emit_error(
+            f"selector {selector!r} is ambiguous ({winning_tier}) matching "
+            f"{len(winning_matches)} records: {cand_str}",
+            next_cmd="aw find " + shlex.quote(selector),
+        )
+
+    record_type, target_path = winning_matches[0]
+    if record_type == "prompts" and summary_text is not None:
+        if "-->" in summary_text or "|" in summary_text:
+            return _emit_error(
+                "--summary must not contain '-->' or '|' on a prompt record"
+            )
+
+    try:
+        raw_bytes = target_path.read_bytes()
+        text = raw_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _emit_error(f"cannot read target record: {exc}")
+    source_digest = hashlib.sha256(raw_bytes).hexdigest()
+
+    id6: Optional[str] = None
+    if record_type == "prompts":
+        id6 = _prompts.read_metadata_id6(text)
+    if not id6:
+        id6 = selectors.declared_id6(target_path)
+    if not id6:
+        id6 = selectors.filename_slot_id6(target_path)
+
+    try:
+        rel_path = target_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel_path = str(target_path)
+
+    if clear_mode:
+        msg = "short_description cleared"
+        events: List[Dict[str, Any]] = [
+            {"op": "unset", "fields": ["short_description"], "message": msg}
+        ]
+    else:
+        assert summary_text is not None
+        msg = f"short_description set: {summary_text}"
+        events = [
+            {
+                "op": "set",
+                "fields": {"short_description": summary_text},
+                "message": msg,
+            }
+        ]
+
+    apply = bool(getattr(args, "apply", False))
+    ltarget = _meta.LegacyTarget(
+        path=target_path,
+        record_type=record_type,
+        id6=id6,
+        source_digest=source_digest,
+    )
+    lrender = _meta.LegacyRender(
+        tag="describe",
+        day=_core.utc_history_date(),
+        actor_label="aw describe",
+        history=True,
+        is_prompt=(record_type == "prompts"),
+    )
+    sidecar = (
+        _meta.SidecarRecord(
+            tree=record_type,
+            workflow="aw describe",
+            actor="aw describe",
+            message=msg,
+        )
+        if record_type in ("specs", "backlog")
+        else None
+    )
+    ctx_meta = _meta.legacy_context(repo_root)
+
+    try:
+        append_res = _meta.append(
+            ltarget,
+            events,
+            dry_run=not apply,
+            legacy_render=lrender,
+            repo_root=repo_root,
+            project_context=ctx_meta,
+            sidecar=sidecar,
+            actor={"tool": "aw describe"},
+            message=msg,
+        )
+    except (ValueError, RuntimeError) as exc:
+        return _emit_error(str(exc))
+
+    if isinstance(append_res, dict) and append_res.get("error"):
+        return _emit_error(str(append_res["error"]))
+
+    action_verb = "clear" if clear_mode else "set"
+    if apply:
+        res_status = "clean"
+        res_summary = f"{action_verb} short_description on {rel_path}"
+        next_actions: List[NextAction] = []
+    else:
+        res_status = "preview"
+        res_summary = f"would {action_verb} short_description on {rel_path}"
+        if clear_mode:
+            apply_cmd = f"aw describe {shlex.quote(selector)} --clear --apply"
+        else:
+            assert summary_text is not None
+            apply_cmd = (
+                f"aw describe {shlex.quote(selector)} "
+                f"--summary {shlex.quote(summary_text)} --apply"
+            )
+        next_actions = [
+            NextAction(
+                command=apply_cmd,
+                description="Apply the short-description change.",
+            )
+        ]
+
+    data: Dict[str, Any] = {
+        "target": rel_path,
+        "record_type": record_type,
+        "id6": id6,
+        "short_description": None if clear_mode else summary_text,
+        "applied": apply,
+        "repo_root": str(repo_root),
+    }
+    res = CommandResult(
+        command="describe",
+        status=res_status,
+        exit_code=0,
+        summary=res_summary,
+        changes=[
+            Change(
+                path=rel_path,
+                kind="modify",
+                detail=msg,
+                applied=apply,
+            )
+        ],
+        next_actions=next_actions,
+        data=data,
+        verified=True,
+        complete=True,
+        applied=apply,
+        target=rel_path,
+        repo_root=repo_root,
+    )
+    return get_renderer(ctx).emit(res, ctx)
 
 
 def _run_record_history(
@@ -21122,6 +21431,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import artifact_adopt as _adopt
 
         return _adopt.run_adopt(args)
+    if args.command == "describe":
+        return _run_describe(args, term, context=context)
     if args.command == "archive":
         return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):

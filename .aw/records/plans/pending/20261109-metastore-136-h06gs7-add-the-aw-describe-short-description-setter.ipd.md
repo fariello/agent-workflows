@@ -40,27 +40,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: CLI handler, surface declaration, and conformance wiring
 
-- [ ] E-01 Register the top-level `describe` parser and `args.command == "describe"` handler in `agent_workflows/cli.py` (`parents=[common]`, `_DESCRIPTIONS["describe"]` populated, positional `<selector>`, required mutually exclusive `--summary <text>` vs `--clear`, optional `--apply`). Resolve `<selector>` across the seven `_LEGACY_PLURAL_TO_TYPE` trees through `selectors.resolve` using the Step 0 global-precedence uniqueness rule (excluding `reviews`, `comms`, and `other`, confining direct path hits with `selectors.is_path_in_record_dirs`, and refusing zero or multiple matches at the winning precedence tier with exit 2). Validate `--summary` with `attention_contract.refuse_unsafe_descriptive` at `MAX_DESCRIPTIVE_LEN` (300) and reject empty or whitespace-only text before writing; append one `set` or `unset` of `short_description` via `artifact_meta.append` (`dry_run=not args.apply`, Phase-B `LegacyTarget`, `LegacyRender`, and `SidecarRecord` per Step 0, catching `ValueError` as exit 2) without changing status so active and terminal records both succeed (`4sd62s` OQ-30). Render `CommandResult` across human, `--agent`, and `--json`, adjusting `agent_workflows/artifact_meta.py` only if Phase-B `unset` of `short_description` across bullet, research YAML, or prompt comment mirrors requires a guard after `7yr827` and `bir7xm`.
+- [x] E-01 Register the top-level `describe` parser and `args.command == "describe"` handler in `agent_workflows/cli.py` (`parents=[common]`, `_DESCRIPTIONS["describe"]` populated, positional `<selector>`, required mutually exclusive `--summary <text>` vs `--clear`, optional `--apply`). Resolve `<selector>` across the seven `_LEGACY_PLURAL_TO_TYPE` trees through `selectors.resolve` using the Step 0 global-precedence uniqueness rule (excluding `reviews`, `comms`, and `other`, confining direct path hits with `selectors.is_path_in_record_dirs`, and refusing zero or multiple matches at the winning precedence tier with exit 2). Validate `--summary` with `attention_contract.refuse_unsafe_descriptive` at `MAX_DESCRIPTIVE_LEN` (300) and reject empty or whitespace-only text before writing; append one `set` or `unset` of `short_description` via `artifact_meta.append` (`dry_run=not args.apply`, Phase-B `LegacyTarget`, `LegacyRender`, and `SidecarRecord` per Step 0, catching `ValueError` as exit 2) without changing status so active and terminal records both succeed (`4sd62s` OQ-30). Render `CommandResult` across human, `--agent`, and `--json`, adjusting `agent_workflows/artifact_meta.py` only if Phase-B `unset` of `short_description` across bullet, research YAML, or prompt comment mirrors requires a guard after `7yr827` and `bir7xm`.
   - Depends on: none
   - Expected outcome: `aw describe <selector> --summary <text>` previews (`status="preview"`, `applied=False`, exit 0, zero file changes); `--apply` writes `short_description` and one `describe` history line (`status="clean"`, `applied=True`, exit 0) on active and terminal records; `--clear --apply` removes the field; missing, ambiguous, mutually-exclusive, >300-character, newline, control-character, whitespace-only, or leak-flagged inputs exit 2 with no writes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Declare `CommandDeclaration` for `"describe"` (`command_class="mutation"`, `human_recipe="preview"`, `agent_record_kind="result"`, `mutation_gate="dry_run_default"`, `exit_2_meaning="Invalid selector, zero or multiple selector matches, or unsafe/invalid --summary value."`) in `agent_workflows/command_surface.py` and document the `aw describe` command contract in `docs/cli-output-contract.md` (with no em or en dashes).
+- [x] E-02 Declare `CommandDeclaration` for `"describe"` (`command_class="mutation"`, `human_recipe="preview"`, `agent_record_kind="result"`, `mutation_gate="dry_run_default"`, `exit_2_meaning="Invalid selector, zero or multiple selector matches, or unsafe/invalid --summary value."`) in `agent_workflows/command_surface.py` and document the `aw describe` command contract in `docs/cli-output-contract.md` (with no em or en dashes).
   - Depends on: E-01
   - Expected outcome: `COMMAND_INVENTORY` includes `"describe"` with dry-run-default mutation semantics and `docs/cli-output-contract.md` documents its synopsis, preview/apply output, and exit-2 refusal cases.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Register `"describe"` in `tests/conformance_matrix.py` (`MUTATION_EXEMPTION_REGISTRY`, `reason_kind="arg_fixture_needed"` for required `<selector>` and `--summary|--clear`) and increment the expected `REQUIRED_LEAVES` count in `tests/test_usage_refusal_agent_record.py` by 1 to account for the new required-argument `describe` leaf.
+- [x] E-03 Register `"describe"` in `tests/conformance_matrix.py` (`MUTATION_EXEMPTION_REGISTRY`, `reason_kind="arg_fixture_needed"` for required `<selector>` and `--summary|--clear`) and increment the expected `REQUIRED_LEAVES` count in `tests/test_usage_refusal_agent_record.py` by 1 to account for the new required-argument `describe` leaf.
   - Depends on: E-02
   - Expected outcome: all CLI surface, shared-flag, usage-refusal, completion, and subparser-description conformance modules pass with `describe` registered.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: behavioral test coverage
 
-- [ ] E-04 Extend `tests/test_writers_create_summary.py` (`pytestmark = pytest.mark.core`, isolated `tmp_path` fixtures, real CLI invocations, zero source inspection) with behavioral `describe` tests covering preview no-write, `--apply` bullet plus history line and `artifact_meta.read` round trip, executed-plan acceptance, `--clear --apply` removal, unknown `id6` exit 2, reviewed-plan `.review.md` non-collision, multi-match selector exit 2, `--summary` with `--clear` exit 2, 301-character/newline/control-character/whitespace-only exit-2 refusals leaving `git status --porcelain` empty, research YAML `short-description:` and staged-prompt `aw-prompt` `Short-Description:` set/clear round trips, and `--agent`/`--json` preview and apply records.
+- [x] E-04 Extend `tests/test_writers_create_summary.py` (`pytestmark = pytest.mark.core`, isolated `tmp_path` fixtures, real CLI invocations, zero source inspection) with behavioral `describe` tests covering preview no-write, `--apply` bullet plus history line and `artifact_meta.read` round trip, executed-plan acceptance, `--clear --apply` removal, unknown `id6` exit 2, reviewed-plan `.review.md` non-collision, multi-match selector exit 2, `--summary` with `--clear` exit 2, 301-character/newline/control-character/whitespace-only exit-2 refusals leaving `git status --porcelain` empty, research YAML `short-description:` and staged-prompt `aw-prompt` `Short-Description:` set/clear round trips, and `--agent`/`--json` preview and apply records.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: every `describe` case in `tests/test_writers_create_summary.py` passes, exercising all five `6e93gt` V-03 cases plus cross-type selector, mirror, machine-output, and refusal invariants.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -128,22 +128,189 @@ None open. Phase-B on-disk representation (`- Short-Description:` bullet, resear
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a fixture-repository CLI transcript produced by `agent_workflows/cli.py` (`describe` handler from E-01) showing `aw describe <id6> --summary "Adds a widget."` (preview, exit 0, `git status --porcelain` empty), `aw describe <id6> --summary "Adds a widget." --apply` (exit 0, `git diff` showing `- Short-Description: Adds a widget.` and one `describe` history line), `aw describe <executed-id6> --summary "Terminal summary." --apply` on an executed plan (exit 0), `aw describe <id6> --clear --apply` (bullet removed, exit 0), and `aw describe zzzzzz --summary x; echo $?` printing `2`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```text
+    $ aw describe ab12cd --summary "Adds a widget."
+    AW describe  .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+    ! PREVIEW  would set short_description on .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+
+    Would change:
+      modify  .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md (short_description set: Adds a widget.)
+
+    Next  aw describe ab12cd --summary 'Adds a widget.' --apply (Apply the short-description change.)
+    Agent output: --agent
+    exit: 0 | git status --porcelain: ''
+
+    $ aw describe ab12cd --summary "Adds a widget." --apply
+    AW describe  .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+    ✓ CONFORMS  set short_description on .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+
+    Changes:
+      modify  .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md (short_description set: Adds a widget.)
+    Agent output: --agent
+    exit: 0
+    $ git diff
+    --- a/.aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+    +++ b/.aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+    @@ -3,9 +3,11 @@
+     - Date: 2026-11-17
+     - Kind: child
+     - Status: approved
+    +- Short-Description: Adds a widget.
+     - Set: widget
+     - Order: 01
+     - Id: ab12cd
+
+     ## Workflow history
+    +- 2026-11-17 describe (aw describe): short_description set: Adds a widget.
+     - 2026-11-17 draft (t): created.
+
+    $ aw describe ef34gh --summary "Terminal summary." --apply
+    AW describe  .aw/records/plans/executed/20261117-widget-02-ef34gh-done.ipd.md
+    ✓ CONFORMS  set short_description on .aw/records/plans/executed/20261117-widget-02-ef34gh-done.ipd.md
+
+    Changes:
+      modify  .aw/records/plans/executed/20261117-widget-02-ef34gh-done.ipd.md (short_description set: Terminal summary.)
+    Agent output: --agent
+    exit: 0
+    $ git diff
+    +- Short-Description: Terminal summary.
+    +- 2026-11-17 describe (aw describe): short_description set: Terminal summary.
+
+    $ aw describe ab12cd --clear --apply
+    AW describe  .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+    ✓ CONFORMS  clear short_description on .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md
+
+    Changes:
+      modify  .aw/records/plans/pending/20261117-widget-01-ab12cd-first.ipd.md (short_description cleared)
+    Agent output: --agent
+    exit: 0
+    $ git diff -- .aw/records/plans/pending/
+    -- Short-Description: Adds a widget.
+    +- 2026-11-17 describe (aw describe): short_description cleared
+
+    $ aw describe zzzzzz --summary x
+    stderr: ✗ FAIL  no artifact matched selector 'zzzzzz'
+    Active filters:
+      unmatched selector: zzzzzz
+      searched: plans, specs, backlog, research, releases, prompts, walkthroughs
+    Next  aw find (search all artifact trees)
+    exit: 2
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff agent_workflows/command_surface.py docs/cli-output-contract.md` showing the `"describe"` `CommandDeclaration` (`command_class="mutation"`, `human_recipe="preview"`, `agent_record_kind="result"`, `mutation_gate="dry_run_default"`) and the `aw describe` documentation entry with zero em or en dashes, plus `python3 -m pytest -o addopts="" -v tests/test_command_surface_declarations.py tests/test_cli_agent_protocol_doc.py` all PASSED.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    ```diff
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index 9831c6279..7603a2ae2 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -616,6 +616,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+             ),
+             exit_contract=(0, 2),
+         ),
+    +    # metastore h06gs7 (spec 4sd62s 4.2 SHORT DESCRIPTION, OQ-30): set or clear short_description
+    +    # on a single existing record across the 7 artifact_meta record trees, including terminal records.
+    +    # Exit 2: Invalid selector, zero or multiple selector matches, or unsafe/invalid --summary value.
+    +    CommandDeclaration(
+    +        command="describe",
+    +        command_class="mutation",
+    +        human_recipe="preview",
+    +        agent_record_kind="result",
+    +        mutation_gate="dry_run_default",
+    +        empty_error_renderer="renderer_boundary",
+    +        legacy_flags=("--summary", "--clear", "--apply", "--dir", "--json", "--agent"),
+    +        exit_contract=(0, 2),
+    +    ),
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 67027be1a..6210afff6 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -514,3 +514,38 @@ the next command rebuilds it.
+     +## 14. Short-Description Setter: `aw describe`
+    ```
+    Zero em or en dashes verified across `docs/cli-output-contract.md`, `agent_workflows/cli.py`, and `agent_workflows/command_surface.py`.
+    `python3 -m pytest -o addopts="" -v tests/test_command_surface_declarations.py tests/test_cli_agent_protocol_doc.py`:
+    ```text
+    tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves PASSED [ 20%]
+    tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_unreachable_command_declarations PASSED [ 40%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_protocol_and_contract_agree_on_token_control_hatches PASSED [ 60%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_count_word_agrees_with_bullet_count PASSED [ 80%]
+    tests/test_cli_agent_protocol_doc.py::CliAgentProtocolDocTests::test_token_control_enumerates_limit PASSED [100%]
+    ============================== 5 passed in 0.59s ===============================
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff tests/conformance_matrix.py tests/test_usage_refusal_agent_record.py` showing `MUTATION_EXEMPTION_REGISTRY["describe"]` and the `+1` `REQUIRED_LEAVES` update, plus `python3 -m pytest -o addopts="" -v tests/test_conformance_matrix_structure.py tests/test_agent_surface_conformance.py tests/test_shared_flag_honored.py tests/test_usage_refusal_agent_record.py tests/test_subparser_descriptions.py tests/test_completion.py` all PASSED.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    ```diff
+    diff --git a/tests/conformance_matrix.py b/tests/conformance_matrix.py
+    index e11d3fd6d..407bd7bed 100644
+    --- a/tests/conformance_matrix.py
+    +++ b/tests/conformance_matrix.py
+    @@ -421,6 +421,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+             citation="positional argument required",
+             reason="Requires varname positional argument.",
+         ),
+    +    "describe": Exemption(
+    +        reason_kind="arg_fixture_needed",
+    +        citation="positional argument required",
+    +        reason="Requires <selector> positional argument and either --summary or --clear.",
+    +    ),
+    diff --git a/tests/test_usage_refusal_agent_record.py b/tests/test_usage_refusal_agent_record.py
+    index 9033635bc..6aed128a8 100644
+    --- a/tests/test_usage_refusal_agent_record.py
+    +++ b/tests/test_usage_refusal_agent_record.py
+    @@ -86,7 +86,8 @@ def test_exclusion_set_size_and_members() -> None:
+         assert len(EXCLUDED_LEAVES) == 0
+         # 69: `ipd sync` takes zero-or-more paths since legacyfin bulk mode (`--all`), so it is no
+         # longer a required-positional leaf; its bare invocation still refuses (exit 2, a FILE is required).
+    -    assert len(REQUIRED_LEAVES) == 69
+    +    # 70: `describe` added in metastore h06gs7 (requires <selector> and --summary|--clear).
+    +    assert len(REQUIRED_LEAVES) == 70
+    ```
+    `python3 -m pytest -o addopts="" -v tests/test_command_surface_declarations.py tests/test_cli_agent_protocol_doc.py tests/test_conformance_matrix_structure.py tests/test_agent_surface_conformance.py tests/test_shared_flag_honored.py tests/test_usage_refusal_agent_record.py tests/test_subparser_descriptions.py tests/test_completion.py` (including `test_required_arg_leaf_modes[describe] PASSED`):
+    `======================= 611 passed in 229.42s (0:03:49) ========================`
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py -k describe` with every `describe` test ID PASSED by name (covering preview no-write, `--apply` bullet and `artifact_meta.read` round trip, executed-plan acceptance, `--clear --apply`, unknown `id6` exit 2, reviewed-plan `.review.md` non-collision, multi-match selector exit 2, `--summary` with `--clear` exit 2, 301-character/newline/control-character/whitespace-only exit-2 refusals with empty `git status --porcelain`, research YAML and `aw-prompt` comment set/clear round trips, and `--agent`/`--json` preview and apply output), plus the bare core gate `python3 -m pytest` summary line.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py -k describe`:
+    ```text
+    tests/test_writers_create_summary.py::test_describe_log_format_post_cutover_set_and_clear PASSED [  4%]
+    tests/test_writers_create_summary.py::test_describe_prompt_refuses_breakout_and_pipe[Adds | Status: executed] PASSED [  8%]
+    tests/test_writers_create_summary.py::test_describe_reviewed_plan_does_not_collide_with_review_file PASSED [ 12%]
+    tests/test_writers_create_summary.py::test_describe_unknown_id6_exits_2 PASSED [ 16%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a widget.\r] PASSED [ 20%]
+    tests/test_writers_create_summary.py::test_describe_research_yaml_set_and_clear_round_trip PASSED [ 24%]
+    tests/test_writers_create_summary.py::test_describe_preview_does_not_write PASSED [ 28%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a\x07widget.] PASSED [ 32%]
+    tests/test_writers_create_summary.py::test_describe_executed_plan_accepted PASSED [ 36%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[leak-path] PASSED [ 40%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[] PASSED [ 44%]
+    tests/test_writers_create_summary.py::test_describe_prompt_comment_set_and_clear_round_trip PASSED [ 48%]
+    tests/test_writers_create_summary.py::test_describe_releases_and_walkthroughs_round_trip PASSED [ 52%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a widget.\n] PASSED [ 56%]
+    tests/test_writers_create_summary.py::test_describe_mutually_exclusive_and_missing_action_exit_2 PASSED [ 60%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a widget.\n- Status: executed] PASSED [ 64%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[301-chars] PASSED [ 68%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[   ] PASSED [ 72%]
+    tests/test_writers_create_summary.py::test_describe_agent_and_json_preview_apply_and_error PASSED [ 76%]
+    tests/test_writers_create_summary.py::test_describe_specs_and_backlog_sidecar_round_trip PASSED [ 80%]
+    tests/test_writers_create_summary.py::test_describe_prompt_refuses_breakout_and_pipe[Adds --> breakout] PASSED [ 84%]
+    tests/test_writers_create_summary.py::test_describe_multi_match_selector_exits_2 PASSED [ 88%]
+    tests/test_writers_create_summary.py::test_describe_path_confinement_and_global_precedence PASSED [ 92%]
+    tests/test_writers_create_summary.py::test_describe_apply_sets_bullet_history_and_round_trips PASSED [ 96%]
+    tests/test_writers_create_summary.py::test_describe_clear_apply_removes_short_description PASSED [100%]
+    ====================== 25 passed, 57 deselected in 10.15s ======================
+    ```
+    Full `tests/test_writers_create_summary.py`: `82 passed in 25.34s`.
+    Core gate (`python3 -m agent_workflows suite`): `2338 passed, 11 warnings in 57.61s` (exit 0; `AW_CORE_BUDGET_ENFORCE=0` under host load 6.84).
+    Bare `python3 -m pytest` (under host load 8.23): `2338 passed, 11 warnings in 75.57s` (exited 1 solely on 30s core wall-time budget).
+  - Result: pass
 
 
 ## Approval and execution gate

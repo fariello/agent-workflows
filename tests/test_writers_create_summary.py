@@ -6,6 +6,7 @@ Covers `4sd62s` 4.2 SHORT DESCRIPTION and AC-36 case 1 for:
 - `aw releases new` (IPD fekdwv E-03)
 - `aw research new`, `aw adopt`, and research YAML create rendering (IPD bir7xm E-01..E-03)
 - `aw ipd scaffold`, `aw prompts new`, `ipd_schema.META_RECOGNIZED`, and prompt trailer stripping (IPD py2vu9 E-01..E-04)
+- `aw describe` short-description setter and clearer across active, terminal, YAML, and prompt records (IPD h06gs7 E-04)
 """
 
 from __future__ import annotations
@@ -1513,3 +1514,841 @@ def test_prompts_load_legacy_artifact_strips_metadata_trailer(tmp_path: Path) ->
     state = _read_after_cache_unlink(repo, "ab12cd")
     assert state.short_description == "Adds a widget."
     assert state.fields["short_description"] == "Adds a widget."
+
+
+# --------------------------------------------------------------------------------------
+# Short-Description Setter (`aw describe`, IPD h06gs7 E-04)
+# --------------------------------------------------------------------------------------
+
+
+def _commit_repo(repo: Path, message: str = "seed fixture") -> None:
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", message], cwd=repo, check=True)
+
+
+def _write_plan_fixture(
+    repo: Path,
+    *,
+    id6: str = "ab12cd",
+    set_id: str = "widget",
+    order: int = 1,
+    slug: str = "widget-plan",
+    status: str = "approved",
+    bucket: str = "pending",
+    short_description: str | None = None,
+) -> Path:
+    plan_dir = repo / ".aw" / "records" / "plans" / bucket
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    path = plan_dir / f"20261117-{set_id}-{order:02d}-{id6}-{slug}.ipd.md"
+    lines = [
+        "# IPD: Widget plan",
+        "",
+        "- Date: 2026-11-17",
+        "- Kind: child",
+        f"- Status: {status}",
+        f"- Set: {set_id}",
+        f"- Order: {order:02d}",
+        f"- Id: {id6}",
+    ]
+    if short_description is not None:
+        lines.append(f"- Short-Description: {short_description}")
+    lines.extend(
+        ["", "## Workflow history", "- 2026-11-17 draft (tester): created.", ""]
+    )
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+def test_describe_preview_does_not_write(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    plan_path = _write_plan_fixture(repo, id6="pl1234", set_id="widget", slug="first")
+    _commit_repo(repo)
+    before = plan_path.read_text(encoding="utf-8")
+
+    rc, out, err = _run_cli(
+        [
+            "describe",
+            "pl1234",
+            "--summary",
+            "Adds a widget.",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    assert "PREVIEW" in out
+    assert "Adds a widget." not in plan_path.read_text(encoding="utf-8")
+    assert plan_path.read_text(encoding="utf-8") == before
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_describe_apply_sets_bullet_history_and_round_trips(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    plan_path = _write_plan_fixture(repo, id6="pl1234", set_id="widget", slug="first")
+    _commit_repo(repo)
+
+    rc, out, err = _run_cli(
+        [
+            "describe",
+            "pl1234",
+            "--summary",
+            "Adds a widget.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    assert "CONFORMS" in out or "EXECUTED" in out or "Changes:" in out
+    text = plan_path.read_text(encoding="utf-8")
+    assert "- Short-Description: Adds a widget." in text
+    assert "describe (aw describe): short_description set: Adds a widget." in text
+
+    state = _read_after_cache_unlink(repo, "pl1234")
+    assert state.short_description == "Adds a widget."
+    assert state.fields["short_description"] == "Adds a widget."
+
+
+def test_describe_executed_plan_accepted(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    plan_path = _write_plan_fixture(
+        repo,
+        id6="ex1234",
+        set_id="widget",
+        slug="done-plan",
+        status="executed",
+        bucket="executed",
+    )
+    _commit_repo(repo)
+
+    rc, _out, err = _run_cli(
+        [
+            "describe",
+            "ex1234",
+            "--summary",
+            "Terminal summary.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    text = plan_path.read_text(encoding="utf-8")
+    assert "- Status: executed" in text
+    assert "- Short-Description: Terminal summary." in text
+    assert "describe (aw describe): short_description set: Terminal summary." in text
+
+    state = _read_after_cache_unlink(repo, "ex1234")
+    assert state.status == "executed"
+    assert state.short_description == "Terminal summary."
+
+
+def test_describe_clear_apply_removes_short_description(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    plan_path = _write_plan_fixture(
+        repo,
+        id6="cl1234",
+        set_id="widget",
+        slug="clear-plan",
+        short_description="Old summary.",
+    )
+    _commit_repo(repo)
+
+    rc, _out, err = _run_cli(
+        ["describe", "cl1234", "--clear", "--apply", "--dir", str(repo)]
+    )
+    assert rc == 0, err
+    text = plan_path.read_text(encoding="utf-8")
+    assert "- Short-Description:" not in text
+    assert "describe (aw describe): short_description cleared" in text
+
+    state = _read_after_cache_unlink(repo, "cl1234")
+    assert state.short_description is None
+    assert state.fields.get("short_description") is None
+
+
+def test_describe_unknown_id6_exits_2(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    _write_plan_fixture(repo, id6="pl1234", set_id="widget", slug="first")
+    _commit_repo(repo)
+
+    rc, out, err = _run_cli(
+        ["describe", "zzzzzz", "--summary", "x", "--apply", "--dir", str(repo)]
+    )
+    assert rc == 2
+    assert out == ""
+    assert "zzzzzz" in err
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_describe_reviewed_plan_does_not_collide_with_review_file(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    plan_path = _write_plan_fixture(repo, id6="rv1234", set_id="widget", slug="rev")
+    reviews_dir = repo / ".aw" / "records" / "reviews"
+    reviews_dir.mkdir(parents=True, exist_ok=True)
+    review_path = reviews_dir / "20261117-widget-01-rv1234-rev.review.md"
+    review_original = (
+        "# Plan Review\n\n"
+        "- Subject-Id: rv1234\n"
+        "- Subject-Type: ipd\n"
+        "- Verdict: APPROVE\n"
+    )
+    review_path.write_text(review_original, encoding="utf-8")
+    _commit_repo(repo)
+
+    rc, _out, err = _run_cli(
+        [
+            "describe",
+            "rv1234",
+            "--summary",
+            "Reviewed plan summary.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0, err
+    assert "- Short-Description: Reviewed plan summary." in plan_path.read_text(
+        encoding="utf-8"
+    )
+    assert review_path.read_text(encoding="utf-8") == review_original
+
+
+def test_describe_multi_match_selector_exits_2(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    p1 = _write_plan_fixture(
+        repo, id6="aa1111", set_id="sharedset", order=1, slug="one"
+    )
+    p2 = _write_plan_fixture(
+        repo, id6="bb2222", set_id="sharedset", order=2, slug="two"
+    )
+    _commit_repo(repo)
+
+    # Set id matching two plans
+    rc_set, out_set, err_set = _run_cli(
+        [
+            "describe",
+            "sharedset",
+            "--summary",
+            "Ambiguous",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_set == 2
+    assert out_set == ""
+    assert "ambiguous" in err_set.lower()
+
+    # Substring matching two plans
+    rc_sub, out_sub, err_sub = _run_cli(
+        [
+            "describe",
+            "20261117",
+            "--summary",
+            "Ambiguous",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_sub == 2
+    assert out_sub == ""
+    assert "ambiguous" in err_sub.lower()
+    assert "- Short-Description:" not in p1.read_text(encoding="utf-8")
+    assert "- Short-Description:" not in p2.read_text(encoding="utf-8")
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_describe_mutually_exclusive_and_missing_action_exit_2(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    _write_plan_fixture(repo, id6="pl1234", set_id="widget", slug="first")
+    _commit_repo(repo)
+
+    rc_both, _out1, _err1 = _run_cli(
+        [
+            "describe",
+            "pl1234",
+            "--summary",
+            "Valid.",
+            "--clear",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_both == 2
+
+    rc_neither, _out2, _err2 = _run_cli(["describe", "pl1234", "--dir", str(repo)])
+    assert rc_neither == 2
+    assert _git_status_porcelain(repo) == ""
+
+
+@pytest.mark.parametrize(
+    "bad_summary",
+    [
+        pytest.param("x" * (A.MAX_DESCRIPTIVE_LEN + 1), id="301-chars"),
+        "Adds a widget.\n- Status: executed",
+        "Adds a widget.\n",
+        "Adds a widget.\r",
+        "Adds a\x07widget.",
+        "   ",
+        "",
+        pytest.param(
+            "Contains leak " + "/" + "Users/" + "alice/secret", id="leak-path"
+        ),
+    ],
+)
+def test_describe_refuses_unsafe_summary_values(
+    tmp_path: Path, bad_summary: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    _write_plan_fixture(repo, id6="pl1234", set_id="widget", slug="first")
+    _commit_repo(repo)
+
+    rc, out, _err = _run_cli(
+        [
+            "describe",
+            "pl1234",
+            "--summary",
+            bad_summary,
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert out == ""
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_describe_research_yaml_set_and_clear_round_trip(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc_new, _out_n, err_n = _run_cli(
+        [
+            "research",
+            "new",
+            "--kind",
+            "findings",
+            "--slug",
+            "widget",
+            "--apply",
+            str(repo),
+        ]
+    )
+    assert rc_new == 0, err_n
+    files = [
+        p
+        for p in (repo / ".aw" / "records" / "research").rglob("*.md")
+        if p.name != "INDEX.md"
+    ]
+    assert len(files) == 1
+    rpath = files[0]
+    id6 = _extract_research_id6(rpath.read_text(encoding="utf-8"))
+
+    rc_set, _out_s, err_s = _run_cli(
+        [
+            "describe",
+            id6,
+            "--summary",
+            "Research short summary.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_set == 0, err_s
+    set_text = rpath.read_text(encoding="utf-8")
+    fm_set = _yaml_frontmatter_lines(set_text)
+    assert "short-description: Research short summary." in fm_set
+    assert (
+        "describe (aw describe): short_description set: Research short summary."
+        in set_text
+    )
+    state_set = _read_after_cache_unlink(repo, id6)
+    assert state_set.short_description == "Research short summary."
+
+    rc_clr, _out_c, err_c = _run_cli(
+        ["describe", id6, "--clear", "--apply", "--dir", str(repo)]
+    )
+    assert rc_clr == 0, err_c
+    clr_text = rpath.read_text(encoding="utf-8")
+    assert "short-description:" not in clr_text
+    assert "describe (aw describe): short_description cleared" in clr_text
+    state_clr = _read_after_cache_unlink(repo, id6)
+    assert state_clr.short_description is None
+
+
+def test_describe_prompt_comment_set_and_clear_round_trip(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    rc_new, _out_n, err_n = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--date",
+            "2026-11-17",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_new == 0, err_n
+    files = list((repo / ".aw" / "records" / "prompts").rglob("*.prompt.md"))
+    assert len(files) == 1
+    ppath = files[0]
+    id6 = _extract_prompt_id6(ppath.read_text(encoding="utf-8"))
+
+    rc_set, _out_s, err_s = _run_cli(
+        [
+            "describe",
+            id6,
+            "--summary",
+            "Prompt short summary.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_set == 0, err_s
+    set_text = ppath.read_text(encoding="utf-8")
+    first_line = set_text.splitlines()[0]
+    assert first_line.startswith("<!-- aw-prompt:")
+    assert first_line.endswith("-->")
+    assert "Short-Description: Prompt short summary." in first_line
+    assert "- Short-Description:" not in set_text
+    state_set = _read_after_cache_unlink(repo, id6)
+    assert state_set.short_description == "Prompt short summary."
+
+    rc_clr, _out_c, err_c = _run_cli(
+        ["describe", id6, "--clear", "--apply", "--dir", str(repo)]
+    )
+    assert rc_clr == 0, err_c
+    clr_text = ppath.read_text(encoding="utf-8")
+    assert "Short-Description:" not in clr_text.splitlines()[0]
+    state_clr = _read_after_cache_unlink(repo, id6)
+    assert state_clr.short_description is None
+
+
+@pytest.mark.parametrize(
+    "bad_prompt_summary",
+    [
+        "Adds --> breakout",
+        "Adds | Status: executed",
+    ],
+)
+def test_describe_prompt_refuses_breakout_and_pipe(
+    tmp_path: Path, bad_prompt_summary: str
+) -> None:
+    repo = _init_repo(tmp_path)
+    rc_new, _out_n, err_n = _run_cli(
+        [
+            "prompts",
+            "new",
+            "--slug",
+            "widget",
+            "--date",
+            "2026-11-17",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_new == 0, err_n
+    ppath = list((repo / ".aw" / "records" / "prompts").rglob("*.prompt.md"))[0]
+    id6 = _extract_prompt_id6(ppath.read_text(encoding="utf-8"))
+    _commit_repo(repo)
+
+    rc, out, _err = _run_cli(
+        [
+            "describe",
+            id6,
+            "--summary",
+            bad_prompt_summary,
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 2
+    assert out == ""
+    assert _git_status_porcelain(repo) == ""
+
+
+def test_describe_specs_and_backlog_sidecar_round_trip(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    assert (
+        _run_cli(
+            [
+                "specs",
+                "new",
+                "--title",
+                "Widget Spec",
+                "--apply",
+                "--dir",
+                str(repo),
+            ]
+        )[0]
+        == 0
+    )
+    assert (
+        _run_cli(
+            [
+                "backlog",
+                "new",
+                "--priority",
+                "high",
+                "--work-kind",
+                "feature",
+                "--summary",
+                "Initial backlog.",
+                "--apply",
+                "--dir",
+                str(repo),
+            ]
+        )[0]
+        == 0
+    )
+
+    spec_id = _extract_id6(
+        list((repo / ".aw" / "records" / "specs").rglob("*.spec.md"))[0].read_text(
+            encoding="utf-8"
+        )
+    )
+    bklg_id = _extract_id6(
+        list((repo / ".aw" / "records" / "backlog").rglob("*.backlog.md"))[0].read_text(
+            encoding="utf-8"
+        )
+    )
+
+    for id6, summary in (
+        (spec_id, "Spec short."),
+        (bklg_id, "Backlog short."),
+    ):
+        rc, _out, err = _run_cli(
+            ["describe", id6, "--summary", summary, "--apply", "--dir", str(repo)]
+        )
+        assert rc == 0, f"{id6}: {err}"
+        state = _read_after_cache_unlink(repo, id6)
+        assert state.short_description == summary
+
+    sidecar = repo / ".aw" / "records" / "history.jsonl"
+    assert sidecar.is_file()
+    sidecar_text = sidecar.read_text(encoding="utf-8")
+    assert spec_id in sidecar_text and bklg_id in sidecar_text
+    assert "aw describe" in sidecar_text
+
+
+def test_describe_releases_and_walkthroughs_round_trip(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    assert (
+        _run_cli(
+            [
+                "releases",
+                "new",
+                "--version",
+                "2.0.0",
+                "--summary",
+                "Initial release.",
+                "--apply",
+                "--dir",
+                str(repo),
+            ]
+        )[0]
+        == 0
+    )
+    wt_dir = repo / ".aw" / "records" / "walkthroughs"
+    wt_dir.mkdir(parents=True, exist_ok=True)
+    wt_path = wt_dir / "20261117-widget-01-wt1234-demo.walkthrough.md"
+    wt_path.write_text(
+        "# Walkthrough: Demo\n\n- Date: 2026-11-17\n- Id: wt1234\n- Set: widget\n\n## Summary\n\nDone.\n",
+        encoding="utf-8",
+    )
+
+    rel_id = _extract_id6(
+        list((repo / ".aw" / "records" / "releases").rglob("*.release.md"))[
+            0
+        ].read_text(encoding="utf-8")
+    )
+
+    for id6, summary in (
+        (rel_id, "Release short."),
+        ("wt1234", "Walkthrough short."),
+    ):
+        rc, _out, err = _run_cli(
+            ["describe", id6, "--summary", summary, "--apply", "--dir", str(repo)]
+        )
+        assert rc == 0, f"{id6}: {err}"
+        state = _read_after_cache_unlink(repo, id6)
+        assert state.short_description == summary
+
+
+def test_describe_agent_and_json_preview_apply_and_error(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    _write_plan_fixture(repo, id6="aj1234", set_id="widget", slug="machine")
+    _commit_repo(repo)
+
+    # --agent preview
+    rc_ap, out_ap, err_ap = _run_cli(
+        [
+            "describe",
+            "aj1234",
+            "--summary",
+            "Machine summary.",
+            "--agent",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_ap == 0, err_ap
+    rec_ap = json.loads(out_ap.strip().splitlines()[-1])
+    assert rec_ap["schema"] == "aw.agent/v1"
+    assert rec_ap["kind"] == "result"
+    assert rec_ap["cmd"] == "describe"
+    assert rec_ap["outcome"] == "preview"
+    assert rec_ap["exit"] == 0
+    assert rec_ap["applied"] is False
+    assert rec_ap["changes"][0]["kind"] == "modify"
+    assert "--apply" in rec_ap["next"]
+    assert _git_status_porcelain(repo) == ""
+
+    # --json preview
+    rc_jp, out_jp, err_jp = _run_cli(
+        [
+            "describe",
+            "aj1234",
+            "--summary",
+            "Machine summary.",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_jp == 0, err_jp
+    doc_jp = json.loads(out_jp)
+    assert doc_jp["command"] == "describe"
+    assert doc_jp["status"] == "preview"
+    assert doc_jp["exit_code"] == 0
+    assert doc_jp["changes"][0]["applied"] is False
+    assert doc_jp["data"]["applied"] is False
+
+    # --agent apply
+    rc_aa, out_aa, err_aa = _run_cli(
+        [
+            "describe",
+            "aj1234",
+            "--summary",
+            "Machine summary.",
+            "--apply",
+            "--agent",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_aa == 0, err_aa
+    rec_aa = json.loads(out_aa.strip().splitlines()[-1])
+    assert rec_aa["kind"] == "result"
+    assert rec_aa["outcome"] == "clean"
+    assert rec_aa["exit"] == 0
+    assert rec_aa["applied"] is True
+
+    # --json apply
+    rc_ja, out_ja, err_ja = _run_cli(
+        [
+            "describe",
+            "aj1234",
+            "--summary",
+            "Machine summary two.",
+            "--apply",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_ja == 0, err_ja
+    doc_ja = json.loads(out_ja)
+    assert doc_ja["status"] == "clean"
+    assert doc_ja["exit_code"] == 0
+    assert doc_ja["changes"][0]["applied"] is True
+    assert doc_ja["data"]["short_description"] == "Machine summary two."
+
+    # --agent and --json unknown selector error
+    rc_ae, out_ae, _err_ae = _run_cli(
+        [
+            "describe",
+            "missing",
+            "--summary",
+            "x",
+            "--agent",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_ae == 2
+    rec_ae = json.loads(out_ae.strip().splitlines()[-1])
+    assert rec_ae["kind"] == "error"
+    assert rec_ae["outcome"] == "cannot-run"
+    assert rec_ae["exit"] == 2
+
+    rc_je, out_je, _err_je = _run_cli(
+        [
+            "describe",
+            "missing",
+            "--summary",
+            "x",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_je == 2
+    doc_je = json.loads(out_je)
+    assert doc_je["status"] == "cannot-run"
+    assert doc_je["exit_code"] == 2
+
+
+def test_describe_path_confinement_and_global_precedence(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    # Direct path outside the 7 record trees must be refused with exit 2.
+    outside_doc = repo / "README.md"
+    outside_doc.write_text("# Repo\n\n- Id: out123\n", encoding="utf-8")
+    # Plan declaring id6 gp1234 vs spec whose filename contains gp1234 as substring.
+    plan_path = _write_plan_fixture(repo, id6="gp1234", set_id="widget", slug="target")
+    spec_dir = repo / ".aw" / "records" / "specs" / "draft"
+    spec_path = spec_dir / "20261117-sp9999-01-sp9999-mentions-gp1234.spec.md"
+    spec_path.write_text(
+        "# Spec\n\n- Date: 2026-11-17\n- Status: draft\n- Id: sp9999\n",
+        encoding="utf-8",
+    )
+    _commit_repo(repo)
+
+    rc_out, _o1, _e1 = _run_cli(
+        [
+            "describe",
+            str(outside_doc),
+            "--summary",
+            "Nope.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_out == 2
+    assert _git_status_porcelain(repo) == ""
+
+    # id6 match (tier 2) on plan beats substring match (tier 6) on spec filename.
+    rc_prec, _o2, err_prec = _run_cli(
+        [
+            "describe",
+            "gp1234",
+            "--summary",
+            "Precedence hit.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_prec == 0, err_prec
+    assert "- Short-Description: Precedence hit." in plan_path.read_text(
+        encoding="utf-8"
+    )
+    assert "- Short-Description:" not in spec_path.read_text(encoding="utf-8")
+
+
+def test_describe_log_format_post_cutover_set_and_clear(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    records_root = repo / ".aw" / "records"
+    ctx = _meta.legacy_context(repo)
+    plan_path = _write_plan_fixture(
+        repo,
+        id6="lg1234",
+        set_id="widget",
+        slug="logged",
+        status="executed",
+        bucket="executed",
+    )
+    rel_plan = plan_path.relative_to(records_root).as_posix()
+    _meta.append(
+        "lg1234",
+        [
+            {
+                "op": "create",
+                "path": rel_plan,
+                "fields": {
+                    "id": "lg1234",
+                    "type": "ipd",
+                    "status": "draft",
+                    "set": "widget",
+                    "order": 1,
+                    "path": rel_plan,
+                    "title": "Widget plan",
+                },
+                "message": "created",
+            },
+        ],
+        project_context=ctx,
+        _from_create=True,
+    )
+    for app_evs in (
+        [{"op": "transition", "from": "draft", "to": "to-review", "message": "r"}],
+        [{"op": "transition", "from": "to-review", "to": "reviewed", "message": "rv"}],
+        [
+            {
+                "op": "transition",
+                "from": "reviewed",
+                "to": "approved",
+                "message": "app",
+            },
+            {
+                "op": "set",
+                "fields": {"approval": "2026-11-17, tester: ok"},
+                "message": "app",
+            },
+        ],
+        [
+            {
+                "op": "transition",
+                "from": "approved",
+                "to": "executed",
+                "message": "exec",
+            },
+            {"op": "unset", "fields": ["approval"], "message": "exec"},
+            {
+                "op": "set",
+                "fields": {"scope_result": "within"},
+                "message": "exec",
+            },
+        ],
+    ):
+        _meta.append(
+            "lg1234",
+            app_evs,
+            by_human=True,
+            project_context=ctx,
+        )
+    assert (records_root / "meta" / "lg1234.jsonl").is_file()
+
+    rc_set, _o1, err1 = _run_cli(
+        [
+            "describe",
+            "lg1234",
+            "--summary",
+            "Post-cutover terminal summary.",
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_set == 0, err1
+    state_set = _read_after_cache_unlink(repo, "lg1234")
+    assert state_set.short_description == "Post-cutover terminal summary."
+    assert state_set.status == "executed"
+
+    rc_clr, _o2, err2 = _run_cli(
+        ["describe", "lg1234", "--clear", "--apply", "--dir", str(repo)]
+    )
+    assert rc_clr == 0, err2
+    state_clr = _read_after_cache_unlink(repo, "lg1234")
+    assert state_clr.short_description is None

@@ -86,7 +86,8 @@ def test_exclusion_set_size_and_members() -> None:
     assert len(EXCLUDED_LEAVES) == 0
     # 69: `ipd sync` takes zero-or-more paths since legacyfin bulk mode (`--all`), so it is no
     # longer a required-positional leaf; its bare invocation still refuses (exit 2, a FILE is required).
-    assert len(REQUIRED_LEAVES) == 69
+    # 70: `describe` added in metastore h06gs7 (requires <selector> and --summary|--clear).
+    assert len(REQUIRED_LEAVES) == 70
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)
