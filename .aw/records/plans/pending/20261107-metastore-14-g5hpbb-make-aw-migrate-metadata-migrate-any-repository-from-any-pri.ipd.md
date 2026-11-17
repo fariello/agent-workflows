@@ -97,6 +97,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-102-9vf2iv-build-the-five-shape-migration-fixture-corpus-from-a-structu.ipd.md
 - E-02 (multi-tree cache scan), E-03 (stable id-less identity), and the `tests/test_artifact_meta_shapes.py` half of E-07: Moved to 6oi2nu (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 6oi2nu
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-103-6oi2nu-make-the-artifact-meta-cache-scan-every-record-tree-and-give.ipd.md
 - E-04 (`m0001_discover.py` and constant removal) and E-05 (id-less conversion): Moved to 3g20ms (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 3g20ms
 - E-06 (layout stage chaining, companion backends, no-sidecar rule): Moved to bv4kkj (round-3 split 2026-11-09 per research nj8zdp guidance).
