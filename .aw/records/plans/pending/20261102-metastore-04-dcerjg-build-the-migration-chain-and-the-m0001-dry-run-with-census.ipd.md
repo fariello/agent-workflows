@@ -158,6 +158,7 @@ Every earlier `m0001` step is built by the parts in `- Item-Dependencies:`, whic
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-19-hpedmn-build-the-m0001-review-events-and-convert-research-records-w.ipd.md
 - E-11 (steps 4a and 5: terminal-commit marker, STATUS/INDEX cleanup, read-only marker acceptance in both hooks) and `tests/test_m0001_gate_marker.py` from E-14: Moved to `o19353` (round-3 split 2026-11-09 per research `nj8zdp` guidance).
   - Carrier: o19353
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-100-o19353-build-the-m0001-terminal-commit-marker-index-cleanup-step-an.ipd.md
 - Multi-repository layout/shape discovery, `.agents/` layout stage chaining, id-less/prose record conversion, and five-shape corpus parity (`4sd62s` C12, 5.2a, AC-42; split across `9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`, and finishing plan `g5hpbb`).
   - Carrier: g5hpbb
 - The description journal, the tracked generation prompt, the tool-less model call, and the cost trial (Order 05: `odeo9z`, `830wku`, and finishing plan `ya4ee4`); this plan provides only the `describer` seam and the census and refusal accounting.
