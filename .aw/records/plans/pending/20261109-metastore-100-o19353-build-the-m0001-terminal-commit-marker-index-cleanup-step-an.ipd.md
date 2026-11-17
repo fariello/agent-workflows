@@ -133,6 +133,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.ipd.md
 - Review events, roadmap registry, and conversion for research, walkthroughs, roadmap, and reviews.
   - Carrier: hpedmn
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-19-hpedmn-build-the-m0001-review-events-and-convert-research-records-w.ipd.md
 - Step-6 field census, round-trip verifier, ten-module family gate run, disposable clone proof, and changelog.
   - Carrier: dcerjg
 - Code deletion of STATUS/INDEX generators in phase C.
