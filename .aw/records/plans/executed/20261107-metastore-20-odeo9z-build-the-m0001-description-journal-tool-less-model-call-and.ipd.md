@@ -6,7 +6,7 @@
 - Scope: Extend `agent_workflows/migrations/m0001_describe.py` and `tests/test_m0001_describe.py` (created by `830wku`) and add the tracked prompt `agent_workflows/data/short-description-prompt.md`: the prompt, delimiter-breakout-safe renderer, and wheel check (`ya4ee4` E-01), the locked description journal (E-02), the OpenCode v1/v2 tool-less argv, env/scratch-config, and pre-run policy verification (E-03), the `0o500` scratch directory and guarded `DescribeRunnerFn` call (E-04), and the regenerate-once `describe_record` rule (E-06) calling `830wku`'s `validate`. EXCLUDES: `validate` and its `-k validate` tests (`830wku`, round-3 split of E-05); wiring into `m0001`, CLI options, full fake-host AC-36 suite, real copy trial, and changelog (`ya4ee4`).
 - Scope-Paths: agent_workflows/migrations/m0001_describe.py, agent_workflows/data/short-description-prompt.md, pyproject.toml, tests/test_m0001_describe.py, .aw/records/plans/pending/20261107-metastore-20-odeo9z-build-the-m0001-description-journal-tool-less-model-call-and.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:830wku
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: odeo9z
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: odeo9z verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified pyproject.toml: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261107-metastore-20-odeo9z-build-the-m0001-description-journal-tool-less-model-call-and.review.md
