@@ -39459,10 +39459,33 @@ def restart_on_new_code_if_needed(
     argv = build_resume_argv(state, host_labels=host_labels, run_dir=run_dir)
     env = dict(os.environ)
     env["AW_DRIVER_RESTART"] = str(new_count)
+    start_mono = state.get("_invocation_start_mono")
+    if isinstance(start_mono, (int, float)):
+        wall_start = time.time() - max(0.0, time.monotonic() - float(start_mono))
+        env["AW_INVOCATION_START_WALL"] = repr(wall_start)
 
     replacer = replace if replace is not None else _default_replace
     replacer(argv, env)
     return "restart"
+
+
+def resolve_invocation_start_mono(env: Mapping[str, str] | None = None) -> float:
+    """Return monotonic timestamp representing when this runner command started.
+
+    Preserves elapsed time across ``restart_on_new_code_if_needed`` reloads via
+    ``AW_INVOCATION_START_WALL`` when present, otherwise starts from now.
+    """
+    source = os.environ if env is None else env
+    raw = source.get("AW_INVOCATION_START_WALL")
+    now_mono = time.monotonic()
+    if raw:
+        try:
+            wall_start = float(raw)
+            elapsed = max(0.0, time.time() - wall_start)
+            return now_mono - elapsed
+        except (TypeError, ValueError):
+            pass
+    return now_mono
 
 
 def terminate_process(

@@ -1089,27 +1089,31 @@ class TestUnifiedStatuslineLayout:
         assert "agy › gemini-2.5-pro (high)" in lines[0]
         assert "Tokens" not in lines[0]
 
-        # Line 1 has Time, Timeout, and unified Tokens subheaders
-        assert "Time:   " in lines[1]
-        assert "Timeout:09:51" in lines[1]
+        # Line 1 has Now, Timeout (idle/limit), and unified Spend + Tokens subheaders
+        assert "Now:    " in lines[1]
+        assert "Timeout:00:08/09:59" in lines[1]
+        assert "Spend" in lines[1]
         assert "Tokens" in lines[1]
         assert "In" in lines[1]
         assert "Out" in lines[1]
         assert "Cache" in lines[1]
+        # Spend and Tokens share one column with no vertical divider between them
+        assert len(lines[1].split("│")[1:-1]) == 5
 
-        # Line 2 has Elapsed, Last, and equal-sized (out) tag
+        # Line 2 has Elapsed, Current, and unparenthesized out tag
         assert "Elapsed:00:27:48" in lines[2]
-        assert "Last:   00:08 (out)" in lines[2]
+        assert "Current:00:27:48 out " in lines[2]
+        assert "(out)" not in lines[2]
         assert "4.7m" in lines[2]
         assert "119k" in lines[2]
         assert "110.7k" in lines[2]
         assert "4.5m" in lines[2]
 
-        # 2. Subagent active: '(chat)' displayed
+        # 2. Subagent active: unparenthesized 'chat' displayed
         subagent_lines = rs.format_statusline_lines(
             now_ts=1700000000.0,
             run_start_ts=1700000000.0 - 1668.0,
-            item_start_ts=1700000000.0 - 1668.0,
+            item_start_ts=1700000000.0 - 568.0,
             last_act_ts=1700000000.0 - 2.0,
             current_idx=1,
             total_items=1,
@@ -1118,6 +1122,7 @@ class TestUnifiedStatuslineLayout:
             tracker=tracker,
             pal=rs.Palette(False),
             stall_remaining=591.0,
+            stall_timeout=1800.0,
             progress_source="subagent",
             action="Review",
             artifact_kind="IPD",
@@ -1125,7 +1130,9 @@ class TestUnifiedStatuslineLayout:
             model="claude-3-7-sonnet",
             variant="thinking",
         )
-        assert "Last:   00:02 (chat)" in subagent_lines[2]
+        assert "Timeout:00:02/30:00" in subagent_lines[1]
+        assert "Current:00:09:28 chat" in subagent_lines[2]
+        assert "(chat)" not in subagent_lines[2]
 
     def test_statusbar_width_never_exceeds_127(self) -> None:
         """Assert statusbar width remains within bounds under baseline and heavy stress test."""
@@ -1250,13 +1257,14 @@ class TestCwdBadgeAndOptionARunId:
         assert widths == [120, 120, 120, 120]
         # Top border absorbs border divider but Line 1 still has the exact interior columns
         cols_l1 = lines[1].split("│")[1:-1]
-        assert len(cols_l1) == 6
+        assert len(cols_l1) == 5
         assert _T.visible_width(cols_l1[0]) == 17  # Col 0
-        assert _T.visible_width(cols_l1[1]) == 21  # Col 1
+        assert _T.visible_width(cols_l1[1]) == 23  # Col 1
         assert _T.visible_width(cols_l1[2]) == 31  # Col 2
         assert _T.visible_width(cols_l1[3]) == 9  # Col 3
-        assert _T.visible_width(cols_l1[4]) == 7  # Col 4 (Spend NOT widened)
-        assert _T.visible_width(cols_l1[5]) == 28  # Col 5 (Tokens NOT widened)
+        assert (
+            _T.visible_width(cols_l1[4]) == 34
+        )  # Col 4 (merged Spend + Tokens NOT widened)
 
     def test_option_a_run_id_bottom_center(self) -> None:
         """Option A: Run ID placed in dimmed slate on bottom border under Col 2."""
@@ -1288,3 +1296,69 @@ class TestCwdBadgeAndOptionARunId:
         assert f"─{run_id}──┴" in bot_plain
         # Stop badge at bottom right
         assert bot_plain.endswith("─ ⏹ STOP: finish current ─╯")
+
+    def test_now_time_shares_muted_header_color(self) -> None:
+        """Now: label and HH:MM:SS clock share the same muted color without cyan jump."""
+        pal = rs.Palette(True, use_unicode=True)
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 100.0,
+            item_start_ts=1700000000.0 - 50.0,
+            last_act_ts=1700000000.0 - 10.0,
+            current_idx=1,
+            total_items=2,
+            setid="iosmvn",
+            id6="cntxsm",
+            pal=pal,
+            use_unicode=True,
+        )
+        col0_h = lines[1].split("│")[1]
+        assert "Now:    " in col0_h
+        # No SGR jump inside the Now: HH:MM:SS text
+        t_str = time.strftime("%H:%M:%S", time.localtime(1700000000.0))
+        assert f"Now:    {t_str}" in col0_h
+
+    def test_statusline_reads_watchdog_timeout_and_elapsed_timers(self) -> None:
+        """Statusline renders idle/limit Timeout and separate Elapsed vs Current timers."""
+        import io as _io
+
+        class _FakeWatchdog:
+            timeout = 1800.0
+
+            def remaining(self) -> float:
+                return 1792.0
+
+        buf = _io.StringIO()
+        mono = time.monotonic()
+        sl = rs.Statusline(
+            pal=rs.Palette(False, use_unicode=True),
+            stream=buf,
+            run_start_mono=mono - 3725.0,
+            watchdog=_FakeWatchdog(),
+            setid="metastore",
+            id6="3466h8",
+            current_idx=3,
+            total_items=209,
+        )
+        sl._item_start_mono = mono - 568.0
+        sl._last_activity = mono - 8.0
+        sl.progress_source = "chat"
+        rendered = sl.render_line().splitlines()
+        assert len(rendered) == 4
+        assert "Timeout:00:08/30:00" in rendered[1]
+        assert "Elapsed:01:02:0" in rendered[2]
+        assert "Current:00:09:2" in rendered[2]
+        assert " chat " in rendered[2]
+        assert "(chat)" not in rendered[2]
+
+    def test_resolve_invocation_start_mono_preserves_script_start(self) -> None:
+        """AW_INVOCATION_START_WALL restores elapsed script start across restarts."""
+        from agent_workflows import runner_shared
+
+        t0 = time.time() - 125.0
+        now_m = time.monotonic()
+        resolved = runner_shared.resolve_invocation_start_mono(
+            {"AW_INVOCATION_START_WALL": repr(t0)}
+        )
+        elapsed = now_m - resolved
+        assert 124.0 <= elapsed <= 127.0

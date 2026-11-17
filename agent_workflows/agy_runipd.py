@@ -3327,6 +3327,7 @@ def run_queue(
     *,
     replace: Any = None,
     package_root: Path | str | None = None,
+    invocation_start_mono: float | None = None,
 ) -> int:
     state = load_state(run_dir)
     # bkclose (zhr6mc) E-06, symmetric with `oc_runipd`: publish the live ledger for the shutdown
@@ -3442,7 +3443,8 @@ def run_queue(
 
     tracker = StreamTracker()
     state["_tracker"] = tracker
-    invocation_start_mono = time.monotonic()
+    if invocation_start_mono is None:
+        invocation_start_mono = time.monotonic()
     state["_invocation_start_mono"] = invocation_start_mono
 
     # runstop 1qxuke: the observed level-1/2 wind-down and the set in flight, kept symmetric with
@@ -4478,6 +4480,7 @@ def install_stop_triggers(run_dir: Path) -> dict[str, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    script_start_mono = runner_shared.resolve_invocation_start_mono()
     if argv is None:
         argv = sys.argv[1:]
     from agent_workflows import term as _term_stdio
@@ -4564,7 +4567,11 @@ def main(argv: list[str] | None = None) -> int:
                 with _contextlib.redirect_stdout(sys.stderr):
                     install_stop_triggers(run_dir)
                     with locked_run(run_dir):
-                        rc = run_queue(run_dir, retry_incomplete=False)
+                        rc = run_queue(
+                            run_dir,
+                            retry_incomplete=False,
+                            invocation_start_mono=script_start_mono,
+                        )
                 runner_shared.emit_agent_run_start_record(
                     run_dir, cmd="agy run", exit_code=rc
                 )
@@ -4579,7 +4586,11 @@ def main(argv: list[str] | None = None) -> int:
             # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
             install_stop_triggers(run_dir)
             with locked_run(run_dir):
-                return run_queue(run_dir, retry_incomplete=False)
+                return run_queue(
+                    run_dir,
+                    retry_incomplete=False,
+                    invocation_start_mono=script_start_mono,
+                )
 
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
@@ -4643,6 +4654,7 @@ def main(argv: list[str] | None = None) -> int:
                     retry_incomplete=args.retry_incomplete,
                     output_mode=output_mode,
                     verbosity=verbosity,
+                    invocation_start_mono=script_start_mono,
                 )
 
         raise DriverError(f"Unsupported command: {args.command}")
