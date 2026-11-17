@@ -132,6 +132,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - The preflight and the journal this CLI calls.
   - Carrier: vxevph
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
 - The `--describe-host`, `--describe-model`, `--describe-limit` and `--no-describe` options on `aw migrate metadata`.
   - Carrier: ya4ee4
 - The CHANGELOG line for the family (it names `aw migrate`, `aw migrate layout` and `aw install --migrate`).

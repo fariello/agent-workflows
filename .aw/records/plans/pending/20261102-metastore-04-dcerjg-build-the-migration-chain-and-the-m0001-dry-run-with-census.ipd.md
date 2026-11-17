@@ -143,6 +143,7 @@ Every earlier `m0001` step is built by the parts in `- Item-Dependencies:`, whic
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - E-04 (step-1 preflight), E-05 (migration journal), E-06 (step-2 sidecar import), and their tests from E-14 (`tests/test_m0001_preflight.py`, `tests/test_m0001_sidecar.py`): Moved to `vxevph` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: vxevph
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
 - E-02 (`aw migrate` group with `metadata` and `layout`), E-03 (install pending-migration prompt and `--migrate`), bare `aw migrate`, and their tests from E-14 (`tests/test_install_migrate_prompt.py`, `tests/test_migrate_cli.py`): Moved to `1vfqdu` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: 1vfqdu
 - E-07 (rename map), E-08 (citation rewrite), and their tests from E-14 (`tests/test_m0001_renames.py`): Moved to `dky26u` (split 2026-11-07 per maintainer step-complexity rule).

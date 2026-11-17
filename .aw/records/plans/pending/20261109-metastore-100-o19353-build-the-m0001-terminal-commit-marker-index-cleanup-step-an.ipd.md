@@ -121,6 +121,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
 - Step-1 preflight, migration journal, and step-2 sidecar import.
   - Carrier: vxevph
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
 - `aw migrate` CLI command group, bare `aw migrate`, and install prompt.
   - Carrier: 1vfqdu
 - Legacy name rename map and citation rewrites.
