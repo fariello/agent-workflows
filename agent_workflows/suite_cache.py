@@ -78,6 +78,23 @@ AW_SUITE_SLOT_TIMEOUT_ENV: str = "AW_SUITE_SLOT_TIMEOUT"
 DEFAULT_AW_SUITE_SLOT_TIMEOUT: float = 3600.0
 AW_SUITE_SLOT_HELD_ENV: str = "AW_SUITE_SLOT_HELD"
 #: conftest's switch for the core-tier wall-time budget ("0" = warn only). See `build_suite_child_env`.
+_LOCAL_GIT_ENV_VARS: Tuple[str, ...] = (
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+)
 AW_CORE_BUDGET_ENFORCE_ENV: str = "AW_CORE_BUDGET_ENFORCE"
 AW_SUITE_HEARTBEAT_SECONDS_ENV: str = "AW_SUITE_HEARTBEAT_SECONDS"
 DEFAULT_AW_SUITE_HEARTBEAT_SECONDS: float = 60.0
@@ -1167,6 +1184,10 @@ def build_suite_child_env(
 ) -> Tuple[Dict[str, str], int]:
     """Return `(child_env, worker_count)` with `-n <workers>` appended to `PYTEST_ADDOPTS`."""
     base = dict(os.environ if env is None else env)
+    # Hooks (e.g. git pre-push in a linked worktree) export GIT_DIR / GIT_COMMON_DIR / etc.;
+    # strip them so pytest's throwaway-repo subprocesses discover their own repo at cwd.
+    for var in _LOCAL_GIT_ENV_VARS:
+        base.pop(var, None)
     workers = resolve_suite_workers(base, cpus=cpus)
     existing = str(base.get("PYTEST_ADDOPTS") or "").strip()
     base["_AW_SUITE_CALLER_ADDOPTS"] = existing

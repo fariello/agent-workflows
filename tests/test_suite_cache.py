@@ -859,3 +859,27 @@ def test_module_suite_runs_ignore_a_contended_ambient_slot_dir(
     assert res.slot["slot_index"] == 0
     assert res.slot["waited_seconds"] < 2.0
     assert "waiting for a test-suite slot" not in capfd.readouterr().err
+
+
+def test_build_suite_child_env_scrubs_local_git_env_vars() -> None:
+    """Linked-worktree git hooks export GIT_DIR/GIT_COMMON_DIR/etc.; child pytest must not inherit them."""
+    dirty = {
+        "GIT_DIR": "/outer/repo/.git/worktrees/snap",
+        "GIT_WORK_TREE": "/outer/repo/.aw/worktrees/snap",
+        "GIT_COMMON_DIR": "/outer/repo/.git",
+        "GIT_INDEX_FILE": "/outer/repo/.git/worktrees/snap/index",
+        "GIT_OBJECT_DIRECTORY": "/outer/repo/.git/objects",
+        "GIT_CONFIG_PARAMETERS": "'core.bare=true'",
+        "UNRELATED_VAR": "keep-me",
+    }
+    child_env, _ = suite_cache.build_suite_child_env(dirty)
+    for var in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_CONFIG_PARAMETERS",
+    ):
+        assert var not in child_env
+    assert child_env["UNRELATED_VAR"] == "keep-me"

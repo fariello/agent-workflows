@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+from tests.support import clean_git_env
 
 pytestmark = pytest.mark.core
 
@@ -16,7 +17,9 @@ SCRIPT = Path(__file__).resolve().parent.parent / "tools" / "aw_repo_survey.py"
 
 
 def _git(cwd: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+    subprocess.run(
+        ["git", *args], cwd=cwd, env=clean_git_env(), check=True, capture_output=True
+    )
 
 
 def _repo(path: Path) -> Path:
@@ -32,13 +35,19 @@ def _commit(path: Path) -> None:
     _git(path, "commit", "-qm", "x")
 
 
-def _run(tmp_path: Path, *args: str) -> dict:
-    out = tmp_path / "out.json"
-    env = dict(os.environ, HOME=str(tmp_path / "home"))
-    env.pop("AW_CONFIG_DIR", None)
-    env.pop("XDG_CONFIG_HOME", None)
-    env.pop("AW_HOME", None)
-    (tmp_path / "home").mkdir(exist_ok=True)
+def _run_survey(
+    tmp_path: Path, *args: str, out_rel: str = "out.json"
+) -> tuple[dict, str]:
+    out = tmp_path / out_rel
+    home_dir = tmp_path / "home"
+    home_dir.mkdir(exist_ok=True)
+    home_str = str(home_dir)
+    # Set USERPROFILE alongside HOME so Path.home() resolves to tmp_path/home on Windows too.
+    env = clean_git_env()
+    env["HOME"] = home_str
+    env["USERPROFILE"] = home_str
+    for k in ("AW_CONFIG_DIR", "XDG_CONFIG_HOME", "AW_HOME", "HOMEDRIVE", "HOMEPATH"):
+        env.pop(k, None)
     res = subprocess.run(
         [sys.executable, str(SCRIPT), *args, "-o", str(out)],
         capture_output=True,
@@ -47,7 +56,11 @@ def _run(tmp_path: Path, *args: str) -> dict:
         check=False,
     )
     assert res.returncode == 0, res.stderr
-    return json.loads(out.read_text(encoding="utf-8"))
+    return json.loads(out.read_text(encoding="utf-8")), res.stderr
+
+
+def _run(tmp_path: Path, *args: str) -> dict:
+    return _run_survey(tmp_path, *args, out_rel="out.json")[0]
 
 
 def _files(repo: dict, tree: str) -> dict:
@@ -183,20 +196,7 @@ def test_registry_and_default_companion_are_surveyed(tmp_path: Path) -> None:
 
 
 def _run_full(tmp_path: Path, *args: str) -> tuple[dict, str]:
-    out = tmp_path / "survey-out" / "out.json"
-    env = dict(os.environ, HOME=str(tmp_path / "home"))
-    for k in ("AW_CONFIG_DIR", "XDG_CONFIG_HOME", "AW_HOME"):
-        env.pop(k, None)
-    (tmp_path / "home").mkdir(exist_ok=True)
-    res = subprocess.run(
-        [sys.executable, str(SCRIPT), *args, "-o", str(out)],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
-    assert res.returncode == 0, res.stderr
-    return json.loads(out.read_text(encoding="utf-8")), res.stderr
+    return _run_survey(tmp_path, *args, out_rel="survey-out/out.json")
 
 
 def _with_worktree(tmp_path: Path) -> tuple[Path, Path]:
