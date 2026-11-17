@@ -6,7 +6,7 @@
 - Scope: Create `agent_workflows/migrations/m0001_describe.py` with `normalize_description`, `build_describe_ruleset`, and `validate(text, repo, *, ruleset=None) -> str | None`, plus unit tests in `tests/test_m0001_describe.py` (executed before `odeo9z`, which depends on `executed:830wku`). EXCLUDES: the prompt, journal, tool-less call and regenerate-once rule (`odeo9z`); wiring, CLI options and the real trial (`ya4ee4`).
 - Scope-Paths: agent_workflows/migrations/m0001_describe.py, tests/test_m0001_describe.py, .aw/records/plans/pending/20261109-metastore-106-830wku-build-the-m0001-short-description-validation.ipd.md
 - Item-Dependencies: executed:dcerjg
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 830wku
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 830wku verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini-4-carbon): /plan-review (antigravity/gemini-4-carbon): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
