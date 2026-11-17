@@ -142,6 +142,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-23-n5sxxk-move-the-prompts-scaffold-research-adopt-and-set-records-cre.ipd.md
 - E-03 (`--summary` at creation) and E-04 (`aw describe`), with OQ-02: Moved to 6e93gt (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: 6e93gt
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-24-6e93gt-write-short-description-at-creation-and-add-the-aw-describe.ipd.md
 - E-06 (rename, regroup and archive field writers): Moved to bsl45u (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: bsl45u
 - E-07 (readiness re-check), E-08 (coverage record), E-09 (finalize scope fields and the `4sd62s` 4.2 path-root amendment), E-10 (retirement writers), with OQ-03: Moved to 8q27jt (split 2026-11-07 per maintainer step-complexity rule).
