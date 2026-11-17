@@ -136,6 +136,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-21-7yr827-add-the-phase-b-legacy-writer-and-move-the-runner-writer-hel.ipd.md
 - E-02 subset A (`specs.run_new`, `backlog.run_new`, `releases.create_release`/`plan_release`) and E-05 subset A (`specs.run_note`, `specs.run_migrate`, `backlog.run_note`, `backlog._reattach_history`, `releases.set_item_dependencies_line`, `set_graduated_to_line`): Moved to g6tw94 (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: g6tw94
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.ipd.md
 - E-02 subset B (`prompts.run_new` with `render_metadata_comment`, `ipd_authoring.run_scaffold`, `research_cmd.run_new`/`run_new_comparison`, `artifact_adopt.apply_adoption`, `set_records.write_walkthrough`) and E-05 subset B (`research_cmd.run_set_outcome`/`run_set_priority`, `ipd_authoring.run_sync`, `set_records.close_on_answer`/`promote_question_to_backlog`): Moved to n5sxxk (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: n5sxxk
 - E-03 (`--summary` at creation) and E-04 (`aw describe`), with OQ-02: Moved to 6e93gt (split 2026-11-07 per maintainer step-complexity rule).
