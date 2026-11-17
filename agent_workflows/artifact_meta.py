@@ -4534,18 +4534,35 @@ def _render_field(
 ) -> str:
     """One field edit across bullet, research `---` YAML, or `aw-prompt` comment forms."""
     if plural == "prompts":
-        key_label = _PROMPT_COMMENT_KEY.get(field)
-        if key_label is None:
-            raise ValueError(
-                f"legacy writer has no prompt comment key for field {field!r}"
-            )
-        return _render_prompt_field(text, key_label, value)
+        from agent_workflows import prompts as _prompts
 
-    if (
-        plural == "research"
-        and field in _RESEARCH_YAML_KEY
-        and _YAML_FENCE_OPEN_RE.match(text)
-    ):
+        if _prompts.has_metadata_comment(text):
+            key_label = _PROMPT_COMMENT_KEY.get(field)
+            if key_label is None:
+                if field == "order":
+                    return text
+                raise ValueError(
+                    f"legacy writer has no prompt comment key for field {field!r}"
+                )
+            return _render_prompt_field(text, key_label, value)
+        from agent_workflows import selectors as _sel
+
+        region = _sel.metadata_region(text)
+        if _META_BULLET_LINE_RE.search(region):
+            label = _LEGACY_BULLET_LABEL.get(field)
+            if label is None:
+                raise ValueError(
+                    f"legacy writer has no bullet form for field {field!r}"
+                )
+            if value is None:
+                return _set_bullet(text, label, None, anchors=("Status", "Id"))
+            anchors = ("Set", "Status", "Id") if field == "order" else ("Status", "Id")
+            return _set_bullet(
+                text, label, _format_legacy_value(field, value), anchors=anchors
+            )
+        return text
+
+    if field in _RESEARCH_YAML_KEY and _YAML_FENCE_OPEN_RE.match(text):
         val = (
             None if (value is None or (field == "priority" and value == "-")) else value
         )
@@ -4598,8 +4615,53 @@ def _render_field(
     anchors = {
         "review_depth": ("Readiness", "Status", "Id"),
         "coverage": ("Readiness", "Status", "Id"),
+        "order": ("Set", "Status", "Id"),
     }.get(field, ("Status", "Id"))
     return _set_bullet(text, label, _format_legacy_value(field, value), anchors=anchors)
+
+
+def _render_checkpoint(text: str, plural: str, fields: Dict[str, Any]) -> str:
+    """Render an idempotent `checkpoint` `"id"` (and prompt `"set"`) into legacy metadata.
+
+    On `prompts`, delegates to `prompts.inject_metadata_id6` (leaving comment-less prompts
+    untouched). On non-prompts, inserts `- Id:` after `- Status:` else `- Date:` inside the
+    metadata region with zero H1/body fallback (`a88210`).
+    """
+    id_val = fields.get("id")
+    set_val = fields.get("set")
+    if plural == "prompts":
+        if id_val is not None:
+            from agent_workflows import prompts as _prompts
+
+            return _prompts.inject_metadata_id6(
+                text,
+                id6=str(id_val),
+                set_id=str(set_val) if set_val is not None else None,
+            )
+        return text
+    if id_val is None:
+        return text
+    from agent_workflows import selectors as _sel
+
+    region = _sel.metadata_region(text)
+    if re.search(r"(?m)^-\s*Id:\s*\S+", region):
+        return text
+    region_lines = region.split("\n")
+    rest = text[len(region) :]
+    insert_at: Optional[int] = None
+    for i, line in enumerate(region_lines):
+        if re.match(r"^-\s*Status:\s*.+?\s*$", line):
+            insert_at = i + 1
+            break
+    if insert_at is None:
+        for i, line in enumerate(region_lines):
+            if re.match(r"^-\s*Date:\s*.+?\s*$", line):
+                insert_at = i + 1
+                break
+    if insert_at is None:
+        return text
+    region_lines.insert(insert_at, f"- Id: {id_val}")
+    return "\n".join(region_lines) + rest
 
 
 def _render_gate(text: str, fields: Dict[str, Any]) -> str:
@@ -4745,6 +4807,8 @@ def render_legacy(
             )
         elif op == "note":
             pass
+        elif op == "checkpoint":
+            out = _render_checkpoint(out, plural, dict(ev.get("fields") or {}))
         elif op == "legacy":
             if ev.get("source") == "history":
                 ln = ev.get("line")
@@ -4831,6 +4895,7 @@ def _prepare_legacy_events(
         | set(_RESEARCH_YAML_KEY)
         | set(_PROMPT_COMMENT_KEY)
         | {
+            "id",
             "blocks_release",
             "priority",
             "work_kind",

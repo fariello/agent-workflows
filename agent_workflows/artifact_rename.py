@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _meta
 from agent_workflows.plans_refs import (
     MutationDiagnostic,
     MutationRefEdit,
@@ -20,6 +21,7 @@ from agent_workflows.plans_refs import (
 )  # shared self-commit result type (jgcm68)
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
+from agent_workflows import project_context as _proj_ctx
 from agent_workflows import record_history as _rh
 from agent_workflows import selectors
 from agent_workflows.project_context import resolve_verb_repo_root
@@ -252,79 +254,115 @@ _STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*.+?\s*$")
 _DATE_LINE_RE = re.compile(r"(?m)^- Date:\s*.+?\s*$")
 
 
+def _meta_target_for_file(
+    file_path: Path,
+    artifact_type: Optional[str],
+    *,
+    repo_root: Optional[Path] = None,
+    fallback_id6: Optional[str] = None,
+) -> Tuple[Path, object, str, _meta.LegacyTarget, str]:
+    """Resolve repo root, legacy context, plural record type, LegacyTarget, and records-rel path."""
+    rroot = (
+        repo_root
+        if repo_root is not None
+        else (_proj_ctx.record_git_root(file_path) or _core.repo_root_of(file_path))
+    )
+    ctx = _meta.legacy_context(rroot)
+    records_root = Path(ctx.logical_roots["records"])
+    _, plural = _meta._normalize_legacy_types(artifact_type, file_path, records_root)
+    target_id6 = _read_existing_id6(file_path, plural)
+    if not target_id6:
+        m_id = _UNIFORM_RE.match(file_path.name)
+        if m_id:
+            target_id6 = m_id.group("id6")
+    if not target_id6:
+        target_id6 = fallback_id6
+    try:
+        rel_path = file_path.resolve().relative_to(records_root.resolve()).as_posix()
+    except ValueError:
+        rel_path = file_path.name
+    return (
+        rroot,
+        ctx,
+        plural,
+        _meta.LegacyTarget(file_path, plural, id6=target_id6),
+        rel_path,
+    )
+
+
 def _update_frontmatter_metadata(
     file_path: Path,
     set_id: Optional[str] = None,
     order: Optional[int] = None,
     id6: Optional[str] = None,
     artifact_type: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> None:
-    """Update Set/Order (and, IPD ha55fi E-04, Id) metadata in the file frontmatter if present.
+    """Update existing Set/Order (and, IPD ha55fi E-04, Id) metadata through `artifact_meta.append`.
 
-    ``id6``: when supplied and the file has NO ``- Id:`` bullet, inject one into the metadata block
-    (after ``- Status:``, else ``- Date:``, else after the H1). When the file already carries an
-    ``- Id:`` this is a no-op for that field (the existing id6 is reused, never re-minted); this is
-    the idempotence property (V-04/V-05). Set/Order updates are unchanged.
-
-    ``artifact_type`` (IPD `ubac5n` E-04) ROUTES PROMPTS AWAY FROM THE BULLET, and this is a REPAIR of
-    a live defect rather than a new feature. `--to-id6` is a GENERIC flag on the shared rename verb,
-    so `aw rename prompts <legacy> --to-id6` already ran before this plan; measured in preview against
-    the real tree, it planned a correct rename PLUS `would inject '- Id: gym3i0'`. A prompt carries
-    NEITHER a `- Status:` NOR a `- Date:` bullet, so the third anchor fired and the bullet landed
-    directly under the H1, i.e. as VISIBLE TEXT inside the pasteable prompt body, violating approved
-    spec `20260808-1958-01-prompt-purity-lint` R1/P4. Nothing caught it because `aw prompts check`
-    (the purity lint that spec specifies) IS NOT IMPLEMENTED. So for `prompts` the id6 is written into
-    the EXISTING `<!-- aw-prompt: ... -->` comment through the SAME writer `aw prompts new` uses, and
-    every other type keeps the bullet, which is CORRECT for a plan or a spec (they do carry front
-    matter bullets) and must stay byte-unchanged.
+    Emits `op: "set"` only for fields already present in the target file (`_SET_LINE_RE` /
+    `_ORDER_LINE_RE` or `Set:` in `aw-prompt`), and emits `op: "checkpoint"` for `id6` when
+    `_read_existing_id6` returns `None`.
     """
     try:
         text = file_path.read_text(encoding="utf-8")
     except OSError:
         return
 
-    if artifact_type == "prompts" and id6 is not None:
-        # A prompt's id6 home is its one metadata comment, never a bullet. Delegated so the verb and
-        # the minter cannot disagree about where it lives.
+    rroot, ctx, rec_type, target, rel_path = _meta_target_for_file(
+        file_path, artifact_type, repo_root=repo_root, fallback_id6=id6
+    )
+
+    events: List[dict] = []
+    set_fields: dict = {}
+    if rec_type == "prompts":
         from agent_workflows import prompts as _prompts
 
-        new_text = _prompts.inject_metadata_id6(text, id6=id6, set_id=set_id)
-        if new_text != text:
-            _core.atomic_write(file_path, new_text, prefix=".aw-meta-")
+        if _prompts.has_metadata_comment(text):
+            first_line = text.split("\n", 1)[0]
+            if set_id is not None and re.search(
+                r"(?:\A|\|)\s*Set:\s*[^|]+", first_line
+            ):
+                set_fields["set"] = str(set_id)
+        else:
+            if set_id is not None and _SET_LINE_RE.search(text):
+                set_fields["set"] = str(set_id)
+            if order is not None and _ORDER_LINE_RE.search(text):
+                set_fields["order"] = int(order)
+    else:
+        if set_id is not None and _SET_LINE_RE.search(text):
+            set_fields["set"] = str(set_id)
+        if order is not None and _ORDER_LINE_RE.search(text):
+            set_fields["order"] = int(order)
+
+    if set_fields:
+        events.append({"op": "set", "fields": set_fields})
+
+    if id6 is not None and _read_existing_id6(file_path, rec_type) is None:
+        cp_fields: dict = {"id": id6}
+        if rec_type == "prompts" and set_id is not None:
+            first_line = text.split("\n", 1)[0]
+            if not re.search(r"(?:\A|\|)\s*Set:\s*[^|]+", first_line):
+                cp_fields["set"] = str(set_id)
+        events.append({"op": "checkpoint", "path": rel_path, "fields": cp_fields})
+
+    if not events:
         return
 
-    updated = False
-    if set_id is not None and _SET_LINE_RE.search(text):
-        text = _SET_LINE_RE.sub(f"- Set: {set_id}", text)
-        updated = True
-
-    if order is not None and _ORDER_LINE_RE.search(text):
-        text = _ORDER_LINE_RE.sub(f"- Order: {order}", text)
-        updated = True
-
-    if id6 is not None and not _ID_LINE_RE.search(text):
-        lines = text.split("\n")
-        insert_at: Optional[int] = None
-        for i, line in enumerate(lines):
-            if _STATUS_LINE_RE.match(line):
-                insert_at = i + 1
-                break
-        if insert_at is None:
-            for i, line in enumerate(lines):
-                if _DATE_LINE_RE.match(line):
-                    insert_at = i + 1
-                    break
-        # a88210: NO H1 FALLBACK. A file with neither a `- Status:` nor a `- Date:` bullet has no
-        # metadata bullet block, so inserting under the H1 put a metadata line into the document
-        # BODY. Such a file keeps its id6 in the FILENAME only (the outcome ubac5n chose for a
-        # comment-less prompt), and `_id6_write_message` says so.
-        if insert_at is not None:
-            lines.insert(insert_at, f"- Id: {id6}")
-            text = "\n".join(lines)
-            updated = True
-
-    if updated:
-        _core.atomic_write(file_path, text, prefix=".aw-meta-")
+    _meta.append(
+        target,
+        events,
+        legacy_render=_meta.LegacyRender(
+            "rename",
+            _core.utc_history_date(),
+            "aw",
+            history=False,
+            is_prompt=(rec_type == "prompts"),
+        ),
+        repo_root=rroot,
+        project_context=ctx,
+    )
 
 
 def _id6_write_message(
@@ -482,102 +520,40 @@ def _existing_type_id6s(repo_root: Path, artifact_type: str) -> set:
 
 
 def _update_or_inject_set_metadata(
-    file_path: Path, set_id: Optional[str] = None, order: Optional[int] = None
+    file_path: Path,
+    set_id: Optional[str] = None,
+    order: Optional[int] = None,
+    *,
+    artifact_type: Optional[str] = None,
+    repo_root: Optional[Path] = None,
+    dry_run: bool = False,
 ) -> None:
-    """Update or inject Set and Order metadata in the file frontmatter."""
-    try:
-        text = file_path.read_text(encoding="utf-8")
-    except OSError:
+    """Update or inject Set and Order metadata through `artifact_meta.append`."""
+    fields: dict = {}
+    if set_id is not None:
+        fields["set"] = str(set_id)
+    if order is not None:
+        fields["order"] = int(order)
+    if not fields:
         return
 
-    lines = text.splitlines()
-    updated = False
-    is_fenced_yaml = bool(lines and lines[0].strip() == "---")
-
-    if is_fenced_yaml:
-        new_lines = []
-        set_done = False
-        in_fm = True
-        for line in lines:
-            if in_fm and line.strip() == "---" and new_lines:
-                in_fm = False
-                if set_id is not None and not set_done:
-                    new_lines.append(f"set: {set_id}")
-                    if order is not None:
-                        new_lines.append(f"order: {order}")
-                    set_done = True
-                    updated = True
-                new_lines.append(line)
-            elif in_fm and re.match(r"^set:\s*", line, re.IGNORECASE):
-                if set_id is not None:
-                    new_lines.append(f"set: {set_id}")
-                    set_done = True
-                    updated = True
-                else:
-                    new_lines.append(line)
-            elif (
-                in_fm
-                and order is not None
-                and re.match(r"^order:\s*", line, re.IGNORECASE)
-            ):
-                new_lines.append(f"order: {order}")
-                updated = True
-            else:
-                new_lines.append(line)
-        lines = new_lines
-    else:
-        # Markdown bullet frontmatter
-        set_done = False
-        new_lines = []
-        in_fm = True
-        for line in lines:
-            if in_fm and line.startswith("## "):
-                in_fm = False
-                if set_id is not None and not set_done:
-                    new_lines.append(f"- Set: {set_id}")
-                    if order is not None:
-                        new_lines.append(f"- Order: {order}")
-                    set_done = True
-                    updated = True
-            if in_fm and _SET_LINE_RE.match(line):
-                if set_id is not None:
-                    new_lines.append(f"- Set: {set_id}")
-                    set_done = True
-                    updated = True
-                else:
-                    new_lines.append(line)
-            elif in_fm and order is not None and _ORDER_LINE_RE.match(line):
-                new_lines.append(f"- Order: {order}")
-                updated = True
-            else:
-                new_lines.append(line)
-
-        if set_id is not None and not set_done:
-            inserted = False
-            res = []
-            for line in new_lines:
-                res.append(line)
-                if not inserted and (
-                    line.startswith("# ") or line.startswith("- Date:")
-                ):
-                    res.append(f"- Set: {set_id}")
-                    if order is not None:
-                        res.append(f"- Order: {order}")
-                    inserted = True
-                    updated = True
-            if not inserted:
-                res.insert(0, f"- Set: {set_id}")
-                if order is not None:
-                    res.insert(1, f"- Order: {order}")
-                updated = True
-            lines = res
-        else:
-            lines = new_lines
-
-    if updated:
-        _core.atomic_write(
-            file_path, "\n".join(lines).rstrip() + "\n", prefix=".aw-meta-"
-        )
+    rroot, ctx, rec_type, target, _rel_path = _meta_target_for_file(
+        file_path, artifact_type, repo_root=repo_root
+    )
+    _meta.append(
+        target,
+        [{"op": "set", "fields": fields}],
+        legacy_render=_meta.LegacyRender(
+            "group",
+            _core.utc_history_date(),
+            "aw",
+            history=False,
+            is_prompt=(rec_type == "prompts"),
+        ),
+        repo_root=rroot,
+        project_context=ctx,
+        dry_run=dry_run,
+    )
 
 
 def run_rename_generic(
@@ -903,6 +879,7 @@ def run_rename_generic(
             order=new_order,
             id6=inject_id6,
             artifact_type=artifact_type,
+            repo_root=repo_root,
         )
         if inject_id6 is not None:
             # Read `dst` (post-write) rather than `src` (already moved away): for a prompt WITH a
@@ -1260,6 +1237,33 @@ def run_group_generic(
             notes=tuple(group_notes),
         )
 
+    # Pre-flight validate every target on disk before any git_mv, record_rename, or file write.
+    for src, _dst, order_val in targets:
+        try:
+            _update_or_inject_set_metadata(
+                src,
+                set_id=set_k,
+                order=order_val,
+                artifact_type=artifact_type,
+                repo_root=repo_root,
+                dry_run=True,
+            )
+        except ValueError as exc:
+            msg = f"error: {exc}"
+            if emit_human:
+                print(msg)
+            return MutationResult(
+                2,
+                diagnostics=(
+                    MutationDiagnostic(
+                        location=_rel_to_repo(src, repo_root),
+                        rule="meta-validation-error",
+                        detail=msg,
+                        severity="error",
+                    ),
+                ),
+            )
+
     # Apply changes
     touched: List[str] = []
     applied_targets: List[MutationTarget] = []
@@ -1295,7 +1299,13 @@ def run_group_generic(
                     detail=f"-> {dst.name}",
                 )
             )
-        _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
+        _update_or_inject_set_metadata(
+            dst,
+            set_id=set_k,
+            order=order_val,
+            artifact_type=artifact_type,
+            repo_root=repo_root,
+        )
         dst_rel = dst.relative_to(repo_root).as_posix()
         if emit_human:
             print(f"set metadata Set: {set_k} in {dst_rel}")
