@@ -13,7 +13,7 @@ import re
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from agent_workflows import (
     artifact_core,
@@ -23,7 +23,7 @@ from agent_workflows import (
     project_context,
     record_history,
 )
-from agent_workflows.migrations import m0001_preflight
+from agent_workflows.migrations import m0001_preflight, m0001_renames
 
 _EXCLUDED_DIRNAMES = frozenset(
     {"comms", "prompt-library", "untracked", "runs", "meta", "reviews"}
@@ -241,10 +241,26 @@ def _clean_gitignore_history_lines(text: str) -> Tuple[str, bool]:
     return "".join(kept), True
 
 
+_SCRATCH_COPY_IGNORE = shutil.ignore_patterns(
+    "__pycache__",
+    "*.pyc",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "tmp",
+    ".tmp",
+)
+
+
 def _stage_scratch(
     repo_path: Path,
     records_root: Path,
     scratch_dir: Path,
+    *,
+    scan_roots: Optional[Sequence[str]] = None,
 ) -> Tuple[Optional[str], bool]:
     """Populate ``scratch_dir`` cleanly and return ``(gitignore_scratch_rel, gitignore_changed)``."""
     if scratch_dir.exists():
@@ -254,18 +270,67 @@ def _stage_scratch(
     if records_root.is_dir():
         shutil.copytree(records_root, scratch_dir / "records", symlinks=False)
 
+    scratch_repo = scratch_dir / "repo"
+    scratch_repo.mkdir(parents=True, exist_ok=True)
+    if records_root.is_dir():
+        shutil.copytree(
+            records_root,
+            scratch_repo / ".aw" / "records",
+            symlinks=False,
+            ignore=_SCRATCH_COPY_IGNORE,
+        )
+
+    if scan_roots:
+        for rel in scan_roots:
+            if (
+                rel == ".aw/records"
+                or rel.startswith(".aw/records/")
+                or rel == ".aw/.gitignore"
+            ):
+                continue
+            src = repo_path / rel
+            dst = scratch_repo / rel
+            if src.is_dir():
+                if dst.exists():
+                    shutil.rmtree(dst)
+                shutil.copytree(src, dst, symlinks=False, ignore=_SCRATCH_COPY_IGNORE)
+            elif src.is_file():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+
     gitignore_path = repo_path / ".aw" / ".gitignore"
     if gitignore_path.is_file():
         orig_text = gitignore_path.read_text(encoding="utf-8")
         cleaned_text, changed = _clean_gitignore_history_lines(orig_text)
-        if changed:
-            rel = "repo/.aw/.gitignore"
-            dst = scratch_dir / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(cleaned_text, encoding="utf-8")
-            return rel, True
+        rel = "repo/.aw/.gitignore"
+        dst = scratch_dir / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(cleaned_text if changed else orig_text, encoding="utf-8")
+        return rel, changed
 
     return None, False
+
+
+def _verify_scratch_scan_roots(
+    repo_path: Path,
+    records_root: Path,
+    scratch_repo: Path,
+    scan_roots: Sequence[str],
+) -> None:
+    """Refuse when any scan root present in the checkout is missing from ``scratch_repo``."""
+    scratch_records = scratch_repo / ".aw" / "records"
+    for rel in scan_roots:
+        if rel == ".aw/records" or rel.startswith(".aw/records/"):
+            tail = rel[len(".aw/records/") :] if rel.startswith(".aw/records/") else ""
+            src = records_root / tail if tail else records_root
+            dst = scratch_records / tail if tail else scratch_records
+        else:
+            src = repo_path / rel
+            dst = scratch_repo / rel
+        if src.exists() and not dst.exists():
+            raise layout_migration.MigrationError(
+                f"Scratch copy is missing scan root {rel!r} (expected at {dst})"
+            )
 
 
 def _save_backup_bytes(
@@ -400,6 +465,8 @@ def _format_run_report(
         "scratch_dir": str(journal_dir / "scratch"),
         "preflight": steps.get("preflight"),
         "sidecar": steps.get("sidecar"),
+        "renames": steps.get("renames"),
+        "citations": steps.get("citations"),
         "sidecar_events": tx_data.get("sidecar_events") or {},
         "orphan_export_path": tx_data.get("orphan_export_path"),
         "orphan_counts": tx_data.get("orphan_counts") or {},
@@ -559,28 +626,18 @@ def run(
 
             scratch_dir = journal_dir / "scratch"
             gitignore_rel, gitignore_changed = _stage_scratch(
-                repo_path, records_root, scratch_dir
+                repo_path,
+                records_root,
+                scratch_dir,
+                scan_roots=m0001_renames.M0001_SCAN_ROOTS,
             )
-
-            operations: List[Dict[str, Any]] = []
-            if sidecar_present:
-                operations.append(
-                    {
-                        "op_id": "move_sidecar",
-                        "kind": "move_to_journal",
-                        "src": str(sidecar_path),
-                        "dst": str(journal_dir / "history.jsonl.imported"),
-                    }
-                )
-            if gitignore_changed and gitignore_rel is not None:
-                operations.append(
-                    {
-                        "op_id": "clean_gitignore",
-                        "kind": "write_from_scratch",
-                        "target": str(repo_path / ".aw" / ".gitignore"),
-                        "scratch_rel": gitignore_rel,
-                    }
-                )
+            scratch_repo = scratch_dir / "repo"
+            _verify_scratch_scan_roots(
+                repo_path,
+                records_root,
+                scratch_repo,
+                m0001_renames.M0001_SCAN_ROOTS,
+            )
 
             now_utc = _utc_now()
             tx_data: Dict[str, Any] = {
@@ -608,13 +665,109 @@ def run(
                 },
                 "applied_files": [],
                 "backups": [],
-                "operations": operations,
+                "operations": [],
                 "descriptions": dict(prior_tx.get("descriptions") or {}),
                 "sidecar_events": sidecar_events,
                 "orphan_export_path": orphan_export_path,
                 "orphan_counts": orphan_counts,
                 "terminal_commit_marker": None,
             }
+
+            # Step 3: legacy-name rename map, protected citation plan, and scratch apply.
+            rename_map = m0001_renames.build_rename_map(scratch_repo, tx_data)
+            citation_plan = m0001_renames.plan_citation_rewrites(
+                scratch_repo, rename_map
+            )
+            step3_summary = m0001_renames.apply_step3(
+                scratch_repo,
+                rename_map,
+                citation_plan,
+                tx_data,
+                save_callback=lambda: mgr._save_transaction(tx_data),
+            )
+            tx_data["rename_map"] = {e.old_rel: e.new_rel for e in rename_map.entries}
+            tx_data["steps"]["renames"] = {
+                "entry_count": len(rename_map.entries),
+                "minted_count": sum(1 for e in rename_map.entries if e.minted),
+                "preserved_count": sum(1 for e in rename_map.entries if not e.minted),
+                "unmapped_plan_duplicates": [
+                    {"set_id": pair[0], "order": pair[1], "paths": list(paths)}
+                    for pair, paths in rename_map.unmapped_plan_duplicates
+                ],
+            }
+            tx_data["steps"]["citations"] = {
+                "total_substituted": citation_plan.total_substituted,
+                "location_counts": dict(citation_plan.location_counts),
+                "unchanged_counts_by_reason": dict(
+                    citation_plan.unchanged_counts_by_reason
+                ),
+                "warning_count": len(citation_plan.warnings),
+            }
+
+            operations: List[Dict[str, Any]] = []
+            if sidecar_present:
+                operations.append(
+                    {
+                        "op_id": "move_sidecar",
+                        "kind": "move_to_journal",
+                        "src": str(sidecar_path),
+                        "dst": str(journal_dir / "history.jsonl.imported"),
+                    }
+                )
+            gitignore_rewritten = ".aw/.gitignore" in set(
+                step3_summary.get("rewritten_files") or []
+            )
+            if (gitignore_changed or gitignore_rewritten) and gitignore_rel is not None:
+                operations.append(
+                    {
+                        "op_id": "clean_gitignore",
+                        "kind": "write_from_scratch",
+                        "target": str(repo_path / ".aw" / ".gitignore"),
+                        "scratch_rel": gitignore_rel,
+                    }
+                )
+
+            renamed_old_rel_set = {
+                f".aw/records/{e.old_rel}" for e in rename_map.entries
+            }
+            for rel_from_scratch in step3_summary.get("rewritten_files") or []:
+                if rel_from_scratch == ".aw/.gitignore":
+                    continue
+                if rel_from_scratch in renamed_old_rel_set:
+                    continue
+                if rel_from_scratch.startswith(".aw/records/"):
+                    rec_tail = rel_from_scratch[len(".aw/records/") :]
+                    target_path = records_root / rec_tail
+                else:
+                    target_path = repo_path / rel_from_scratch
+                operations.append(
+                    {
+                        "op_id": f"rewrite:{rel_from_scratch}",
+                        "kind": "write_from_scratch",
+                        "target": str(target_path),
+                        "scratch_rel": f"repo/{rel_from_scratch}",
+                    }
+                )
+
+            for entry in rename_map.entries:
+                operations.append(
+                    {
+                        "op_id": f"rename_rm:{entry.old_rel}",
+                        "kind": "move_to_journal",
+                        "src": str(records_root / entry.old_rel),
+                        "dst": str(journal_dir / "renamed-originals" / entry.old_rel),
+                    }
+                )
+                operations.append(
+                    {
+                        "op_id": f"rename_add:{entry.new_rel}",
+                        "kind": "write_from_scratch",
+                        "target": str(records_root / entry.new_rel),
+                        "scratch_rel": f"repo/.aw/records/{entry.new_rel}",
+                    }
+                )
+
+            tx_data["operations"] = operations
             mgr._save_transaction(tx_data)
 
             if not apply:

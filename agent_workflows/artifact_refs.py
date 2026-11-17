@@ -214,6 +214,9 @@ def count_legacy_prefix_records(repo_root: Path, prefix: str) -> int:
     for p in records_dir.rglob("*"):
         if not p.is_file():
             continue
+        rel_parts = p.relative_to(records_dir).parts
+        if any(part == "comms" or part.endswith(".data") for part in rel_parts):
+            continue
         if _core.is_ignored_path(p, repo_root, ignored_dirs):
             continue
         if p.name.startswith(target_prefix):
@@ -234,6 +237,9 @@ def _index_records_facetless_stems(repo_root: Path) -> Dict[str, List[str]]:
     index: Dict[str, List[str]] = {}
     for p in records_dir.rglob("*"):
         if not p.is_file():
+            continue
+        rel_parts = p.relative_to(records_dir).parts
+        if any(part == "comms" or part.endswith(".data") for part in rel_parts):
             continue
         if _core.is_ignored_path(p, repo_root, ignored_dirs):
             continue
