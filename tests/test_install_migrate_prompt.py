@@ -135,7 +135,8 @@ def _seed_installed_legacy_repo(repo: Path, *, aw_home: Path) -> None:
         "- Id: ab1234\n"
         "- Status: approved\n"
         "- Set: demo\n"
-        "- Order: 1\n\n"
+        "- Order: 1\n"
+        "- Short-Description: Legacy plan\n\n"
         "## Workflow history\n\n"
         "- 2026-11-01 approved (tester): approved\n",
         encoding="utf-8",

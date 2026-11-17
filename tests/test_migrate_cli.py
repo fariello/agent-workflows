@@ -127,7 +127,8 @@ def _seed_legacy_aw_repo(repo: Path, *, with_sidecar: bool = True) -> None:
         "- Id: ab1234\n"
         "- Status: approved\n"
         "- Set: demo\n"
-        "- Order: 1\n\n"
+        "- Order: 1\n"
+        "- Short-Description: Legacy plan\n\n"
         "## Workflow history\n\n"
         "- 2026-11-01 approved (tester): approved\n",
         encoding="utf-8",
@@ -179,7 +180,8 @@ def _seed_legacy_agents_repo(repo: Path) -> None:
         "- Id: ab1234\n"
         "- Status: approved\n"
         "- Set: demo\n"
-        "- Order: 1\n\n"
+        "- Order: 1\n"
+        "- Short-Description: Legacy agents plan\n\n"
         "## Workflow history\n\n"
         "- 2026-11-01 approved (tester): approved\n",
         encoding="utf-8",

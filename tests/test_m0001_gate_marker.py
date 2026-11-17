@@ -444,7 +444,7 @@ class TestStep5Cleanup:
         )
         plan.parent.mkdir(parents=True, exist_ok=True)
         plan.write_text(
-            "# IPD: Plan\n\n- Id: pl0002\n- Status: approved\n- Set: demo\n- Order: 1\n",
+            "# IPD: Plan\n\n- Id: pl0002\n- Status: approved\n- Set: demo\n- Order: 1\n- Short-Description: Rollback fixture plan\n",
             encoding="utf-8",
         )
         _git(repo, "add", "-A")
@@ -453,7 +453,7 @@ class TestStep5Cleanup:
         dry = m0001_metadata_v2.run(repo, apply=False)
         assert len(dry["cleanup"]["deleted_files"]) == 7
 
-        applied = m0001_metadata_v2.run(repo, apply=True)
+        applied = m0001_metadata_v2.run(repo, apply=True, commit=False)
         assert applied["status"] == "applied"
         for path in targets:
             if path.name != ".gitignore":

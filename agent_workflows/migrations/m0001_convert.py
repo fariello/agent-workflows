@@ -149,6 +149,12 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
         "Self-note": FieldDestination(
             "body_section", "Self-note", "legacy one-off bullet preserved in body"
         ),
+        "Run record": FieldDestination(
+            "body_section", "Run record", "legacy one-off bullet preserved in body"
+        ),
+        "Source spec": FieldDestination(
+            "body_section", "Source spec", "legacy one-off bullet preserved in body"
+        ),
         "Supersedes-Note": FieldDestination(
             "body_section",
             "Supersedes-Note",
@@ -260,6 +266,34 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
         ),
         "Sources": FieldDestination(
             "body_section", "Sources", "legacy spec bullet preserved in body"
+        ),
+        "Implementation Set": FieldDestination(
+            "body_section",
+            "Implementation Set",
+            "legacy spec bullet preserved in body",
+        ),
+        "Implementation state": FieldDestination(
+            "body_section",
+            "Implementation state",
+            "legacy spec bullet preserved in body",
+        ),
+        "Related specifications": FieldDestination(
+            "body_section",
+            "Related specifications",
+            "legacy spec bullet preserved in body",
+        ),
+        "Relation to prior specs": FieldDestination(
+            "body_section",
+            "Relation to prior specs",
+            "legacy spec bullet preserved in body",
+        ),
+        "Revised by": FieldDestination(
+            "body_section", "Revised by", "legacy spec bullet preserved in body"
+        ),
+        "Supersedes/extends": FieldDestination(
+            "body_section",
+            "Supersedes/extends",
+            "legacy spec bullet preserved in body",
         ),
         **common_ipd_spec_prose,
     }

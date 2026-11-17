@@ -214,6 +214,7 @@ def test_path_history_renamed_plan_records_checkpoint_old_then_rename_new(
         "- Set: demo\n"
         "- Date: 2026-11-01\n"
         "- Kind: leaf\n"
+        "- Short-Description: Legacy rename plan\n"
         "- Item-Dependencies: none\n\n"
         "## Workflow history\n\n"
         "- 2026-11-01 executed (tester): initial history\n",
@@ -222,7 +223,7 @@ def test_path_history_renamed_plan_records_checkpoint_old_then_rename_new(
     _git(repo, "add", ".aw/.gitignore", ".aw/records")
     _git(repo, "commit", "-m", "add unclustered plan")
 
-    res = m0001_metadata_v2.run(repo, apply=True)
+    res = m0001_metadata_v2.run(repo, apply=True, commit=False)
     assert res["status"] == "applied"
     assert res["conversion"]["by_type"]["ipd"] == 1
 
@@ -840,15 +841,37 @@ def test_prompt_ac40_case1_commented_and_case2_commentless(
 def test_excluded_comms_data_readmes_non_5_trees_and_six_templates_byte_identical(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verify full v2 pipeline leaves comms, .data/, READMEs, research/walkthroughs/roadmap/reviews, and 6 templates untouched."""
+    """Verify full v2 pipeline leaves comms, .data/, READMEs, and 6 templates untouched while converting all 8 record types."""
     repo = _init_repo(tmp_path, monkeypatch, name="excluded")
     rec = repo / ".aw" / "records"
 
-    # One core plan so step 4 runs and converts real records.
+    # Seed convertible records across types plus protected excluded files.
     (rec / "plans" / "pending").mkdir(parents=True)
     plan = rec / "plans" / "pending" / "20261106-demo-01-ex0001-real.ipd.md"
     plan.write_text(
-        "# Real Plan\n\n- Id: ex0001\n- Status: approved\n- Set: demo\n",
+        "# Real Plan\n\n- Id: ex0001\n- Status: approved\n- Set: demo\n- Short-Description: Real plan\n",
+        encoding="utf-8",
+    )
+    (rec / "research" / "findings").mkdir(parents=True)
+    (
+        rec / "research" / "findings" / "20261106-demo-01-rs0001-study.research.md"
+    ).write_text(
+        "---\nid: rs0001\nstatus: complete\nshort-description: Study\n---\n\n# Research\n",
+        encoding="utf-8",
+    )
+    (rec / "walkthroughs").mkdir(parents=True)
+    (rec / "walkthroughs" / "20261106-demo-01-wt0001-walkthrough.md").write_text(
+        "# Walkthrough\n\n- Id: wt0001\n- Short-Description: Walkthrough\n",
+        encoding="utf-8",
+    )
+    (rec / "roadmaps").mkdir(parents=True)
+    (rec / "roadmaps" / "20261106-demo-01-rm0001-roadmap.md").write_text(
+        "# Roadmap\n\n- Id: rm0001\n- Short-Description: Roadmap\n",
+        encoding="utf-8",
+    )
+    (rec / "reviews").mkdir(parents=True)
+    (rec / "reviews" / "20261106-demo-01-ex0001-real.review.md").write_text(
+        "# Review\n\n- Subject-Id: ex0001\n- Subject-Type: ipd\n- Verdict: PASS\n\n## Round 1\n",
         encoding="utf-8",
     )
 
@@ -862,15 +885,6 @@ def test_excluded_comms_data_readmes_non_5_trees_and_six_templates_byte_identica
         / "20261106-msg.md": b"# Comms Msg\nUntouched.\n",
         rec / ".data" / "cache.md": b"# Data File\nRaw bytes.\n",
         rec / "plans" / ".data" / "notes.md": b"# Nested Data\nRaw bytes.\n",
-        rec
-        / "research"
-        / "findings"
-        / "20261106-demo-01-rs0001-study.research.md": b"# Research\n\n- Id: rs0001\n- Status: complete\n",
-        rec
-        / "walkthroughs"
-        / "20261106-wt0001-walkthrough.md": b"# Walkthrough\n\n- Id: wt0001\n",
-        rec / "roadmaps" / "20261106-rm0001-roadmap.md": b"# Roadmap\n\n- Id: rm0001\n",
-        rec / "reviews" / "20261106-rv0001.review.md": b"# Review\n\n- Verdict: PASS\n",
         # Six protected templates: 4 in prompt-library + 2 named templates.
         rec
         / "prompts"
@@ -898,10 +912,17 @@ def test_excluded_comms_data_readmes_non_5_trees_and_six_templates_byte_identica
         for p, content in protected.items()
     }
 
-    res = m0001_metadata_v2.run(repo, apply=True)
+    res = m0001_metadata_v2.run(repo, apply=True, commit=False)
     assert res["status"] == "applied"
     assert res["conversion"]["by_type"]["ipd"] == 1
+    assert res["conversion"]["by_type"]["research"] == 1
+    assert res["conversion"]["by_type"]["walkthrough"] == 1
+    assert res["conversion"]["by_type"]["roadmap"] == 1
+    assert res["conversion"]["by_type"]["review"] == 1
     assert (rec / "meta" / "ex0001.jsonl").is_file()
+    assert (rec / "meta" / "rs0001.jsonl").is_file()
+    assert (rec / "meta" / "wt0001.jsonl").is_file()
+    assert (rec / "meta" / "rm0001.jsonl").is_file()
 
     for p, orig_bytes in protected.items():
         rel = p.relative_to(repo).as_posix()

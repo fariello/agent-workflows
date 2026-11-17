@@ -346,7 +346,7 @@ def test_sidecar_apply_moves_history_cleans_gitignore_and_rollback_restores(
     (
         rec_root / "backlog" / "open" / "20261101-demo-01-bk2001-item.backlog.md"
     ).write_text(
-        "- Id: bk2001\n- Status: open\n- Summary: Item\n",
+        "- Id: bk2001\n- Status: open\n- Summary: Item\n- Short-Description: Sample item\n",
         encoding="utf-8",
     )
     _git(repo, "add", ".aw/.gitignore", ".aw/records")
@@ -368,7 +368,7 @@ def test_sidecar_apply_moves_history_cleans_gitignore_and_rollback_restores(
     )
     sidecar_path.write_text(orig_sidecar, encoding="utf-8")
 
-    res = m0001_metadata_v2.run(repo, apply=True)
+    res = m0001_metadata_v2.run(repo, apply=True, commit=False)
     assert res["status"] == "applied"
 
     imported = (

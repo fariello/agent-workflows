@@ -18218,6 +18218,12 @@ def _print_metadata_migration_report(
 ) -> None:
     """Render a human-readable summary for a single metadata migration report."""
     mig_id = report.get("migration_id", "m0001")
+    if report.get("status") == "already_migrated":
+        term.status(
+            "ok", str(report.get("message") or "metadata_schema is 2; nothing to do")
+        )
+        return
+
     mode_label = "Apply" if apply_mode else "Dry Run"
     term.heading(f"AW Metadata Migration ({mig_id} - {mode_label})")
     preflight = report.get("preflight") or {}
@@ -18234,10 +18240,89 @@ def _print_metadata_migration_report(
     orphan_count = int(sidecar.get("orphan_record_count", 0) or 0)
     if orphan_count:
         term.status("info", f"Orphans:       {orphan_count}")
+
+    renames = report.get("renames") or {}
+    if renames:
+        term.status(
+            "info",
+            f"Renames:       {renames.get('entry_count', 0)} entries "
+            f"({renames.get('minted_count', 0)} minted, "
+            f"{renames.get('preserved_count', 0)} preserved)",
+        )
+        for ent in renames.get("entries") or []:
+            tag = "minted" if ent.get("minted") else "kept"
+            term.line(
+                f"  {ent.get('id6')} ({tag}): {ent.get('old_rel')} -> {ent.get('new_rel')}"
+            )
+        dups = renames.get("unmapped_plan_duplicates") or []
+        if dups:
+            term.status(
+                "info",
+                f"Unmapped plan duplicate (set, order) pairs: {len(dups)}",
+            )
+
+    citations = report.get("citations") or {}
+    if citations:
+        warn_cnt = int(citations.get("warning_count", 0) or 0)
+        term.status(
+            "info",
+            f"Citations:     {citations.get('total_substituted', 0)} substituted, "
+            f"{warn_cnt} ambiguity warnings",
+        )
+        for loc, cnt in sorted((citations.get("location_counts") or {}).items()):
+            term.line(f"  {loc}: {cnt}")
+        unchanged = citations.get("unchanged_occurrences") or []
+        if unchanged:
+            term.line(
+                f"  Left unchanged ({len(unchanged)}): "
+                + str(citations.get("unchanged_counts_by_reason") or {})
+            )
+            for occ in unchanged:
+                term.line(
+                    f"    - [{occ.get('reason')}] {occ.get('file')}:{occ.get('line')}: {occ.get('token')}"
+                )
+
+    census = report.get("census")
+    if census:
+        from agent_workflows.migrations import m0001_verify as _m0001_verify
+
+        for ln in _m0001_verify.format_census(census).splitlines():
+            term.line(ln)
+
+    round_trip = report.get("round_trip")
+    if round_trip:
+        rt_ok = bool(round_trip.get("round_trip_passed")) and (
+            int(round_trip.get("leak_fail_count") or 0) == 0
+        )
+        term.status(
+            "ok" if rt_ok else "fail",
+            f"round trip: {'pass' if rt_ok else 'fail'} "
+            f"(replayed={round_trip.get('replayed_count', 0)}, "
+            f"reviews={round_trip.get('review_mirrors_checked', 0)}, "
+            f"leak_fail={round_trip.get('leak_fail_count', 0)}, "
+            f"leak_warn={round_trip.get('leak_warn_count', 0)})",
+        )
+        for err in round_trip.get("errors") or []:
+            term.line(f"  ERROR: {err}")
+        for lf in round_trip.get("leak_fails") or []:
+            term.line(
+                f"  LEAK FAIL [{lf.get('rule')}] {lf.get('location')}: {lf.get('snippet')}"
+            )
+        for lw in round_trip.get("leak_warns") or []:
+            term.line(
+                f"  LEAK WARN [{lw.get('rule')}] {lw.get('location')}: {lw.get('snippet')}"
+            )
+
     if apply_mode:
+        commit_info = report.get("commit") or {}
+        commit_note = (
+            f" (commit {commit_info.get('commit_sha')})"
+            if commit_info.get("commit_sha")
+            else ""
+        )
         term.status(
             "ok",
-            f"Applied {len(report.get('applied_files') or [])} file operation(s).",
+            f"Applied {len(report.get('applied_files') or [])} file operation(s){commit_note}.",
         )
     else:
         term.status("info", "Dry run only; pass --apply to execute.")

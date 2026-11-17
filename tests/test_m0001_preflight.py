@@ -69,7 +69,7 @@ def _init_repo(
         / "20261101-demo-01-pl0001-sample-plan.ipd.md"
     )
     plan.write_text(
-        "# IPD: Sample plan\n\n- Id: pl0001\n- Status: approved\n- Set: demo\n- Order: 1\n",
+        "# IPD: Sample plan\n\n- Id: pl0001\n- Status: approved\n- Set: demo\n- Order: 1\n- Short-Description: Sample plan\n",
         encoding="utf-8",
     )
     bk = (
@@ -81,7 +81,7 @@ def _init_repo(
         / "20261101-demo-01-bk0001-sample-item.backlog.md"
     )
     bk.write_text(
-        "- Id: bk0001\n- Status: open\n- Summary: Sample backlog item\n",
+        "- Id: bk0001\n- Status: open\n- Summary: Sample backlog item\n- Short-Description: Sample backlog item\n",
         encoding="utf-8",
     )
 
@@ -416,7 +416,7 @@ def test_journal_interrupt_mid_apply_resume_and_rollback(
 ) -> None:
     # Uninterrupted reference repo
     ref_repo = _init_repo(tmp_path, monkeypatch, name="ref_repo")
-    ref_res = m0001_metadata_v2.run(ref_repo, apply=True)
+    ref_res = m0001_metadata_v2.run(ref_repo, apply=True, commit=False)
     assert ref_res["status"] == "applied"
     ref_gitignore_bytes = (ref_repo / ".aw" / ".gitignore").read_bytes()
     assert not (ref_repo / ".aw" / "records" / "history.jsonl").exists()
@@ -427,7 +427,9 @@ def test_journal_interrupt_mid_apply_resume_and_rollback(
     orig_a_gitignore = (repo_a / ".aw" / ".gitignore").read_bytes()
 
     with pytest.raises(layout_migration.MigrationError, match="interrupt-mid-apply"):
-        m0001_metadata_v2.run(repo_a, apply=True, fault_injection="interrupt-mid-apply")
+        m0001_metadata_v2.run(
+            repo_a, apply=True, fault_injection="interrupt-mid-apply", commit=False
+        )
 
     jpath_a = (
         repo_a / ".aw" / "state" / "durable" / "migrations" / "m0001" / "journal.json"
@@ -437,7 +439,7 @@ def test_journal_interrupt_mid_apply_resume_and_rollback(
     assert len(jdata_a["applied_files"]) == 1
     assert (repo_a / ".aw" / ".gitignore").read_bytes() == orig_a_gitignore
 
-    resumed_a = m0001_metadata_v2.run(repo_a, apply=True)
+    resumed_a = m0001_metadata_v2.run(repo_a, apply=True, commit=False)
     assert resumed_a["status"] == "applied"
     assert resumed_a["resumed"] is True
     assert (repo_a / ".aw" / ".gitignore").read_bytes() == ref_gitignore_bytes
@@ -461,8 +463,10 @@ def test_journal_interrupt_mid_apply_resume_and_rollback(
     # Explicit resume(repo) also completes an interrupted run identically
     repo_b = _init_repo(tmp_path, monkeypatch, name="repo_b")
     with pytest.raises(layout_migration.MigrationError, match="interrupt-mid-apply"):
-        m0001_metadata_v2.run(repo_b, apply=True, fault_injection="interrupt-mid-apply")
-    resumed_b = m0001_metadata_v2.resume(repo_b)
+        m0001_metadata_v2.run(
+            repo_b, apply=True, fault_injection="interrupt-mid-apply", commit=False
+        )
+    resumed_b = m0001_metadata_v2.resume(repo_b, commit=False)
     assert resumed_b["status"] == "applied"
     assert (repo_b / ".aw" / ".gitignore").read_bytes() == ref_gitignore_bytes
     assert (

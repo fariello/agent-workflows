@@ -27,9 +27,11 @@ from agent_workflows import (
     record_history,
 )
 from agent_workflows.migrations import (
+    chain,
     m0001_convert,
     m0001_preflight,
     m0001_renames,
+    m0001_verify,
 )
 
 _EXCLUDED_DIRNAMES = frozenset(
@@ -708,6 +710,8 @@ def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[s
             _add_candidate(op.get("target"))
         elif kind == "move_to_journal":
             _add_candidate(op.get("src"))
+    for extra in tx_data.get("extra_stage_paths") or []:
+        _add_candidate(extra)
 
     if not candidates:
         return []
@@ -869,6 +873,55 @@ def _cleanup_marker(
     mgr._save_transaction(tx_data)
 
 
+def _apply_step6_stamp(
+    repo_path: Path,
+    mgr: layout_migration.MigrationManager,
+    tx_data: Dict[str, Any],
+    journal_dir: Path,
+) -> Path:
+    """Back up resolved ``project.json``, write ``metadata_schema: 2``, and record stage path."""
+    done_ids = {
+        entry.get("op_id")
+        for entry in (tx_data.get("applied_files") or [])
+        if isinstance(entry, dict) and entry.get("op_id")
+    }
+    proj_json_path = chain._resolve_project_json(repo_path)
+    if "step6_metadata_schema" not in done_ids:
+        backups_dir = journal_dir / "backups"
+        existed, backup_name = _save_backup_bytes(
+            backups_dir, "step6_metadata_schema", proj_json_path
+        )
+        tx_data.setdefault("backups", []).append(
+            {
+                "op_id": "step6_metadata_schema",
+                "kind": "restore_bytes",
+                "target": str(proj_json_path),
+                "existed": existed,
+                "backup_file": backup_name,
+            }
+        )
+        chain.write_metadata_schema(repo_path, 2)
+        tx_data.setdefault("applied_files", []).append(
+            {
+                "op_id": "step6_metadata_schema",
+                "kind": "write_stamp",
+                "path": str(proj_json_path),
+            }
+        )
+
+    extra_paths = list(tx_data.get("extra_stage_paths") or [])
+    try:
+        proj_json_path.resolve().relative_to(repo_path.resolve())
+        proj_str = str(proj_json_path)
+        if proj_str not in extra_paths:
+            extra_paths.append(proj_str)
+    except (OSError, ValueError):
+        pass
+    tx_data["extra_stage_paths"] = extra_paths
+    mgr._save_transaction(tx_data)
+    return proj_json_path
+
+
 def commit_staged(
     repo: Union[str, Path],
     paths: Optional[Sequence[str]] = None,
@@ -901,7 +954,10 @@ def commit_staged(
         assume_yes=True,
         runner=git_commit_helper.RUNNER_AW_COMMIT,
     )
-    if outcome.status == git_commit_helper.STATUS_COMMITTED:
+    if outcome.status in (
+        git_commit_helper.STATUS_COMMITTED,
+        git_commit_helper.STATUS_NOTHING_TO_COMMIT,
+    ):
         _cleanup_marker(journal_dir, repo=repo_path)
     return outcome
 
@@ -931,6 +987,9 @@ def _format_run_report(
         "citations": steps.get("citations"),
         "conversion": steps.get("conversion"),
         "cleanup": steps.get("cleanup"),
+        "census": steps.get("census"),
+        "round_trip": steps.get("round_trip"),
+        "commit": tx_data.get("commit_result"),
         "sidecar_events": tx_data.get("sidecar_events") or {},
         "orphan_export_path": tx_data.get("orphan_export_path"),
         "orphan_counts": tx_data.get("orphan_counts") or {},
@@ -942,6 +1001,36 @@ def _format_run_report(
     }
 
 
+def _finish_apply_after_ops(
+    repo_path: Path,
+    mgr: layout_migration.MigrationManager,
+    tx_data: Dict[str, Any],
+    journal_dir: Path,
+    *,
+    commit: bool,
+) -> Dict[str, Any]:
+    """Write ``metadata_schema: 2``, stage explicit paths, write marker, and optionally commit."""
+    _apply_step6_stamp(repo_path, mgr, tx_data, journal_dir)
+    staged_paths = _stage_migration_paths(repo_path, tx_data)
+    tx_data["staged_paths"] = staged_paths
+    mgr._save_transaction(tx_data)
+    _step_4a_write_marker(repo_path, journal_dir)
+    if commit:
+        outcome = commit_staged(repo_path, staged_paths)
+        tx_data = mgr._load_transaction() or tx_data
+        tx_data["commit_result"] = {
+            "status": outcome.status,
+            "commit_sha": outcome.commit,
+            "detail": outcome.message,
+        }
+        mgr._save_transaction(tx_data)
+        if outcome.status == git_commit_helper.STATUS_ERROR:
+            raise layout_migration.MigrationError(
+                f"m0001 step-7 commit failed: {outcome.message}"
+            )
+    return mgr._load_transaction() or tx_data
+
+
 def _resume_applying_journal(
     repo_path: Path,
     journal_dir: Path,
@@ -950,7 +1039,7 @@ def _resume_applying_journal(
     force: bool = False,
     force_worktree: bool = False,
     fault_injection: Optional[str] = None,
-    commit: bool = False,
+    commit: bool = True,
 ) -> Dict[str, Any]:
     """Resume an interrupted ``status == 'applying'`` run from ``journal_dir / 'scratch'``."""
     preflight = m0001_preflight.check_preflight(
@@ -984,13 +1073,9 @@ def _resume_applying_journal(
             _execute_planned_operations(
                 mgr, tx_data, journal_dir, fault_injection=fault_injection
             )
-            staged_paths = _stage_migration_paths(repo_path, tx_data)
-            tx_data["staged_paths"] = staged_paths
-            mgr._save_transaction(tx_data)
-            _step_4a_write_marker(repo_path, journal_dir)
-            if commit:
-                commit_staged(repo_path, staged_paths)
-            tx_data = mgr._load_transaction() or tx_data
+            tx_data = _finish_apply_after_ops(
+                repo_path, mgr, tx_data, journal_dir, commit=commit
+            )
             return _format_run_report(tx_data, journal_dir, applied=True, resumed=True)
         finally:
             mgr._release_lock()
@@ -1004,10 +1089,24 @@ def run(
     force_worktree: bool = False,
     describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
-    commit: bool = False,
+    commit: bool = True,
 ) -> Dict[str, Any]:
     """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``."""
     repo_path = Path(repo)
+    schema_ver = chain.read_metadata_schema(repo_path)
+    if schema_ver is not None and schema_ver >= 2:
+        return {
+            "migration_id": "m0001",
+            "status": "already_migrated",
+            "message": "metadata_schema is 2; nothing to do",
+            "metadata_schema": schema_ver,
+            "applied": False,
+            "dry_run": not apply,
+            "resumed": False,
+            "applied_files": [],
+            "staged_paths": [],
+        }
+
     journal_dir, records_root = _journal_dir_for(repo_path)
 
     existing_peek = _peek_journal(journal_dir)
@@ -1118,7 +1217,7 @@ def run(
                 "schema_version": mgr.SCHEMA_VERSION,
                 "migration_id": "m0001",
                 "transaction_id": tx_id,
-                "status": "applying" if apply else "dry_run",
+                "status": "dry_run",
                 "timestamps": {"started_at": now_utc, "updated_at": now_utc},
                 "records_root": str(records_root),
                 "minted_ids": dict(prior_tx.get("minted_ids") or {}),
@@ -1164,6 +1263,17 @@ def run(
                 "entry_count": len(rename_map.entries),
                 "minted_count": sum(1 for e in rename_map.entries if e.minted),
                 "preserved_count": sum(1 for e in rename_map.entries if not e.minted),
+                "entries": [
+                    {
+                        "id6": e.id6,
+                        "minted": e.minted,
+                        "old_rel": e.old_rel,
+                        "new_rel": e.new_rel,
+                        "set_id": e.set_id,
+                        "order": e.order,
+                    }
+                    for e in rename_map.entries
+                ],
                 "unmapped_plan_duplicates": [
                     {"set_id": pair[0], "order": pair[1], "paths": list(paths)}
                     for pair, paths in rename_map.unmapped_plan_duplicates
@@ -1175,8 +1285,52 @@ def run(
                 "unchanged_counts_by_reason": dict(
                     citation_plan.unchanged_counts_by_reason
                 ),
+                "unchanged_occurrences": [
+                    {
+                        "file": u.file,
+                        "line": u.line,
+                        "reason": u.reason,
+                        "token": u.token,
+                    }
+                    for u in citation_plan.unchanged_occurrences
+                ],
+                "warnings": list(citation_plan.warnings),
                 "warning_count": len(citation_plan.warnings),
             }
+
+            # Step 6a (pre-conversion census): check field destinations, unknown-field,
+            # and unparseable-value refusals before step 4 builds logs.
+            census = m0001_verify.build_field_census(
+                repo_path,
+                pre_conversion_records_root=scratch_dir / "records",
+                converted_records_root=scratch_dir / "records",
+                sidecar_summary=tx_data["steps"]["sidecar"],
+                orphan_counts=orphan_counts,
+                rename_summary=tx_data["steps"]["renames"],
+                citation_summary=tx_data["steps"]["citations"],
+            )
+            if census.get("refusals"):
+                tx_data["steps"]["census"] = census
+                round_trip_skipped: Dict[str, Any] = {
+                    "passed": False,
+                    "round_trip_passed": False,
+                    "replayed_count": 0,
+                    "review_mirrors_checked": 0,
+                    "legacy_filename_leftovers": [],
+                    "set_order_collisions": [],
+                    "errors": [
+                        "Round-trip verification skipped due to census refusals"
+                    ],
+                    "leak_fail_count": 0,
+                    "leak_warn_count": 0,
+                    "leak_fails": [],
+                    "leak_warns": [],
+                }
+                tx_data["steps"]["round_trip"] = round_trip_skipped
+                mgr._save_transaction(tx_data)
+                if not apply:
+                    return _format_run_report(tx_data, journal_dir, applied=False)
+                m0001_verify.ensure_apply_gates_pass(census, round_trip_skipped)
 
             # Step 4: build event logs and rewrite record mirrors/bodies in scratch.
             convert_summary = m0001_convert.convert_records(
@@ -1188,6 +1342,8 @@ def run(
                 sidecar_events=sidecar_events,
                 describer=describer,
                 descriptions=tx_data.get("descriptions"),
+                record_types=m0001_convert.ALL_RECORD_TYPES,
+                include_reviews=True,
             )
             tx_data["steps"]["conversion"] = convert_summary
 
@@ -1200,6 +1356,21 @@ def run(
                 journal_dir=journal_dir,
             )
             tx_data["steps"]["cleanup"] = cleanup_summary
+
+            # Step 6b (post-conversion): update description counts from logs, run round-trip & leak scan.
+            m0001_verify.populate_description_counts(
+                census, scratch_repo / ".aw" / "records"
+            )
+            round_trip = m0001_verify.verify_round_trip(
+                repo_path,
+                pre_conversion_records_root=scratch_dir / "records",
+                converted_records_root=scratch_repo / ".aw" / "records",
+                rename_map=tx_data["rename_map"],
+                sidecar_events=sidecar_events,
+                unmapped_plan_duplicates=rename_map.unmapped_plan_duplicates,
+            )
+            tx_data["steps"]["census"] = census
+            tx_data["steps"]["round_trip"] = round_trip
 
             operations: List[Dict[str, Any]] = []
             if sidecar_present:
@@ -1337,16 +1508,16 @@ def run(
             if not apply:
                 return _format_run_report(tx_data, journal_dir, applied=False)
 
+            m0001_verify.ensure_apply_gates_pass(census, round_trip)
+            tx_data["status"] = "applying"
+            mgr._save_transaction(tx_data)
+
             _execute_planned_operations(
                 mgr, tx_data, journal_dir, fault_injection=fault_injection
             )
-            staged_paths = _stage_migration_paths(repo_path, tx_data)
-            tx_data["staged_paths"] = staged_paths
-            mgr._save_transaction(tx_data)
-            _step_4a_write_marker(repo_path, journal_dir)
-            if commit:
-                commit_staged(repo_path, staged_paths)
-            tx_data = mgr._load_transaction() or tx_data
+            tx_data = _finish_apply_after_ops(
+                repo_path, mgr, tx_data, journal_dir, commit=commit
+            )
             return _format_run_report(tx_data, journal_dir, applied=True)
         finally:
             mgr._release_lock()
@@ -1356,6 +1527,7 @@ def resume(
     repo: Union[str, Path],
     *,
     fault_injection: Optional[str] = None,
+    commit: bool = True,
 ) -> Dict[str, Any]:
     """Resume an interrupted m0001 migration apply from its journal and scratch dir."""
     repo_path = Path(repo)
@@ -1365,6 +1537,7 @@ def resume(
         journal_dir,
         records_root,
         fault_injection=fault_injection,
+        commit=commit,
     )
 
 

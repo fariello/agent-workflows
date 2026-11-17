@@ -627,10 +627,11 @@ def test_m0001_metadata_v2_step3_wiring_dry_run_apply_rollback_and_missing_root(
 
     old_spec = "20260817-2124-01-records-taxonomy.spec.md"
     (rec / "specs" / "implemented" / old_spec).write_text(
-        "# Spec\n\n- Status: implemented\n", encoding="utf-8"
+        "# Spec\n\n- Status: implemented\n- Short-Description: Taxonomy spec\n",
+        encoding="utf-8",
     )
     (rec / "plans" / "executed" / "20261101-demo-01-pl0001-plan.ipd.md").write_text(
-        f"# Plan\n\n- Id: pl0001\n\nCites {old_spec}.\n\n"
+        f"# Plan\n\n- Id: pl0001\n- Short-Description: Plan citing spec\n\nCites {old_spec}.\n\n"
         f"## Workflow history\n\n- 2026-11-01 executed (tester): {old_spec}\n",
         encoding="utf-8",
     )
@@ -669,7 +670,7 @@ def test_m0001_metadata_v2_step3_wiring_dry_run_apply_rollback_and_missing_root(
         )
 
     # Apply moves renamed file and rewrites citations while keeping history byte-identical
-    applied = m0001_metadata_v2.run(repo, apply=True)
+    applied = m0001_metadata_v2.run(repo, apply=True, commit=False)
     assert applied["status"] == "applied"
     old_rel, new_rel = next(iter(applied["rename_map"].items()))
     new_name = Path(new_rel).name
