@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` (artifact metadata store) section 7 step 4 requires every metadata writer to write through `agent_workflows/artifact_meta.py` in phase B. Before this family's three move parts run, `agent_workflows/specs.py`, `agent_workflows/backlog.py`, and `agent_workflows/releases.py` still build `- Field:` bullets and `## Workflow history` lines by hand (re-measured at `01c564538`: `specs.py` has 15 bullet literals, 3 history-line builders, and 8 `Workflow history` references; `backlog.py` has 29 bullet literals, 4 history-line builders, and 14 `Workflow history` references; `releases.py` has 11 bullet literals, 1 history-line builder, and 4 `Workflow history` references). This plan is a split part of `xexn45` (the phase-B remaining-writers plan), split 2026-11-07 so no single item spans seven modules and up to 17 test modules.
 - Scope: Finishing audit of the `specs`, `backlog`, and `releases` writer move (`xexn45` E-02 subset A and E-05 subset A). After the 2026-11-09 round-3 split per research `nj8zdp` (plan-size calibration), the code moves live in `b3l7y6` (Order 120, `specs`), `jlwedt` (Order 121, `backlog`), and `3466h8` (Order 134, `releases`). This plan runs the family audit (`E-03`) proving that none of the 18 moved writer functions in `agent_workflows/specs.py`, `agent_workflows/backlog.py`, or `agent_workflows/releases.py` still builds metadata bullets or `## Workflow history` lines by hand. EXCLUDES: the `prompts`, `ipd_authoring`, `research_cmd`, `artifact_adopt`, and `set_records` writer family (`n5sxxk`), creation-time `short_description` and `aw describe` (`6e93gt` and `fekdwv`), and retiring the thin compatibility adapters (`9o83cr`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-22-g6tw94-move-the-specs-backlog-and-releases-create-note-and-setter-w.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261117-9pa9x3-01-9pa9x3-tests-test-notify-cli-py-test-listen-lifecycle-and.backlog.md (Adjacent unlisted slow-test defect observed in pytest and aw suite SLOW TESTS REPORT, filed per execution defect-report requirement.)
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:b3l7y6, executed:jlwedt, executed:3466h8
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g6tw94
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: g6tw94 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261117-9pa9x3-01-9pa9x3-tests-test-notify-cli-py-test-listen-lifecycle-and.backlog.md: Adjacent unlisted slow-test defect observed in pytest and aw suite SLOW TESTS REPORT, filed per execution defect-report requirement.]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
