@@ -152,6 +152,7 @@ Every earlier `m0001` step is built by the parts in `- Item-Dependencies:`, whic
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-17-dky26u-build-the-m0001-legacy-name-rename-map-and-citation-rewrite.ipd.md
 - E-09 and E-10 subset A (log builder and file rewrite for plans, backlog items, releases, specs, and staged prompts) and `tests/test_m0001_conversion.py`: Moved to `ghhzb6` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: ghhzb6
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.ipd.md
 - E-09 and E-10 subset B (`review` events, `roadmap` registry entry, and log builder and file rewrite for research records, walkthroughs, the roadmap, and review files) and `tests/test_m0001_review_conversion.py`: Moved to `hpedmn` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: hpedmn
 - E-11 (steps 4a and 5: terminal-commit marker, STATUS/INDEX cleanup, read-only marker acceptance in both hooks) and `tests/test_m0001_gate_marker.py` from E-14: Moved to `o19353` (round-3 split 2026-11-09 per research `nj8zdp` guidance).

@@ -130,6 +130,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-17-dky26u-build-the-m0001-legacy-name-rename-map-and-citation-rewrite.ipd.md
 - Log builder and record conversion for plans, backlog, releases, specs, and prompts.
   - Carrier: ghhzb6
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-18-ghhzb6-build-the-m0001-log-builder-and-convert-plans-backlog-items.ipd.md
 - Review events, roadmap registry, and conversion for research, walkthroughs, roadmap, and reviews.
   - Carrier: hpedmn
 - Step-6 field census, round-trip verifier, ten-module family gate run, disposable clone proof, and changelog.
