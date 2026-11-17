@@ -5292,6 +5292,12 @@ def retire_orchestrator(
     _actor_problem = _ac.actor_refusal(actor)
     if _actor_problem is not None:
         return FinalizeResult(EXIT_CANNOT_RUN, None, _actor_problem, evidence)
+    from agent_workflows import artifact_meta as _am
+
+    try:
+        _am.validate_actor_string("actor", actor, repo_root=repo_root)
+    except ValueError as exc:
+        return FinalizeResult(EXIT_CANNOT_RUN, None, str(exc), evidence)
     if not plan_path.is_file():
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, f"plan file not found: {plan_path}", evidence
@@ -6053,7 +6059,12 @@ def _finalize_transaction(
                 evidence["finalize_scope_fields"] = scope_fields
                 extra_events = [{"op": "set", "fields": scope_fields}]
 
-            ns = argparse.Namespace(actor=actor, message=message, by_human=False)
+            evidence["finalize_actor"] = _ss._build_event_actor(
+                actor, default_tool="aw ipd finalize", run_id=run_id
+            )
+            ns = argparse.Namespace(
+                actor=actor, message=message, by_human=False, run_id=run_id
+            )
             wt_dest, _norm = _ss.apply_status_change(
                 wt_rec, "executed", coord.path, ns, extra_events=extra_events
             )

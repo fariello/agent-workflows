@@ -1162,6 +1162,59 @@ def _record_state(rec: ArtifactRecord, repo_root: Path) -> dict[str, Any]:
     return state
 
 
+_EVENT_ACTOR_STR_KEYS = frozenset(("ace", "host", "model", "variant", "run_id"))
+
+
+def _build_event_actor(
+    raw_actor: str | None,
+    *,
+    default_tool: str = "aw set",
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Parse a CLI or runner actor string into a ``4sd62s`` Section 4.2 ``actor`` mapping."""
+    tokens = str(raw_actor or "").split()
+    tool_tokens: list[str] = []
+    kv_started = False
+    actor_obj: dict[str, Any] = {}
+
+    for tok in tokens:
+        if "=" in tok:
+            kv_started = True
+            key, val = tok.split("=", 1)
+            if not val:
+                continue
+            if key in _EVENT_ACTOR_STR_KEYS:
+                actor_obj[key] = val
+            elif key == "attempt":
+                try:
+                    actor_obj["attempt"] = int(val)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"actor.attempt must be an integer, got {val!r}"
+                    ) from exc
+            # Display-only tokens (profile=..., step=...) stay on LegacyRender.actor_label only.
+        elif not kv_started:
+            tool_tokens.append(tok)
+
+    tool = " ".join(tool_tokens).strip() or default_tool
+    if "host" not in actor_obj:
+        if tool == "aw oc" or tool.startswith("aw oc "):
+            actor_obj["host"] = "oc"
+        elif tool == "aw agy" or tool.startswith("aw agy "):
+            actor_obj["host"] = "agy"
+
+    if run_id is not None:
+        clean_run_id = str(run_id).strip()
+        if clean_run_id and "run_id" not in actor_obj:
+            actor_obj["run_id"] = clean_run_id
+
+    result: dict[str, Any] = {"tool": tool}
+    for k in ("ace", "host", "model", "variant", "run_id", "attempt"):
+        if k in actor_obj:
+            result[k] = actor_obj[k]
+    return result
+
+
 @dataclass
 class _PreparedStatusChange:
     rec: ArtifactRecord
@@ -1179,6 +1232,10 @@ class _PreparedStatusChange:
     events: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     render: Any = None
     source_digest: str | None = None
+    event_actor: dict[str, Any] = dataclasses.field(
+        default_factory=lambda: {"tool": "aw set"}
+    )
+    event_overrides: list[str] = dataclasses.field(default_factory=list)
 
 
 def _prepare_status_change(
@@ -1359,6 +1416,13 @@ def _prepare_status_change(
     _actor_problem = _ac.actor_refusal(actor)
     if _actor_problem is not None:
         raise ValueError(_actor_problem)
+    raw_actor = actor
+    event_actor = _build_event_actor(
+        raw_actor,
+        default_tool="aw set",
+        run_id=getattr(args, "run_id", None),
+    )
+    event_overrides: list[str] = []
     if getattr(args, "by_human", False):
         actor = f"{actor}, --by-human"
     if getattr(args, "allow_open_questions", False) and (
@@ -1366,6 +1430,7 @@ def _prepare_status_change(
         or (rec.record_type == "specs" and norm_status == "approved")
     ):
         actor = f"{actor}, --allow-open-questions"
+        event_overrides.append("allow-open-questions")
     if getattr(args, "allow_terminal_reopen", False) and rec.record_type == "plans":
         _terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
         _was_terminal = (
@@ -1374,6 +1439,7 @@ def _prepare_status_change(
         )
         if _was_terminal and norm_status.strip().lower() not in _terminal_statuses:
             actor = f"{actor}, --allow-terminal-reopen"
+            event_overrides.append("allow-terminal-reopen")
 
     _sentinel_override = getattr(args, "allow_unresolvable_release_sentinel", None)
     if _sentinel_override is not None:
@@ -1407,6 +1473,7 @@ def _prepare_status_change(
 
     if rec.record_type == "releases" and _sentinel_override:
         actor = f"{actor}, --allow-unresolvable-release-sentinel"
+        event_overrides.append("allow-unresolvable-release-sentinel")
         if getattr(args, "message", None):
             message = f"{message} (override: {_sentinel_override})"
         else:
@@ -1614,7 +1681,9 @@ def _prepare_status_change(
             project_context=_am.legacy_context(repo_root),
             destination=dest_path,
             dry_run=True,
+            actor=event_actor,
             by_human=bool(getattr(args, "by_human", False)),
+            overrides=event_overrides or None,
             from_status=old_status,
             notes_out=notes if history == should_write_history else None,
         )
@@ -1689,6 +1758,8 @@ def _prepare_status_change(
         events=events,
         render=render,
         source_digest=_am._compute_digest(rec.path) if rec.path.is_file() else None,
+        event_actor=event_actor,
+        event_overrides=event_overrides,
     )
 
 
@@ -1786,7 +1857,9 @@ def apply_status_change(
         repo_root=repo_root,
         project_context=_am.legacy_context(repo_root),
         destination=dest_path,
+        actor=prep.event_actor,
         by_human=bool(getattr(args, "by_human", False)),
+        overrides=prep.event_overrides or None,
         from_status=normalize_target_status((rec.status or "draft"), rec.record_type)
         .strip()
         .lower(),
@@ -2864,6 +2937,18 @@ def run_set_command(
                 sys.stderr.write(f"{_err}\n")
                 return 2
 
+    _passed_actor_cli = getattr(args, "actor", None)
+    if _passed_actor_cli is not None:
+        from agent_workflows import artifact_meta as _am_cli
+
+        try:
+            _am_cli.validate_actor_string(
+                "--actor", str(_passed_actor_cli), repo_root=repo_root
+            )
+        except ValueError as exc:
+            sys.stderr.write(f"aw set: {exc}\n")
+            return 2
+
     # IPD vhiqo6 E-02: validate --work-kind and --priority enum values before resolving or writing anything
     from agent_workflows import backlog as _backlog_mod
 
@@ -3877,6 +3962,11 @@ def run_set_command(
 
         # Update the orchestrator
         actor = getattr(args, "actor", None) or "aw set"
+        from agent_workflows import attention_contract as _ac
+
+        _actor_problem = _ac.actor_refusal(actor)
+        if _actor_problem is not None:
+            raise ValueError(_actor_problem)
         msg = getattr(args, "message", None) or f"status set to {norm_stat}"
         today = _core.utc_history_date()
         # plan 2xwb9b E-09: one `note` event on the orchestrator, rendered as today's line.
@@ -3890,6 +3980,12 @@ def run_set_command(
                     "message": f"child {rec.id6 or rec.path.name} retired {norm_stat}: {msg}",
                 }
             ],
+            actor=_build_event_actor(
+                actor,
+                default_tool="aw set",
+                run_id=getattr(args, "run_id", None),
+            ),
+            by_human=bool(getattr(args, "by_human", False)),
             legacy_render=_am.LegacyRender("same-status", today, actor),
             repo_root=repo_root,
             project_context=_am.legacy_context(repo_root),

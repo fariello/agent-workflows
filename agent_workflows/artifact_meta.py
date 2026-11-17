@@ -721,16 +721,19 @@ def _check_string_safety(
 
 def _check_no_absolute_paths_in_text(token_source: str, text: str) -> None:
     # Check POSIX paths with two or more segments, e.g. /opt/x or /home/user/a.md
-    # but allowing single-segment tool commands like /plan-review or /spec-review
+    # but allowing single-segment tool commands like /plan-review or /spec-review.
+    # Also inspect the value half of key=value tokens (e.g. profile=/opt/secret/file or key=C:\...).
     for token in text.split():
-        if _WINDOWS_DRIVE_RE.search(token):
-            raise ValueError(
-                f"{token_source} must not contain absolute Windows drive path: {token!r}"
-            )
-        if token.startswith("/") and token.count("/") >= 2:
-            raise ValueError(
-                f"{token_source} must not contain absolute multi-segment path: {token!r}"
-            )
+        candidates = (token, token.split("=", 1)[1]) if "=" in token else (token,)
+        for cand in candidates:
+            if _WINDOWS_DRIVE_RE.search(cand):
+                raise ValueError(
+                    f"{token_source} must not contain absolute Windows drive path: {token!r}"
+                )
+            if cand.startswith("/") and cand.count("/") >= 2:
+                raise ValueError(
+                    f"{token_source} must not contain absolute multi-segment path: {token!r}"
+                )
 
 
 def _check_leak_sanitizer(text: str, prefix: str, ruleset: _leak.Ruleset) -> None:
@@ -879,6 +882,9 @@ def validate_new_events(
         actor = ev["actor"]
         for ak, av in actor.items():
             if isinstance(av, str):
+                _check_string_safety(
+                    f"actor.{ak}", av, prose=False, migration_import=migration_import
+                )
                 _check_no_absolute_paths_in_text(f"actor.{ak}", av)
                 _check_leak_sanitizer(av, f"actor.{ak}", ruleset)
 
@@ -5295,6 +5301,47 @@ def _prepare_legacy_events(
     return prepared
 
 
+def validate_actor_string(
+    field_name: str,
+    value: str,
+    *,
+    repo_root: Path,
+    ruleset: Optional["_leak.Ruleset"] = None,
+) -> "_leak.Ruleset":
+    """Validate a raw actor or display attribution string against safety, path, and leak rules."""
+    _check_string_safety(field_name, value, prose=False, migration_import=False)
+    _check_no_absolute_paths_in_text(field_name, value)
+    resolved_ruleset = ruleset if ruleset is not None else _writer_ruleset(repo_root)
+    _check_leak_sanitizer(value, field_name, resolved_ruleset)
+    return resolved_ruleset
+
+
+def _validate_legacy_render(render: LegacyRender, *, repo_root: Path) -> None:
+    """Validate LegacyRender actor attribution fields before rendering or writing."""
+    ruleset: Optional["_leak.Ruleset"] = None
+
+    if render.history or render.actor_label:
+        if not isinstance(render.actor_label, str):
+            raise ValueError("LegacyRender.actor_label must be a string")
+        ruleset = validate_actor_string(
+            "LegacyRender.actor_label",
+            render.actor_label,
+            repo_root=repo_root,
+            ruleset=ruleset,
+        )
+
+    checked_by = getattr(render, "checked_by", None)
+    if checked_by:
+        if not isinstance(checked_by, str):
+            raise ValueError("LegacyRender.checked_by must be a string")
+        validate_actor_string(
+            "LegacyRender.checked_by",
+            checked_by,
+            repo_root=repo_root,
+            ruleset=ruleset,
+        )
+
+
 def render_legacy_text(
     text: str,
     events: List[Dict[str, Any]],
@@ -5316,6 +5363,7 @@ def render_legacy_text(
     reg_type, plural = _normalize_legacy_types(record_type)
     rroot = Path(repo_root) if repo_root is not None else Path.cwd()
     records_root = Path(_proj_ctx.project_records_dir(rroot))
+    _validate_legacy_render(render, repo_root=rroot)
     prepared = _prepare_legacy_events(
         reg_type,
         events,
@@ -5467,6 +5515,7 @@ def write_legacy(
     state_root = Path(ctx.logical_roots["state"])
     reg_type, plural = _normalize_legacy_types(r_type, ltarget.path, records_root)
 
+    _validate_legacy_render(render, repo_root=rroot)
     prepared = _prepare_legacy_events(
         reg_type,
         events,
