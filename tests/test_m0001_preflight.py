@@ -311,6 +311,21 @@ def test_preflight_worktree_refusal_force_vs_force_worktree_and_missing_common_d
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo = _init_repo(tmp_path, monkeypatch, with_sidecar=False)
+    bk = (
+        repo
+        / ".aw"
+        / "records"
+        / "backlog"
+        / "open"
+        / "20261101-demo-01-bk0001-sample-item.backlog.md"
+    )
+    bk.write_text(
+        bk.read_text(encoding="utf-8")
+        + "\n## Workflow history\n\n- 2026-11-01 open (aw backlog): created\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".aw/records")
+    _git(repo, "commit", "-m", "record sidecar-writing setter history")
     wt_dir = tmp_path / "linked-wt"
     _git(repo, "worktree", "add", "-b", "lane-wt", str(wt_dir), "HEAD")
 

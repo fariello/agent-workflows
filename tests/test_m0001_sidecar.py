@@ -109,7 +109,11 @@ def test_sidecar_expected_missing_refusal_and_force_override(
         / "20261101-demo-01-sp0001-expected-sidecar.spec.md"
     )
     spec.write_text(
-        "# Spec: Expected sidecar\n\n- Id: sp0001\n- Status: approved\n",
+        "# Spec: Expected sidecar\n\n"
+        "- Id: sp0001\n"
+        "- Status: approved\n\n"
+        "## Workflow history\n\n"
+        "- 2026-11-01 approved (aw specs): approved in review\n",
         encoding="utf-8",
     )
     _git(repo, "add", ".aw/.gitignore", ".aw/records")

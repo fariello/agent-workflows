@@ -5664,6 +5664,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Override linked-worktree preflight refusal.",
     )
+    p_migrate_metadata.add_argument(
+        "--fault-injection",
+        default=None,
+        help="Fault injection name for test harness.",
+    )
 
     p_migrate_layout = migrate_sub.add_parser(
         "layout",
@@ -18550,6 +18555,25 @@ def _print_metadata_migration_report(
         term.status("warn", str(warn))
     sidecar = report.get("sidecar") or {}
     term.status("info", f"Status:        {report.get('status')}")
+    layout_stage = report.get("layout_stage") or (report.get("census") or {}).get(
+        "layout_stage"
+    )
+    if isinstance(layout_stage, dict):
+        if layout_stage.get("status") == "skipped":
+            term.status(
+                "info", "Layout stage:  layout stage: skipped (already on .aw/)"
+            )
+        else:
+            ls_status = layout_stage.get("status", "planned")
+            ls_backend = layout_stage.get("target_backend", "repository")
+            ls_planned = layout_stage.get("planned_count", 0)
+            ls_moved = layout_stage.get("moved", 0)
+            term.status(
+                "info",
+                f"Layout stage:  {ls_status} (backend={ls_backend}, planned={ls_planned}, moved={ls_moved})",
+            )
+            for grp, cnt in (layout_stage.get("groups") or {}).items():
+                term.line(f"  {grp}: {cnt}")
     term.status("info", f"Sidecar:       {sidecar.get('status', 'unknown')}")
     term.status(
         "info",
@@ -18667,6 +18691,7 @@ def _run_migrate_metadata(
     apply_mode = bool(getattr(args, "apply", False))
     force_mode = bool(getattr(args, "force", False))
     force_wt = bool(getattr(args, "force_worktree", False))
+    fault_inj = getattr(args, "fault_injection", None)
 
     m0001 = next((m for m in _chain.MIGRATIONS if m.number == 1), None)
     if m0001 is None:
@@ -18693,23 +18718,27 @@ def _run_migrate_metadata(
             apply=apply_mode,
             force=force_mode,
             force_worktree=force_wt,
+            fault_injection=fault_inj,
         )
     except (_lm.PreflightGateError, _lm.MigrationError) as exc:
+        err_text = str(exc)
+        rolled_back = "rolled back" in err_text.lower()
         if ctx.is_json:
             print(
                 json.dumps(
                     {
                         "migration": f"{m0001.number:04d} {m0001.name}",
-                        "status": "refused",
+                        "status": "rolled_back" if rolled_back else "refused",
                         "applied": False,
-                        "error": str(exc),
+                        "rolled_back": rolled_back,
+                        "error": err_text,
                     },
                     indent=2,
                 )
             )
             return 1
         if ctx.is_agent:
-            safe_msg = _sanitize_migrate_text(str(exc), repo_path)
+            safe_msg = _sanitize_migrate_text(err_text, repo_path)
             res = CommandResult(
                 command="migrate metadata",
                 status="fail",
@@ -18718,7 +18747,7 @@ def _run_migrate_metadata(
                 diagnostics=[
                     Diagnostic(
                         location=".",
-                        rule="migrate.preflight",
+                        rule="migrate.rollback" if rolled_back else "migrate.preflight",
                         detail=safe_msg,
                         severity="error",
                     )
@@ -18730,7 +18759,7 @@ def _run_migrate_metadata(
                 repo_root=repo_path,
             )
             return get_renderer(ctx).emit(res, ctx)
-        term.status("fail", str(exc))
+        term.status("fail", err_text)
         return 1
 
     if ctx.is_json:
@@ -18739,26 +18768,84 @@ def _run_migrate_metadata(
 
     if ctx.is_agent:
         sidecar_info = report.get("sidecar") or {}
+        layout_info = report.get("layout_stage") or {}
+        census_info = report.get("census") or {}
         safe_sidecar = _sanitize_migrate_text(
             str(sidecar_info.get("status", "ok")), repo_path
         )
+        if layout_info.get("status") == "skipped":
+            layout_note = "layout stage: skipped (already on .aw/)"
+        elif layout_info:
+            ls_count = int(
+                layout_info.get("moved") or layout_info.get("planned_count") or 0
+            )
+            layout_note = f"layout stage: {layout_info.get('status', 'planned')} ({ls_count} items)"
+        else:
+            layout_note = "layout stage: skipped (already on .aw/)"
+
         summary = (
             f"migration {m0001.number:04d} {m0001.name} "
-            f"{'applied' if apply_mode else 'dry-run preview'}: {safe_sidecar}"
+            f"{'applied' if apply_mode else 'dry-run preview'}: "
+            f"{layout_note}; {safe_sidecar}"
         )
         ev = [
+            Evidence(
+                key="layout_stage",
+                value={
+                    "status": layout_info.get("status", "skipped"),
+                    "target_backend": layout_info.get("target_backend"),
+                    "planned_count": int(layout_info.get("planned_count", 0) or 0),
+                    "moved": int(layout_info.get("moved", 0) or 0),
+                    "groups": dict(layout_info.get("groups") or {}),
+                },
+                status="verified",
+            ),
             Evidence(
                 key="sidecar",
                 value={
                     "present": bool(sidecar_info.get("present")),
+                    "expected": sidecar_info.get("expected"),
+                    "status": safe_sidecar,
                     "queued_events": int(
                         sidecar_info.get("queued_event_count", 0) or 0
                     ),
                     "orphans": int(sidecar_info.get("orphan_record_count", 0) or 0),
                 },
                 status="verified",
-            )
+            ),
         ]
+        if census_info:
+            ev.append(
+                Evidence(
+                    key="census",
+                    value={
+                        "record_count": int(census_info.get("record_count", 0) or 0),
+                        "review_count": int(census_info.get("review_count", 0) or 0),
+                        "sidecar_status": _sanitize_migrate_text(
+                            str(census_info.get("sidecar_status", "")), repo_path
+                        ),
+                        "minted_record_count": int(
+                            census_info.get("minted_record_count", 0) or 0
+                        ),
+                        "unclassifiable_count": int(
+                            census_info.get("unclassifiable_count", 0) or 0
+                        ),
+                        "unknown_field_refusal_count": int(
+                            census_info.get("unknown_field_refusal_count", 0) or 0
+                        ),
+                        "unparseable_value_refusal_count": int(
+                            census_info.get("unparseable_value_refusal_count", 0) or 0
+                        ),
+                        "with_description_count": int(
+                            census_info.get("with_description_count", 0) or 0
+                        ),
+                        "without_description_count": int(
+                            census_info.get("without_description_count", 0) or 0
+                        ),
+                    },
+                    status="verified",
+                )
+            )
         res = CommandResult(
             command="migrate metadata",
             status="ok" if apply_mode else "preview",

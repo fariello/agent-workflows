@@ -22,6 +22,7 @@ from agent_workflows import (
     artifact_meta,
     artifact_naming,
     git_commit_helper,
+    ipd_lifecycle,
     layout_migration,
     project_context,
     record_history,
@@ -456,20 +457,123 @@ _SCRATCH_COPY_IGNORE = shutil.ignore_patterns(
 )
 
 
+def _append_git_info_exclude(repo_path: Path, pattern: str) -> None:
+    """Idempotently append ``pattern`` to ``<git_common_dir>/info/exclude``."""
+    common_dir = ipd_lifecycle.checkout_git_common_dir(repo_path)
+    if common_dir is None:
+        return
+    exclude_path = common_dir / "info" / "exclude"
+    exclude_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = (
+        exclude_path.read_text(encoding="utf-8") if exclude_path.is_file() else ""
+    )
+    stripped = pattern.strip()
+    bare = stripped.lstrip("/")
+    candidates = {stripped, bare, stripped.rstrip("/"), bare.rstrip("/")}
+    if any(line.strip() in candidates for line in existing.splitlines()):
+        return
+    prefix = "" if (not existing or existing.endswith("\n")) else "\n"
+    exclude_path.write_text(existing + prefix + stripped + "\n", encoding="utf-8")
+
+
+def _ensure_state_gitignored_via_exclude(
+    repo_path: Path, journal_dir: Path, *, apply: bool = False
+) -> None:
+    """Ensure ``.aw/state/`` (and apply-time ``.aw/records/runs/``) are gitignored via ``info/exclude``.
+
+    On ``.agents/``-only repositories, ``<repo>/.aw/.gitignore`` does not exist during dry run
+    or after stage-one rollback. When ``journal_dir`` lives under ``<repo>/.aw/state`` and
+    ``git check-ignore`` reports it is not ignored, idempotently append ``/.aw/state/`` to
+    ``<git_common_dir>/info/exclude`` without creating an untracked ``.aw/.gitignore``.
+    Likewise, when ``apply=True`` acquires the integration lock inside ``<repo>/.aw/records/runs``
+    on a repository lacking ``.aw/.gitignore`` (e.g. ``no_sidecar``), keep ``/.aw/records/runs/``
+    out of ``git status``.
+    """
+    aw_state = repo_path / ".aw" / "state"
+    try:
+        j_res = journal_dir.resolve()
+        s_res = aw_state.resolve()
+        within_repo_state = j_res == s_res or s_res in j_res.parents
+    except OSError:
+        within_repo_state = False
+    if within_repo_state:
+        ign = subprocess.run(
+            ["git", "-C", str(repo_path), "check-ignore", "-q", "--", ".aw/state/"],
+            capture_output=True,
+            check=False,
+        )
+        if ign.returncode != 0:
+            _append_git_info_exclude(repo_path, "/.aw/state/")
+
+    if apply:
+        from agent_workflows import runner_shared
+
+        lock_path = runner_shared.integration_lock_path(repo_path)
+        runs_dir = repo_path / ".aw" / "records" / "runs"
+        try:
+            l_res = lock_path.resolve()
+            r_res = runs_dir.resolve()
+            within_repo_runs = l_res == r_res or r_res in l_res.parents
+        except OSError:
+            within_repo_runs = False
+        if within_repo_runs:
+            ign_runs = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_path),
+                    "check-ignore",
+                    "-q",
+                    "--",
+                    ".aw/records/runs/",
+                ],
+                capture_output=True,
+                check=False,
+            )
+            if ign_runs.returncode != 0:
+                _append_git_info_exclude(repo_path, "/.aw/records/runs/")
+
+
+def _root_kind_and_rel(
+    target_path: Path,
+    repo_path: Optional[Path] = None,
+    records_root: Optional[Path] = None,
+) -> Tuple[str, str]:
+    """Return ``(root_kind, relpath)`` for ``target_path`` without failing on external roots."""
+    try:
+        t_res = target_path.resolve()
+    except OSError:
+        t_res = target_path
+    if records_root is not None:
+        try:
+            r_res = records_root.resolve()
+            if t_res == r_res or r_res in t_res.parents:
+                return "records", t_res.relative_to(r_res).as_posix()
+        except (OSError, ValueError):
+            pass
+    if repo_path is not None:
+        try:
+            rp_res = repo_path.resolve()
+            if t_res == rp_res or rp_res in t_res.parents:
+                return "repo", t_res.relative_to(rp_res).as_posix()
+        except (OSError, ValueError):
+            pass
+    return "external", target_path.name
+
+
 def _stage_scratch(
     repo_path: Path,
     records_root: Path,
     scratch_dir: Path,
     *,
     scan_roots: Optional[Sequence[str]] = None,
-) -> Tuple[Optional[str], bool]:
-    """Populate ``scratch_dir`` cleanly and return ``(gitignore_scratch_rel, gitignore_changed)``."""
+    stage1_mgr: Optional[layout_migration.MigrationManager] = None,
+    stage1_plan: Optional[Dict[str, Any]] = None,
+) -> Tuple[Optional[str], bool, Optional[Dict[str, Any]]]:
+    """Populate ``scratch_dir`` cleanly and return ``(gitignore_scratch_rel, gitignore_changed, stage1_proj)``."""
     if scratch_dir.exists():
         shutil.rmtree(scratch_dir)
     scratch_dir.mkdir(parents=True, exist_ok=True)
-
-    if records_root.is_dir():
-        shutil.copytree(records_root, scratch_dir / "records", symlinks=False)
 
     scratch_repo = scratch_dir / "repo"
     scratch_repo.mkdir(parents=True, exist_ok=True)
@@ -499,6 +603,20 @@ def _stage_scratch(
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
 
+    stage1_proj: Optional[Dict[str, Any]] = None
+    if stage1_mgr is not None and stage1_plan is not None:
+        stage1_proj = stage1_mgr.project_stage_one_to_scratch(
+            stage1_plan, scratch_repo, backfill_ids=False
+        )
+
+    # Snapshot pre-step-3 records (post-stage-1 when stage1 projected) at scratch_dir / "records".
+    if (scratch_repo / ".aw" / "records").is_dir():
+        shutil.copytree(
+            scratch_repo / ".aw" / "records",
+            scratch_dir / "records",
+            symlinks=False,
+        )
+
     gitignore_path = repo_path / ".aw" / ".gitignore"
     if gitignore_path.is_file():
         orig_text = gitignore_path.read_text(encoding="utf-8")
@@ -514,7 +632,7 @@ def _stage_scratch(
             agents_dst.write_text(
                 agents_gi.read_text(encoding="utf-8"), encoding="utf-8"
             )
-        return rel, changed
+        return rel, changed, stage1_proj
 
     agents_gi = repo_path / ".agents" / ".gitignore"
     if agents_gi.is_file():
@@ -522,7 +640,7 @@ def _stage_scratch(
         agents_dst.parent.mkdir(parents=True, exist_ok=True)
         agents_dst.write_text(agents_gi.read_text(encoding="utf-8"), encoding="utf-8")
 
-    return None, False
+    return None, False, stage1_proj
 
 
 def _verify_scratch_scan_roots(
@@ -547,17 +665,41 @@ def _verify_scratch_scan_roots(
             )
 
 
+def _save_backup_bytes_keyed(
+    backups_dir: Path,
+    op_id: str,
+    target_path: Path,
+    *,
+    repo_path: Optional[Path] = None,
+    records_root: Optional[Path] = None,
+) -> Tuple[bool, Optional[str], str, str]:
+    """Save pre-apply bytes of ``target_path`` keyed by ``(root_kind, relpath)``."""
+    import hashlib
+
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    root_kind, relpath = _root_kind_and_rel(
+        target_path, repo_path=repo_path, records_root=records_root
+    )
+    if not target_path.exists():
+        return False, None, root_kind, relpath
+    key_digest = hashlib.sha256(
+        f"{root_kind}:{relpath}:{op_id}".encode("utf-8")
+    ).hexdigest()[:12]
+    safe_rel = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{root_kind}__{relpath}")[:120]
+    safe_name = f"{safe_rel}_{key_digest}.bak"
+    backup_path = backups_dir / safe_name
+    backup_path.write_bytes(target_path.read_bytes())
+    return True, safe_name, root_kind, relpath
+
+
 def _save_backup_bytes(
     backups_dir: Path, op_id: str, target_path: Path
 ) -> Tuple[bool, Optional[str]]:
     """Save pre-apply bytes of ``target_path`` under ``backups_dir``."""
-    backups_dir.mkdir(parents=True, exist_ok=True)
-    if not target_path.exists():
-        return False, None
-    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", op_id) + ".bak"
-    backup_path = backups_dir / safe_name
-    backup_path.write_bytes(target_path.read_bytes())
-    return True, safe_name
+    existed, safe_name, _rk, _rp = _save_backup_bytes_keyed(
+        backups_dir, op_id, target_path
+    )
+    return existed, safe_name
 
 
 def _write_bytes_atomic(target: Path, data: bytes) -> None:
@@ -581,6 +723,8 @@ def _execute_planned_operations(
     tx_data: Dict[str, Any],
     journal_dir: Path,
     *,
+    repo_path: Optional[Path] = None,
+    records_root: Optional[Path] = None,
     fault_injection: Optional[str] = None,
 ) -> None:
     """Apply remaining operations from ``journal_dir / 'scratch'``, backing up each target."""
@@ -591,6 +735,12 @@ def _execute_planned_operations(
     }
     backups_dir = journal_dir / "backups"
     scratch_dir = journal_dir / "scratch"
+    eff_repo = repo_path or Path(mgr.target_repo)
+    eff_records = records_root or (
+        Path(tx_data["records_root"])
+        if tx_data.get("records_root")
+        else project_context.project_records_dir(eff_repo)
+    )
 
     for op in tx_data.get("operations") or []:
         op_id = op["op_id"]
@@ -601,11 +751,19 @@ def _execute_planned_operations(
         if kind == "move_to_journal":
             src = Path(op["src"])
             dst = Path(op["dst"])
-            existed, backup_name = _save_backup_bytes(backups_dir, op_id, src)
+            existed, backup_name, root_kind, relpath = _save_backup_bytes_keyed(
+                backups_dir,
+                op_id,
+                src,
+                repo_path=eff_repo,
+                records_root=eff_records,
+            )
             tx_data["backups"].append(
                 {
                     "op_id": op_id,
                     "kind": "restore_moved",
+                    "root_kind": root_kind,
+                    "relpath": relpath,
                     "target": str(src),
                     "moved_to": str(dst),
                     "existed": existed,
@@ -619,6 +777,8 @@ def _execute_planned_operations(
                 {
                     "op_id": op_id,
                     "kind": kind,
+                    "root_kind": root_kind,
+                    "relpath": relpath,
                     "path": str(src),
                     "dst": str(dst),
                 }
@@ -626,11 +786,19 @@ def _execute_planned_operations(
         elif kind == "write_from_scratch":
             target = Path(op["target"])
             scratch_src = scratch_dir / op["scratch_rel"]
-            existed, backup_name = _save_backup_bytes(backups_dir, op_id, target)
+            existed, backup_name, root_kind, relpath = _save_backup_bytes_keyed(
+                backups_dir,
+                op_id,
+                target,
+                repo_path=eff_repo,
+                records_root=eff_records,
+            )
             tx_data["backups"].append(
                 {
                     "op_id": op_id,
                     "kind": "restore_bytes",
+                    "root_kind": root_kind,
+                    "relpath": relpath,
                     "target": str(target),
                     "existed": existed,
                     "backup_file": backup_name,
@@ -641,16 +809,26 @@ def _execute_planned_operations(
                 {
                     "op_id": op_id,
                     "kind": kind,
+                    "root_kind": root_kind,
+                    "relpath": relpath,
                     "path": str(target),
                 }
             )
         elif kind == "delete_file":
             target = Path(op["target"])
-            existed, backup_name = _save_backup_bytes(backups_dir, op_id, target)
+            existed, backup_name, root_kind, relpath = _save_backup_bytes_keyed(
+                backups_dir,
+                op_id,
+                target,
+                repo_path=eff_repo,
+                records_root=eff_records,
+            )
             tx_data["backups"].append(
                 {
                     "op_id": op_id,
                     "kind": "restore_bytes",
+                    "root_kind": root_kind,
+                    "relpath": relpath,
                     "target": str(target),
                     "existed": existed,
                     "backup_file": backup_name,
@@ -661,6 +839,8 @@ def _execute_planned_operations(
                 {
                     "op_id": op_id,
                     "kind": kind,
+                    "root_kind": root_kind,
+                    "relpath": relpath,
                     "path": str(target),
                 }
             )
@@ -673,13 +853,49 @@ def _execute_planned_operations(
 
         if fault_injection == "interrupt-mid-apply" and tx_data["applied_files"]:
             raise layout_migration.MigrationError("Injected fault: interrupt-mid-apply")
+        if fault_injection == "stage2-failure" and tx_data["applied_files"]:
+            raise layout_migration.MigrationError("Injected fault: stage2-failure")
+
+    if fault_injection == "stage2-failure":
+        raise layout_migration.MigrationError("Injected fault: stage2-failure")
 
     tx_data["status"] = "applied"
     mgr._save_transaction(tx_data)
 
 
-def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[str]:
-    """Collect repo-relative paths touched by migration operations that can be staged with ``git add``."""
+def _staged_paths_in_index(repo_path: Path) -> Set[str]:
+    """Return repo-relative paths currently staged in ``repo_path``'s index (including renames)."""
+    proc = subprocess.run(
+        ["git", "-C", str(repo_path), "diff", "--cached", "--name-status", "-z"],
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout:
+        return set()
+    fields = proc.stdout.decode("utf-8", errors="replace").split("\0")
+    staged: Set[str] = set()
+    i = 0
+    while i < len(fields):
+        status = fields[i]
+        if not status:
+            i += 1
+            continue
+        if status[:1] in ("R", "C"):
+            for cand in fields[i + 1 : i + 3]:
+                if cand:
+                    staged.add(cand)
+            i += 3
+            continue
+        if i + 1 < len(fields) and fields[i + 1]:
+            staged.add(fields[i + 1])
+        i += 2
+    return staged
+
+
+def _collect_stageable_paths(
+    repo_path: Path, tx_data: Dict[str, Any]
+) -> Tuple[List[str], List[str]]:
+    """Return ``(all_commit_paths, addable_paths)`` relative to ``repo_path``."""
     try:
         repo_resolved = repo_path.resolve()
     except OSError:
@@ -692,6 +908,8 @@ def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[s
         if not raw:
             return
         p = Path(raw)
+        if not p.is_absolute():
+            p = repo_path / p
         try:
             rel = p.resolve().relative_to(repo_resolved).as_posix()
         except (OSError, ValueError):
@@ -713,7 +931,7 @@ def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[s
         _add_candidate(extra)
 
     if not candidates:
-        return []
+        return [], []
 
     tracked_set: Set[str] = set()
     for i in range(0, len(candidates), 200):
@@ -728,10 +946,14 @@ def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[s
                 if item:
                     tracked_set.add(item)
 
+    already_staged = _staged_paths_in_index(repo_path)
+
     stageable: List[str] = []
+    addable: List[str] = []
     for rel in candidates:
         if rel in tracked_set:
             stageable.append(rel)
+            addable.append(rel)
             continue
         disk_path = repo_path / rel
         if disk_path.exists() or disk_path.is_symlink():
@@ -742,14 +964,18 @@ def _collect_stageable_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[s
             )
             if ign.returncode != 0:
                 stageable.append(rel)
-    return stageable
+                addable.append(rel)
+            continue
+        if rel in already_staged:
+            stageable.append(rel)
+    return stageable, addable
 
 
 def _stage_migration_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[str]:
     """Stage the migration's complete path list in ``repo_path`` and return staged repo-relative paths."""
-    staged = _collect_stageable_paths(repo_path, tx_data)
-    for i in range(0, len(staged), 200):
-        batch = staged[i : i + 200]
+    staged, addable = _collect_stageable_paths(repo_path, tx_data)
+    for i in range(0, len(addable), 200):
+        batch = addable[i : i + 200]
         proc = subprocess.run(
             ["git", "-C", str(repo_path), "add", "-A", "--", *batch],
             capture_output=True,
@@ -980,6 +1206,7 @@ def _format_run_report(
         "journal_dir": str(journal_dir),
         "journal_path": str(journal_dir / "journal.json"),
         "scratch_dir": str(journal_dir / "scratch"),
+        "layout_stage": tx_data.get("layout_stage") or steps.get("layout_stage"),
         "preflight": steps.get("preflight"),
         "sidecar": steps.get("sidecar"),
         "renames": steps.get("renames"),
@@ -989,6 +1216,7 @@ def _format_run_report(
         "census": steps.get("census"),
         "round_trip": steps.get("round_trip"),
         "commit": tx_data.get("commit_result"),
+        "companion_commit": tx_data.get("companion_commit_result"),
         "sidecar_events": tx_data.get("sidecar_events") or {},
         "orphan_export_path": tx_data.get("orphan_export_path"),
         "orphan_counts": tx_data.get("orphan_counts") or {},
@@ -1000,15 +1228,79 @@ def _format_run_report(
     }
 
 
+def _stage_and_commit_external_records(
+    records_root: Path,
+    repo_path: Path,
+    tx_data: Dict[str, Any],
+    mgr: layout_migration.MigrationManager,
+    *,
+    commit: bool,
+) -> None:
+    """Stage (and commit when ``commit=True``) external companion-repo record changes."""
+    record_git = project_context.record_git_root(records_root)
+    if record_git is None:
+        return
+    try:
+        if record_git.resolve() == repo_path.resolve():
+            return
+    except OSError:
+        return
+
+    staged, addable = _collect_stageable_paths(record_git, tx_data)
+    if not staged:
+        return
+    for i in range(0, len(addable), 200):
+        batch = addable[i : i + 200]
+        proc = subprocess.run(
+            ["git", "-C", str(record_git), "add", "-A", "--", *batch],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise layout_migration.MigrationError(
+                f"Failed to stage companion records paths: {proc.stderr.strip() or f'exit {proc.returncode}'}"
+            )
+    tx_data["companion_staged_paths"] = staged
+    mgr._save_transaction(tx_data)
+
+    if commit:
+        outcome = git_commit_helper.offer_commit(
+            record_git,
+            staged,
+            message="chore(migrate): apply m0001 metadata-v2 migration (records)",
+            assume_yes=True,
+            runner=git_commit_helper.RUNNER_AW_COMMIT,
+        )
+        tx_data["companion_commit_result"] = {
+            "status": outcome.status,
+            "commit_sha": outcome.commit,
+            "detail": outcome.message,
+        }
+        mgr._save_transaction(tx_data)
+        if outcome.status == git_commit_helper.STATUS_ERROR:
+            raise layout_migration.MigrationError(
+                f"m0001 step-7 companion records commit failed: {outcome.message}"
+            )
+
+
 def _finish_apply_after_ops(
     repo_path: Path,
     mgr: layout_migration.MigrationManager,
     tx_data: Dict[str, Any],
     journal_dir: Path,
     *,
+    records_root: Optional[Path] = None,
     commit: bool,
 ) -> Dict[str, Any]:
     """Write ``metadata_schema: 2``, stage explicit paths, write marker, and optionally commit."""
+    eff_records = records_root or (
+        Path(tx_data["records_root"])
+        if tx_data.get("records_root")
+        else project_context.project_records_dir(repo_path)
+    )
     _apply_step6_stamp(repo_path, mgr, tx_data, journal_dir)
     staged_paths = _stage_migration_paths(repo_path, tx_data)
     tx_data["staged_paths"] = staged_paths
@@ -1027,7 +1319,477 @@ def _finish_apply_after_ops(
             raise layout_migration.MigrationError(
                 f"m0001 step-7 commit failed: {outcome.message}"
             )
+    _stage_and_commit_external_records(
+        eff_records, repo_path, tx_data, mgr, commit=commit
+    )
     return mgr._load_transaction() or tx_data
+
+
+def _rollback_all_locked(
+    repo_path: Path,
+    mgr: layout_migration.MigrationManager,
+    tx_data: Dict[str, Any],
+    journal_dir: Path,
+    *,
+    records_root: Optional[Path] = None,
+) -> int:
+    """Roll back stage two (`applied_files`/`backups` in reverse) and then embedded stage one."""
+    backups_dir = journal_dir / "backups"
+    restored = 0
+    for entry in reversed(tx_data.get("backups") or []):
+        target = Path(entry["target"])
+        kind = entry.get("kind")
+        existed = bool(entry.get("existed"))
+        backup_file = entry.get("backup_file")
+
+        if existed and backup_file:
+            raw_bytes = (backups_dir / backup_file).read_bytes()
+            _write_bytes_atomic(target, raw_bytes)
+        else:
+            target.unlink(missing_ok=True)
+
+        if kind == "restore_moved" and entry.get("moved_to"):
+            Path(entry["moved_to"]).unlink(missing_ok=True)
+
+        restored += 1
+
+    eff_records = records_root or (
+        Path(tx_data["records_root"])
+        if tx_data.get("records_root")
+        else project_context.project_records_dir(repo_path)
+    )
+    meta_dir = eff_records / "meta"
+    try:
+        if meta_dir.is_dir() and not any(meta_dir.iterdir()):
+            meta_dir.rmdir()
+    except OSError:
+        pass
+
+    _unstage_migration_paths(repo_path, tx_data.get("staged_paths") or [])
+    comp_staged = tx_data.get("companion_staged_paths") or []
+    if comp_staged:
+        rec_git = project_context.record_git_root(eff_records)
+        if rec_git is not None:
+            _unstage_migration_paths(rec_git, comp_staged)
+
+    _cleanup_marker(journal_dir, repo=repo_path)
+
+    tx_data = mgr._load_transaction() or tx_data
+    ls = tx_data.get("layout_stage")
+    if isinstance(ls, dict) and ls.get("status") not in (
+        None,
+        "skipped",
+        "planned",
+        "rolled_back",
+    ):
+        mgr.rollback_embedded_stage_one(tx_data, caller_holds_lock=True)
+        tx_data = mgr._load_transaction() or tx_data
+
+    tx_data["staged_paths"] = []
+    tx_data["companion_staged_paths"] = []
+    tx_data["terminal_commit_marker"] = None
+    tx_data["status"] = "rolled_back"
+    mgr._save_transaction(tx_data)
+    return restored
+
+
+def _build_stage1_report_summary(
+    *,
+    needed: bool,
+    stage1_plan: Optional[Dict[str, Any]] = None,
+    stage1_proj: Optional[Dict[str, Any]] = None,
+    stage1_applied: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build normalized ``layout_stage`` summary for reports and step-6 census."""
+    if not needed:
+        return {"status": "skipped", "reason": "already on .aw/"}
+    if stage1_applied is not None:
+        return {
+            "status": str(stage1_applied.get("status") or "completed"),
+            "target_backend": stage1_applied.get("target_backend", "repository"),
+            "planned_count": int(stage1_applied.get("planned_count") or 0),
+            "moved": int(stage1_applied.get("moved") or 0),
+            "renamed": int(stage1_applied.get("renamed") or 0),
+            "dedup_removed": int(stage1_applied.get("dedup_removed") or 0),
+            "groups": dict(
+                stage1_applied.get("groups")
+                or stage1_applied.get("planned_groups")
+                or {}
+            ),
+        }
+    if stage1_proj is not None:
+        return {
+            "status": "planned",
+            "target_backend": stage1_proj.get("target_backend", "repository"),
+            "planned_count": int(stage1_proj.get("planned_count") or 0),
+            "dedup_skipped": int(stage1_proj.get("dedup_skipped") or 0),
+            "groups": dict(stage1_proj.get("groups") or {}),
+        }
+    if stage1_plan is not None:
+        return {
+            "status": "planned",
+            "target_backend": stage1_plan.get("target_backend", "repository"),
+            "planned_count": int(stage1_plan.get("planned_count") or 0),
+            "groups": dict(stage1_plan.get("groups") or {}),
+        }
+    return {"status": "planned"}
+
+
+def _plan_and_apply_stage2_locked(
+    repo_path: Path,
+    mgr: layout_migration.MigrationManager,
+    tx_data: Dict[str, Any],
+    journal_dir: Path,
+    records_root: Path,
+    *,
+    apply: bool,
+    describer: Optional[Any],
+    fault_injection: Optional[str],
+    commit: bool,
+    sidecar_path: Path,
+    sidecar_present: bool,
+    sidecar_records: List[Dict[str, Any]],
+    sidecar_summary: Dict[str, Any],
+    layout_stage_report: Dict[str, Any],
+    stage1_mgr: Optional[layout_migration.MigrationManager] = None,
+    stage1_plan: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Plan stage 2 in scratch and, when ``apply=True``, execute and commit stage 2."""
+    tracked_id6s = _collect_tracked_record_id6s(records_root)
+    sidecar_events, orphans, orphan_counts = _classify_sidecar_records(
+        sidecar_records, tracked_id6s
+    )
+
+    orphan_file = journal_dir / "sidecar-orphans.jsonl"
+    if orphans:
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        orphan_payload = "".join(
+            json.dumps(rec, ensure_ascii=False) + "\n" for rec in orphans
+        )
+        orphan_file.write_text(orphan_payload, encoding="utf-8")
+        orphan_export_path: Optional[str] = str(orphan_file)
+    else:
+        if orphan_file.exists():
+            orphan_file.unlink()
+        orphan_export_path = None
+
+    scratch_dir = journal_dir / "scratch"
+    gitignore_rel, gitignore_changed, stage1_proj = _stage_scratch(
+        repo_path,
+        records_root,
+        scratch_dir,
+        scan_roots=m0001_renames.M0001_SCAN_ROOTS,
+        stage1_mgr=stage1_mgr,
+        stage1_plan=stage1_plan,
+    )
+    scratch_repo = scratch_dir / "repo"
+    _verify_scratch_scan_roots(
+        repo_path,
+        records_root,
+        scratch_repo,
+        m0001_renames.M0001_SCAN_ROOTS,
+    )
+
+    if stage1_proj is not None:
+        layout_stage_report = _build_stage1_report_summary(
+            needed=True, stage1_plan=stage1_plan, stage1_proj=stage1_proj
+        )
+        tx_data["layout_stage"] = dict(layout_stage_report)
+
+    tx_data["records_root"] = str(records_root)
+    tx_data["steps"]["layout_stage"] = dict(layout_stage_report)
+    tx_data["steps"]["sidecar"] = {
+        **sidecar_summary,
+        "queued_id6_count": len(sidecar_events),
+        "queued_event_count": sum(len(v) for v in sidecar_events.values()),
+        "orphan_record_count": len(orphans),
+    }
+    tx_data["sidecar_events"] = sidecar_events
+    tx_data["orphan_export_path"] = orphan_export_path
+    tx_data["orphan_counts"] = orphan_counts
+
+    # Step 3: legacy-name rename map, protected citation plan, and scratch apply.
+    rename_map = m0001_renames.build_rename_map(scratch_repo, tx_data)
+    citation_plan = m0001_renames.plan_citation_rewrites(scratch_repo, rename_map)
+    step3_summary = m0001_renames.apply_step3(
+        scratch_repo,
+        rename_map,
+        citation_plan,
+        tx_data,
+        save_callback=lambda: mgr._save_transaction(tx_data),
+    )
+    post_step3_dir = scratch_dir / "post_step3_records"
+    if post_step3_dir.exists():
+        shutil.rmtree(post_step3_dir)
+    if (scratch_repo / ".aw" / "records").is_dir():
+        shutil.copytree(
+            scratch_repo / ".aw" / "records",
+            post_step3_dir,
+            symlinks=False,
+        )
+    tx_data["rename_map"] = {e.old_rel: e.new_rel for e in rename_map.entries}
+    tx_data["steps"]["renames"] = {
+        "entry_count": len(rename_map.entries),
+        "minted_count": sum(1 for e in rename_map.entries if e.minted),
+        "preserved_count": sum(1 for e in rename_map.entries if not e.minted),
+        "entries": [
+            {
+                "id6": e.id6,
+                "minted": e.minted,
+                "old_rel": e.old_rel,
+                "new_rel": e.new_rel,
+                "set_id": e.set_id,
+                "order": e.order,
+            }
+            for e in rename_map.entries
+        ],
+        "unmapped_plan_duplicates": [
+            {"set_id": pair[0], "order": pair[1], "paths": list(paths)}
+            for pair, paths in rename_map.unmapped_plan_duplicates
+        ],
+    }
+    tx_data["steps"]["citations"] = {
+        "total_substituted": citation_plan.total_substituted,
+        "location_counts": dict(citation_plan.location_counts),
+        "unchanged_counts_by_reason": dict(citation_plan.unchanged_counts_by_reason),
+        "unchanged_occurrences": [
+            {
+                "file": u.file,
+                "line": u.line,
+                "reason": u.reason,
+                "token": u.token,
+            }
+            for u in citation_plan.unchanged_occurrences
+        ],
+        "warnings": list(citation_plan.warnings),
+        "warning_count": len(citation_plan.warnings),
+    }
+
+    # Step 6a (pre-conversion census): check field destinations, unknown-field,
+    # and unparseable-value refusals before step 4 builds logs.
+    census = m0001_verify.build_field_census(
+        repo_path,
+        pre_conversion_records_root=scratch_dir / "records",
+        converted_records_root=scratch_dir / "records",
+        sidecar_summary=tx_data["steps"]["sidecar"],
+        orphan_counts=orphan_counts,
+        rename_summary=tx_data["steps"]["renames"],
+        citation_summary=tx_data["steps"]["citations"],
+        layout_stage_summary=layout_stage_report,
+    )
+    if census.get("refusals"):
+        tx_data["steps"]["census"] = census
+        round_trip_skipped: Dict[str, Any] = {
+            "passed": False,
+            "round_trip_passed": False,
+            "replayed_count": 0,
+            "review_mirrors_checked": 0,
+            "legacy_filename_leftovers": [],
+            "set_order_collisions": [],
+            "errors": ["Round-trip verification skipped due to census refusals"],
+            "leak_fail_count": 0,
+            "leak_warn_count": 0,
+            "leak_fails": [],
+            "leak_warns": [],
+        }
+        tx_data["steps"]["round_trip"] = round_trip_skipped
+        mgr._save_transaction(tx_data)
+        if not apply:
+            return _format_run_report(tx_data, journal_dir, applied=False)
+        m0001_verify.ensure_apply_gates_pass(census, round_trip_skipped)
+
+    # Step 4: build event logs and rewrite record mirrors/bodies in scratch.
+    convert_summary = m0001_convert.convert_records(
+        scratch_repo,
+        records_root=scratch_repo / ".aw" / "records",
+        pre_step3_records_root=scratch_dir / "records",
+        repo_root=repo_path,
+        rename_map=tx_data["rename_map"],
+        sidecar_events=sidecar_events,
+        describer=describer,
+        descriptions=tx_data.get("descriptions"),
+        record_types=m0001_convert.ALL_RECORD_TYPES,
+        include_reviews=True,
+    )
+    tx_data["steps"]["conversion"] = convert_summary
+
+    # Step 5: cleanup STATUS.md, INDEX manifests, and INDEX ignore lines in scratch.
+    cleanup_summary = _step_5_cleanup(
+        repo_path,
+        scratch=True,
+        apply=False,
+        records_root=records_root,
+        journal_dir=journal_dir,
+    )
+    tx_data["steps"]["cleanup"] = cleanup_summary
+
+    # Step 6b (post-conversion): update description counts from logs, run round-trip & leak scan.
+    m0001_verify.populate_description_counts(census, scratch_repo / ".aw" / "records")
+    round_trip = m0001_verify.verify_round_trip(
+        repo_path,
+        pre_conversion_records_root=scratch_dir / "records",
+        converted_records_root=scratch_repo / ".aw" / "records",
+        post_step3_records_root=post_step3_dir if post_step3_dir.is_dir() else None,
+        rename_map=tx_data["rename_map"],
+        sidecar_events=sidecar_events,
+        unmapped_plan_duplicates=rename_map.unmapped_plan_duplicates,
+    )
+    tx_data["steps"]["census"] = census
+    tx_data["steps"]["round_trip"] = round_trip
+
+    operations: List[Dict[str, Any]] = []
+    if sidecar_present:
+        operations.append(
+            {
+                "op_id": "move_sidecar",
+                "kind": "move_to_journal",
+                "src": str(sidecar_path),
+                "dst": str(journal_dir / "history.jsonl.imported"),
+            }
+        )
+    gitignore_rewritten = ".aw/.gitignore" in set(
+        step3_summary.get("rewritten_files") or []
+    )
+    aw_gi_src = repo_path / ".aw" / ".gitignore"
+    aw_gi_scratch = scratch_repo / ".aw" / ".gitignore"
+    aw_gi_step5_changed = (
+        aw_gi_src.is_file()
+        and aw_gi_scratch.is_file()
+        and aw_gi_scratch.read_text(encoding="utf-8")
+        != aw_gi_src.read_text(encoding="utf-8")
+    )
+    if (
+        gitignore_changed or gitignore_rewritten or aw_gi_step5_changed
+    ) and gitignore_rel is not None:
+        operations.append(
+            {
+                "op_id": "clean_gitignore",
+                "kind": "write_from_scratch",
+                "target": str(aw_gi_src),
+                "scratch_rel": gitignore_rel,
+            }
+        )
+
+    agents_gi_src = repo_path / ".agents" / ".gitignore"
+    agents_gi_scratch = scratch_repo / ".agents" / ".gitignore"
+    if (
+        agents_gi_src.is_file()
+        and agents_gi_scratch.is_file()
+        and agents_gi_scratch.read_text(encoding="utf-8")
+        != agents_gi_src.read_text(encoding="utf-8")
+    ):
+        operations.append(
+            {
+                "op_id": "clean_agents_gitignore",
+                "kind": "write_from_scratch",
+                "target": str(agents_gi_src),
+                "scratch_rel": "repo/.agents/.gitignore",
+            }
+        )
+
+    step5_status_targets, step5_index_targets, _ = _step5_target_paths(
+        repo_path, records_root
+    )
+    for idx_num, target in enumerate([*step5_status_targets, *step5_index_targets]):
+        operations.append(
+            {
+                "op_id": f"delete_step5:{idx_num}:{target.name}",
+                "kind": "delete_file",
+                "target": str(target),
+            }
+        )
+
+    renamed_old_rel_set = {f".aw/records/{e.old_rel}" for e in rename_map.entries}
+    planned_record_rels: Set[str] = set()
+    for rel_from_scratch in step3_summary.get("rewritten_files") or []:
+        if rel_from_scratch == ".aw/.gitignore":
+            continue
+        if rel_from_scratch in renamed_old_rel_set:
+            continue
+        if rel_from_scratch.startswith(".aw/records/"):
+            rec_tail = rel_from_scratch[len(".aw/records/") :]
+            planned_record_rels.add(rec_tail)
+            target_path = records_root / rec_tail
+        else:
+            target_path = repo_path / rel_from_scratch
+        operations.append(
+            {
+                "op_id": f"rewrite:{rel_from_scratch}",
+                "kind": "write_from_scratch",
+                "target": str(target_path),
+                "scratch_rel": f"repo/{rel_from_scratch}",
+            }
+        )
+
+    for entry in rename_map.entries:
+        planned_record_rels.add(entry.new_rel)
+        operations.append(
+            {
+                "op_id": f"rename_rm:{entry.old_rel}",
+                "kind": "move_to_journal",
+                "src": str(records_root / entry.old_rel),
+                "dst": str(journal_dir / "renamed-originals" / entry.old_rel),
+            }
+        )
+        operations.append(
+            {
+                "op_id": f"rename_add:{entry.new_rel}",
+                "kind": "write_from_scratch",
+                "target": str(records_root / entry.new_rel),
+                "scratch_rel": f"repo/.aw/records/{entry.new_rel}",
+            }
+        )
+
+    for rec_tail in convert_summary.get("rewritten_files") or []:
+        if rec_tail in planned_record_rels:
+            continue
+        planned_record_rels.add(rec_tail)
+        operations.append(
+            {
+                "op_id": f"convert_md:{rec_tail}",
+                "kind": "write_from_scratch",
+                "target": str(records_root / rec_tail),
+                "scratch_rel": f"repo/.aw/records/{rec_tail}",
+            }
+        )
+
+    for log_rel in convert_summary.get("log_files") or []:
+        operations.append(
+            {
+                "op_id": f"write_log:{log_rel}",
+                "kind": "write_from_scratch",
+                "target": str(records_root / log_rel),
+                "scratch_rel": f"repo/.aw/records/{log_rel}",
+            }
+        )
+
+    tx_data["operations"] = operations
+    mgr._save_transaction(tx_data)
+
+    if not apply:
+        return _format_run_report(tx_data, journal_dir, applied=False)
+
+    m0001_verify.ensure_apply_gates_pass(census, round_trip)
+    tx_data["status"] = "applying"
+    mgr._save_transaction(tx_data)
+
+    _execute_planned_operations(
+        mgr,
+        tx_data,
+        journal_dir,
+        repo_path=repo_path,
+        records_root=records_root,
+        fault_injection=fault_injection,
+    )
+    tx_data = _finish_apply_after_ops(
+        repo_path,
+        mgr,
+        tx_data,
+        journal_dir,
+        records_root=records_root,
+        commit=commit,
+    )
+    return _format_run_report(tx_data, journal_dir, applied=True)
 
 
 def _resume_applying_journal(
@@ -1037,10 +1799,11 @@ def _resume_applying_journal(
     *,
     force: bool = False,
     force_worktree: bool = False,
+    describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
     commit: bool = True,
 ) -> Dict[str, Any]:
-    """Resume an interrupted ``status == 'applying'`` run from ``journal_dir / 'scratch'``."""
+    """Resume an interrupted ``status == 'applying'`` run from stage one or ``journal_dir / 'scratch'``."""
     preflight = m0001_preflight.check_preflight(
         repo_path,
         records_root=records_root,
@@ -1069,13 +1832,101 @@ def _resume_applying_journal(
                 raise layout_migration.MigrationError(
                     f"Journal at {mgr.transaction_file} is no longer in 'applying' state."
                 )
-            _execute_planned_operations(
-                mgr, tx_data, journal_dir, fault_injection=fault_injection
+            ls = tx_data.get("layout_stage")
+            stage1_interrupted = isinstance(ls, dict) and ls.get("status") not in (
+                None,
+                "skipped",
+                "planned",
+                "completed",
+                "rolled_back",
             )
-            tx_data = _finish_apply_after_ops(
-                repo_path, mgr, tx_data, journal_dir, commit=commit
+            eff_records = (
+                Path(tx_data["records_root"])
+                if tx_data.get("records_root")
+                else records_root
             )
-            return _format_run_report(tx_data, journal_dir, applied=True, resumed=True)
+            try:
+                if stage1_interrupted:
+                    mgr.resume_embedded_stage_one(
+                        tx_data, backfill_ids=False, caller_holds_lock=True
+                    )
+                    eff_records = project_context.project_records_dir(repo_path)
+                    stage1_paths = mgr.commit_paths(tx_data.get("layout_stage"))
+                    extra = list(tx_data.get("extra_stage_paths") or [])
+                    for sp in stage1_paths:
+                        if sp not in extra:
+                            extra.append(sp)
+                    tx_data["extra_stage_paths"] = extra
+                    sidecar_path = record_history.history_path(repo_path)
+                    sidecar_present = sidecar_path.is_file()
+                    sidecar_records = (
+                        _read_sidecar_records(sidecar_path) if sidecar_present else []
+                    )
+                    sidecar_summary = dict(
+                        (tx_data.get("steps") or {}).get("sidecar") or {}
+                    )
+                    stage1_report = _build_stage1_report_summary(
+                        needed=True, stage1_applied=tx_data.get("layout_stage")
+                    )
+                    report = _plan_and_apply_stage2_locked(
+                        repo_path,
+                        mgr,
+                        tx_data,
+                        journal_dir,
+                        eff_records,
+                        apply=True,
+                        describer=describer,
+                        fault_injection=fault_injection,
+                        commit=commit,
+                        sidecar_path=sidecar_path,
+                        sidecar_present=sidecar_present,
+                        sidecar_records=sidecar_records,
+                        sidecar_summary=sidecar_summary,
+                        layout_stage_report=stage1_report,
+                    )
+                    report["resumed"] = True
+                    return report
+
+                _execute_planned_operations(
+                    mgr,
+                    tx_data,
+                    journal_dir,
+                    repo_path=repo_path,
+                    records_root=eff_records,
+                    fault_injection=fault_injection,
+                )
+                tx_data = _finish_apply_after_ops(
+                    repo_path,
+                    mgr,
+                    tx_data,
+                    journal_dir,
+                    records_root=eff_records,
+                    commit=commit,
+                )
+                return _format_run_report(
+                    tx_data, journal_dir, applied=True, resumed=True
+                )
+            except Exception as exc:
+                if (
+                    fault_injection == "interrupt-mid-apply"
+                    and isinstance(exc, layout_migration.MigrationError)
+                    and "interrupt-mid-apply" in str(exc)
+                ):
+                    raise
+                _rollback_all_locked(
+                    repo_path,
+                    mgr,
+                    mgr._load_transaction() or tx_data,
+                    journal_dir,
+                    records_root=eff_records,
+                )
+                if isinstance(exc, layout_migration.PreflightGateError):
+                    raise
+                if isinstance(exc, layout_migration.MigrationError):
+                    raise layout_migration.MigrationError(
+                        f"{exc} (rolled back)"
+                    ) from exc
+                raise layout_migration.MigrationError(f"{exc} (rolled back)") from exc
         finally:
             mgr._release_lock()
 
@@ -1120,6 +1971,7 @@ def run(
             records_root,
             force=force,
             force_worktree=force_worktree,
+            describer=describer,
             fault_injection=fault_injection,
             commit=commit,
         )
@@ -1132,10 +1984,11 @@ def run(
         force_worktree=force_worktree,
     )
 
-    # Step 2 (pre-journal gate): sidecar expectedness check (writes nothing on refusal).
-    sidecar_path = record_history.history_path(repo_path)
-    sidecar_present = sidecar_path.is_file()
-    sidecar_expected = _is_sidecar_expected(records_root)
+    # Step 2 (pre-journal gate): discovery + sidecar expectedness check (writes nothing on refusal).
+    inv = m0001_discover.discover(repo_path)
+    sidecar_path = inv.sidecar_path
+    sidecar_present = inv.sidecar_present
+    sidecar_expected = inv.sidecar_expected
     if sidecar_present:
         sidecar_records = _read_sidecar_records(sidecar_path)
         sidecar_status = f"present ({len(sidecar_records)} records)"
@@ -1165,7 +2018,8 @@ def run(
         else:
             sidecar_status = "no sidecar (none expected)"
 
-    # Refusals cleared; enter journaled execution.
+    # Refusals cleared; ensure .aw/state/ is gitignored before touching journal_dir.
+    _ensure_state_gitignored_via_exclude(repo_path, journal_dir, apply=apply)
     mgr = _make_rebound_manager(repo_path, journal_dir)
     tx_id = f"m0001-{int(time.time())}-{os.getpid()}"
 
@@ -1178,40 +2032,15 @@ def run(
         mgr._acquire_lock(tx_id)
         try:
             prior_tx = mgr._load_transaction() or {}
-            tracked_id6s = _collect_tracked_record_id6s(records_root)
-            sidecar_events, orphans, orphan_counts = _classify_sidecar_records(
-                sidecar_records, tracked_id6s
-            )
-
-            orphan_file = journal_dir / "sidecar-orphans.jsonl"
-            if orphans:
-                journal_dir.mkdir(parents=True, exist_ok=True)
-                orphan_payload = "".join(
-                    json.dumps(rec, ensure_ascii=False) + "\n" for rec in orphans
-                )
-                orphan_file.write_text(orphan_payload, encoding="utf-8")
-                orphan_export_path: Optional[str] = str(orphan_file)
-            else:
-                if orphan_file.exists():
-                    orphan_file.unlink()
-                orphan_export_path = None
-
-            scratch_dir = journal_dir / "scratch"
-            gitignore_rel, gitignore_changed = _stage_scratch(
-                repo_path,
-                records_root,
-                scratch_dir,
-                scan_roots=m0001_renames.M0001_SCAN_ROOTS,
-            )
-            scratch_repo = scratch_dir / "repo"
-            _verify_scratch_scan_roots(
-                repo_path,
-                records_root,
-                scratch_repo,
-                m0001_renames.M0001_SCAN_ROOTS,
-            )
-
             now_utc = _utc_now()
+            sidecar_base: Dict[str, Any] = {
+                "present": sidecar_present,
+                "expected": sidecar_expected,
+                "expected_reason": inv.sidecar_expected_reason,
+                "status": sidecar_status,
+                "record_count": len(sidecar_records),
+            }
+
             tx_data: Dict[str, Any] = {
                 "schema_version": mgr.SCHEMA_VERSION,
                 "migration_id": "m0001",
@@ -1223,313 +2052,109 @@ def run(
                 "rename_map": {},
                 "steps": {
                     "preflight": preflight,
-                    "sidecar": {
-                        "present": sidecar_present,
-                        "expected": sidecar_expected,
-                        "status": sidecar_status,
-                        "record_count": len(sidecar_records),
-                        "queued_id6_count": len(sidecar_events),
-                        "queued_event_count": sum(
-                            len(v) for v in sidecar_events.values()
-                        ),
-                        "orphan_record_count": len(orphans),
-                    },
+                    "sidecar": dict(sidecar_base),
                 },
                 "applied_files": [],
                 "backups": [],
                 "operations": [],
+                "extra_stage_paths": [],
                 "descriptions": dict(prior_tx.get("descriptions") or {}),
-                "sidecar_events": sidecar_events,
-                "orphan_export_path": orphan_export_path,
-                "orphan_counts": orphan_counts,
+                "sidecar_events": {},
+                "orphan_export_path": None,
+                "orphan_counts": {},
                 "terminal_commit_marker": None,
+                "layout_stage": {"status": "skipped", "reason": "already on .aw/"},
             }
 
-            # Step 3: legacy-name rename map, protected citation plan, and scratch apply.
-            rename_map = m0001_renames.build_rename_map(scratch_repo, tx_data)
-            citation_plan = m0001_renames.plan_citation_rewrites(
-                scratch_repo, rename_map
-            )
-            step3_summary = m0001_renames.apply_step3(
-                scratch_repo,
-                rename_map,
-                citation_plan,
-                tx_data,
-                save_callback=lambda: mgr._save_transaction(tx_data),
-            )
-            post_step3_dir = scratch_dir / "post_step3_records"
-            if post_step3_dir.exists():
-                shutil.rmtree(post_step3_dir)
-            if (scratch_repo / ".aw" / "records").is_dir():
-                shutil.copytree(
-                    scratch_repo / ".aw" / "records",
-                    post_step3_dir,
-                    symlinks=False,
-                )
-            tx_data["rename_map"] = {e.old_rel: e.new_rel for e in rename_map.entries}
-            tx_data["steps"]["renames"] = {
-                "entry_count": len(rename_map.entries),
-                "minted_count": sum(1 for e in rename_map.entries if e.minted),
-                "preserved_count": sum(1 for e in rename_map.entries if not e.minted),
-                "entries": [
-                    {
-                        "id6": e.id6,
-                        "minted": e.minted,
-                        "old_rel": e.old_rel,
-                        "new_rel": e.new_rel,
-                        "set_id": e.set_id,
-                        "order": e.order,
-                    }
-                    for e in rename_map.entries
-                ],
-                "unmapped_plan_duplicates": [
-                    {"set_id": pair[0], "order": pair[1], "paths": list(paths)}
-                    for pair, paths in rename_map.unmapped_plan_duplicates
-                ],
-            }
-            tx_data["steps"]["citations"] = {
-                "total_substituted": citation_plan.total_substituted,
-                "location_counts": dict(citation_plan.location_counts),
-                "unchanged_counts_by_reason": dict(
-                    citation_plan.unchanged_counts_by_reason
-                ),
-                "unchanged_occurrences": [
-                    {
-                        "file": u.file,
-                        "line": u.line,
-                        "reason": u.reason,
-                        "token": u.token,
-                    }
-                    for u in citation_plan.unchanged_occurrences
-                ],
-                "warnings": list(citation_plan.warnings),
-                "warning_count": len(citation_plan.warnings),
-            }
+            stage1_plan: Optional[Dict[str, Any]] = None
+            stage1_mgr: Optional[layout_migration.MigrationManager] = None
+            eff_records = records_root
 
-            # Step 6a (pre-conversion census): check field destinations, unknown-field,
-            # and unparseable-value refusals before step 4 builds logs.
-            census = m0001_verify.build_field_census(
-                repo_path,
-                pre_conversion_records_root=scratch_dir / "records",
-                converted_records_root=scratch_dir / "records",
-                sidecar_summary=tx_data["steps"]["sidecar"],
-                orphan_counts=orphan_counts,
-                rename_summary=tx_data["steps"]["renames"],
-                citation_summary=tx_data["steps"]["citations"],
-            )
-            if census.get("refusals"):
-                tx_data["steps"]["census"] = census
-                round_trip_skipped: Dict[str, Any] = {
-                    "passed": False,
-                    "round_trip_passed": False,
-                    "replayed_count": 0,
-                    "review_mirrors_checked": 0,
-                    "legacy_filename_leftovers": [],
-                    "set_order_collisions": [],
-                    "errors": [
-                        "Round-trip verification skipped due to census refusals"
-                    ],
-                    "leak_fail_count": 0,
-                    "leak_warn_count": 0,
-                    "leak_fails": [],
-                    "leak_warns": [],
-                }
-                tx_data["steps"]["round_trip"] = round_trip_skipped
-                mgr._save_transaction(tx_data)
+            if inv.layout_stage_needed:
+                stage1_plan = mgr.plan_embedded_stage_one()
+                layout_migration.MigrationManager._validate_stage_one_plan(stage1_plan)
                 if not apply:
-                    return _format_run_report(tx_data, journal_dir, applied=False)
-                m0001_verify.ensure_apply_gates_pass(census, round_trip_skipped)
-
-            # Step 4: build event logs and rewrite record mirrors/bodies in scratch.
-            convert_summary = m0001_convert.convert_records(
-                scratch_repo,
-                records_root=scratch_repo / ".aw" / "records",
-                pre_step3_records_root=scratch_dir / "records",
-                repo_root=repo_path,
-                rename_map=tx_data["rename_map"],
-                sidecar_events=sidecar_events,
-                describer=describer,
-                descriptions=tx_data.get("descriptions"),
-                record_types=m0001_convert.ALL_RECORD_TYPES,
-                include_reviews=True,
-            )
-            tx_data["steps"]["conversion"] = convert_summary
-
-            # Step 5: cleanup STATUS.md, INDEX manifests, and INDEX ignore lines in scratch.
-            cleanup_summary = _step_5_cleanup(
-                repo_path,
-                scratch=True,
-                apply=False,
-                records_root=records_root,
-                journal_dir=journal_dir,
-            )
-            tx_data["steps"]["cleanup"] = cleanup_summary
-
-            # Step 6b (post-conversion): update description counts from logs, run round-trip & leak scan.
-            m0001_verify.populate_description_counts(
-                census, scratch_repo / ".aw" / "records"
-            )
-            round_trip = m0001_verify.verify_round_trip(
-                repo_path,
-                pre_conversion_records_root=scratch_dir / "records",
-                converted_records_root=scratch_repo / ".aw" / "records",
-                post_step3_records_root=post_step3_dir
-                if post_step3_dir.is_dir()
-                else None,
-                rename_map=tx_data["rename_map"],
-                sidecar_events=sidecar_events,
-                unmapped_plan_duplicates=rename_map.unmapped_plan_duplicates,
-            )
-            tx_data["steps"]["census"] = census
-            tx_data["steps"]["round_trip"] = round_trip
-
-            operations: List[Dict[str, Any]] = []
-            if sidecar_present:
-                operations.append(
-                    {
-                        "op_id": "move_sidecar",
-                        "kind": "move_to_journal",
-                        "src": str(sidecar_path),
-                        "dst": str(journal_dir / "history.jsonl.imported"),
-                    }
-                )
-            gitignore_rewritten = ".aw/.gitignore" in set(
-                step3_summary.get("rewritten_files") or []
-            )
-            aw_gi_src = repo_path / ".aw" / ".gitignore"
-            aw_gi_scratch = scratch_repo / ".aw" / ".gitignore"
-            aw_gi_step5_changed = (
-                aw_gi_src.is_file()
-                and aw_gi_scratch.is_file()
-                and aw_gi_scratch.read_text(encoding="utf-8")
-                != aw_gi_src.read_text(encoding="utf-8")
-            )
-            if (
-                gitignore_changed or gitignore_rewritten or aw_gi_step5_changed
-            ) and gitignore_rel is not None:
-                operations.append(
-                    {
-                        "op_id": "clean_gitignore",
-                        "kind": "write_from_scratch",
-                        "target": str(aw_gi_src),
-                        "scratch_rel": gitignore_rel,
-                    }
-                )
-
-            agents_gi_src = repo_path / ".agents" / ".gitignore"
-            agents_gi_scratch = scratch_repo / ".agents" / ".gitignore"
-            if (
-                agents_gi_src.is_file()
-                and agents_gi_scratch.is_file()
-                and agents_gi_scratch.read_text(encoding="utf-8")
-                != agents_gi_src.read_text(encoding="utf-8")
-            ):
-                operations.append(
-                    {
-                        "op_id": "clean_agents_gitignore",
-                        "kind": "write_from_scratch",
-                        "target": str(agents_gi_src),
-                        "scratch_rel": "repo/.agents/.gitignore",
-                    }
-                )
-
-            step5_status_targets, step5_index_targets, _ = _step5_target_paths(
-                repo_path, records_root
-            )
-            for idx_num, target in enumerate(
-                [*step5_status_targets, *step5_index_targets]
-            ):
-                operations.append(
-                    {
-                        "op_id": f"delete_step5:{idx_num}:{target.name}",
-                        "kind": "delete_file",
-                        "target": str(target),
-                    }
-                )
-
-            renamed_old_rel_set = {
-                f".aw/records/{e.old_rel}" for e in rename_map.entries
-            }
-            planned_record_rels: Set[str] = set()
-            for rel_from_scratch in step3_summary.get("rewritten_files") or []:
-                if rel_from_scratch == ".aw/.gitignore":
-                    continue
-                if rel_from_scratch in renamed_old_rel_set:
-                    continue
-                if rel_from_scratch.startswith(".aw/records/"):
-                    rec_tail = rel_from_scratch[len(".aw/records/") :]
-                    planned_record_rels.add(rec_tail)
-                    target_path = records_root / rec_tail
+                    stage1_mgr = mgr
+                    layout_stage_report = _build_stage1_report_summary(
+                        needed=True, stage1_plan=stage1_plan
+                    )
+                    tx_data["layout_stage"] = dict(layout_stage_report)
                 else:
-                    target_path = repo_path / rel_from_scratch
-                operations.append(
-                    {
-                        "op_id": f"rewrite:{rel_from_scratch}",
-                        "kind": "write_from_scratch",
-                        "target": str(target_path),
-                        "scratch_rel": f"repo/{rel_from_scratch}",
-                    }
+                    tx_data["status"] = "applying"
+                    mgr._save_transaction(tx_data)
+                    try:
+                        ls_done = mgr.apply_embedded_stage_one(
+                            tx_data,
+                            stage1_plan,
+                            backfill_ids=False,
+                            leftover_disposition="defer",
+                            caller_holds_lock=True,
+                        )
+                        eff_records = project_context.project_records_dir(repo_path)
+                        stage1_paths = mgr.commit_paths(ls_done)
+                        tx_data["extra_stage_paths"] = list(stage1_paths)
+                        layout_stage_report = _build_stage1_report_summary(
+                            needed=True, stage1_applied=ls_done
+                        )
+                    except Exception as exc:
+                        _rollback_all_locked(
+                            repo_path,
+                            mgr,
+                            mgr._load_transaction() or tx_data,
+                            journal_dir,
+                            records_root=eff_records,
+                        )
+                        if isinstance(exc, layout_migration.MigrationError):
+                            raise
+                        raise layout_migration.MigrationError(
+                            f"Embedded stage-one layout migration failed (rolled back): {exc}"
+                        ) from exc
+            else:
+                layout_stage_report = _build_stage1_report_summary(needed=False)
+                tx_data["layout_stage"] = dict(layout_stage_report)
+
+            try:
+                return _plan_and_apply_stage2_locked(
+                    repo_path,
+                    mgr,
+                    tx_data,
+                    journal_dir,
+                    eff_records,
+                    apply=apply,
+                    describer=describer,
+                    fault_injection=fault_injection,
+                    commit=commit,
+                    sidecar_path=sidecar_path,
+                    sidecar_present=sidecar_present,
+                    sidecar_records=sidecar_records,
+                    sidecar_summary=sidecar_base,
+                    layout_stage_report=layout_stage_report,
+                    stage1_mgr=stage1_mgr,
+                    stage1_plan=stage1_plan,
                 )
-
-            for entry in rename_map.entries:
-                planned_record_rels.add(entry.new_rel)
-                operations.append(
-                    {
-                        "op_id": f"rename_rm:{entry.old_rel}",
-                        "kind": "move_to_journal",
-                        "src": str(records_root / entry.old_rel),
-                        "dst": str(journal_dir / "renamed-originals" / entry.old_rel),
-                    }
+            except Exception as exc:
+                if not apply:
+                    raise
+                if (
+                    fault_injection == "interrupt-mid-apply"
+                    and isinstance(exc, layout_migration.MigrationError)
+                    and "interrupt-mid-apply" in str(exc)
+                ):
+                    raise
+                _rollback_all_locked(
+                    repo_path,
+                    mgr,
+                    mgr._load_transaction() or tx_data,
+                    journal_dir,
+                    records_root=eff_records,
                 )
-                operations.append(
-                    {
-                        "op_id": f"rename_add:{entry.new_rel}",
-                        "kind": "write_from_scratch",
-                        "target": str(records_root / entry.new_rel),
-                        "scratch_rel": f"repo/.aw/records/{entry.new_rel}",
-                    }
-                )
-
-            for rec_tail in convert_summary.get("rewritten_files") or []:
-                if rec_tail in planned_record_rels:
-                    continue
-                planned_record_rels.add(rec_tail)
-                operations.append(
-                    {
-                        "op_id": f"convert_md:{rec_tail}",
-                        "kind": "write_from_scratch",
-                        "target": str(records_root / rec_tail),
-                        "scratch_rel": f"repo/.aw/records/{rec_tail}",
-                    }
-                )
-
-            for log_rel in convert_summary.get("log_files") or []:
-                operations.append(
-                    {
-                        "op_id": f"write_log:{log_rel}",
-                        "kind": "write_from_scratch",
-                        "target": str(records_root / log_rel),
-                        "scratch_rel": f"repo/.aw/records/{log_rel}",
-                    }
-                )
-
-            tx_data["operations"] = operations
-            mgr._save_transaction(tx_data)
-
-            if not apply:
-                return _format_run_report(tx_data, journal_dir, applied=False)
-
-            m0001_verify.ensure_apply_gates_pass(census, round_trip)
-            tx_data["status"] = "applying"
-            mgr._save_transaction(tx_data)
-
-            _execute_planned_operations(
-                mgr, tx_data, journal_dir, fault_injection=fault_injection
-            )
-            tx_data = _finish_apply_after_ops(
-                repo_path, mgr, tx_data, journal_dir, commit=commit
-            )
-            return _format_run_report(tx_data, journal_dir, applied=True)
+                if isinstance(exc, layout_migration.PreflightGateError):
+                    raise
+                if isinstance(exc, layout_migration.MigrationError):
+                    raise layout_migration.MigrationError(
+                        f"{exc} (rolled back)"
+                    ) from exc
+                raise layout_migration.MigrationError(f"{exc} (rolled back)") from exc
         finally:
             mgr._release_lock()
 
@@ -1537,6 +2162,7 @@ def run(
 def resume(
     repo: Union[str, Path],
     *,
+    describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
     commit: bool = True,
 ) -> Dict[str, Any]:
@@ -1547,15 +2173,16 @@ def resume(
         repo_path,
         journal_dir,
         records_root,
+        describer=describer,
         fault_injection=fault_injection,
         commit=commit,
     )
 
 
 def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
-    """Restore pre-apply file bytes from ``journal_dir / 'backups'`` in reverse order."""
+    """Restore pre-apply file bytes from ``journal_dir / 'backups'`` and reverse stage one."""
     repo_path = Path(repo)
-    journal_dir, _records_root = _journal_dir_for(repo_path)
+    journal_dir, records_root = _journal_dir_for(repo_path)
     mgr = _make_rebound_manager(repo_path, journal_dir)
     tx_id = f"m0001-rollback-{os.getpid()}"
 
@@ -1575,34 +2202,13 @@ def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
                 "journal_path": str(mgr.transaction_file),
             }
 
-        backups_dir = journal_dir / "backups"
-        restored = 0
-        for entry in reversed(tx_data.get("backups") or []):
-            target = Path(entry["target"])
-            kind = entry.get("kind")
-            existed = bool(entry.get("existed"))
-            backup_file = entry.get("backup_file")
-
-            if existed and backup_file:
-                raw_bytes = (backups_dir / backup_file).read_bytes()
-                _write_bytes_atomic(target, raw_bytes)
-            else:
-                target.unlink(missing_ok=True)
-
-            if kind == "restore_moved" and entry.get("moved_to"):
-                Path(entry["moved_to"]).unlink(missing_ok=True)
-
-            restored += 1
-
-        _unstage_migration_paths(repo_path, tx_data.get("staged_paths") or [])
-        _cleanup_marker(journal_dir, repo=repo_path)
-
-        tx_data = mgr._load_transaction() or tx_data
-        tx_data["staged_paths"] = []
-        tx_data["terminal_commit_marker"] = None
-        tx_data["status"] = "rolled_back"
-        mgr._save_transaction(tx_data)
-
+        restored = _rollback_all_locked(
+            repo_path,
+            mgr,
+            tx_data,
+            journal_dir,
+            records_root=records_root,
+        )
         return {
             "migration_id": "m0001",
             "status": "rolled_back",

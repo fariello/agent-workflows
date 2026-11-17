@@ -188,6 +188,7 @@ def build_field_census(
     rename_summary: Optional[Mapping[str, Any]] = None,
     citation_summary: Optional[Mapping[str, Any]] = None,
     deliberate_description_absences: Optional[Mapping[str, str]] = None,
+    layout_stage_summary: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the step-6 repository-agnostic field census (4sd62s AC-20, 5.2 step 6, 5.2a).
 
@@ -504,10 +505,14 @@ def build_field_census(
             0, legacy_total_records - legacy_short_desc_count
         )
 
+    inv = m0001_discover.discover(repo_path, records_root=legacy_root)
+
     # Sidecar status & orphan counts
     sc_info = dict(sidecar_summary or {})
-    sc_expected = sc_info.get("expected")
-    sc_present = sc_info.get("present")
+    sc_expected = (
+        sc_info.get("expected") if "expected" in sc_info else inv.sidecar_expected
+    )
+    sc_present = sc_info.get("present") if "present" in sc_info else inv.sidecar_present
     if sc_expected is False and sc_present is False:
         sidecar_status_text = "no sidecar (none expected)"
         norm_orphans: Dict[str, int] = {}
@@ -516,6 +521,11 @@ def build_field_census(
         norm_orphans = {
             str(k): int(v) for k, v in sorted((orphan_counts or {}).items())
         }
+
+    if layout_stage_summary is not None:
+        layout_stage_doc: Dict[str, Any] = dict(layout_stage_summary)
+    else:
+        layout_stage_doc = {"status": "skipped", "reason": "already on .aw/"}
 
     field_rows: List[Dict[str, Any]] = []
     for entry in sorted(
@@ -539,7 +549,6 @@ def build_field_census(
             }
         )
 
-    inv = m0001_discover.discover(repo_path, records_root=legacy_root)
     present_templates = sorted(
         u.rel_path for u in inv.excluded if u.category == "excluded-template"
     )
@@ -610,6 +619,7 @@ def build_field_census(
         "deliberate_description_absences": deliberate_absences_recorded,
         "renames": dict(rename_summary or {}),
         "citations": dict(citation_summary or {}),
+        "layout_stage": layout_stage_doc,
     }
 
 
@@ -1044,11 +1054,33 @@ def format_census(census: Mapping[str, Any]) -> str:
     """Render a human-readable step-6 field census summary."""
     lines: List[str] = [
         f"Field Census ({census.get('record_count', 0)} records, {census.get('review_count', 0)} reviews):",
-        f"  Distinct bullet names before first ##: {census.get('distinct_bullet_count', 0)}",
-        f"  Unknown-field refusals: {census.get('unknown_field_refusal_count', 0)}",
-        f"  Unparseable-value refusals: {census.get('unparseable_value_refusal_count', 0)}",
-        f"  Sidecar: {census.get('sidecar_status', 'unknown')}",
     ]
+    layout_stage = census.get("layout_stage")
+    if isinstance(layout_stage, Mapping):
+        if layout_stage.get("status") == "skipped":
+            lines.append("  layout stage: skipped (already on .aw/)")
+        else:
+            ls_status = layout_stage.get("status", "planned")
+            ls_backend = layout_stage.get("target_backend", "repository")
+            ls_planned = layout_stage.get("planned_count", 0)
+            ls_moved = layout_stage.get("moved", 0)
+            ls_dedup = layout_stage.get(
+                "dedup_removed", layout_stage.get("dedup_skipped", 0)
+            )
+            lines.append(
+                f"  layout stage: {ls_status} (backend={ls_backend}, planned={ls_planned}, "
+                f"moved={ls_moved}, dedup={ls_dedup})"
+            )
+            for grp, cnt in (layout_stage.get("groups") or {}).items():
+                lines.append(f"    - {grp}: {cnt}")
+    lines.extend(
+        [
+            f"  Distinct bullet names before first ##: {census.get('distinct_bullet_count', 0)}",
+            f"  Unknown-field refusals: {census.get('unknown_field_refusal_count', 0)}",
+            f"  Unparseable-value refusals: {census.get('unparseable_value_refusal_count', 0)}",
+            f"  Sidecar: {census.get('sidecar_status', 'unknown')}",
+        ]
+    )
     orphans = census.get("orphan_counts") or {}
     if orphans:
         lines.append(

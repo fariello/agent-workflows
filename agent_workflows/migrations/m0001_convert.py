@@ -169,6 +169,9 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
         "Set": FieldDestination("log_field", "set", "terse set id"),
         "Priority": FieldDestination("log_field", "priority", "registry field"),
         "Work-Kind": FieldDestination("log_field", "work_kind", "registry field"),
+        "Kind": FieldDestination(
+            "log_field", "work_kind", "legacy backlog Kind -> work_kind"
+        ),
         "Close-Evidence": FieldDestination(
             "log_field", "close_evidence", "registry field"
         ),

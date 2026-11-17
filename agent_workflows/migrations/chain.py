@@ -50,6 +50,7 @@ class Migration:
         force: bool = False,
         force_worktree: bool = False,
         describer: Optional[Any] = None,
+        fault_injection: Optional[str] = None,
     ) -> Any:
         """Execute (or dry-run when ``apply=False``) this migration against ``repo``."""
         return self._run(
@@ -58,6 +59,7 @@ class Migration:
             force=force,
             force_worktree=force_worktree,
             describer=describer,
+            fault_injection=fault_injection,
         )
 
 
@@ -314,6 +316,7 @@ def _m0001_run(
     force: bool = False,
     force_worktree: bool = False,
     describer: Optional[Any] = None,
+    fault_injection: Optional[str] = None,
 ) -> Any:
     from agent_workflows.migrations import m0001_metadata_v2
 
@@ -323,6 +326,7 @@ def _m0001_run(
         force=force,
         force_worktree=force_worktree,
         describer=describer,
+        fault_injection=fault_injection,
     )
 
 

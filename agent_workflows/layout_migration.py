@@ -15,6 +15,7 @@ Invariants:
 
 from __future__ import annotations
 
+import base64
 import fnmatch
 import hashlib
 import json
@@ -25,10 +26,10 @@ import tarfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agent_workflows.project_context import resolve_project_context
-from agent_workflows.project_schema import LogicalRoot
+from agent_workflows.project_schema import LogicalRoot, PrecedenceLevel
 from agent_workflows import layout_inventory as inv_mod
 
 
@@ -504,25 +505,33 @@ class MigrationManager:
                 dst_p.unlink()
 
         target_top = Path(self.target_repo).resolve()
+        src_top = self._git_toplevel(src_p)
         dst_top = self._git_toplevel(dst_p)
-        same_tree = was_tracked and dst_top is not None and dst_top == target_top
+        same_tree = (
+            was_tracked
+            and src_top is not None
+            and dst_top is not None
+            and src_top == dst_top
+        )
 
         if same_tree:
-            proc = _run_git(target_top, ["mv", "--", str(src_p), str(dst_p)])
+            assert src_top is not None
+            proc = _run_git(src_top, ["mv", "--", str(src_p), str(dst_p)])
             if proc.returncode == 0:
                 return
             # Fall back to a manual move that still records the rename in the index.
             self._raw_move(src_p, dst_p)
-            _run_git(target_top, ["rm", "--cached", "--", str(src_p)])
-            _run_git(target_top, ["add", "--", str(dst_p)])
+            _run_git(src_top, ["rm", "--cached", "--", str(src_p)])
+            _run_git(src_top, ["add", "--", str(dst_p)])
             return
 
         # Untracked, or a cross-work-tree (companion/home) destination.
         self._raw_move(src_p, dst_p)
         if was_tracked:
-            # Record the removal in the TARGET index; stage the addition in the
+            # Record the removal in the source index; stage the addition in the
             # destination repo's index (if the destination lives in a git work tree).
-            _run_git(target_top, ["rm", "--cached", "--", str(src_p)])
+            rm_top = src_top if src_top is not None else target_top
+            _run_git(rm_top, ["rm", "--cached", "--", str(src_p)])
             if dst_top is not None:
                 _run_git(dst_top, ["add", "--", str(dst_p)])
 
@@ -1702,6 +1711,701 @@ class MigrationManager:
 
         self._release_lock()
         return {"status": "rolled_back", "authority": "legacy"}
+
+    # ------------------------------------------------------------------
+    # Embedded stage-one helpers for chained metadata migration (m0001)
+    # ------------------------------------------------------------------
+
+    def _select_embedded_target_backend(self) -> str:
+        """Select target backend: preserve configured companion/home, default unconfigured to repository."""
+        prov = self.ctx.provenance.get("records_backend")
+        prov_source = (
+            prov.get("source")
+            if isinstance(prov, dict)
+            else getattr(prov, "source", None)
+        )
+        if (
+            prov_source is not None
+            and prov_source != PrecedenceLevel.BUILTIN_DEFAULTS.value
+            and self.ctx.records_backend
+            in ("repository", "repository-untracked", "companion", "home")
+        ):
+            return str(self.ctx.records_backend)
+        return "repository"
+
+    def _short_group_label(self, path: Path) -> str:
+        """Return a short root-group label like `.agents/plans` or `.aw/records/plans`."""
+        repo = Path(self.target_repo).resolve()
+        try:
+            rel = path.resolve().relative_to(repo).as_posix()
+        except (ValueError, OSError):
+            records_root = self._records_root_for_backend(
+                self._select_embedded_target_backend()
+            )
+            try:
+                sub = path.resolve().relative_to(records_root.resolve()).as_posix()
+                first = sub.split("/", 1)[0] if sub else ""
+                return f"<records>/{first}" if first else "<records>"
+            except (ValueError, OSError):
+                return str(path)
+        parts = rel.split("/")
+        depth = 3 if parts[:2] in ([".aw", "records"], [".agents", "docs"]) else 2
+        return "/".join(parts[:depth])
+
+    def _summarize_planned_groups(
+        self, plan_doc: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, int]]:
+        """Compute planned movable item count and root-group mapping counts."""
+        repo_path = Path(self.target_repo)
+        target_backend = str(plan_doc.get("target_backend") or "repository")
+        inv_item_map = {
+            item["item_id"]: item
+            for item in plan_doc.get("inventory", {}).get("items", [])
+        }
+        groups: Dict[str, int] = {}
+        planned_count = 0
+        for mapping in plan_doc.get("migration_map", {}).get("items", []):
+            if mapping.get("destination_root_class") == "host-adapter-in-place":
+                continue
+            if mapping.get("disposition", "migrate") not in ("migrate", "preserve"):
+                continue
+            inv_item = inv_item_map.get(mapping.get("item_id"), {})
+            if inv_item.get("kind") == "directory":
+                continue
+            src_rel = (
+                inv_item.get("repo_relpath")
+                or f"{mapping.get('source_root', '')}/{mapping.get('source_relpath', '')}".strip(
+                    "/"
+                )
+            )
+            src_p = repo_path / src_rel
+            if not (src_p.exists() or src_p.is_symlink()):
+                continue
+            if src_p.is_dir() and not src_p.is_symlink():
+                continue
+            dst_p = self._resolve_destination_path(
+                mapping["destination_relpath"], target_backend
+            )
+            key = (
+                f"{self._short_group_label(src_p)} -> {self._short_group_label(dst_p)}"
+            )
+            groups[key] = groups.get(key, 0) + 1
+            planned_count += 1
+        return planned_count, dict(
+            sorted(groups.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
+
+    def plan_embedded_stage_one(
+        self, target_backend: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Build a stage-one layout plan from legacy roots via ``layout_inventory``."""
+        repo_path = Path(self.target_repo)
+        eff_backend = (
+            target_backend
+            if target_backend is not None
+            else self._select_embedded_target_backend()
+        )
+        roots = inv_mod._default_roots(repo_path)
+        inv_res = inv_mod.inventory(repo_path, roots, False)
+        map_res = inv_mod.build_migration_map(repo_path, inv_res, eff_backend)
+        risk_res = inv_mod.analyze_migration_risks(repo_path, inv_res, map_res)
+        plan_doc: Dict[str, Any] = {
+            "schema_version": inv_mod.SCHEMA_VERSION,
+            "target_backend": eff_backend,
+            "inventory": inv_res,
+            "migration_map": map_res,
+            "risk_analysis": risk_res,
+            "valid": bool(inv_res.get("valid", False))
+            and bool(map_res.get("valid", False))
+            and bool(risk_res.get("valid", False)),
+        }
+        planned_count, groups = self._summarize_planned_groups(plan_doc)
+        plan_doc["planned_count"] = planned_count
+        plan_doc["groups"] = groups
+        return plan_doc
+
+    @staticmethod
+    def _validate_stage_one_plan(plan_doc: Dict[str, Any]) -> None:
+        """Raise ``PreflightGateError`` when ``plan_doc`` is invalid."""
+        if not plan_doc.get("valid", False):
+            errors = plan_doc.get("risk_analysis", {}).get("errors") or []
+            raise PreflightGateError(
+                f"Migration plan invalid: {errors}"
+                + _unknown_owner_hint(plan_doc.get("inventory", {}), errors)
+            )
+
+    def project_stage_one_to_scratch(
+        self,
+        plan_doc: Dict[str, Any],
+        scratch_root: Union[str, Path],
+        *,
+        backfill_ids: bool = False,
+    ) -> Dict[str, Any]:
+        """Project planned stage-one items into ``scratch_root`` without touching the live checkout."""
+        self._validate_stage_one_plan(plan_doc)
+        if backfill_ids:
+            raise MigrationError(
+                "Embedded stage-one scratch projection requires backfill_ids=False"
+            )
+
+        repo_path = Path(self.target_repo)
+        scratch_path = Path(scratch_root)
+        target_backend = str(plan_doc.get("target_backend") or "repository")
+        inv_item_map = {
+            item["item_id"]: item
+            for item in plan_doc.get("inventory", {}).get("items", [])
+        }
+
+        projected_count = 0
+        dedup_skipped = 0
+        dest_seen: Dict[Path, Optional[str]] = {}
+
+        for mapping in plan_doc.get("migration_map", {}).get("items", []):
+            if mapping.get("destination_root_class") == "host-adapter-in-place":
+                continue
+            if mapping.get("disposition", "migrate") not in ("migrate", "preserve"):
+                continue
+            inv_item = inv_item_map.get(mapping.get("item_id"), {})
+            if inv_item.get("kind") == "directory":
+                continue
+
+            src_rel = (
+                inv_item.get("repo_relpath")
+                or f"{mapping.get('source_root', '')}/{mapping.get('source_relpath', '')}".strip(
+                    "/"
+                )
+            )
+            src_p = repo_path / src_rel
+            if not (src_p.exists() or src_p.is_symlink()):
+                continue
+            if src_p.is_dir() and not src_p.is_symlink():
+                continue
+
+            dst_rel = str(mapping["destination_relpath"]).lstrip("/")
+            # Never let local.json or external records_backend redirect scratch resolution out of scratch_root.
+            if (
+                target_backend in ("companion", "home")
+                and dst_rel == "config/local.json"
+            ):
+                continue
+            if dst_rel == "records" or dst_rel.startswith("records/"):
+                sub = dst_rel[len("records") :].lstrip("/")
+                dst_p = (
+                    scratch_path / ".aw" / "records" / sub
+                    if sub
+                    else scratch_path / ".aw" / "records"
+                )
+            else:
+                dst_p = scratch_path / ".aw" / dst_rel
+
+            if dst_p in dest_seen or dst_p.exists() or dst_p.is_symlink():
+                same_bytes = (
+                    dst_p.is_file()
+                    and not dst_p.is_symlink()
+                    and src_p.is_file()
+                    and not src_p.is_symlink()
+                    and _sha256_file(dst_p) == _sha256_file(src_p)
+                )
+                if same_bytes:
+                    dedup_skipped += 1
+                    continue
+                raise MigrationError(
+                    f"Scratch projection collision at pre-existing destination: {dst_p}"
+                )
+
+            dst_p.parent.mkdir(parents=True, exist_ok=True)
+            if src_p.is_symlink():
+                os.symlink(os.readlink(src_p), dst_p)
+            elif target_backend in ("companion", "home") and dst_rel in (
+                "config/config.json",
+                "config/project.json",
+            ):
+                try:
+                    cfg_obj = json.loads(src_p.read_text(encoding="utf-8"))
+                    if isinstance(cfg_obj, dict) and "records_backend" in cfg_obj:
+                        cfg_obj = dict(cfg_obj)
+                        cfg_obj["records_backend"] = "repository"
+                        dst_p.write_text(
+                            json.dumps(cfg_obj, indent=2) + "\n", encoding="utf-8"
+                        )
+                    else:
+                        shutil.copy2(src_p, dst_p)
+                except (OSError, ValueError):
+                    shutil.copy2(src_p, dst_p)
+            else:
+                shutil.copy2(src_p, dst_p)
+
+            dest_seen[dst_p] = inv_item.get("sha256")
+            projected_count += 1
+
+        return {
+            "status": "planned",
+            "target_backend": target_backend,
+            "planned_count": projected_count,
+            "dedup_skipped": dedup_skipped,
+            "groups": dict(plan_doc.get("groups") or {}),
+        }
+
+    def _snapshot_embedded_configs(self) -> List[Dict[str, Any]]:
+        """Capture pre-stage-one existence and exact bytes of config/gitignore files."""
+        targets = (
+            self.config_dir / "config.json",
+            self.config_dir / "project.json",
+            self.aw_dir / ".gitignore",
+        )
+        snaps: List[Dict[str, Any]] = []
+        for path in targets:
+            existed = path.exists() or path.is_symlink()
+            content_b64: Optional[str] = None
+            if existed and path.is_file() and not path.is_symlink():
+                content_b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+            snaps.append(
+                {
+                    "path": str(path),
+                    "existed": existed,
+                    "content_b64": content_b64,
+                }
+            )
+        return snaps
+
+    def apply_embedded_stage_one(
+        self,
+        tx_data: Dict[str, Any],
+        plan_doc: Optional[Dict[str, Any]] = None,
+        *,
+        backfill_ids: bool = False,
+        leftover_disposition: str = "defer",
+        caller_holds_lock: bool = True,
+        resume: bool = False,
+    ) -> Dict[str, Any]:
+        """Execute (or resume) stage-one layout migration inside ``tx_data['layout_stage']``.
+
+        Never acquires or releases ``self.lock_file`` and never overwrites top-level
+        ``tx_data`` keys outside ``tx_data['layout_stage']`` and ``tx_data['timestamps']``.
+        """
+        if not caller_holds_lock:
+            raise TransactionLockError(
+                "Embedded stage-one execution requires caller_holds_lock=True"
+            )
+
+        repo_path = Path(self.target_repo)
+        if not resume:
+            if plan_doc is None:
+                plan_doc = self.plan_embedded_stage_one()
+            self._validate_stage_one_plan(plan_doc)
+            target_backend = str(plan_doc.get("target_backend") or "repository")
+            ls: Dict[str, Any] = {
+                "transaction_id": f"{tx_data.get('transaction_id', 'm0001')}-stage1",
+                "status": "initialized",
+                "target_backend": target_backend,
+                "last_verified_checkpoint": "initialized",
+                "items": plan_doc["migration_map"].get("items", []),
+                "inventory_items": plan_doc.get("inventory", {}).get("items", []),
+                "move_journal": [],
+                "copied_records": [],
+                "config_snapshots": self._snapshot_embedded_configs(),
+                "pre_existing_dirs": {
+                    str(d): d.is_dir()
+                    for d in (self.records_dir, self.system_dir, self.config_dir)
+                },
+                "moved_config_pre_switch": None,
+                "planned_count": int(plan_doc.get("planned_count") or 0),
+                "planned_groups": dict(plan_doc.get("groups") or {}),
+            }
+            tx_data["layout_stage"] = ls
+            self._save_transaction(tx_data)
+        else:
+            ls = tx_data.get("layout_stage") or {}
+            if not ls or not isinstance(ls, dict):
+                raise MigrationError(
+                    "No embedded layout_stage journal found to resume."
+                )
+            if ls.get("status") == "completed":
+                return ls
+            target_backend = str(ls.get("target_backend") or "repository")
+
+        inv_item_map = {item["item_id"]: item for item in ls.get("inventory_items", [])}
+        checkpoint = ls.get("last_verified_checkpoint", "initialized")
+
+        if checkpoint in ("initialized", "moving"):
+            proc_unmerged = _run_git(repo_path, ["ls-files", "-u"])
+            if proc_unmerged.stdout.strip():
+                raise PreflightGateError(
+                    f"Git repository has unmerged files: {proc_unmerged.stdout.strip()}"
+                )
+
+            move_journal: List[Dict[str, Any]] = ls.setdefault("move_journal", [])
+            journaled_ids = {e["item_id"] for e in move_journal}
+            copied_records: List[Dict[str, Any]] = ls.setdefault("copied_records", [])
+            dest_seen = {
+                e["destination"] for e in move_journal if e.get("action") == "move"
+            }
+
+            if not journaled_ids:
+                for mapping in ls.get("items", []):
+                    item_id = mapping.get("item_id")
+                    inv_item = inv_item_map.get(item_id, {})
+                    src_rel = (
+                        inv_item.get("repo_relpath")
+                        or f"{mapping.get('source_root', '')}/{mapping.get('source_relpath', '')}".strip(
+                            "/"
+                        )
+                    )
+                    src_p = repo_path / src_rel
+                    if src_p.is_file() and not src_p.is_symlink():
+                        cur_hash = _sha256_file(src_p)
+                        exp_hash = inv_item.get("sha256")
+                        if exp_hash and cur_hash != exp_hash:
+                            raise PreflightGateError(
+                                f"Source file changed since inventory: {src_rel}"
+                            )
+
+            ls["status"] = "moving"
+            ls["last_verified_checkpoint"] = "moving"
+            self._save_transaction(tx_data)
+
+            target_top = repo_path.resolve()
+            for mapping in ls.get("items", []):
+                item_id = mapping.get("item_id")
+                if item_id in journaled_ids:
+                    continue
+                inv_item = inv_item_map.get(item_id, {})
+                src_rel = (
+                    inv_item.get("repo_relpath")
+                    or f"{mapping.get('source_root', '')}/{mapping.get('source_relpath', '')}".strip(
+                        "/"
+                    )
+                )
+                src_p = repo_path / src_rel
+                dst_p = self._resolve_destination_path(
+                    mapping["destination_relpath"], target_backend
+                )
+                disposition = mapping.get("disposition", "migrate")
+                was_tracked = inv_item.get("git_state") == "tracked"
+                exp_hash = inv_item.get("sha256")
+
+                if mapping.get("destination_root_class") == "host-adapter-in-place":
+                    continue
+                if disposition not in ("migrate", "preserve") or not (
+                    src_p.exists() or src_p.is_symlink()
+                ):
+                    continue
+                if src_p.is_dir() and not src_p.is_symlink():
+                    continue
+
+                if str(dst_p) in dest_seen:
+                    if was_tracked:
+                        _run_git(target_top, ["rm", "-f", "--", str(src_p)])
+                        if src_p.exists() or src_p.is_symlink():
+                            src_p.unlink()
+                    else:
+                        src_p.unlink()
+                    move_journal.append(
+                        {
+                            "item_id": item_id,
+                            "source": str(src_p),
+                            "destination": str(dst_p),
+                            "hash": exp_hash,
+                            "was_tracked": was_tracked,
+                            "action": "dedup-remove",
+                        }
+                    )
+                    journaled_ids.add(item_id)
+                    self._save_transaction(tx_data)
+                    continue
+
+                dst_existed_before = dst_p.exists() or dst_p.is_symlink()
+                dst_was_tracked = False
+                if dst_existed_before:
+                    dst_top = self._git_toplevel(dst_p) or target_top
+                    dst_was_tracked = (
+                        _run_git(
+                            dst_top, ["ls-files", "--error-unmatch", "--", str(dst_p)]
+                        ).returncode
+                        == 0
+                    )
+
+                self._perform_move(src_p, dst_p, was_tracked)
+
+                if not dst_p.is_symlink():
+                    staged_hash = _sha256_file(dst_p)
+                    if exp_hash and staged_hash != exp_hash:
+                        ls["status"] = "failed"
+                        self._save_transaction(tx_data)
+                        raise VerificationError(f"Moved-file hash mismatch for {dst_p}")
+                else:
+                    staged_hash = exp_hash
+
+                move_journal.append(
+                    {
+                        "item_id": item_id,
+                        "source": str(src_p),
+                        "destination": str(dst_p),
+                        "hash": staged_hash,
+                        "was_tracked": was_tracked,
+                        "action": "move",
+                        "dst_existed_before": dst_existed_before,
+                        "dst_was_tracked": dst_was_tracked,
+                    }
+                )
+                journaled_ids.add(item_id)
+                dest_seen.add(str(dst_p))
+                copied_records.append(
+                    {
+                        "source": str(src_p),
+                        "destination": str(dst_p),
+                        "hash": staged_hash,
+                    }
+                )
+                self._save_transaction(tx_data)
+
+            ls["status"] = "staged"
+            ls["last_verified_checkpoint"] = "staged"
+            self._save_transaction(tx_data)
+            checkpoint = "staged"
+
+        config_file = self.config_dir / "config.json"
+        if checkpoint in ("staged", "verified"):
+            moved_dests = {
+                e.get("destination")
+                for e in ls.get("move_journal", [])
+                if e.get("action") == "move"
+            }
+            if (
+                str(config_file) in moved_dests
+                and ls.get("moved_config_pre_switch") is None
+                and config_file.is_file()
+            ):
+                ls["moved_config_pre_switch"] = base64.b64encode(
+                    config_file.read_bytes()
+                ).decode("ascii")
+
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+            if config_file.exists():
+                cfg_data = json.loads(config_file.read_text(encoding="utf-8"))
+            else:
+                cfg_data = {}
+            cfg_data["records_backend"] = target_backend
+            tmp_cfg = self.config_dir / f".tmp_config_{os.getpid()}.json"
+            with open(tmp_cfg, "w", encoding="utf-8") as f:
+                json.dump(cfg_data, f, indent=2)
+            os.replace(tmp_cfg, config_file)
+
+            self.switch_receipt_file.parent.mkdir(parents=True, exist_ok=True)
+            receipt_data = {
+                "transaction_id": ls["transaction_id"],
+                "target_backend": target_backend,
+                "switched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "policy_file": str(config_file),
+                "authority": "switched",
+            }
+            with open(self.switch_receipt_file, "w", encoding="utf-8") as f:
+                json.dump(receipt_data, f, indent=2)
+
+            ls["status"] = "switched"
+            ls["last_verified_checkpoint"] = "switched"
+            self._save_transaction(tx_data)
+            checkpoint = "switched"
+
+        if checkpoint == "switched":
+            self.retention_manifest_file.parent.mkdir(parents=True, exist_ok=True)
+            retention_data = {
+                "transaction_id": ls["transaction_id"],
+                "retained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "mappings": ls.get("copied_records", []),
+                "move_journal": ls.get("move_journal", []),
+                "rollback_instructions": "Execute `aw migrate-layout rollback` to reverse the moves and restore policy.",
+                "retention_trigger": "post-migration independent postcheck",
+                "cleanup_allowed": False,
+            }
+            with open(self.retention_manifest_file, "w", encoding="utf-8") as f:
+                json.dump(retention_data, f, indent=2)
+
+            ls["leftover_disposition"] = self._handle_leftovers(
+                ls, leftover_disposition=leftover_disposition
+            )
+            if backfill_ids:
+                ls["id_backfill"] = self._backfill_plan_ids(ls)
+            else:
+                ls["id_backfill"] = []
+            ls["gitignore_written"] = self._ensure_gitignore(target_backend)
+            ls["cutovers_stamped"] = self._stamp_cutovers()
+
+            summary = self.summarize(ls)
+            ls["moved"] = summary["moved"]
+            ls["renamed"] = summary["renamed"]
+            ls["dedup_removed"] = summary["dedup_removed"]
+            ls["groups"] = summary["groups"]
+
+            ls["status"] = "completed"
+            ls["last_verified_checkpoint"] = "completed"
+            self._save_transaction(tx_data)
+
+        return ls
+
+    def resume_embedded_stage_one(
+        self,
+        tx_data: Dict[str, Any],
+        *,
+        backfill_ids: bool = False,
+        caller_holds_lock: bool = True,
+    ) -> Dict[str, Any]:
+        """Resume an interrupted embedded stage-one run from ``tx_data['layout_stage']``."""
+        return self.apply_embedded_stage_one(
+            tx_data,
+            backfill_ids=backfill_ids,
+            caller_holds_lock=caller_holds_lock,
+            resume=True,
+        )
+
+    def rollback_embedded_stage_one(
+        self,
+        tx_data: Dict[str, Any],
+        *,
+        caller_holds_lock: bool = True,
+    ) -> Dict[str, Any]:
+        """Roll back embedded stage one from ``tx_data['layout_stage']`` leaving ``.aw/state`` intact."""
+        if not caller_holds_lock:
+            raise TransactionLockError(
+                "Embedded stage-one rollback requires caller_holds_lock=True"
+            )
+
+        ls = tx_data.get("layout_stage")
+        if not isinstance(ls, dict):
+            return {"status": "none", "reversed_moves": 0}
+        if ls.get("status") in (None, "skipped", "planned", "rolled_back"):
+            return {"status": ls.get("status") or "none", "reversed_moves": 0}
+
+        config_file = self.config_dir / "config.json"
+        moved_dests = {
+            e.get("destination")
+            for e in ls.get("move_journal", [])
+            if e.get("action") == "move"
+        }
+
+        # 1. If config.json was moved from legacy .agents/config.json and overwritten by switch,
+        # restore its pre-switch bytes before reversing move_journal so the legacy copy is intact.
+        if (
+            str(config_file) in moved_dests
+            and ls.get("moved_config_pre_switch") is not None
+        ):
+            raw_pre = base64.b64decode(ls["moved_config_pre_switch"].encode("ascii"))
+            config_file.parent.mkdir(parents=True, exist_ok=True)
+            config_file.write_bytes(raw_pre)
+
+        # 2. Restore pre-stage-one existence and exact bytes of config.json, project.json, .aw/.gitignore.
+        for snap in ls.get("config_snapshots") or []:
+            snap_path = Path(snap["path"])
+            if str(snap_path) == str(config_file) and str(config_file) in moved_dests:
+                continue
+            if snap.get("existed"):
+                b64 = snap.get("content_b64")
+                if b64 is not None:
+                    snap_path.parent.mkdir(parents=True, exist_ok=True)
+                    tmp_p = snap_path.parent / f".tmp_rb_{snap_path.name}_{os.getpid()}"
+                    tmp_p.write_bytes(base64.b64decode(b64.encode("ascii")))
+                    os.replace(tmp_p, snap_path)
+            else:
+                snap_path.unlink(missing_ok=True)
+
+        # 3. Unlink switch receipt & retention manifest.
+        self.switch_receipt_file.unlink(missing_ok=True)
+        self.retention_manifest_file.unlink(missing_ok=True)
+
+        # 4. Undo any backfilled IDs if ever enabled.
+        for entry in ls.get("id_backfill") or []:
+            p = Path(entry["path"])
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            line = f"- Id: {entry['id6']}\n"
+            if line in text:
+                p.write_text(text.replace(line, "", 1), encoding="utf-8")
+
+        # 5. Reverse move_journal in reverse order.
+        target_top = Path(self.target_repo).resolve()
+        move_journal = ls.get("move_journal", [])
+        for entry in reversed(move_journal):
+            src_p = Path(entry["source"])
+            dst_p = Path(entry["destination"])
+            was_tracked = bool(entry.get("was_tracked", False))
+            action = entry.get("action", "move")
+            if action == "dedup-remove":
+                if (dst_p.exists() or dst_p.is_symlink()) and not (
+                    src_p.exists() or src_p.is_symlink()
+                ):
+                    src_p.parent.mkdir(parents=True, exist_ok=True)
+                    if dst_p.is_symlink():
+                        os.symlink(os.readlink(dst_p), src_p)
+                    else:
+                        shutil.copy2(dst_p, src_p)
+                    if was_tracked:
+                        _run_git(target_top, ["add", "--", str(src_p)])
+                continue
+
+            if entry.get("dst_existed_before"):
+                # Pre-existing identical file at destination: preserve dst_p and copy back to src_p.
+                if (dst_p.exists() or dst_p.is_symlink()) and not (
+                    src_p.exists() or src_p.is_symlink()
+                ):
+                    src_p.parent.mkdir(parents=True, exist_ok=True)
+                    if dst_p.is_symlink():
+                        os.symlink(os.readlink(dst_p), src_p)
+                    else:
+                        shutil.copy2(dst_p, src_p)
+                if was_tracked and (src_p.exists() or src_p.is_symlink()):
+                    _run_git(target_top, ["add", "--", str(src_p)])
+                if entry.get("dst_was_tracked") and (
+                    dst_p.exists() or dst_p.is_symlink()
+                ):
+                    dst_top = self._git_toplevel(dst_p) or target_top
+                    _run_git(dst_top, ["add", "--", str(dst_p)])
+                continue
+
+            if dst_p.exists() or dst_p.is_symlink():
+                self._perform_move(dst_p, src_p, was_tracked)
+
+        # 6. Prune newly created empty directories under .aw/records, .aw/system, and .aw/config
+        # (plus external records_root subdirs if any), leaving <repo>/.aw/state untouched.
+        rb_backend = str(ls.get("target_backend") or "repository")
+        pre_existing_dirs = ls.get("pre_existing_dirs") or {}
+        prune_roots: List[Tuple[Path, bool]] = [
+            (
+                self.records_dir,
+                bool(pre_existing_dirs.get(str(self.records_dir), False)),
+            ),
+            (self.system_dir, bool(pre_existing_dirs.get(str(self.system_dir), False))),
+            (self.config_dir, bool(pre_existing_dirs.get(str(self.config_dir), False))),
+        ]
+        ext_records = self._records_root_for_backend(rb_backend)
+        if ext_records.resolve() != self.records_dir.resolve():
+            prune_roots.append((ext_records, True))
+
+        for root_dir, existed_before in prune_roots:
+            if not root_dir.is_dir():
+                continue
+            for d in sorted(
+                (p for p in root_dir.rglob("*") if p.is_dir()),
+                key=lambda p: len(p.parts),
+                reverse=True,
+            ):
+                try:
+                    if not any(d.iterdir()):
+                        d.rmdir()
+                except OSError:
+                    pass
+            if not existed_before:
+                try:
+                    if root_dir.is_dir() and not any(root_dir.iterdir()):
+                        root_dir.rmdir()
+                except OSError:
+                    pass
+
+        ls["status"] = "rolled_back"
+        ls["last_verified_checkpoint"] = "rolled_back"
+        self._save_transaction(tx_data)
+        return {"status": "rolled_back", "reversed_moves": len(move_journal)}
 
     def cleanup_migration(
         self,
