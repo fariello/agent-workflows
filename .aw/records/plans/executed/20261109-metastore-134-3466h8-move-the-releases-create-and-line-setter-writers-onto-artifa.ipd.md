@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 7 step 4 requires every metadata writer to write through `artifact_meta` in phase B. The releases module still builds its bullets and history lines by hand (measured: 11 bullet literals across `plan_release` and the seven `set_*_line` helpers, 2 raw file writes in `create_release` and `run_new`, and 4 history references in `agent_workflows/releases.py`). This is part of `g6tw94` (itself part of `xexn45`), split 2026-11-09 so each item names one module's writers.
 - Scope: Register `release` fields (`version`, `set`, `order`) and the bounded in-memory bullet helper `set_legacy_bullet_line` in `agent_workflows/artifact_meta.py` (breaking `_render_field`'s circular `_releases.set_*_line` delegation), move `releases.plan_release`, `releases.create_release`, and `releases.run_new` onto `artifact_meta.create` (`g6tw94` E-01, releases subset), and move all seven `releases.set_*_line` helpers (`set_item_dependencies_line`, `set_graduated_to_line`, `set_blocks_release_line`, `set_priority_line`, `set_work_kind_line`, `set_from_backlog_line`, and `set_from_spec_line`) onto `artifact_meta.set_legacy_bullet_line` (`g6tw94` E-02, releases subset; `63zo2f` deferral). EXCLUDES: specs (`b3l7y6`), backlog (`jlwedt`), `--summary` as `short_description` (`fekdwv`), and the family audit (`g6tw94`).
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/artifact_meta.py, tests/test_specs_releases_descriptive_safety.py, .aw/records/plans/pending/20261109-metastore-134-3466h8-move-the-releases-create-and-line-setter-writers-onto-artifa.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261116-34o2zs-01-34o2zs-fix-test-e2e-producer-blocks-release-duplicate-moc.backlog.md (Defect-report backlog carrier filed per defect_report contract for pre-existing test_e2e_producer_blocks_release_duplicate failure)
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3466h8
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 3466h8 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261116-34o2zs-01-34o2zs-fix-test-e2e-producer-blocks-release-duplicate-moc.backlog.md: Defect-report backlog carrier filed per defect_report contract for pre-existing test_e2e_producer_blocks_release_duplicate failure]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
