@@ -89,10 +89,13 @@ def _create_release_via_meta(
     name = f"{today}-{id6}-01-{id6}-{slug}.release.md"
     body = f"# Release: {version}\n\n## Summary\n\n{summary}\n"
     ctx = _meta.legacy_context(repo_root)
+    release_fields: Dict[str, Any] = {"status": status, "version": version}
+    if summary and summary.strip():
+        release_fields["short_description"] = summary
     preview = _meta.create(
         id6,
         "release",
-        {"status": status, "version": version},
+        release_fields,
         body,
         destination=f"releases/{name}",
         dry_run=dry_run,

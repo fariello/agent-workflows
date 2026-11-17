@@ -1118,10 +1118,20 @@ def run_new(args) -> int:
         },
     )()
     rel_dest = resolved_dest.relative_to(records_root).as_posix()
+    spec_fields: Dict[str, object] = {
+        "status": "draft",
+        "title": title,
+        "author": "aw specs new",
+    }
+    if (
+        summary
+        and _refuse_unsafe_descriptive("aw specs new", "--summary", summary) is None
+    ):
+        spec_fields["short_description"] = summary
     preview = _meta.create(
         id6,
         "spec",
-        {"status": "draft", "title": title, "author": "aw specs new"},
+        spec_fields,
         body,
         destination=rel_dest,
         dry_run=not apply,

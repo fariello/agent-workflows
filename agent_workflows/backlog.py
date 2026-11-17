@@ -1215,6 +1215,7 @@ def run_new(args) -> int:
         "priority": item.priority,
         "work_kind": item.kind,
         "summary": item.summary,
+        "short_description": item.summary,
     }
     if item.status == "blocked":
         create_fields["gate_kind"] = item.gate_kind
