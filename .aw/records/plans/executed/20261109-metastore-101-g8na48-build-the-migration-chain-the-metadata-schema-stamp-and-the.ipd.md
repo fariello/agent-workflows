@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.1 makes the cutover a numbered migration chain with a `metadata_schema` stamp, and 5.3 makes every metadata read refuse an unmigrated repository. None of it exists (`ls agent_workflows/migrations` fails; `project_schema.parse_portable_policy` knows no `metadata_schema` key). Plan `vxevph` owned this as its E-01, one item naming 11 distinct units across five files; research `nj8zdp` guidance (at most about 8 units per item, 8 work Scope-Paths per plan) splits that item into three one-file steps here, in round 3 on 2026-11-09.
 - Scope: (1) the `aw check --agent` baseline for `dcerjg` V-16 (plus tracked SHA and count in `F-03` for cross-lane replay) and the chain module (`agent_workflows/migrations/__init__.py`, `agent_workflows/migrations/chain.py`); (2) the read-path schema gate in `agent_workflows/artifact_meta.py` covering `check_freshness` and `read_at`; (3) `metadata_schema` as a round-tripped portable-policy key in `project_schema` and `install_wizard` (both normal and fallback rebuild paths); (4) the stamp-and-schema suite `tests/test_migrations_chain.py` (from `vxevph` E-05). Everything runs only on test fixtures. EXCLUDES: preflight, journal, sidecar and their tests (`vxevph`); the `aw migrate` CLI (`1vfqdu`); every later step (`dky26u`, `ghhzb6`, `hpedmn`, `o19353`, `dcerjg`).
 - Scope-Paths: agent_workflows/migrations/__init__.py, agent_workflows/migrations/chain.py, agent_workflows/artifact_meta.py, agent_workflows/project_schema.py, agent_workflows/install_wizard.py, tests/test_migrations_chain.py, .aw/records/plans/pending/20261109-metastore-101-g8na48-build-the-migration-chain-the-metadata-schema-stamp-and-the.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261116-ylvzct-01-ylvzct-check-scope-drift-flags-gitignored-pycache-pyc-ins.backlog.md (Defect-report backlog carrier filed per runbook requirement for check.scope-drift flagging gitignored __pycache__/*.pyc in untracked directories)
 - Item-Dependencies: executed:tve77h
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g8na48
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: g8na48 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261116-ylvzct-01-ylvzct-check-scope-drift-flags-gitignored-pycache-pyc-ins.backlog.md: Defect-report backlog carrier filed per runbook requirement for check.scope-drift flagging gitignored __pycache__/*.pyc in untracked directories]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
