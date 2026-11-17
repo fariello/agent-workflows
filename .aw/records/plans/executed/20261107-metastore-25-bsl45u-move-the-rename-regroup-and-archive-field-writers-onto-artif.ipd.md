@@ -6,7 +6,7 @@
 - Scope: Finishing close-out and writer audit of the rename, regroup, and archive field-writer move (`xexn45` E-06). After the 2026-11-09 round-3 split per research `nj8zdp` (plan-size calibration), the code moves live in `1hfmpb` (Order 127, `agent_workflows/artifact_rename.py`, which also captures and records the family baseline in `1hfmpb` `F-03`), `fnu6kw` (Order 128, `agent_workflows/plans_refs.py` and the pure-move check of `agent_workflows/plans_archive.py::apply_shard_moves`), and `9gy5jk` (Order 129, `agent_workflows/research_refs.py` and `agent_workflows/research_archive.py`). This plan runs the cross-module test baseline comparison and `D-4` rename-ledger check (`E-02`, including isolated-lane regeneration of `.aw/state/bsl45u/family-before.txt` from `1hfmpb` `F-03`) and the five-module writer audit (`E-03`) recorded in `F-04`. EXCLUDES: `rename` and path-bearing events and sidecar retirement (`cxxmyv`, attended metadata cutover), and retiring thin compatibility adapters and `INDEX.*` manifest writers (`9o83cr`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-25-bsl45u-move-the-rename-regroup-and-archive-field-writers-onto-artif.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:1hfmpb, executed:fnu6kw, executed:9gy5jk
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: bsl45u
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: bsl45u verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
