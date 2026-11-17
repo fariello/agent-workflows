@@ -6,7 +6,7 @@
 - Scope: FINISHING PART of the short-description work (`xexn45` E-03 and E-04). Round-3 split 2026-11-09 per research `nj8zdp`: `--summary` at creation now lives in `fekdwv` (Order 124, backlog, specs, releases), `bir7xm` (125, research, adopt) and `py2vu9` (126, plan scaffold, prompts, `ipd_schema.META_RECOGNIZED`), and `aw describe` in `h06gs7` (136). This plan keeps the AC-36 case 1 cross-check (E-03): all seven creating commands and the setter, once, in one run. EXCLUDES: the `CHANGELOG.md` line (`xexn45` E-14).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-24-6e93gt-write-short-description-at-creation-and-add-the-aw-describe.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:fekdwv, executed:bir7xm, executed:py2vu9, executed:h06gs7
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: simple
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6e93gt
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 6e93gt verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/claude-opus-5.5): plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
