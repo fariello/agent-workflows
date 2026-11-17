@@ -146,6 +146,7 @@ Every earlier `m0001` step is built by the parts in `- Item-Dependencies:`, whic
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
 - E-02 (`aw migrate` group with `metadata` and `layout`), E-03 (install pending-migration prompt and `--migrate`), bare `aw migrate`, and their tests from E-14 (`tests/test_install_migrate_prompt.py`, `tests/test_migrate_cli.py`): Moved to `1vfqdu` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: 1vfqdu
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-16-1vfqdu-add-the-aw-migrate-command-group-bare-aw-migrate-and-the-ins.ipd.md
 - E-07 (rename map), E-08 (citation rewrite), and their tests from E-14 (`tests/test_m0001_renames.py`): Moved to `dky26u` (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: dky26u
 - E-09 and E-10 subset A (log builder and file rewrite for plans, backlog items, releases, specs, and staged prompts) and `tests/test_m0001_conversion.py`: Moved to `ghhzb6` (split 2026-11-07 per maintainer step-complexity rule).

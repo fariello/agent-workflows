@@ -124,6 +124,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md
 - `aw migrate` CLI command group, bare `aw migrate`, and install prompt.
   - Carrier: 1vfqdu
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-16-1vfqdu-add-the-aw-migrate-command-group-bare-aw-migrate-and-the-ins.ipd.md
 - Legacy name rename map and citation rewrites.
   - Carrier: dky26u
 - Log builder and record conversion for plans, backlog, releases, specs, and prompts.
