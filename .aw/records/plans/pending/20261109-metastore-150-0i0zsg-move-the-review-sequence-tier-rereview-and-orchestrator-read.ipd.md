@@ -110,6 +110,7 @@ E-02 runs after E-01 so both steps extend `tests/test_readers_review_modules.py`
 
 - The WRITE half of `review_sequence.restore_pre_s7_plan` (moved onto `artifact_meta.restore_legacy_snapshot` before this plan executes).
   - Carrier: 7yr827, xexn45
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-21-7yr827-add-the-phase-b-legacy-writer-and-move-the-runner-writer-hel.ipd.md
 - Moving the workflow-history text grammar calls (`plan_readiness.history_block`) in `review_sequence.count_verdict_bearing_entries` and `review_sequence.restore_pre_s7_plan` onto Order 290's `artifact_meta` text entry point.
   - Carrier: ay6sxp
 - The residual audit of these modules.
