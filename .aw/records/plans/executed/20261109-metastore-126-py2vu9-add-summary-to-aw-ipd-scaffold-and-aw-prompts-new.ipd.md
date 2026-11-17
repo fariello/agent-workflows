@@ -6,7 +6,7 @@
 - Scope: Register `Short-Description` (`META_SHORT_DESCRIPTION`) in `ipd_schema.META_RECOGNIZED` and `tests/test_ipd_schema.py::MetadataVocabularyTests.FIELDS`; strip `prompts._METADATA_TRAILER` in `agent_workflows/artifact_meta.py::load_legacy_artifact` before splitting `aw-prompt` comments; add `--summary` to `aw ipd scaffold` and `aw prompts new` (registered in `agent_workflows/cli.py` and `agent_workflows/command_surface.py` `legacy_flags`), validate raw `--summary` input before `.strip()` and before `mint_id6` (including refusing prompt comment-closing and field-delimiter tokens on `aw prompts new`), and write non-blank summaries as `short_description` in their `artifact_meta.create` events (`6e93gt` E-01, scaffold and prompts subset). EXCLUDES: the other five creating commands (`fekdwv`, `bir7xm`), `aw describe` (`h06gs7`).
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/artifact_meta.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/ipd_authoring.py, agent_workflows/prompts.py, tests/test_ipd_schema.py, tests/test_writers_create_summary.py, .aw/records/plans/pending/20261109-metastore-126-py2vu9-add-summary-to-aw-ipd-scaffold-and-aw-prompts-new.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:fekdwv
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: py2vu9
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: py2vu9 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
