@@ -99,6 +99,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-120-b3l7y6-move-the-specs-create-note-and-migrate-writers-onto-artifact.ipd.md
 - `backlog` create, note, and history-reattach writer moves (`agent_workflows/backlog.py::_render_item`, `run_new`, `run_note`, `_reattach_history`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: jlwedt
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-121-jlwedt-move-the-backlog-create-and-note-writers-onto-artifact-meta.ipd.md
 - `releases` create and line-setter writer moves (`agent_workflows/releases.py::plan_release`, `create_release`, `run_new`, `set_item_dependencies_line`, `set_graduated_to_line`, `set_blocks_release_line`, `set_priority_line`, `set_work_kind_line`, `set_from_backlog_line`, `set_from_spec_line`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: 3466h8
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-134-3466h8-move-the-releases-create-and-line-setter-writers-onto-artifa.ipd.md
