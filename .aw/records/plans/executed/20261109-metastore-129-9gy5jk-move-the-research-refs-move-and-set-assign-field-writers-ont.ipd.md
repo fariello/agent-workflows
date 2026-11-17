@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 7 step 4 requires the research shelf verbs (`aw research mv`, `aw research set-assign`, `aw archive research`) to write their metadata edits through `artifact_meta` in phase B. They edit research front matter by hand today: `research_refs._apply_renames` (the shared apply path of `research_refs.run_mv` and `research_refs.run_set_assign`) calls `research_cmd.update_frontmatter_fields` then `_atomic_write`, and `research_archive.apply_moves` calls `research_archive._rewrite_status_in_text` then `_atomic_write`. This is part of `bsl45u` (itself part of `xexn45`), split 2026-11-09.
 - Scope: Pin the kept research front-matter behavior in a new characterization module, extend the `artifact_meta` legacy writer's research `---` YAML form where it cannot yet reproduce that behavior, then move the front-matter edit in `research_refs._apply_renames` and the status edit in `research_archive.apply_moves` onto `artifact_meta.append` (`bsl45u` E-01, research subset). EXCLUDES: `artifact_rename` (`1hfmpb`), `plans_refs` (`fnu6kw`).
 - Scope-Paths: agent_workflows/research_refs.py, agent_workflows/research_archive.py, agent_workflows/artifact_meta.py, tests/test_research_meta_writer_characterization.py, .aw/records/plans/pending/20261109-metastore-129-9gy5jk-move-the-research-refs-move-and-set-assign-field-writers-ont.ipd.md
+- Scope-Exceeded: .aw/records/backlog/done/20261117-ag3fvv-01-ag3fvv-reconcile-artifact-meta-research-yaml-legacy-write.backlog.md (Filed and closed ag3fvv per worker defect report and maintainer resolution); tests/test_status_set_meta_writer.py (Maintainer resolved q-9gy5jk-missing-status-pos to update _render_status and test_w04_research_without_status)
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:fnu6kw
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9gy5jk
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): Complete 9gy5jk per maintainer question answers and re-verify on main [Scope reconciliation - out-of-scope .aw/records/backlog/done/20261117-ag3fvv-01-ag3fvv-reconcile-artifact-meta-research-yaml-legacy-write.backlog.md: Filed and closed ag3fvv per worker defect report and maintainer resolution; out-of-scope tests/test_status_set_meta_writer.py: Maintainer resolved q-9gy5jk-missing-status-pos to update _render_status and test_w04_research_without_status]
 - 2026-11-17 note (aw agy run): maintainer resolved q-9gy5jk-absent-yaml-set (drop E-04(c)/V-04(c); keep caller-side key filtering in E-01) and q-9gy5jk-missing-status-pos (change _render_status globally to after-kind and update test_w04_research_without_status); E-04 and E-02 completed.
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/claude-opus-5.5): /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
