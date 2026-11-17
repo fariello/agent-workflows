@@ -127,6 +127,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-16-1vfqdu-add-the-aw-migrate-command-group-bare-aw-migrate-and-the-ins.ipd.md
 - Legacy name rename map and citation rewrites.
   - Carrier: dky26u
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-17-dky26u-build-the-m0001-legacy-name-rename-map-and-citation-rewrite.ipd.md
 - Log builder and record conversion for plans, backlog, releases, specs, and prompts.
   - Carrier: ghhzb6
 - Review events, roadmap registry, and conversion for research, walkthroughs, roadmap, and reviews.
