@@ -1386,7 +1386,8 @@ erDiagram
     ARTIFACTS["ARTIFACTS: one row per artifact or walkthrough, holding the current state that every type shares. Rebuilt by replaying the tracked log."] {
         text id6 PK "Stable 6-character id. Full match of artifact_core.ID6_RE. Equals the log filename meta/id6.jsonl, the front-matter id and the filename id6. Never changes."
         text type "Logical record type from the create or checkpoint event: ipd, spec, backlog, research, release, prompt or walkthrough. Never changes. Selects the per-type table (4.5c)."
-        text path "Current DISCOVERED file path relative to the records root. Normally equals the newest artifact_paths row; a move made without a tool makes them differ, which aw check meta reports as path-drift (4.6)."
+        text path "Current DISCOVERED file path relative to the records root. Normally equals the newest artifact_paths row; a move made without a tool makes them differ, which aw check meta reports as path-drift (4.6). In phase B only, a file outside the records root is stored as @repo/<repository-relative path>."
+        int id_derived "Phase B only: 1 when the legacy loader derived the id6 from the path because the file declares none (6oi2nu D-3). Always 0 after the cutover."
         text disposition "Lifecycle directory that holds the file now, for example pending, executed, done. A mirror checked against status by aw check meta (4.6)."
         text status "Current lifecycle status: the to value of the newest transition event, else the checkpoint or create value. NULL for walkthroughs, which have no status."
         text title "Text of the first H1 heading of the body. Body prose, not a logged field. Used for display only."
@@ -1993,7 +1994,9 @@ name in 5.2, these rules win and the 5.2 value is read as this repository's meas
    shows both stages. A repository already on `.aw/` skips the stage and says so.
 3. RESOLVE THE RECORDS ROOT THROUGH `project_context`, NEVER BY ASSUMING `.aw/records`. A companion
    or home backend (shape (e)) is migrated where its records live; the logs land next to them
-   (AC-18).
+   (AC-18). In phase B, the legacy loader also scans the `selectors.record_dirs` trees outside the
+   records root and stores those files as `@repo/<repository-relative path>` until the layout stage
+   moves them.
 4. EVERY RECORD IT CAN FIND IS MIGRATED OR LISTED. A record with no bullet block and no id (shape
    (c)) gets a minted repository-unique `id6`, a `status` taken from its disposition directory (as
    5.2 step 4 already does for comment-less staged prompts), its title from its first `# ` line, and
@@ -2411,6 +2414,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-11-17 note (aw specs): 6oi2nu: phase-B extra-root path form and derived id6 (D-1, D-3)
 - 2026-11-17 note (aw specs): Amended 4.2 path-root sentence (plan 9qhtrc OQ-03): out_of_scope_paths and widened_paths (plus 37am1y changed_paths/from_path) are repository-relative while path stays records-root-relative; spec stays approved.
 - 2026-11-07 note (aw specs): amended at maintainer direction 2026-11-07: new C12 [Must] (the migration migrates ANY repository from ANY prior format this toolkit has written, and the Set builds that tool), new 5.2a (generic rules; layout stage chained; records root via project_context; id-less records minted; no-sidecar is normal; tool ships before cutover), new AC-42 (anonymized real-shape corpus, shapes a-e, plus this repo), section 7 step 3a, and an honest limit. Trigger: phase-A cache returned 0 of 201 records on a copy of a .agents-layout repo. All 10 pending metastore plans demoted to to-review for re-review against this amendment.
 - 2026-11-07 approved (aw set): Inherits the release-gate handoff of backlog ms06pi from superseded spec 2vev8j (4sd62s OQ-4; plan 7ehv8l). Status unchanged.

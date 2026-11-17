@@ -1179,6 +1179,7 @@ class State:
     defect: Optional[str] = None
     fields: Dict[str, Any] = dataclasses.field(default_factory=dict)
     disposition: Optional[str] = None
+    id_derived: bool = False
 
 
 def replay(
@@ -1984,7 +1985,9 @@ LAYOUT_VERSION = "layout_v1"
 #: is read for every record that opens with `---`; per-type fields are written to their tables.
 #: "legacy_v4" (2026-11-17, 1dvb08): parse `- Scope-Exceeded:` in metadata_region into `scope_result`
 #: / `out_of_scope_paths` / `scope_exceeded_raw` and project unlogged `scope_exceptions`.
-LEGACY_LOADER_VERSION = "legacy_v4"
+#: "legacy_v5" (2026-11-17, 6oi2nu): scan extra roots from `selectors.record_dirs` as `@repo/...`,
+#: derive deterministic `id6` values for id-less records (`id_derived`), and add `artifacts.id_derived`.
+LEGACY_LOADER_VERSION = "legacy_v5"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
@@ -2077,7 +2080,8 @@ def generate_schema(registry: Optional[Dict[str, Dict[str, FieldDef]]] = None) -
             last_history_day TEXT,
             last_seq INTEGER,
             valid INTEGER,
-            defect TEXT
+            defect TEXT,
+            id_derived INTEGER DEFAULT 0
         );""",
     ]
 
@@ -2444,6 +2448,79 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
 _LEGACY_MINT_POOLS: Dict[str, Set[str]] = {}
 
 
+def stored_path(
+    abs_path: Union[str, Path],
+    records_root: Union[str, Path],
+    repo_root: Optional[Union[str, Path]] = None,
+) -> str:
+    """Return the cache-stored path for ``abs_path``: records-relative or ``@repo/...``."""
+    resolved = Path(abs_path).resolve()
+    rec_resolved = Path(records_root).resolve()
+    try:
+        return resolved.relative_to(rec_resolved).as_posix()
+    except ValueError:
+        pass
+    if repo_root is not None:
+        repo_resolved = Path(repo_root).resolve()
+        try:
+            return "@repo/" + resolved.relative_to(repo_resolved).as_posix()
+        except ValueError:
+            pass
+    raise ValueError(
+        f"path {abs_path!r} is inside neither records_root {records_root!r} nor repo_root {repo_root!r}"
+    )
+
+
+def source_path(
+    stored: Union[str, Path],
+    records_root: Union[str, Path],
+    repo_root: Optional[Union[str, Path]] = None,
+) -> Path:
+    """Map a cache-stored path (records-relative or ``@repo/...``) back to a filesystem Path."""
+    s = str(stored).replace("\\", "/")
+    if s.startswith("@repo/"):
+        if repo_root is None:
+            raise ValueError(f"repo_root is required to resolve stored path {s!r}")
+        rel = s[len("@repo/") :]
+        if not rel or rel.startswith("/") or ".." in Path(rel).parts:
+            raise ValueError(f"unsafe @repo/ stored path: {s!r}")
+        return Path(repo_root) / rel
+    if not s or Path(s).is_absolute() or ".." in Path(s).parts:
+        raise ValueError(f"unsafe stored path: {s!r}")
+    return Path(records_root) / s
+
+
+def _scan_repo_root(ctx: Any, records_root: Path) -> Optional[Path]:
+    """Return the repository root for extra-root scanning and ``@repo/`` resolution."""
+    if ctx is not None:
+        raw_repo = getattr(ctx, "repo_root", None)
+        if raw_repo:
+            return Path(raw_repo).resolve()
+        raw_target = getattr(ctx, "target_repo", None)
+        if raw_target:
+            return Path(raw_target).resolve()
+    return _proj_ctx.record_git_root(records_root)
+
+
+def derive_id6(stored: str, taken: Iterable[str]) -> str:
+    """Derive a deterministic 6-char base36 id6 from ``stored`` avoiding ``taken``."""
+    taken_set = taken if isinstance(taken, (set, frozenset)) else set(taken)
+    alphabet = _core.ID6_ALPHABET
+    base = len(alphabet)
+    k = 0
+    while True:
+        digest = hashlib.sha256(f"{stored}\0{k}".encode("utf-8")).digest()
+        val = int.from_bytes(digest[:8], "big")
+        chars: List[str] = []
+        for _ in range(_core.ID6_LENGTH):
+            val, rem = divmod(val, base)
+            chars.append(alphabet[rem])
+        cand = "".join(reversed(chars))
+        if cand not in taken_set:
+            return cand
+        k += 1
+
+
 def _parse_scope_exceeded_bullet(raw_text: str) -> Tuple[List[Dict[str, str]], bool]:
     """Parse `- Scope-Exceeded:` bullet text into `{path, reason}` entries and a malformed flag."""
     entries: List[Dict[str, str]] = []
@@ -2468,13 +2545,21 @@ def load_legacy_artifact(
     path: Path,
     records_root: Path,
     text: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
+    extra_taken: Optional[Iterable[str]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Load an existing legacy .md artifact into cache projection rows."""
     if text is None:
         text = path.read_text(encoding="utf-8")
 
     filename = path.name
-    rel_path = str(path.relative_to(records_root)).replace("\\", "/")
+    scan_repo = (
+        Path(repo_root)
+        if repo_root is not None
+        else _scan_repo_root(None, records_root)
+    )
+    rel_path = stored_path(path, records_root, scan_repo)
     disposition = path.parent.name
 
     # Identity detection order:
@@ -2490,8 +2575,6 @@ def load_legacy_artifact(
     model_val: Optional[str] = None
 
     # Determine type from parent folder or facet
-    rel_parts = path.relative_to(records_root).parts
-    top_dir = rel_parts[0] if rel_parts else ""
     type_map = {
         "plans": "ipd",
         "specs": "spec",
@@ -2502,7 +2585,20 @@ def load_legacy_artifact(
         "walkthroughs": "walkthrough",
         "roadmaps": "roadmap",
     }
-    art_type = type_map.get(top_dir, "ipd")
+    if rel_path.startswith("@repo/"):
+        from agent_workflows import status_set as _status_set
+
+        detected = (
+            _status_set.detect_artifact_type(path, scan_repo)
+            if scan_repo is not None
+            else None
+        )
+        top_dir = detected or ""
+        art_type = _LEGACY_PLURAL_TO_TYPE.get(top_dir, "ipd")
+    else:
+        rel_parts = Path(rel_path).parts
+        top_dir = rel_parts[0] if rel_parts else ""
+        art_type = type_map.get(top_dir, "ipd")
 
     m_legacy = _naming._LEGACY_TIMESTAMP_RE.match(filename)
     if m_legacy:
@@ -2633,11 +2729,11 @@ def load_legacy_artifact(
     elif "id" in bullets and not id6:
         id6 = bullets["id"]
 
+    id_derived = False
     if not id6:
-        # Default fallback id6 for grandfathered legacy files. The repository-wide collision pool
-        # is scanned ONCE per records root per process and extended with every id minted here
-        # (1ajqaa): calling `mint_id6` per file re-scanned the whole repository each time, which
-        # measured 70 scans and about 5 minutes for one cold cache build of this repository.
+        # Derive a stable path-keyed id6 for id-less legacy files. The repository-wide collision
+        # pool is scanned ONCE per records root per process from declared ids only; derived ids are
+        # never added to it so warm/edited/rebuilt caches derive the same id6.
         _pool_key = str(Path(records_root).resolve())
         _pool = _LEGACY_MINT_POOLS.get(_pool_key)
         if _pool is None:
@@ -2647,8 +2743,9 @@ def load_legacy_artifact(
                 )
             )
             _LEGACY_MINT_POOLS[_pool_key] = _pool
-        id6 = _core.generate_id6(_pool)
-        _pool.add(id6)
+        taken = _pool | set(extra_taken) if extra_taken else _pool
+        id6 = derive_id6(rel_path, taken)
+        id_derived = True
 
     validate_id6(id6)
 
@@ -2771,6 +2868,7 @@ def load_legacy_artifact(
         "last_seq": len(history_lines),
         "valid": 1,
         "defect": None,
+        "id_derived": id_derived,
         # The registry-typed field values, for the per-type table (backlog `suth7l`: the loader
         # computed these and then dropped them, so every per-type table held 0 rows). Only fields
         # the REGISTRY declares for this type are carried; unregistered legacy bullets (OQ-02) stay
@@ -2799,13 +2897,20 @@ def load_legacy_review(
     path: Path,
     records_root: Path,
     text: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Load a legacy .review.md file into review_files and reviews rows."""
     if text is None:
         text = path.read_text(encoding="utf-8")
 
     filename = path.name
-    rel_path = str(path.relative_to(records_root)).replace("\\", "/")
+    scan_repo = (
+        Path(repo_root)
+        if repo_root is not None
+        else _scan_repo_root(None, records_root)
+    )
+    rel_path = stored_path(path, records_root, scan_repo)
     bullets, _, _ = _parse_bullet_metadata(text)
 
     subject_id = bullets.get("Subject-Id") or bullets.get("Subject") or ""
@@ -2904,17 +3009,130 @@ def _compute_digest(path: Path) -> str:
     return h.hexdigest()
 
 
+def _delete_artifact_projection(conn: sqlite3.Connection, id6: str) -> None:
+    """Remove all cached projection rows for ``id6``."""
+    conn.execute("DELETE FROM artifacts WHERE id6 = ?", (id6,))
+    for t in SUPPORTED_TYPES:
+        conn.execute(f'DELETE FROM "{t}" WHERE id6 = ?', (id6,))
+    conn.execute("DELETE FROM scope_paths WHERE id6 = ?", (id6,))
+    conn.execute("DELETE FROM artifact_paths WHERE id6 = ?", (id6,))
+    conn.execute("DELETE FROM scope_exceptions WHERE id6 = ?", (id6,))
+    conn.execute("DELETE FROM dependencies WHERE dependent_id6 = ?", (id6,))
+    conn.execute("DELETE FROM lineage WHERE child_id6 = ?", (id6,))
+    conn.execute("DELETE FROM graduation_targets WHERE source_id6 = ?", (id6,))
+    conn.execute("DELETE FROM release_gates WHERE id6 = ?", (id6,))
+    conn.execute("DELETE FROM gates WHERE id6 = ?", (id6,))
+    conn.execute("DELETE FROM events WHERE id6 = ?", (id6,))
+    conn.execute("DELETE FROM field_changes WHERE id6 = ?", (id6,))
+
+
+def _store_legacy_artifact_projection(
+    conn: sqlite3.Connection,
+    art_row: Dict[str, Any],
+    path_str: str,
+    role: str,
+    st: os.stat_result,
+    digest: str,
+    now_str: str,
+    records_root: Path,
+) -> None:
+    """Insert or update the cache projection rows for one legacy artifact or walkthrough."""
+    _has_log = (records_root / "meta" / f"{art_row['id6']}.jsonl").exists()
+    _verb = "INSERT OR IGNORE" if _has_log else "INSERT OR REPLACE"
+    conn.execute(
+        _verb
+        + """ INTO artifacts (
+            id6, type, path, disposition, status, title, short_description,
+            set_id, order_nn, filename_date, created_day, created_at, updated_at,
+            last_history_day, last_seq, valid, defect, id_derived
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            art_row["id6"],
+            art_row["type"],
+            art_row["path"],
+            art_row["disposition"],
+            art_row["status"],
+            art_row["title"],
+            art_row["short_description"],
+            art_row["set_id"],
+            art_row["order_nn"],
+            art_row["filename_date"],
+            art_row["created_day"],
+            art_row["created_at"],
+            art_row["updated_at"],
+            art_row["last_history_day"],
+            art_row["last_seq"],
+            1,
+            None,
+            1 if art_row.get("id_derived") else 0,
+        ),
+    )
+    if not _has_log:
+        _lt = art_row["type"]
+        _fv = art_row.get("fields") or {}
+        if _lt in REGISTRY:
+            _reg_fields = registry_fields(_lt)
+            conn.execute(
+                f"""INSERT OR REPLACE INTO "{_lt}" ({", ".join(["id6"] + [f'"{f}"' for f in _reg_fields])}) VALUES ({", ".join(["?"] * (len(_reg_fields) + 1))})""",
+                [art_row["id6"]]
+                + [
+                    json.dumps(_fv[f])
+                    if isinstance(_fv.get(f), (list, dict))
+                    else _fv.get(f)
+                    for f in _reg_fields
+                ],
+            )
+        for idx, oos_item in enumerate(_fv.get("out_of_scope_paths") or [], start=1):
+            p_val = (
+                oos_item.get("path") if isinstance(oos_item, dict) else str(oos_item)
+            )
+            r_val = oos_item.get("reason", "") if isinstance(oos_item, dict) else ""
+            conn.execute(
+                "INSERT OR REPLACE INTO scope_exceptions VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    art_row["id6"],
+                    idx,
+                    p_val,
+                    r_val,
+                    "out-of-scope",
+                    "checkpoint",
+                ),
+            )
+    conn.execute(
+        """INSERT OR REPLACE INTO files (
+            path, file_role, id6, size, mtime_ns, content_digest, loaded_at, load_error
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            path_str,
+            role,
+            art_row["id6"],
+            st.st_size,
+            st.st_mtime_ns,
+            digest,
+            now_str,
+            None,
+        ),
+    )
+
+
 def _load_sources(
     conn: sqlite3.Connection,
     changed_sources: List[Dict[str, Any]],
     records_root: Path,
+    *,
+    repo_root: Optional[Path] = None,
 ) -> None:
     """One loader entry point: validate, replay and project changed sources."""
     records_root = Path(records_root)
+    scan_repo = (
+        Path(repo_root)
+        if repo_root is not None
+        else _scan_repo_root(None, records_root)
+    )
     with conn:
         for item in changed_sources:
             path_str = item["path"]
-            abs_p = records_root / path_str
+            abs_p = source_path(path_str, records_root, scan_repo)
             role = item["role"]
             id6 = item.get("id6")
 
@@ -2938,6 +3156,12 @@ def _load_sources(
             elif id6 and role in ("artifact", "walkthrough"):
                 if (records_root / "meta" / f"{id6}.jsonl").exists():
                     owns_projection = False
+                else:
+                    cur = conn.execute(
+                        "SELECT path FROM artifacts WHERE id6 = ?", (id6,)
+                    ).fetchone()
+                    if cur is not None and cur[0] != path_str:
+                        owns_projection = False
             elif id6 and role == "removed":
                 if path_str.startswith("meta/") and path_str.endswith(".jsonl"):
                     owns_projection = True
@@ -2955,21 +3179,7 @@ def _load_sources(
                     elif cur is not None and cur[0] != path_str:
                         owns_projection = False
             if owns_projection:
-                conn.execute("DELETE FROM artifacts WHERE id6 = ?", (id6,))
-                for t in SUPPORTED_TYPES:
-                    conn.execute(f'DELETE FROM "{t}" WHERE id6 = ?', (id6,))
-                conn.execute("DELETE FROM scope_paths WHERE id6 = ?", (id6,))
-                conn.execute("DELETE FROM artifact_paths WHERE id6 = ?", (id6,))
-                conn.execute("DELETE FROM scope_exceptions WHERE id6 = ?", (id6,))
-                conn.execute("DELETE FROM dependencies WHERE dependent_id6 = ?", (id6,))
-                conn.execute("DELETE FROM lineage WHERE child_id6 = ?", (id6,))
-                conn.execute(
-                    "DELETE FROM graduation_targets WHERE source_id6 = ?", (id6,)
-                )
-                conn.execute("DELETE FROM release_gates WHERE id6 = ?", (id6,))
-                conn.execute("DELETE FROM gates WHERE id6 = ?", (id6,))
-                conn.execute("DELETE FROM events WHERE id6 = ?", (id6,))
-                conn.execute("DELETE FROM field_changes WHERE id6 = ?", (id6,))
+                _delete_artifact_projection(conn, id6)
 
             if not abs_p.exists():
                 # Removed file. A removed source arrives with role "removed", so its former role
@@ -3018,8 +3228,8 @@ def _load_sources(
                         """INSERT OR REPLACE INTO artifacts (
                             id6, type, path, disposition, status, title, short_description,
                             set_id, order_nn, filename_date, created_day, created_at, updated_at,
-                            last_history_day, last_seq, valid, defect
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            last_history_day, last_seq, valid, defect, id_derived
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             state.id6,
                             state.type,
@@ -3038,6 +3248,7 @@ def _load_sources(
                             state.last_seq,
                             1,
                             None,
+                            0,
                         ),
                     )
 
@@ -3216,14 +3427,16 @@ def _load_sources(
                     )
                     conn.execute(
                         """INSERT OR REPLACE INTO artifacts (
-                            id6, type, path, valid, defect
-                        ) VALUES (?, ?, ?, ?, ?)""",
+                            id6, type, path, valid, defect, id_derived
+                        ) VALUES (?, ?, ?, ?, ?, 0)""",
                         (id6, item.get("type", "unknown"), path_str, 0, err_msg),
                     )
 
             elif role == "review":
                 try:
-                    rf_row, rev_rows = load_legacy_review(abs_p, records_root)
+                    rf_row, rev_rows = load_legacy_review(
+                        abs_p, records_root, repo_root=scan_repo
+                    )
                     # Replace this file's rounds rather than overlaying them (1ajqaa): a review
                     # edited to fewer rounds must not keep the old ones.
                     conn.execute(
@@ -3298,96 +3511,92 @@ def _load_sources(
             elif role in ("artifact", "walkthrough"):
                 # Phase B legacy loader
                 try:
-                    art_row, h_rows = load_legacy_artifact(abs_p, records_root)
-                    # A mirror of a logged artifact does not replace the log's projection
-                    # (1ajqaa): the log is the authority once `meta/<id6>.jsonl` exists.
-                    _has_log = (
-                        records_root / "meta" / f"{art_row['id6']}.jsonl"
-                    ).exists()
-                    _verb = "INSERT OR IGNORE" if _has_log else "INSERT OR REPLACE"
-                    conn.execute(
-                        _verb
-                        + """ INTO artifacts (
-                            id6, type, path, disposition, status, title, short_description,
-                            set_id, order_nn, filename_date, created_day, created_at, updated_at,
-                            last_history_day, last_seq, valid, defect
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            art_row["id6"],
-                            art_row["type"],
-                            art_row["path"],
-                            art_row["disposition"],
-                            art_row["status"],
-                            art_row["title"],
-                            art_row["short_description"],
-                            art_row["set_id"],
-                            art_row["order_nn"],
-                            art_row["filename_date"],
-                            art_row["created_day"],
-                            art_row["created_at"],
-                            art_row["updated_at"],
-                            art_row["last_history_day"],
-                            art_row["last_seq"],
-                            1,
-                            None,
-                        ),
+                    other_ids = {
+                        r[0]
+                        for r in conn.execute(
+                            "SELECT id6 FROM artifacts WHERE path != ?",
+                            (path_str,),
+                        ).fetchall()
+                    }
+                    art_row, _h_rows = load_legacy_artifact(
+                        abs_p,
+                        records_root,
+                        repo_root=scan_repo,
+                        extra_taken=other_ids,
                     )
-                    if not _has_log:
-                        # The per-type row (backlog `suth7l`), written with exactly the column
-                        # layout and value encoding the log branch uses, so a reader of a typed
-                        # field sees one representation whichever format the record is in.
-                        _lt = art_row["type"]
-                        if _lt in REGISTRY:
-                            _reg_fields = registry_fields(_lt)
-                            _fv = art_row.get("fields") or {}
-                            conn.execute(
-                                f"""INSERT OR REPLACE INTO "{_lt}" ({", ".join(["id6"] + [f'"{f}"' for f in _reg_fields])}) VALUES ({", ".join(["?"] * (len(_reg_fields) + 1))})""",
-                                [art_row["id6"]]
-                                + [
-                                    json.dumps(_fv[f])
-                                    if isinstance(_fv.get(f), (list, dict))
-                                    else _fv.get(f)
-                                    for f in _reg_fields
-                                ],
+                    loaded_id6 = art_row["id6"]
+                    loaded_derived = bool(art_row.get("id_derived"))
+                    if not loaded_derived:
+                        _pool_key = str(Path(records_root).resolve())
+                        if _pool_key in _LEGACY_MINT_POOLS:
+                            _LEGACY_MINT_POOLS[_pool_key].add(loaded_id6)
+                        existing_row = conn.execute(
+                            "SELECT path, id_derived FROM artifacts WHERE id6 = ?",
+                            (loaded_id6,),
+                        ).fetchone()
+                        if existing_row is not None and existing_row[0] != path_str:
+                            old_path_str, old_derived = (
+                                existing_row[0],
+                                bool(existing_row[1]),
                             )
-                        for idx, oos_item in enumerate(
-                            _fv.get("out_of_scope_paths") or [], start=1
-                        ):
-                            p_val = (
-                                oos_item.get("path")
-                                if isinstance(oos_item, dict)
-                                else str(oos_item)
-                            )
-                            r_val = (
-                                oos_item.get("reason", "")
-                                if isinstance(oos_item, dict)
-                                else ""
-                            )
-                            conn.execute(
-                                "INSERT OR REPLACE INTO scope_exceptions VALUES (?, ?, ?, ?, ?, ?)",
-                                (
-                                    art_row["id6"],
-                                    idx,
-                                    p_val,
-                                    r_val,
-                                    "out-of-scope",
-                                    "checkpoint",
-                                ),
-                            )
-                    conn.execute(
-                        """INSERT OR REPLACE INTO files (
-                            path, file_role, id6, size, mtime_ns, content_digest, loaded_at, load_error
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            path_str,
-                            role,
-                            art_row["id6"],
-                            st.st_size,
-                            st.st_mtime_ns,
-                            digest,
-                            now_str,
-                            None,
-                        ),
+                            if old_derived:
+                                _delete_artifact_projection(conn, loaded_id6)
+                                old_abs = source_path(
+                                    old_path_str, records_root, scan_repo
+                                )
+                                if old_abs.exists():
+                                    old_taken = {
+                                        r[0]
+                                        for r in conn.execute(
+                                            "SELECT id6 FROM artifacts WHERE path != ?",
+                                            (old_path_str,),
+                                        ).fetchall()
+                                    }
+                                    old_taken.add(loaded_id6)
+                                    old_art_row, _ = load_legacy_artifact(
+                                        old_abs,
+                                        records_root,
+                                        repo_root=scan_repo,
+                                        extra_taken=old_taken,
+                                    )
+                                    old_file_row = conn.execute(
+                                        "SELECT file_role FROM files WHERE path = ?",
+                                        (old_path_str,),
+                                    ).fetchone()
+                                    old_role = (
+                                        old_file_row[0] if old_file_row else "artifact"
+                                    )
+                                    old_st = old_abs.stat()
+                                    old_digest = _compute_digest(old_abs)
+                                    _store_legacy_artifact_projection(
+                                        conn,
+                                        old_art_row,
+                                        old_path_str,
+                                        old_role,
+                                        old_st,
+                                        old_digest,
+                                        now_str,
+                                        records_root,
+                                    )
+                            elif path_str.startswith("@repo/"):
+                                conn.execute(
+                                    """INSERT OR REPLACE INTO files (
+                                        path, file_role, id6, size, mtime_ns, content_digest, loaded_at, load_error
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                    (
+                                        path_str,
+                                        role,
+                                        loaded_id6,
+                                        st.st_size,
+                                        st.st_mtime_ns,
+                                        digest,
+                                        now_str,
+                                        None,
+                                    ),
+                                )
+                                continue
+                    _store_legacy_artifact_projection(
+                        conn, art_row, path_str, role, st, digest, now_str, records_root
                     )
                 except Exception as exc:
                     conn.execute(
@@ -3408,8 +3617,8 @@ def _load_sources(
                     if id6:
                         conn.execute(
                             """INSERT OR REPLACE INTO artifacts (
-                                id6, type, path, valid, defect
-                            ) VALUES (?, ?, ?, ?, ?)""",
+                                id6, type, path, valid, defect, id_derived
+                            ) VALUES (?, ?, ?, ?, ?, 0)""",
                             (id6, item.get("type", "unknown"), path_str, 0, str(exc)),
                         )
 
@@ -3444,17 +3653,91 @@ def _require_schema(project_context: Any, records_root: Path) -> None:
     )
 
 
+def _detect_file_role(
+    fname: str, *, is_meta: bool = False
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    if is_meta and fname.endswith(".jsonl"):
+        return "log", fname[:-6], None
+    if fname.endswith(".review.md"):
+        return "review", None, None
+    if fname.endswith(".walkthrough.md"):
+        return "walkthrough", None, None
+    if fname.endswith(".md"):
+        if not _naming._LEGACY_TIMESTAMP_RE.match(fname):
+            m_attr = _naming.parse_attributed(fname)
+            if m_attr:
+                return "artifact", m_attr.id6, m_attr.type
+            m_clust = _naming.parse_clustered(fname)
+            if m_clust:
+                return "artifact", m_clust.group("id6"), m_clust.group("type")
+        return "artifact", None, None
+    return None, None, None
+
+
+def _is_source_stale(
+    fpath: Path, prev_info: Optional[Tuple[int, int, str]], force: bool
+) -> bool:
+    if force or prev_info is None:
+        return True
+    st_f = fpath.stat()
+    prev_size, prev_mtime_f, prev_digest = prev_info
+    if prev_size != st_f.st_size or prev_mtime_f != st_f.st_mtime_ns:
+        return True
+    return _compute_digest(fpath) != prev_digest
+
+
 def check_freshness(
     conn: sqlite3.Connection,
     records_root: Path,
     *,
     force: bool = False,
     project_context: Any = None,
+    repo_root: Optional[Path] = None,
 ) -> None:
     """Run directory membership and file content freshness checks before read operations."""
     records_root = Path(records_root)
     _require_schema(project_context, records_root)
-    if not records_root.exists():
+
+    scan_repo = (
+        Path(repo_root).resolve()
+        if repo_root is not None
+        else (
+            _scan_repo_root(project_context, records_root)
+            if project_context is not None
+            else None
+        )
+    )
+
+    extra_root_dirs: List[Tuple[str, Path]] = []
+    if scan_repo is not None:
+        from agent_workflows import selectors as _sel
+
+        rec_resolved = records_root.resolve()
+        seen_extra_dirs: Set[Path] = set()
+        for etype in (
+            "plans",
+            "specs",
+            "prompts",
+            "backlog",
+            "releases",
+            "research",
+            "walkthroughs",
+            "roadmaps",
+            "other",
+        ):
+            for d in _sel.record_dirs(scan_repo, etype):
+                try:
+                    d_res = d.resolve()
+                except OSError:
+                    continue
+                if d_res == rec_resolved or d_res.is_relative_to(rec_resolved):
+                    continue
+                if d_res in seen_extra_dirs or not d.is_dir():
+                    continue
+                seen_extra_dirs.add(d_res)
+                extra_root_dirs.append((etype, d))
+
+    if not records_root.exists() and not extra_root_dirs:
         return
 
     # Check 1: Directory membership
@@ -3470,84 +3753,119 @@ def check_freshness(
 
     changed_sources: List[Dict[str, Any]] = []
     current_files_set: Set[str] = set()
+    seen_files: Set[Path] = set()
 
-    # Discover directories and files
-    for root, dirs, files in os.walk(records_root):
-        rel_dir = str(Path(root).relative_to(records_root)).replace("\\", "/")
-        if rel_dir == ".":
-            rel_dir = ""
-        st_dir = os.stat(root)
-        current_mtime = st_dir.st_mtime_ns
-        prev_mtime = known_dirs.get(rel_dir)
-        if prev_mtime != current_mtime:
-            with conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
-                    (rel_dir, current_mtime),
+    # Discover directories and files inside records_root
+    if records_root.exists():
+        for root, dirs, files in os.walk(records_root):
+            rel_dir = str(Path(root).relative_to(records_root)).replace("\\", "/")
+            if rel_dir == ".":
+                rel_dir = ""
+            st_dir = os.stat(root)
+            current_mtime = st_dir.st_mtime_ns
+            prev_mtime = known_dirs.get(rel_dir)
+            if prev_mtime != current_mtime:
+                with conn:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
+                        (rel_dir, current_mtime),
+                    )
+
+            for fname in files:
+                if (
+                    fname.startswith(".")
+                    or fname.startswith("INDEX.")
+                    or fname == "STATUS.md"
+                ):
+                    continue
+                fpath = Path(root) / fname
+                with contextlib.suppress(OSError):
+                    seen_files.add(fpath.resolve())
+                rel_f = str(fpath.relative_to(records_root)).replace("\\", "/")
+                current_files_set.add(rel_f)
+
+                role, f_id6, f_type = _detect_file_role(
+                    fname, is_meta=rel_f.startswith("meta/")
                 )
+                if not role:
+                    continue
 
-        for fname in files:
-            if (
-                fname.startswith(".")
-                or fname.startswith("INDEX.")
-                or fname == "STATUS.md"
-            ):
-                continue
-            fpath = Path(root) / fname
-            rel_f = str(fpath.relative_to(records_root)).replace("\\", "/")
-            current_files_set.add(rel_f)
+                if _is_source_stale(fpath, known_files.get(rel_f), force):
+                    changed_sources.append(
+                        {
+                            "path": rel_f,
+                            "role": role,
+                            "id6": f_id6,
+                            "type": f_type,
+                        }
+                    )
 
-            # Determine file role
-            role: Optional[str] = None
-            f_id6: Optional[str] = None
-            f_type: Optional[str] = None
+    # Discover directories and files in extra roots (e.g., legacy .agents/ trees)
+    if extra_root_dirs:
+        from agent_workflows import research_contract as _rc
+        from agent_workflows import selectors as _sel
 
-            if rel_f.startswith("meta/") and fname.endswith(".jsonl"):
-                role = "log"
-                f_id6 = fname[:-6]
-            elif fname.endswith(".review.md"):
-                role = "review"
-            elif fname.endswith(".walkthrough.md"):
-                role = "walkthrough"
-            elif fname.endswith(".md"):
-                role = "artifact"
-                m_attr = _naming.parse_attributed(fname)
-                if m_attr:
-                    f_id6 = m_attr.id6
-                    f_type = m_attr.type
-                else:
-                    m_clust = _naming.parse_clustered(fname)
-                    if m_clust:
-                        f_id6 = m_clust.group("id6")
-                        f_type = m_clust.group("type")
+        for extra_type, extra_dir in extra_root_dirs:
+            for root, dirs, files in os.walk(extra_dir):
+                root_p = Path(root)
+                try:
+                    dir_stored = stored_path(root_p, records_root, scan_repo)
+                except ValueError:
+                    continue
+                st_dir = os.stat(root)
+                current_mtime = st_dir.st_mtime_ns
+                prev_mtime = known_dirs.get(dir_stored)
+                if prev_mtime != current_mtime:
+                    with conn:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
+                            (dir_stored, current_mtime),
+                        )
 
-            if not role:
-                continue
+                for fname in files:
+                    if (
+                        fname.startswith(".")
+                        or fname.startswith("INDEX.")
+                        or fname == "STATUS.md"
+                        or not fname.endswith(".md")
+                    ):
+                        continue
+                    fpath = root_p / fname
+                    try:
+                        resolved_f = fpath.resolve()
+                    except OSError:
+                        continue
+                    if resolved_f in seen_files:
+                        continue
+                    seen_files.add(resolved_f)
 
-            st_f = fpath.stat()
-            prev_info = known_files.get(rel_f)
-            must_load = force
-            if prev_info is None:
-                must_load = True
-            else:
-                prev_size, prev_mtime_f, prev_digest = prev_info
-                if prev_size != st_f.st_size or prev_mtime_f != st_f.st_mtime_ns:
-                    must_load = True
-                else:
-                    # Content check: digest working-tree bytes to detect same-size same-mtime replacements
-                    curr_digest = _compute_digest(fpath)
-                    if curr_digest != prev_digest:
-                        must_load = True
+                    if fname in _sel._SKIP_NAMES:
+                        continue
+                    if (
+                        extra_type == "research"
+                        and _rc.companion_owner_stem(fpath, extra_dir) is not None
+                    ):
+                        continue
 
-            if must_load:
-                changed_sources.append(
-                    {
-                        "path": rel_f,
-                        "role": role,
-                        "id6": f_id6,
-                        "type": f_type,
-                    }
-                )
+                    try:
+                        rel_f = stored_path(fpath, records_root, scan_repo)
+                    except ValueError:
+                        continue
+                    current_files_set.add(rel_f)
+
+                    role, f_id6, f_type = _detect_file_role(fname, is_meta=False)
+                    if not role:
+                        continue
+
+                    if _is_source_stale(fpath, known_files.get(rel_f), force):
+                        changed_sources.append(
+                            {
+                                "path": rel_f,
+                                "role": role,
+                                "id6": f_id6,
+                                "type": f_type,
+                            }
+                        )
 
     # Detect deleted files
     for old_path in known_files:
@@ -3561,7 +3879,7 @@ def check_freshness(
             )
 
     if changed_sources:
-        _load_sources(conn, changed_sources, records_root)
+        _load_sources(conn, changed_sources, records_root, repo_root=scan_repo)
 
     # Recompute resolved references after target inventory change
     with conn:
@@ -3629,12 +3947,17 @@ def read(id6: str, *, project_context: Any = None) -> State:
 
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx)
+        check_freshness(
+            conn,
+            records_root,
+            project_context=ctx,
+            repo_root=_scan_repo_root(ctx, records_root),
+        )
 
         row = conn.execute(
             """SELECT id6, type, path, disposition, status, title, short_description,
                       set_id, order_nn, filename_date, created_day, created_at, updated_at,
-                      last_history_day, last_seq, valid, defect
+                      last_history_day, last_seq, valid, defect, id_derived
                FROM artifacts WHERE id6 = ?""",
             (id6,),
         ).fetchone()
@@ -3665,6 +3988,7 @@ def read(id6: str, *, project_context: Any = None) -> State:
             last_seq=row[14],
             valid=valid,
             defect=defect,
+            id_derived=bool(row[17]),
         )
 
         # Populate type-specific fields
@@ -3698,9 +4022,10 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
 
+    scan_repo = _scan_repo_root(ctx, records_root)
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx)
+        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
 
         # Check if we have events
         events = conn.execute(
@@ -3743,9 +4068,11 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
             raise ValueError(f"invalid record {id6}: {art[3]}")
         legacy_rows: List[Dict[str, Any]] = []
         if art and art[0]:
-            abs_p = records_root / art[0]
+            abs_p = source_path(art[0], records_root, scan_repo)
             if abs_p.exists() and abs_p.suffix == ".md":
-                _, legacy_rows = load_legacy_artifact(abs_p, records_root)
+                _, legacy_rows = load_legacy_artifact(
+                    abs_p, records_root, repo_root=scan_repo
+                )
 
         # Phase B: each review ROUND of a legacy review file is a `review` event of its SUBJECT
         # (4.1a), appended after the history lines in file order, with no inferred ordering.
@@ -3789,9 +4116,10 @@ def resolve(
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
 
+    scan_repo = _scan_repo_root(ctx, records_root)
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx)
+        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
 
         val = str(path_or_id6).strip()
         if _core.ID6_RE.fullmatch(val):
@@ -3828,9 +4156,10 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
 
+    scan_repo = _scan_repo_root(ctx, records_root)
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx)
+        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
 
         where_clauses: List[str] = ["a.valid = 1"]
         params: List[Any] = []
@@ -3883,7 +4212,7 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
 
         sql = f"""SELECT a.id6, a.type, a.path, a.disposition, a.status, a.title, a.short_description,
                          a.set_id, a.order_nn, a.filename_date, a.created_day, a.created_at, a.updated_at,
-                         a.last_history_day, a.last_seq, a.valid, a.defect
+                         a.last_history_day, a.last_seq, a.valid, a.defect, a.id_derived
                   FROM artifacts a
                   WHERE {" AND ".join(where_clauses)}
                   ORDER BY a.set_id, a.order_nn, a.id6"""
@@ -3909,6 +4238,7 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
                 last_seq=r[14],
                 valid=r[15],
                 defect=r[16],
+                id_derived=bool(r[17]),
             )
             states.append(st)
 
@@ -3937,9 +4267,10 @@ def review_rows(
     ctx = project_context or _proj_ctx.resolve_project_context()
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
+    scan_repo = _scan_repo_root(ctx, records_root)
     conn = open_cache(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx)
+        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
         rows = conn.execute(
             "SELECT path, parse_ok, round_count FROM review_files WHERE subject_id6 = ? ORDER BY path",
             (subject_id6,),
@@ -6093,7 +6424,13 @@ def append(
                 plural = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}.get(
                     st.type, "other"
                 )
-                target = LegacyTarget(records_root / rel, plural, target)
+                scan_repo = legacy_kwargs.get("repo_root") or _scan_repo_root(
+                    ctx, records_root
+                )
+                target_id = None if st.id_derived else target
+                target = LegacyTarget(
+                    source_path(rel, records_root, scan_repo), plural, target_id
+                )
             if legacy_render is None:
                 raise ValueError("a legacy-format append requires legacy_render")
             repo_root = (
@@ -6215,9 +6552,10 @@ def append(
 
         # After step 1: Change is recorded. Subsequent steps are best effort/recovery
         try:
+            scan_repo = _scan_repo_root(ctx, records_root)
             # Step 2: In-file mirror
             if state.path:
-                art_abs_p = records_root / state.path
+                art_abs_p = source_path(state.path, records_root, scan_repo)
                 if art_abs_p.exists():
                     txt = art_abs_p.read_text(encoding="utf-8")
                     new_txt = apply_in_file_mirror(txt, id6, art_type, state.status)
@@ -6240,6 +6578,7 @@ def append(
                         }
                     ],
                     records_root,
+                    repo_root=scan_repo,
                 )
             finally:
                 conn.close()
@@ -6406,6 +6745,7 @@ def repair(
     lock_path = state_root / "locks" / f"meta-{id6}.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
+    scan_repo = _scan_repo_root(ctx, records_root)
     with _lock.held(lock_path):
         # 1. Check operation journal
         j_file = _journal_dir(state_root) / f"{id6}.json"
@@ -6418,7 +6758,7 @@ def repair(
                     raise RuntimeError(
                         "refused repair: missing recovery source (empty body)"
                     )
-                dest_path = records_root / dest
+                dest_path = source_path(dest, records_root, scan_repo)
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 _core.atomic_write(dest_path, body)
                 j_file.unlink(missing_ok=True)
@@ -6480,7 +6820,7 @@ def repair(
         state, _, _, _ = replay(id6, art_type, lines, records_root=records_root)
 
         if state.path:
-            p = records_root / state.path
+            p = source_path(state.path, records_root, scan_repo)
             if p.exists():
                 txt = p.read_text(encoding="utf-8")
                 new_txt = apply_in_file_mirror(txt, id6, art_type, state.status)
@@ -6500,6 +6840,7 @@ def repair(
                     }
                 ],
                 records_root,
+                repo_root=scan_repo,
             )
         finally:
             conn.close()

@@ -44,37 +44,37 @@ STOP CONDITIONS (unsafe conditions, not scope questions): stop and report withou
 
 ### Task group 1: the phase-A cache sees every shape
 
-- [ ] E-04 In `agent_workflows/artifact_meta.py`, add the STORED-PATH form of `D-1` as two helpers: `stored_path(abs_path, records_root, repo_root) -> str` (records-root-relative POSIX path when the file is inside the records root, else `@repo/` plus the repository-relative POSIX path, and `ValueError` when it is inside neither) and `source_path(stored, records_root, repo_root) -> Path` (the inverse). Route every place the module joins a stored path to the records root through `source_path`: `_load_sources` (the `records_root / path_str` join and the review-subject join), `history` (the `records_root / art[0]` join), `append` (the `LegacyTarget(records_root / rel, ...)` build and the `records_root / state.path` in-file mirror) and `repair` (both joins). `create` is NOT changed: a new record is always written inside the records root. Add `_scan_repo_root(ctx, records_root) -> Optional[Path]`, which returns `ctx.repo_root` (`legacy_context`, `meta_cli.MetaContext`), else `ctx.target_repo` (`project_context.ProjectContext`), else `project_context.record_git_root(records_root)`, else `None`.
+- [x] E-04 In `agent_workflows/artifact_meta.py`, add the STORED-PATH form of `D-1` as two helpers: `stored_path(abs_path, records_root, repo_root) -> str` (records-root-relative POSIX path when the file is inside the records root, else `@repo/` plus the repository-relative POSIX path, and `ValueError` when it is inside neither) and `source_path(stored, records_root, repo_root) -> Path` (the inverse). Route every place the module joins a stored path to the records root through `source_path`: `_load_sources` (the `records_root / path_str` join and the review-subject join), `history` (the `records_root / art[0]` join), `append` (the `LegacyTarget(records_root / rel, ...)` build and the `records_root / state.path` in-file mirror) and `repair` (both joins). `create` is NOT changed: a new record is always written inside the records root. Add `_scan_repo_root(ctx, records_root) -> Optional[Path]`, which returns `ctx.repo_root` (`legacy_context`, `meta_cli.MetaContext`), else `ctx.target_repo` (`project_context.ProjectContext`), else `project_context.record_git_root(records_root)`, else `None`.
   - Depends on: none
   - Expected outcome: for a file inside the records root, `stored_path` returns the value the loader stores today (so every existing cache path is unchanged); for a file under `<repo>/.agents/`, it returns `@repo/.agents/...` and `source_path` maps it back to the same resolved file; the pin-first baseline list is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-01 (carried from `g5hpbb` E-02, corrected) In `artifact_meta`, make `check_freshness` also walk every EXTRA ROOT: each directory `selectors.record_dirs(repo_root, t)` returns for `t` in the nine types `status_set.inventory_all_artifacts` scans (`plans`, `specs`, `prompts`, `backlog`, `releases`, `research`, `walkthroughs`, `roadmaps`, `other`) whose resolved path is NOT inside the resolved records root, with `repo_root` from `_scan_repo_root` (no extra roots when it is `None`). For a `.agents/` layout these are `.agents/<type>`, `.agents/docs/research`, and, through the `other` sweep, every other `.agents/` child directory such as `.agents/docs` (which holds `.agents/docs/specs`) and `.agents/workflows`. Walk each file once, de-duplicated by resolved path, and apply the inventory's skips to extra-root files only: names in `selectors._SKIP_NAMES` and research companion files (`research_contract.companion_owner_stem`). Store each extra-root file under its `stored_path` (in `files.path`, `directories.path` and `artifacts.path`), so removal and rename detection keep working, and type it per `D-2` (import `status_set` and `selectors` inside the function, the pattern `artifact_meta` already uses for `selectors`). Replace the early `return` when the records root does not exist with a walk of the extra roots only. Bump `LEGACY_LOADER_VERSION` from `"legacy_v3"` to `"legacy_v4"`, because `compute_schema_hash` folds it into the schema hash and that is what rebuilds an existing cache. `check_freshness` takes the new keyword `repo_root: Optional[Path] = None`; its callers are wired in E-06.
+- [x] E-01 (carried from `g5hpbb` E-02, corrected) In `artifact_meta`, make `check_freshness` also walk every EXTRA ROOT: each directory `selectors.record_dirs(repo_root, t)` returns for `t` in the nine types `status_set.inventory_all_artifacts` scans (`plans`, `specs`, `prompts`, `backlog`, `releases`, `research`, `walkthroughs`, `roadmaps`, `other`) whose resolved path is NOT inside the resolved records root, with `repo_root` from `_scan_repo_root` (no extra roots when it is `None`). For a `.agents/` layout these are `.agents/<type>`, `.agents/docs/research`, and, through the `other` sweep, every other `.agents/` child directory such as `.agents/docs` (which holds `.agents/docs/specs`) and `.agents/workflows`. Walk each file once, de-duplicated by resolved path, and apply the inventory's skips to extra-root files only: names in `selectors._SKIP_NAMES` and research companion files (`research_contract.companion_owner_stem`). Store each extra-root file under its `stored_path` (in `files.path`, `directories.path` and `artifacts.path`), so removal and rename detection keep working, and type it per `D-2` (import `status_set` and `selectors` inside the function, the pattern `artifact_meta` already uses for `selectors`). Replace the early `return` when the records root does not exist with a walk of the extra roots only. Bump `LEGACY_LOADER_VERSION` from `"legacy_v3"` to `"legacy_v4"`, because `compute_schema_hash` folds it into the schema hash and that is what rebuilds an existing cache. `check_freshness` takes the new keyword `repo_root: Optional[Path] = None`; its callers are wired in E-06.
   - Depends on: E-04
   - Expected outcome (observed after E-06): for every corpus shape, the set of resolved paths `artifact_meta.query(project_context=artifact_meta.legacy_context(<root>))` returns contains every path in `.aw/state/6oi2nu/<shape>-before.json` (for `legacy_agents_layout` this is 0 rows before the change); on this repository the V-01 parity probe output is unchanged (this repository has no extra root, measured 2026-11-14 at `83f29302f`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Wire the callers of `check_freshness` to the scan of E-01: in `agent_workflows/artifact_meta.py`, pass `repo_root=_scan_repo_root(ctx, records_root)` from `read`, `history`, `resolve`, `query` and `review_rows`; in `agent_workflows/meta_cli.py`, pass `repo_root=ctx.repo_root` from `index_rebuild` and `refresh_cache`, make `refresh_cache` skip only when neither the records root nor an extra root exists, and make `resolve_selector` also try `@repo/<token>` for a relative path token and `@repo/<repo-relative path>` for an absolute path outside the records root.
+- [x] E-06 Wire the callers of `check_freshness` to the scan of E-01: in `agent_workflows/artifact_meta.py`, pass `repo_root=_scan_repo_root(ctx, records_root)` from `read`, `history`, `resolve`, `query` and `review_rows`; in `agent_workflows/meta_cli.py`, pass `repo_root=ctx.repo_root` from `index_rebuild` and `refresh_cache`, make `refresh_cache` skip only when neither the records root nor an extra root exists, and make `resolve_selector` also try `@repo/<token>` for a relative path token and `@repo/<repo-relative path>` for an absolute path outside the records root.
   - Depends on: E-01
   - Expected outcome: in the `legacy_agents_layout` fixture, `aw show <derived id6> --format json` and `aw show .agents/<a plan path> --format json` both return that record, and `aw index rebuild` counts it; on this repository the V-01 parity probe output is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `g5hpbb` E-03, corrected) Give an id-less record a STABLE DERIVED identity in the cache per `D-3`: replace the `_core.generate_id6(_pool)` branch of `load_legacy_artifact` with `derive_id6(stored_path, taken)`, which returns the first candidate, for `k` = 0, 1, 2 and so on, of six base36 characters (`artifact_core.ID6_ALPHABET`) taken from `sha256(stored_path + "\0" + str(k))` that is not in `taken`. `taken` is the existing per-records-root pool (`_LEGACY_MINT_POOLS`, seeded from `artifact_core.global_id6s`) plus every DECLARED id6 already in the cache. When a newly loaded record DECLARES an id6 that an existing derived row holds, re-derive that row first, so a declared id always wins. Record the identity kind: add `id_derived INTEGER` (1 for a derived id6, else 0) to the cache `artifacts` table in `generate_schema` and `id_derived: bool = False` to `State`, filled by the loader and by the row-to-`State` reads. A derived id6 is never written to a file or a sidecar: when `append` receives an id6 string whose `State.id_derived` is true, it builds `LegacyTarget(<file>, <plural>, None)`, so the legacy write keys it by path (`LegacyTarget.key` returns `path-` plus a SHA-256 prefix) exactly as an id-less setter target is keyed today.
+- [x] E-02 (carried from `g5hpbb` E-03, corrected) Give an id-less record a STABLE DERIVED identity in the cache per `D-3`: replace the `_core.generate_id6(_pool)` branch of `load_legacy_artifact` with `derive_id6(stored_path, taken)`, which returns the first candidate, for `k` = 0, 1, 2 and so on, of six base36 characters (`artifact_core.ID6_ALPHABET`) taken from `sha256(stored_path + "\0" + str(k))` that is not in `taken`. `taken` is the existing per-records-root pool (`_LEGACY_MINT_POOLS`, seeded from `artifact_core.global_id6s`) plus every DECLARED id6 already in the cache. When a newly loaded record DECLARES an id6 that an existing derived row holds, re-derive that row first, so a declared id always wins. Record the identity kind: add `id_derived INTEGER` (1 for a derived id6, else 0) to the cache `artifacts` table in `generate_schema` and `id_derived: bool = False` to `State`, filled by the loader and by the row-to-`State` reads. A derived id6 is never written to a file or a sidecar: when `append` receives an id6 string whose `State.id_derived` is true, it builds `LegacyTarget(<file>, <plural>, None)`, so the legacy write keys it by path (`LegacyTarget.key` returns `path-` plus a SHA-256 prefix) exactly as an id-less setter target is keyed today.
   - Depends on: E-06
   - Expected outcome: for each id-less record of `idless_prose` and `legacy_agents_layout`, a cold build, a warm build, a build after appending a line to the file and a build after deleting `index.db` give the same id6 (today they give four different values, `D-3`); each derived id6 fully matches `artifact_core.ID6_RE`, passes `validate_id6`, is absent from `artifact_core.global_id6s(<root>)` and has `State.id_derived` true; every declared id6 is unchanged and has `id_derived` false; a note `append` on a derived id6 leaves no id6 in the file or the sidecar.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Amend spec `4sd62s` (the `- Scope-Paths:` spec file) for phase B, in two places, and log it with `aw specs note <spec> --message "6oi2nu: phase-B extra-root path form and derived id6 (D-1, D-3)"`: (1) in 5.2a item 3, one sentence saying that in phase B the legacy loader also scans the `selectors.record_dirs` trees outside the records root and stores those files as `@repo/<repository-relative path>` until the layout stage moves them; (2) in the section 4.5a ER diagram, append to the `ARTIFACTS` `path` note "In phase B only, a file outside the records root is stored as @repo/<repository-relative path>" and add the row `int id_derived "Phase B only: 1 when the legacy loader derived the id6 from the path because the file declares none (6oi2nu D-3). Always 0 after the cutover."`.
+- [x] E-05 Amend spec `4sd62s` (the `- Scope-Paths:` spec file) for phase B, in two places, and log it with `aw specs note <spec> --message "6oi2nu: phase-B extra-root path form and derived id6 (D-1, D-3)"`: (1) in 5.2a item 3, one sentence saying that in phase B the legacy loader also scans the `selectors.record_dirs` trees outside the records root and stores those files as `@repo/<repository-relative path>` until the layout stage moves them; (2) in the section 4.5a ER diagram, append to the `ARTIFACTS` `path` note "In phase B only, a file outside the records root is stored as @repo/<repository-relative path>" and add the row `int id_derived "Phase B only: 1 when the legacy loader derived the id6 from the path because the file declares none (6oi2nu D-3). Always 0 after the cutover."`.
   - Depends on: E-01, E-02
   - Expected outcome: `git diff` of the spec shows only those two edits plus the one `## Workflow history` line `aw specs note` writes, and `aw specs check` on the spec reports no new error.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests
 
-- [ ] E-03 Add `tests/test_artifact_meta_shapes.py` with `pytestmark = pytest.mark.core`, building each fixture with the `9vf2iv` builders of `tests/migration_corpus.py` (each returns the fixture root) and calling the real functions only (no test reads production source, AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). Cases: (a) parameterized over the five shapes, the resolved path set of `artifact_meta.query(project_context=artifact_meta.legacy_context(root))` contains every resolved path of `status_set.inventory_all_artifacts(root)`, and id6 (where the inventory has one) and lowercased status agree for each; (b) for `idless_prose` and `legacy_agents_layout`, the cold, warm, after-edit and deleted-`index.db` builds give identical id6 values for every id-less record, each fully matching `artifact_core.ID6_RE`, none in `artifact_core.global_id6s(root)` and each with `id_derived` true; (c) for `legacy_agents_layout`, `artifact_meta.read(<derived id6>)` returns a `State` whose `source_path` is the `.agents/` file, and `artifact_meta.history(<derived id6>)` returns without error; (d) the same query through a `project_context.resolve_project_context(target_repo=str(root))` context and through a context carrying only `logical_roots` returns the same path set as (a); (e) a declared-id collision: a record declaring the id6 that an id-less record derived at `k` = 0 makes that record re-derive, and the declared record keeps its id6; (f) a note `append` on a derived id6 of an id-less spec writes no `- Id:` line to the file and no derived id6 to `records/history.jsonl`. Any test that `--durations=0` reports over 2 s is marked `@pytest.mark.slow` (do not edit `tests/slow_allowlist.txt`, which is outside `- Scope-Paths:`) and named in the V-03 evidence.
+- [x] E-03 Add `tests/test_artifact_meta_shapes.py` with `pytestmark = pytest.mark.core`, building each fixture with the `9vf2iv` builders of `tests/migration_corpus.py` (each returns the fixture root) and calling the real functions only (no test reads production source, AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). Cases: (a) parameterized over the five shapes, the resolved path set of `artifact_meta.query(project_context=artifact_meta.legacy_context(root))` contains every resolved path of `status_set.inventory_all_artifacts(root)`, and id6 (where the inventory has one) and lowercased status agree for each; (b) for `idless_prose` and `legacy_agents_layout`, the cold, warm, after-edit and deleted-`index.db` builds give identical id6 values for every id-less record, each fully matching `artifact_core.ID6_RE`, none in `artifact_core.global_id6s(root)` and each with `id_derived` true; (c) for `legacy_agents_layout`, `artifact_meta.read(<derived id6>)` returns a `State` whose `source_path` is the `.agents/` file, and `artifact_meta.history(<derived id6>)` returns without error; (d) the same query through a `project_context.resolve_project_context(target_repo=str(root))` context and through a context carrying only `logical_roots` returns the same path set as (a); (e) a declared-id collision: a record declaring the id6 that an id-less record derived at `k` = 0 makes that record re-derive, and the declared record keeps its id6; (f) a note `append` on a derived id6 of an id-less spec writes no `- Id:` line to the file and no derived id6 to `records/history.jsonl`. Any test that `--durations=0` reports over 2 s is marked `@pytest.mark.slow` (do not edit `tests/slow_allowlist.txt`, which is outside `- Scope-Paths:`) and named in the V-03 evidence.
   - Depends on: E-01, E-02, E-04, E-06
   - Expected outcome: every case passes, and the pin-first `diff` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,30 +167,91 @@ Spec `4sd62s` is amended by E-05 (declared in `- Scope-Paths:`). Why: spec 4.5a 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste a scratch run (in `/tmp`) of `stored_path` and `source_path` on one in-root file and one `.agents/` file, showing the in-root value equals today's records-root-relative path and both round-trip to the same resolved file; paste `diff .aw/state/6oi2nu/baseline-before.txt .aw/state/6oi2nu/baseline-after.txt` printing nothing.
   - Observed evidence:
-  - Result: pending
-- [ ] V-01 validates E-01
+    - Scratch `/tmp` round-trip probe:
+      `in_root stored_path: plans/pending/p1.ipd.md matches relative: True roundtrip_eq: True`
+      `extra stored_path: @repo/.agents/plans/pending/p2.md roundtrip_eq: True`
+    - Pin-first baseline diff (`diff .aw/state/6oi2nu/baseline-before.txt .aw/state/6oi2nu/baseline-after.txt`): empty output (`BASELINE_DIFF_EMPTY`), 103 passed before and 103 passed after in 25.10s.
+  - Result: pass
+- [x] V-01 validates E-01
   - Required evidence: paste, per corpus shape, the before-dump record count from `.aw/state/6oi2nu/<shape>-before.json` and the count of those paths found in `artifact_meta.query` after the change (equal), with `legacy_agents_layout`'s before-change query count of 0; paste the `LEGACY_LOADER_VERSION` diff line; and paste `.aw/state/6oi2nu/parity-before.txt` and `parity-after.txt` and their empty `diff`, where each file is the output of this probe run at the repository root: `python3 -c "from pathlib import Path; from agent_workflows import artifact_meta as m, project_context as p, status_set as s; c=p.resolve_project_context(); root=Path(c.logical_roots['records']).resolve(); by={str((root/r.path).resolve()):r for r in m.query(project_context=c) if r.path and not r.path.startswith('@repo/')}; inv=s.inventory_all_artifacts(Path('.')); print('rows', len(by), 'inventory', len(inv)); print('missing_from_cache', sum(1 for r in inv if str(r.path.resolve()) not in by)); print('id6_mismatch_declared', sum(1 for r in inv if r.id6 and by[str(r.path.resolve())].id6 != r.id6)); print('status_mismatch', sum(1 for r in inv if (by[str(r.path.resolve())].status or '') != (r.status or '').lower())); print('set_mismatch', sum(1 for r in inv if by[str(r.path.resolve())].set_id != r.set_id))"` (the code path is `artifact_meta.query` -> `check_freshness`, E-01). Measured at `83f29302f`: `rows 3391 inventory 3355`, `missing_from_cache 0`, `id6_mismatch_declared 0`, `status_mismatch 0`, `set_mismatch 246`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    - Corpus shape counts (`<shape>-before.json` vs `artifact_meta.query` via `check_freshness`):
+      - `legacy_agents_layout`: before=6, query_before=0, query_after=6, matched_paths=6
+      - `mixed_layout`: before=4 (3 unique `id6`s; `qa1z03` is byte-identical in `.aw/records/` and `.agents/`), query_before=2, query_after=3, matched_paths=3 (missing only the duplicate `.agents/plans/executed/20260710-beta-01-qa1z03-shared-plan.md`, because `artifacts.id6` is `PRIMARY KEY` so `.aw/records/` keeps the single `qa1z03` row while both paths are recorded in `files`)
+      - `idless_prose`: before=2, query_before=2, query_after=2, matched_paths=2
+      - `no_sidecar`: before=2, query_before=2, query_after=2, matched_paths=2
+      - `companion_backend`: before=2, query_before=2, query_after=2, matched_paths=2
+    - `LEGACY_LOADER_VERSION` diff (`1dvb08` had already bumped `"legacy_v3"` to `"legacy_v4"`, so `6oi2nu` bumped `"legacy_v4"` to `"legacy_v5"`):
+      `-LEGACY_LOADER_VERSION = "legacy_v4"`
+      `+LEGACY_LOADER_VERSION = "legacy_v5"`
+    - `.aw/state/6oi2nu/parity-before.txt` and `parity-after.txt` (identical, empty `diff`):
+      ```
+      rows 3411 inventory 3375
+      missing_from_cache 0
+      id6_mismatch_declared 0
+      status_mismatch 0
+      set_mismatch 247
+      ```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste, from the `legacy_agents_layout` fixture, the output of `aw show <derived id6> --format json`, `aw show .agents/<a plan path> --format json` (both naming the same record, code path `meta_cli.resolve_selector` -> `artifact_meta.read`, E-06) and `aw index rebuild` with the record counted; paste the V-01 parity probe output after E-06 with an empty `diff` against `parity-before.txt`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    - `aw show 2jldk4 --format json --dir <root>` (rc=0): returned `"id6": "2jldk4"`, `"type": "ipd"`, `"status": "executed"`, `"path": "@repo/.agents/plans/executed/20260705-1015-01-legacy-setup.md"`, `"title": "IPD: Synthetic legacy timestamp plan"`.
+    - `aw show .agents/plans/executed/20260705-1015-01-legacy-setup.md --format json --dir <root>` (rc=0): returned the exact same record `"id6": "2jldk4"`, `"path": "@repo/.agents/plans/executed/20260705-1015-01-legacy-setup.md"`.
+    - `aw index rebuild --json --dir <root>` (rc=0): `"summary": "rebuilt .aw/state/index.db: 6 artifacts, 0 walkthroughs, 0 review files, 0 events; valid: 6, invalid: 0"`, `"data": {"artifacts": 6, "walkthroughs": 0, "review_files": 0, "events": 0, "valid": 6, "invalid": 0, "cache": ".aw/state/index.db", "in_memory_fallback": false}`.
+    - V-01 parity probe `diff .aw/state/6oi2nu/parity-before.txt .aw/state/6oi2nu/parity-after.txt` after E-06: empty (`PARITY_DIFF_EMPTY`).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste, for every id-less record of `idless_prose` and `legacy_agents_layout`, the id6 from a cold build, a warm build, a build after appending a line, and a build after deleting `index.db` (all four identical, code path `artifact_meta.query` -> `load_legacy_artifact`, E-02), its `id_derived` value (true), and a check that none is in `artifact_core.global_id6s(<fixture>)`; paste the `generate_schema` diff adding `id_derived`; paste `grep -c` of the derived id6 in the file and in `records/history.jsonl` after a note `append` (both 0).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    - `idless_prose`:
+      - `notes/scratch.md`: `cold=cl6rpp warm=cl6rpp edit=cl6rpp rebuild=cl6rpp id_derived=True in_global=False`
+      - `plans/executed/20260715-prose-migration-ipd.md`: `cold=qfm5dv warm=qfm5dv edit=qfm5dv rebuild=qfm5dv id_derived=True in_global=False`
+    - `legacy_agents_layout`:
+      - `@repo/.agents/docs/research/20260708-survey-notes.md`: `cold=f12ev8 warm=f12ev8 edit=f12ev8 rebuild=f12ev8 id_derived=True in_global=False`
+      - `@repo/.agents/docs/specs/20260706-0900-01-core-spec.spec.md`: `cold=fyqwsm warm=fyqwsm edit=fyqwsm rebuild=fyqwsm id_derived=True in_global=False`
+      - `@repo/.agents/plans/executed/20260705-1015-01-legacy-setup.md`: `cold=2jldk4 warm=2jldk4 edit=2jldk4 rebuild=2jldk4 id_derived=True in_global=False`
+      - `@repo/.agents/workflows/demo/demo.md`: `cold=9l8cfp warm=9l8cfp edit=9l8cfp rebuild=9l8cfp id_derived=True in_global=False`
+    - `generate_schema` diff:
+      `-            defect TEXT`
+      `+            defect TEXT,`
+      `+            id_derived INTEGER DEFAULT 0`
+    - Note `append` on derived spec `fyqwsm`: `append_grep_count(fyqwsm): file=0 history.jsonl=0`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff` of `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` showing only the 5.2a item 3 sentence, the two `ARTIFACTS` diagram edits and the `aw specs note` history line, and the `aw specs check` output for the spec with no new error.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    - `git diff` of `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md`:
+      - `ARTIFACTS` `path` note appended: `In phase B only, a file outside the records root is stored as @repo/<repository-relative path>.` and row added: `int id_derived "Phase B only: 1 when the legacy loader derived the id6 from the path because the file declares none (6oi2nu D-3). Always 0 after the cutover."`
+      - Section 5.2a item 3 appended: `In phase B, the legacy loader also scans the selectors.record_dirs trees outside the records root and stores those files as @repo/<repository-relative path> until the layout stage moves them.`
+      - `## Workflow history` appended via `aw specs note`: `- 2026-11-17 note (aw specs): 6oi2nu: phase-B extra-root path form and derived id6 (D-1, D-3)`
+    - `aw specs check`: `1 specs checked.` (only pre-existing `spec.prose-dash` warning on line 102, exit 0, no new error).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_artifact_meta_shapes.py tests/test_artifact_meta_legacy.py tests/test_artifact_meta_cache.py tests/test_artifact_meta_loader_parity.py tests/test_artifact_meta_legacy_write.py tests/test_artifact_meta_read.py tests/test_cli_show.py tests/test_show_history.py` with every case (a) to (f) of `tests/test_artifact_meta_shapes.py` PASSED by node id (five shape ids for case (a)), 0 failed in the seven existing modules, and every test over 2 s named and marked `slow`; paste `grep -n "pytestmark" tests/test_artifact_meta_shapes.py` showing `pytest.mark.core`.
   - Observed evidence:
-  - Result: pending
+    - `118 passed in 34.38s` (0 failed; 0 tests over 2 s, slowest `1.25s`, `test_artifact_meta_shapes.py` slowest `1.11s`).
+    - Passed node ids in `tests/test_artifact_meta_shapes.py`:
+      - `tests/test_artifact_meta_shapes.py::test_a_shapes_query_parity[companion_backend]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_a_shapes_query_parity[idless_prose]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_a_shapes_query_parity[legacy_agents_layout]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_a_shapes_query_parity[mixed_layout]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_a_shapes_query_parity[no_sidecar]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_b_idless_derived_id6_stability[idless_prose]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_b_idless_derived_id6_stability[legacy_agents_layout]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_c_legacy_agents_read_and_history` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_d_query_resolved_and_logical_roots_contexts[companion_backend]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_d_query_resolved_and_logical_roots_contexts[idless_prose]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_d_query_resolved_and_logical_roots_contexts[legacy_agents_layout]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_d_query_resolved_and_logical_roots_contexts[mixed_layout]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_d_query_resolved_and_logical_roots_contexts[no_sidecar]` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_e_declared_id_collision_rederives_idless` PASSED
+      - `tests/test_artifact_meta_shapes.py::test_f_note_append_on_derived_spec_writes_no_id_or_sidecar` PASSED
+    - `grep -n "pytestmark" tests/test_artifact_meta_shapes.py`: `24:pytestmark = pytest.mark.core`
+  - Result: pass
 
 ## Approval and execution gate
 

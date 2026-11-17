@@ -101,17 +101,32 @@ def resolve_selector(ctx: MetaContext, ref: str) -> List[str]:
     if _core.ID6_RE.fullmatch(tok):
         return [tok] if _meta.resolve(tok, project_context=ctx) else []
 
-    # Path forms: normalize to a records-root-relative path, then ask `resolve`.
+    # Path forms: normalize to a records-root-relative path (or `@repo/...` for extra roots),
+    # then ask `resolve`.
     candidates: List[str] = []
     p = Path(tok)
     with contextlib.suppress(Exception):
         if p.is_absolute():
-            candidates.append(str(p.resolve().relative_to(ctx.records_root.resolve())))
+            resolved_p = p.resolve()
+            try:
+                candidates.append(
+                    resolved_p.relative_to(ctx.records_root.resolve()).as_posix()
+                )
+            except ValueError:
+                candidates.append(
+                    "@repo/"
+                    + resolved_p.relative_to(ctx.repo_root.resolve()).as_posix()
+                )
     clean = tok.replace("\\", "/")
+    clean_rel = clean[2:] if clean.startswith("./") else clean
     candidates.append(clean)
+    if clean_rel != clean:
+        candidates.append(clean_rel)
     for prefix in (".aw/records/", "records/"):
-        if clean.startswith(prefix):
-            candidates.append(clean[len(prefix) :])
+        if clean_rel.startswith(prefix):
+            candidates.append(clean_rel[len(prefix) :])
+    if clean_rel and not clean_rel.startswith("@repo/"):
+        candidates.append(f"@repo/{clean_rel}")
     for cand in candidates:
         hit = _meta.resolve(cand, project_context=ctx)
         if hit:
@@ -421,6 +436,38 @@ def _cache_paths(state_root: Path) -> List[Path]:
     ]
 
 
+def _has_any_record_root(ctx: MetaContext) -> bool:
+    """Return True when the records root or any extra `selectors.record_dirs` root exists."""
+    if ctx.records_root.is_dir():
+        return True
+    from agent_workflows import selectors as _sel
+
+    rec_resolved = ctx.records_root.resolve()
+    for rtype in (
+        "plans",
+        "specs",
+        "prompts",
+        "backlog",
+        "releases",
+        "research",
+        "walkthroughs",
+        "roadmaps",
+        "other",
+    ):
+        for d in _sel.record_dirs(ctx.repo_root, rtype):
+            try:
+                d_res = d.resolve()
+            except OSError:
+                continue
+            if (
+                d_res != rec_resolved
+                and not d_res.is_relative_to(rec_resolved)
+                and d.is_dir()
+            ):
+                return True
+    return False
+
+
 def index_rebuild(repo_root: Path) -> CommandResult:
     """Delete the cache and rebuild it from empty through `artifact_meta` (4.5).
 
@@ -429,7 +476,7 @@ def index_rebuild(repo_root: Path) -> CommandResult:
     is a FINDING (exit 1) naming the record, because the rebuild itself succeeded.
     """
     ctx = meta_context(repo_root)
-    if not ctx.records_root.is_dir():
+    if not _has_any_record_root(ctx):
         return CommandResult(
             command="index rebuild",
             status="cannot-run",
@@ -467,7 +514,9 @@ def index_rebuild(repo_root: Path) -> CommandResult:
             complete=False,
         )
     try:
-        _meta.check_freshness(conn, ctx.records_root, force=True)
+        _meta.check_freshness(
+            conn, ctx.records_root, force=True, repo_root=ctx.repo_root
+        )
 
         def one(sql: str) -> int:
             row = conn.execute(sql).fetchone()
@@ -546,12 +595,13 @@ def refresh_cache(repo_root: Path) -> None:
     """
     with contextlib.suppress(Exception):
         ctx = meta_context(repo_root)
-        # A repository with no records tree gets no cache: the typed spelling refused (or had
-        # nothing to index), and creating `.aw/state/` there would write into a non-project dir.
-        if not ctx.records_root.is_dir():
+        # A repository with neither a records tree nor an extra record root gets no cache: the
+        # typed spelling refused (or had nothing to index), and creating `.aw/state/` there would
+        # write into a non-project dir.
+        if not _has_any_record_root(ctx):
             return
         conn = _meta.open_cache(ctx.records_root, ctx.state_root)
         try:
-            _meta.check_freshness(conn, ctx.records_root)
+            _meta.check_freshness(conn, ctx.records_root, repo_root=ctx.repo_root)
         finally:
             conn.close()
