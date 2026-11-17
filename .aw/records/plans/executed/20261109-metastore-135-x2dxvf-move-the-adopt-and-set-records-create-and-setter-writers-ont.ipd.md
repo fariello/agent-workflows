@@ -6,7 +6,7 @@
 - Scope: Register `walkthrough` fields (`set`, `order`, `target_id`) plus statusless walkthrough creation and verbatim-body `research` YAML creation in `agent_workflows/artifact_meta.py`, move `agent_workflows/artifact_adopt.py::apply_adoption`, `agent_workflows/set_records.py::write_walkthrough`, and `agent_workflows/set_records.py::promote_question_to_backlog` onto `artifact_meta.create` (`n5sxxk` E-01 adopt and walkthrough subsets plus E-02 question-promotion subset), move `agent_workflows/set_records.py::close_on_answer` onto `artifact_meta.append` (`n5sxxk` E-02 close-on-answer subset), and remove unused `_extract_body` from `agent_workflows/set_records.py`. Depends on `jlwedt`, which registers `backlog` creation fields (`set` and migration-only `summary`), widens initial `backlog` statuses (`blocked`), and supports headerless backlog creation layout in `artifact_meta`. EXCLUDES: research CLI writers (`s95hj6`), scaffold and prompts (`ernmom`), creation-time `short_description` (`py2vu9`, `fekdwv`), and `set_records.write_local_projections` (generated projection files recorded in `xexn45` F-09, not metadata).
 - Scope-Paths: agent_workflows/artifact_adopt.py, agent_workflows/set_records.py, agent_workflows/artifact_meta.py, .aw/records/plans/pending/20261109-metastore-135-x2dxvf-move-the-adopt-and-set-records-create-and-setter-writers-ont.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:jlwedt
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x2dxvf
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: x2dxvf verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
