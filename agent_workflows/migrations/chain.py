@@ -337,3 +337,12 @@ MIGRATIONS: Tuple[Migration, ...] = (
         _run=_m0001_run,
     ),
 )
+
+
+def pending_migrations(repo: Union[str, Path]) -> List[Migration]:
+    """Return MIGRATIONS entries in chain order that are pending and within CURRENT_METADATA_SCHEMA."""
+    return [
+        m
+        for m in MIGRATIONS
+        if m.target_schema <= CURRENT_METADATA_SCHEMA and m.is_pending(repo)
+    ]

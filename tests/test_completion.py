@@ -593,6 +593,15 @@ class PositionalChoicesIntrospectionTests(unittest.TestCase):
         )
         self.assertEqual(with_choices, ["completion", "migrate-layout", "path"])
 
+        migrate_node = self.tree["subcommands"]["migrate"]
+        self.assertEqual(migrate_node["choices"], [])
+        migrate_layout_node = migrate_node["subcommands"]["layout"]
+        self.assertEqual(
+            sorted(migrate_layout_node["choices"]),
+            sorted(node["choices"]),
+        )
+        self.assertEqual(migrate_layout_node["subcommands"], {})
+
 
 class CompletionSurfaceParityTests(unittest.TestCase):
     """The static scripts and the dynamic `complete_query` agree on the static layer (4y95tp E-05).
@@ -621,6 +630,11 @@ class CompletionSurfaceParityTests(unittest.TestCase):
             2,
             "a choices-bearing command the static side gained in this "
             "change; the dynamic side offered nothing here before E-05",
+        ),
+        (
+            ["aw", "migrate", "layout", ""],
+            3,
+            "the nested migrate > layout leaf carries the same eight positional choices",
         ),
         (["aw", "path", ""], 2, "the second choices-bearing command"),
         (

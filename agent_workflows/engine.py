@@ -828,6 +828,11 @@ def parse_args(argv=None) -> argparse.Namespace:
         help="Automatically answer yes to all prompts.",
     )
     parser.add_argument(
+        "--migrate",
+        action="store_true",
+        help="Run pending metadata migrations after install without prompting (does not add --force or --force-worktree).",
+    )
+    parser.add_argument(
         "--diff",
         "-d",
         action="store_true",
@@ -8184,8 +8189,17 @@ def install_into_repo(
     # Honest tracking notice + already-tracked scan (IPD 03). Informational; skip on dry-run.
     if not dry_run:
         from agent_workflows import config as _config
+        from agent_workflows.migrations import chain as _mig_chain
 
         _config.sync_cutovers_on_install(plan.repo_root)
+        # Stamp empty/v2-clean repositories with CURRENT_METADATA_SCHEMA (spec 4sd62s 5.3 / 1vfqdu E-03).
+        # Never stamp a repository that has legacy records or already carries a stamp.
+        if _mig_chain.read_metadata_schema(
+            plan.repo_root
+        ) is None and not _mig_chain.repo_has_legacy_records(plan.repo_root):
+            _mig_chain.write_metadata_schema(
+                plan.repo_root, _mig_chain.CURRENT_METADATA_SCHEMA
+            )
         # gzsfqn E-02: stage wizard-written tracked policy files so commit captures them
         if not clean:
             stage_tracked_policy_files(plan.repo_root, use_git, installed)
@@ -8210,6 +8224,76 @@ def install_into_repo(
         "untracked_ignore_status": untracked_ignore_status,
         "target_layout": target_layout,
     }
+
+
+def handle_pending_migrations_after_install(
+    repo_root: Path,
+    *,
+    migrate: bool = False,
+    term: Optional[Term] = None,
+) -> bool:
+    """Report, prompt for, or apply pending metadata migrations after bundle install (E-03).
+
+    Returns True when all checked migrations succeeded or were safely skipped; False if an
+    attempted migration refused or failed.
+    """
+    from agent_workflows import layout_migration as _lm
+    from agent_workflows import term as _term_mod
+    from agent_workflows.migrations import chain as _mig_chain
+
+    t = term if term is not None else Term()
+    pending = _mig_chain.pending_migrations(repo_root)
+    if not pending:
+        t.status("ok", f"{repo_root}: no pending metadata migrations.")
+        return True
+
+    for mig in pending:
+        cmd_hint = (
+            "aw migrate metadata" if mig.number == 1 else f"aw migrate {mig.name}"
+        )
+        t.status(
+            "info",
+            f"{repo_root}: pending migration {mig.number:04d} {mig.name} (command: `{cmd_hint}`).",
+        )
+
+    for mig in pending:
+        cmd_hint = (
+            "aw migrate metadata" if mig.number == 1 else f"aw migrate {mig.name}"
+        )
+        should_run = False
+        if migrate:
+            should_run = True
+        elif _term_mod.is_interactive():
+            try:
+                answer = (
+                    input(f"Run migration {mig.number:04d} {mig.name} now? [y/N] ")
+                    .strip()
+                    .lower()
+                )
+            except EOFError:
+                answer = ""
+            should_run = answer in ("y", "yes")
+
+        if should_run:
+            try:
+                mig.run(repo_root, apply=True)
+            except (_lm.PreflightGateError, _lm.MigrationError) as exc:
+                t.status(
+                    "fail",
+                    f"{repo_root}: migration {mig.number:04d} {mig.name} failed: {exc}",
+                )
+                return False
+            t.status(
+                "ok",
+                f"{repo_root}: applied migration {mig.number:04d} {mig.name}.",
+            )
+        else:
+            t.status(
+                "info",
+                f"{repo_root}: migration {mig.number:04d} {mig.name} not run; run `{cmd_hint}` when ready.",
+            )
+
+    return True
 
 
 def run(args: argparse.Namespace) -> int:
@@ -8380,6 +8464,14 @@ def run(args: argparse.Namespace) -> int:
                 artifacts=artifacts,
                 untracked_ignore_status=untracked_ignore_status,
             )
+        if not plan.dry_run:
+            ok_mig = handle_pending_migrations_after_install(
+                plan.repo_root,
+                migrate=bool(getattr(args, "migrate", False)),
+                term=Term(color=False if plan.no_color else None),
+            )
+            if not ok_mig:
+                returncode = 1
     return returncode
 
 

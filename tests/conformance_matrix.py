@@ -55,6 +55,7 @@ from agent_workflows import runner_shared, set_records
 from agent_workflows.command_surface import (
     CommandDeclaration,
     discover_parser_leaves,
+    discover_parser_roots,
     get_all_declarations,
 )
 
@@ -327,6 +328,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="fixture_lifecycle",
         citation="harness architecture",
         reason="Alters layout of the project fixture that the sweep executes within.",
+    ),
+    "migrate layout": Exemption(
+        reason_kind="fixture_lifecycle",
+        citation="harness architecture",
+        reason="Group spelling of migrate-layout; alters layout of the project fixture that the sweep executes within.",
     ),
     "uninstall": Exemption(
         reason_kind="fixture_lifecycle",
@@ -1459,13 +1465,18 @@ def build_matrix(parser) -> MatrixReport:
     """
     report = MatrixReport()
     parser_leaves = discover_parser_leaves(parser)
+    parser_roots = discover_parser_roots(parser)
     declared = {d.command for d in get_all_declarations()}
     report.undeclared = sorted(parser_leaves - declared)
 
     for decl in get_all_declarations():
         if decl.command == "aw":
             continue
-        if decl.command not in parser_leaves and decl.command_class != "alias":
+        if (
+            decl.command not in parser_leaves
+            and decl.command not in parser_roots
+            and decl.command_class != "alias"
+        ):
             # Declared but no longer in the parser: not a coverage row (kept out of
             # the live matrix; unreachable declarations are gated behaviorally by
             # test_command_surface_declarations.test_zero_unreachable_command_declarations,

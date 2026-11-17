@@ -567,6 +567,21 @@ _DESCRIPTIONS = {
         "journal. Moves/copies records to the chosen backend and updates the registry "
         "policy. Recoverable on failure; --dry-run previews."
     ),
+    "migrate": (
+        "Run pending AW migrations in order (layout first when a legacy .agents/ tree exists, "
+        "then metadata). Dry run by default; pass --apply to execute, --commit/--no-commit for "
+        "the layout step, and --force/--force-worktree for the metadata step."
+    ),
+    "migrate metadata": (
+        "Migrate legacy metadata records to the v2 event-log format (dry run by default). "
+        "Pass --apply to execute, --force to override preflight conditions 2-4 and missing "
+        "expected sidecar, and --force-worktree to override the linked-worktree refusal."
+    ),
+    "migrate layout": (
+        "Transactional AW layout migration and records-backend cutover, with a rollback "
+        "journal. Moves/copies records to the chosen backend and updates the registry "
+        "policy. Recoverable on failure; --dry-run previews."
+    ),
     # worksequence i6015i E-01/E-04: `next` is the canonical name; the three historical spellings are
     # aliases of it. `--order-by` is what makes the name honest: without it the view is a SET sorted
     # by (class, path, id), which is not an answer to "in what order".
@@ -1116,6 +1131,91 @@ def _add_commit_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _configure_migrate_layout_parser(p_migrate: argparse.ArgumentParser) -> None:
+    """Register the shared positional and option arguments for `migrate-layout` and `migrate layout`."""
+    p_migrate.add_argument(
+        "action",
+        nargs="?",
+        choices=[
+            "inventory",
+            "plan",
+            "apply",
+            "status",
+            "resume",
+            "rollback",
+            "cleanup",
+            "wizard",
+        ],
+        default=None,
+        help="Action to perform: wizard (default guided flow), inventory, plan, apply, status, resume, rollback, cleanup.",
+    )
+    p_migrate.add_argument(
+        "--config",
+        default=None,
+        help="Path to JSON configuration file providing answers for non-interactive migration.",
+    )
+    p_migrate.add_argument(
+        "--target-backend",
+        choices=["home", "companion", "repository"],
+        default=None,
+        help="Target records storage backend: repository (default), companion, home.",
+    )
+    p_migrate.add_argument(
+        "--root",
+        action="append",
+        default=[],
+        metavar="LABEL=PATH",
+        help="Additional legacy root to inventory (repeatable).",
+    )
+    p_migrate.add_argument(
+        "--output",
+        default=None,
+        help="Write JSON output to file path.",
+    )
+    p_migrate.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show migration plan without mutating filesystem.",
+    )
+    p_migrate.add_argument(
+        "--apply", action="store_true", help="Execute approved migration transaction."
+    )
+    p_migrate.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Explicit high-warning confirmation for cleanup/apply.",
+    )
+    p_migrate.add_argument(
+        "--fault-injection", default=None, help="Fault injection name for test harness."
+    )
+    p_migrate.add_argument(
+        "--leftovers",
+        choices=["keep", "remove", "defer"],
+        default=None,
+        help="Disposition for legacy material NOT moved by the migration: keep (leave in "
+        "place), remove (delete), or defer (record for a later cleanup; the default). Never "
+        "deletes without an explicit 'remove'.",
+    )
+    p_migrate.add_argument(
+        "--rename-to-grammar",
+        action="store_true",
+        help="Also rename migrated durable records to the uniform .type.md naming grammar "
+        "(opt-in; default off). Comms and research keep their own naming. When neither this flag "
+        "nor a config 'rename_to_grammar' key is set, an interactive run asks; a non-interactive "
+        "run leaves existing names (dual-read keeps them working).",
+    )
+    p_migrate.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Non-interactive; auto-confirm all prompts, including the final commit "
+        "(leftovers defaults to defer).",
+    )
+    # The migration commits its own path-scoped moves (never `add -A`, never push). `--no-commit`
+    # leaves them staged for a hand commit; `--commit` commits non-interactively without `--yes`.
+    _add_commit_flags(p_migrate)
+
+
 def _add_without_receipt_flags(parser: argparse.ArgumentParser) -> None:
     """legacyfin `18kg7o` E-05: the reasoned no-receipt bypass, shared by every finalize route.
 
@@ -1560,6 +1660,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Also install drop-in shell completion ('auto' detects $SHELL). Default: none "
         "(non-interactively nothing is written; interactively you are asked).",
     )
+    p_install.add_argument(
+        "--migrate",
+        action="store_true",
+        help="Run pending metadata migrations after install without prompting (does not add --force or --force-worktree).",
+    )
     grp_relocate = p_install.add_mutually_exclusive_group()
     grp_relocate.add_argument(
         "--relocate",
@@ -1633,6 +1738,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Also install drop-in shell completion ('auto' detects $SHELL). Default: none "
         "(non-interactively nothing is written; interactively you are asked).",
+    )
+    p_setup.add_argument(
+        "--migrate",
+        action="store_true",
+        help="Run pending metadata migrations after setup install without prompting (does not add --force or --force-worktree).",
     )
 
     p_uninstall = sub.add_parser(
@@ -5489,87 +5599,65 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Transactional AW layout migration (moves legacy .agents/ to canonical .aw/).",
     )
-    p_migrate.add_argument(
-        "action",
-        nargs="?",
-        choices=[
-            "inventory",
-            "plan",
-            "apply",
-            "status",
-            "resume",
-            "rollback",
-            "cleanup",
-            "wizard",
-        ],
-        default=None,
-        help="Action to perform: wizard (default guided flow), inventory, plan, apply, status, resume, rollback, cleanup.",
+    _configure_migrate_layout_parser(p_migrate)
+
+    p_migrate_group = sub.add_parser(
+        "migrate",
+        parents=[common],
+        help="Run pending AW migrations in order (layout then metadata; dry run by default), or invoke a subcommand (`metadata`, `layout`).",
     )
-    p_migrate.add_argument(
-        "--config",
-        default=None,
-        help="Path to JSON configuration file providing answers for non-interactive migration.",
-    )
-    p_migrate.add_argument(
-        "--target-backend",
-        choices=["home", "companion", "repository"],
-        default=None,
-        help="Target records storage backend: repository (default), companion, home.",
-    )
-    p_migrate.add_argument(
-        "--root",
-        action="append",
-        default=[],
-        metavar="LABEL=PATH",
-        help="Additional legacy root to inventory (repeatable).",
-    )
-    p_migrate.add_argument(
-        "--output",
-        default=None,
-        help="Write JSON output to file path.",
-    )
-    p_migrate.add_argument(
-        "--dry-run",
+    # Use distinct dest names on the group so `layout`'s own `--apply` default never overwrites
+    # the group-level flag when argparse merges subparser namespaces.
+    p_migrate_group.add_argument(
+        "--apply",
+        dest="migrate_apply",
         action="store_true",
-        help="Show migration plan without mutating filesystem.",
+        help="Perform every pending migration step in order (default: dry run).",
     )
-    p_migrate.add_argument(
-        "--apply", action="store_true", help="Execute approved migration transaction."
-    )
-    p_migrate.add_argument(
-        "--confirm",
+    p_migrate_group.add_argument(
+        "--force",
+        dest="migrate_force",
         action="store_true",
-        help="Explicit high-warning confirmation for cleanup/apply.",
+        help="Pass --force to the metadata step only (overrides preflight conditions 2-4 and missing expected sidecar).",
     )
-    p_migrate.add_argument(
-        "--fault-injection", default=None, help="Fault injection name for test harness."
-    )
-    p_migrate.add_argument(
-        "--leftovers",
-        choices=["keep", "remove", "defer"],
-        default=None,
-        help="Disposition for legacy material NOT moved by the migration: keep (leave in "
-        "place), remove (delete), or defer (record for a later cleanup; the default). Never "
-        "deletes without an explicit 'remove'.",
-    )
-    p_migrate.add_argument(
-        "--rename-to-grammar",
+    p_migrate_group.add_argument(
+        "--force-worktree",
+        dest="migrate_force_worktree",
         action="store_true",
-        help="Also rename migrated durable records to the uniform .type.md naming grammar "
-        "(opt-in; default off). Comms and research keep their own naming. When neither this flag "
-        "nor a config 'rename_to_grammar' key is set, an interactive run asks; a non-interactive "
-        "run leaves existing names (dual-read keeps them working).",
+        help="Pass --force-worktree to the metadata step only (overrides linked-worktree refusal).",
     )
-    p_migrate.add_argument(
-        "-y",
-        "--yes",
+    _add_commit_flags(p_migrate_group)
+    migrate_sub = p_migrate_group.add_subparsers(
+        dest="migrate_command", metavar="[<subcommand>]"
+    )
+
+    p_migrate_metadata = migrate_sub.add_parser(
+        "metadata",
+        parents=[common],
+        help="Migrate legacy metadata records to the v2 event-log format (dry run by default).",
+    )
+    p_migrate_metadata.add_argument(
+        "--apply",
         action="store_true",
-        help="Non-interactive; auto-confirm all prompts, including the final commit "
-        "(leftovers defaults to defer).",
+        help="Apply the metadata migration (default: dry run).",
     )
-    # The migration commits its own path-scoped moves (never `add -A`, never push). `--no-commit`
-    # leaves them staged for a hand commit; `--commit` commits non-interactively without `--yes`.
-    _add_commit_flags(p_migrate)
+    p_migrate_metadata.add_argument(
+        "--force",
+        action="store_true",
+        help="Override preflight conditions (2)-(4) and missing expected sidecar (never overrides worktree refusal).",
+    )
+    p_migrate_metadata.add_argument(
+        "--force-worktree",
+        action="store_true",
+        help="Override linked-worktree preflight refusal.",
+    )
+
+    p_migrate_layout = migrate_sub.add_parser(
+        "layout",
+        parents=[common],
+        help="Transactional AW layout migration (moves legacy .agents/ to canonical .aw/).",
+    )
+    _configure_migrate_layout_parser(p_migrate_layout)
 
     # worksequence i6015i E-01: `next` is the CANONICAL name and `attention`/`att`/`todo` are its
     # aliases (the relationship is inverted from the original, where `attention` was canonical). All
@@ -8795,6 +8883,14 @@ def _install_one(
         )
     else:
         term.status("ok", f"{repo_root}: nothing staged or committed in the target.")
+
+    if not getattr(args, "dry_run", False):
+        if not engine.handle_pending_migrations_after_install(
+            repo_root,
+            migrate=bool(getattr(args, "migrate", False)),
+            term=term,
+        ):
+            outcome = "failed"
     return outcome
 
 
@@ -11374,6 +11470,7 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
     term.status("ok", f"Saved config to {saved}")
 
     # Install into discovered repos (with consent unless --yes).
+    install_failed = False
     if found.targets and _confirm(
         term,
         f"Install agent-workflows into {len(found.targets)} repo(s) now?",
@@ -11396,7 +11493,8 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
             # Shared per-repo shell: installs AND offers to commit (auto under --yes),
             # SystemExit-isolated. Before D85 setup staged files and never committed.
             _handle_legacy_migration(Path(repo), args, term)
-            _install_one(repo, source_root, args, term)
+            if _install_one(repo, source_root, args, term) == "failed":
+                install_failed = True
 
     # tabcomp Order 03 (jolfpj) E-03/E-04: the HOST-LEVEL, once-per-user completion step. It runs
     # here (after the per-repo installs, before orientation) rather than inside install_wizard.py,
@@ -11410,7 +11508,7 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
 
     _orient(term)
     _completion_tip(term)
-    return 0
+    return 1 if install_failed else 0
 
 
 def _orient(term: Term) -> None:
@@ -18098,6 +18196,578 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     return _report_and_commit_migration(args, term, mgr, json_out)
 
 
+def _sanitize_migrate_text(text: str, repo_path: Path) -> str:
+    """Redact repo/home absolute paths from agent-mode diagnostic text."""
+    from agent_workflows import agent_schema as _schema
+
+    cleaned = _schema.redact_home_paths(text)
+    repo_str = str(repo_path)
+    if repo_str:
+        cleaned = cleaned.replace(repo_str, "<repo>")
+    try:
+        resolved = str(repo_path.resolve())
+        if resolved:
+            cleaned = cleaned.replace(resolved, "<repo>")
+    except OSError:
+        pass
+    return cleaned
+
+
+def _print_metadata_migration_report(
+    term: Term, report: Dict[str, Any], *, apply_mode: bool
+) -> None:
+    """Render a human-readable summary for a single metadata migration report."""
+    mig_id = report.get("migration_id", "m0001")
+    mode_label = "Apply" if apply_mode else "Dry Run"
+    term.heading(f"AW Metadata Migration ({mig_id} - {mode_label})")
+    preflight = report.get("preflight") or {}
+    for warn in preflight.get("warnings") or []:
+        term.status("warn", str(warn))
+    sidecar = report.get("sidecar") or {}
+    term.status("info", f"Status:        {report.get('status')}")
+    term.status("info", f"Sidecar:       {sidecar.get('status', 'unknown')}")
+    term.status(
+        "info",
+        f"Queued events: {sidecar.get('queued_event_count', 0)} across "
+        f"{sidecar.get('queued_id6_count', 0)} record(s)",
+    )
+    orphan_count = int(sidecar.get("orphan_record_count", 0) or 0)
+    if orphan_count:
+        term.status("info", f"Orphans:       {orphan_count}")
+    if apply_mode:
+        term.status(
+            "ok",
+            f"Applied {len(report.get('applied_files') or [])} file operation(s).",
+        )
+    else:
+        term.status("info", "Dry run only; pass --apply to execute.")
+
+
+def _run_migrate_metadata(
+    args: argparse.Namespace, term: Term, *, context: Optional[Any] = None
+) -> int:
+    """Execute or dry-run `aw migrate metadata` through `chain.MIGRATIONS` (E-01)."""
+    from agent_workflows import layout_migration as _lm
+    from agent_workflows.migrations import chain as _chain
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        NextAction,
+        select_output,
+    )
+
+    repo_path = Path(os.getcwd())
+    ctx = context if context is not None else select_output(args)
+    apply_mode = bool(getattr(args, "apply", False))
+    force_mode = bool(getattr(args, "force", False))
+    force_wt = bool(getattr(args, "force_worktree", False))
+
+    m0001 = next((m for m in _chain.MIGRATIONS if m.number == 1), None)
+    if m0001 is None:
+        msg = "Migration 0001 (metadata-v2) is not registered in chain.MIGRATIONS."
+        if ctx.is_json:
+            print(json.dumps({"error": msg, "status": "error"}, indent=2))
+        elif ctx.is_agent:
+            res = CommandResult(
+                command="migrate metadata",
+                status="fail",
+                exit_code=1,
+                summary=msg,
+                applied=False,
+                repo_root=repo_path,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        else:
+            term.status("fail", msg)
+        return 1
+
+    try:
+        report = m0001.run(
+            repo_path,
+            apply=apply_mode,
+            force=force_mode,
+            force_worktree=force_wt,
+        )
+    except (_lm.PreflightGateError, _lm.MigrationError) as exc:
+        if ctx.is_json:
+            print(
+                json.dumps(
+                    {
+                        "migration": f"{m0001.number:04d} {m0001.name}",
+                        "status": "refused",
+                        "applied": False,
+                        "error": str(exc),
+                    },
+                    indent=2,
+                )
+            )
+            return 1
+        if ctx.is_agent:
+            safe_msg = _sanitize_migrate_text(str(exc), repo_path)
+            res = CommandResult(
+                command="migrate metadata",
+                status="fail",
+                exit_code=1,
+                summary=safe_msg,
+                diagnostics=[
+                    Diagnostic(
+                        location=".",
+                        rule="migrate.preflight",
+                        detail=safe_msg,
+                        severity="error",
+                    )
+                ],
+                next_actions=[NextAction(command="aw migrate metadata")],
+                verified=True,
+                complete=True,
+                applied=False,
+                repo_root=repo_path,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", str(exc))
+        return 1
+
+    if ctx.is_json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    if ctx.is_agent:
+        sidecar_info = report.get("sidecar") or {}
+        safe_sidecar = _sanitize_migrate_text(
+            str(sidecar_info.get("status", "ok")), repo_path
+        )
+        summary = (
+            f"migration {m0001.number:04d} {m0001.name} "
+            f"{'applied' if apply_mode else 'dry-run preview'}: {safe_sidecar}"
+        )
+        ev = [
+            Evidence(
+                key="sidecar",
+                value={
+                    "present": bool(sidecar_info.get("present")),
+                    "queued_events": int(
+                        sidecar_info.get("queued_event_count", 0) or 0
+                    ),
+                    "orphans": int(sidecar_info.get("orphan_record_count", 0) or 0),
+                },
+                status="verified",
+            )
+        ]
+        res = CommandResult(
+            command="migrate metadata",
+            status="ok" if apply_mode else "preview",
+            exit_code=0,
+            summary=summary,
+            evidence=ev,
+            next_actions=[
+                NextAction(
+                    command="aw status" if apply_mode else "aw migrate metadata --apply"
+                )
+            ],
+            verified=True,
+            complete=True,
+            applied=apply_mode,
+            repo_root=repo_path,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    _print_metadata_migration_report(term, report, apply_mode=apply_mode)
+    return 0
+
+
+def _records_root_git_dirty(repo_path: Path) -> str:
+    """Return `git status --porcelain -- <records_root>` output (empty when clean)."""
+    import subprocess as _sp
+    from agent_workflows import project_context as _pc
+
+    records_root = _pc.project_records_dir(repo_path)
+    try:
+        rel = records_root.resolve().relative_to(repo_path.resolve())
+        pathspec = "." if rel == Path(".") else rel.as_posix()
+        proc = _sp.run(
+            [
+                "git",
+                "--no-optional-locks",
+                "-C",
+                str(repo_path),
+                "status",
+                "--porcelain",
+                "--",
+                pathspec,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return proc.stdout.strip() if proc.returncode == 0 else ""
+    except ValueError:
+        rec_git_root = _pc.record_git_root(records_root)
+        if rec_git_root is None:
+            return ""
+        rec_res = records_root.resolve()
+        root_res = rec_git_root.resolve()
+        if (rec_res / ".git").exists() or root_res == rec_res:
+            cmd = [
+                "git",
+                "--no-optional-locks",
+                "-C",
+                str(rec_res),
+                "status",
+                "--porcelain",
+            ]
+        else:
+            rel_ext = rec_res.relative_to(root_res)
+            pathspec_ext = "." if rel_ext == Path(".") else rel_ext.as_posix()
+            cmd = [
+                "git",
+                "--no-optional-locks",
+                "-C",
+                str(root_res),
+                "status",
+                "--porcelain",
+                "--",
+                pathspec_ext,
+            ]
+        proc = _sp.run(cmd, capture_output=True, text=True, check=False)
+        return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _run_migrate_bare(
+    args: argparse.Namespace, term: Term, *, context: Optional[Any] = None
+) -> int:
+    """Execute or dry-run every pending migration step in order for bare `aw migrate` (E-02)."""
+    import contextlib as _contextlib
+    from agent_workflows import layout_inventory as inv_mod
+    from agent_workflows import layout_migration as _lm
+    from agent_workflows.migrations import chain as _chain
+    from agent_workflows.renderers import AgentRenderer, get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        NextAction,
+        select_output,
+    )
+
+    repo_path = Path(os.getcwd())
+    ctx = context if context is not None else select_output(args)
+    apply_mode = bool(getattr(args, "migrate_apply", False))
+    force_mode = bool(getattr(args, "migrate_force", False))
+    force_wt = bool(getattr(args, "migrate_force_worktree", False))
+    commit_flag = bool(getattr(args, "commit", False))
+    no_commit_flag = bool(getattr(args, "no_commit", False))
+
+    has_agents_root = any(
+        label == "agents" for label, _ in inv_mod._default_roots(repo_path)
+    )
+    layout_pending = has_agents_root or engine.detect_split_brain_layout(repo_path)
+    pending_meta = _chain.pending_migrations(repo_path)
+
+    if not layout_pending and not pending_meta:
+        if ctx.is_json:
+            print(
+                json.dumps(
+                    {
+                        "step": None,
+                        "pending": False,
+                        "status": "nothing_to_migrate",
+                        "message": "nothing to migrate",
+                        "applied": False,
+                    }
+                )
+            )
+            return 0
+        if ctx.is_agent:
+            res = CommandResult(
+                command="migrate",
+                status="clean",
+                exit_code=0,
+                summary="nothing to migrate",
+                next_actions=[],
+                verified=True,
+                complete=True,
+                applied=False,
+                repo_root=repo_path,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("ok", "nothing to migrate")
+        return 0
+
+    agent_renderer = AgentRenderer() if ctx.is_agent else None
+    step_names: List[str] = []
+
+    def _emit_step_json(record: Dict[str, Any]) -> None:
+        print(json.dumps(record, sort_keys=True))
+
+    def _emit_step_agent(item: Dict[str, Any]) -> None:
+        assert agent_renderer is not None
+        sys.stdout.write(agent_renderer.render_item(item, cmd="migrate", context=ctx))
+
+    def _finish_agent_error(
+        step_label: str, msg: str, next_cmd: str = "aw migrate"
+    ) -> int:
+        safe_msg = _sanitize_migrate_text(msg, repo_path)
+        res = CommandResult(
+            command="migrate",
+            status="fail",
+            exit_code=1,
+            summary=safe_msg,
+            diagnostics=[
+                Diagnostic(
+                    location=".",
+                    rule=f"migrate.{step_label}",
+                    detail=safe_msg,
+                    severity="error",
+                )
+            ],
+            next_actions=[NextAction(command=next_cmd)],
+            verified=True,
+            complete=True,
+            applied=False,
+            repo_root=repo_path,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    # Step 1: layout
+    if layout_pending:
+        step_names.append("layout")
+        layout_args = argparse.Namespace(
+            action="apply"
+            if apply_mode
+            else ("plan" if (ctx.is_json or ctx.is_agent) else None),
+            dry_run=not apply_mode,
+            json=bool(ctx.is_json or ctx.is_agent),
+            agent=False,
+            commit=commit_flag,
+            no_commit=no_commit_flag,
+            yes=False,
+            confirm=False,
+            config=None,
+            target_backend=None,
+            leftovers=None,
+            root=[],
+            output=None,
+            fault_injection=None,
+            rename_to_grammar=False,
+        )
+        if ctx.is_json or ctx.is_agent:
+            buf_out = io.StringIO()
+            buf_err = io.StringIO()
+            cap_term = Term(color=False, stream=buf_out)
+            with _contextlib.redirect_stdout(buf_out), _contextlib.redirect_stderr(
+                buf_err
+            ):
+                layout_rc = _run_migrate_layout(layout_args, cap_term)
+            parsed_layout: Any = None
+            raw_out = buf_out.getvalue().strip()
+            if raw_out:
+                try:
+                    parsed_layout = json.loads(raw_out)
+                except json.JSONDecodeError:
+                    parsed_layout = {"raw": _sanitize_migrate_text(raw_out, repo_path)}
+            if layout_rc != 0:
+                err_detail = (
+                    parsed_layout.get("error")
+                    if isinstance(parsed_layout, dict) and parsed_layout.get("error")
+                    else (
+                        buf_err.getvalue().strip() or f"layout step exited {layout_rc}"
+                    )
+                )
+                if ctx.is_json:
+                    _emit_step_json(
+                        {
+                            "step": "layout",
+                            "pending": True,
+                            "applied": False,
+                            "status": "failed",
+                            "exit_code": layout_rc,
+                            "error": err_detail,
+                        }
+                    )
+                    return layout_rc
+                _emit_step_agent(
+                    {
+                        "step": "layout",
+                        "pending": True,
+                        "applied": False,
+                        "status": "failed",
+                    }
+                )
+                return _finish_agent_error(
+                    "layout", f"Stopped at step 'layout': {err_detail}"
+                )
+
+            if apply_mode:
+                dirty_records = _records_root_git_dirty(repo_path)
+                if dirty_records:
+                    if ctx.is_json:
+                        _emit_step_json(
+                            {
+                                "step": "layout",
+                                "pending": True,
+                                "applied": True,
+                                "committed": False,
+                                "status": "uncommitted",
+                                "stopped_after": "layout",
+                                "next": ["aw migrate --apply --commit", "aw commit"],
+                                "report": parsed_layout,
+                            }
+                        )
+                        return 1
+                    _emit_step_agent(
+                        {
+                            "step": "layout",
+                            "pending": True,
+                            "applied": True,
+                            "committed": False,
+                            "status": "uncommitted",
+                        }
+                    )
+                    return _finish_agent_error(
+                        "layout",
+                        "Stopped after step 'layout': uncommitted records remain; commit with aw migrate --apply --commit or aw commit",
+                        next_cmd="aw migrate --apply --commit",
+                    )
+
+            if ctx.is_json:
+                _emit_step_json(
+                    {
+                        "step": "layout",
+                        "pending": True,
+                        "applied": apply_mode,
+                        "status": "applied" if apply_mode else "dry_run",
+                        "report": parsed_layout,
+                    }
+                )
+            else:
+                _emit_step_agent(
+                    {
+                        "step": "layout",
+                        "pending": True,
+                        "applied": apply_mode,
+                        "status": "applied" if apply_mode else "dry_run",
+                    }
+                )
+        else:
+            term.heading("Step 1: layout (pending)")
+            layout_rc = _run_migrate_layout(layout_args, term)
+            if layout_rc != 0:
+                term.status(
+                    "fail",
+                    f"Stopped at step 'layout' (exit {layout_rc}); metadata step not started.",
+                )
+                return layout_rc
+            if apply_mode:
+                dirty_records = _records_root_git_dirty(repo_path)
+                if dirty_records:
+                    term.status(
+                        "fail",
+                        "Stopped after step 'layout': records tree has uncommitted layout moves; metadata step not started.",
+                    )
+                    term.line("  Commit the moved paths, then re-run:")
+                    term.line("    aw migrate --apply --commit")
+                    term.line("  Or commit manually with:")
+                    term.line(
+                        '    aw commit --no-plan -m "chore(aw): commit layout migration" -- <paths>'
+                    )
+                    return 1
+
+    # Step 2: metadata (re-evaluate after layout step on --apply)
+    if apply_mode and layout_pending:
+        pending_meta = _chain.pending_migrations(repo_path)
+
+    for mig in pending_meta:
+        step_label = "metadata"
+        step_names.append(f"metadata:{mig.number:04d}")
+        try:
+            report = mig.run(
+                repo_path,
+                apply=apply_mode,
+                force=force_mode,
+                force_worktree=force_wt,
+            )
+        except (_lm.PreflightGateError, _lm.MigrationError) as exc:
+            if ctx.is_json:
+                _emit_step_json(
+                    {
+                        "step": step_label,
+                        "migration": f"{mig.number:04d} {mig.name}",
+                        "pending": True,
+                        "applied": False,
+                        "status": "refused",
+                        "error": str(exc),
+                    }
+                )
+                return 1
+            if ctx.is_agent:
+                _emit_step_agent(
+                    {
+                        "step": step_label,
+                        "migration": f"{mig.number:04d} {mig.name}",
+                        "pending": True,
+                        "applied": False,
+                        "status": "refused",
+                    }
+                )
+                return _finish_agent_error(
+                    step_label,
+                    f"Stopped at step 'metadata' ({mig.number:04d} {mig.name}): {exc}",
+                )
+            term.status(
+                "fail",
+                f"Stopped at step 'metadata' ({mig.number:04d} {mig.name}): {exc}",
+            )
+            return 1
+
+        if ctx.is_json:
+            _emit_step_json(
+                {
+                    "step": step_label,
+                    "migration": f"{mig.number:04d} {mig.name}",
+                    "pending": True,
+                    "applied": apply_mode,
+                    "status": report.get("status"),
+                    "report": report,
+                }
+            )
+        elif ctx.is_agent:
+            sidecar_info = report.get("sidecar") or {}
+            _emit_step_agent(
+                {
+                    "step": step_label,
+                    "migration": f"{mig.number:04d} {mig.name}",
+                    "pending": True,
+                    "applied": apply_mode,
+                    "status": report.get("status"),
+                    "queued_events": int(
+                        sidecar_info.get("queued_event_count", 0) or 0
+                    ),
+                }
+            )
+        else:
+            term.heading(f"Step: metadata ({mig.number:04d} {mig.name}, pending)")
+            _print_metadata_migration_report(term, report, apply_mode=apply_mode)
+
+    if ctx.is_agent:
+        res = CommandResult(
+            command="migrate",
+            status="ok" if apply_mode else "preview",
+            exit_code=0,
+            summary=f"migrate {'applied' if apply_mode else 'dry-run preview'}: {', '.join(step_names)}",
+            next_actions=[
+                NextAction(command="aw status" if apply_mode else "aw migrate --apply")
+            ],
+            verified=True,
+            complete=True,
+            applied=apply_mode,
+            repo_root=repo_path,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    return 0
+
+
 def _rewrite_help_token(argv):
     """awhelparg Order 01: rewrite a standalone `help` subcommand token to `--help` so `aw help`,
     `aw ipd help`, `aw <verb> help` all show help. A `help` that is an OPTION VALUE (the token
@@ -19382,6 +20052,13 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_noun_verb(args, term, context=context)
     if args.command == "migrate-layout":
         return _run_migrate_layout(args, term)
+    if args.command == "migrate":
+        mig_sub = getattr(args, "migrate_command", None)
+        if mig_sub == "metadata":
+            return _run_migrate_metadata(args, term, context=context)
+        if mig_sub == "layout":
+            return _run_migrate_layout(args, term)
+        return _run_migrate_bare(args, term, context=context)
     if args.command == "install":
         return _run_install(args, term)
     if args.command == "uninstall":
