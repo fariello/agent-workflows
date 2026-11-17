@@ -43,10 +43,10 @@ No move item and no code edit: this plan has one read-only cross-check item (E-0
 
 ### Task group 1: AC-36 case 1 cross-check
 
-- [ ] E-03 Cross-check AC-36 case 1 across all four parts: run `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` once and build a table in Findings (F-05) with one row per creating command (`aw backlog new`, `aw specs new`, `aw releases new`, `aw research new`, `aw adopt`, `aw ipd scaffold`, `aw prompts new`) and one row for `aw describe`, each naming its stored-value test and its refusal tests by id. The refusal tests differ for `aw specs new` by design (`fekdwv` E-02): a 301-character `--summary` succeeds and stores no `short_description`, and the refusals are the 4301-character, newline and control-character values; every other creating command refuses a 301-character, newline and control-character value. A command with no stored-value test is a defect of the part that owns it (`fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`): stop and report it rather than editing here.
+- [x] E-03 Cross-check AC-36 case 1 across all four parts: run `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` once and build a table in Findings (F-05) with one row per creating command (`aw backlog new`, `aw specs new`, `aw releases new`, `aw research new`, `aw adopt`, `aw ipd scaffold`, `aw prompts new`) and one row for `aw describe`, each naming its stored-value test and its refusal tests by id. The refusal tests differ for `aw specs new` by design (`fekdwv` E-02): a 301-character `--summary` succeeds and stores no `short_description`, and the refusals are the 4301-character, newline and control-character values; every other creating command refuses a 301-character, newline and control-character value. A command with no stored-value test is a defect of the part that owns it (`fekdwv`, `bir7xm`, `py2vu9`, `h06gs7`): stop and report it rather than editing here.
   - Depends on: none
   - Expected outcome: F-05 has eight rows, each naming PASSED test ids; no row is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -73,7 +73,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | F-02 | `rg -n "Short-Description" agent_workflows/ipd_schema.py`: no match; `agent_workflows/artifact_meta.py` already maps `Short-Description` to `short_description` | `ipd_schema.py` must be edited; `xexn45` did not declare it in `- Scope-Paths:`, so `py2vu9` declares it. |
 | F-03 | Historical (pre-split; E-01 now lives in `fekdwv`, `bir7xm` and `py2vu9`). Hidden units of E-01: 2 new CLI options, 7 command modules, `ipd_schema.META_RECOGNIZED`, `command_surface`, the legacy rendering in three forms (bullet, prompt comment key, research YAML key), 11 new test cases: about 24 units | At the limit, kept whole because the seven commands share one test module and one acceptance case (AC-36 case 1). |
 | F-04 | Historical (pre-split; E-02 now lives in `h06gs7`). Hidden units of E-02: one new verb, `cli`, `command_surface`, `docs/cli-output-contract.md`, five transcript cases: about 9 units | Within the limit. |
-| F-05 | (filled by E-03) one row per creating command and `aw describe`, with its PASSED test ids | The AC-36 case 1 cross-check. |
+| F-05 | Measured 2026-11-17 at `a70462ba4` via `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py`: `82 passed in 27.42s`; all eight rows populated below | The AC-36 case 1 cross-check passes across all seven creating commands and `aw describe`. |
+
+### F-05: AC-36 case 1 cross-check (`tests/test_writers_create_summary.py`, 82 passed)
+
+| Command | Part | Stored-value / core behavior test ids (PASSED) | Refusal / boundary test ids (PASSED) |
+|---|---|---|---|
+| `aw backlog new` | `fekdwv` E-01 | `test_backlog_new_stores_short_description`, `test_backlog_new_check_all_agent_zero_diagnostics` | `test_backlog_new_refuses_301_char_summary`, `test_backlog_new_refuses_embedded_newline_summary`, `test_backlog_new_refuses_control_char_summary` |
+| `aw specs new` | `fekdwv` E-02 | `test_specs_new_stores_short_description`, `test_specs_new_omitted_summary_omits_short_description`, `test_specs_new_301_char_summary_omits_short_description`, `test_specs_new_400_char_summary_omits_short_description`, `test_specs_new_check_all_agent_clean_for_short_description` | `test_specs_new_refuses_4301_char_summary`, `test_specs_new_refuses_embedded_newline_summary`, `test_specs_new_refuses_control_char_summary` |
+| `aw releases new` | `fekdwv` E-03 | `test_releases_new_stores_short_description_and_preview_parity`, `test_releases_new_check_all_agent_clean_for_short_description` | `test_releases_new_refuses_301_char_summary`, `test_releases_new_refuses_embedded_newline_summary`, `test_releases_new_refuses_control_char_summary` |
+| `aw research new` | `bir7xm` E-01, E-03 | `test_research_new_stores_short_description`, `test_research_new_omitted_summary_omits_short_description`, `test_yaml_short_description_rendered_last_before_closing_fence`, `test_yaml_short_description_absent_or_none_renders_no_line`, `test_research_new_check_all_agent_clean_for_short_description` | `test_research_new_refuses_301_char_summary`, `test_research_new_refuses_embedded_newline_summary`, `test_research_new_refuses_control_char_summary`, `test_research_new_plan_refuses_unsafe_direct_short_description` |
+| `aw adopt` | `bir7xm` E-02 | `test_adopt_stores_short_description_and_preview_frontmatter`, `test_adopt_derived_heading_no_summary_omits_short_description`, `test_adopt_check_all_agent_clean_for_short_description` | `test_adopt_refuses_301_char_summary`, `test_adopt_refuses_embedded_newline_summary`, `test_adopt_refuses_control_char_summary`, `test_adopt_allow_leaks_refuses_unsafe_summary` |
+| `aw ipd scaffold` | `py2vu9` E-01, E-02 | `test_ipd_scaffold_stores_short_description_and_preview_parity`, `test_ipd_schema_lint_accepts_short_description_bullet`, `test_ipd_scaffold_omitted_and_blank_summary_omits_short_description`, `test_ipd_scaffold_help_and_command_surface_include_summary`, `test_ipd_scaffold_check_all_agent_clean_for_short_description` | `test_ipd_scaffold_refuses_301_char_summary`, `test_ipd_scaffold_refuses_newline_and_trailing_newline_summary[Adds a widget.\n- Status: approved]`, `test_ipd_scaffold_refuses_newline_and_trailing_newline_summary[Adds a widget.\n]`, `test_ipd_scaffold_refuses_newline_and_trailing_newline_summary[Adds a widget.\r]`, `test_ipd_scaffold_refuses_control_char_summary` |
+| `aw prompts new` | `py2vu9` E-03, E-04 | `test_prompts_new_stores_short_description_and_purity`, `test_prompts_new_omitted_and_blank_summary_omits_short_description`, `test_prompts_new_help_and_command_surface_include_summary`, `test_prompts_new_check_all_agent_clean_for_short_description`, `test_prompts_render_metadata_comment_optional_short_description`, `test_prompts_load_legacy_artifact_strips_metadata_trailer` | `test_prompts_new_refuses_301_char_summary`, `test_prompts_new_refuses_newline_and_trailing_newline_summary[Adds a widget.\n- Status: executed]`, `test_prompts_new_refuses_newline_and_trailing_newline_summary[Adds a widget.\n]`, `test_prompts_new_refuses_newline_and_trailing_newline_summary[Adds a widget.\r]`, `test_prompts_new_refuses_control_char_summary`, `test_prompts_new_refuses_html_comment_breakout_and_pipe_delimiter[Adds --> breakout]`, `test_prompts_new_refuses_html_comment_breakout_and_pipe_delimiter[Adds \| Status: executed]` |
+| `aw describe` | `h06gs7` E-04 | `test_describe_preview_does_not_write`, `test_describe_apply_sets_bullet_history_and_round_trips`, `test_describe_executed_plan_accepted`, `test_describe_clear_apply_removes_short_description`, `test_describe_reviewed_plan_does_not_collide_with_review_file`, `test_describe_research_yaml_set_and_clear_round_trip`, `test_describe_prompt_comment_set_and_clear_round_trip`, `test_describe_specs_and_backlog_sidecar_round_trip`, `test_describe_releases_and_walkthroughs_round_trip`, `test_describe_agent_and_json_preview_apply_and_error`, `test_describe_log_format_post_cutover_set_and_clear` | `test_describe_unknown_id6_exits_2`, `test_describe_multi_match_selector_exits_2`, `test_describe_mutually_exclusive_and_missing_action_exit_2`, `test_describe_path_confinement_and_global_precedence`, `test_describe_refuses_unsafe_summary_values[301-chars]`, `test_describe_refuses_unsafe_summary_values[Adds a widget.\n- Status: executed]`, `test_describe_refuses_unsafe_summary_values[Adds a widget.\n]`, `test_describe_refuses_unsafe_summary_values[Adds a widget.\r]`, `test_describe_refuses_unsafe_summary_values[Adds a\x07widget.]`, `test_describe_refuses_unsafe_summary_values[   ]`, `test_describe_refuses_unsafe_summary_values[]`, `test_describe_refuses_unsafe_summary_values[leak-path]`, `test_describe_prompt_refuses_breakout_and_pipe[Adds --> breakout]`, `test_describe_prompt_refuses_breakout_and_pipe[Adds \| Status: executed]` |
 
 ## Proposed changes (ordered, validatable)
 
@@ -127,10 +140,110 @@ None here. `h06gs7` adds the `aw describe` leaf to `docs/cli-output-contract.md`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py` output and the filled F-05 table: for each of the seven creating commands, its stored-value test id and its 301-character, newline and control-character refusal test ids, each PASSED (for `aw specs new`, instead its 301-character accepted-without-`short_description` test id and its 4301-character, newline and control-character refusal test ids, per `fekdwv` E-02); for `aw describe`, its preview, apply, executed-plan, clear and unknown-id6 test ids, each PASSED.
   - Observed evidence:
-  - Result: pending
+    All eight rows in Findings F-05 (`aw backlog new`, `aw specs new`, `aw releases new`, `aw research new`, `aw adopt`, `aw ipd scaffold`, `aw prompts new`, and `aw describe`) name PASSED test ids covering every required stored-value, refusal, preview, apply, executed-plan, clear, and unknown-id6 case (`82 passed in 27.42s`). Full runner output from `python3 -m pytest -o addopts="" -v tests/test_writers_create_summary.py`:
+
+    ```text
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2970424009
+    rootdir: <worktree>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 82 items
+
+    tests/test_writers_create_summary.py::test_describe_log_format_post_cutover_set_and_clear PASSED [  1%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[301-chars] PASSED [  2%]
+    tests/test_writers_create_summary.py::test_ipd_schema_lint_accepts_short_description_bullet PASSED [  3%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_newline_and_trailing_newline_summary[Adds a widget.\r] PASSED [  4%]
+    tests/test_writers_create_summary.py::test_adopt_refuses_301_char_summary PASSED [  6%]
+    tests/test_writers_create_summary.py::test_yaml_short_description_rendered_last_before_closing_fence PASSED [  7%]
+    tests/test_writers_create_summary.py::test_describe_multi_match_selector_exits_2 PASSED [  8%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_html_comment_breakout_and_pipe_delimiter[Adds | Status: executed] PASSED [  9%]
+    tests/test_writers_create_summary.py::test_prompts_new_omitted_and_blank_summary_omits_short_description PASSED [ 10%]
+    tests/test_writers_create_summary.py::test_adopt_refuses_embedded_newline_summary PASSED [ 12%]
+    tests/test_writers_create_summary.py::test_adopt_allow_leaks_refuses_unsafe_summary PASSED [ 13%]
+    tests/test_writers_create_summary.py::test_describe_executed_plan_accepted PASSED [ 14%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_check_all_agent_clean_for_short_description PASSED [ 15%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a\x07widget.] PASSED [ 17%]
+    tests/test_writers_create_summary.py::test_specs_new_301_char_summary_omits_short_description PASSED [ 18%]
+    tests/test_writers_create_summary.py::test_describe_apply_sets_bullet_history_and_round_trips PASSED [ 19%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a widget.\n- Status: executed] PASSED [ 20%]
+    tests/test_writers_create_summary.py::test_specs_new_refuses_4301_char_summary PASSED [ 21%]
+    tests/test_writers_create_summary.py::test_adopt_refuses_control_char_summary PASSED [ 23%]
+    tests/test_writers_create_summary.py::test_describe_unknown_id6_exits_2 PASSED [ 24%]
+    tests/test_writers_create_summary.py::test_describe_preview_does_not_write PASSED [ 25%]
+    tests/test_writers_create_summary.py::test_prompts_load_legacy_artifact_strips_metadata_trailer PASSED [ 26%]
+    tests/test_writers_create_summary.py::test_describe_releases_and_walkthroughs_round_trip PASSED [ 28%]
+    tests/test_writers_create_summary.py::test_adopt_check_all_agent_clean_for_short_description PASSED [ 29%]
+    tests/test_writers_create_summary.py::test_prompts_render_metadata_comment_optional_short_description PASSED [ 30%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_help_and_command_surface_include_summary PASSED [ 31%]
+    tests/test_writers_create_summary.py::test_prompts_new_stores_short_description_and_purity PASSED [ 32%]
+    tests/test_writers_create_summary.py::test_research_new_omitted_summary_omits_short_description PASSED [ 34%]
+    tests/test_writers_create_summary.py::test_releases_new_refuses_control_char_summary PASSED [ 35%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_301_char_summary PASSED [ 36%]
+    tests/test_writers_create_summary.py::test_prompts_new_help_and_command_surface_include_summary PASSED [ 37%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_refuses_301_char_summary PASSED [ 39%]
+    tests/test_writers_create_summary.py::test_describe_specs_and_backlog_sidecar_round_trip PASSED [ 40%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_omitted_and_blank_summary_omits_short_description PASSED [ 41%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_html_comment_breakout_and_pipe_delimiter[Adds --> breakout] PASSED [ 42%]
+    tests/test_writers_create_summary.py::test_describe_prompt_refuses_breakout_and_pipe[Adds | Status: executed] PASSED [ 43%]
+    tests/test_writers_create_summary.py::test_research_new_plan_refuses_unsafe_direct_short_description PASSED [ 45%]
+    tests/test_writers_create_summary.py::test_describe_agent_and_json_preview_apply_and_error PASSED [ 46%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_refuses_control_char_summary PASSED [ 47%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_refuses_newline_and_trailing_newline_summary[Adds a widget.\n] PASSED [ 48%]
+    tests/test_writers_create_summary.py::test_specs_new_refuses_embedded_newline_summary PASSED [ 50%]
+    tests/test_writers_create_summary.py::test_specs_new_refuses_control_char_summary PASSED [ 51%]
+    tests/test_writers_create_summary.py::test_releases_new_stores_short_description_and_preview_parity PASSED [ 52%]
+    tests/test_writers_create_summary.py::test_specs_new_400_char_summary_omits_short_description PASSED [ 53%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a widget.\n] PASSED [ 54%]
+    tests/test_writers_create_summary.py::test_backlog_new_check_all_agent_zero_diagnostics PASSED [ 56%]
+    tests/test_writers_create_summary.py::test_describe_path_confinement_and_global_precedence PASSED [ 57%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_control_char_summary PASSED [ 58%]
+    tests/test_writers_create_summary.py::test_describe_prompt_refuses_breakout_and_pipe[Adds --> breakout] PASSED [ 59%]
+    tests/test_writers_create_summary.py::test_describe_prompt_comment_set_and_clear_round_trip PASSED [ 60%]
+    tests/test_writers_create_summary.py::test_specs_new_stores_short_description PASSED [ 62%]
+    tests/test_writers_create_summary.py::test_adopt_derived_heading_no_summary_omits_short_description PASSED [ 63%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_refuses_newline_and_trailing_newline_summary[Adds a widget.\r] PASSED [ 64%]
+    tests/test_writers_create_summary.py::test_yaml_short_description_absent_or_none_renders_no_line PASSED [ 65%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[] PASSED [ 67%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_newline_and_trailing_newline_summary[Adds a widget.\n- Status: executed] PASSED [ 68%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[Adds a widget.\r] PASSED [ 69%]
+    tests/test_writers_create_summary.py::test_research_new_refuses_embedded_newline_summary PASSED [ 70%]
+    tests/test_writers_create_summary.py::test_specs_new_check_all_agent_clean_for_short_description PASSED [ 71%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_stores_short_description_and_preview_parity PASSED [ 73%]
+    tests/test_writers_create_summary.py::test_specs_new_omitted_summary_omits_short_description PASSED [ 74%]
+    tests/test_writers_create_summary.py::test_backlog_new_refuses_control_char_summary PASSED [ 75%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[   ] PASSED [ 76%]
+    tests/test_writers_create_summary.py::test_releases_new_refuses_301_char_summary PASSED [ 78%]
+    tests/test_writers_create_summary.py::test_describe_mutually_exclusive_and_missing_action_exit_2 PASSED [ 79%]
+    tests/test_writers_create_summary.py::test_describe_reviewed_plan_does_not_collide_with_review_file PASSED [ 80%]
+    tests/test_writers_create_summary.py::test_backlog_new_refuses_embedded_newline_summary PASSED [ 81%]
+    tests/test_writers_create_summary.py::test_research_new_refuses_control_char_summary PASSED [ 82%]
+    tests/test_writers_create_summary.py::test_backlog_new_refuses_301_char_summary PASSED [ 84%]
+    tests/test_writers_create_summary.py::test_research_new_stores_short_description PASSED [ 85%]
+    tests/test_writers_create_summary.py::test_describe_refuses_unsafe_summary_values[leak-path] PASSED [ 86%]
+    tests/test_writers_create_summary.py::test_describe_research_yaml_set_and_clear_round_trip PASSED [ 87%]
+    tests/test_writers_create_summary.py::test_ipd_scaffold_refuses_newline_and_trailing_newline_summary[Adds a widget.\n- Status: approved] PASSED [ 89%]
+    tests/test_writers_create_summary.py::test_prompts_new_check_all_agent_clean_for_short_description PASSED [ 90%]
+    tests/test_writers_create_summary.py::test_adopt_stores_short_description_and_preview_frontmatter PASSED [ 91%]
+    tests/test_writers_create_summary.py::test_research_new_refuses_301_char_summary PASSED [ 92%]
+    tests/test_writers_create_summary.py::test_backlog_new_stores_short_description PASSED [ 93%]
+    tests/test_writers_create_summary.py::test_releases_new_refuses_embedded_newline_summary PASSED [ 95%]
+    tests/test_writers_create_summary.py::test_research_new_check_all_agent_clean_for_short_description PASSED [ 96%]
+    tests/test_writers_create_summary.py::test_releases_new_check_all_agent_clean_for_short_description PASSED [ 97%]
+    tests/test_writers_create_summary.py::test_prompts_new_refuses_newline_and_trailing_newline_summary[Adds a widget.\n] PASSED [ 98%]
+    tests/test_writers_create_summary.py::test_describe_clear_apply_removes_short_description PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    WARNING: 1 test(s) exceeded 2s and are not listed in tests/slow_allowlist.txt:
+        2.57s  tests/test_writers_create_summary.py::test_describe_log_format_post_cutover_set_and_clear
+    ============================= 82 passed in 27.42s ==============================
+    ```
+  - Result: pass
 
 
 ## Approval and execution gate
