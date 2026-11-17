@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import artifact_types as _types
@@ -51,6 +52,7 @@ _ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _DATE_RE = re.compile(r"(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$")
 _SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 _ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")
+_ORDER_LINE_RAW_RE = re.compile(r"(?m)^- Order:[^\r\n]*")
 
 
 def _read_id(text: str) -> Optional[str]:
@@ -76,6 +78,27 @@ def _set_value(set_id: str, descriptive: Optional[str]) -> str:
     return f"{set_id} ({descriptive})" if descriptive else set_id
 
 
+def _check_order_lines(text: str, *, target: str, require_present: bool) -> None:
+    """Enforce the `yqv6b7` E-03 '- Order:' fail-safe before or after metadata rendering."""
+    lines = _ORDER_LINE_RAW_RE.findall(text)
+    bad_count = (len(lines) != 1) if require_present else (len(lines) > 1)
+    if bad_count:
+        raise ValueError(
+            f"plan '{target}': expected exactly one '- Order:' line after metadata update, "
+            f"found {len(lines)}"
+        )
+    if len(lines) == 1 and not _ORDER_LINE_RE.match(lines[0]):
+        raise ValueError(
+            f"plan '{target}': expected exactly one '- Order:' line after metadata update, "
+            f"found malformed {lines[0]!r}"
+        )
+
+
+def _set_order_events(set_val: str, order: int) -> List[dict]:
+    """Build the single `op: 'set'` event updating `Set` and integer `Order`."""
+    return [{"op": "set", "fields": {"set": set_val, "order": int(order)}}]
+
+
 def _set_metadata(
     text: str,
     *,
@@ -84,46 +107,31 @@ def _set_metadata(
     descriptive: Optional[str] = None,
     plan_name: Optional[str] = None,
 ) -> str:
-    """Return ``text`` with Set/Order set (updating existing lines or inserting after Author/Id).
+    """Return ``text`` with Set/Order set via ``artifact_meta.render_legacy_text``.
 
     The written `Set:` value is ``<terse-id> (<descriptive>)`` when ``descriptive`` is given, else the
-    bare terse id (plans-adopter Order 06 format).
+    bare terse id (plans-adopter Order 06 format). Preserves the `yqv6b7` E-03 fail-safe against
+    malformed, duplicate, or uninjected `- Order:` lines.
     """
 
-    set_val = _set_value(set_id, descriptive)
-    if _SET_LINE_RE.search(text):
-        text = _SET_LINE_RE.sub(f"- Set: {set_val}", text, count=1)
-    if _ORDER_LINE_RE.search(text):
-        text = _ORDER_LINE_RE.sub(f"- Order: {order}", text, count=1)
-    if not (_SET_LINE_RE.search(text) and _ORDER_LINE_RE.search(text)):
-        # Insert Set/Order after the Id line (or Author line) when absent.
-        lines = text.splitlines(keepends=True)
-        anchor = None
-        for i, line in enumerate(lines):
-            if line.startswith("- Id:"):
-                anchor = i
-        if anchor is None:
-            for i, line in enumerate(lines):
-                if line.startswith("- Author:"):
-                    anchor = i
-        if anchor is not None:
-            nl = "\n"
-            ins = []
-            if not _SET_LINE_RE.search(text):
-                ins.append(f"- Set: {set_val}{nl}")
-            if not _ORDER_LINE_RE.search(text):
-                ins.append(f"- Order: {order}{nl}")
-            lines[anchor + 1 : anchor + 1] = ins
-        text = "".join(lines)
-
-    order_lines = re.findall(r"(?m)^- Order:.*$", text)
-    if len(order_lines) != 1:
-        target = plan_name or _read_id(text) or "plan"
-        raise ValueError(
-            f"plan '{target}': expected exactly one '- Order:' line after metadata update, "
-            f"found {len(order_lines)}"
-        )
-    return text
+    target = plan_name or _read_id(text) or "plan"
+    _check_order_lines(text, target=target, require_present=False)
+    events = _set_order_events(_set_value(set_id, descriptive), order)
+    render = _meta.LegacyRender(
+        "group",
+        _core.utc_history_date(),
+        "aw",
+        history=False,
+    )
+    updated = _meta.render_legacy_text(
+        text,
+        events,
+        record_type="plans",
+        render=render,
+        label=target,
+    )
+    _check_order_lines(updated, target=target, require_present=True)
+    return updated
 
 
 def _plan_date(text: str) -> str:
@@ -639,22 +647,45 @@ def apply_renames(
     touched: List[str] = []
     targets_applied: List[MutationTarget] = []
 
-    # IPD yqv6b7 E-03: Pre-compute every plan's new text in a first pass before any write or
-    # git_mv, so an invalid plan raises ValueError before any file in the batch is touched.
-    new_texts: List[str] = []
+    meta_ctx = _meta.legacy_context(repo_root)
+    meta_render = _meta.LegacyRender(
+        verb,
+        _core.utc_history_date(),
+        "aw",
+        history=False,
+    )
+    set_val = _set_value(_core.kebab(set_id), descriptive)
+
+    # IPD yqv6b7 E-03 / fnu6kw E-01: Pre-validate every plan in a first pass (both the - Order:
+    # fail-safe and artifact_meta.append(..., dry_run=True)) before any write, git_mv, or
+    # rename-ledger record is touched.
+    prepared: List[Tuple[RenamePlan, _meta.LegacyTarget, List[dict]]] = []
     for i, p in enumerate(plans):
         raw_text = p.old_path.read_text(encoding="utf-8")
-        new_text = _set_metadata(
-            raw_text,
-            set_id=_core.kebab(set_id),
-            order=p.order if p.order is not None else i,
-            descriptive=descriptive,
-            plan_name=p.old_path.name,
+        target_label = p.old_path.name or _read_id(raw_text) or "plan"
+        _check_order_lines(raw_text, target=target_label, require_present=False)
+        order_val = p.order if p.order is not None else i
+        events = _set_order_events(set_val, order_val)
+        meta_target = _meta.LegacyTarget(p.old_path, "plans", id6=p.id6)
+        preview = _meta.append(
+            meta_target,
+            events,
+            dry_run=True,
+            legacy_render=meta_render,
+            repo_root=repo_root,
+            project_context=meta_ctx,
         )
-        new_texts.append(new_text)
+        _check_order_lines(preview.text, target=target_label, require_present=True)
+        prepared.append((p, meta_target, events))
 
-    for p, text in zip(plans, new_texts):
-        _core.atomic_write(p.old_path, text, prefix=".plans-refs-")
+    for p, meta_target, events in prepared:
+        _meta.append(
+            meta_target,
+            events,
+            legacy_render=meta_render,
+            repo_root=repo_root,
+            project_context=meta_ctx,
+        )
         if p.old_path != p.new_path:
             src_rel = p.old_path.relative_to(repo_root).as_posix()
             dst_rel = p.new_path.relative_to(repo_root).as_posix()
