@@ -114,6 +114,7 @@ flowchart TD
   - Carrier: d4w53g
 - E-03 path-root subset (OQ-03 rule in `artifact_meta.validate_new_events`, `tests/test_writers_scope_fields.py`, and `4sd62s` 4.2 amendment): Moved to 9qhtrc (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 9qhtrc
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-131-9qhtrc-apply-the-repository-root-path-rule-to-the-finalize-scope-pa.ipd.md
 - E-03 finalize subset (three scope fields in the executed append of `ipd_lifecycle._finalize_transaction`, phase-B `- Scope-Exceeded:` rendering, deletion of `_insert_scope_exceeded_metadata`): Moved to 1dvb08 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 1dvb08
 - Path-bearing `transition` and `rename` events (`ev["path"]`) and removal of `LegacyRender` / `write_legacy` at the log-format cutover.

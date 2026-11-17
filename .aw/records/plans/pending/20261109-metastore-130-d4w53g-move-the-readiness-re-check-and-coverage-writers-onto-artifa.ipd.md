@@ -116,7 +116,7 @@ flowchart TD
 - The final merge-independence test, the `4sd62s` AC-21 obligations cases (which extend `tests/test_writers_obligations.py`), the `4sd62s` AC-6 diff test, the raw-write audit (`xexn45` F-09), documentation updates, and the full writer-move gates.
   - Carrier: xexn45
 - Finalize scope fields and the repository-root path rule (`9qhtrc`, `1dvb08`).
-  - Carrier: 9qhtrc
+  - Carrier: 1dvb08
 - Orchestrator and child-retirement writers.
   - Carrier: 8q27jt
 
