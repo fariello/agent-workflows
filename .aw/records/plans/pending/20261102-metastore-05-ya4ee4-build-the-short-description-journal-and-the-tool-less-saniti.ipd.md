@@ -146,6 +146,7 @@ flowchart TD
   - Carrier: odeo9z
 - E-05 (`m0001_describe.validate` descriptive-value, leak-sanitizer `include_warn`, and absolute-path refusals) and its `-k validate` unit tests: Moved from `odeo9z` to `830wku` (round-3 split 2026-11-09 per research `nj8zdp` guidance).
   - Carrier: 830wku
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-106-830wku-build-the-m0001-short-description-validation.ipd.md
 - The `m0001` framework, the census, the `--apply` refusal for missing descriptions, and the `describer` seam, plus discovery and stage-1 layout migration across prior-format repositories.
   - Carrier: dcerjg
   - Carrier: g5hpbb

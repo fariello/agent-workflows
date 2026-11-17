@@ -134,6 +134,7 @@ flowchart TD
 
 - E-05 (`validate(text, repo)`: descriptive-value refusal, leak-sanitizer refusal, absolute-path rule) and its `-k validate` tests: Moved to 830wku (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 830wku
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-106-830wku-build-the-m0001-short-description-validation.ipd.md
 - Wiring into `m0001`, the `--describe-*` and `--no-describe` options, the full fake-host test module, the real trial on a copy and the changelog.
   - Carrier: ya4ee4
 
