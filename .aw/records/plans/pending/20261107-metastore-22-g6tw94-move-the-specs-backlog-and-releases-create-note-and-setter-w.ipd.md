@@ -96,6 +96,7 @@ flowchart TD
 
 - `specs` create, note, and migrate writer moves (`agent_workflows/specs.py::_render_new_spec`, `run_new`, `run_note`, `run_migrate`, plus deletion of unused private writer helpers): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: b3l7y6
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-120-b3l7y6-move-the-specs-create-note-and-migrate-writers-onto-artifact.ipd.md
 - `backlog` create, note, and history-reattach writer moves (`agent_workflows/backlog.py::_render_item`, `run_new`, `run_note`, `_reattach_history`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
   - Carrier: jlwedt
 - `releases` create and line-setter writer moves (`agent_workflows/releases.py::plan_release`, `create_release`, `run_new`, `set_item_dependencies_line`, `set_graduated_to_line`, `set_blocks_release_line`, `set_priority_line`, `set_work_kind_line`, `set_from_backlog_line`, `set_from_spec_line`): moved in the 2026-11-09 round-3 split per research `nj8zdp`.
