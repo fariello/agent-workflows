@@ -6,7 +6,7 @@
 - Scope: Enforce writer-side string-safety, absolute-path (`key=/multi/segment` included), and leak-sanitizer refusals on `ev["actor"]` and `LegacyRender` actor labels in `agent_workflows/artifact_meta.py`; wire structured `4sd62s` Section 4.2 `actor`, `overrides`, `by_human`, and `run_id` envelopes through `agent_workflows/status_set.py` and `agent_workflows/ipd_lifecycle.py` while keeping `_insert_rollup_checklist_statement` and hand-retirement `RETIRED <date>: <reason>` banners as body prose (`4sd62s` N3); and extend `tests/test_writers_obligations.py` (`d4w53g`) with Phase-B and log-backed retirement, `unset approval` (`2xwb9b` F-04), and `AC-24 (2)` actor-refusal cases (`xexn45` E-10). EXCLUDES: the `status_set` setter engine (`2xwb9b`), path-bearing transition events (cutover `cxxmyv`), and the `finalize` event payload (`nq1src`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/status_set.py, agent_workflows/ipd_lifecycle.py, tests/test_writers_obligations.py, .aw/records/plans/pending/20261107-metastore-26-8q27jt-move-the-attestation-finalize-scope-and-retirement-writers-o.ipd.md
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:d4w53g, executed:9qhtrc, executed:1dvb08
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8q27jt
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-17 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 8q27jt verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
