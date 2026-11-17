@@ -517,52 +517,18 @@ def restore_pre_s7_plan(
     current_text: str,
 ) -> str:
     """Restore Readiness, Status, and remove added review history entries before S7 (MD-15 guard)."""
-    try:
-        doc_pre = ipd_lint.parse(pre_pass_text or "")
-        st_pre = doc_pre.meta_fields.get("Status") or "to-review"
-    except Exception:
-        st_pre = "to-review"
+    from agent_workflows import artifact_meta as _am
 
-    rd_pre = ipd_schema.read_readiness(pre_pass_text)
-    pre_history = set(plan_readiness.history_block(pre_pass_text or "").records)
-
-    lines = current_text.splitlines()
-    in_meta = True
-    in_history = False
-    out_lines: list[str] = []
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("## "):
-            in_meta = False
-            if stripped.startswith("## Workflow history"):
-                in_history = True
-            else:
-                in_history = False
-
-        if in_meta:
-            if re.match(r"^-\s*Status\s*:", stripped):
-                out_lines.append(f"- Status: {st_pre}")
-                continue
-            if re.match(r"^-\s*Readiness\s*:", stripped):
-                if rd_pre is not None:
-                    out_lines.append(f"- Readiness: {rd_pre}")
-                continue
-        elif in_history:
-            if stripped.startswith("- "):
-                if stripped not in pre_history:
-                    if (
-                        plan_readiness.is_review_history_entry(stripped)
-                        or "reviewed" in stripped.lower()
-                        or "(aw set): status set to reviewed" in stripped
-                    ):
-                        continue
-        out_lines.append(line)
-
-    result = "\n".join(out_lines)
-    if current_text.endswith("\n") and not result.endswith("\n"):
-        result += "\n"
-    return result
+    return _am.restore_legacy_snapshot(
+        current_text,
+        pre_pass_text,
+        record_type="ipd",
+        drop_history_predicate=lambda stripped: (
+            plan_readiness.is_review_history_entry(stripped)
+            or "reviewed" in stripped.lower()
+            or "(aw set): status set to reviewed" in stripped
+        ),
+    )
 
 
 def check_S6(

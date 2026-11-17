@@ -5345,50 +5345,46 @@ def rederive_front_matter(
                 f"{key!r} (allow-list: {sorted(REDERIVABLE_FRONT_MATTER_KEYS)})"
             )
 
-    region, body = _split_metadata_region(target_text)
+    region, _body = _split_metadata_region(target_text)
     existing, _other = _front_matter_bullets(region)
     pending = [
         (k, v) for k, v in verdict.added_keys if k not in existing or existing[k] == [v]
     ]
-    new_lines = [f"- {k}: {v}" for k, v in pending if k not in existing]
+    new_pairs = [(k, v) for k, v in pending if k not in existing]
+    if new_pairs and not any(
+        _FRONT_MATTER_BULLET_RE.match(ln.rstrip("\n")) for ln in region.splitlines()
+    ):
+        raise DriverError(
+            "rederive_front_matter: the target has no front-matter bullet to anchor on, so the "
+            "new key(s) cannot be placed inside its metadata region"
+        )
 
-    lines = region.splitlines(keepends=True)
-    last_bullet = -1
-    for idx, line in enumerate(lines):
-        if _FRONT_MATTER_BULLET_RE.match(line.rstrip("\n")):
-            last_bullet = idx
-    if new_lines:
-        if last_bullet < 0:
-            raise DriverError(
-                "rederive_front_matter: the target has no front-matter bullet to anchor on, so the "
-                "new key(s) cannot be placed inside its metadata region"
-            )
-        insertion = "".join(f"{line}\n" for line in new_lines)
-        lines.insert(last_bullet + 1, insertion)
-    region_out = "".join(lines)
+    key_map = {
+        "Work-Kind": "work_kind",
+        "Priority": "priority",
+    }
+    events: list[dict[str, Any]] = []
+    if new_pairs:
+        events.append({"op": "set", "fields": {key_map[k]: v for k, v in new_pairs}})
+    for hline in verdict.history_lines:
+        events.append({"op": "legacy", "source": "history", "line": hline})
+    if not events:
+        return target_text
 
-    body_out = body
-    if verdict.history_lines:
-        marker = "## Workflow history\n"
-        at = body_out.find(marker)
-        if at >= 0:
-            after = at + len(marker)
-            body_out = (
-                body_out[:after]
-                + "".join(f"{line}\n" for line in verdict.history_lines)
-                + body_out[after:]
-            )
-        else:
-            # NO HISTORY SECTION IS NOT A REASON TO DROP THE LINE, and it is not a reason to invent a
-            # section either: append it at the end so the fact is preserved and visible. Measured as
-            # unreachable on the real corpus (every plan has the heading), kept because silently
-            # losing a history line is the class of harm this whole section exists to prevent.
-            body_out = (
-                body_out.rstrip("\n")
-                + "\n"
-                + "".join(f"{line}\n" for line in verdict.history_lines)
-            )
-    return region_out + body_out
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _am
+
+    return _am.render_legacy_text(
+        target_text,
+        events,
+        record_type="ipd",
+        render=_am.LegacyRender(
+            tag="legacy",
+            day=_core.utc_history_date(),
+            actor_label="aw run",
+            history=False,
+        ),
+    )
 
 
 #: The reported outcome of an integration whose content was RECOMPUTED rather than merged.
@@ -50683,28 +50679,32 @@ class ProposalFilingResult(NamedTuple):
 def mark_plan_attended(text: str, *, why: str = "") -> str:
     """Return plan TEXT carrying `- Attended: required` plus a dated workflow-history line.
 
-    Pure and idempotent: a plan already marked is returned unchanged. The field is inserted at the
-    END of the metadata block (before the first H2), the conventional place for an added field.
+    Pure and idempotent: a plan already marked is returned unchanged. The field and history line
+    are rendered through `artifact_meta.render_legacy_text` (D-2).
     """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import ipd_schema as _schema
 
     if _schema.plan_requires_attended(text):
         return text
-    head, sep, rest = text.partition("\n## ")
-    head = (
-        head.rstrip("\n")
-        + f"\n- {_schema.META_ATTENDED}: {_schema.ATTENDED_REQUIRED}\n"
-    )
-    out = head + ("\n## " + rest if sep else "")
     reason = re.sub(r"\s+", " ", why).strip()[:300]
-    line = (
-        f"- {utc_now()[:10]} attended (aw run): marked `Attended: required` from the agent's "
-        f"needs-attended proposal" + (f": {reason}" if reason else "") + "\n"
+    msg = "marked `Attended: required` from the agent's needs-attended proposal" + (
+        f": {reason}" if reason else ""
     )
-    m = re.search(r"(?m)^## Workflow history[ \t]*\n(?:[ \t]*\n)?", out)
-    if m:
-        out = out[: m.end()] + line + out[m.end() :]
-    return out
+    return _am.render_legacy_text(
+        text,
+        [
+            {"op": "set", "fields": {"attended": _schema.ATTENDED_REQUIRED}},
+            {"op": "note", "message": msg},
+        ],
+        record_type="ipd",
+        render=_am.LegacyRender(
+            tag="attended",
+            day=_core.utc_history_date(),
+            actor_label="aw run",
+        ),
+    )
 
 
 def perform_coordinator_proposal_file(
@@ -50808,6 +50808,9 @@ def perform_coordinator_proposal_file(
 """
 
     def _write_fallback_record(reason: str) -> ProposalFilingResult:
+        from agent_workflows import artifact_core as _core
+        from agent_workflows import artifact_meta as _am
+
         proposals_dir = run_dir / "proposals"
         proposals_dir.mkdir(parents=True, exist_ok=True)
         ext = "ipd.md" if size == "small" else "backlog.md"
@@ -50816,40 +50819,63 @@ def perform_coordinator_proposal_file(
         clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]
         if size == "small":
             setid = f"prop-{item_id6}"
-            fallback_content = f"""# IPD: Proposal from {item_id6}: {clean_summary}
-
-- Kind: child
-- Status: draft
-- Work-Kind: {item_work_kind}
-- Priority: {item_priority}
-"""
+            base_content = (
+                f"# IPD: Proposal from {item_id6}: {clean_summary}\n\n"
+                f"- Kind: child\n"
+                f"- Status: draft\n"
+                f"- Set: {setid}\n"
+                f"- Order: 1\n"
+                f"- Id: {item_id6}\n\n"
+                f"{body_text}\n"
+            )
+            set_fields: dict[str, Any] = {
+                "work_kind": item_work_kind,
+                "priority": item_priority,
+            }
             if gate_to_pass:
-                fallback_content += f"- Blocks-Release: {gate_to_pass}\n"
-            fallback_content += f"""- Set: {setid}
-- Order: 1
-- Id: {item_id6}
-
-{body_text}
-"""
+                set_fields["blocks_release"] = gate_to_pass
+            fallback_content = _am.render_legacy_text(
+                base_content,
+                [{"op": "set", "fields": set_fields}],
+                record_type="ipd",
+                render=_am.LegacyRender(
+                    tag="draft",
+                    day=_core.utc_history_date(),
+                    actor_label="proposal fallback",
+                    history=False,
+                ),
+                repo_root=repo,
+            )
         else:
-            from agent_workflows import artifact_core as _core
-
-            fallback_content = f"""- Id: {item_id6}
-- Status: open
-"""
+            base_content = (
+                f"- Id: {item_id6}\n"
+                f"- Status: open\n"
+                f"- Set: {item_id6}\n"
+                f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
+                f"{body_text}\n"
+            )
+            set_fields = {
+                "priority": item_priority,
+                "work_kind": item_work_kind,
+            }
             if gate_to_pass:
-                fallback_content += f"- Blocks-Release: {gate_to_pass}\n"
-            fallback_content += f"""- Set: {item_id6}
-- Priority: {item_priority}
-- Work-Kind: {item_work_kind}
-- Summary: Proposal from {item_id6}: {clean_summary}
-
-## Workflow history
-- {_core.utc_history_date()} created (proposal fallback): Proposal from {item_id6}
-
-{body_text}
-"""
-        fallback_file.write_text(fallback_content, encoding="utf-8")
+                set_fields["blocks_release"] = gate_to_pass
+            fallback_content = _am.render_legacy_text(
+                base_content,
+                [
+                    {"op": "set", "fields": set_fields},
+                    {"op": "note", "message": f"Proposal from {item_id6}"},
+                ],
+                record_type="backlog",
+                render=_am.LegacyRender(
+                    tag="created",
+                    day=_core.utc_history_date(),
+                    actor_label="proposal fallback",
+                    history=True,
+                ),
+                repo_root=repo,
+            )
+        _core.atomic_write(fallback_file, fallback_content)
         rel_path = str(fallback_file)
         try:
             rel_path = str(fallback_file.relative_to(repo)).replace("\\", "/")
@@ -50920,7 +50946,9 @@ def perform_coordinator_proposal_file(
                             kind=kind,
                             blocked_by=blocked_by,
                         )
-                    target.write_text(marked, encoding="utf-8")
+                    from agent_workflows import artifact_core as _core
+
+                    _core.atomic_write(target, marked)
                     commit_msg = (
                         f"plan({item_id6}): mark Attended: required (agent proposal)"
                     )
@@ -50982,18 +51010,24 @@ def perform_coordinator_proposal_file(
                     plan_content = created_plan.read_text(encoding="utf-8")
                     record_id6 = _sel.read_front_matter_id(plan_content) or item_id6
 
-                    if gate_to_pass and "- Blocks-Release:" not in plan_content:
-                        m_pos = re.search(r"(?m)^- Priority:.*\n", plan_content)
-                        if m_pos:
-                            idx = m_pos.end()
-                            plan_content = (
-                                plan_content[:idx]
-                                + f"- Blocks-Release: {gate_to_pass}\n"
-                                + plan_content[idx:]
-                            )
+                    from agent_workflows import artifact_core as _core
+                    from agent_workflows import artifact_meta as _am
 
                     plan_content = plan_content.rstrip() + "\n\n" + body_text
-                    created_plan.write_text(plan_content, encoding="utf-8")
+                    _core.atomic_write(created_plan, plan_content)
+                    if gate_to_pass and "- Blocks-Release:" not in plan_content:
+                        _am.append(
+                            _am.LegacyTarget(created_plan, "plans", record_id6),
+                            [{"op": "set", "fields": {"blocks_release": gate_to_pass}}],
+                            legacy_render=_am.LegacyRender(
+                                tag="same-status",
+                                day=_core.utc_history_date(),
+                                actor_label="aw run",
+                                history=False,
+                            ),
+                            repo_root=coord.path,
+                            project_context=_am.legacy_context(coord.path),
+                        )
                     new_record_rel = str(created_plan.relative_to(coord.path)).replace(
                         "\\", "/"
                     )

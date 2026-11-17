@@ -24,6 +24,7 @@ import sqlite3
 import subprocess
 from typing import (
     Any,
+    Callable,
     Dict,
     FrozenSet,
     Iterable,
@@ -3801,7 +3802,9 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
     "walkthroughs": "walkthrough",
 }
 
-#: Registry field -> today's bullet label, for the fields the setter writes generically.
+_TYPE_TO_PLURAL: Dict[str, str] = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}
+
+#: Registry field -> today's bullet label, for the fields the setter and phase-B writers edit.
 _LEGACY_BULLET_LABEL: Dict[str, str] = {
     "approval": "Approval",
     "readiness": "Readiness",
@@ -3812,7 +3815,100 @@ _LEGACY_BULLET_LABEL: Dict[str, str] = {
     "coverage": "Coverage",
     "coverage_fingerprint": "Coverage-Fingerprint",
     "coverage_checked": "Coverage-Checked",
+    "attended": "Attended",
+    "plan_role": "Kind",
+    "set": "Set",
+    "order": "Order",
+    "version": "Version",
+    "short_description": "Short-Description",
+    "pipeline": "Pipeline",
+    "from_plan": "From-Plan",
+    "supersedes": "Supersedes",
+    "scope_paths": "Scope-Paths",
+    "highest_e_allocated": "Highest E allocated",
 }
+
+#: Registry field -> YAML front-matter key for `research` records.
+_RESEARCH_YAML_KEY: Dict[str, str] = {
+    "id": "id",
+    "status": "status",
+    "set": "set",
+    "order": "order",
+    "research_kind": "kind",
+    "outcome": "outcome",
+    "priority": "priority",
+    "consumed_by": "consumed-by",
+    "topic": "topic",
+    "short_description": "short-description",
+    "model": "model",
+    "ace": "ace",
+    "created_day": "created",
+}
+
+#: Registry field -> `<!-- aw-prompt: ... -->` comment key for `prompt` records.
+_PROMPT_COMMENT_KEY: Dict[str, str] = {
+    "prompt_kind": "Kind",
+    "id": "Id",
+    "set": "Set",
+    "status": "Status",
+    "created_day": "Created",
+    "author": "Author",
+    "targets": "Targets",
+    "concerns": "Concerns",
+    "results_go_to": "Results-go-to",
+    "results": "Results",
+    "grounding": "Grounding",
+    "goal": "Goal",
+    "reviews_spec": "Reviews-spec",
+    "basis": "Basis",
+    "relation": "Relation",
+    "short_description": "Short-Description",
+}
+
+_YAML_FENCE_OPEN_RE = re.compile(r"\A---[ \t]*\r?\n")
+
+_META_BULLET_LINE_RE = re.compile(r"(?m)^-\s*[A-Za-z][A-Za-z0-9 /-]*:[^\n]*(?:\n|$)")
+
+
+def _normalize_legacy_types(
+    record_type: Optional[str],
+    target_path: Optional[Path] = None,
+    records_root: Optional[Path] = None,
+) -> Tuple[Optional[str], str]:
+    """Map a singular or plural record type (or target path) to `(registry_type, plural_dir)`."""
+    if record_type:
+        if record_type in _LEGACY_PLURAL_TO_TYPE:
+            return _LEGACY_PLURAL_TO_TYPE[record_type], record_type
+        if record_type in _TYPE_TO_PLURAL:
+            return record_type, _TYPE_TO_PLURAL[record_type]
+        return record_type, record_type
+    if target_path is not None:
+        if records_root is not None:
+            with contextlib.suppress(ValueError):
+                rel_parts = (
+                    target_path.resolve().relative_to(records_root.resolve()).parts
+                )
+                if rel_parts and rel_parts[0] in _LEGACY_PLURAL_TO_TYPE:
+                    plural = rel_parts[0]
+                    return _LEGACY_PLURAL_TO_TYPE[plural], plural
+        name = target_path.name
+        suffix_map = (
+            (".ipd.md", "plans"),
+            (".spec.md", "specs"),
+            (".backlog.md", "backlog"),
+            (".release.md", "releases"),
+            (".prompt.md", "prompts"),
+            (".walkthrough.md", "walkthroughs"),
+        )
+        for suf, plural in suffix_map:
+            if name.endswith(suf):
+                return _LEGACY_PLURAL_TO_TYPE[plural], plural
+        if "research" in target_path.parts or name.endswith(
+            (".research-report.md", ".research-prompt.md", ".findings.md", ".survey.md")
+        ):
+            return "research", "research"
+    return "ipd", "plans"
+
 
 _GATE_FIELDS: Tuple[str, ...] = ("gate_kind", "gate_ref", "gate_summary")
 
@@ -3941,7 +4037,11 @@ def _check_owned_fields(
 def _set_bullet(
     text: str, label: str, value: Optional[str], *, anchors: Tuple[str, ...]
 ) -> str:
-    """Replace or remove `- <label>:` inside the metadata region, else insert after an anchor."""
+    """Replace or remove `- <label>:` inside the metadata region, else insert after an anchor.
+
+    D-2 / a88210: tries ``anchors`` in order, then falls back to the end of an existing metadata
+    bullet block before the first ``## ``; writes nothing when the file has no metadata bullet block.
+    """
     from agent_workflows import selectors as _sel
 
     region = _sel.metadata_region(text)
@@ -3954,9 +4054,29 @@ def _set_bullet(
     if m:
         return region[: m.start()] + new_line + region[m.end() :] + rest
     for anchor in anchors:
-        am = re.search(r"(?m)^-\s*" + re.escape(anchor) + r":[^\n]*\n", region)
+        am = re.search(r"(?m)^-\s*" + re.escape(anchor) + r":[^\n]*(?:\n|$)", region)
         if am:
-            return region[: am.end()] + new_line + region[am.end() :] + rest
+            if am.group(0).endswith("\n"):
+                return region[: am.end()] + new_line + region[am.end() :] + rest
+            return region[: am.end()] + "\n" + new_line + region[am.end() :] + rest
+    last_bullet = None
+    for bm in _META_BULLET_LINE_RE.finditer(region):
+        last_bullet = bm
+    if last_bullet is not None:
+        if last_bullet.group(0).endswith("\n"):
+            return (
+                region[: last_bullet.end()]
+                + new_line
+                + region[last_bullet.end() :]
+                + rest
+            )
+        return (
+            region[: last_bullet.end()]
+            + "\n"
+            + new_line
+            + region[last_bullet.end() :]
+            + rest
+        )
     return region + rest
 
 
@@ -4042,45 +4162,408 @@ def _render_status(
     return "\n".join(new_lines), notes
 
 
+def _format_legacy_value(field: str, value: Any) -> str:
+    """Format a structured or scalar field value for legacy Markdown/YAML/comment rendering."""
+    if isinstance(value, (list, tuple)):
+        if field == "item_dependencies":
+            parts = [
+                str(item["raw"])
+                if isinstance(item, dict) and "raw" in item
+                else str(item)
+                for item in value
+            ]
+            return ", ".join(parts)
+        return ", ".join(str(x) for x in value)
+    return str(value)
+
+
+def _format_yaml_value(value: Any) -> str:
+    """Format a scalar or list value for YAML front matter."""
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(str(x) for x in value) + "]" if value else "[]"
+    return str(value)
+
+
+def _render_yaml_field(text: str, yaml_key: str, value: Optional[Any]) -> str:
+    """Replace, insert (before closing `---`), or remove a key in a leading `---` YAML block."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    fm_end: Optional[int] = None
+    key_idx: Optional[int] = None
+    last_content_idx = 0
+    for i in range(1, len(lines)):
+        stripped = lines[i].strip()
+        if stripped == "---":
+            fm_end = i
+            break
+        if re.match(r"^" + re.escape(yaml_key) + r"\s*:", stripped):
+            key_idx = i
+        if stripped:
+            last_content_idx = i
+    if fm_end is None:
+        return text
+    if value is None:
+        if key_idx is not None:
+            del lines[key_idx]
+        return "".join(lines)
+    formatted = _format_yaml_value(value)
+    if key_idx is not None:
+        newline = "\n" if lines[key_idx].endswith("\n") else ""
+        lines[key_idx] = f"{yaml_key}: {formatted}{newline}"
+    else:
+        lines.insert(last_content_idx + 1, f"{yaml_key}: {formatted}\n")
+    return "".join(lines)
+
+
+def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]]:
+    """Return `(prefix, fields_part, trailer_part, suffix)` for an `<!-- aw-prompt: ... -->` line."""
+    m = re.match(r"^(<!--\s*aw-prompt:\s*)(.*?)(\s*-->)\s*$", first_line)
+    if not m:
+        return None
+    prefix, inner, suffix = m.group(1), m.group(2), m.group(3)
+    from agent_workflows import prompts as _prompts
+
+    trailer_marker = f" . {_prompts._METADATA_TRAILER}"
+    if trailer_marker in inner:
+        fields_part, tail = inner.split(trailer_marker, 1)
+        return prefix, fields_part, trailer_marker + tail, suffix
+    m_tr = re.search(r"(\s*\.\s*This HTML comment is pipeline metadata only.*)$", inner)
+    if m_tr:
+        return (
+            prefix,
+            inner[: m_tr.start()],
+            m_tr.group(1),
+            suffix,
+        )
+    return prefix, inner, "", suffix
+
+
+def _render_prompt_field(text: str, key_label: str, value: Optional[Any]) -> str:
+    """Edit, insert, or remove one key in a leading `<!-- aw-prompt: ... -->` comment.
+
+    Leaves comment-less legacy prompts unchanged (`prompts.inject_metadata_id6` parity)."""
+    lines = text.split("\n")
+    if not lines or "<!-- aw-prompt:" not in lines[0]:
+        return text
+    parsed = _split_prompt_comment(lines[0])
+    if parsed is None:
+        return text
+    prefix, fields_part, trailer_part, suffix = parsed
+    raw_segments = [s.strip() for s in fields_part.split("|") if s.strip()]
+    key_pat = re.compile(r"^" + re.escape(key_label) + r":\s*(.*)$")
+    clean_val = (
+        " ".join(_format_legacy_value(key_label, value).split())
+        if value is not None
+        else None
+    )
+    new_segments: List[str] = []
+    found = False
+    for seg in raw_segments:
+        km = key_pat.match(seg)
+        if km:
+            found = True
+            if clean_val is not None:
+                if km.group(1).strip() == clean_val:
+                    new_segments.append(seg)
+                else:
+                    new_segments.append(f"{key_label}: {clean_val}")
+        else:
+            new_segments.append(seg)
+    if not found and clean_val is not None:
+        new_seg = f"{key_label}: {clean_val}"
+        if key_label == "Id":
+            idx = next(
+                (i + 1 for i, s in enumerate(new_segments) if s.startswith("Kind:")),
+                len(new_segments),
+            )
+            new_segments.insert(idx, new_seg)
+        elif key_label == "Set":
+            idx = next(
+                (i + 1 for i, s in enumerate(new_segments) if s.startswith("Id:")),
+                None,
+            )
+            if idx is None:
+                idx = next(
+                    (
+                        i + 1
+                        for i, s in enumerate(new_segments)
+                        if s.startswith("Kind:")
+                    ),
+                    len(new_segments),
+                )
+            new_segments.insert(idx, new_seg)
+        else:
+            new_segments.append(new_seg)
+    if not new_segments:
+        return text
+    lines[0] = f"{prefix}{' | '.join(new_segments)}{trailer_part}{suffix}"
+    return "\n".join(lines)
+
+
+def _render_create_fields(
+    text: str, plural: str, fields: Dict[str, Any], *, repo_root: Optional[Path]
+) -> str:
+    """Render initial `create` event fields onto `text` in the type's legacy mirror format."""
+    if plural == "prompts":
+        lines = text.split("\n") if text else []
+        if lines and "<!-- aw-prompt:" in lines[0]:
+            out = text
+            for fk, fv in fields.items():
+                if fk == "type":
+                    continue
+                label = _PROMPT_COMMENT_KEY.get(fk)
+                if label is not None and fv is not None:
+                    out = _render_prompt_field(out, label, fv)
+            return out
+        from agent_workflows import prompts as _prompts
+
+        ordered_keys = (
+            "prompt_kind",
+            "id",
+            "set",
+            "status",
+            "created_day",
+            "author",
+            "targets",
+            "concerns",
+            "results_go_to",
+            "results",
+            "grounding",
+            "goal",
+            "reviews_spec",
+            "basis",
+            "relation",
+            "short_description",
+        )
+        segs: List[str] = []
+        for fk in ordered_keys:
+            if fk == "prompt_kind":
+                val = fields.get("prompt_kind")
+                if val is None:
+                    continue
+            else:
+                val = fields.get(fk)
+            if val is None or val == "":
+                continue
+            label = _PROMPT_COMMENT_KEY[fk]
+            clean_val = " ".join(_format_legacy_value(fk, val).split())
+            if clean_val:
+                segs.append(f"{label}: {clean_val}")
+        comment = (
+            f"<!-- aw-prompt: {' | '.join(segs)} . {_prompts._METADATA_TRAILER} -->"
+        )
+        comment = " ".join(comment.split())
+        if not text:
+            return comment
+        if text.startswith("\n"):
+            return comment + text
+        return comment + "\n" + text
+
+    if plural == "research":
+        if _YAML_FENCE_OPEN_RE.match(text):
+            out = text
+            for fk, fv in fields.items():
+                if fk == "type" or fv is None:
+                    continue
+                yk = _RESEARCH_YAML_KEY.get(fk)
+                if yk is not None:
+                    out = _render_yaml_field(out, yk, fv)
+            return out
+        ordered_yaml = (
+            "id",
+            "created_day",
+            "set",
+            "order",
+            "research_kind",
+            "status",
+            "outcome",
+            "priority",
+            "consumed_by",
+            "topic",
+            "short_description",
+            "model",
+            "ace",
+        )
+        fm_lines = ["---"]
+        for fk in ordered_yaml:
+            if fk in fields and fields[fk] is not None:
+                fm_lines.append(
+                    f"{_RESEARCH_YAML_KEY[fk]}: {_format_yaml_value(fields[fk])}"
+                )
+        fm_lines.append("---")
+        fm = "\n".join(fm_lines)
+        if not text:
+            return fm
+        if text.startswith("\n"):
+            return fm + text
+        return fm + "\n\n" + text
+
+    from agent_workflows import selectors as _sel
+
+    region = _sel.metadata_region(text)
+    if _META_BULLET_LINE_RE.search(region):
+        out = text
+        if "status" in fields and fields["status"] is not None:
+            out, _ = _render_status(
+                out, plural, str(fields["status"]), quiet=True, label=""
+            )
+        if "id" in fields and fields["id"] is not None:
+            out = _set_bullet(out, "Id", str(fields["id"]), anchors=("Status",))
+        for fk, fv in fields.items():
+            if fk in ("id", "type", "status") or fv is None:
+                continue
+            out = _render_field(out, plural, fk, fv, repo_root=repo_root)
+        return out
+
+    ordered_bullets = (
+        "id",
+        "status",
+        "plan_role",
+        "version",
+        "set",
+        "order",
+        "work_kind",
+        "priority",
+        "short_description",
+        "pipeline",
+        "from_backlog",
+        "from_spec",
+        "from_plan",
+        "supersedes",
+        "blocks_release",
+        "scope_paths",
+        "item_dependencies",
+        "highest_e_allocated",
+        "graduated_to",
+        "gate_kind",
+        "gate_ref",
+        "gate_summary",
+        "release_exempt_kind",
+        "release_exempt_ref",
+        "attended",
+        "close_evidence",
+    )
+    label_map = {
+        **_LEGACY_BULLET_LABEL,
+        "id": "Id",
+        "status": "Status",
+        "work_kind": "Work-Kind",
+        "priority": "Priority",
+        "from_backlog": "From-Backlog",
+        "from_spec": "From-Spec",
+        "blocks_release": "Blocks-Release",
+        "item_dependencies": "Item-Dependencies",
+        "graduated_to": "Graduated-To",
+        "release_exempt_kind": "Release-Exempt-Kind",
+        "release_exempt_ref": "Release-Exempt-Ref",
+        "close_evidence": "Close-Evidence",
+    }
+    bullet_lines: List[str] = []
+    seen_keys: Set[str] = set()
+    for fk in list(ordered_bullets) + list(fields.keys()):
+        if fk in seen_keys or fk == "type":
+            continue
+        seen_keys.add(fk)
+        fv = fields.get(fk)
+        if fv is None:
+            continue
+        lbl = label_map.get(fk)
+        if lbl is not None:
+            bullet_lines.append(f"- {lbl}: {_format_legacy_value(fk, fv)}")
+    if not bullet_lines:
+        return text
+    block = "\n".join(bullet_lines)
+    if not text:
+        return block
+    lines = text.split("\n")
+    if lines[0].startswith("# "):
+        rest_lines = lines[1:]
+        while rest_lines and rest_lines[0] == "":
+            rest_lines.pop(0)
+        head = lines[0] + "\n\n" + block
+        if rest_lines:
+            return head + "\n\n" + "\n".join(rest_lines)
+        return head
+    return block + "\n\n" + text.lstrip("\n")
+
+
 def _render_field(
     text: str,
     plural: str,
     field: str,
-    value: Optional[str],
+    value: Optional[Any],
     *,
     repo_root: Optional[Path],
 ) -> str:
-    """One bullet edit, reusing the existing pure value writers for the fields they own."""
+    """One field edit across bullet, research `---` YAML, or `aw-prompt` comment forms."""
+    if plural == "prompts":
+        key_label = _PROMPT_COMMENT_KEY.get(field)
+        if key_label is None:
+            raise ValueError(
+                f"legacy writer has no prompt comment key for field {field!r}"
+            )
+        return _render_prompt_field(text, key_label, value)
+
+    if (
+        plural == "research"
+        and field in _RESEARCH_YAML_KEY
+        and _YAML_FENCE_OPEN_RE.match(text)
+    ):
+        val = (
+            None if (value is None or (field == "priority" and value == "-")) else value
+        )
+        return _render_yaml_field(text, _RESEARCH_YAML_KEY[field], val)
+
     from agent_workflows import backlog as _backlog
 
     writers = {
-        "blocks_release": _releases.set_blocks_release_line,
-        "priority": _releases.set_priority_line,
-        "work_kind": _releases.set_work_kind_line,
-        "from_backlog": _releases.set_from_backlog_line,
-        "from_spec": _releases.set_from_spec_line,
-        "item_dependencies": _releases.set_item_dependencies_line,
-        "graduated_to": _releases.set_graduated_to_line,
-        "release_exempt_kind": _backlog.set_release_exempt_kind_line,
-        "release_exempt_ref": _backlog.set_release_exempt_ref_line,
+        "blocks_release": ("Blocks-Release", _releases.set_blocks_release_line),
+        "priority": ("Priority", _releases.set_priority_line),
+        "work_kind": ("Work-Kind", _releases.set_work_kind_line),
+        "from_backlog": ("From-Backlog", _releases.set_from_backlog_line),
+        "from_spec": ("From-Spec", _releases.set_from_spec_line),
+        "item_dependencies": (
+            "Item-Dependencies",
+            _releases.set_item_dependencies_line,
+        ),
+        "graduated_to": ("Graduated-To", _releases.set_graduated_to_line),
+        "release_exempt_kind": (
+            "Release-Exempt-Kind",
+            _backlog.set_release_exempt_kind_line,
+        ),
+        "release_exempt_ref": (
+            "Release-Exempt-Ref",
+            _backlog.set_release_exempt_ref_line,
+        ),
     }
     if field in writers:
-        return writers[field](text, value if value is not None else "-")
+        wlabel, wfn = writers[field]
+        formatted = _format_legacy_value(field, value) if value is not None else "-"
+        if value is not None and formatted != "-":
+            from agent_workflows import selectors as _sel
+
+            region = _sel.metadata_region(text)
+            matches = re.findall(r"(?m)^-\s*" + re.escape(wlabel) + r":", region)
+            if len(matches) == 1:
+                return _set_bullet(text, wlabel, formatted, anchors=("Status", "Id"))
+        return wfn(text, formatted)
     if field == "close_evidence":
-        return _backlog.set_close_evidence_line(
-            text, value if value is not None else "-", repo_root=repo_root
-        )
+        formatted = _format_legacy_value(field, value) if value is not None else "-"
+        return _backlog.set_close_evidence_line(text, formatted, repo_root=repo_root)
     label = _LEGACY_BULLET_LABEL.get(field)
     if label is None:
         raise ValueError(f"legacy writer has no bullet form for field {field!r}")
     if value is None:
-        pat = _LEGACY_REMOVE_RE.get(field) or _bullet_re(label)
-        return "\n".join(ln for ln in text.split("\n") if not pat.match(ln))
+        if field in _LEGACY_REMOVE_RE:
+            pat = _LEGACY_REMOVE_RE[field]
+            return "\n".join(ln for ln in text.split("\n") if not pat.match(ln))
+        return _set_bullet(text, label, None, anchors=("Status", "Id"))
     anchors = {
-        "review_depth": ("Readiness", "Status"),
-        "coverage": ("Readiness", "Status"),
-    }.get(field, ("Status",))
-    return _set_bullet(text, label, value, anchors=anchors)
+        "review_depth": ("Readiness", "Status", "Id"),
+        "coverage": ("Readiness", "Status", "Id"),
+    }.get(field, ("Status", "Id"))
+    return _set_bullet(text, label, _format_legacy_value(field, value), anchors=anchors)
 
 
 def _render_gate(text: str, fields: Dict[str, Any]) -> str:
@@ -4133,11 +4616,15 @@ def _render_approval(text: str, value: str) -> str:
 
 
 def _render_history(text: str, entry: str, *, is_prompt: bool) -> str:
-    """Prepend a newest-first record under `## Workflow history`, creating the heading if absent."""
+    """Prepend a newest-first record under `## Workflow history`, creating the heading if absent.
+
+    D-1: preserves an existing single blank line directly under `## Workflow history` when present
+    (inserting after it), and inserts directly under the heading otherwise."""
     lines = text.split("\n")
     for i, ln in enumerate(lines):
         if re.match(r"^##\s*Workflow history\s*$", ln):
-            lines.insert(i + 1, entry)
+            insert_at = i + 2 if (i + 1 < len(lines) and lines[i + 1] == "") else i + 1
+            lines.insert(insert_at, entry)
             return "\n".join(lines)
     idx = len(lines)
     if not is_prompt:
@@ -4171,9 +4658,13 @@ def render_legacy(
     if mirror:
         out, n = _render_status(out, plural, mirror, quiet=quiet, label=label)
         notes.extend(n)
+    legacy_history_lines: List[str] = []
     for ev in events:
         op = ev["op"]
-        if op == "transition":
+        if op == "create":
+            fields = dict(ev.get("fields") or {})
+            out = _render_create_fields(out, plural, fields, repo_root=repo_root)
+        elif op == "transition":
             pass
         elif op == "set":
             fields = dict(ev["fields"])
@@ -4216,16 +4707,38 @@ def render_legacy(
                 f"{render.day} by {render.actor_label}",
                 anchors=("Coverage-Fingerprint",),
             )
-        elif op in ("note", "legacy"):
+        elif op == "note":
             pass
+        elif op == "legacy":
+            if ev.get("source") == "history":
+                ln = ev.get("line")
+                if isinstance(ln, str) and ln.strip():
+                    legacy_history_lines.append(ln.rstrip("\n"))
         else:
             raise ValueError(f"legacy writer cannot render op {op!r}")
     if plural == "backlog":
         out = _canonicalize_work_kind(out)
+    for hline in reversed(legacy_history_lines):
+        out = _render_history(out, hline, is_prompt=render.is_prompt)
     if render.history:
-        msg = next((e.get("message") for e in events if e.get("message")), "") or ""
-        entry = f"- {render.day} {render.tag} ({render.actor_label}): {msg}"
-        out = _render_history(out, entry, is_prompt=render.is_prompt)
+        has_non_legacy_hist_event = any(
+            ev.get("op") in ("note", "transition", "review", "coverage", "create")
+            for ev in events
+        )
+        msg = (
+            next(
+                (
+                    e.get("message")
+                    for e in events
+                    if e.get("op") != "legacy" and e.get("message")
+                ),
+                "",
+            )
+            or ""
+        )
+        if has_non_legacy_hist_event or msg or not legacy_history_lines:
+            entry = f"- {render.day} {render.tag} ({render.actor_label}): {msg}"
+            out = _render_history(out, entry, is_prompt=render.is_prompt)
     return out.rstrip() + "\n", notes
 
 
@@ -4275,29 +4788,145 @@ def _prepare_legacy_events(
         if e.get("message") == "":
             e.pop("message")
         prepared.append(e)
-    # Field names: the type's registry, plus the setter vocabulary today's bullet format accepts on
-    # any record (2xwb9b D-04; e.g. `--work-kind` on a research report). Unknown names are refused.
-    legacy_vocab = set(_LEGACY_BULLET_LABEL) | {
-        "blocks_release",
-        "priority",
-        "work_kind",
-        "from_backlog",
-        "from_spec",
-        "item_dependencies",
-        "graduated_to",
-        "release_exempt_kind",
-        "release_exempt_ref",
-        "close_evidence",
-    }
+    # Field names: the type's registry, plus the setter vocabulary today's bullet/YAML/comment
+    # formats accept (2xwb9b D-04, 7yr827 E-01). Unknown names are refused.
+    legacy_vocab = (
+        set(_LEGACY_BULLET_LABEL)
+        | set(_RESEARCH_YAML_KEY)
+        | set(_PROMPT_COMMENT_KEY)
+        | {
+            "blocks_release",
+            "priority",
+            "work_kind",
+            "from_backlog",
+            "from_spec",
+            "item_dependencies",
+            "graduated_to",
+            "release_exempt_kind",
+            "release_exempt_ref",
+            "close_evidence",
+        }
+    )
     reg = REGISTRY.get(record_type or "", {})
     for e in prepared:
+        op = e.get("op")
         f = e.get("fields")
         names = f if isinstance(f, list) else list(f or {})
         for fk in names:
+            if op in ("create", "checkpoint") and fk in ("id", "type", "status"):
+                continue
             if fk not in reg and fk not in legacy_vocab:
                 raise ValueError(f"unknown field '{fk}' for type '{record_type}'")
     validate_new_events("", prepared, records_root=records_root)
     return prepared
+
+
+def render_legacy_text(
+    text: str,
+    events: List[Dict[str, Any]],
+    *,
+    record_type: str = "ipd",
+    render: LegacyRender,
+    repo_root: Optional[Union[str, Path]] = None,
+    from_status: Optional[str] = None,
+    actor: Optional[Dict[str, Any]] = None,
+    by_human: bool = False,
+    overrides: Optional[List[str]] = None,
+    quiet: bool = True,
+    label: str = "",
+) -> str:
+    """Validate and render ``events`` over an in-memory legacy string without file I/O.
+
+    Runs ``validate_new_events`` and ``_check_owned_fields`` before rendering through the same
+    ``render_legacy`` primitives used by :func:`write_legacy`."""
+    reg_type, plural = _normalize_legacy_types(record_type)
+    rroot = Path(repo_root) if repo_root is not None else Path.cwd()
+    records_root = Path(_proj_ctx.project_records_dir(rroot))
+    prepared = _prepare_legacy_events(
+        reg_type,
+        events,
+        records_root=records_root,
+        actor=actor,
+        by_human=by_human,
+        overrides=overrides,
+    )
+    _check_owned_fields(reg_type or plural, prepared, from_status)
+    rendered, _notes = render_legacy(
+        text,
+        plural,
+        prepared,
+        render,
+        label=label,
+        repo_root=rroot,
+        quiet=quiet,
+    )
+    return rendered
+
+
+def restore_legacy_snapshot(
+    current_text: str,
+    pre_pass_text: str,
+    *,
+    record_type: str = "ipd",
+    drop_history_predicate: Optional[Callable[[str], bool]] = None,
+) -> str:
+    """Restore pre-pass `- Status:`, `- Readiness:`, and review history lines in memory (D-5).
+
+    Uses `_render_status`, `_set_bullet`, and the history-block primitives rather than
+    `validate_new_events` and emits no `set readiness` event."""
+    _, plural = _normalize_legacy_types(record_type)
+    try:
+        from agent_workflows import ipd_lint as _lint
+
+        doc_pre = _lint.parse(pre_pass_text or "")
+        st_pre = doc_pre.meta_fields.get("Status") or "to-review"
+    except Exception:
+        bullets_pre, _, _ = _parse_bullet_metadata(pre_pass_text or "")
+        st_pre = bullets_pre.get("Status") or "to-review"
+
+    rd_pre = _ipd_schema.read_readiness(pre_pass_text)
+    pre_history = set(_plan_read.history_block(pre_pass_text or "").records)
+
+    out = "\n".join((current_text or "").splitlines())
+    from agent_workflows import selectors as _sel
+
+    if re.search(r"(?m)^-\s*Status\s*:", _sel.metadata_region(out)):
+        out, _ = _render_status(out, plural, st_pre, quiet=True, label="")
+    if plural == "plans":
+        if rd_pre is not None:
+            out = _set_bullet(out, "Readiness", rd_pre, anchors=("Status", "Id"))
+        else:
+            out = _set_bullet(out, "Readiness", None, anchors=("Status", "Id"))
+
+    if drop_history_predicate is None:
+
+        def _default_drop(stripped: str) -> bool:
+            return (
+                _plan_read.is_review_history_entry(stripped)
+                or "reviewed" in stripped.lower()
+                or "(aw set): status set to reviewed" in stripped
+            )
+
+        pred = _default_drop
+    else:
+        pred = drop_history_predicate
+
+    lines = out.split("\n")
+    in_history = False
+    out_lines: List[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_history = stripped.startswith("## Workflow history")
+        elif in_history and stripped.startswith("- "):
+            if stripped not in pre_history and pred(stripped):
+                continue
+        out_lines.append(line)
+
+    result = "\n".join(out_lines)
+    if (current_text or "").endswith("\n") and not result.endswith("\n"):
+        result += "\n"
+    return result
 
 
 def _git_target_root(path: Path, repo_root: Path) -> Path:
@@ -4311,6 +4940,144 @@ def _git_target_root(path: Path, repo_root: Path) -> Path:
                 if gr is not None:
                     return gr
     return repo_root
+
+
+def write_legacy(
+    target: Union[Path, str, LegacyTarget],
+    events: List[Dict[str, Any]],
+    *,
+    record_type: Optional[str] = None,
+    render: LegacyRender,
+    repo_root: Optional[Union[str, Path]] = None,
+    project_context: Any = None,
+    destination: Optional[Path] = None,
+    dry_run: bool = False,
+    actor: Optional[Dict[str, Any]] = None,
+    by_human: bool = False,
+    overrides: Optional[List[str]] = None,
+    sidecar: Optional[SidecarRecord] = None,
+    quiet: bool = True,
+    from_status: Optional[str] = None,
+    notes_out: Optional[List[str]] = None,
+    initial_text: Optional[str] = None,
+) -> WritePreview:
+    """The single phase-B legacy writer: validate, render, lock, move, atomic-write, sidecar.
+
+    Accepts a :class:`Path` (or ``str``) or a :class:`LegacyTarget`. Write order matches
+    ``2xwb9b`` F-07: disposition ``git mv`` first, then ``artifact_core.atomic_write``, then
+    belt-and-braces source unlink, then optional specs/backlog sidecar record. Writes nothing on
+    refusal or ``dry_run=True``."""
+    if isinstance(target, LegacyTarget):
+        ltarget = target
+        r_type = record_type or ltarget.record_type
+    else:
+        tpath = Path(target)
+        r_type = record_type
+        ltarget = LegacyTarget(tpath, r_type or "plans")
+
+    if repo_root is not None:
+        rroot = Path(repo_root)
+    elif project_context is not None and getattr(project_context, "repo_root", None):
+        rroot = Path(project_context.repo_root)
+    else:
+        rroot = _proj_ctx.record_git_root(ltarget.path) or _core.repo_root_of(
+            ltarget.path
+        )
+
+    ctx = project_context or legacy_context(rroot)
+    records_root = Path(ctx.logical_roots["records"])
+    state_root = Path(ctx.logical_roots["state"])
+    reg_type, plural = _normalize_legacy_types(r_type, ltarget.path, records_root)
+
+    prepared = _prepare_legacy_events(
+        reg_type,
+        events,
+        records_root=records_root,
+        actor=actor,
+        by_human=by_human,
+        overrides=overrides,
+    )
+    _check_owned_fields(reg_type or plural, prepared, from_status)
+
+    src = Path(ltarget.path)
+    if ltarget.source_digest is not None:
+        if src.is_file():
+            if _compute_digest(src) != ltarget.source_digest:
+                raise ValueError(
+                    f"refused: {src} changed since it was read (source digest differs); re-read and retry"
+                )
+        elif ltarget.source_digest != "":
+            raise ValueError(
+                f"refused: {src} does not exist (source digest mismatch); re-read and retry"
+            )
+    if src.is_file():
+        text = src.read_text(encoding="utf-8")
+    elif initial_text is not None:
+        text = initial_text
+    else:
+        text = ""
+    rendered, notes = render_legacy(
+        text,
+        plural,
+        prepared,
+        render,
+        label=ltarget.id6 or src.name,
+        repo_root=rroot,
+        quiet=quiet,
+    )
+    if notes_out is not None:
+        notes_out.extend(notes)
+    dest = Path(destination) if destination is not None else src
+    moving = dest.resolve() != src.resolve()
+    preview = WritePreview(
+        text=rendered,
+        destination=dest,
+        source=src,
+        changed=moving or (not src.is_file()) or rendered != text,
+        events=prepared,
+    )
+    if dry_run:
+        return preview
+
+    lock_path = state_root / "locks" / f"meta-{ltarget.key}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with _lock.held(lock_path):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if moving and src.exists():
+            git_root = _git_target_root(src, rroot)
+            try:
+                rel_src = str(src.relative_to(git_root))
+                rel_dst = str(dest.relative_to(git_root))
+            except ValueError:
+                rel_src, rel_dst = str(src), str(dest)
+            _core.git_mv(git_root, rel_src, rel_dst)
+        _core.atomic_write(dest, rendered)
+        if moving and src.exists():
+            with contextlib.suppress(OSError):
+                src.unlink()
+        if sidecar is not None:
+            sid = ltarget.id6
+            if not sid:
+                from agent_workflows import selectors as _sel
+
+                sid = _sel.read_front_matter_id(rendered)
+            if sid:
+                from agent_workflows import record_history as _rh
+
+                _rh.append_advisory(
+                    rroot,
+                    id6=sid,
+                    tree=sidecar.tree,
+                    workflow=sidecar.workflow,
+                    actor=sidecar.actor,
+                    message=sidecar.message,
+                    date=sidecar.date,
+                    artifact=dest.name,
+                )
+        # No cache refresh here: the two-check freshness rule (4.3) reloads the changed files on the
+        # next read, and a refresh on every write would cost a whole cold build (measured about 14 s
+        # on this repository) in a fresh checkout or lane, where most setter calls run.
+    return preview
 
 
 def append_legacy(
@@ -4330,101 +5097,24 @@ def append_legacy(
     from_status: Optional[str] = None,
     notes_out: Optional[List[str]] = None,
 ) -> WritePreview:
-    """The LEGACY branch of `append` (phase B): validate, render, then move, write and record.
-
-    Write order is today's (2xwb9b F-07): the disposition move first (`git mv` in the record's git
-    root), then the atomic content write (the phase-B commit point), then the belt-and-braces source
-    unlink, then the specs/backlog sidecar record, then the cache rows (best effort). A failure before
-    the content write raises with every file and the sidecar unchanged. A refused append raises
-    ``ValueError`` before anything is read for writing. ``dry_run`` writes nothing."""
-    repo_root = Path(repo_root)
-    ctx = project_context or legacy_context(repo_root)
-    records_root = Path(ctx.logical_roots["records"])
-    state_root = Path(ctx.logical_roots["state"])
-    reg_type = _LEGACY_PLURAL_TO_TYPE.get(target.record_type)
-
-    prepared = _prepare_legacy_events(
-        reg_type,
+    """Thin compatibility delegate for ``2xwb9b`` callers; delegates to :func:`write_legacy`."""
+    return write_legacy(
+        target,
         events,
-        records_root=records_root,
+        record_type=target.record_type,
+        render=render,
+        repo_root=repo_root,
+        project_context=project_context,
+        destination=destination,
+        dry_run=dry_run,
         actor=actor,
         by_human=by_human,
         overrides=overrides,
-    )
-    _check_owned_fields(reg_type or target.record_type, prepared, from_status)
-
-    src = Path(target.path)
-    text = src.read_text(encoding="utf-8") if src.is_file() else ""
-    if (
-        target.source_digest is not None
-        and src.is_file()
-        and _compute_digest(src) != target.source_digest
-    ):
-        raise ValueError(
-            f"refused: {src} changed since it was read (source digest differs); re-read and retry"
-        )
-    rendered, notes = render_legacy(
-        text,
-        target.record_type,
-        prepared,
-        render,
-        label=target.id6 or src.name,
-        repo_root=repo_root,
+        sidecar=sidecar,
         quiet=quiet,
+        from_status=from_status,
+        notes_out=notes_out,
     )
-    if notes_out is not None:
-        notes_out.extend(notes)
-    dest = Path(destination) if destination is not None else src
-    moving = dest.resolve() != src.resolve()
-    preview = WritePreview(
-        text=rendered,
-        destination=dest,
-        source=src,
-        changed=moving or rendered != text,
-        events=prepared,
-    )
-    if dry_run:
-        return preview
-
-    lock_path = state_root / "locks" / f"meta-{target.key}.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with _lock.held(lock_path):
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if moving and src.exists():
-            git_root = _git_target_root(src, repo_root)
-            try:
-                rel_src = str(src.relative_to(git_root))
-                rel_dst = str(dest.relative_to(git_root))
-            except ValueError:
-                rel_src, rel_dst = str(src), str(dest)
-            _core.git_mv(git_root, rel_src, rel_dst)
-        _core.atomic_write(dest, rendered)
-        if moving and src.exists():
-            with contextlib.suppress(OSError):
-                src.unlink()
-        if sidecar is not None:
-            sid = target.id6
-            if not sid:
-                from agent_workflows import selectors as _sel
-
-                sid = _sel.read_front_matter_id(rendered)
-            if sid:
-                from agent_workflows import record_history as _rh
-
-                _rh.append_advisory(
-                    repo_root,
-                    id6=sid,
-                    tree=sidecar.tree,
-                    workflow=sidecar.workflow,
-                    actor=sidecar.actor,
-                    message=sidecar.message,
-                    date=sidecar.date,
-                    artifact=dest.name,
-                )
-        # No cache refresh here: the two-check freshness rule (4.3) reloads the changed files on the
-        # next read, and a refresh on every write would cost a whole cold build (measured about 14 s
-        # on this repository) in a fresh checkout or lane, where most setter calls run.
-    return preview
 
 
 def append(
@@ -4448,7 +5138,7 @@ def append(
     Dispatches on the TARGET's storage format (2xwb9b E-03, `_storage_format`): a record with a
     `meta/<id6>.jsonl` log appends to the log (the tve77h path below); a record without one, which in
     phase B is every real record, renders the events into its bullet-format file through
-    :func:`append_legacy` and returns a :class:`WritePreview`. The legacy branch needs a
+    :func:`write_legacy` and returns a :class:`WritePreview`. The legacy branch needs a
     :class:`LegacyTarget` (or an id6 whose file the cache resolves) and a :class:`LegacyRender`."""
     if isinstance(id6, LegacyTarget) or legacy_render is not None:
         target = id6
@@ -4475,9 +5165,10 @@ def append(
                 or getattr(ctx, "repo_root", None)
                 or records_root.parent.parent
             )
-            return append_legacy(
+            return write_legacy(
                 target,
                 events,
+                record_type=target.record_type,
                 render=legacy_render,
                 repo_root=repo_root,
                 project_context=ctx,
@@ -4643,9 +5334,57 @@ def create(
     dry_run: bool = False,
     project_context: Any = None,
     actor: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Create a new artifact with an initial create event and retain recovery journal."""
+    legacy_render: Optional[LegacyRender] = None,
+    **legacy_kwargs: Any,
+) -> Any:
+    """Create a new artifact with an initial create event and retain recovery journal (log branch),
+    or render legacy metadata + body through :func:`write_legacy` when ``legacy_render`` is given
+    on a legacy root."""
     validate_id6(id6)
+    if legacy_render is not None:
+        ctx = project_context or (
+            legacy_context(legacy_kwargs["repo_root"])
+            if "repo_root" in legacy_kwargs
+            else _proj_ctx.resolve_project_context()
+        )
+        records_root = Path(ctx.logical_roots["records"])
+        if _storage_format(records_root, id6) == "legacy":
+            if not destination:
+                destination = f"{artifact_type}s/pending/{id6}.md"
+            dest_path = (
+                Path(destination)
+                if Path(destination).is_absolute()
+                else (records_root / destination)
+            )
+            _, plural = _normalize_legacy_types(artifact_type, dest_path, records_root)
+            source_digest = legacy_kwargs.pop("source_digest", None)
+            repo_root = (
+                legacy_kwargs.pop("repo_root", None)
+                or getattr(ctx, "repo_root", None)
+                or records_root.parent.parent
+            )
+            create_ev: Dict[str, Any] = {
+                "op": "create",
+                "path": str(destination).replace("\\", "/"),
+                "fields": {**fields, "id": id6, "type": artifact_type},
+            }
+            msg = legacy_kwargs.pop("message", None)
+            if msg:
+                create_ev["message"] = msg
+            target = LegacyTarget(dest_path, plural, id6, source_digest=source_digest)
+            return write_legacy(
+                target,
+                [create_ev],
+                record_type=plural,
+                render=legacy_render,
+                repo_root=repo_root,
+                project_context=ctx,
+                dry_run=dry_run,
+                actor=actor,
+                initial_text=body,
+                **legacy_kwargs,
+            )
+
     ctx = project_context or _proj_ctx.resolve_project_context()
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
