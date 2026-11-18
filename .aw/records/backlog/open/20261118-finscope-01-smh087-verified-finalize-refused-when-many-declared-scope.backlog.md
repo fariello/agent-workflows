@@ -1,0 +1,15 @@
+- Id: smh087
+- Status: open
+- Set: finscope
+- Work-Kind: bug
+- Priority: high
+- Summary: Verified finalize refused when many declared Scope-Paths were renamed away: auto scope-ack notes exceed the 4300-char history message cap
+- Short-Description: Verified finalize refused when many declared Scope-Paths were renamed away: auto scope-ack notes exceed the 4300-char history message cap
+- Blocks-Release: next
+
+> Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
+
+## Workflow history
+- 2026-11-18 created (aw backlog): Verified finalize refused when many declared Scope-Paths were renamed away: auto scope-ack notes exceed the 4300-char history message cap
+
+Observed 2026-11-18 in uni-ai-survey, run-20261118T041355Z-804093 (aw agy run, agent-workflows 1.3.0rc2.dev12486+ge20b00a78), plan ixowuu. The turn executed E-01..E-09, the fresh verifier returned VERIFIED, and the suite passed, yet the driver finalize was refused: 'finalize mutation failed (artifact_meta: message exceeds maximum length of 4300 characters (5090 > 4300)); rolled back to pre-finalize state.' The item ended fail-gate and all 20 dependents in the two selected Sets ended fail-depend, so a verified 9.5-minute run integrated nothing. Mechanism: the plan declares 44 Scope-Paths and moves each one into archive/ with git mv (1,027 R100 renames). (1) The finalize scope audit classifies every renamed-away path as in_scope_unmodified, although git reports it deleted at its declared location (rename source). (2) runner_shared.compute_scope_reconciliation (about line 35787) auto-acks each such path with 'declared-but-unmodified (auto-acknowledged by aw agy run)'; ipd_lifecycle renders all of them into ONE history message ('Scope reconciliation - in-scope-unmodified <path>: <note>; ...', about line 4413); artifact_meta._check_string_safety caps it at attention_contract.MAX_PROSE_DESCRIPTIVE_LEN = 4300. The message length grows linearly with the declared path count and has no bound, so any plan with roughly 40 or more declared paths cannot finalize unattended. Expected: count a rename source as modified; and keep the history line within the cap (summarize, e.g. count plus a pointer to the receipt or run record holding the full list), recording the reduction per the content-alteration rule, instead of refusing a verified finalize. Manual recovery that worked: inside the lane worktree, 'aw ipd finalize ixowuu --run-id <run> --scope-ack <path>=renamed into archive/ (x44) --apply', then 'aw oc integrate ixowuu --run-id <run>' (fast-forward; 474 passed). The next plan in that Set (i0yy2s) declares 51 Scope-Paths, mostly moves, and will hit the same refusal.
