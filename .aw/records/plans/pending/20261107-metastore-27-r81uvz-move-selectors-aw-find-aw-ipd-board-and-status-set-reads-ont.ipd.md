@@ -115,6 +115,7 @@ flowchart TD
   - Carrier: dqutt8
 - E-01, E-02, E-03 (`selectors`, `aw find`/`aw search`/`aw ipd board`, `artifact_meta.read_text` and its spec 4.3 entry). Moved to cdglt1 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: cdglt1
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-142-cdglt1-pin-and-move-the-selectors-and-aw-find-reads-onto-artifact-m.ipd.md
 - `aw check meta`, `aw meta repair`, cache parity, offline proof and the residual audit: kept in the split parent.
   - Carrier: ffceq0
 - Deleting `selectors._STATUS_RE` and every other leftover parser.

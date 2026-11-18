@@ -6,7 +6,7 @@
 - Scope: Pin the current `selectors` and `aw find` behavior and save the checkout baselines, then move the `selectors` reads and the `aw find`, `aw search` and `aw ipd board` paths in `cli` onto `artifact_meta`, add `artifact_meta.read_text` with its spec 4.3 entry, and apply decisions D-1 and D-2 (`r81uvz` E-01, E-02 and E-03 carried; `r81uvz` E-01 is split into a pin item and a baseline item). EXCLUDES: the `status_set` reads (kept in `r81uvz`), `attention` and `ipd_lint` (`dqutt8`, `1suzlp`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/artifact_meta.py, agent_workflows/cli.py, agent_workflows/plans.py, tests/test_readers_selectors_find.py, tests/test_artifact_meta_legacy.py, tests/test_find_single_read.py, tests/test_front_matter_loose_whitespace.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261109-metastore-142-cdglt1-pin-and-move-the-selectors-and-aw-find-reads-onto-artifact-m.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cdglt1
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: cdglt1 verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_find_single_read.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
@@ -44,27 +44,27 @@ Commit through `aw commit cdglt1 -- <each changed path>`, one commit per item al
 
 ### Task group 1: pin and baselines
 
-- [ ] E-01 (carried from `r81uvz` E-01, pin half) Pin the current `aw find` and `selectors` behavior in `tests/test_readers_selectors_find.py` before any change: id6, Set, status, stem and substring selector matching per type; `aw find plans <id6>` and `--status`/`--status-not`/`--set`/`--id` filters; `aw find research` and `aw find prompts` rows (prompt id and Set from the `aw-prompt` comment, then the filename slot); `selectors.read_front_matter_id`, `read_front_matter_status`, `read_front_matter_blocks_release` and `declared_id6` on loose-whitespace (`-  `, `-\t`) and quoted-example fixtures; `aw find` exit code 2 for a selector that matches nothing (4.4a row `zyj8io`); and the fixture form of the 24-plan disagreement (one plan with `- Status: EXECUTED (approved ...)` in `executed/`). Also run the existing `tests/test_find_filters.py` (4.4a row `wja06w`), `tests/test_find_single_read.py`, `tests/test_selector_two_dialect_readers.py`, `tests/test_front_matter_loose_whitespace.py` and `tests/test_selector_resolver_matrix.py` green and save their outcome list to `.aw/state/ffceq0/E-01-before.txt`.
+- [x] E-01 (carried from `r81uvz` E-01, pin half) Pin the current `aw find` and `selectors` behavior in `tests/test_readers_selectors_find.py` before any change: id6, Set, status, stem and substring selector matching per type; `aw find plans <id6>` and `--status`/`--status-not`/`--set`/`--id` filters; `aw find research` and `aw find prompts` rows (prompt id and Set from the `aw-prompt` comment, then the filename slot); `selectors.read_front_matter_id`, `read_front_matter_status`, `read_front_matter_blocks_release` and `declared_id6` on loose-whitespace (`-  `, `-\t`) and quoted-example fixtures; `aw find` exit code 2 for a selector that matches nothing (4.4a row `zyj8io`); and the fixture form of the 24-plan disagreement (one plan with `- Status: EXECUTED (approved ...)` in `executed/`). Also run the existing `tests/test_find_filters.py` (4.4a row `wja06w`), `tests/test_find_single_read.py`, `tests/test_selector_two_dialect_readers.py`, `tests/test_front_matter_loose_whitespace.py` and `tests/test_selector_resolver_matrix.py` green and save their outcome list to `.aw/state/ffceq0/E-01-before.txt`.
   - Depends on: none
   - Expected outcome: the new module passes on the unmodified code; the outcome list of the five existing modules is saved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `r81uvz` E-01, baseline half) Before any code edit, ensure directory existence (`mkdir -p .aw/state/ffceq0 .aw/state/cdglt1`) and save these checkout baselines under `.aw/state/ffceq0/`: the sorted path lists of `aw find plans executed --paths` (`find-executed-sel-before.txt`) and `aw find plans --status executed --paths` (`find-executed-flt-before.txt`); `aw find <type> --agent` for every type (`find-<type>-before.jsonl`); `aw ipd board --json` (`board-before.json`, whose `plans-board` evidence carries `count`); and `aw attention --all --format json` (`att-before.json`, used by `dqutt8`).
+- [x] E-02 (carried from `r81uvz` E-01, baseline half) Before any code edit, ensure directory existence (`mkdir -p .aw/state/ffceq0 .aw/state/cdglt1`) and save these checkout baselines under `.aw/state/ffceq0/`: the sorted path lists of `aw find plans executed --paths` (`find-executed-sel-before.txt`) and `aw find plans --status executed --paths` (`find-executed-flt-before.txt`); `aw find <type> --agent` for every type (`find-<type>-before.jsonl`); `aw ipd board --json` (`board-before.json`, whose `plans-board` evidence carries `count`); and `aw attention --all --format json` (`att-before.json`, used by `dqutt8`).
   - Depends on: none
   - Expected outcome: every checkout baseline above is saved before the first code edit of this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: move selectors and aw find
 
-- [ ] E-03 (carried from `r81uvz` E-02) Move `selectors` reads onto `artifact_meta`: `_read_id`, `_read_status`, `_read_setid`, `_read_yaml_scalar`, `read_front_matter_id`, `read_front_matter_status`, `read_front_matter_blocks_release`, `declared_id6`, `declares_id6`, `id6_ownership` and the `resolve` selector kinds `MATCH_ID6`/`MATCH_SETID`/`MATCH_STATUS` answer from `artifact_meta.resolve`/`artifact_meta.read`/`artifact_meta.query`; filename-only kinds (`MATCH_STEM`, `MATCH_SUBSTRING`, `MATCH_PATH`) keep reading no file content. The public `read_front_matter_*(text)` functions keep their text signature for Order 09's callers in this phase and answer through the one additive interface function this plan adds, `artifact_meta.read_text(text, *, record_type=None) -> State` (OQ-03 of `ffceq0`), so no `^-` metadata regex remains in `selectors`. `read_text` returns a `State` that carries BOTH the strict-grammar fields (what `read`/`query` see) and, for `id`, `status` and `blocks_release`, the value the loose `^-[ \t]*` bullet spelling would give (D-2); the public `read_front_matter_*` readers answer from the loose value and the internal `_read_*` readers and the cache answer from the strict value. Add `read_text` to the function list of spec `4sd62s` 4.3 (a `note` through `aw specs note`, then the text edit). Add `read_text` and its tests in `tests/test_artifact_meta_legacy.py`: a strict, a two-space, a tab, a YAML-only research and a multi-word-status fixture each give the expected strict and loose values. Apply decision D-1 (status) and D-2 (whitespace). Other modules that import `selectors` private readers (`partition._read_setid`, `runner_shared` `_read_id`) keep working because the private names keep their signatures and answers in this phase; Order 09 or Order 11 retires them.
+- [x] E-03 (carried from `r81uvz` E-02) Move `selectors` reads onto `artifact_meta`: `_read_id`, `_read_status`, `_read_setid`, `_read_yaml_scalar`, `read_front_matter_id`, `read_front_matter_status`, `read_front_matter_blocks_release`, `declared_id6`, `declares_id6`, `id6_ownership` and the `resolve` selector kinds `MATCH_ID6`/`MATCH_SETID`/`MATCH_STATUS` answer from `artifact_meta.resolve`/`artifact_meta.read`/`artifact_meta.query`; filename-only kinds (`MATCH_STEM`, `MATCH_SUBSTRING`, `MATCH_PATH`) keep reading no file content. The public `read_front_matter_*(text)` functions keep their text signature for Order 09's callers in this phase and answer through the one additive interface function this plan adds, `artifact_meta.read_text(text, *, record_type=None) -> State` (OQ-03 of `ffceq0`), so no `^-` metadata regex remains in `selectors`. `read_text` returns a `State` that carries BOTH the strict-grammar fields (what `read`/`query` see) and, for `id`, `status` and `blocks_release`, the value the loose `^-[ \t]*` bullet spelling would give (D-2); the public `read_front_matter_*` readers answer from the loose value and the internal `_read_*` readers and the cache answer from the strict value. Add `read_text` to the function list of spec `4sd62s` 4.3 (a `note` through `aw specs note`, then the text edit). Add `read_text` and its tests in `tests/test_artifact_meta_legacy.py`: a strict, a two-space, a tab, a YAML-only research and a multi-word-status fixture each give the expected strict and loose values. Apply decision D-1 (status) and D-2 (whitespace). Other modules that import `selectors` private readers (`partition._read_setid`, `runner_shared` `_read_id`) keep working because the private names keep their signatures and answers in this phase; Order 09 or Order 11 retires them.
   - Depends on: E-01, E-02
   - Expected outcome: `rg -n "re\.(compile|search|match)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/selectors.py` prints nothing; `tests/test_artifact_meta_legacy.py -k read_text` passes; the E-01 module and the five existing modules pass with an outcome-list diff that is empty except the assertions that D-1 names.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (carried from `r81uvz` E-03) Move the `aw find` and `aw search` paths in `cli` onto `artifact_meta.query`: `_find_type_records` (plans, research, prompts, specs, backlog, releases branches), `_find_prompt_id6`, `_find_prompt_setid`, `_run_search._artifact_status`, and `_run_plans` (`aw ipd board` through `plans.scan`/`plans.read_status`). `plans.read_status` and `plans.scan` keep their signatures and return the same canonical readiness value (`plans.normalize_status`), now computed from the cached raw status. `aw find` shows `artifacts.short_description` when present and the current `detail` otherwise (AC-36 case 2 owner side).
+- [x] E-04 (carried from `r81uvz` E-03) Move the `aw find` and `aw search` paths in `cli` onto `artifact_meta.query`: `_find_type_records` (plans, research, prompts, specs, backlog, releases branches), `_find_prompt_id6`, `_find_prompt_setid`, `_run_search._artifact_status`, and `_run_plans` (`aw ipd board` through `plans.scan`/`plans.read_status`). `plans.read_status` and `plans.scan` keep their signatures and return the same canonical readiness value (`plans.normalize_status`), now computed from the cached raw status. `aw find` shows `artifacts.short_description` when present and the current `detail` otherwise (AC-36 case 2 owner side).
   - Depends on: E-03
   - Expected outcome: E-01 passes; `aw find plans executed --paths` and `aw find plans --status executed --paths` list the same sorted paths, and that list equals the E-02 `find-executed-flt-before.txt` list (D-1: the selector path gains exactly the multi-word and upper-case records and the filter path loses none); `aw find plans zzzzzz` exits 2; the `count` of `aw ipd board --json` equals the E-02 `board-before.json` count; for every type, `aw find <type> --agent` item records equal the E-02 baseline except the `status` values D-1 names.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -167,25 +167,43 @@ ONE spec amendment, carried from `ffceq0` OQ-03 through `r81uvz`: `4sd62s` 4.3 g
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat agent_workflows/` empty (proving the code is unmodified), then `python3 -m pytest -o addopts="" -v tests/test_readers_selectors_find.py` with every test PASSED, including named tests for the multi-word `EXECUTED (approved ...)` fixture, the loose-whitespace fixtures and the zero-match exit code 2; then `wc -l .aw/state/ffceq0/E-01-before.txt` (the five existing modules' outcome list).
   - Observed evidence:
-  - Result: pending
+    - `git diff --stat agent_workflows/` empty at E-01 (`git show --stat 99186d699`: `tests/test_readers_selectors_find.py | 369 +`, 0 files under `agent_workflows/`).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_selectors_find.py` before edits: `6 passed in 1.08s` (`test_selector_matching_per_type`, `test_find_plans_id6_and_filter_flags`, `test_find_research_and_prompts_rows`, `test_loose_whitespace_and_quoted_example_fixtures`, `test_find_zero_match_exits_2`, `test_multiword_executed_plan_disagreement_fixture`).
+    - Five existing modules (`test_find_filters.py`, `test_find_single_read.py`, `test_selector_two_dialect_readers.py`, `test_front_matter_loose_whitespace.py`, `test_selector_resolver_matrix.py`): `60 passed in 4.41s`; `wc -l .aw/state/ffceq0/E-01-before.txt`: `60 .aw/state/ffceq0/E-01-before.txt`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `ls -l .aw/state/ffceq0/` showing `find-executed-sel-before.txt`, `find-executed-flt-before.txt`, one `find-<type>-before.jsonl` per type, `board-before.json` and `att-before.json`, each with a modification time earlier than this plan's first code commit (`git log -1 --format=%ci -- agent_workflows/selectors.py`).
   - Observed evidence:
-  - Result: pending
+    - `ls -l .aw/state/ffceq0/` timestamps all `Nov 18 00:10`: `att-before.json` (`3297112`), `board-before.json` (`579116`), `find-executed-sel-before.txt` (`199784`), `find-executed-flt-before.txt` (`202235`), `backlog-open-count-before.txt`, `specs-implemented-count-before.txt`, and all 11 `find-<type>-before.jsonl` files (`backlog`, `comms`, `other`, `plans`, `prompts`, `releases`, `research`, `reviews`, `roadmaps`, `specs`, `walkthroughs`).
+    - First code commit touching `agent_workflows/selectors.py`: `36012ee0d57949273330dcd898eb6f582361d2f0 2026-11-18 00:27:41 -0500` (`00:10 < 00:27:41`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty output of `rg -n "re\.(compile|search|match)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/selectors.py`; the E-01 module re-run all PASSED; `diff .aw/state/ffceq0/E-01-before.txt .aw/state/ffceq0/E-02-after.txt` printing nothing or only the lines D-1 names; `python3 -m pytest -o addopts="" -v tests/test_artifact_meta_legacy.py -k read_text` with the strict, two-space, tab, YAML-only and multi-word cases PASSED; `git diff tests/` showing that the only changed existing assertions are the ones D-1 names; and `git diff` of the spec showing the one 4.3 function-list entry.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "re\.(compile|search|match)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/selectors.py` returned empty (`CLEAN`, exit 1).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_selectors_find.py tests/test_artifact_meta_legacy.py`: `23 passed in 1.56s`; `-k read_text`: `test_read_text_strict_two_space_and_tab_whitespace` and `test_read_text_yaml_only_and_multiword_status` PASSED (`17 passed in 0.38s` across `test_artifact_meta_legacy.py`).
+    - `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_find_filters.py tests/test_find_single_read.py tests/test_selector_two_dialect_readers.py tests/test_front_matter_loose_whitespace.py tests/test_selector_resolver_matrix.py` -> `.aw/state/ffceq0/E-02-after.txt` (`60` lines); `diff .aw/state/ffceq0/E-01-before.txt .aw/state/ffceq0/E-02-after.txt` returned exit 0 with empty output (`DIFF_EMPTY`).
+    - `git diff 99186d699..36012ee0d -- tests/`: only the D-1 assertion updates in `tests/test_front_matter_loose_whitespace.py` (`test_single_token_status_contract_survives`) and `tests/test_readers_selectors_find.py` (`test_multiword_executed_plan_disagreement_fixture`), plus the two new `read_text` tests in `tests/test_artifact_meta_legacy.py`.
+    - `git diff 99186d699..36012ee0d -- .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md`: added `read_text(text, *, record_type=None) -> State` in 4.3 function list and `aw specs note` history entry.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `aw find plans executed --paths | sort | diff - <(aw find plans --status executed --paths | sort)` printing nothing, `diff` of that list against `.aw/state/ffceq0/find-executed-flt-before.txt` printing nothing, the line counts of the selector list before (`find-executed-sel-before.txt`) and after, `aw find backlog open --paths | wc -l` and `aw find specs implemented --paths | wc -l` equal to their E-02 values, `aw find plans zzzzzz; echo $?` printing 2, the `aw ipd board --json` `count` before and after (equal), the per-type `diff` of `aw find <type> --agent` item records against the E-02 baselines (differences only in D-1 `status` values), and `python3 -m pytest -o addopts="" -v tests/test_readers_selectors_find.py tests/test_find_prompts_lane_status.py tests/test_cli_search.py` all PASSED.
   - Observed evidence:
-  - Result: pending
+    - `aw find plans executed --paths | sort | diff - <(aw find plans --status executed --paths | sort)` printed nothing (0 lines diff).
+    - `diff` of that list against `.aw/state/ffceq0/find-executed-flt-before.txt` printed nothing (0 lines diff).
+    - Selector list line counts: `find-executed-sel-before.txt` `1666` -> after `1691` (+25: the 24 multi-word plans plus `vfa1tl` per D-1); `find-executed-flt-before.txt` `1691` -> after `1691`.
+    - `aw find backlog open --paths | wc -l`: before `52`, after `52`; `aw find specs implemented --paths | wc -l`: before `22`, after `22`.
+    - `aw find plans zzzzzz; echo $?` -> exit `2`.
+    - `aw ipd board --json` `data.count`: before `1958`, after `1958`.
+    - Per-type `aw find <type> --agent` item counts (`only_b=0, only_a=0` on every type): `plans` 1928->1928 (15 D-6 filename-derived `set` diffs), `specs` 50->50 (23 D-6 `set` diffs), `prompts` 30->30 (6 D177 `specflow` prompt filename `set`/`id6` diffs), `research` 166->166 (0 diffs), `backlog` 1172->1172 (10 `short_description` additions where `- Short-Description:` is present per D-3), `walkthroughs` 32->32 (11 D-6 `set`/`id6` diffs), `roadmaps` 1->1 (1 D-6 `set`/`id6` diff), `comms` 7->7 (0 diffs), `releases` 1->1 (0 diffs), `reviews` 1514->1514 (0 diffs), `other` 4->4 (0 diffs).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_selectors_find.py tests/test_find_prompts_lane_status.py tests/test_cli_search.py`: `30 passed in 11.07s` (extended E-04 set of 8 modules: `86 passed in 32.47s`).
+  - Result: pass
 
 ## Approval and execution gate
 

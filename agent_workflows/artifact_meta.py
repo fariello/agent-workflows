@@ -11,6 +11,7 @@ before any query answers.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import dataclasses
 import datetime
 from datetime import timezone
@@ -1180,6 +1181,11 @@ class State:
     fields: Dict[str, Any] = dataclasses.field(default_factory=dict)
     disposition: Optional[str] = None
     id_derived: bool = False
+    legacy_raw_status: Optional[str] = None
+    legacy_raw_set: Optional[str] = None
+    loose_id: Optional[str] = None
+    loose_status: Optional[str] = None
+    loose_blocks_release: Optional[str] = None
 
 
 def replay(
@@ -1987,7 +1993,9 @@ LAYOUT_VERSION = "layout_v1"
 #: / `out_of_scope_paths` / `scope_exceeded_raw` and project unlogged `scope_exceptions`.
 #: "legacy_v5" (2026-11-17, 6oi2nu): scan extra roots from `selectors.record_dirs` as `@repo/...`,
 #: derive deterministic `id6` values for id-less records (`id_derived`), and add `artifacts.id_derived`.
-LEGACY_LOADER_VERSION = "legacy_v5"
+#: "legacy_v6" (2026-11-18, cdglt1): add `artifacts.legacy_raw_status` and `artifacts.legacy_raw_set`,
+#: enforce strict `^- <Key>:` bullet matching and lowercase scalar normalization for YAML front matter.
+LEGACY_LOADER_VERSION = "legacy_v6"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
@@ -2081,7 +2089,9 @@ def generate_schema(registry: Optional[Dict[str, Dict[str, FieldDef]]] = None) -
             last_seq INTEGER,
             valid INTEGER,
             defect TEXT,
-            id_derived INTEGER DEFAULT 0
+            id_derived INTEGER DEFAULT 0,
+            legacy_raw_status TEXT,
+            legacy_raw_set TEXT
         );""",
     ]
 
@@ -2365,23 +2375,43 @@ def open_cache(
 # --------------------------------------------------------------------------------------
 
 _BULLET_RE = re.compile(r"^\s*-\s*([A-Za-z0-9_-]+):\s*(.*)$")
+_STRICT_BULLET_RE = re.compile(r"^- ([A-Za-z0-9_-]+):[ \t]*(.*)$")
+_LOOSE_BULLET_RE = re.compile(r"^-[ \t]*([A-Za-z0-9_-]+):[ \t]*(.*)$")
 _YAML_KEY_RE = re.compile(r"^\s*([A-Za-z0-9_-]+):\s*(.*)$")
 
 
-def _parse_bullet_metadata(
-    text: str,
-) -> Tuple[Dict[str, str], Optional[str], List[str]]:
-    """Parse bullet block before first ## heading. Returns (bullets, title, history_lines).
+def _normalize_yaml_scalar(value: str) -> str:
+    """Strip symmetric outer quotes/backticks from a YAML scalar string."""
+    out = value.strip()
+    while len(out) >= 2 and out[0] == out[-1] and out[0] in "`\"'":
+        out = out[1:-1].strip()
+    return out
 
-    THE BULLET REGION STARTS AT THE TOP OF THE FILE, not after a `# ` title (backlog `suth7l`).
-    It is the same region `selectors.metadata_region` bounds every other reader to: everything
-    before the first `##` heading, with an optional leading `# ` title inside it. Backlog items
-    carry no title line at all (they open with `- Id:`), so a loader that started reading only
-    after a title dropped every backlog item's bullets; measured on this repository on 2026-11-07,
-    that cost 1146 backlog records their status in the cache.
-    """
+
+def _first_token(value: Optional[str]) -> Optional[str]:
+    """Return the first whitespace-delimited token of ``value``, or None."""
+    if not value:
+        return None
+    parts = value.strip().split()
+    return parts[0] if parts else None
+
+
+def _first_set_token(value: Optional[str]) -> Optional[str]:
+    """Return the terse set-id before any '(' comment, matching plans_index."""
+    if not value or not value.strip():
+        return None
+    head = value.split("(", 1)[0].strip()
+    parts = head.split()
+    return parts[0] if parts else None
+
+
+def _parse_bullet_metadata_with_loose(
+    text: str,
+) -> Tuple[Dict[str, str], Dict[str, str], Optional[str], List[str]]:
+    """Parse strict `^- <Key>:` and loose `^-[ \\t]*<Key>:` bullets before first ##+ heading."""
     lines = text.splitlines()
     bullets: Dict[str, str] = {}
+    loose_bullets: Dict[str, str] = {}
     title: Optional[str] = None
     in_bullets = True
     first_h1_done = False
@@ -2408,15 +2438,36 @@ def _parse_bullet_metadata(
             continue
 
         if in_bullets:
-            if stripped.startswith("## "):
+            if re.match(r"^#{2,}(?:[ \t]|$)", stripped):
                 in_bullets = False
                 continue
-            m = _BULLET_RE.match(line)
-            if m:
-                k = m.group(1).strip()
-                v = m.group(2).strip()
-                bullets[k] = v
+            m_strict = _STRICT_BULLET_RE.match(line)
+            if m_strict:
+                k = m_strict.group(1).strip()
+                v = m_strict.group(2).strip()
+                bullets.setdefault(k, v)
+            m_loose = _LOOSE_BULLET_RE.match(line)
+            if m_loose:
+                k_l = m_loose.group(1).strip()
+                v_l = m_loose.group(2).strip()
+                loose_bullets.setdefault(k_l, v_l)
 
+    return bullets, loose_bullets, title, history_lines
+
+
+def _parse_bullet_metadata(
+    text: str,
+) -> Tuple[Dict[str, str], Optional[str], List[str]]:
+    """Parse strict bullet block before first ## heading. Returns (bullets, title, history_lines).
+
+    THE BULLET REGION STARTS AT THE TOP OF THE FILE, not after a `# ` title (backlog `suth7l`).
+    It is the same region `selectors.metadata_region` bounds every other reader to: everything
+    before the first `##` heading, with an optional leading `# ` title inside it. Backlog items
+    carry no title line at all (they open with `- Id:`), so a loader that started reading only
+    after a title dropped every backlog item's bullets; measured on this repository on 2026-11-07,
+    that cost 1146 backlog records their status in the cache.
+    """
+    bullets, _, title, history_lines = _parse_bullet_metadata_with_loose(text)
     return bullets, title, history_lines
 
 
@@ -2433,13 +2484,14 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
             break
         m = _YAML_KEY_RE.match(lines[i])
         if m:
-            data[m.group(1).strip()] = m.group(2).strip()
+            data.setdefault(m.group(1).strip(), m.group(2).strip())
+    if closing_idx == -1:
+        return {}, None
     title: Optional[str] = None
-    if closing_idx != -1:
-        for j in range(closing_idx + 1, len(lines)):
-            if lines[j].strip().startswith("# "):
-                title = lines[j].strip()[2:].strip()
-                break
+    for j in range(closing_idx + 1, len(lines)):
+        if lines[j].strip().startswith("# "):
+            title = lines[j].strip()[2:].strip()
+            break
     return data, title
 
 
@@ -2671,13 +2723,32 @@ def load_legacy_artifact(
     if text.startswith("---"):
         _yaml_probe, _ = _parse_yaml_front_matter(text)
     _after_fence = text.split("\n", 1)[1][:200] if "\n" in text else ""
-    if _yaml_probe and not _BULLET_RE.search(_after_fence):
+    is_yaml_record = bool(_yaml_probe and not _BULLET_RE.search(_after_fence))
+    raw_status_legacy: Optional[str] = None
+    legacy_raw_set: Optional[str] = None
+    yaml_id: Optional[str] = None
+    yaml_status: Optional[str] = None
+
+    if is_yaml_record:
         yaml_data, title = _parse_yaml_front_matter(text)
         bullets = dict(yaml_data)
-        if "id" in bullets and not id6:
-            id6 = bullets["id"]
-        if "set" in bullets and not set_id:
-            set_id = bullets["set"]
+        raw_y_id = bullets.get("id")
+        if raw_y_id:
+            yaml_id = _first_token(_normalize_yaml_scalar(raw_y_id))
+            if yaml_id and _core.ID6_RE.fullmatch(yaml_id) and not id6:
+                id6 = yaml_id
+        raw_y_set = bullets.get("set")
+        if raw_y_set:
+            norm_y_set = _normalize_yaml_scalar(raw_y_set)
+            tok_y_set = _first_set_token(norm_y_set)
+            legacy_raw_set = (
+                _normalize_yaml_scalar(tok_y_set) or None if tok_y_set else None
+            )
+            if legacy_raw_set and not set_id:
+                set_id = legacy_raw_set
+        raw_y_status = bullets.get("status")
+        if raw_y_status:
+            yaml_status = _normalize_yaml_scalar(raw_y_status) or None
         if "order" in bullets and order_nn is None:
             with contextlib.suppress(Exception):
                 order_nn = int(bullets["order"])
@@ -2688,11 +2759,12 @@ def load_legacy_artifact(
         lines = text.splitlines()
         first_line = lines[0].strip()
         m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(first_line)
+        comment_bullets: Dict[str, str] = {}
         if m_prompt:
             for item in m_prompt.group(1).split("|"):
                 if ":" in item:
                     k, v = item.split(":", 1)
-                    bullets[k.strip()] = v.strip()
+                    comment_bullets[k.strip()] = v.strip()
         else:
             # Check for legacy <!-- aw-prompt: ... -->
             m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
@@ -2715,19 +2787,52 @@ def load_legacy_artifact(
                 for item in inner.split("|"):
                     if ":" in item:
                         k, v = item.split(":", 1)
-                        bullets[k.strip()] = v.strip()
-        for ln in lines:
-            if ln.strip().startswith("# "):
-                title = ln.strip()[2:].strip()
-                break
+                        comment_bullets[k.strip()] = v.strip()
+        explicit_bullets, _, bullet_title, bullet_history = (
+            _parse_bullet_metadata_with_loose(text)
+        )
+        history_lines = bullet_history
+        bullets = dict(explicit_bullets)
+        bullets.update(comment_bullets)
+        if explicit_bullets.get("Status") or explicit_bullets.get("status"):
+            bullets["Status"] = (
+                explicit_bullets.get("Status") or explicit_bullets["status"]
+            )
+        title = bullet_title
+        if not title:
+            for ln in lines:
+                if ln.strip().startswith("# "):
+                    title = ln.strip()[2:].strip()
+                    break
+        raw_status_legacy = (
+            explicit_bullets.get("Status")
+            or explicit_bullets.get("status")
+            or (comment_bullets.get("status") if m_prompt else None)
+        )
+        raw_set_p = (
+            comment_bullets.get("Set")
+            or comment_bullets.get("set")
+            or explicit_bullets.get("Set")
+        )
+        legacy_raw_set = _first_set_token(raw_set_p)
     else:
-        bullets, title, history_lines = _parse_bullet_metadata(text)
+        bullets, _, title, history_lines = _parse_bullet_metadata_with_loose(text)
+        raw_status_legacy = bullets.get("Status") or bullets.get("status")
+        raw_set_b = bullets.get("Set")
+        legacy_raw_set = _first_set_token(raw_set_b)
 
-    # In-file Id override
-    if "Id" in bullets:
-        id6 = bullets["Id"]
-    elif "id" in bullets and not id6:
-        id6 = bullets["id"]
+    # In-file Id override (accept only valid 6-char id6s; invalid/placeholder tokens stay ignored)
+    if not is_yaml_record:
+        id_cand = _first_token(bullets.get("Id"))
+        if id_cand and _core.ID6_RE.fullmatch(id_cand):
+            id6 = id_cand
+        else:
+            id_cand_lower = _first_token(bullets.get("id"))
+            if id_cand_lower and _core.ID6_RE.fullmatch(id_cand_lower) and not id6:
+                id6 = id_cand_lower
+
+    if not set_id and legacy_raw_set and not legacy_raw_set.startswith(("`", "'", '"')):
+        set_id = legacy_raw_set
 
     id_derived = False
     if not id6:
@@ -2750,8 +2855,14 @@ def load_legacy_artifact(
     validate_id6(id6)
 
     # Status handling (OQ-03):
-    # Only single-token status sets artifacts.status (matches selectors._STATUS_RE)
-    raw_status = bullets.get("Status") or bullets.get("status")
+    # Only single-token status sets artifacts.status; legacy_raw_status preserves exact/multi-word token
+    if is_yaml_record:
+        raw_status = yaml_status
+        raw_status_legacy = yaml_status
+    else:
+        raw_status = bullets.get("Status") or bullets.get("status")
+        if raw_status_legacy is not None:
+            raw_status_legacy = raw_status_legacy.strip() or None
     clean_status: Optional[str] = None
     if raw_status:
         st_parts = raw_status.strip().split()
@@ -2825,7 +2936,7 @@ def load_legacy_artifact(
             # Unregistered legacy bullet (OQ-02): keep in mapped_fields but mark legacy
             mapped_fields[target_k] = bv
 
-    if art_type == "ipd" and not (_yaml_probe and not _BULLET_RE.search(_after_fence)):
+    if art_type == "ipd" and not is_yaml_record:
         from agent_workflows import selectors as _sel
 
         meta_region = _sel.metadata_region(text)
@@ -2869,6 +2980,8 @@ def load_legacy_artifact(
         "valid": 1,
         "defect": None,
         "id_derived": id_derived,
+        "legacy_raw_status": raw_status_legacy,
+        "legacy_raw_set": legacy_raw_set,
         # The registry-typed field values, for the per-type table (backlog `suth7l`: the loader
         # computed these and then dropped them, so every per-type table held 0 rows). Only fields
         # the REGISTRY declares for this type are carried; unregistered legacy bullets (OQ-02) stay
@@ -3044,8 +3157,9 @@ def _store_legacy_artifact_projection(
         + """ INTO artifacts (
             id6, type, path, disposition, status, title, short_description,
             set_id, order_nn, filename_date, created_day, created_at, updated_at,
-            last_history_day, last_seq, valid, defect, id_derived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            last_history_day, last_seq, valid, defect, id_derived,
+            legacy_raw_status, legacy_raw_set
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             art_row["id6"],
             art_row["type"],
@@ -3065,6 +3179,8 @@ def _store_legacy_artifact_projection(
             1,
             None,
             1 if art_row.get("id_derived") else 0,
+            art_row.get("legacy_raw_status"),
+            art_row.get("legacy_raw_set"),
         ),
     )
     if not _has_log:
@@ -3129,6 +3245,68 @@ def _load_sources(
         if repo_root is not None
         else _scan_repo_root(None, records_root)
     )
+    pre_reads: Dict[str, Tuple[os.stat_result, str, bytes]] = {}
+    for item in changed_sources:
+        p_s = item["path"]
+        if item.get("role") == "removed" or p_s in pre_reads:
+            continue
+        ap = source_path(p_s, records_root, scan_repo)
+        if not ap.exists():
+            continue
+        st_i = ap.stat()
+        raw_b = ap.read_bytes()
+        dig_i = hashlib.sha256(raw_b).hexdigest()
+        pre_reads[p_s] = (st_i, dig_i, raw_b)
+
+    _pool_key = str(records_root.resolve())
+    if _pool_key not in _LEGACY_MINT_POOLS and any(
+        it.get("role") in ("artifact", "walkthrough") and not it.get("id6")
+        for it in changed_sources
+    ):
+        pool: Set[str] = {
+            r[0]
+            for r in conn.execute(
+                "SELECT id6 FROM artifacts WHERE id_derived = 0"
+            ).fetchall()
+        }
+        from agent_workflows import artifact_adopt as _adopt
+        from agent_workflows import check_engine as _check
+
+        changed_paths_abs: Set[Path] = set()
+        for it in changed_sources:
+            p_s = it["path"]
+            ap = source_path(p_s, records_root, scan_repo)
+            with contextlib.suppress(OSError):
+                changed_paths_abs.add(ap.resolve())
+            if it.get("id6"):
+                pool.add(it["id6"])
+            if p_s in pre_reads:
+                _, _, raw_b = pre_reads[p_s]
+                with contextlib.suppress(UnicodeDecodeError):
+                    pool.update(
+                        _adopt.scan_body_identities(raw_b.decode("utf-8")).declared
+                    )
+        cached_files_count = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+        if cached_files_count > 0:
+            for rt in _check.SUPPORTED:
+                for tp in _check._iter_type_files(scan_repo, rt, include_retired=True):
+                    with contextlib.suppress(OSError):
+                        if tp.resolve() in changed_paths_abs:
+                            continue
+                    with contextlib.suppress(ValueError):
+                        rel_tp = stored_path(tp, records_root, scan_repo)
+                        if conn.execute(
+                            "SELECT 1 FROM files WHERE path = ?", (rel_tp,)
+                        ).fetchone():
+                            continue
+                    with contextlib.suppress(OSError, UnicodeDecodeError):
+                        pool.update(
+                            _adopt.scan_body_identities(
+                                tp.read_text(encoding="utf-8")
+                            ).declared
+                        )
+        _LEGACY_MINT_POOLS[_pool_key] = pool
+
     with conn:
         for item in changed_sources:
             path_str = item["path"]
@@ -3205,14 +3383,18 @@ def _load_sources(
                 continue
 
             # Update files table
-            st = abs_p.stat()
-            digest = _compute_digest(abs_p)
+            if path_str in pre_reads:
+                st, digest, pre_bytes = pre_reads[path_str]
+            else:
+                st = abs_p.stat()
+                pre_bytes = abs_p.read_bytes()
+                digest = hashlib.sha256(pre_bytes).hexdigest()
             now_str = datetime.datetime.now(timezone.utc).isoformat()
 
             if role == "log":
                 # Load jsonl log
                 try:
-                    lines = abs_p.read_text(encoding="utf-8").splitlines(keepends=True)
+                    lines = pre_bytes.decode("utf-8").splitlines(keepends=True)
                     art_type = item.get("type")
                     if not art_type and lines:
                         ev0 = decode_line(lines[0])
@@ -3228,8 +3410,9 @@ def _load_sources(
                         """INSERT OR REPLACE INTO artifacts (
                             id6, type, path, disposition, status, title, short_description,
                             set_id, order_nn, filename_date, created_day, created_at, updated_at,
-                            last_history_day, last_seq, valid, defect, id_derived
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            last_history_day, last_seq, valid, defect, id_derived,
+                            legacy_raw_status, legacy_raw_set
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             state.id6,
                             state.type,
@@ -3249,6 +3432,8 @@ def _load_sources(
                             1,
                             None,
                             0,
+                            state.status,
+                            state.set_id,
                         ),
                     )
 
@@ -3435,7 +3620,10 @@ def _load_sources(
             elif role == "review":
                 try:
                     rf_row, rev_rows = load_legacy_review(
-                        abs_p, records_root, repo_root=scan_repo
+                        abs_p,
+                        records_root,
+                        text=pre_bytes.decode("utf-8"),
+                        repo_root=scan_repo,
                     )
                     # Replace this file's rounds rather than overlaying them (1ajqaa): a review
                     # edited to fewer rounds must not keep the old ones.
@@ -3521,6 +3709,7 @@ def _load_sources(
                     art_row, _h_rows = load_legacy_artifact(
                         abs_p,
                         records_root,
+                        text=pre_bytes.decode("utf-8"),
                         repo_root=scan_repo,
                         extra_taken=other_ids,
                     )
@@ -3929,6 +4118,85 @@ def check_freshness(
 # --------------------------------------------------------------------------------------
 
 
+_SCAN_ONCE_FRESH: contextvars.ContextVar[Optional[Set[Tuple[str, str]]]] = (
+    contextvars.ContextVar("_SCAN_ONCE_FRESH", default=None)
+)
+_SCAN_ONCE_CONNS: contextvars.ContextVar[
+    Optional[Dict[Tuple[str, str], sqlite3.Connection]]
+] = contextvars.ContextVar("_SCAN_ONCE_CONNS", default=None)
+_EPHEMERAL_IF_ABSENT: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_EPHEMERAL_IF_ABSENT", default=False
+)
+
+
+@contextlib.contextmanager
+def ephemeral_if_uninitialized() -> Any:
+    """Use an in-memory cache during read queries if neither state dir nor meta/ exists."""
+    token = _EPHEMERAL_IF_ABSENT.set(True)
+    try:
+        yield
+    finally:
+        _EPHEMERAL_IF_ABSENT.reset(token)
+
+
+@contextlib.contextmanager
+def scan_once() -> Any:
+    """Coalesce repeated freshness scans across `read`/`query`/`resolve` within a call."""
+    existing = _SCAN_ONCE_FRESH.get()
+    if existing is not None:
+        yield
+        return
+    token_f = _SCAN_ONCE_FRESH.set(set())
+    conns_map: Dict[Tuple[str, str], sqlite3.Connection] = {}
+    token_c = _SCAN_ONCE_CONNS.set(conns_map)
+    try:
+        yield
+    finally:
+        for conn in conns_map.values():
+            with contextlib.suppress(Exception):
+                conn.close()
+        _SCAN_ONCE_CONNS.reset(token_c)
+        _SCAN_ONCE_FRESH.reset(token_f)
+
+
+def _open_for_read(
+    records_root: Path, state_root: Path
+) -> Tuple[sqlite3.Connection, bool]:
+    """Open or reuse a cache connection for a read operation; returns (conn, should_close)."""
+    key = (str(records_root.resolve()), str(state_root.resolve()))
+    conns_map = _SCAN_ONCE_CONNS.get()
+    if conns_map is not None and key in conns_map:
+        return conns_map[key], False
+    use_mem = _EPHEMERAL_IF_ABSENT.get() and not (state_root / "index.db").exists()
+    conn = open_cache(records_root, state_root, in_memory=use_mem)
+    if conns_map is not None:
+        conns_map[key] = conn
+        return conn, False
+    return conn, True
+
+
+def _maybe_check_freshness(
+    conn: sqlite3.Connection,
+    records_root: Path,
+    state_root: Path,
+    *,
+    project_context: Any = None,
+    repo_root: Optional[Path] = None,
+) -> None:
+    fresh_set = _SCAN_ONCE_FRESH.get()
+    key = (str(records_root.resolve()), str(state_root.resolve()))
+    if fresh_set is not None and key in fresh_set:
+        return
+    check_freshness(
+        conn,
+        records_root,
+        project_context=project_context,
+        repo_root=repo_root,
+    )
+    if fresh_set is not None:
+        fresh_set.add(key)
+
+
 class QueryResult(list):
     """List of State objects with an incomplete attribute naming invalid/missing records."""
 
@@ -3938,6 +4206,123 @@ class QueryResult(list):
         self.incomplete: List[str] = list(incomplete or [])
 
 
+def read_text(text: str, *, record_type: Optional[str] = None) -> State:
+    """Parse an in-memory record's metadata region using the phase-B two-dialect loader.
+
+    Runs the same front-matter region and two-dialect rules as `read_at`, caches nothing,
+    and returns a `State` carrying `legacy_raw_status`, `legacy_raw_set`, and separate strict
+    vs loose (`loose_id`, `loose_status`, `loose_blocks_release`) bullet fields.
+    """
+    art_type = record_type or "ipd"
+    if not text:
+        return State(id6="", type=art_type)
+
+    lines = text.splitlines()
+    _yaml_probe: Dict[str, str] = {}
+    yaml_title: Optional[str] = None
+    if lines and lines[0].strip() == "---":
+        _yaml_probe, yaml_title = _parse_yaml_front_matter(text)
+    _after_fence = text.split("\n", 1)[1][:200] if "\n" in text else ""
+    is_yaml_record = bool(_yaml_probe and not _BULLET_RE.search(_after_fence))
+
+    if is_yaml_record:
+        raw_y_id = _yaml_probe.get("id")
+        y_id = _first_token(_normalize_yaml_scalar(raw_y_id)) if raw_y_id else None
+        raw_y_status = _yaml_probe.get("status")
+        y_status = (
+            _normalize_yaml_scalar(raw_y_status) or None if raw_y_status else None
+        )
+        clean_status: Optional[str] = None
+        if y_status and len(y_status.split()) == 1:
+            clean_status = y_status.split()[0].lower()
+        raw_y_set = _yaml_probe.get("set")
+        tok_y_set = (
+            _first_set_token(_normalize_yaml_scalar(raw_y_set)) if raw_y_set else None
+        )
+        legacy_raw_set = (
+            _normalize_yaml_scalar(tok_y_set) or None if tok_y_set else None
+        )
+        order_nn: Optional[int] = None
+        if "order" in _yaml_probe:
+            with contextlib.suppress(Exception):
+                order_nn = int(_normalize_yaml_scalar(_yaml_probe["order"]))
+        fields = {
+            k.lower().replace("-", "_"): _normalize_yaml_scalar(v)
+            for k, v in _yaml_probe.items()
+        }
+        if "kind" in _yaml_probe:
+            fields["research_kind"] = _normalize_yaml_scalar(_yaml_probe["kind"])
+        return State(
+            id6=y_id or "",
+            type=art_type,
+            status=clean_status,
+            title=yaml_title,
+            short_description=fields.get("short_description"),
+            set_id=legacy_raw_set,
+            order_nn=order_nn,
+            fields=fields,
+            legacy_raw_status=y_status,
+            legacy_raw_set=legacy_raw_set,
+            loose_id=None,
+            loose_status=None,
+            loose_blocks_release=None,
+        )
+
+    bullets, loose_bullets, title, history_lines = _parse_bullet_metadata_with_loose(
+        text
+    )
+    strict_id = _first_token(bullets.get("Id"))
+    raw_status = bullets.get("Status")
+    raw_status_legacy = raw_status.strip() or None if raw_status else None
+    clean_bullet_status: Optional[str] = None
+    if raw_status_legacy and len(raw_status_legacy.split()) == 1:
+        clean_bullet_status = raw_status_legacy.split()[0].lower()
+    legacy_raw_set = _first_set_token(bullets.get("Set"))
+
+    raw_l_id = (loose_bullets.get("Id") or "").strip()
+    loose_id = raw_l_id if _core.ID6_RE.fullmatch(raw_l_id) else None
+    raw_l_st = (loose_bullets.get("Status") or "").strip()
+    loose_status = raw_l_st if (raw_l_st and len(raw_l_st.split()) == 1) else None
+    raw_l_br = (loose_bullets.get("Blocks-Release") or "").strip()
+    loose_blocks_release = (
+        raw_l_br if (raw_l_br and len(raw_l_br.split()) == 1) else None
+    )
+
+    fields_out: Dict[str, Any] = {}
+    for bk, bv in bullets.items():
+        if bk == "Kind":
+            fields_out["plan_role"] = bv
+        else:
+            fields_out[bk.lower().replace("-", "_")] = bv
+    for loose_key in (
+        "Subject-Id",
+        "Target-Id",
+        "References",
+        "From-Backlog",
+        "From-Spec",
+        "Reviewed-Id",
+    ):
+        fk = loose_key.lower().replace("-", "_")
+        if fk not in fields_out and loose_key in loose_bullets:
+            fields_out[fk] = loose_bullets[loose_key]
+
+    return State(
+        id6=strict_id or "",
+        type=art_type,
+        status=clean_bullet_status,
+        title=title,
+        short_description=bullets.get("Short-Description") or None,
+        set_id=legacy_raw_set,
+        fields=fields_out,
+        last_seq=len(history_lines),
+        legacy_raw_status=raw_status_legacy,
+        legacy_raw_set=legacy_raw_set,
+        loose_id=loose_id,
+        loose_status=loose_status,
+        loose_blocks_release=loose_blocks_release,
+    )
+
+
 def read(id6: str, *, project_context: Any = None) -> State:
     """Read current state of an artifact. Fails closed on invalid record."""
     validate_id6(id6)
@@ -3945,11 +4330,12 @@ def read(id6: str, *, project_context: Any = None) -> State:
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
 
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
-        check_freshness(
+        _maybe_check_freshness(
             conn,
             records_root,
+            state_root,
             project_context=ctx,
             repo_root=_scan_repo_root(ctx, records_root),
         )
@@ -3957,7 +4343,8 @@ def read(id6: str, *, project_context: Any = None) -> State:
         row = conn.execute(
             """SELECT id6, type, path, disposition, status, title, short_description,
                       set_id, order_nn, filename_date, created_day, created_at, updated_at,
-                      last_history_day, last_seq, valid, defect, id_derived
+                      last_history_day, last_seq, valid, defect, id_derived,
+                      legacy_raw_status, legacy_raw_set
                FROM artifacts WHERE id6 = ?""",
             (id6,),
         ).fetchone()
@@ -3989,6 +4376,8 @@ def read(id6: str, *, project_context: Any = None) -> State:
             valid=valid,
             defect=defect,
             id_derived=bool(row[17]),
+            legacy_raw_status=row[18],
+            legacy_raw_set=row[19],
         )
 
         # Populate type-specific fields
@@ -4012,7 +4401,8 @@ def read(id6: str, *, project_context: Any = None) -> State:
 
         return st
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
@@ -4117,9 +4507,15 @@ def resolve(
     state_root = Path(ctx.logical_roots["state"])
 
     scan_repo = _scan_repo_root(ctx, records_root)
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
+        _maybe_check_freshness(
+            conn,
+            records_root,
+            state_root,
+            project_context=ctx,
+            repo_root=scan_repo,
+        )
 
         val = str(path_or_id6).strip()
         if _core.ID6_RE.fullmatch(val):
@@ -4147,7 +4543,8 @@ def resolve(
 
         return None
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def query(*, project_context: Any = None, **filters) -> QueryResult:
@@ -4157,9 +4554,15 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
     state_root = Path(ctx.logical_roots["state"])
 
     scan_repo = _scan_repo_root(ctx, records_root)
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
+        _maybe_check_freshness(
+            conn,
+            records_root,
+            state_root,
+            project_context=ctx,
+            repo_root=scan_repo,
+        )
 
         where_clauses: List[str] = ["a.valid = 1"]
         params: List[Any] = []
@@ -4212,7 +4615,8 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
 
         sql = f"""SELECT a.id6, a.type, a.path, a.disposition, a.status, a.title, a.short_description,
                          a.set_id, a.order_nn, a.filename_date, a.created_day, a.created_at, a.updated_at,
-                         a.last_history_day, a.last_seq, a.valid, a.defect, a.id_derived
+                         a.last_history_day, a.last_seq, a.valid, a.defect, a.id_derived,
+                         a.legacy_raw_status, a.legacy_raw_set
                   FROM artifacts a
                   WHERE {" AND ".join(where_clauses)}
                   ORDER BY a.set_id, a.order_nn, a.id6"""
@@ -4239,6 +4643,8 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
                 valid=r[15],
                 defect=r[16],
                 id_derived=bool(r[17]),
+                legacy_raw_status=r[18],
+                legacy_raw_set=r[19],
             )
             states.append(st)
 
@@ -4250,7 +4656,8 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
 
         return QueryResult(states, incomplete)
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def review_rows(
@@ -4448,6 +4855,8 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
                     short_description=art_row["short_description"],
                     set_id=art_row["set_id"],
                     order_nn=art_row["order_nn"],
+                    legacy_raw_status=art_row.get("legacy_raw_status"),
+                    legacy_raw_set=art_row.get("legacy_raw_set"),
                 )
                 return ReadAtResult(kind="ok", state=st)
             except Exception as exc:

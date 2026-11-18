@@ -52,15 +52,6 @@ _READINESS_ORDER = {
 }
 LEGACY_GROUP = "legacy/unknown"
 
-_STATUS_RE = re.compile(r"^- Status:\s*(?P<val>\S+)", re.MULTILINE)
-
-# Optional ordered-SET metadata (D82). ADVISORY only: `Set:`/`Order:` group related plans and make
-# their intended run order queryable/visible; they do NOT auto-execute, do not gate approval, and do
-# not change the `Status:` lifecycle. They are ORTHOGONAL to the filename convention and `NN` (which
-# keep their same-minute-disambiguator role). `Set:` is a lowercase-kebab id shared by a set's
-# members; `Order:` is the 1-based position within the set (meaningful only alongside `Set:`).
-_SET_RE = re.compile(r"^- Set:\s*(?P<val>\S+)", re.MULTILINE)
-_ORDER_RE = re.compile(r"^- Order:\s*(?P<val>\S+)", re.MULTILINE)
 _SET_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_SET_ID_LEN = 40
 
@@ -112,34 +103,93 @@ def normalize_status(raw: Optional[str]) -> Optional[str]:
     return val if val in RECOGNIZED else LEGACY_GROUP
 
 
-def read_status(md: Path, text: Optional[str] = None) -> Optional[str]:
-    """Return the canonical readiness status parsed from a file's front-matter, or None."""
+def _status_from_state(st: object) -> Optional[str]:
+    """Compute canonical readiness from a cached or in-memory `artifact_meta.State`."""
+    raw = getattr(st, "legacy_raw_status", None)
+    if not raw or not str(raw).strip():
+        return None
+    tok = str(raw).strip().split()[0]
+    return normalize_status(tok)
 
-    if text is None:
+
+def _cached_states_by_path(root: Path) -> Dict[Path, object]:
+    """Return cached `artifact_meta.State` rows keyed by resolved Path for ``root``."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return {}
+    with _meta.ephemeral_if_uninitialized():
+        res = _meta.query(project_context=ctx)
+    by_path: Dict[Path, object] = {}
+    for st in res.rows:
+        if not st.path:
+            continue
         try:
-            text = md.read_text(encoding="utf-8")
+            abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        by_path[abs_p] = st
+    return by_path
+
+
+def read_status(md: Path, text: Optional[str] = None) -> Optional[str]:
+    """Return the canonical readiness status via `artifact_meta`, or None."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    if text is not None:
+        return _status_from_state(_meta.read_text(text, record_type="ipd"))
+
+    owner = _proj_ctx.record_owner_root(md)
+    if owner is not None:
+        try:
+            by_path = _cached_states_by_path(owner)
+            st = by_path.get(md.resolve())
+            if st is not None:
+                return _status_from_state(st)
         except OSError:
             return None
-    m = _STATUS_RE.search(text)
-    return normalize_status(m.group("val")) if m else None
+        except Exception:
+            pass
+
+    try:
+        content = md.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return _status_from_state(_meta.read_text(content, record_type="ipd"))
 
 
 def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
-    """Return the advisory ``(set_id, order)`` from a file's front-matter (D82).
+    """Return the advisory ``(set_id, order)`` parsed via `artifact_meta.read_text` (D82).
 
     ``set_id`` is None when absent or malformed (not a valid lowercase-kebab id); ``order`` is None
-    when absent or not a positive integer. Reads front-matter only; writes nothing.
+    when absent or not a positive integer.
     """
+    from agent_workflows import artifact_meta as _meta
 
     try:
         text = md.read_text(encoding="utf-8")
     except OSError:
         return (None, None)
-    sm = _SET_RE.search(text)
-    om = _ORDER_RE.search(text)
-    raw_set = sm.group("val") if sm else None
+    st = _meta.read_text(text, record_type="ipd")
+    raw_set = st.legacy_raw_set
     set_id = raw_set if is_set_id_valid(raw_set) else None
-    order = parse_order(om.group("val")) if om else None
+    raw_order = st.fields.get("order") if isinstance(st.fields, dict) else None
+    order = (
+        parse_order(raw_order.strip().split()[0])
+        if isinstance(raw_order, str) and raw_order.strip()
+        else parse_order(raw_order)
+    )
     return (set_id, order)
 
 
@@ -172,28 +222,39 @@ def _resolve_area_dir(root: Path, area: str) -> Path:
 
 
 def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
-    """Scan the records ``plans`` (and ``prompts``) area for plan/prompt records.
+    """Scan the records ``plans`` (and ``prompts``) area for plan/prompt records via `artifact_meta`.
 
     Layout-aware (IPD awretrofit Order 01): resolves ``.aw/records/{plans,prompts}`` with a legacy
-    ``.agents/{plans,prompts}`` read-fallback. Reads front-matter only; renames/moves nothing.
-    ``README.md`` files are skipped. Returns an empty list when the areas do not exist.
+    ``.agents/{plans,prompts}`` read-fallback. ``README.md`` files are skipped.
     """
+    from agent_workflows import artifact_meta as _meta
 
     records: List[PlanRecord] = []
     areas = ["plans"] + (["prompts"] if include_prompts else [])
-    for area in areas:
-        base = _resolve_area_dir(root, area)
-        if not base.is_dir():
-            continue
-        for disp in DISPOSITION_DIRS:
-            d = base / disp
-            if not d.is_dir():
+    by_path: Optional[Dict[Path, object]] = None
+    with _meta.scan_once():
+        for area in areas:
+            base = _resolve_area_dir(root, area)
+            if not base.is_dir():
                 continue
-            for f in sorted(d.glob("*.md")):
-                if f.name == "README.md":
+            if by_path is None:
+                try:
+                    by_path = _cached_states_by_path(root)
+                except Exception:
+                    by_path = {}
+            for disp in DISPOSITION_DIRS:
+                d = base / disp
+                if not d.is_dir():
                     continue
-                set_id, order = read_set(f)
-                records.append(PlanRecord(f, area, disp, read_status(f), set_id, order))
+                for f in sorted(d.glob("*.md")):
+                    if f.name == "README.md":
+                        continue
+                    st = by_path.get(f.resolve())
+                    status = (
+                        _status_from_state(st) if st is not None else read_status(f)
+                    )
+                    set_id, order = read_set(f)
+                    records.append(PlanRecord(f, area, disp, status, set_id, order))
     return records
 
 

@@ -382,3 +382,74 @@ def test_legacy_history_lines_order_and_last_history_day(tmp_path: Path):
     expected_day = att.last_history_at(history_lines)
     assert art_row["last_history_day"] == expected_day
     assert art_row["last_history_day"] == "2026-10-24"
+
+
+def test_read_text_strict_two_space_and_tab_whitespace():
+    """artifact_meta.read_text separates strict `^- <Key>:` from loose `^-[ \\t]*<Key>:` fields."""
+    strict = (
+        "# Strict\n\n"
+        "- Id: abc123\n"
+        "- Status: approved\n"
+        "- Set: `myset` (desc)\n"
+        "- Blocks-Release: next\n"
+        "## Body\n\n- Id: xyz999\n"
+    )
+    st_strict = meta.read_text(strict, record_type="ipd")
+    assert st_strict.id6 == "abc123"
+    assert st_strict.status == "approved"
+    assert st_strict.legacy_raw_status == "approved"
+    assert st_strict.legacy_raw_set == "`myset`"
+    assert st_strict.loose_id == "abc123"
+    assert st_strict.loose_status == "approved"
+    assert st_strict.loose_blocks_release == "next"
+
+    two_spaces = (
+        "# Two Spaces\n\n-  Id: def456\n-  Status: draft\n-Blocks-Release: rel001\n"
+    )
+    st_two = meta.read_text(two_spaces, record_type="ipd")
+    assert st_two.id6 == ""
+    assert st_two.status is None
+    assert st_two.legacy_raw_status is None
+    assert st_two.loose_id == "def456"
+    assert st_two.loose_status == "draft"
+    assert st_two.loose_blocks_release == "rel001"
+
+    tab = "# Tab\n\n-\tId: ghi789\n-\tStatus: reviewed\n-\tBlocks-Release: next\n"
+    st_tab = meta.read_text(tab)
+    assert st_tab.id6 == ""
+    assert st_tab.status is None
+    assert st_tab.legacy_raw_status is None
+    assert st_tab.loose_id == "ghi789"
+    assert st_tab.loose_status == "reviewed"
+    assert st_tab.loose_blocks_release == "next"
+
+
+def test_read_text_yaml_only_and_multiword_status():
+    """artifact_meta.read_text supports YAML-only research front matter and preserves multi-word status."""
+    yaml_only = (
+        "---\n"
+        "id: rsh001\n"
+        "status: 'reference'\n"
+        "set: `rset` (research set)\n"
+        "kind: findings\n"
+        "---\n\n"
+        "# Research Title\n\n"
+        "- Id: quoted9\n"
+        "- Status: parked\n"
+    )
+    st_yaml = meta.read_text(yaml_only, record_type="research")
+    assert st_yaml.id6 == "rsh001"
+    assert st_yaml.status == "reference"
+    assert st_yaml.legacy_raw_status == "reference"
+    assert st_yaml.legacy_raw_set == "rset"
+    assert st_yaml.loose_id is None
+    assert st_yaml.loose_status is None
+    assert st_yaml.loose_blocks_release is None
+
+    multiword = "# Plan\n\n- Id: pln999\n- Status: EXECUTED (approved by maintainer)\n"
+    st_multi = meta.read_text(multiword, record_type="ipd")
+    assert st_multi.id6 == "pln999"
+    assert st_multi.status is None
+    assert st_multi.legacy_raw_status == "EXECUTED (approved by maintainer)"
+    assert st_multi.loose_id == "pln999"
+    assert st_multi.loose_status is None
