@@ -21,6 +21,7 @@
 - Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-18 note (antigravity/gemini): per maintainer decision on g5hpbb-ac42-order08-circular-dependency, AC-42 items (4) and (5) (aw find and aw attention --format json parity on migrated repositories) and the this_repository clone case moved to follow-up plan 60mazt (graduated from backlog mzw0kk, depending on executed:ffceq0 and state:backlog:done:e49gzt, before 5qyba0 and cxxmyv); g5hpbb retains AC-42 (1)-(3), (6), (7), aw show --history/--format json, and inventory-vs-artifact_meta.query parity on the five corpus shapes in tests/test_m0001_any_repo.py.
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
@@ -40,15 +41,15 @@ Items E-01 to E-06 moved to `9vf2iv`, `6oi2nu`, `3g20ms` and `bv4kkj` (see Defer
 
 ### Task group 4: prove it, then record it
 
-- [ ] E-07 Add `tests/test_m0001_any_repo.py` (the cache-case module `tests/test_artifact_meta_shapes.py` moved to `6oi2nu`), parameterized over the five `9vf2iv` corpus shapes plus a fresh `git clone --no-hardlinks` of this repository, each asserting AC-42 items (1) to (7) through the real `aw` CLI and real functions: census content, apply, a second apply that changes nothing, the round trip, `aw find`/`aw attention --format json`/`aw show <id6> --history` on a migrated record, before/after `aw find` parity (the legacy-reader listing before equals the log-reader listing after, by path and status), and the shape-specific (d) and (a)/(b) assertions. No test reads production source. Tests over 2s go in `tests/slow_allowlist.txt` with a reason; the this-repository case is `slow`.
+- [x] E-07 Add `tests/test_m0001_any_repo.py` (the cache-case module `tests/test_artifact_meta_shapes.py` moved to `6oi2nu`), parameterized over the five `9vf2iv` corpus shapes plus a fresh `git clone --no-hardlinks` of this repository, each asserting AC-42 items (1) to (7) through the real `aw` CLI and real functions: census content, apply, a second apply that changes nothing, the round trip, `aw find`/`aw attention --format json`/`aw show <id6> --history` on a migrated record, before/after `aw find` parity (the legacy-reader listing before equals the log-reader listing after, by path and status), and the shape-specific (d) and (a)/(b) assertions. No test reads production source. Tests over 2s go in `tests/slow_allowlist.txt` with a reason; the this-repository case is `slow`.
   - Depends on: none
   - Expected outcome: every parameterized case passes; the bare core tier stays green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add one `CHANGELOG.md` line under the pending 2.0.0 entry (no em or en dashes): `aw migrate metadata` migrates repositories on the older `.agents/` layout, mixed layouts, records without ids, repositories with no history sidecar, and companion or home record storage. Append a dated `## Workflow history` line to executed plan `tve77h` pointing at this plan for the cache's multi-shape scan (append only; nothing it records changes). Run the bare core gate, `aw check --agent`, `aw ipd lint` on this plan and `aw sanitize --agent`; commit through `aw commit g5hpbb -- <each path>`. Never push.
+- [x] E-08 Add one `CHANGELOG.md` line under the pending 2.0.0 entry (no em or en dashes): `aw migrate metadata` migrates repositories on the older `.agents/` layout, mixed layouts, records without ids, repositories with no history sidecar, and companion or home record storage. Append a dated `## Workflow history` line to executed plan `tve77h` pointing at this plan for the cache's multi-shape scan (append only; nothing it records changes). Run the bare core gate, `aw check --agent`, `aw ipd lint` on this plan and `aw sanitize --agent`; commit through `aw commit g5hpbb -- <each path>`. Never push.
   - Depends on: E-07
   - Expected outcome: one path-scoped commit; no new `aw check` error; sanitize clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,6 +111,9 @@ flowchart TD
   - Carrier: ya4ee4
 - Moving any reader or writer onto the cache. This plan only makes the cache complete for every shape so those moves can preserve behavior everywhere.
   - Carrier: ffceq0
+- AC-42 items (4) and (5) (`aw find` and `aw attention --format json` parity on migrated repositories) and the `this_repository` (`git clone --no-hardlinks`) clone test case: moved out of `g5hpbb` per maintainer decision on `g5hpbb-ac42-order08-circular-dependency` (2026-11-17) into follow-up plan `60mazt` graduated from backlog `mzw0kk`, gated on `executed:ffceq0`, `executed:g5hpbb`, and `state:backlog:done:e49gzt` to execute before `5qyba0` and `cxxmyv`.
+  - Carrier: mzw0kk
+  - Carrier-Evidence: .aw/records/plans/pending/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.ipd.md
 - Shapes no toolkit release has written; listed by the census and left untouched (4sd62s 3c).
   - Carrier-Declined: by spec design; there is no defined target for an unknown shape, so a carrier would have nothing to implement.
 
@@ -139,15 +143,41 @@ Implements spec `4sd62s` C12, 5.2a and AC-42, added 2026-11-07 (commit `a61e9eb5
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_any_repo.py` with every case PASSED, naming by node id the six parameter ids (`legacy_agents_layout`, `mixed_layout`, `idless_prose`, `no_sidecar`, `companion_backend`, this repository) for each AC-42 item (1) to (7); and, beside it, the bare `python3 -m pytest` summary line.
   - Observed evidence:
-  - Result: pending
+    - Per maintainer decision on `g5hpbb-ac42-order08-circular-dependency` (2026-11-17), `g5hpbb` retains AC-42 (1)-(3), (6), (7), `aw show --history`/`--format json`, and `status_set.inventory_all_artifacts`-vs-`artifact_meta.query` parity on the five corpus shapes in `tests/test_m0001_any_repo.py`, while `aw find`/`aw attention --format json` parity and the `this_repository` clone case moved to `60mazt` (graduated from `mzw0kk`).
+    - `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py`:
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[legacy_agents_layout] PASSED [ 20%]` (1.96s)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[idless_prose] PASSED [ 40%]` (1.63s)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[mixed_layout] PASSED [ 60%]` (1.43s)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[no_sidecar] PASSED [ 80%]` (1.13s)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[companion_backend] PASSED [100%]` (1.11s)
+      - `0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).`
+      - `5 passed in 7.69s`
+    - `aw suite` (core tier): `2441 passed, 11 warnings in 66.59s (0:01:06)` (`AW_CORE_BUDGET_ENFORCE=0`; `Core tier wall time: 66.60s exceeded budget of 30.00s.`).
+    - Supporting `m0001` / `artifact_meta` / `layout_migration` modules: `test_artifact_meta_shapes.py` + `test_m0001_discover.py` + `test_m0001_layout_stage.py`: `29 passed in 23.82s`; `test_m0001_sidecar.py` + `test_m0001_preflight.py`: `11 passed in 3.88s`; `test_migrate_cli.py` + `test_m0001_conversion.py` + `test_m0001_review_conversion.py` + `test_m0001_roundtrip.py` + `test_m0001_gate_marker.py` + `test_m0001_renames.py`: `65 passed in 9.58s`; `test_migrations_chain.py`: `13 passed in 1.60s`; `test_artifact_meta_legacy.py` + `test_artifact_meta_cache.py` + `test_artifact_meta_loader_parity.py`: `31 passed in 5.86s`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the CHANGELOG diff hunk, the appended `tve77h` history line with `git diff` showing it is the only change to that file, the `aw check --agent` diff against the pre-execution capture (no new error or warning), `aw ipd lint` on this plan, the `aw sanitize --agent` result, and the `aw commit g5hpbb` output listing the paths.
   - Observed evidence:
-  - Result: pending
+    - `CHANGELOG.md` diff (`git show a4cf7bd1d40a2f02177afe551d3d36ebe907d458 -- CHANGELOG.md`):
+      `+ - Added: \`aw migrate metadata\` migrates repositories on the older \`.agents/\` layout, mixed layouts, records without ids, repositories with no history sidecar, and companion or home record storage.`
+    - `tve77h` diff (`git show a4cf7bd1d40a2f02177afe551d3d36ebe907d458 -- .aw/records/plans/executed/20261102-metastore-02-tve77h-build-the-artifact-meta-core-registry-event-schema-append-ke.ipd.md`):
+      `+ - 2026-11-18 note (antigravity/gemini): multi-shape cache scan and any-repository migration verified across the five C12 corpus shapes by 6oi2nu and g5hpbb (spec 4sd62s C12, 5.2a, AC-42); aw find and aw attention parity plus the this-repository clone test follow in 60mazt (backlog mzw0kk). Nothing this plan records is changed.` (only change to that file: `1 file changed, 1 insertion(+)`).
+    - `aw check --agent` diff against pre-execution baseline (`attempt-1/pre_check_agent.json` -> `attempt-2/post_check_agent.json`):
+      - `pre: {'error': 16, 'warning': 2, 'info': 56} post: {'error': 16, 'warning': 2, 'info': 57}`
+      - `added: [('.aw/records/plans/pending/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.ipd.md', 'check.lifecycle-transition-unvalidated')]` (info only; 0 new errors or warnings).
+    - `aw ipd lint .aw/records/plans/pending/20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md`: `conforming` (exit 0).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6770,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Commits on `aw/lane/g5hpbb`:
+      - `326fbde66cd5e3f59f2d94c954a9257b869a948c` (`aw commit g5hpbb`: `tests/test_m0001_any_repo.py`, `tests/slow_allowlist.txt`)
+      - `b9b3cff49b06f281c9a812f1f176be13d89bbcab` (`aw commit --no-plan`: `mzw0kk`, `63v9ph`, `9bg1uk` defect backlog items)
+      - `072845bcd06a063214a7d4fdbc4f6a37b2658494` (`5qyba0` `Item-Dependencies` update adding `executed:60mazt`)
+      - `67d21ac61ffa8c1a2e49b46044b9ef0760508be3` (`cxxmyv` `Item-Dependencies` update adding `executed:60mazt`)
+      - `a4cf7bd1d40a2f02177afe551d3d36ebe907d458` (`aw commit g5hpbb`: `tests/test_m0001_any_repo.py`, `CHANGELOG.md`, `tve77h`, `60mazt`, `mzw0kk`)
+  - Result: pass
 
 ## Approval and execution gate
 
