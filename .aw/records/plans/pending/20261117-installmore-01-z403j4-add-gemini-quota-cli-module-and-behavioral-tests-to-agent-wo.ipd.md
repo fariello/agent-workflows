@@ -6,7 +6,9 @@
 - Scope: Add `agent_workflows/gemini_quota.py` (stdlib-only module implementing the `gemini-quota` status bar, dashboard, burn-rate forecast, JSON export, watch loop, and cache/API quota refresh) and `tests/test_gemini_quota.py` covering its CLI flags and rendering/forecast behavior. EXCLUDES modifying `[project.scripts]` in `pyproject.toml`, installing user PATH launchers (`58isyp`), and changing `agent_workflows/agy_runipd.py` statuslines.
 - Scope-Paths: agent_workflows/gemini_quota.py, tests/test_gemini_quota.py, .aw/records/plans/pending/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - Short-Description: Package the Antigravity gemini-quota status/forecast CLI under agent_workflows/gemini_quota.py with unit and CLI tests
 - Work-Kind: feature
 - Priority: medium
@@ -20,6 +22,8 @@
 
 ## Workflow history
 
+- 2026-11-18 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
+- 2026-11-18 /plan-review (antigravity/gemini-4-hydrogen-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006; review record .aw/records/reviews/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.review.md
 - 2026-11-18 review progress (antigravity/gemini-4-hydrogen-high): Round 2 folded maintainer's OQ-02 contract (live refresh, token fields, cache/history schema, --context) into E-01..E-03 and V-01..V-03, resolved OQ-02, and opened blocking OQ-03 for the two home-relative token file paths redacted as ~<path> in the forwarded answer (.aw/records/reviews/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.review.md)
 - 2026-11-18 review progress (antigravity/gemini-4-hydrogen-high): Round 1 completed revisions for PR-002..PR-006; escalated PR-001 as blocking OQ-02 awaiting maintainer answer in .aw/records/reviews/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.review.md
 - 2026-11-18 to-review (aw set): status set to to-review
@@ -38,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 Create `agent_workflows/gemini_quota.py` (with `from __future__ import annotations` and Python 3.9+ stdlib only, using `datetime.timezone.utc` rather than `datetime.UTC` and no runtime `X | Y` unions) implementing:
   - Cache & history: `AGY_QUOTA_FILE` override; `DEFAULT_CACHE_PATHS = (Path.home() / ".gemini" / "antigravity-cli" / "last_quota.json",)` (with `/tmp/antigravity_quota.json` removed); `HISTORY_PATH = Path.home() / ".gemini" / "antigravity-cli" / "quota_history.json"` storing `{"samples": [{"ts": <float>, "quota": {<bucket>: {"remaining_fraction": <float>, "reset_time": <str>}}}]}` for buckets `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly`, pruned to a 6-hour window (`21600`s, max `720` samples); `load_quota_payload`, `obtain_quota_payload`, `load_history_samples`, `record_history_sample` (atomic write via temp file + `os.replace`).
   - Live refresh (`refresh_quota`): never invoke `agy` (no `refresh_quota_via_agy`, no `agy` lookup). `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (fallback host `cloudcode-pa.googleapis.com`) with JSON body `{"project": "aicode-consumers"}` and headers `Authorization: Bearer <access token>`, `Content-Type: application/json`, and `User-Agent: antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)`. Map `groups[].buckets[]` (`bucketId`, `remainingFraction`, `resetTime`) to `payload["quota"][<bucketId>] = {"remaining_fraction": ..., "reset_time": ..., "reset_in_seconds": ...}` plus `quota_updated_at` (epoch seconds).
-  - Tokens: read `token.access_token`, `token.refresh_token`, `token.expiry` from `[TOKEN FILE 1 - pending OQ-03]`, else `accounts[activeIndex].refreshToken` from `[TOKEN FILE 2 - pending OQ-03]`. Never store or hardcode client credentials in tracked code; refresh via `https://oauth2.googleapis.com/token` only when `AW_GEMINI_QUOTA_CLIENT_ID` and `AW_GEMINI_QUOTA_CLIENT_SECRET` are set. Otherwise use the access token until `token.expiry`, then fall back to the cache and report `"token expired; run agy to renew it"` (exit non-zero if no cache either). Never print or log any token.
+  - Tokens: read `token.access_token`, `token.refresh_token`, `token.expiry` from `Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"`, else `accounts[0].refreshToken` from `Path.home() / ".config" / "opencode" / "antigravity-accounts.json"`. Never store or hardcode client credentials in tracked code; refresh via `https://oauth2.googleapis.com/token` only when `AW_GEMINI_QUOTA_CLIENT_ID` and `AW_GEMINI_QUOTA_CLIENT_SECRET` are set. Otherwise use the access token until `token.expiry`, then fall back to the cache and report `"token expired; run agy to renew it"` (exit non-zero if no cache either). Never print or log any token.
   - Renderers & forecast: `supports_color` (honoring `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, `isatty()`), `format_bar`, `format_duration`, `compute_reset_in_seconds`, `format_single_status_bar`, `render_dashboard` (rendering `--context` when cache payload has `context_window`: `used_percentage`, `total_input_tokens + total_output_tokens` of `context_window_size`, `remaining_percentage`, and `current_usage.cache_read_input_tokens` if `> 0`; omitting the section silently when absent), `analyze_bucket`, `render_watch_forecast_panel`, and `build_json_forecast` (5-hour OLS `burn_forecast` in `--json`).
   - Trust-boundary safety: sanitize control/ANSI characters in payload strings, enforce `https://` and finite timeouts on all `urllib` requests, handle corrupt/unreadable JSON gracefully, and keep all paths free of user-specific or machine-local strings.
   - Depends on: none
@@ -50,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `python3 -m agent_workflows.gemini_quota --help` renders all flags, missing/unreadable `--file` or expired token without cache prints an actionable error on stderr and returns non-zero without side effects, and `--file`, `--bar`, `--json`, `--watch`, `--context`, and dashboard modes render from fixture JSON.
   - Execution state: pending
 
-- [ ] E-03 Add behavioral tests in `tests/test_gemini_quota.py` (marked with `pytestmark = pytest.mark.core` at module scope and using fast in-process `gemini_quota.main(argv)` and helper calls) using synthetic fixtures and a stubbed HTTP layer (zero network access, zero `agy` invocation): single-line `--bar` output, `--json` output with `burn_forecast`, `--gemini` (`gemini-*`) vs `--3p` (`3p-*`) bucket filtering, `--no-color` plain output (and `NO_COLOR`/`FORCE_COLOR`), `--plot` Braille forecast panel, `--context` present vs silently omitted when `context_window` is absent, bounded `--watch` loop termination (e.g., via `KeyboardInterrupt` or sleep mock after 1-2 iterations), stubbed `refresh_quota` (`groups[].buckets[]` mapping, `cloudcode-pa.googleapis.com` host fallback, expired token cache fallback with `"token expired; run agy to renew it"` vs non-zero exit when cache absent, env-gated OAuth refresh when `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` are set, and token non-exposure in stdout/stderr/JSON/history), `AGY_QUOTA_FILE` override, non-zero exit on missing/corrupt `--file`, and 6-hour (`21600`s, max `720` samples) history recording/pruning under a temporary home path.
+- [ ] E-03 Add behavioral tests in `tests/test_gemini_quota.py` (marked with `pytestmark = pytest.mark.core` at module scope and using fast in-process `gemini_quota.main(argv)` and helper calls) using synthetic fixtures and a stubbed HTTP layer (zero network access, zero `agy` invocation): single-line `--bar` output, `--json` output with `burn_forecast`, `--gemini` (`gemini-*`) vs `--3p` (`3p-*`) bucket filtering, `--no-color` plain output (and `NO_COLOR`/`FORCE_COLOR`), `--plot` Braille forecast panel, `--context` present vs silently omitted when `context_window` is absent, bounded `--watch` loop termination (e.g., via `KeyboardInterrupt` or sleep mock after 1-2 iterations), stubbed `refresh_quota` (`groups[].buckets[]` mapping, `cloudcode-pa.googleapis.com` host fallback, primary `.gemini/antigravity-cli/antigravity-oauth-token` and fallback `.config/opencode/antigravity-accounts.json` `accounts[0].refreshToken` token lookup under temp `HOME`, expired token cache fallback with `"token expired; run agy to renew it"` vs non-zero exit when cache absent, env-gated OAuth refresh when `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` are set, and token non-exposure in stdout/stderr/JSON/history), `AGY_QUOTA_FILE` override, non-zero exit on missing/corrupt `--file`, and 6-hour (`21600`s, max `720` samples) history recording/pruning under a temporary home path.
   - Depends on: E-02
   - Expected outcome: All tests in `tests/test_gemini_quota.py` run under the `core` tier, pass deterministically without network access or live Antigravity credentials, complete well below the 2s slow threshold, and contain no source-code inspection assertions.
   - Execution state: pending
@@ -107,7 +111,7 @@ flowchart TD
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: `PR-001` (`OQ-03`, blocking) remains open only for the two home-relative token file paths redacted to `~<path>` in the forwarded `OQ-02` answer (`token.*` file and `accounts[activeIndex].refreshToken` file); all other schema, HTTP refresh, cache/history, and `--context` details are specified.
+- Under-scope: none. All quota payload, live HTTP refresh, token lookup (`antigravity-oauth-token` and `antigravity-accounts.json`), cache/history, and `--context` details are specified.
 
 ## Required tests / validation
 
@@ -141,10 +145,10 @@ flowchart TD
 ### OQ-03: Which two home-relative token file paths (redacted as `~<path>` in the `OQ-02` answer) hold `token.access_token`/`token.refresh_token`/`token.expiry` and `accounts[activeIndex].refreshToken`?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: Pending maintainer reply specifying the two home-relative JSON paths without a leading `/` or `~/` prefix (e.g. `.gemini/antigravity-cli/...`) so the runner's `_redact_absolute_paths` sanitizer preserves them verbatim. Recommendation strength: strong (supply both home-relative paths so `E-01` token lookup works against real Antigravity credentials).
+- Resolution or deferral rationale: Answered by maintainer (2026-11-18, question `02-z403j4-a2-oq03-token-file-paths`): primary `Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"` (`token.access_token`, `token.refresh_token`, `token.expiry`), fallback `Path.home() / ".config" / "opencode" / "antigravity-accounts.json"` (`accounts[0].refreshToken`), cache `Path.home() / ".gemini" / "antigravity-cli" / "last_quota.json"`, and history `Path.home() / ".gemini" / "antigravity-cli" / "quota_history.json"`. Applied to `E-01`.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -176,7 +180,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Cohesion rationale: not required
 
 Execution contract:
-- **Open questions**: `OQ-01` and `OQ-02` are resolved; `OQ-03` (`- Blocking: yes`, `- Finding: PR-001`) must be answered and resolved before approval or execution.
+- **Open questions**: `OQ-01`, `OQ-02`, and `OQ-03` are all resolved; zero unresolved blocking questions remain.
 - **Scope fence**: Declared work paths are listed in `- Scope-Paths:`. An out-of-scope edit must be justified at finalize with `--scope-reason`, and any declared path left unmodified must be acknowledged with `--scope-ack`.
 - **Safety stop**: Stop and report only on a genuinely unsafe condition (such as an unresolvable concurrent-edit conflict).
 - **Evidence honesty**: MUST paste the actual runner output for every check and test run; never claim passing results without running them after the final edit.

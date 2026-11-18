@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-18
 - Reviewer: antigravity/gemini-4-hydrogen-high
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -139,3 +139,64 @@ Checked updated `E-01`..`E-03`, `Scope check`, `OQ-02`, `OQ-03`, `V-03`, and `Ap
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 | --- | --- | --- | --- | --- | --- |
 | D-6 | Should Round 2 guess the two `~<path>` token file paths scrubbed by `_redact_absolute_paths` or ask the maintainer in a slash-free format? | Fold all unredacted `OQ-02` details into `z403j4`, resolve `OQ-02`, and open blocking `OQ-03` asking for the two home-relative paths without leading `/` or `~/`. | Guess standard `~/.gemini/...` filenames (risks reading nonexistent token files in production). | `agent_workflows/render_stream.py::_redact_absolute_paths:4061-4087`; `technical-writing.md` Requirement 10 | yes |
+
+## Round 3
+
+Resumed on HEAD `a4ddfd80c` after maintainer answered `02-z403j4-a2-oq03-token-file-paths` (`OQ-03`). Applied primary token path `Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"` (`token.access_token`, `token.refresh_token`, `token.expiry`) and fallback token path `Path.home() / ".config" / "opencode" / "antigravity-accounts.json"` (`accounts[0].refreshToken`) into `E-01` and `E-03`, marked `OQ-03` `Status: resolved`, reconciled `Scope check` and `Approval and execution gate`, updated `- Verdict:` to `APPROVE WITH REVISIONS APPLIED`, and transitioned `z403j4` via `aw ipd set reviewed` (`- Readiness: go-pending-approval`, `- Review-Depth: standard`). Verified `aw ipd lint --phase review-finalize` (`clean`, `exit: 0`, `error: 0`, `warning: 0`, `info: 2` on boilerplate), `aw check-local-leaks` (`clean`), and zero unescalated findings.
+
+### Proofreading
+
+Checked complete `z403j4` IPD after Round 3 edits against `.aw/system/workflows/technical-writing/technical-writing.md`.
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+| --- | --- | --- | --- |
+| Front matter | `- Status: to-review`, missing `- Readiness:` and `- Review-Depth:` | Updated `- Status: reviewed` via `aw ipd set`, added `- Readiness: go-pending-approval` and `- Review-Depth: standard` | Step S7 front-matter requirements. |
+| Workflow history | Round 2 `review progress` line | Prepended `reviewed (aw set)` and `/plan-review` lines citing `APPROVE WITH REVISIONS APPLIED; PR-001..PR-006` | Step S7 newest-first history requirement. |
+| E-01, E-03 | `[TOKEN FILE 1 - pending OQ-03]` / `[TOKEN FILE 2 - pending OQ-03]` (`accounts[activeIndex].refreshToken`) | Replaced with `Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"` and `Path.home() / ".config" / "opencode" / "antigravity-accounts.json"` (`accounts[0].refreshToken`); added temp-`HOME` token lookup test demand in `E-03` | `OQ-03` maintainer answer. |
+| Scope check, OQ-03, Execution gate | `OQ-03` open blocking | Marked `OQ-03` `Status: resolved` citing `02-z403j4-a2-oq03-token-file-paths`; cleared `Under-scope` and `Execution contract` gate | `OQ-03` resolution. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+| --- | --- | --- | --- | --- | --- |
+| (none) | | | | | |
+
+### Step R1
+
+- Checked: Verified `OQ-03` answer against `E-01`, `E-03`, `Scope check`, `OQ-03`, and `Approval and execution gate` in `.aw/records/plans/pending/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.ipd.md`.
+
+### Step R2
+
+- Checked: `E-01`..`E-04` and `V-01`..`V-04` 1:1 mapping, durable carriers on `Deferred / out of scope`, resolved `OQ-01..OQ-03`, and full execution contract in `Approval and execution gate`.
+
+### Step R3
+
+- Checked: Primary/fallback token files read outside the repo via `Path.home()`, zero hardcoded client credentials (`AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` env-gated), and strict non-logging/non-printing of tokens.
+
+### Step R4
+
+- Checked: Complete plan is self-contained and executable in an isolated lane with zero invented architecture or out-of-lane reads.
+
+### Step S5
+
+- Checked: `OQ-01`, `OQ-02`, and `OQ-03` are all `Status: resolved` (`questions: []` in `attempt-3/outcomes/02-z403j4.json`). Cleared `PR-001` in `## Round 3` per `steps/s5-questions.md` escalation return path.
+
+### Pass 2
+
+- Re-reviewed the full `z403j4` plan after Round 3 edits (`E-01..E-04`, `V-01..V-04`, `Proposed changes`, `Deferred / out of scope`, `Scope check`, `Open questions`, `Approval and execution gate`).
+- Confirmed `aw ipd lint --phase review-finalize --agent --verbose` exited `0` (`clean`, `error: 0`, `warning: 0`, `info: 2` on boilerplate), `aw check-local-leaks --agent` exited `0` (`clean`), and `check_review_finding_unescalated` returned `[]`.
+- AW-REVIEW: DONE
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PR-001 | HIGH | UNDER-SCOPE | Architecture / Token File Paths | .aw/records/plans/pending/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.ipd.md:40,141-147 (`E-01`, `OQ-03`) | Raised in Round 1/2 (`OPEN`) because the quota schema, live refresh protocol, `--context`, and the two home-relative token file paths were absent from the plan and repo. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer answered `OQ-02` and `OQ-03` (2026-11-18); folded primary `Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"` and fallback `Path.home() / ".config" / "opencode" / "antigravity-accounts.json"` (`accounts[0].refreshToken`) into `E-01` and `E-03` and resolved `OQ-03`. Recommendation strength: strong. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | --- | --- | --- | --- | --- |
+| D-7 | Should Round 3 add temp-`HOME` token lookup verification (`antigravity-oauth-token` and `antigravity-accounts.json` `accounts[0].refreshToken`) to `E-03`? | Add explicit temp-`HOME` primary/fallback token lookup tests to `E-03` (already covered by `V-03`'s stubbed `refresh_quota` demand). | Leave token file path fallback untested in `E-03` (risks regression on the `accounts[0].refreshToken` fallback). | Maintainer `OQ-03` answer (`02-z403j4-a2-oq03-token-file-paths`); `z403j4` `E-01`, `E-03` | yes |
