@@ -472,55 +472,31 @@ def ready_plan_text(
     `None` (the default) means "resolve it to a real value", which is what a conforming fixture wants.
     """
 
-    from agent_workflows import ipd_authoring as _authoring
+    from tests.record_builder import RecordBuilder
 
-    text = _authoring.build_skeleton(
-        kind=kind,
-        title=title,
-        author=author,
-        when=when,
-        set_name=set_name,
-        order=order,
-        plan_id=plan_id,
+    eff_approval = approval if status in ("approved", "auto-approved") else None
+    eff_readiness = (
+        readiness if status in ("reviewed", "approved", "auto-approved") else None
     )
-    status_block = f"- Status: {status}"
-    if approval is not None and status in ("approved", "auto-approved"):
-        status_block += f"\n- Approval: {approval}"
-    add_readiness = readiness is not None and status in (
-        "reviewed",
-        "approved",
-        "auto-approved",
+    return str(
+        RecordBuilder().plan(
+            plan_id=plan_id,
+            kind=kind,
+            title=title,
+            author=author,
+            when=when,
+            set_name=set_name,
+            order=order,
+            status=status,
+            scope_paths=scope_paths,
+            item_dependencies=item_dependencies,
+            priority=priority or READY_PLAN_PRIORITY,
+            work_kind=work_kind or READY_PLAN_WORK_KIND,
+            approval=eff_approval,
+            readiness=eff_readiness,
+            text_only=True,
+        )
     )
-    if add_readiness:
-        status_block += f"\n- Readiness: {readiness}"
-    replacements = {
-        "- Status:": status_block,
-        "- Scope-Paths:": f"- Scope-Paths: {scope_paths}",
-        "- Item-Dependencies:": f"- Item-Dependencies: {item_dependencies}",
-        "- Priority:": f"- Priority: {priority or READY_PLAN_PRIORITY}",
-        "- Work-Kind:": f"- Work-Kind: {work_kind or READY_PLAN_WORK_KIND}",
-    }
-    out: list[str] = []
-    in_meta = True
-    for line in text.splitlines():
-        # THE METADATA REGION ONLY. A `## ` heading ends it, and every later line is body prose that
-        # may legitimately quote a bullet (a plan discussing `- Status:` is normal), so rewriting
-        # outside the region would corrupt the very prose some tests assert on.
-        if line.startswith("## "):
-            in_meta = False
-        if in_meta:
-            for prefix, replacement in replacements.items():
-                if line.startswith(prefix):
-                    out.append(replacement)
-                    break
-            else:
-                out.append(line)
-            continue
-        out.append(line)
-        if add_readiness and line.strip() == "## Workflow history":
-            out.append("")
-            out.append(f"- {when} /plan-review ({author}): APPROVE")
-    return "\n".join(out) + "\n"
 
 
 def scope_drift_repo(
