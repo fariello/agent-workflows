@@ -16,12 +16,14 @@ import pytest
 from agent_workflows import artifact_audit as audit
 from agent_workflows import artifact_core as core
 from agent_workflows import artifact_meta as meta
+from agent_workflows import check_engine
 from agent_workflows import cli
 from agent_workflows import coverage_record as cov_rec
 from agent_workflows import ipd_lifecycle as lifecycle
 from agent_workflows import ipd_schema as schema
 from agent_workflows import plan_readiness as pr
 from agent_workflows import review_findings as rf
+from tests import support
 
 pytestmark = pytest.mark.core
 
@@ -1046,3 +1048,466 @@ def test_hand_retired_child_preserves_retired_banner_for_audit(tmp_path: Path) -
     assert "RETIRED 2026-11-13: superseded by sibling" in dest_text
     assert audit._has_retired_banner(dest_path) is True
     assert "child chd040 retired superseded" in orch_path.read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------------------
+# 4sd62s AC-21 (Section 4.4a obligations) and AC-6 Phase-B git diff checks (xexn45 E-13)
+# --------------------------------------------------------------------------------------
+
+
+def _invoke_cli_captured(
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    *,
+    capsys: pytest.CaptureFixture[str],
+) -> tuple[int, str, str]:
+    """Run cli.main(argv) and return (exit_code, stdout, stderr)."""
+    capsys.readouterr()
+    rc = cli.main(argv)
+    captured = capsys.readouterr()
+    return rc, captured.out, captured.err
+
+
+def test_ac21_obligations_find_filters_and_zero_match_exit_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC-21 (wja06w, zyj8io): aw find filtering and zero-match selector exit-2 behavior."""
+    repo = _init_plans_git_repo(tmp_path, "ac21_find")
+    (repo / ".aw" / "records" / "specs" / "to-review").mkdir(parents=True)
+    (repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
+
+    # Create records via the moved artifact_meta writers so the read path exercises them.
+    rc_spec, _, err_spec = _invoke_cli_captured(
+        monkeypatch,
+        [
+            "specs",
+            "new",
+            "--title",
+            "Sample Spec",
+            "--slug",
+            "sample-spec",
+            "--apply",
+            "--dir",
+            str(repo),
+        ],
+        capsys=capsys,
+    )
+    assert rc_spec == 0, err_spec
+
+    rc_bkl, _, err_bkl = _invoke_cli_captured(
+        monkeypatch,
+        [
+            "backlog",
+            "new",
+            "--summary",
+            "Sample open item",
+            "--priority",
+            "medium",
+            "--work-kind",
+            "chore",
+            "--apply",
+            "--dir",
+            str(repo),
+        ],
+        capsys=capsys,
+    )
+    assert rc_bkl == 0, err_bkl
+
+    # wja06w: filtered find queries return matching records and exit 0.
+    rc_f_spec, out_f_spec, _ = _invoke_cli_captured(
+        monkeypatch,
+        ["find", "specs", "--status", "draft", "--dir", str(repo)],
+        capsys=capsys,
+    )
+    assert rc_f_spec == 0
+    assert "sample-spec" in out_f_spec
+
+    rc_f_bkl, out_f_bkl, _ = _invoke_cli_captured(
+        monkeypatch,
+        ["find", "backlog", "--status", "open", "--dir", str(repo)],
+        capsys=capsys,
+    )
+    assert rc_f_bkl == 0
+    assert "Sample open item" in out_f_bkl or "sample-open-item" in out_f_bkl
+
+    # zyj8io: nonexistent selector exits 2, while an empty tree with no selector exits 0.
+    rc_empty, _, _ = _invoke_cli_captured(
+        monkeypatch, ["find", "plans", "--dir", str(repo)], capsys=capsys
+    )
+    assert rc_empty == 0
+
+    rc_miss, _, err_miss = _invoke_cli_captured(
+        monkeypatch, ["find", "plans", "zzzzzz", "--dir", str(repo)], capsys=capsys
+    )
+    assert rc_miss == 2
+    assert "zzzzzz" in err_miss
+
+
+def test_ac21_obligations_graduation_forward_and_origin_links(tmp_path: Path) -> None:
+    """AC-21 (pw2ln3): aw graduation keeps Graduated-To declarations and From-Backlog links distinct."""
+    repo = _init_plans_git_repo(tmp_path, "ac21_grad")
+    bkl_grad = repo / ".aw" / "records" / "backlog" / "graduated"
+    bkl_grad.mkdir(parents=True)
+    plans_pend = repo / ".aw" / "records" / "plans" / "pending"
+
+    # 1. Declarations alone: Graduated-To: setfwd, plans carry no From-Backlog.
+    (bkl_grad / "20261109-fwdonly-01-bklf01-fwd.backlog.md").write_text(
+        "# Backlog: Forward only\n\n- Id: bklf01\n- Status: graduated\n- Graduated-To: setfwd\n",
+        encoding="utf-8",
+    )
+    (plans_pend / "20261109-setfwd-01-plnf01-first.ipd.md").write_text(
+        "# IPD: Fwd plan\n\n- Id: plnf01\n- Status: pending\n- Set: setfwd\n- Order: 1\n",
+        encoding="utf-8",
+    )
+
+    # 2. Origin links alone: no Graduated-To, plan carries From-Backlog: bklr01.
+    (bkl_grad / "20261109-revonly-01-bklr01-rev.backlog.md").write_text(
+        "# Backlog: Reverse only\n\n- Id: bklr01\n- Status: graduated\n",
+        encoding="utf-8",
+    )
+    (plans_pend / "20261109-setrev-01-plnr01-first.ipd.md").write_text(
+        "# IPD: Rev plan\n\n- Id: plnr01\n- Status: pending\n- From-Backlog: bklr01\n- Set: setrev\n- Order: 1\n",
+        encoding="utf-8",
+    )
+
+    # 3. Both sources: Graduated-To and From-Backlog agree on setboth.
+    (bkl_grad / "20261109-both-01-bklb01-both.backlog.md").write_text(
+        "# Backlog: Both\n\n- Id: bklb01\n- Status: graduated\n- Graduated-To: setboth\n",
+        encoding="utf-8",
+    )
+    (plans_pend / "20261109-setboth-01-plnb01-first.ipd.md").write_text(
+        "# IPD: Both plan\n\n- Id: plnb01\n- Status: pending\n- From-Backlog: bklb01\n- Set: setboth\n- Order: 1\n",
+        encoding="utf-8",
+    )
+
+    c_fwd = check_engine.graduation_cluster(repo, "bklf01")
+    assert c_fwd.forward_setids == ("setfwd",)
+    assert [a.id6 for a in c_fwd.forward_artifacts] == ["plnf01"]
+    assert c_fwd.artifact_count == 0
+
+    c_rev = check_engine.graduation_cluster(repo, "bklr01")
+    assert c_rev.forward_setids == ()
+    assert c_rev.forward_count == 0
+    assert [a.id6 for a in c_rev.artifacts] == ["plnr01"]
+
+    c_both = check_engine.graduation_cluster(repo, "bklb01")
+    assert c_both.forward_setids == ("setboth",)
+    assert [a.id6 for a in c_both.forward_artifacts] == ["plnb01"]
+    assert [a.id6 for a in c_both.artifacts] == ["plnb01"]
+
+
+def test_ac21_obligations_readiness_absence_and_setters_use_artifact_meta(
+    tmp_path: Path,
+) -> None:
+    """AC-21 (l56tyz, fhinri, 63zo2f): readiness absence refused and unified setters use artifact_meta."""
+    repo = _init_plans_git_repo(tmp_path, "ac21_setters")
+    (repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
+    (repo / ".aw" / "records" / "backlog" / "done").mkdir(parents=True)
+    (repo / ".aw" / "records" / "specs" / "to-review").mkdir(parents=True)
+    (repo / ".aw" / "records" / "specs" / "reviewed").mkdir(parents=True)
+
+    # l56tyz: backfilled - Readiness: with no review verdict still fails auto-approve check.
+    absent_plan = (
+        repo
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20261109-demo-01-plnabs-absent.ipd.md"
+    )
+    absent_plan.write_text(
+        "# IPD: Field Absent\n\n"
+        "- Id: plnabs\n"
+        "- Status: reviewed\n"
+        "- Readiness: go-pending-approval\n\n"
+        "## Workflow history\n\n"
+        "- 2026-11-09 draft (author): created.\n",
+        encoding="utf-8",
+    )
+    assert pr.is_plan_review_approved(absent_plan) is False
+
+    # 63zo2f + fhinri: both backlog setter spellings (aw backlog set / aw set) write via artifact_meta,
+    # and aw specs set refuses ->reviewed without an attested review verdict.
+    b1 = (
+        repo
+        / ".aw"
+        / "records"
+        / "backlog"
+        / "open"
+        / "20261109-bkl001-01-bkl001-one.backlog.md"
+    )
+    b1.write_text(
+        "# Backlog: One\n\n- Id: bkl001\n- Date: 2026-11-09\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n\n## Workflow history\n\n- 2026-11-09 open (tester): created.\n",
+        encoding="utf-8",
+    )
+    b2 = (
+        repo
+        / ".aw"
+        / "records"
+        / "backlog"
+        / "open"
+        / "20261109-bkl002-01-bkl002-two.backlog.md"
+    )
+    b2.write_text(
+        "# Backlog: Two\n\n- Id: bkl002\n- Date: 2026-11-09\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n\n## Workflow history\n\n- 2026-11-09 open (tester): created.\n",
+        encoding="utf-8",
+    )
+    s1 = (
+        repo
+        / ".aw"
+        / "records"
+        / "specs"
+        / "to-review"
+        / "20261109-spc001-01-spc001-spec.spec.md"
+    )
+    s1.write_text(
+        "# Spec: Sample\n\n- Id: spc001\n- Date: 2026-11-09\n- Status: to-review\n- Author: tester\n\n## Workflow history\n\n- 2026-11-09 to-review (tester): created.\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+
+    rc_b1 = cli.main(
+        [
+            "backlog",
+            "set",
+            "done",
+            "bkl001",
+            "--message",
+            "closed",
+            "--no-commit",
+            "--dir",
+            str(repo),
+        ]
+    )
+    rc_b2 = cli.main(
+        [
+            "set",
+            "done",
+            "bkl002",
+            "--message",
+            "closed",
+            "--no-commit",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_b1 == 0
+    assert rc_b2 == 0
+    assert (repo / ".aw" / "records" / "backlog" / "done" / b1.name).is_file()
+    assert (repo / ".aw" / "records" / "backlog" / "done" / b2.name).is_file()
+    st_b1 = meta.read("bkl001", project_context=meta.legacy_context(repo))
+    st_b2 = meta.read("bkl002", project_context=meta.legacy_context(repo))
+    assert st_b1.status == "done"
+    assert st_b2.status == "done"
+
+    # Unattested spec -> reviewed is refused on aw specs set too.
+    rc_s1 = cli.main(
+        [
+            "specs",
+            "set",
+            "reviewed",
+            "spc001",
+            "--message",
+            "unattested",
+            "--no-commit",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_s1 != 0
+    assert s1.is_file()
+
+
+def _hunk_change_lines(diff_text: str) -> tuple[list[str], list[str]]:
+    """Return (removed_lines, added_lines) excluding git diff file/hunk headers."""
+    removed: list[str] = []
+    added: list[str] = []
+    for line in diff_text.splitlines():
+        if line.startswith(
+            ("--- ", "+++ ", "@@ ", "diff --git ", "rename ", "similarity ", "index ")
+        ):
+            continue
+        if line.startswith("-"):
+            removed.append(line[1:])
+        elif line.startswith("+"):
+            added.append(line[1:])
+    return removed, added
+
+
+def test_ac6_phase_b_backlog_done_git_diff(tmp_path: Path) -> None:
+    """AC-6 phase-B (E-13 b i): open non-blocking backlog -> done diff is strictly status + 1 history line."""
+    repo = support.init_repo(tmp_path / "bkl_ac6")
+    (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+    (repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
+    (repo / ".aw" / "records" / "backlog" / "done").mkdir(parents=True)
+    (repo / ".aw" / "state").mkdir(parents=True)
+
+    bkl_path = (
+        repo
+        / ".aw"
+        / "records"
+        / "backlog"
+        / "open"
+        / "20261109-ac6bkl-01-ac6bkl-item.backlog.md"
+    )
+    bkl_path.write_text(
+        "# Backlog: AC-6 non-blocking item\n\n"
+        "- Id: ac6bkl\n"
+        "- Date: 2026-11-09\n"
+        "- Status: open\n"
+        "- Priority: medium\n"
+        "- Work-Kind: chore\n\n"
+        "## Workflow history\n\n"
+        "- 2026-11-09 open (tester): created.\n\n"
+        "## Summary\n\n"
+        "Simple non-blocking chore.\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init backlog"], cwd=repo, check=True)
+
+    rc = cli.main(
+        [
+            "backlog",
+            "set",
+            "done",
+            "ac6bkl",
+            "--message",
+            "closed",
+            "--commit",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc == 0
+
+    diff_proc = subprocess.run(
+        ["git", "diff", "-M", "-U0", "HEAD~1", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    removed, added = _hunk_change_lines(diff_proc.stdout)
+    assert removed == ["- Status: open"]
+    assert len(added) == 2
+    assert added[0] == "- Status: done"
+    assert (
+        added[1].startswith("- ")
+        and "done (" in added[1]
+        and added[1].endswith(": closed")
+    )
+    assert not any("Scope-" in ln or "Close-Evidence" in ln for ln in added + removed)
+
+
+def test_ac6_phase_b_ipd_finalize_within_and_out_of_scope_git_diff(
+    tmp_path: Path,
+) -> None:
+    """AC-6 phase-B (E-13 b ii): within-scope and out-of-scope finalize diffs match exact Phase-B rules."""
+    lifecycle.clear_checkout_control_root_cache()
+    try:
+        for case_name, out_of_scope in (
+            ("within_scope", False),
+            ("out_of_scope", True),
+        ):
+            repo = support.init_repo(tmp_path / case_name)
+            (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+            for sub in ("pending", "executed", "superseded", "not-executed"):
+                (repo / ".aw" / "records" / "plans" / sub).mkdir(parents=True)
+            (repo / ".aw" / "records" / "reviews").mkdir(parents=True)
+            (repo / ".aw" / "state").mkdir(parents=True)
+            (repo / "agent_workflows").mkdir(parents=True)
+            (repo / "agent_workflows" / "demo.py").write_text("v1\n", encoding="utf-8")
+
+            plan_id = "ac6in1" if not out_of_scope else "ac6ex1"
+            plan_name = f"20261109-demo-01-{plan_id}-sample.ipd.md"
+            plan_path = repo / ".aw" / "records" / "plans" / "pending" / plan_name
+            plan_text = support.ready_plan_text(
+                plan_id=plan_id,
+                set_name="demo",
+                order=1,
+                status="approved",
+                scope_paths="agent_workflows/demo.py",
+                approval="2026-11-12, recorded via aw ipd set: approved",
+            )
+            plan_text = (
+                plan_text.replace("- [ ] E-01 ", "- [x] E-01 ", 1)
+                .replace(
+                    "  - Execution state: pending", "  - Execution state: performed", 1
+                )
+                .replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+                .replace(
+                    "  - Observed evidence:\n",
+                    "  - Observed evidence: done, verified.\n",
+                    1,
+                )
+                .replace("  - Result: pending", "  - Result: pass", 1)
+            )
+            plan_path.write_text(plan_text, encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "init plan"], cwd=repo, check=True)
+
+            with support.coordinator_role():
+                b_res = lifecycle.begin(
+                    repo, plan_path, "tester", timestamp="2026-11-12T00:00:00Z"
+                )
+                assert b_res.exit_code == lifecycle.EXIT_OK, b_res.message
+
+                (repo / "agent_workflows" / "demo.py").write_text(
+                    "v2\n", encoding="utf-8"
+                )
+                if out_of_scope:
+                    (repo / "extra.py").write_text("extra = 1\n", encoding="utf-8")
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(["git", "commit", "-qm", "work"], cwd=repo, check=True)
+
+                argv = [
+                    "ipd",
+                    "finalize",
+                    plan_id,
+                    "--actor",
+                    "tester",
+                    "-m",
+                    "done",
+                    "--apply",
+                    "--dir",
+                    str(repo),
+                ]
+                if out_of_scope:
+                    argv.extend(["--scope-reason", "extra.py=needed helper"])
+                rc = cli.main(argv)
+                assert rc == 0
+
+            diff_proc = subprocess.run(
+                ["git", "diff", "-M", "-U0", "HEAD~1", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            assert (
+                f"rename from .aw/records/plans/pending/{plan_name}" in diff_proc.stdout
+            )
+            assert (
+                f"rename to .aw/records/plans/executed/{plan_name}" in diff_proc.stdout
+            )
+            removed, added = _hunk_change_lines(diff_proc.stdout)
+            assert removed == [
+                "- Status: approved",
+                "- Approval: 2026-11-12, recorded via aw ipd set: approved",
+            ]
+            if not out_of_scope:
+                assert len(added) == 2
+                assert added[0] == "- Status: executed"
+                assert added[1].startswith("- ") and "executed (" in added[1]
+                assert not any("Scope-Exceeded" in ln for ln in added + removed)
+            else:
+                assert len(added) == 3
+                assert added[0] == "- Scope-Exceeded: extra.py (needed helper)"
+                assert added[1] == "- Status: executed"
+                assert added[2].startswith("- ") and "executed (" in added[2]
+    finally:
+        lifecycle.clear_checkout_control_root_cache()

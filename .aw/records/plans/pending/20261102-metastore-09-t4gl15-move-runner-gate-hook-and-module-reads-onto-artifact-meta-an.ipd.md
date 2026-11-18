@@ -152,6 +152,7 @@ flowchart TD
   - Carrier: ffceq0
 - The WRITE halves of `runner_shared.rederive_front_matter`, `mark_plan_attended`, `record_oq_answer`, `perform_coordinator_proposal_file` and `review_sequence.restore_pre_s7_plan`, and every setter.
   - Carrier: xexn45
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
 - Deleting `check_engine._blob_text`, `_status_meta`, `runner_shared._front_matter_bullets`, `review_findings._META_RE`, `plans_index._META_RE`, the INDEX writers and every other leftover parser; the AC-1 test.
   - Carrier: 9o83cr
 - Gate rules in their post-cutover form ("mirrored status differs from replayed state", "staged log violates append rules", executed transition as finalize or rollup append only) and AC-16 case 2.

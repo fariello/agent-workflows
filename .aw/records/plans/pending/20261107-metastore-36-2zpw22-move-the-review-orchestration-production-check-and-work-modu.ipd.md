@@ -97,6 +97,7 @@ flowchart TD
   - Carrier: awmsyq
 - The WRITE half of `review_sequence.restore_pre_s7_plan`.
   - Carrier: xexn45
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
 - The `->reviewed` gate-only attestation rule (4.4 SR-601).
   - Carrier: 2xwb9b
 

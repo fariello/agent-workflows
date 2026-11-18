@@ -179,6 +179,7 @@ flowchart TD
   - Carrier: 2xwb9b
 - Writing `short_description` (creating commands and the setter; AC-36 case 1).
   - Carrier: xexn45
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
 - The post-cutover `last_history_at` from the newest event `at` with `last_history_precision` (4.4), the logged-path drift row of `aw check meta`, and AC-7 "zero findings on the migrated corpus".
   - Carrier: cxxmyv
 

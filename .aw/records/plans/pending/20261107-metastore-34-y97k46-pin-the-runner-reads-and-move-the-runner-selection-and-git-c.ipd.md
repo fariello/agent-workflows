@@ -106,8 +106,8 @@ flowchart TD
   - Carrier: k3hb06
 - The five `runner_shared` git-content readers (moved onto `read_at`).
   - Carrier: h58z9n
-- The runner writers named in E-06.
-  - Carrier: xexn45
+- The runner writers named in E-06 (`xexn45`/`7yr827` handled the other named runner writers, while `run_review_sequence._fail_incomplete` remains unmigrated on `r20qqe`).
+  - Carrier: r20qqe
 - Deleting the module-level runner parsers.
   - Carrier: 9o83cr
 

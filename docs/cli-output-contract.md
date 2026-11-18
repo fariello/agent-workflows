@@ -549,3 +549,13 @@ records, without changing record status.
   - Emits `status: "cannot-run"` (`kind: "error"`, `outcome: "cannot-run"`, `exit: 2`) under
     `--agent` and `--json`, and writes diagnostics to `stderr` (leaving `stdout` empty) in human
     mode, with zero disk writes.
+- **Creation-time `--summary <text>` on creating commands**:
+  - Alongside `aw describe`, the record-creating commands accept `--summary <text>` to set
+    `short_description` at creation: `aw ipd scaffold --summary`, `aw prompts new --summary`,
+    `aw specs new --summary`, `aw research new --summary`, `aw research new-comparison --summary`,
+    and `aw adopt --summary` (optional), as well as `aw backlog new --summary` and
+    `aw releases new --summary` (required).
+  - Optional `--summary` inputs are validated before ID minting or disk writes against the same
+    single-line, <=300-character, control-character, and leak-sanitizer rules (plus `-->` and `|`
+    refusal on `aw prompts new`), exiting `2` on invalid input and omitting `short_description` when
+    omitted or whitespace-only.

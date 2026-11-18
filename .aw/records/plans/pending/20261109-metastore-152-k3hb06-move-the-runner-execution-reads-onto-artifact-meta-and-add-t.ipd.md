@@ -100,8 +100,8 @@ flowchart TD
 
 ## Deferred / out of scope (with reason)
 
-- The runner writers (`record_oq_answer`, `perform_coordinator_proposal_file`, `mark_plan_attended`, `set_plan_approved`, `_fail_incomplete`, `rederive_front_matter`).
-  - Carrier: xexn45
+- The runner writers (`record_oq_answer`, `perform_coordinator_proposal_file`, `mark_plan_attended`, `set_plan_approved`, `_fail_incomplete`, `rederive_front_matter`; `xexn45`/`7yr827`/`2xwb9b` handled the other five writers, while `_fail_incomplete` remains unmigrated on `r20qqe`).
+  - Carrier: r20qqe
 - The runner residual audit (table F-04).
   - Carrier: y97k46
 

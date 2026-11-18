@@ -153,6 +153,7 @@ flowchart TD
   - Carrier: g5hpbb
 - `--summary` on every creating command and the `short_description` setter (AC-36 case 1).
   - Carrier: xexn45
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
 - `aw attention --details` and `aw find` reading `artifacts.short_description` after deleting the cache (AC-36 case 2).
   - Carrier: ffceq0
 - Generating descriptions for the whole repository, the maintainer's review of the full dry-run text before `--apply`, AC-36 case 6 on the real census, and the AC-13 generation-cost measurement.
