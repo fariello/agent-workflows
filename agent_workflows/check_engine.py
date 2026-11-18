@@ -32,6 +32,7 @@ from agent_workflows import engine as _engine
 from agent_workflows import (
     ipd_schema as _S,
 )  # low-level; safe (no cycle) - ipddeps ovbnyq
+from agent_workflows import layout
 from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import record_producers as _rp
 from agent_workflows import run_selection_policy as _rsp
@@ -1171,7 +1172,26 @@ def _finding_rel_path(repo_root: Path, path: Path | str) -> str:
     return _core.repo_relative_posix(path, repo_root)
 
 
-_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES
+
+
+def _is_record_excluded_dir(path: Path, *bases: Optional[Path]) -> bool:
+    """Return True if any directory segment of ``path`` under the first matching base is excluded."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    for base in bases:
+        if base is None:
+            continue
+        try:
+            rel_parts = resolved.relative_to(base.resolve()).parts[:-1]
+            return any(part in layout.RECORD_SCAN_EXCLUDED_DIRS for part in rel_parts)
+        except (ValueError, OSError):
+            continue
+    return False
+
+
 # The type->facet map is defined ONCE in the naming authority (IPD o6b8l3). check_names only checks
 # clustered-facet types, so `comms` (no clustered check today) is intentionally omitted here.
 _TYPE_FACET = {
@@ -1290,8 +1310,12 @@ def _iter_type_files(
         # colliding pair per machine. Measured on CI 2026-09-25: the same tree reported the
         # collision on `-02-` locally and on `-03-` on the Linux runner.
         for p in sorted(d.rglob("*.md")):
-            if p.name in _SKIP_NAMES or _core.is_ignored_path(
-                p, repo_root, ignored_dirs, include_untracked=include_untracked
+            if (
+                p.name in _SKIP_NAMES
+                or _is_record_excluded_dir(p, d)
+                or _core.is_ignored_path(
+                    p, repo_root, ignored_dirs, include_untracked=include_untracked
+                )
             ):
                 continue
             if record_type == "research":
@@ -5255,8 +5279,10 @@ def _meta_records_with_fields(
                 continue
             if resolved_p in seen_paths:
                 continue
-            if abs_p.name in _SKIP_NAMES or _core.is_ignored_path(
-                abs_p, repo_root, ignored_dirs
+            if (
+                abs_p.name in _SKIP_NAMES
+                or _is_record_excluded_dir(abs_p, records_root, scan_repo)
+                or _core.is_ignored_path(abs_p, repo_root, ignored_dirs)
             ):
                 continue
             if suffix and not abs_p.name.endswith(suffix):
@@ -5533,8 +5559,10 @@ def _iter_plan_ipds(repo_root: Path):
         if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
             continue
         for p in sorted(base.rglob("*.ipd.md")):
-            if p.name in _SKIP_NAMES or _core.is_ignored_path(
-                p, repo_root, ignored_dirs
+            if (
+                p.name in _SKIP_NAMES
+                or _is_record_excluded_dir(p, base)
+                or _core.is_ignored_path(p, repo_root, ignored_dirs)
             ):
                 continue
             try:
@@ -5560,8 +5588,10 @@ def _iter_spec_records(repo_root: Path):
         if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
             continue
         for p in sorted(base.rglob("*.spec.md")):
-            if p.name in _SKIP_NAMES or _core.is_ignored_path(
-                p, repo_root, ignored_dirs
+            if (
+                p.name in _SKIP_NAMES
+                or _is_record_excluded_dir(p, base)
+                or _core.is_ignored_path(p, repo_root, ignored_dirs)
             ):
                 continue
             try:
@@ -5779,8 +5809,10 @@ def build_graduation_reverse_index(
             continue
         if not abs_p.name.endswith(expected_suffix):
             continue
-        if abs_p.name in _SKIP_NAMES or _core.is_ignored_path(
-            abs_p, repo_root, ignored_dirs
+        if (
+            abs_p.name in _SKIP_NAMES
+            or _is_record_excluded_dir(abs_p, records_root, scan_repo)
+            or _core.is_ignored_path(abs_p, repo_root, ignored_dirs)
         ):
             continue
 
@@ -5849,14 +5881,19 @@ def build_plan_setid_index(
     directory) and is deliberately NOT the reverse index, which indexes only artifacts
     carrying a `From-*` bullet (F-4).
     """
+    from agent_workflows.project_context import project_records_dir
+
     ignored_dirs = _core.get_ignored_dirs(repo_root)
+    records_root = project_records_dir(repo_root)
     index: Dict[str, List[GraduationArtifact]] = {}
     state_map = _meta_state_map(repo_root, "ipd")
     for path, st_obj in sorted(state_map.items(), key=lambda kv: str(kv[0])):
         if not path.name.endswith(".ipd.md"):
             continue
-        if path.name in _SKIP_NAMES or _core.is_ignored_path(
-            path, repo_root, ignored_dirs
+        if (
+            path.name in _SKIP_NAMES
+            or _is_record_excluded_dir(path, records_root, repo_root)
+            or _core.is_ignored_path(path, repo_root, ignored_dirs)
         ):
             continue
         setid = st_obj.legacy_raw_set
@@ -9566,7 +9603,15 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
 
             records_dir = project_records_dir(repo_root)
             if records_dir.exists():
-                hits = sorted([p for p in records_dir.rglob(entry_name) if p.is_file()])
+                hits = sorted(
+                    [
+                        p
+                        for p in records_dir.rglob(entry_name)
+                        if p.is_file()
+                        and p.name not in _SKIP_NAMES
+                        and not _is_record_excluded_dir(p, records_dir)
+                    ]
+                )
 
         hit_rels = set()
         for h in hits:

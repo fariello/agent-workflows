@@ -117,6 +117,17 @@ TRAVERSAL_EXCLUSIONS: Tuple[str, ...] = (
     "tmp",
 )
 
+# Non-record markdown filenames skipped by record walkers (spec `4sd62s` 4.4, D-3).
+# Citation scans via `artifact_core.iter_scan_files` intentionally keep scanning `README.md`.
+RECORD_SCAN_SKIP_NAMES = (
+    "README.md",
+    "INDEX.md",
+    "STATUS.md",
+)
+
+# Record-tree subdirectories excluded from record and citation scans (e.g. `.aw/records/meta/`).
+RECORD_SCAN_EXCLUDED_DIRS = ("meta",)
+
 
 @dataclass(frozen=True)
 class RecordClassDefinition:

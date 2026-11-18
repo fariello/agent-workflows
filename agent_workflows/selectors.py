@@ -61,10 +61,10 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
-from agent_workflows import layout as _layout
+from agent_workflows import layout
 from agent_workflows import record_producers as _rp
 
-_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES
 
 # ----------------------------------------------------------------------------------------------
 # The canonical selector-match KIND vocabulary and the structured Resolution result (E-02).
@@ -188,7 +188,7 @@ class Resolution(NamedTuple):
 # redefinition of the behavior.
 # ----------------------------------------------------------------------------------------------
 
-_LAYOUT = _layout.build_default_layout()
+_LAYOUT = layout.build_default_layout()
 
 KNOWN_PRIMARY_TYPES = frozenset(_LAYOUT.primary_types())
 
@@ -273,7 +273,11 @@ def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...
             if not base.is_dir():
                 continue
             for child in base.iterdir():
-                if child.is_dir() and child.name not in _OTHER_SWEEP_SKIP_DIRS:
+                if (
+                    child.is_dir()
+                    and child.name not in _OTHER_SWEEP_SKIP_DIRS
+                    and child.name not in layout.RECORD_SCAN_EXCLUDED_DIRS
+                ):
                     _add(child)
             with contextlib.suppress(OSError):
                 if any(
@@ -738,16 +742,21 @@ def _iter_md(base: Path, max_depth: Optional[int] = None):
         max_depth = _MAX_DEPTH
     base_depth = len(base.parts)
     for dirpath, dirnames, filenames in os.walk(base):
-        if not _INCLUDE_IGNORED_DIRS:
-            dirnames[:] = [
-                d
-                for d in dirnames
-                if d not in EXCLUDED_RECORD_DIRS
-                and not (
-                    d.endswith(_rc.COMPANION_SUFFIX)
-                    and _rc.companion_owner_stem(Path(dirpath) / d) is not None
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in layout.RECORD_SCAN_EXCLUDED_DIRS
+            and (
+                _INCLUDE_IGNORED_DIRS
+                or (
+                    d not in EXCLUDED_RECORD_DIRS
+                    and not (
+                        d.endswith(_rc.COMPANION_SUFFIX)
+                        and _rc.companion_owner_stem(Path(dirpath) / d) is not None
+                    )
                 )
-            ]
+            )
+        ]
         if max_depth is not None:
             if len(Path(dirpath).parts) - base_depth >= max_depth:
                 dirnames[:] = []
@@ -803,7 +812,9 @@ def _iter_paths(repo_root: Path, record_type: str):
                     continue
                 try:
                     rel_parts = set(p_res.relative_to(base.resolve()).parts)
-                    if any(ex in rel_parts for ex in EXCLUDED_RECORD_DIRS):
+                    if any(ex in rel_parts for ex in EXCLUDED_RECORD_DIRS) or any(
+                        ex in rel_parts for ex in layout.RECORD_SCAN_EXCLUDED_DIRS
+                    ):
                         continue
                 except ValueError:
                     pass

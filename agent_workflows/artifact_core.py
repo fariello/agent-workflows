@@ -41,6 +41,8 @@ from typing import (
     Tuple,
 )
 
+from agent_workflows import layout
+
 if TYPE_CHECKING:
     from agent_workflows.result_types import CommandResult
 
@@ -836,6 +838,17 @@ def is_ignored_path(
     ):
         return True
 
+    if (
+        len(rel_parts) >= 3
+        and rel_parts[:2] == (".aw", "records")
+        and rel_parts[2] in layout.RECORD_SCAN_EXCLUDED_DIRS
+    ) or (
+        len(rel_parts) >= 2
+        and rel_parts[0] == ".agents"
+        and rel_parts[1] in layout.RECORD_SCAN_EXCLUDED_DIRS
+    ):
+        return True
+
     if not include_untracked and "untracked" in rel_parts:
         return True
 
@@ -852,6 +865,15 @@ def is_ignored_path(
     return False
 
 
+def _is_excluded_record_dir(candidate: Path, base: Path, *, is_dir: bool) -> bool:
+    try:
+        parts = candidate.resolve().relative_to(base.resolve()).parts
+    except (ValueError, OSError):
+        return False
+    dir_parts = parts if is_dir else parts[:-1]
+    return any(part in layout.RECORD_SCAN_EXCLUDED_DIRS for part in dir_parts)
+
+
 def iter_scan_files(
     repo_root: Path,
     scan_roots=SCAN_ROOTS,
@@ -863,6 +885,7 @@ def iter_scan_files(
     ignored_dirs = get_ignored_dirs(repo_root)
     files: List[Path] = []
     records_dir = project_records_dir(repo_root)
+    agents_dir = repo_root / ".agents"
     for rel in scan_roots:
         if rel == ".aw/records" or rel.startswith(".aw/records/"):
             tail = rel[len(".aw/records/") :] if rel.startswith(".aw/records/") else ""
@@ -871,10 +894,16 @@ def iter_scan_files(
             p = repo_root / rel
         if is_ignored_path(p, repo_root, ignored_dirs):
             continue
+        if _is_excluded_record_dir(
+            p, records_dir, is_dir=p.is_dir()
+        ) or _is_excluded_record_dir(p, agents_dir, is_dir=p.is_dir()):
+            continue
         if p.is_file():
             files.append(p)
         elif p.is_dir():
             for f in sorted(p.rglob("*")):
+                if _is_excluded_record_dir(f, p, is_dir=False):
+                    continue
                 if is_ignored_path(f, repo_root, ignored_dirs):
                     continue
                 if f.is_file() and f.suffix in suffixes:

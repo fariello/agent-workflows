@@ -42,15 +42,15 @@ This plan changes which files record walkers visit; decision D-5 (copied below) 
 
 ### Task group 1: the shared skip list
 
-- [ ] E-01 (carried from `ebrc4t` E-03, constants and three-module subset) Add ONE list, `layout.RECORD_SCAN_SKIP_NAMES` (the three names README.md, INDEX.md and STATUS.md), and ONE excluded records subdirectory constant, `layout.RECORD_SCAN_EXCLUDED_DIRS` (`meta`), beside the existing traversal exclusions in `layout`. Replace the three `_SKIP_NAMES` definitions in `check_engine`, `selectors` and `artifact_refs` with aliases of `layout.RECORD_SCAN_SKIP_NAMES` (the old names stay, because `runner_shared` and `status_set` import `check_engine._SKIP_NAMES` and `selectors._SKIP_NAMES`; Order 11 retires the aliases). Make the record walkers in those three modules (`selectors._iter_md`, `check_engine`'s walkers, `artifact_refs`'s target enumeration) consult both constants. (Measured at the round-1 split: 7 walker uses in these modules, `check_engine` 3, `selectors` 3, `artifact_refs` 1.)
+- [x] E-01 (carried from `ebrc4t` E-03, constants and three-module subset) Add ONE list, `layout.RECORD_SCAN_SKIP_NAMES` (the three names README.md, INDEX.md and STATUS.md), and ONE excluded records subdirectory constant, `layout.RECORD_SCAN_EXCLUDED_DIRS` (`meta`), beside the existing traversal exclusions in `layout`. Replace the three `_SKIP_NAMES` definitions in `check_engine`, `selectors` and `artifact_refs` with aliases of `layout.RECORD_SCAN_SKIP_NAMES` (the old names stay, because `runner_shared` and `status_set` import `check_engine._SKIP_NAMES` and `selectors._SKIP_NAMES`; Order 11 retires the aliases). Make the record walkers in those three modules (`selectors._iter_md`, `check_engine`'s walkers, `artifact_refs`'s target enumeration) consult both constants. (Measured at the round-1 split: 7 walker uses in these modules, `check_engine` 3, `selectors` 3, `artifact_refs` 1.)
   - Depends on: none
   - Expected outcome: `rg -n "_SKIP_NAMES\s*=" agent_workflows` lists only the three alias lines, each assigning `layout.RECORD_SCAN_SKIP_NAMES`; the existing tests of the three modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `ebrc4t` E-03, citation-scan subset and test) Make `artifact_core.iter_scan_files` consult only `RECORD_SCAN_EXCLUDED_DIRS`, because its callers (citation rewrite, research index, attention) deliberately scan `README.md` as a citing document (`artifact_refs` comment "`README.md` is scanned as a citing document (0u0ako)"). So a `meta/*.jsonl` log is never walked as a record. Test behaviorally in `tests/test_readers_check_engine.py`: a fixture with `.aw/records/meta/abc123.jsonl`, `.aw/records/meta/README.md` and `.aw/records/plans/pending/README.md` yields no `aw find`, `aw check` or `aw attention` row for any of them, and `aw rename` on a fixture still rewrites a citation inside a records `README.md`.
+- [x] E-02 (carried from `ebrc4t` E-03, citation-scan subset and test) Make `artifact_core.iter_scan_files` consult only `RECORD_SCAN_EXCLUDED_DIRS`, because its callers (citation rewrite, research index, attention) deliberately scan `README.md` as a citing document (`artifact_refs` comment "`README.md` is scanned as a citing document (0u0ako)"). So a `meta/*.jsonl` log is never walked as a record. Test behaviorally in `tests/test_readers_check_engine.py`: a fixture with `.aw/records/meta/abc123.jsonl`, `.aw/records/meta/README.md` and `.aw/records/plans/pending/README.md` yields no `aw find`, `aw check` or `aw attention` row for any of them, and `aw rename` on a fixture still rewrites a citation inside a records `README.md`.
   - Depends on: E-01
   - Expected outcome: the fixture tests pass; `tests/test_artifact_refs_rewrite.py` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -121,15 +121,31 @@ N/A: no spec text changes; implements `4sd62s` 4.4 last bullet (one exclusion li
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "RECORD_SCAN_SKIP_NAMES\s*=|RECORD_SCAN_EXCLUDED_DIRS\s*=" agent_workflows` listing only `agent_workflows/layout.py`; `rg -n "_SKIP_NAMES\s*=" agent_workflows` listing exactly the three alias lines in `check_engine.py`, `selectors.py` and `artifact_refs.py`; and the summary line of `python3 -m pytest -o addopts="" tests/test_readers_check_engine.py tests/test_selector_resolver_matrix.py tests/test_artifact_refs_rewrite.py` with 0 failed.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "RECORD_SCAN_SKIP_NAMES\s*=|RECORD_SCAN_EXCLUDED_DIRS\s*=" agent_workflows`:
+      `agent_workflows/layout.py:122:RECORD_SCAN_SKIP_NAMES = (`
+      `agent_workflows/layout.py:129:RECORD_SCAN_EXCLUDED_DIRS = ("meta",)`
+    - `rg -n "\b_SKIP_NAMES\s*=" agent_workflows`:
+      `agent_workflows/check_engine.py:1175:_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES`
+      `agent_workflows/selectors.py:67:_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES`
+      `agent_workflows/artifact_refs.py:63:_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES`
+      (Note: unanchored `rg -n "_SKIP_NAMES\s*=" agent_workflows` also substring-matches `layout.py:122:RECORD_SCAN_SKIP_NAMES = (`.)
+    - `python3 -m pytest -o addopts="" tests/test_readers_check_engine.py tests/test_selector_resolver_matrix.py tests/test_artifact_refs_rewrite.py`:
+      `91 passed in 25.55s`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py -k meta_dir` PASSED for the fixture with `.aw/records/meta/abc123.jsonl`, `.aw/records/meta/README.md` and `.aw/records/plans/pending/README.md`, asserting zero rows from `aw find`, `aw check` and `aw attention`; the `README.md` citation-rewrite test PASSED; and the summary line of `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py` with 0 failed.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py -k meta_dir`:
+      `tests/test_readers_check_engine.py::TestRecordSkipListAndMetaDirExclusion::test_meta_dir_readme_citation_rewrite_preserved PASSED [ 50%]`
+      `tests/test_readers_check_engine.py::TestRecordSkipListAndMetaDirExclusion::test_meta_dir_and_skip_names_yield_no_find_check_or_attention_row PASSED [100%]`
+      `2 passed, 43 deselected in 1.27s`
+    - `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py`:
+      `25 passed in 3.49s`
+  - Result: pass
 
 ## Approval and execution gate
 

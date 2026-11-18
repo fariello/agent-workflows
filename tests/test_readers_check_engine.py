@@ -1988,3 +1988,130 @@ class TestCheckEngineReadersOrder32:
         rc, out, _ = _run_cli(repo, "check", "backlog", "--agent")
         assert rc == 0
         assert "diagnostics" in json.loads(out)
+
+
+class TestRecordSkipListAndMetaDirExclusion:
+    """Behavioral fixture tests for shared record skip names and meta/ exclusion (IPD i16on1 E-02)."""
+
+    def test_meta_dir_and_skip_names_yield_no_find_check_or_attention_row(
+        self, tmp_path: Path
+    ) -> None:
+        from agent_workflows import artifact_core
+
+        repo = tmp_path / "repo"
+        (repo / ".aw" / "records" / "plans" / "pending").mkdir(
+            parents=True, exist_ok=True
+        )
+        meta_dir = repo / ".aw" / "records" / "meta"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        _init_git_repo(repo)
+
+        meta_log = meta_dir / "abc123.jsonl"
+        meta_log.write_text(
+            json.dumps(
+                {
+                    "seq": 0,
+                    "op": "create",
+                    "at": "2026-10-01T00:00:00Z",
+                    "actor": {"tool": "test"},
+                    "path": "plans/pending/20261001-tstset-01-abc123-dummy.ipd.md",
+                    "fields": {
+                        "id": "abc123",
+                        "type": "ipd",
+                        "status": "pending",
+                        "set": "tstset",
+                        "order": 1,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        meta_readme = meta_dir / "README.md"
+        meta_readme.write_text(
+            "# Meta README\n\n- Id: met001\n- Status: pending\n",
+            encoding="utf-8",
+        )
+        pending_readme = repo / ".aw" / "records" / "plans" / "pending" / "README.md"
+        pending_readme.write_text(
+            "# Pending Plans README\n\n- Id: rdm001\n- Status: pending\n",
+            encoding="utf-8",
+        )
+
+        # Citation scan via iter_scan_files keeps reading plans/pending/README.md
+        # while excluding meta/*.jsonl and meta/README.md.
+        scanned_rels = {
+            p.relative_to(repo).as_posix()
+            for p in artifact_core.iter_scan_files(repo, scan_roots=(".aw/records",))
+        }
+        assert ".aw/records/plans/pending/README.md" in scanned_rels
+        assert ".aw/records/meta/abc123.jsonl" not in scanned_rels
+        assert ".aw/records/meta/README.md" not in scanned_rels
+
+        # aw find returns no row for any of the three files.
+        rc_find, out_find, _ = _run_cli(repo, "find", "all", "--json")
+        assert rc_find == 0, out_find
+        find_payload = json.loads(out_find)
+        find_paths = find_payload.get("data", {}).get("paths", [])
+        assert find_paths == [], f"Expected zero aw find paths, got {find_paths}"
+        for token in ("abc123", "met001", "rdm001"):
+            rc_tok, _, _ = _run_cli(repo, "find", token)
+            assert rc_tok == 2, f"Expected no match (exit 2) for {token}, got {rc_tok}"
+
+        # aw check returns clean and no diagnostic references any of the three files.
+        rc_chk, out_chk, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc_chk == 0, out_chk
+        chk_payload = json.loads(out_chk)
+        assert chk_payload.get("diagnostics", []) == [], chk_payload
+
+        # aw attention returns no item and no violation for any of the three files.
+        rc_att, out_att, _ = _run_cli(repo, "attention", "--all", "--format", "json")
+        assert rc_att == 0, out_att
+        att_payload = json.loads(out_att)
+        assert att_payload.get("valid") is True, att_payload.get("violations")
+        assert att_payload.get("items") == []
+        assert att_payload.get("violations") == []
+
+    def test_meta_dir_readme_citation_rewrite_preserved(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+        (repo / ".aw" / "config" / "project.json").write_text(
+            json.dumps({"cutovers": {"spec_id6": "2026-08-28"}}),
+            encoding="utf-8",
+        )
+        old_spec_name = "20260701-1200-01-legacy.spec.md"
+        spec_file = repo / ".aw" / "records" / "specs" / old_spec_name
+        spec_file.write_text(
+            "# Spec: Legacy\n\n- Date: 2026-07-01\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        pending_readme = repo / ".aw" / "records" / "plans" / "pending" / "README.md"
+        pending_readme.write_text(
+            f"# Pending Plans\n\nSee .aw/records/specs/{old_spec_name} for context.\n",
+            encoding="utf-8",
+        )
+        meta_dir = repo / ".aw" / "records" / "meta"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        (meta_dir / "abc123.jsonl").write_text("", encoding="utf-8")
+        meta_readme = meta_dir / "README.md"
+        meta_readme_orig = f"# Meta README\n\nHistorical note citing {old_spec_name}.\n"
+        meta_readme.write_text(meta_readme_orig, encoding="utf-8")
+
+        rc, out, err = _run_cli(
+            repo, "rename", "specs", old_spec_name, "--to-id6", "--apply", "--no-commit"
+        )
+        assert rc == 0, f"aw rename failed: {out}\n{err}"
+
+        renamed_specs = [
+            p.name
+            for p in (repo / ".aw" / "records" / "specs").glob("*.spec.md")
+            if p.name != old_spec_name
+        ]
+        assert len(renamed_specs) == 1
+        new_spec_name = renamed_specs[0]
+
+        updated_readme = pending_readme.read_text(encoding="utf-8")
+        assert old_spec_name not in updated_readme
+        assert new_spec_name in updated_readme
+        # meta/README.md is excluded from iter_scan_files and stays untouched.
+        assert meta_readme.read_text(encoding="utf-8") == meta_readme_orig

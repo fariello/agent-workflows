@@ -43,6 +43,7 @@ from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import layout
 
 # ----------------------------------------------------------------------------------------------
 # Reference rewriting (E-02): full-name + whole-stem + legacy-prefix stem, map-driven, no id6/setid.
@@ -59,7 +60,7 @@ That is outcome-equivalent and affects only research records carrying a closed
 facet (F-09).
 """
 
-_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES
 _GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}
 
 
@@ -214,8 +215,15 @@ def count_legacy_prefix_records(repo_root: Path, prefix: str) -> int:
     for p in records_dir.rglob("*"):
         if not p.is_file():
             continue
+        if p.name in _SKIP_NAMES:
+            continue
         rel_parts = p.relative_to(records_dir).parts
-        if any(part == "comms" or part.endswith(".data") for part in rel_parts):
+        if any(
+            part == "comms"
+            or part in layout.RECORD_SCAN_EXCLUDED_DIRS
+            or part.endswith(".data")
+            for part in rel_parts[:-1]
+        ):
             continue
         if _core.is_ignored_path(p, repo_root, ignored_dirs):
             continue
@@ -238,8 +246,15 @@ def _index_records_facetless_stems(repo_root: Path) -> Dict[str, List[str]]:
     for p in records_dir.rglob("*"):
         if not p.is_file():
             continue
+        if p.name in _SKIP_NAMES:
+            continue
         rel_parts = p.relative_to(records_dir).parts
-        if any(part == "comms" or part.endswith(".data") for part in rel_parts):
+        if any(
+            part == "comms"
+            or part in layout.RECORD_SCAN_EXCLUDED_DIRS
+            or part.endswith(".data")
+            for part in rel_parts[:-1]
+        ):
             continue
         if _core.is_ignored_path(p, repo_root, ignored_dirs):
             continue
@@ -565,6 +580,11 @@ def dead_filename_citations(
         for d in _sel.record_dirs(repo_root, rt):
             for p in d.rglob("*.md"):
                 if p.name in _SKIP_NAMES:
+                    continue
+                if any(
+                    part in layout.RECORD_SCAN_EXCLUDED_DIRS
+                    for part in p.relative_to(d).parts[:-1]
+                ):
                     continue
                 if rt == "research" and _rc.companion_owner_stem(p, d) is not None:
                     continue
