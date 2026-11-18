@@ -2593,6 +2593,80 @@ def _parse_scope_exceeded_bullet(raw_text: str) -> Tuple[List[Dict[str, str]], b
     return entries, malformed
 
 
+_LINEAGE_BULLET_KEYS: Dict[str, str] = {
+    "From-Backlog": "from_backlog",
+    "From-Spec": "from_spec",
+    "From-Plan": "from_plan",
+    "Supersedes": "supersedes",
+}
+
+
+def _extract_legacy_lineage(
+    text: str,
+    id6: str,
+    *,
+    is_yaml: bool = False,
+    yaml_data: Optional[Dict[str, str]] = None,
+) -> List[Dict[str, Any]]:
+    """Collect all metadata-region lineage bullets (preserving multi-bullet declarations)."""
+    rows: List[Dict[str, Any]] = []
+    seen: Set[Tuple[str, str]] = set()
+    if is_yaml and yaml_data is not None:
+        for rel in ("from_backlog", "from_spec", "from_plan", "supersedes"):
+            raw = yaml_data.get(rel)
+            if not raw:
+                continue
+            raw_s = _normalize_yaml_scalar(str(raw))
+            if raw_s and (rel, raw_s) not in seen:
+                seen.add((rel, raw_s))
+                m_id6 = _core.ID6_RE.search(raw_s)
+                rows.append(
+                    {
+                        "child_id6": id6,
+                        "relation": rel,
+                        "parent_raw": raw_s,
+                        "parent_id6": m_id6.group(0) if m_id6 else None,
+                    }
+                )
+        return rows
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("## Workflow history") or re.match(
+            r"^#{2,}(?:[ \t]|$)", stripped
+        ):
+            break
+        m_strict = _STRICT_BULLET_RE.match(line)
+        key: Optional[str] = None
+        val: str = ""
+        if m_strict:
+            cand_k = m_strict.group(1).strip()
+            if cand_k in _LINEAGE_BULLET_KEYS:
+                key = cand_k
+                val = m_strict.group(2).strip()
+        if key is None:
+            m_loose = _LOOSE_BULLET_RE.match(line)
+            if m_loose and m_loose.group(1).strip() == "From-Spec":
+                key = "From-Spec"
+                val = m_loose.group(2).strip()
+        if key is None or not val:
+            continue
+        rel = _LINEAGE_BULLET_KEYS[key]
+        if (rel, val) in seen:
+            continue
+        seen.add((rel, val))
+        m_id6 = _core.ID6_RE.search(val)
+        rows.append(
+            {
+                "child_id6": id6,
+                "relation": rel,
+                "parent_raw": val,
+                "parent_id6": m_id6.group(0) if m_id6 else None,
+            }
+        )
+    return rows
+
+
 def load_legacy_artifact(
     path: Path,
     records_root: Path,
@@ -2989,6 +3063,12 @@ def load_legacy_artifact(
         "fields": {
             k: v for k, v in mapped_fields.items() if k in REGISTRY.get(art_type, {})
         },
+        "lineage": _extract_legacy_lineage(
+            text,
+            id6,
+            is_yaml=is_yaml_record,
+            yaml_data=bullets if is_yaml_record else None,
+        ),
     }
 
     # History rows
@@ -3212,6 +3292,17 @@ def _store_legacy_artifact_projection(
                     r_val,
                     "out-of-scope",
                     "checkpoint",
+                ),
+            )
+        conn.execute("DELETE FROM lineage WHERE child_id6 = ?", (art_row["id6"],))
+        for lin in art_row.get("lineage") or []:
+            conn.execute(
+                "INSERT OR REPLACE INTO lineage VALUES (?, ?, ?, ?)",
+                (
+                    lin["child_id6"],
+                    lin["relation"],
+                    lin["parent_raw"],
+                    lin["parent_id6"],
                 ),
             )
     conn.execute(
@@ -4662,6 +4753,63 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
         incomplete = [ir[0] for ir in incomplete_rows]
 
         return QueryResult(states, incomplete)
+    finally:
+        if should_close:
+            conn.close()
+
+
+def query_lineage(
+    *,
+    relation: Optional[str] = None,
+    child_type: Optional[str] = None,
+    project_context: Any = None,
+) -> List[Dict[str, Any]]:
+    """Query cached lineage rows joined with valid artifact metadata."""
+    ctx = project_context or _proj_ctx.resolve_project_context()
+    records_root = Path(ctx.logical_roots["records"])
+    state_root = Path(ctx.logical_roots["state"])
+    scan_repo = _scan_repo_root(ctx, records_root)
+    conn, should_close = _open_for_read(records_root, state_root)
+    try:
+        _maybe_check_freshness(
+            conn,
+            records_root,
+            state_root,
+            project_context=ctx,
+            repo_root=scan_repo,
+        )
+        where_clauses = ["a.valid = 1"]
+        params: List[Any] = []
+        if relation is not None:
+            where_clauses.append("l.relation = ?")
+            params.append(relation)
+        if child_type is not None:
+            where_clauses.append("a.type = ?")
+            params.append(child_type)
+        sql = f"""SELECT l.child_id6, l.relation, l.parent_raw, l.parent_id6,
+                         a.type, a.path, a.status, a.id_derived,
+                         a.legacy_raw_status, a.legacy_raw_set, a.set_id
+                  FROM lineage l
+                  JOIN artifacts a ON a.id6 = l.child_id6
+                  WHERE {" AND ".join(where_clauses)}
+                  ORDER BY a.type, a.path, l.relation, l.parent_raw"""
+        rows = conn.execute(sql, params).fetchall()
+        return [
+            {
+                "child_id6": r[0],
+                "relation": r[1],
+                "parent_raw": r[2],
+                "parent_id6": r[3],
+                "type": r[4],
+                "path": r[5],
+                "status": r[6],
+                "id_derived": bool(r[7]),
+                "legacy_raw_status": r[8],
+                "legacy_raw_set": r[9],
+                "set_id": r[10],
+            }
+            for r in rows
+        ]
     finally:
         if should_close:
             conn.close()

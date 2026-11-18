@@ -5724,48 +5724,119 @@ def build_graduation_reverse_index(
     ``kind`` is ``'backlog'`` or ``'spec'`` (i.e. which of the two link fields carried it), so a
     backlog item and a spec that happen to share an id6 prefix can never be conflated.
 
-    Built in ONE pass over both iterators; every source bullet on an artifact is indexed, not the
-    first. Artifacts are yielded plans-before-specs and path-sorted within a type, which makes the
-    output stable for a test that asserts membership rather than order.
+    Reads the cached `lineage` table via `artifact_meta.query_lineage` so every source bullet on
+    an artifact is indexed, not only the first. Artifacts are yielded plans-before-specs and
+    path-sorted within a type, which makes the output stable for a test that asserts membership
+    rather than order.
     """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    repo_root = Path(repo_root)
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return {}
+
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    resolved_root = repo_root.resolve()
     index: Dict[Tuple[str, str], List[GraduationArtifact]] = {}
-    for artifact_type, iterator in (
-        ("plan", _iter_plan_ipds),
-        ("spec", _iter_spec_records),
-    ):
-        for path, text in iterator(repo_root):
-            backlog_sources: List[Tuple[str, str]] = []
-            for m in _META_FROM_BACKLOG_RE.finditer(text):
-                cls = _S.classify_source_link(m.group(1))
-                if cls.verdict == _S.SOURCE_LINK_USABLE and cls.id6:
-                    backlog_sources.append(("backlog", cls.id6))
+    per_artifact: Dict[
+        Tuple[int, str], Tuple[GraduationArtifact, List[Tuple[str, str]]]
+    ] = {}
 
-            sources: List[Tuple[str, str]] = backlog_sources + [
-                ("spec", m.group(1))
-                for m in _ITEM_FROM_SPEC_RE.finditer(text)
-                if not _S.source_link_is_absent(m.group(1))
-            ]
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        rows = _meta.query_lineage(project_context=ctx)
 
-            if not sources:
-                continue
-            declared_id = _read_declared_id(text) or ""
-            status = _read_plan_status(text) or ""
-            setid, _descriptive = _parse_setid(text)
-            try:
-                rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
-            except ValueError:
-                rel = str(path)
+    for row in rows:
+        rel_name = row.get("relation")
+        if rel_name not in ("from_backlog", "from_spec"):
+            continue
+        meta_type = row.get("type")
+        if meta_type == "ipd":
+            artifact_type = "plan"
+            expected_suffix = ".ipd.md"
+            type_order = 0
+        elif meta_type == "spec":
+            artifact_type = "spec"
+            expected_suffix = ".spec.md"
+            type_order = 1
+        else:
+            continue
+        rel_stored = row.get("path") or ""
+        if not rel_stored:
+            continue
+        try:
+            abs_p = _meta.source_path(rel_stored, records_root, scan_repo)
+        except Exception:
+            continue
+        if not abs_p.name.endswith(expected_suffix):
+            continue
+        if abs_p.name in _SKIP_NAMES or _core.is_ignored_path(
+            abs_p, repo_root, ignored_dirs
+        ):
+            continue
+
+        parent_raw = row.get("parent_raw") or ""
+        source_key: Optional[Tuple[str, str]] = None
+        if rel_name == "from_backlog":
+            cls = _S.classify_source_link(parent_raw)
+            if cls.verdict == _S.SOURCE_LINK_USABLE and cls.id6:
+                source_key = ("backlog", cls.id6)
+        else:
+            tok = _meta_single_token(parent_raw)
+            if tok and not _S.source_link_is_absent(tok):
+                source_key = ("spec", tok)
+        if source_key is None:
+            continue
+
+        try:
+            rel = str(abs_p.resolve().relative_to(resolved_root))
+        except ValueError:
+            rel = str(abs_p)
+
+        sort_key = (type_order, str(abs_p))
+        entry = per_artifact.get(sort_key)
+        if entry is None:
+            raw_id = row.get("child_id6")
+            declared_id = (
+                str(raw_id)
+                if (
+                    not row.get("id_derived")
+                    and raw_id
+                    and _ID6_RE.fullmatch(str(raw_id))
+                )
+                else ""
+            )
+            status = (
+                _meta_single_token(row.get("legacy_raw_status"))
+                or row.get("status")
+                or ""
+            )
+            setid = row.get("legacy_raw_set") or row.get("set_id") or ""
             record = GraduationArtifact(
                 artifact_type=artifact_type,
                 id6=declared_id,
                 status=status,
-                setid=setid or "",
+                setid=setid,
                 path=rel,
             )
-            for key in sources:
-                bucket = index.setdefault(key, [])
-                if record not in bucket:
-                    bucket.append(record)
+            per_artifact[sort_key] = (record, [source_key])
+        else:
+            entry[1].append(source_key)
+
+    for _sort_key, (record, keys) in sorted(per_artifact.items(), key=lambda kv: kv[0]):
+        for key in keys:
+            bucket = index.setdefault(key, [])
+            if record not in bucket:
+                bucket.append(record)
     return index
 
 
@@ -6630,174 +6701,194 @@ def evaluate_handoff_ready(
             ),
         )
 
-    plan_paths: List[Path] = []
-    spec_paths: List[Path] = []
+    from agent_workflows import artifact_meta as _meta
 
-    if source_kind == "backlog":
-        if carrier_index is not None:
-            raw_carriers = carrier_index.get(source_id6, [])
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        plan_paths: List[Path] = []
+        spec_paths: List[Path] = []
+
+        if source_kind == "backlog":
+            if carrier_index is not None:
+                raw_carriers = carrier_index.get(source_id6, [])
+            else:
+                raw_carriers = find_from_backlog_artifacts(repo_root, source_id6)
+            for p, _br in raw_carriers:
+                if p.name.endswith(".ipd.md"):
+                    if p not in plan_paths:
+                        plan_paths.append(p)
+                elif p.name.endswith(".spec.md"):
+                    if p not in spec_paths:
+                        spec_paths.append(p)
         else:
-            raw_carriers = find_from_backlog_artifacts(repo_root, source_id6)
-        for p, _br in raw_carriers:
-            if p.name.endswith(".ipd.md"):
+            raw_carriers = find_from_spec_plans(repo_root, source_id6)
+            for p, _br in raw_carriers:
                 if p not in plan_paths:
                     plan_paths.append(p)
-            elif p.name.endswith(".spec.md"):
-                if p not in spec_paths:
-                    spec_paths.append(p)
-    else:
-        raw_carriers = find_from_spec_plans(repo_root, source_id6)
-        for p, _br in raw_carriers:
-            if p not in plan_paths:
-                plan_paths.append(p)
 
-    # If no From-Backlog / From-Spec carriers found, fall back to Graduated-To Set
-    if not plan_paths and not spec_paths:
-        grad_setids = read_source_graduated_to(
-            repo_root, source_id6, source_kind=source_kind
-        )
-        if grad_setids:
-            if plan_setid_index is not None:
+        # If no From-Backlog / From-Spec carriers found, fall back to Graduated-To Set
+        if not plan_paths and not spec_paths:
+            grad_setids = read_source_graduated_to(
+                repo_root, source_id6, source_kind=source_kind
+            )
+            if grad_setids:
+                psi = (
+                    plan_setid_index
+                    if plan_setid_index is not None
+                    else build_plan_setid_index(repo_root)
+                )
                 for s in grad_setids:
-                    for art in plan_setid_index.get(s, []):
+                    for art in psi.get(s, []):
                         p = (repo_root / art.path).resolve()
                         if p.is_file() and p not in plan_paths:
                             plan_paths.append(p)
-            else:
-                for s in grad_setids:
-                    for p, text in _iter_plan_ipds(repo_root):
-                        s_id, _ = _parse_setid(text)
-                        if s_id == s and p not in plan_paths:
-                            plan_paths.append(p)
 
-    if not plan_paths and not spec_paths:
-        rem = (
-            f"author a plan or spec with `- From-Backlog: {source_id6}`"
-            if source_kind == "backlog"
-            else f"author a plan with `- From-Spec: {source_id6}`"
-        )
-        return HandoffReadyResult(
-            False,
-            (
-                HandoffReadyFinding(
-                    "no-handoff",
-                    "",
-                    f"no handoff plan or spec found for {source_type} {source_id6}",
-                    rem,
-                ),
-            ),
-        )
-
-    # Classify plans: active vs terminal
-    terminal_segs = ("executed", "superseded", "not-executed")
-    active_plans: List[Path] = []
-    terminal_plans: List[Path] = []
-    for p in plan_paths:
-        if any(seg in p.parts for seg in terminal_segs):
-            terminal_plans.append(p)
-        else:
-            active_plans.append(p)
-
-    # Completed handoff check
-    has_executed = any("executed" in p.parts for p in terminal_plans)
-    if plan_paths and not active_plans and not spec_paths:
-        if has_executed:
-            return HandoffReadyResult(True, ())
-        rem = (
-            f"author an active plan with `- From-Backlog: {source_id6}`"
-            if source_kind == "backlog"
-            else f"author an active plan with `- From-Spec: {source_id6}`"
-        )
-        return HandoffReadyResult(
-            False,
-            (
-                HandoffReadyFinding(
-                    "no-handoff",
-                    "",
-                    f"all handoff plans for {source_type} {source_id6} are terminal with none executed",
-                    rem,
-                ),
-            ),
-        )
-
-    findings: List[HandoffReadyFinding] = []
-
-    # Active plans evaluation
-    from agent_workflows import ipd_lint as _ipd_lint
-
-    for p in active_plans:
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        plan_id6 = _read_declared_id(text) or p.name
-        plan_status = _read_plan_status(text) or ""
-        if plan_status not in _READY_PLAN_STATUSES:
-            findings.append(
-                HandoffReadyFinding(
-                    "plan-status-not-ready",
-                    plan_id6,
-                    f"plan {plan_id6} has status {plan_status!r} (must be to-review or later)",
-                    f"bring the plan to `to-review` with `aw ipd set to-review {plan_id6}`",
-                )
+        if not plan_paths and not spec_paths:
+            rem = (
+                f"author a plan or spec with `- From-Backlog: {source_id6}`"
+                if source_kind == "backlog"
+                else f"author a plan with `- From-Spec: {source_id6}`"
             )
-        else:
-            lint_res = _ipd_lint.lint_file(p, checkpoint="author", suppress_s408=True)
-            if not lint_res.passing:
-                diag_summary = "; ".join(
-                    f"{d.code} {d.message}" for d in lint_res.diagnostics
-                )
+            return HandoffReadyResult(
+                False,
+                (
+                    HandoffReadyFinding(
+                        "no-handoff",
+                        "",
+                        f"no handoff plan or spec found for {source_type} {source_id6}",
+                        rem,
+                    ),
+                ),
+            )
+
+        # Classify plans: active vs terminal
+        terminal_segs = ("executed", "superseded", "not-executed")
+        active_plans: List[Path] = []
+        terminal_plans: List[Path] = []
+        for p in plan_paths:
+            if any(seg in p.parts for seg in terminal_segs):
+                terminal_plans.append(p)
+            else:
+                active_plans.append(p)
+
+        # Completed handoff check
+        has_executed = any("executed" in p.parts for p in terminal_plans)
+        if plan_paths and not active_plans and not spec_paths:
+            if has_executed:
+                return HandoffReadyResult(True, ())
+            rem = (
+                f"author an active plan with `- From-Backlog: {source_id6}`"
+                if source_kind == "backlog"
+                else f"author an active plan with `- From-Spec: {source_id6}`"
+            )
+            return HandoffReadyResult(
+                False,
+                (
+                    HandoffReadyFinding(
+                        "no-handoff",
+                        "",
+                        f"all handoff plans for {source_type} {source_id6} are terminal with none executed",
+                        rem,
+                    ),
+                ),
+            )
+
+        findings: List[HandoffReadyFinding] = []
+
+        # Active plans evaluation
+        from agent_workflows import ipd_lint as _ipd_lint
+
+        plan_state_map = (
+            _meta_state_map(repo_root, "ipd", load_fields=True) if active_plans else {}
+        )
+        for p in active_plans:
+            if not p.is_file():
+                continue
+            st_plan, _ = _meta_state_for_cached_path(
+                p, plan_state_map, record_type="ipd"
+            )
+            if st_plan is None:
+                continue
+            plan_id6 = _meta_declared_id6(st_plan) or p.name
+            plan_status = (
+                _meta_single_token(st_plan.legacy_raw_status) or st_plan.status or ""
+            )
+            if plan_status not in _READY_PLAN_STATUSES:
                 findings.append(
                     HandoffReadyFinding(
-                        "plan-lint-failing",
+                        "plan-status-not-ready",
                         plan_id6,
-                        f"plan {plan_id6} fails author lint: {diag_summary}",
-                        "fix the plan's named lint finding",
+                        f"plan {plan_id6} has status {plan_status!r} (must be to-review or later)",
+                        f"bring the plan to `to-review` with `aw ipd set to-review {plan_id6}`",
                     )
                 )
-
-        m_kind = _re.search(r"^- Kind:\s*(\S+)", text, _re.MULTILINE)
-        if m_kind and m_kind.group(1).strip("'\"").lower() == "orchestrator":
-            from agent_workflows import orchestrator_readiness as _orch
-
-            orch_res = _orch.review_readiness(repo_root, p, ask=False)
-            if not orch_res.ready:
-                for f in orch_res.findings:
-                    detail_str = (
-                        f.detail
-                        if not f.subject or f.detail.startswith(f.subject)
-                        else f"{f.subject}: {f.detail}"
+            else:
+                lint_res = _ipd_lint.lint_file(
+                    p, checkpoint="author", suppress_s408=True
+                )
+                if not lint_res.passing:
+                    diag_summary = "; ".join(
+                        f"{d.code} {d.message}" for d in lint_res.diagnostics
                     )
                     findings.append(
                         HandoffReadyFinding(
-                            f.code,
+                            "plan-lint-failing",
                             plan_id6,
-                            detail_str,
-                            f.remedy,
+                            f"plan {plan_id6} fails author lint: {diag_summary}",
+                            "fix the plan's named lint finding",
                         )
                     )
 
-    # Spec carriers evaluation
-    for sp in spec_paths:
-        try:
-            stext = sp.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        spec_id6 = _read_declared_id(stext) or sp.name
-        spec_status = _status_meta(stext) or ""
-        if spec_status not in ("approved", "implementing", "implemented"):
-            findings.append(
-                HandoffReadyFinding(
-                    "spec-status-not-ready",
-                    spec_id6,
-                    f"spec {spec_id6} has status {spec_status!r} (must be approved, implementing, or implemented)",
-                    f"bring the spec to `approved` with `aw specs set approved {spec_id6}`",
-                )
+            raw_kind = (st_plan.fields or {}).get("plan_role")
+            kind_tok = (
+                str(raw_kind).strip().split()[0].strip("'\"").lower()
+                if raw_kind and str(raw_kind).strip()
+                else ""
             )
+            if kind_tok == "orchestrator":
+                from agent_workflows import orchestrator_readiness as _orch
 
-    if findings:
-        return HandoffReadyResult(False, tuple(findings))
-    return HandoffReadyResult(True, ())
+                orch_res = _orch.review_readiness(repo_root, p, ask=False)
+                if not orch_res.ready:
+                    for f in orch_res.findings:
+                        detail_str = (
+                            f.detail
+                            if not f.subject or f.detail.startswith(f.subject)
+                            else f"{f.subject}: {f.detail}"
+                        )
+                        findings.append(
+                            HandoffReadyFinding(
+                                f.code,
+                                plan_id6,
+                                detail_str,
+                                f.remedy,
+                            )
+                        )
+
+        # Spec carriers evaluation
+        spec_state_map = _meta_state_map(repo_root, "spec") if spec_paths else {}
+        for sp in spec_paths:
+            if not sp.is_file():
+                continue
+            st_sp, _ = _meta_state_for_cached_path(
+                sp, spec_state_map, record_type="spec"
+            )
+            if st_sp is None:
+                continue
+            spec_id6 = _meta_declared_id6(st_sp) or sp.name
+            spec_status = st_sp.status or ""
+            if spec_status not in ("approved", "implementing", "implemented"):
+                findings.append(
+                    HandoffReadyFinding(
+                        "spec-status-not-ready",
+                        spec_id6,
+                        f"spec {spec_id6} has status {spec_status!r} (must be approved, implementing, or implemented)",
+                        f"bring the spec to `approved` with `aw specs set approved {spec_id6}`",
+                    )
+                )
+
+        if findings:
+            return HandoffReadyResult(False, tuple(findings))
+        return HandoffReadyResult(True, ())
 
 
 def render_handoff_ready_human(
@@ -6821,12 +6912,51 @@ _GRADUATED_LINE_RE = _re.compile(
 )
 
 
-def _item_graduated_date(item_text: str) -> Optional[str]:
+def _item_graduated_date(
+    item_text: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
+    item_id6: Optional[str] = None,
+) -> Optional[str]:
     """Derive the newest graduated date (compact YYYYMMDD) for a backlog item from its history.
 
-    Uses `attention_contract.history_block` to read history section records.
+    Reads events via `artifact_meta.history(item_id6)` when repository context is provided,
+    and falls back to `attention_contract.history_block` when called directly on in-memory text.
     Returns compact YYYYMMDD, or None if no graduation record is found.
     """
+    if repo_root is not None and item_id6 is not None:
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import project_context as _proj_ctx
+
+        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+        try:
+            events = _meta.history(item_id6, project_context=ctx)
+        except Exception:
+            events = []
+        dates: List[str] = []
+        for ev in events:
+            line = ev.get("line")
+            if line is not None:
+                m = _GRADUATED_LINE_RE.match(str(line))
+                if m:
+                    compact = m.group("date").replace("-", "").strip()
+                    if len(compact) >= 8 and compact[:8].isdigit():
+                        dates.append(compact[:8])
+            elif (
+                ev.get("op") == "transition"
+                and str(ev.get("to") or "").strip().lower() == "graduated"
+            ):
+                day = ev.get("observed_day")
+                if not day and ev.get("at"):
+                    day = str(ev["at"])[:10]
+                if day:
+                    compact = str(day).replace("-", "").strip()
+                    if len(compact) >= 8 and compact[:8].isdigit():
+                        dates.append(compact[:8])
+        return max(dates) if dates else None
+
+    if not item_text:
+        return None
     from agent_workflows import attention_contract as _ac
 
     records = _ac.history_block(item_text).records
@@ -6844,12 +6974,51 @@ _IMPLEMENTING_LINE_RE = _re.compile(
 )
 
 
-def _spec_implementing_date(spec_text: str) -> Optional[str]:
+def _spec_implementing_date(
+    spec_text: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
+    spec_id6: Optional[str] = None,
+) -> Optional[str]:
     """Derive the newest implementing transition date (compact YYYYMMDD) for a spec from its history.
 
-    Uses `attention_contract.history_block` to read history section records.
+    Reads events via `artifact_meta.history(spec_id6)` when repository context is provided,
+    and falls back to `attention_contract.history_block` when called directly on in-memory text.
     Returns compact YYYYMMDD, or None if no implementing record is found.
     """
+    if repo_root is not None and spec_id6 is not None:
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import project_context as _proj_ctx
+
+        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+        try:
+            events = _meta.history(spec_id6, project_context=ctx)
+        except Exception:
+            events = []
+        dates: List[str] = []
+        for ev in events:
+            line = ev.get("line")
+            if line is not None:
+                m = _IMPLEMENTING_LINE_RE.match(str(line))
+                if m:
+                    compact = m.group("date").replace("-", "").strip()
+                    if len(compact) >= 8 and compact[:8].isdigit():
+                        dates.append(compact[:8])
+            elif (
+                ev.get("op") == "transition"
+                and str(ev.get("to") or "").strip().lower() == "implementing"
+            ):
+                day = ev.get("observed_day")
+                if not day and ev.get("at"):
+                    day = str(ev["at"])[:10]
+                if day:
+                    compact = str(day).replace("-", "").strip()
+                    if len(compact) >= 8 and compact[:8].isdigit():
+                        dates.append(compact[:8])
+        return max(dates) if dates else None
+
+    if not spec_text:
+        return None
     from agent_workflows import attention_contract as _ac
 
     records = _ac.history_block(spec_text).records
@@ -6873,6 +7042,7 @@ def check_graduation_incomplete(
     Grandfathered by cutover 'graduation_ready': only artifacts whose transition date is on
     or after the cutover are evaluated. Older transitions are grandfathered.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import config as _cfg
 
     repo_root = Path(repo_root)
@@ -6881,102 +7051,141 @@ def check_graduation_incomplete(
     if not cutover:
         return drift
 
-    if record_type == "backlog":
-        candidates: List[Tuple[Path, str, str]] = []
-        for p in _iter_type_files(
-            repo_root,
-            "backlog",
-            include_untracked=include_untracked,
-            include_retired=include_retired,
-        ):
-            try:
-                text = p.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            if _status_meta(text) == "graduated":
-                grad_date = _item_graduated_date(text)
-                if grad_date and grad_date >= cutover:
-                    item_id6 = _read_item_id(text) or p.stem
-                    candidates.append((p, text, item_id6))
-
-        if not candidates:
-            return drift
-
-        carrier_idx = _from_backlog_carrier_index(repo_root)
-        plan_setid_idx = build_plan_setid_index(repo_root)
-
-        for p, _text, item_id6 in candidates:
-            res = evaluate_handoff_ready(
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        if record_type == "backlog":
+            state_map = _meta_state_map(repo_root, "backlog")
+            candidates: List[Tuple[Path, str]] = []
+            for p in _iter_type_files(
                 repo_root,
                 "backlog",
-                item_id6,
-                carrier_index=carrier_idx,
-                plan_setid_index=plan_setid_idx,
-            )
-            if not res.ready:
-                codes = ", ".join(f.code for f in res.findings)
-                details = "; ".join(f.detail for f in res.findings)
+                include_untracked=include_untracked,
+                include_retired=include_retired,
+            ):
                 try:
-                    rel_p = str(p.resolve().relative_to(repo_root.resolve()))
-                except ValueError:
-                    rel_p = str(p)
-                drift.append(
-                    _core.Drift(
-                        rel_p,
-                        "check.graduation-incomplete",
-                        f"handoff for backlog {item_id6} is not ready: {details}",
-                        observed=f"handoff not ready ({codes})",
-                        required="all handed-off plans complete, >= to-review, lint at author, and orchestrators ready",
-                        recovery=f"aw backlog set open {item_id6} and re-run graduation",
-                        severity="error",
-                        assurance=ASSURANCE_REPOSITORY,
-                        determinism=DET_DETERMINISTIC,
+                    cached_st = state_map.get(p.resolve())
+                except OSError:
+                    cached_st = None
+                if cached_st is not None:
+                    st_obj: Optional[Any] = cached_st
+                    raw_text: Optional[str] = None
+                else:
+                    st_obj, raw_text = _meta_state_for_cached_path(
+                        p, state_map, record_type="backlog"
                     )
+                if st_obj is None:
+                    continue
+                if st_obj.status == "graduated":
+                    grad_date = (
+                        _item_graduated_date(
+                            repo_root=repo_root, item_id6=cached_st.id6
+                        )
+                        if cached_st is not None and cached_st.id6
+                        else _item_graduated_date(raw_text)
+                    )
+                    if grad_date and grad_date >= cutover:
+                        item_id6 = _meta_declared_id6(st_obj) or p.stem
+                        candidates.append((p, item_id6))
+
+            if not candidates:
+                return drift
+
+            carrier_idx = _from_backlog_carrier_index(repo_root)
+            plan_setid_idx = build_plan_setid_index(repo_root)
+
+            for p, item_id6 in candidates:
+                res = evaluate_handoff_ready(
+                    repo_root,
+                    "backlog",
+                    item_id6,
+                    carrier_index=carrier_idx,
+                    plan_setid_index=plan_setid_idx,
                 )
+                if not res.ready:
+                    codes = ", ".join(f.code for f in res.findings)
+                    details = "; ".join(f.detail for f in res.findings)
+                    try:
+                        rel_p = str(p.resolve().relative_to(repo_root.resolve()))
+                    except ValueError:
+                        rel_p = str(p)
+                    drift.append(
+                        _core.Drift(
+                            rel_p,
+                            "check.graduation-incomplete",
+                            f"handoff for backlog {item_id6} is not ready: {details}",
+                            observed=f"handoff not ready ({codes})",
+                            required="all handed-off plans complete, >= to-review, lint at author, and orchestrators ready",
+                            recovery=f"aw backlog set open {item_id6} and re-run graduation",
+                            severity="error",
+                            assurance=ASSURANCE_REPOSITORY,
+                            determinism=DET_DETERMINISTIC,
+                        )
+                    )
 
-    elif record_type == "specs":
-        candidates_spec: List[Tuple[Path, str, str]] = []
-        for p in _iter_type_files(
-            repo_root,
-            "specs",
-            include_untracked=include_untracked,
-            include_retired=include_retired,
-        ):
-            try:
-                text = p.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            if _status_meta(text) == "implementing":
-                impl_date = _spec_implementing_date(text)
-                if impl_date and impl_date >= cutover:
-                    spec_id6 = _read_declared_id(text) or p.name
-                    candidates_spec.append((p, text, spec_id6))
-
-        if not candidates_spec:
-            return drift
-
-        for p, _text, spec_id6 in candidates_spec:
-            res = evaluate_handoff_ready(repo_root, "spec", spec_id6)
-            if not res.ready:
-                codes = ", ".join(f.code for f in res.findings)
-                details = "; ".join(f.detail for f in res.findings)
+        elif record_type == "specs":
+            state_map = _meta_state_map(repo_root, "spec")
+            candidates_spec: List[Tuple[Path, str]] = []
+            for p in _iter_type_files(
+                repo_root,
+                "specs",
+                include_untracked=include_untracked,
+                include_retired=include_retired,
+            ):
                 try:
-                    rel_p = str(p.resolve().relative_to(repo_root.resolve()))
-                except ValueError:
-                    rel_p = str(p)
-                drift.append(
-                    _core.Drift(
-                        rel_p,
-                        "check.graduation-incomplete",
-                        f"handoff for spec {spec_id6} is not ready: {details}",
-                        observed=f"handoff not ready ({codes})",
-                        required="all handed-off plans complete, >= to-review, lint at author, and orchestrators ready",
-                        recovery=f"aw specs set approved {rel_p} if legal, else fix plan",
-                        severity="error",
-                        assurance=ASSURANCE_REPOSITORY,
-                        determinism=DET_DETERMINISTIC,
+                    cached_st = state_map.get(p.resolve())
+                except OSError:
+                    cached_st = None
+                if cached_st is not None:
+                    st_obj = cached_st
+                    raw_text = None
+                else:
+                    st_obj, raw_text = _meta_state_for_cached_path(
+                        p, state_map, record_type="spec"
                     )
+                if st_obj is None:
+                    continue
+                if st_obj.status == "implementing":
+                    impl_date = (
+                        _spec_implementing_date(
+                            repo_root=repo_root, spec_id6=cached_st.id6
+                        )
+                        if cached_st is not None and cached_st.id6
+                        else _spec_implementing_date(raw_text)
+                    )
+                    if impl_date and impl_date >= cutover:
+                        spec_id6 = _meta_declared_id6(st_obj) or p.name
+                        candidates_spec.append((p, spec_id6))
+
+            if not candidates_spec:
+                return drift
+
+            plan_setid_idx = build_plan_setid_index(repo_root)
+            for p, spec_id6 in candidates_spec:
+                res = evaluate_handoff_ready(
+                    repo_root,
+                    "spec",
+                    spec_id6,
+                    plan_setid_index=plan_setid_idx,
                 )
+                if not res.ready:
+                    codes = ", ".join(f.code for f in res.findings)
+                    details = "; ".join(f.detail for f in res.findings)
+                    try:
+                        rel_p = str(p.resolve().relative_to(repo_root.resolve()))
+                    except ValueError:
+                        rel_p = str(p)
+                    drift.append(
+                        _core.Drift(
+                            rel_p,
+                            "check.graduation-incomplete",
+                            f"handoff for spec {spec_id6} is not ready: {details}",
+                            observed=f"handoff not ready ({codes})",
+                            required="all handed-off plans complete, >= to-review, lint at author, and orchestrators ready",
+                            recovery=f"aw specs set approved {rel_p} if legal, else fix plan",
+                            severity="error",
+                            assurance=ASSURANCE_REPOSITORY,
+                            determinism=DET_DETERMINISTIC,
+                        )
+                    )
 
     return drift
 
@@ -7504,60 +7713,67 @@ def graduated_closable_warnings(repo_root: Path) -> List[_core.Drift]:
     in-tree terminal carrier cited as --evidence.
     """
     repo_root = Path(repo_root)
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
 
-    carrier_index = _from_backlog_carrier_index(repo_root)
-    warnings: List[_core.Drift] = []
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        carrier_index = _from_backlog_carrier_index(repo_root)
+        state_map = _meta_state_map(repo_root, "backlog")
+        warnings: List[_core.Drift] = []
 
-    for item_path in _backlog._iter_items(repo_root):
-        try:
-            text = item_path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        try:
-            if _status_meta(text) != "graduated":
-                continue
-            item_id6 = _read_item_id(text)
-            if not item_id6:
-                continue
-            carrier_entries = carrier_index.get(item_id6)
-            if not carrier_entries:
-                continue
-            carrier_paths = [c[0] for c in carrier_entries]
-            if not all(_carrier_is_executed(p) for p in carrier_paths):
-                continue
-
-            plans = [p for p in carrier_paths if p.name.endswith(".ipd.md")]
-            specs = [p for p in carrier_paths if p.name.endswith(".spec.md")]
-            other = [
-                p
-                for p in carrier_paths
-                if not p.name.endswith(".ipd.md") and not p.name.endswith(".spec.md")
-            ]
-            first_carrier = (plans + specs + other)[0]
-
+        for item_path in _backlog._iter_items(repo_root):
             try:
-                rel_carrier = (
-                    first_carrier.resolve().relative_to(repo_root.resolve()).as_posix()
+                st_obj, _ = _meta_state_for_cached_path(
+                    item_path, state_map, record_type="backlog"
                 )
-            except ValueError:
-                rel_carrier = str(first_carrier).replace("\\", "/")
+                if st_obj is None:
+                    continue
+                if st_obj.status != "graduated":
+                    continue
+                item_id6 = _meta_declared_id6(st_obj)
+                if not item_id6:
+                    continue
+                carrier_entries = carrier_index.get(item_id6)
+                if not carrier_entries:
+                    continue
+                carrier_paths = [c[0] for c in carrier_entries]
+                if not all(_carrier_is_executed(p) for p in carrier_paths):
+                    continue
 
-            detail = (
-                "a graduated item's carriers are all terminal (plans executed, specs implemented); close it done.\n"
-                f"    Fix: aw backlog set {item_id6} --status done --evidence {rel_carrier}"
-            )
-            warnings.append(
-                _core.Drift(
-                    str(item_path),
-                    "check.graduated-item-closable",
-                    detail,
+                plans = [p for p in carrier_paths if p.name.endswith(".ipd.md")]
+                specs = [p for p in carrier_paths if p.name.endswith(".spec.md")]
+                other = [
+                    p
+                    for p in carrier_paths
+                    if not p.name.endswith(".ipd.md")
+                    and not p.name.endswith(".spec.md")
+                ]
+                first_carrier = (plans + specs + other)[0]
+
+                try:
+                    rel_carrier = (
+                        first_carrier.resolve()
+                        .relative_to(repo_root.resolve())
+                        .as_posix()
+                    )
+                except ValueError:
+                    rel_carrier = str(first_carrier).replace("\\", "/")
+
+                detail = (
+                    "a graduated item's carriers are all terminal (plans executed, specs implemented); close it done.\n"
+                    f"    Fix: aw backlog set {item_id6} --status done --evidence {rel_carrier}"
                 )
-            )
-        except Exception:
-            continue
+                warnings.append(
+                    _core.Drift(
+                        str(item_path),
+                        "check.graduated-item-closable",
+                        detail,
+                    )
+                )
+            except Exception:
+                continue
 
-    return warnings
+        return warnings
 
 
 # ======================================================================================
