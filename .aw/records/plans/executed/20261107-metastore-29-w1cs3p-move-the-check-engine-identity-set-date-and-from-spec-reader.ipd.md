@@ -6,7 +6,7 @@
 - Scope: Pin then move the identity, collision, Set-length, date and From-Spec readers of `check_engine` onto `artifact_meta` (`ffceq0` E-06 and E-07, partitioned). EXCLUDES: every other check_engine subset (Orders 30 to 32), git-content readers (Order 09 `t4gl15`), the skip list (Order 32).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_check_engine.py, tests/test_check_engine_metadata_region.py, tests/test_check_engine_from_spec_missing.py, .aw/records/plans/pending/20261107-metastore-29-w1cs3p-move-the-check-engine-identity-set-date-and-from-spec-reader.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,11 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: w1cs3p
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: w1cs3p verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_check_engine.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_check_engine_from_spec_missing.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_check_engine_metadata_region.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 
