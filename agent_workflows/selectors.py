@@ -878,9 +878,15 @@ def _cached_states_by_path(repo_root: Path, record_type: str) -> Dict[Path, Any]
 
     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
     records_root = Path(ctx.logical_roots["records"])
-    if not records_root.is_dir():
-        return {}
     scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return {}
     filters: Dict[str, Any] = {"project_context": ctx}
     meta_t = _META_TYPE_FOR_RECORD.get(record_type)
     if meta_t is not None:

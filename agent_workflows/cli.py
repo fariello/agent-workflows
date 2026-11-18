@@ -15316,35 +15316,35 @@ def _find_prompt_lane_status(rel: str, artifact_type: str) -> Optional[str]:
 
 
 def _find_prompt_id6(p: Path, text: str, artifact_type: str) -> Optional[str]:
-    """Return the resolved id6 for a prompt, used only for prompts in `aw find`.
+    """Return the resolved id6 for a prompt via `artifact_meta` / filename slot.
 
-    Resolves comment-first (prompts.read_metadata_id6), then guarded filename slot second
-    (selectors.filename_slot_id6). Type-gated: returns None for non-prompts.
+    Type-gated: returns None for non-prompts.
     """
     if artifact_type != "prompts":
         return None
-    from agent_workflows import prompts, selectors
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import selectors
 
-    comment_id = prompts.read_metadata_id6(text)
-    if comment_id:
-        return comment_id
+    st = _meta.read_text(text, record_type="prompt")
+    if st.id6 and _core.ID6_RE.fullmatch(st.id6):
+        return st.id6
     return selectors.filename_slot_id6(p)
 
 
 def _find_prompt_setid(p: Path, text: str, artifact_type: str) -> Optional[str]:
-    """Return the resolved setid for a prompt, used only for prompts in `aw find`.
+    """Return the resolved setid for a prompt via `artifact_meta` / guarded filename setid.
 
-    Resolves comment-first (prompts_index._parse_metadata_comment), then guarded filename
-    setid second (check_engine._filename_setid). Type-gated: returns None for non-prompts.
+    Type-gated: returns None for non-prompts.
     """
     if artifact_type != "prompts":
         return None
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows.check_engine import _filename_setid
-    from agent_workflows.prompts_index import _parse_metadata_comment
 
-    meta = _parse_metadata_comment(text)
-    if meta.get("Set"):
-        return meta["Set"]
+    st = _meta.read_text(text, record_type="prompt")
+    if st.legacy_raw_set:
+        return st.legacy_raw_set
     return _filename_setid(p.name)
 
 
@@ -15370,6 +15370,8 @@ def _find_type_records(
     repo_root = Path(repo_root).resolve()
     from agent_workflows import agent_schema as _schema
     from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
     from agent_workflows import selectors as sel_mod
 
     highlight_tokens = list(selectors_list)
@@ -15380,265 +15382,445 @@ def _find_type_records(
     if getattr(args, "topic", None):
         highlight_tokens.append(args.topic)
 
-    if artifact_type == "plans":
-        from agent_workflows import plans_index as pi
+    with _meta.scan_once(), sel_mod.scan_once():
+        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _meta._scan_repo_root(ctx, records_root)
 
-        _repo, plans_dir = pi._dirs(args)
-        explicit_id = getattr(args, "id", None)
-        explicit_set = getattr(args, "set", None)
-        explicit_status = getattr(args, "status", None)
-        explicit_disp = getattr(args, "disposition", None)
-        explicit_status_not = getattr(args, "status_not", None)
-        type_matches: List[_FindMatch] = []
+        def _has_records_tree() -> bool:
+            if records_root.is_dir():
+                return True
+            if scan_repo is not None:
+                return (scan_repo / ".aw" / "records").is_dir() or (
+                    scan_repo / ".agents"
+                ).is_dir()
+            return False
 
-        if selectors_list:
-            from agent_workflows import artifact_core as _core
+        def _query_by_path(meta_type: Optional[str]) -> Dict[Path, _meta.State]:
+            if not _has_records_tree():
+                return {}
+            kwargs: Dict[str, Any] = {"project_context": ctx}
+            if meta_type is not None:
+                kwargs["type"] = meta_type
+            qr = _meta.query(**kwargs)
+            by_p: Dict[Path, _meta.State] = {}
+            for st in qr.rows:
+                if not st.path:
+                    continue
+                try:
+                    by_p[
+                        _meta.source_path(st.path, records_root, scan_repo).resolve()
+                    ] = st
+                except Exception:
+                    continue
+            return by_p
 
-            matched_paths, type_matches = _resolve_selectors_with_kinds(
-                repo_root, "plans", selectors_list
-            )
-            ignored_dirs = _core.get_ignored_dirs(plans_dir)
-            results = []
-            for p in sorted(
-                matched_paths,
-                key=lambda p: (
-                    p.relative_to(plans_dir) if p.is_relative_to(plans_dir) else p
-                ),
-            ):
-                res = pi.plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)
-                if res is not None:
-                    results.append(res[0])
-            if (
-                explicit_set
-                or explicit_status
-                or explicit_disp
-                or explicit_id
-                or explicit_status_not
-            ):
-                results = pi.query(
-                    results,
-                    plan_id=explicit_id,
-                    set_id=explicit_set,
-                    status=explicit_status,
-                    disposition=explicit_disp,
-                    status_not=explicit_status_not,
+        if artifact_type == "plans":
+            from agent_workflows import plans as _plans
+            from agent_workflows import plans_index as pi
+
+            _repo, plans_dir = pi._dirs(args)
+            plans_dir_res = plans_dir.resolve()
+            explicit_id = getattr(args, "id", None)
+            explicit_set = getattr(args, "set", None)
+            explicit_status = getattr(args, "status", None)
+            explicit_disp = getattr(args, "disposition", None)
+            explicit_status_not = getattr(args, "status_not", None)
+            type_matches: List[_FindMatch] = []
+
+            state_by_path = _query_by_path("ipd")
+            if selectors_list:
+                matched_paths, type_matches = _resolve_selectors_with_kinds(
+                    repo_root, "plans", selectors_list
                 )
-        else:
-            entries, _drift = pi.scan_plans(plans_dir)
-            results = pi.query(
-                entries,
-                plan_id=explicit_id,
-                set_id=explicit_set,
-                status=explicit_status,
-                disposition=explicit_disp,
-                status_not=explicit_status_not,
-            )
-
-        lines = []
-        paths = []
-        items = []
-        for e in results:
-            status = e.disposition or e.status or "-"
-            plan_id = e.plan_id or "??????"
-            status_txt, id6_txt = _find_status_and_id6("plans", status, plan_id, term)
-            set_txt = f"{e.set_id or '-':<14}"
-            full_p = (plans_dir / e.path).resolve()
-            rel_p = _core.repo_relative_posix(full_p, repo_root)
-            disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
-            lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
-            paths.append(rel_p)
-
-            # IPD okiso1 E-03 / E-04: Thread structured fields for agent stream.
-            # Clean path of any home-path prefix at construction (F-08).
-            # Presentation glyph and column padding are omitted (E-03).
-            clean_p = _schema.normalize_repo_path(rel_p, repo_root)
-            items.append(
-                {
-                    "path": clean_p,
-                    "type": "plans",
-                    "id6": plan_id,
-                    "status": status,
-                    "set": e.set_id or "-",
-                }
-            )
-        # THE PLANS PATH'S OWN DATA IS THE RELIABLE SOURCE OF TRUTH FOR IDENTITY, NOT `resolve`'s
-        # `kind` (IPD paw8so E-02). This branch's display data comes from `pi.scan_plans`, which
-        # reads WHOLE files, while the `kind` above comes from `resolve`'s bounded header read; the
-        # two can disagree, and when they do the whole-file answer is right. That is exactly why the
-        # collision verdict is computed by `selectors.id6_ownership` (also a whole-file read of the
-        # one matched row) rather than from `kind`, which is threaded only as a cheap indicator.
-        return _FindTypeResult(lines, paths, type_matches, items=items)
-
-    if artifact_type == "research":
-        from agent_workflows import research_index as ri
-
-        _repo, research_root = ri._roots(args)
-        explicit_id = getattr(args, "id", None)
-        explicit_set = getattr(args, "set", None)
-        explicit_topic = getattr(args, "topic", None)
-        explicit_status = getattr(args, "status", None)
-        explicit_status_not = getattr(args, "status_not", None)
-        type_matches = []
-
-        if selectors_list:
-            from agent_workflows import artifact_core as _core
-
-            matched_paths, type_matches = _resolve_selectors_with_kinds(
-                repo_root, "research", selectors_list
-            )
-            ignored_dirs = _core.get_ignored_dirs(research_root)
-            results = []
-            for p in sorted(
-                matched_paths,
-                key=lambda p: (
-                    p.relative_to(research_root)
-                    if p.is_relative_to(research_root)
-                    else p
-                ),
-            ):
-                entry, _drift = ri._doc_entry(
-                    research_root, p, ignored_dirs=ignored_dirs
+                ordered_paths = sorted(
+                    matched_paths,
+                    key=lambda p: (
+                        p.relative_to(plans_dir_res)
+                        if p.is_relative_to(plans_dir_res)
+                        else p
+                    ),
                 )
-                if entry is not None:
-                    results.append(entry)
-            if (
-                explicit_set
-                or explicit_status
-                or explicit_topic
-                or explicit_id
-                or explicit_status_not
-            ):
-                results = ri.query(
-                    results,
-                    id6=explicit_id,
-                    set_id=explicit_set,
-                    topic=explicit_topic,
-                    status=explicit_status,
-                    status_not=explicit_status_not,
+            else:
+                ordered_paths = list(sel_mod._iter_paths(repo_root, "plans"))
+
+            not_set: set[str] = set()
+            if explicit_status_not:
+                if isinstance(explicit_status_not, str):
+                    not_list = [
+                        s.strip() for s in explicit_status_not.split(",") if s.strip()
+                    ]
+                else:
+                    not_list = []
+                    for item in explicit_status_not:
+                        if item:
+                            not_list.extend(
+                                s.strip() for s in str(item).split(",") if s.strip()
+                            )
+                not_set = {s.lower() for s in not_list}
+
+            plan_rows: List[
+                Tuple[
+                    Optional[str],
+                    Optional[int],
+                    str,
+                    Path,
+                    _meta.State,
+                    str,
+                    Optional[str],
+                    str,
+                ]
+            ] = []
+            for p in ordered_paths:
+                st = state_by_path.get(p.resolve())
+                if st is None:
+                    try:
+                        st = _meta.read_text(
+                            p.read_text(encoding="utf-8"), record_type="ipd"
+                        )
+                    except OSError:
+                        continue
+                plan_id = None if st.id_derived else (st.id6 or None)
+                set_val = (
+                    st.legacy_raw_set if st.legacy_raw_set is not None else st.set_id
                 )
-        else:
-            entries, _drift = ri._scan_docs(research_root)
-            results = ri.query(
-                entries,
-                id6=explicit_id,
-                set_id=explicit_set,
-                topic=explicit_topic,
-                status=explicit_status,
-                status_not=explicit_status_not,
-            )
-
-        lines = []
-        paths = []
-        items = []
-        for e in results:
-            status = e.status or "-"
-            res_id = e.id6 or "??????"
-            status_txt, id6_txt = _find_status_and_id6("research", status, res_id, term)
-            summary = f"  {e.summary}" if e.summary else ""
-            full_p = (research_root / e.path).resolve()
-            rel_p = _core.repo_relative_posix(full_p, repo_root)
-            disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
-            lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
-            paths.append(rel_p)
-
-            # IPD okiso1 E-03 / E-04 / OQ-03: Thread structured fields for agent stream.
-            # Clean path of any home-path prefix at construction (F-08).
-            # Presentation glyph/padding and research e.summary are omitted (OQ-03).
-            clean_p = _schema.normalize_repo_path(rel_p, repo_root)
-            item_rec: Dict[str, Any] = {
-                "path": clean_p,
-                "type": "research",
-                "id6": res_id,
-                "status": status,
-            }
-            if getattr(e, "set_id", None):
-                item_rec["set"] = e.set_id
-            items.append(item_rec)
-        return _FindTypeResult(lines, paths, type_matches, items=items)
-
-    # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases
-    # Unreadable fields (F-8/F-9): For 6/9 generic types (walkthroughs 24/24, reviews 367/367, comms 7/7,
-    # roadmaps 1/1, other 4/4, prompts 16/17) no record has a readable `- Status:`, so `--status` returns 0
-    # rows; `--id` returns 0 for reviews (0/367, `Subject-Id:`) and comms (0/7, no id), 9/24 for walkthroughs.
-    explicit_id = getattr(args, "id", None)
-    explicit_set = getattr(args, "set", None)
-    explicit_status = getattr(args, "status", None)
-    explicit_status_not = getattr(args, "status_not", None)
-    status_not_tokens = set()
-    if explicit_status_not:
-        if isinstance(explicit_status_not, str):
-            status_not_tokens = {
-                s.strip().lower() for s in explicit_status_not.split(",") if s.strip()
-            }
-        else:
-            for item in explicit_status_not:
-                if item:
-                    status_not_tokens.update(
-                        s.strip().lower() for s in str(item).split(",") if s.strip()
+                if p.is_relative_to(plans_dir_res):
+                    rel_plans = p.relative_to(plans_dir_res).as_posix()
+                elif p.is_relative_to(plans_dir):
+                    rel_plans = p.relative_to(plans_dir).as_posix()
+                else:
+                    rel_plans = p.name
+                disp = rel_plans.split("/", 1)[0] if "/" in rel_plans else ""
+                canon_st: Optional[str] = None
+                if st.legacy_raw_status and st.legacy_raw_status.strip():
+                    canon_st = _plans.normalize_status(
+                        st.legacy_raw_status.strip().split()[0]
                     )
 
-    type_matches = []
-    if selectors_list:
-        matched_paths, type_matches = _resolve_selectors_with_kinds(
-            repo_root, artifact_type, selectors_list
-        )
-    else:
-        matched_paths = [p for p, _ in sel_mod._iter_files(repo_root, artifact_type)]
+                if explicit_id and plan_id != explicit_id:
+                    continue
+                if explicit_set and set_val != explicit_set:
+                    continue
+                if explicit_status and not (
+                    canon_st == explicit_status or disp == explicit_status
+                ):
+                    continue
+                if explicit_disp and disp != explicit_disp:
+                    continue
+                if not_set and (
+                    (canon_st or "").lower() in not_set
+                    or (disp or "").lower() in not_set
+                    or (_plans.normalize_status(canon_st) or "").lower() in not_set
+                    or (_plans.normalize_status(disp) or "").lower() in not_set
+                ):
+                    continue
+                status = disp or canon_st or "-"
+                plan_rows.append(
+                    (
+                        set_val,
+                        st.order_nn,
+                        rel_plans,
+                        p,
+                        st,
+                        plan_id or "??????",
+                        set_val,
+                        status,
+                    )
+                )
 
-    lines = []
-    paths = []
-    items = []
-    for p in sorted(matched_paths):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        rel = _core.repo_relative_posix(p, repo_root)
-        raw_id = _find_prompt_id6(p, text, artifact_type) or sel_mod._read_id(text)
-        if explicit_id and raw_id != explicit_id:
-            continue
-        raw_status = sel_mod._read_status(text)
-        status = raw_status or _find_prompt_lane_status(rel, artifact_type) or "-"
-        if explicit_status:
-            if (
-                status == "-"
-                or status.strip().lower() != explicit_status.strip().lower()
-            ):
-                continue
-        if status_not_tokens:
-            norm_st = status.strip().lower()
-            if (
-                norm_st in status_not_tokens
-                or norm_st.replace("_", "-") in status_not_tokens
-                or norm_st.replace("-", "_") in status_not_tokens
-            ):
-                continue
-        raw_set = _find_prompt_setid(p, text, artifact_type) or sel_mod._read_setid(
-            text
-        )
-        if explicit_set:
-            if raw_set != explicit_set:
-                continue
-        id6 = raw_id or "-"
-        status_txt, id6_txt = _find_status_and_id6(artifact_type, status, id6, term)
-        disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
-        lines.append(f"{status_txt}  {id6_txt}  {disp_p}")
-        paths.append(rel)
+            if not selectors_list:
+                plan_rows.sort(key=lambda r: (r[0] or "", r[1] or 0, r[2]))
 
-        # IPD okiso1 E-03 / E-04: Thread structured fields for agent stream.
-        # Clean path of any home-path prefix at construction (F-08).
-        # Presentation glyphs and padding are omitted (E-03).
-        clean_p = _schema.normalize_repo_path(rel, repo_root)
-        item_rec = {
-            "path": clean_p,
-            "type": artifact_type,
-            "id6": id6,
-            "status": status,
-        }
-        if raw_set:
-            item_rec["set"] = raw_set
-        items.append(item_rec)
-    return _FindTypeResult(lines, paths, type_matches, items=items)
+            lines = []
+            paths = []
+            items = []
+            for _, _, _, p, st, plan_id_str, set_val, status in plan_rows:
+                status_txt, id6_txt = _find_status_and_id6(
+                    "plans", status, plan_id_str, term
+                )
+                set_txt = f"{set_val or '-':<14}"
+                rel_p = _core.repo_relative_posix(p, repo_root)
+                disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
+                desc_suffix = (
+                    f"  {st.short_description}" if st.short_description else ""
+                )
+                lines.append(
+                    f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}{desc_suffix}"
+                )
+                paths.append(rel_p)
+
+                clean_p = _schema.normalize_repo_path(rel_p, repo_root)
+                item_rec: Dict[str, Any] = {
+                    "path": clean_p,
+                    "type": "plans",
+                    "id6": plan_id_str,
+                    "status": status,
+                    "set": set_val or "-",
+                }
+                if st.short_description:
+                    item_rec["short_description"] = st.short_description
+                items.append(item_rec)
+            return _FindTypeResult(lines, paths, type_matches, items=items)
+
+        if artifact_type == "research":
+            import json as _json
+            from agent_workflows import research_contract as _rc
+            from agent_workflows import research_index as ri
+
+            _repo, research_root = ri._roots(args)
+            research_root_res = research_root.resolve()
+            explicit_id = getattr(args, "id", None)
+            explicit_set = getattr(args, "set", None)
+            explicit_topic = getattr(args, "topic", None)
+            explicit_status = getattr(args, "status", None)
+            explicit_status_not = getattr(args, "status_not", None)
+            type_matches = []
+
+            state_by_path = _query_by_path("research")
+            research_extras: Dict[str, Tuple[List[str], str]] = {}
+            if _has_records_tree():
+                state_root = Path(ctx.logical_roots["state"])
+                conn = _meta.open_cache(records_root, state_root)
+                try:
+                    for rid6, rtopic, rsummary in conn.execute(
+                        "SELECT id6, topic, summary FROM research"
+                    ).fetchall():
+                        topics_list: List[str] = []
+                        if isinstance(rtopic, str) and rtopic.strip():
+                            try:
+                                decoded = _json.loads(rtopic)
+                                if isinstance(decoded, list):
+                                    topics_list = [str(t) for t in decoded]
+                            except Exception:
+                                topics_list = [
+                                    s.strip() for s in rtopic.split(",") if s.strip()
+                                ]
+                        research_extras[rid6] = (topics_list, str(rsummary or ""))
+                finally:
+                    conn.close()
+
+            if selectors_list:
+                matched_paths, type_matches = _resolve_selectors_with_kinds(
+                    repo_root, "research", selectors_list
+                )
+                ordered_paths = sorted(
+                    matched_paths,
+                    key=lambda p: (
+                        p.relative_to(research_root_res)
+                        if p.is_relative_to(research_root_res)
+                        else p
+                    ),
+                )
+            else:
+                ordered_paths = list(sel_mod._iter_paths(repo_root, "research"))
+
+            not_set_r: set[str] = set()
+            if explicit_status_not:
+                if isinstance(explicit_status_not, str):
+                    not_list_r = [
+                        s.strip() for s in explicit_status_not.split(",") if s.strip()
+                    ]
+                else:
+                    not_list_r = []
+                    for item in explicit_status_not:
+                        if item:
+                            not_list_r.extend(
+                                s.strip() for s in str(item).split(",") if s.strip()
+                            )
+                not_set_r = {
+                    (_rc.normalize_status(s).value or s).lower() for s in not_list_r
+                }
+
+            res_rows: List[
+                Tuple[str, int, str, Path, _meta.State, str, Optional[str], str, str]
+            ] = []
+            for p in ordered_paths:
+                parsed, _ = _rc.parse_name(p.name, repo_root=repo_root)
+                if parsed is None:
+                    continue
+                st = state_by_path.get(p.resolve())
+                if st is None or st.id_derived:
+                    continue
+                res_id = st.id6 or parsed.id6
+                set_val = st.set_id or parsed.set_id
+                topics_list, r_summary = research_extras.get(res_id, ([], ""))
+                raw_st = st.legacy_raw_status or ""
+
+                if explicit_id and res_id != explicit_id:
+                    continue
+                if explicit_set and set_val != explicit_set:
+                    continue
+                if explicit_topic and explicit_topic not in topics_list:
+                    continue
+                if explicit_status:
+                    want_r = (
+                        _rc.normalize_status(explicit_status).value or explicit_status
+                    )
+                    got_r = _rc.normalize_status(raw_st).value or raw_st
+                    if got_r != want_r:
+                        continue
+                if not_set_r:
+                    norm_r = (
+                        _rc.normalize_status(raw_st).value or raw_st or ""
+                    ).lower()
+                    if norm_r in not_set_r:
+                        continue
+                status = raw_st or "-"
+                order_val = (
+                    st.order_nn
+                    if st.order_nn is not None
+                    else (parsed.order if parsed.order is not None else 0)
+                )
+                res_rows.append(
+                    (
+                        set_val or "",
+                        order_val,
+                        res_id,
+                        p,
+                        st,
+                        res_id,
+                        set_val,
+                        status,
+                        r_summary,
+                    )
+                )
+
+            if not selectors_list:
+                res_rows.sort(key=lambda r: (r[0], r[1], r[2]))
+
+            lines = []
+            paths = []
+            items = []
+            for _, _, _, p, st, res_id, set_val, status, r_summary in res_rows:
+                status_txt, id6_txt = _find_status_and_id6(
+                    "research", status, res_id, term
+                )
+                summary_text = st.short_description or r_summary
+                summary = f"  {summary_text}" if summary_text else ""
+                rel_p = _core.repo_relative_posix(p, repo_root)
+                disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
+                lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
+                paths.append(rel_p)
+
+                clean_p = _schema.normalize_repo_path(rel_p, repo_root)
+                item_rec = {
+                    "path": clean_p,
+                    "type": "research",
+                    "id6": res_id,
+                    "status": status,
+                }
+                if set_val:
+                    item_rec["set"] = set_val
+                if st.short_description:
+                    item_rec["short_description"] = st.short_description
+                items.append(item_rec)
+            return _FindTypeResult(lines, paths, type_matches, items=items)
+
+        # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases, reviews, other
+        explicit_id = getattr(args, "id", None)
+        explicit_set = getattr(args, "set", None)
+        explicit_status = getattr(args, "status", None)
+        explicit_status_not = getattr(args, "status_not", None)
+        status_not_tokens = set()
+        if explicit_status_not:
+            if isinstance(explicit_status_not, str):
+                status_not_tokens = {
+                    s.strip().lower()
+                    for s in explicit_status_not.split(",")
+                    if s.strip()
+                }
+            else:
+                for item in explicit_status_not:
+                    if item:
+                        status_not_tokens.update(
+                            s.strip().lower() for s in str(item).split(",") if s.strip()
+                        )
+
+        type_matches = []
+        if selectors_list:
+            matched_paths, type_matches = _resolve_selectors_with_kinds(
+                repo_root, artifact_type, selectors_list
+            )
+        else:
+            matched_paths = list(sel_mod._iter_paths(repo_root, artifact_type))
+
+        meta_t = sel_mod._META_TYPE_FOR_RECORD.get(artifact_type)
+        state_by_path = (
+            _query_by_path(meta_t)
+            if artifact_type != "reviews" and matched_paths
+            else {}
+        )
+
+        lines = []
+        paths = []
+        items = []
+        for p in sorted(matched_paths):
+            st = state_by_path.get(p.resolve())
+            if st is None:
+                try:
+                    content = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                st = _meta.read_text(
+                    content,
+                    record_type=meta_t or "ipd",
+                )
+            rel = _core.repo_relative_posix(p, repo_root)
+            raw_id: Optional[str] = None if st.id_derived else (st.id6 or None)
+            if artifact_type == "prompts" and raw_id is None:
+                raw_id = sel_mod.filename_slot_id6(p)
+            if explicit_id and raw_id != explicit_id:
+                continue
+
+            raw_status: Optional[str] = None
+            if st.legacy_raw_status:
+                toks = st.legacy_raw_status.strip().split()
+                if len(toks) == 1:
+                    raw_status = toks[0]
+            status = raw_status or _find_prompt_lane_status(rel, artifact_type) or "-"
+            if explicit_status:
+                if (
+                    status == "-"
+                    or status.strip().lower() != explicit_status.strip().lower()
+                ):
+                    continue
+            if status_not_tokens:
+                norm_st = status.strip().lower()
+                if (
+                    norm_st in status_not_tokens
+                    or norm_st.replace("_", "-") in status_not_tokens
+                    or norm_st.replace("-", "_") in status_not_tokens
+                ):
+                    continue
+
+            raw_set = st.legacy_raw_set if st.legacy_raw_set is not None else st.set_id
+            if explicit_set:
+                if raw_set != explicit_set:
+                    continue
+            id6 = raw_id or "-"
+            status_txt, id6_txt = _find_status_and_id6(artifact_type, status, id6, term)
+            disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
+            desc_suffix = (
+                f"  {st.short_description}"
+                if getattr(st, "short_description", None)
+                else ""
+            )
+            lines.append(f"{status_txt}  {id6_txt}  {disp_p}{desc_suffix}")
+            paths.append(rel)
+
+            clean_p = _schema.normalize_repo_path(rel, repo_root)
+            item_rec = {
+                "path": clean_p,
+                "type": artifact_type,
+                "id6": id6,
+                "status": status,
+            }
+            if raw_set:
+                item_rec["set"] = raw_set
+            if getattr(st, "short_description", None):
+                item_rec["short_description"] = st.short_description
+            items.append(item_rec)
+        return _FindTypeResult(lines, paths, type_matches, items=items)
 
 
 class _Id6Collision(NamedTuple):
@@ -16931,19 +17113,43 @@ def _run_search(
     _YAML_FENCE_CLOSE_RE = re.compile(r"(?m)^---[ \t]*\r?$")
     _METADATA_END_RE = re.compile(r"(?m)^##[ \t]+")
 
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    search_ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    search_records_root = Path(search_ctx.logical_roots["records"])
+    search_scan_repo = _meta._scan_repo_root(search_ctx, search_records_root)
+    search_has_tree = search_records_root.is_dir() or (
+        search_scan_repo is not None
+        and (
+            (search_scan_repo / ".aw" / "records").is_dir()
+            or (search_scan_repo / ".agents").is_dir()
+        )
+    )
+    cached_by_path: Dict[Path, _meta.State] = {}
+    if (status_filters or status_not_filters) and search_has_tree:
+        for st_row in _meta.query(project_context=search_ctx).rows:
+            if not st_row.path:
+                continue
+            try:
+                cached_by_path[
+                    _meta.source_path(
+                        st_row.path, search_records_root, search_scan_repo
+                    ).resolve()
+                ] = st_row
+            except Exception:
+                continue
+
     def _artifact_status(p: Path, text: str) -> str:
-        m_open = _YAML_FENCE_OPEN_RE.match(text)
-        if m_open:
-            m_close = _YAML_FENCE_CLOSE_RE.search(text, m_open.end())
-            if m_close:
-                m_st = re.search(
-                    r"(?m)^status:\s*(\S+)", text[m_open.end() : m_close.start()]
-                )
-                if m_st:
-                    return m_st.group(1).lower().strip("\"'")
-        m = re.search(r"(?m)^-\s*Status:\s*(\S+)", text)
-        if m:
-            return m.group(1).lower()
+        st_row = cached_by_path.get(p.resolve())
+        if st_row is None:
+            st_row = _meta.read_text(text)
+        if st_row.status:
+            return st_row.status.lower()
+        if st_row.legacy_raw_status:
+            return st_row.legacy_raw_status.strip().split()[0].lower()
+        if st_row.loose_status:
+            return st_row.loose_status.strip().lower()
         parts = p.parts
         for bucket in (
             "executed",
