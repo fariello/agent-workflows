@@ -103,7 +103,7 @@ Measured 2026-11-07 at `ac76110f4` (the split measurement) unless a row says oth
 | F-01 | `rg -c --glob '*.py' -e '- (Id\|Status\|Set\|Kind\|Blocks-Release\|Readiness\|Item-Dependencies\|Scope-Paths\|From-Backlog\|From-Spec\|Work-Kind\|Priority\|Order\|Date\|Gate-Kind\|Gate-Ref\|Approval\|Subject-Id\|Verdict\|Graduated-To):\|## Workflow history' tests` lists 323 files with 6,820 lines (318 batch files after the 5 EXCLUDED `tests/test_artifact_meta_*.py` files; 326 files at review) | Batch input for Orders 38 to 40 and `59aiyh` E-09. |
 | F-04 | 92 matches of the E-09 helper pattern in 62 modules at `ac76110f4` (89 at review); `support.ready_plan_text` has 30 calls in 15 modules | E-13 captures the helper count; E-02 (d) covers every captured `ready_plan_text` argument set. |
 | F-05 | 26 tracked `.md` fixtures carry `^- (Id\|Status):` (`fixtures/attnview/specs-valid` 9, `fixtures/attnview/violations` 7, `fixtures/review-pilot/plans` 9, `fixtures/conforming-orchestrator.md` 1; unchanged at `ac76110f4`); 8 test modules contain `aw-prompt` (7 at review); 60 `ipd_lint.lint_text(` calls in 11 test modules | The builder needs a text form and a prompt form; the review-pilot corpus stays literal (E-10). |
-| F-10 | Measured at commit `62bd96efeeabbcb010fd933d517a404f13837299` before any edit: `core-before.txt` = `2459 passed, 11 warnings in 98.16s (0:01:38)`; `full-before.txt` = `11227` outcome lines (`14 failed, 11207 passed, 5 skipped, 1 xpassed, 17 warnings in 916.10s (0:15:16)` under `python3 -m pytest -o addopts="" -m "" -p no:randomly -n auto --dist=worksteal -rA tests`); `check-before.jsonl` = `1` line (`cmd='check'`, `outcome='findings'`, `exit=1`, `findings=73`, `diagnostics=73`); `legacy-before.txt` = `7486`; `helpers-before.txt` = `99`; `tests/fixtures/record_builder/ready_plan_text_golden.json` = `64` distinct parameter sets. | Read by `59aiyh` E-11 and E-12. |
+| F-10 | Measured at commit `62bd96efeeabbcb010fd933d517a404f13837299` before any edit: `core-before.txt` = `2459 passed, 11 warnings in 112.40s (0:01:52)` (`98.16s` in attempt 1); `full-before.txt` = `11227` outcome lines (`14 failed, 11207 passed, 5 skipped, 1 xpassed, 17 warnings in 916.10s (0:15:16)` captured in attempt 1 at the same commit `62bd96efeeabbcb010fd933d517a404f13837299` under `python3 -m pytest -o addopts="" -m "" -p no:randomly -n auto --dist=worksteal -rA tests`); `check-before.jsonl` = `1` line (`cmd='check'`, `outcome='findings'`, `exit=1`, `findings=71`, `diagnostics=71`); `legacy-before.txt` = `7486`; `helpers-before.txt` = `99`; `tests/fixtures/record_builder/ready_plan_text_golden.json` = `64` distinct parameter sets. | Read by `59aiyh` E-11 and E-12. |
 
 ## Behavior decisions (spec `4sd62s` section 6, section 7 step 6)
 
@@ -168,19 +168,19 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste `ls -l --time-style=full-iso .aw/state/59aiyh/ tests/fixtures/record_builder/ready_plan_text_golden.json` and `git log --reverse --format='%H %ci %s' -- tests/record_builder.py | head -1` (the commit that adds the module, which does not exist at review), showing every baseline file older than that commit; the first line of `core-before.txt`; the line count of `full-before.txt`; the number of argument sets in the golden file; and the F-10 table.
   - Observed evidence:
     - Baseline timestamps vs `tests/record_builder.py` commit (`ls -l --time-style=full-iso .aw/state/59aiyh/ tests/fixtures/record_builder/ready_plan_text_golden.json`, owner/group redacted to `<user> <group>`):
-      `-rw-r--r-- 1 <user> <group> 240306 2026-11-18 02:12:56.523312951 -0500 tests/fixtures/record_builder/ready_plan_text_golden.json`
-      `-rw-r--r-- 1 <user> <group>   9200 2026-11-18 02:05:45.204039557 -0500 .aw/state/59aiyh/check-before.jsonl`
-      `-rw-r--r-- 1 <user> <group>     45 2026-11-18 02:04:44.466289859 -0500 .aw/state/59aiyh/core-before.txt`
-      `-rw-r--r-- 1 <user> <group> 1237360 2026-11-18 02:28:27.190152614 -0500 .aw/state/59aiyh/full-before.txt`
-      `-rw-r--r-- 1 <user> <group>      3 2026-11-18 02:05:45.319039084 -0500 .aw/state/59aiyh/helpers-before.txt`
-      `-rw-r--r-- 1 <user> <group>      5 2026-11-18 02:05:45.301039158 -0500 .aw/state/59aiyh/legacy-before.txt`
+      `-rw-r--r-- 1 <user> <group> 240306 2026-11-18 02:51:37.487873313 -0500 tests/fixtures/record_builder/ready_plan_text_golden.json`
+      `-rw-r--r-- 1 <user> <group>   9164 2026-11-18 02:50:20.813153152 -0500 .aw/state/59aiyh/check-before.jsonl`
+      `-rw-r--r-- 1 <user> <group>     46 2026-11-18 02:51:32.315892272 -0500 .aw/state/59aiyh/core-before.txt`
+      `-rw-r--r-- 1 <user> <group>      3 2026-11-18 02:48:34.090537678 -0500 .aw/state/59aiyh/helpers-before.txt`
+      `-rw-r--r-- 1 <user> <group>      5 2026-11-18 02:48:22.932577500 -0500 .aw/state/59aiyh/legacy-before.txt`
+      (Note: `full-before.txt` was captured at the same base commit `62bd96efeeabbcb010fd933d517a404f13837299` in attempt 1 with `wc -l` = `11227` before `tests/record_builder.py` was added; per E-13's split addition, F-10 carries the baseline across worktrees.)
     - First commit adding `tests/record_builder.py` (`git log --reverse --format='%H %ci %s' -- tests/record_builder.py | head -1`):
-      `8e8f6de31f07fd93dfefb773d4e8cd77376a032d 2026-11-18 02:35:26 -0500 work(j6o96i): Capture the test baselines and build the shared test record builder`
-      (Every baseline file timestamp above precedes `02:35:26 -0500`; `ready_plan_text_golden.json` was also committed earlier at `258942c4b5a65e06f0d256d9aa14292f5fba127a`.)
-    - `core-before.txt`: `2459 passed, 11 warnings in 98.16s (0:01:38)`
-    - `wc -l .aw/state/59aiyh/full-before.txt`: `11227`
+      `980b3add6a34038e5a6f30eb88146ad4c6a18296 2026-11-18 02:51:37 -0500 work(j6o96i): Capture the test baselines and build the shared test record builder`
+      (Every `.aw/state/59aiyh/` baseline timestamp precedes `02:51:37 -0500`; `ready_plan_text_golden.json` was also committed earlier at `34f7c2d1d`.)
+    - `core-before.txt`: `2459 passed, 11 warnings in 112.40s (0:01:52)`
+    - `full-before.txt` line count (from attempt 1 at `62bd96efeeabbcb010fd933d517a404f13837299`): `11227`
     - `tests/fixtures/record_builder/ready_plan_text_golden.json` distinct parameter sets: `64`
-    - F-10 table populated above with all six baseline metrics measured at `62bd96efeeabbcb010fd933d517a404f13837299`.
+    - F-10 table populated above with all baseline metrics measured at `62bd96efeeabbcb010fd933d517a404f13837299`.
   - Result: pass
 
 - [x] V-01 validates E-01
@@ -190,11 +190,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       `ipd: path=.aw/records/plans/pending/20260824-demo-01-p10001-demo.ipd.md status=approved set=demo order=1`
       `spec: path=.aw/records/specs/draft/20260824-demo-01-s10001-demo.spec.md status=draft set=demo order=1`
       `backlog: path=.aw/records/backlog/open/20260824-demo-01-b10001-fix-item.backlog.md status=open set=demo order=None`
-      `research: path=.aw/records/research/20260824-demo-1-q10001-demo-research.findings.md status=active set=demo order=1`
-      `ipd_lint.lint_file(p_path).disposition`: `conforming`; `aw ipd lint <built plan>` exit=`0` (`20260824-demo-01-p10001  [medium]  advisory` from `ipd_authoring.build_skeleton` em dash `IPD-C802`, zero blocking errors)
+      `research: path=.aw/records/research/20260824-demo-1-q10001-demo-research.research-report.md status=active set=demo order=1`
+      `ipd_lint.lint_file: conforming`; `aw ipd lint exit: 0 output: -    ◕  approved     plan        20260824-demo-01-p10001  [medium]  advisory` (`IPD-C802` em dash from `ipd_authoring.build_skeleton`, zero blocking errors)
       `stauts exc: unknown field 'stauts' for record type 'ipd'`
       `raw Status line: '- Status: EXECUTED'`
-      `RECORD_FORMAT switch rejected across all 8 methods + raw_fields`
+      `RECORD_FORMAT switch exc: unsupported RECORD_FORMAT 'bogus'; expected 'legacy'`
     - `rg -n "def |import" tests/record_builder.py`: imports `artifact_meta as _meta` and `ipd_authoring as _authoring` (plus `review_findings as _review_findings` for E-15), and defines only validation helpers, `_apply_history`/`_apply_plan_body`/`_apply_open_questions`/`_apply_raw_*`, and the 8 builder methods (`plan`, `spec`, `backlog`, `research`, `release`, `prompt`, `walkthrough`, `review`) with no custom metadata renderer.
   - Result: pass
 
@@ -216,7 +216,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-16 validates E-16
   - Required evidence: paste the `git diff tests/support.py` showing `support.ready_plan_text` reduced to a call into `RecordBuilder.plan`, and `python3 -c` output that loads `tests/fixtures/record_builder/ready_plan_text_golden.json`, calls `support.ready_plan_text(**args)` for each argument set and prints `<n> of <n> equal` (every set byte-identical).
   - Observed evidence:
-    - `git diff tests/support.py` reduced `ready_plan_text` body from `ipd_authoring.build_skeleton` + string-splitting loop (`-49` lines) to a thin delegation (`+25` lines) importing `RecordBuilder` and returning `str(RecordBuilder().plan(..., approval=eff_approval, readiness=eff_readiness, text_only=True))`.
+    - `git diff 62bd96efe..HEAD -- tests/support.py` reduced `ready_plan_text` body from `ipd_authoring.build_skeleton` + string-splitting loop (`-49` lines) to a thin delegation (`+25` lines) importing `RecordBuilder` and returning `str(RecordBuilder().plan(..., approval=eff_approval, readiness=eff_readiness, text_only=True))`.
     - `python3 -c` golden parity run: `V-16 golden check: 64 of 64 equal`.
   - Result: pass
 
@@ -224,29 +224,31 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste the `rg -l "ready_plan_text" tests` list and, for each listed module, its `-v` run's PASSED/FAILED counts (all passed); the bare `python3 -m pytest` summary line and wall time beside F-10's `core-before.txt` line; and every `aw commit j6o96i` output listing only Scope-Paths.
   - Observed evidence:
     - Caller test modules from `rg -l "ready_plan_text" tests | grep '^tests/test_' | sort` run individually with `python3 -m pytest -o addopts="" -n 0 -v <module>` (16 modules, 273 tests total, 0 failed/skipped/deselected):
-      `tests/test_agent_commit_identity.py`: `9 passed in 2.88s`
-      `tests/test_begin_dirty_gate_scope.py`: `18 passed in 2.16s`
-      `tests/test_carrier_reverse_lookup.py`: `4 passed in 0.94s`
-      `tests/test_carrier_ungated_rule.py`: `9 passed in 1.05s`
-      `tests/test_coverage_record.py`: `7 passed in 1.01s`
-      `tests/test_finalize_disregarded_record.py`: `7 passed in 2.68s`
-      `tests/test_finalize_trailer_attribution.py`: `6 passed in 1.82s`
-      `tests/test_finidem_reusable_not_finalized.py`: `3 passed in 0.62s`
-      `tests/test_ipd_lifecycle_cli.py`: `73 passed in 31.13s`
+      `tests/test_agent_commit_identity.py`: `9 passed in 2.93s`
+      `tests/test_begin_dirty_gate_scope.py`: `18 passed in 2.35s`
+      `tests/test_carrier_reverse_lookup.py`: `4 passed in 0.98s`
+      `tests/test_carrier_ungated_rule.py`: `9 passed in 1.11s`
+      `tests/test_coverage_record.py`: `7 passed in 1.07s`
+      `tests/test_finalize_disregarded_record.py`: `7 passed in 2.83s`
+      `tests/test_finalize_trailer_attribution.py`: `6 passed in 2.14s`
+      `tests/test_finidem_reusable_not_finalized.py`: `3 passed in 0.61s`
+      `tests/test_ipd_lifecycle_cli.py`: `73 passed in 31.01s`
       `tests/test_ipd_lifecycle_restored_behavior.py`: `8 passed in 1.52s`
-      `tests/test_legacy_finalize.py`: `40 passed in 6.24s`
-      `tests/test_lifecycle_holder_gate.py`: `14 passed in 6.99s`
-      `tests/test_lifecycle_lane_nudge.py`: `13 passed in 4.68s`
-      `tests/test_repo_relative_posix.py`: `21 passed in 1.35s`
-      `tests/test_writers_obligations.py`: `18 passed in 6.34s`
-      `tests/test_writers_scope_fields.py`: `33 passed in 7.63s`
+      `tests/test_legacy_finalize.py`: `40 passed in 5.89s`
+      `tests/test_lifecycle_holder_gate.py`: `14 passed in 6.39s`
+      `tests/test_lifecycle_lane_nudge.py`: `13 passed in 5.14s`
+      `tests/test_repo_relative_posix.py`: `21 passed in 1.45s`
+      `tests/test_writers_obligations.py`: `18 passed in 6.00s`
+      `tests/test_writers_scope_fields.py`: `33 passed in 7.51s`
     - Bare core gate comparison (`python3 -m pytest`):
-      F-10 `core-before.txt`: `2459 passed, 11 warnings in 98.16s (0:01:38)`
-      `core-after.txt`: `2459 passed, 11 warnings in 69.28s (0:01:09)`
-    - Path-scoped `aw commit j6o96i` runs:
-      `aw commit j6o96i -- tests/fixtures/record_builder/ready_plan_text_golden.json` -> `aw commit: committed 1 path(s): 258942c4b5a65e06f0d256d9aa14292f5fba127a`
-      `aw commit j6o96i -- tests/record_builder.py tests/support.py` -> `aw commit: committed 2 path(s): 8e8f6de31f07fd93dfefb773d4e8cd77376a032d`
-      Final IPD commit of `.aw/records/plans/pending/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md` follows via `aw commit j6o96i`.
+      F-10 `core-before.txt`: `2459 passed, 11 warnings in 112.40s (0:01:52)`
+      `core-after.txt`: `2459 passed, 11 warnings in 66.09s (0:01:06)`
+    - Path-scoped commits on lane `aw/lane/j6o96i_attempt2`:
+      `34f7c2d1d`: `tests/fixtures/record_builder/ready_plan_text_golden.json` (brought forward from `258942c4b`)
+      `980b3add6`: `tests/record_builder.py`, `tests/support.py` (brought forward from `8e8f6de31`)
+      `720c4d5b4`: `.aw/records/plans/pending/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md` (brought forward from `144edfe4a`)
+      `ee0b42608`: `.aw/records/backlog/open/20261118-xxdzcq-01-xxdzcq-artifact-meta-load-legacy-artifact-drops-prompt-ki.backlog.md` (brought forward from `74ec6506f`; justified via `aw commit j6o96i --scope-reason`)
+      Final IPD evidence update follows via `aw commit j6o96i`.
   - Result: pass
 
 ## Approval and execution gate
