@@ -163,6 +163,7 @@ flowchart TD
   - Carrier: w1cs3p
 - E-06, E-07 plan-rule and review subset. Moved to na188y (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: na188y
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-30-na188y-move-the-check-engine-plan-rule-and-review-readers-onto-arti.ipd.md
 - E-06, E-07 release-gate, close and From-Backlog subset. Moved to i3b5zu (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: i3b5zu
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-31-i3b5zu-move-the-check-engine-release-gate-and-from-backlog-readers.ipd.md
