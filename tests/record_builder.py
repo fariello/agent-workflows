@@ -604,7 +604,7 @@ class RecordBuilder:
             create_ev: dict[str, Any] = {
                 "op": "create",
                 "path": rel_path,
-                "fields": fields,
+                "fields": {**fields, "id": id6, "type": record_type},
             }
             if message is not None:
                 create_ev["message"] = message
