@@ -113,6 +113,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-213-z4x192-retire-five-converted-attnview-spec-fixtures.ipd.md
 - Moved to 9zcuyh (round-3 split 2026-11-09 per research nj8zdp guidance): the deletion of four converted `specs-valid` fixtures and the README update from E-10.
   - Carrier: 9zcuyh
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-214-9zcuyh-retire-four-converted-attnview-spec-fixtures-and-update-the.ipd.md
 - Moved to b3eilr (round-3 split 2026-11-09 per research nj8zdp guidance): the `support.CONFORMING_ORCHESTRATOR` conversion and fixture deletion from E-10.
   - Carrier: b3eilr
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-217-b3eilr-generate-the-conforming-orchestrator-fixture-from-the-shared.ipd.md
