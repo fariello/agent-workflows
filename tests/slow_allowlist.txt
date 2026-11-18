@@ -629,3 +629,8 @@ tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoo
 tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only	Integration boundary validation under multi-process environment
 tests/test_review_sweep_lane_refusal_isolation.py::test_refused_review_is_parked_and_next_review_integrates[agy]	Subprocess CLI execution and isolated worktree integration boundary
 tests/test_review_sweep_lane_refusal_isolation.py::test_refused_review_is_parked_and_next_review_integrates[oc]	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[companion_backend]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
+tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[idless_prose]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
+tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[legacy_agents_layout]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
+tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[mixed_layout]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
+tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[no_sidecar]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
