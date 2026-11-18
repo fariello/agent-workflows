@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 7 step 4 requires every metadata WRITER to change to write through `artifact_meta` in phase B, while `artifact_meta` still writes today's bullets and history lines, so that the cutover (Order 13) switches one writer and not dozens (C1, C10a). Order 06 (`2xwb9b`) moves the `status_set` engine. Every other writer still edits metadata text by hand. Measured 2026-11-02 at `0cbfcc706`: 12 writer modules in this plan's scope hold 99 hand-formatted `- Field: value` literals and 47 `## Workflow history` references (`specs` 14/8, `backlog` 29/18, `releases` 11/4, `ipd_authoring` 11/1, `artifact_rename` 11/0, `plans_refs` 4/0, `plan_readiness` 1/10, `coverage_record` 3/5, `set_records` 1/1, `review_sequence` 3/1, `runner_shared` writer helpers, `ipd_lifecycle` finalize), plus `prompts` comment writers. These modules use four different history-insertion rules (F-04), and three of them write the gitignored rename ledger (`record_history.record_rename`). Finalize writes `- Scope-Exceeded:` through `ipd_lifecycle._insert_scope_exceeded_metadata` (41 tracked plans carry it), which 4.2c and 4.4 replace with `scope_result`, `out_of_scope_paths` and `widened_paths` written in the executed append. No creating command can write `short_description` yet (AC-36 case 1). Section 7 and 3c require each phase-B plan to name each moved writer's behavior and the test that checks it, because a behavior that no test exercises can change unnoticed.
 - Scope: Phase B step 4, part 2 of 2 (`4sd62s` section 7), FINISHING PART. Split 2026-11-07 per the maintainer step-complexity rule into six writer parts (`7yr827` Order 21, `g6tw94` 22, `n5sxxk` 23, `6e93gt` 24, `bsl45u` 25, `8q27jt` 26), which round 3 (2026-11-09, research `nj8zdp`) split further into Orders 120 to 136; and round 3 moved the merge-independence test (E-12) to `b4y4ee` (Order 133). This plan keeps the integration work that needs all of them: the AC-21 obligations and AC-6 phase-B diff test (E-13), the raw-write audit F-09 in two halves (E-14, E-15), the `docs/cli-output-contract.md` reconciliation and `CHANGELOG.md` line (E-16), and the full gates and commit (E-17). It still OWNS AC-21. EXCLUDES: every writer move (the parts above); the `status_set` engine itself (`2xwb9b`); readers (`ffceq0`, `t4gl15`); deleting old parsers (`9o83cr`); the log format, `rename` and path events and sidecar retirement, which start at the cutover (`cxxmyv`).
 - Scope-Paths: tests/test_writers_obligations.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261117-lflu5y-01-lflu5y-fix-test-proposal-continuation-agy-oc.backlog.md (Required defect-report backlog carrier for pre-existing untracked failures in tests/test_fixfirst_end_to_end.py test_proposal_continuation_agy and test_proposal_continuation_oc observed during xexn45 ...)
 - Item-Dependencies: executed:tve77h, executed:2xwb9b, executed:7yr827, executed:g6tw94, executed:n5sxxk, executed:6e93gt, executed:bsl45u, executed:8q27jt, executed:b4y4ee
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +17,11 @@
 - Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xexn45
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: xexn45 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261117-lflu5y-01-lflu5y-fix-test-proposal-continuation-agy-oc.backlog.md: Required defect-report backlog carrier for pre-existing untracked failures in tests/test_fixfirst_end_to_end.py (test_proposal_continuation_agy and test_proposal_continuation_oc) observed during xexn45 E-17 make test-all and reproduced on unmodified main]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-201..PR-206 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-201..PR-206 FIXED; review record .aw/records/reviews/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.review.md
