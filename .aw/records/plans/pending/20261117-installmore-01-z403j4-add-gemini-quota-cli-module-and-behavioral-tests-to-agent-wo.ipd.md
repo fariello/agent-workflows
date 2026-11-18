@@ -20,6 +20,8 @@
 
 ## Workflow history
 
+- 2026-11-18 review progress (antigravity/gemini-4-hydrogen-high): Round 2 folded maintainer's OQ-02 contract (live refresh, token fields, cache/history schema, --context) into E-01..E-03 and V-01..V-03, resolved OQ-02, and opened blocking OQ-03 for the two home-relative token file paths redacted as ~<path> in the forwarded answer (.aw/records/reviews/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.review.md)
+- 2026-11-18 review progress (antigravity/gemini-4-hydrogen-high): Round 1 completed revisions for PR-002..PR-006; escalated PR-001 as blocking OQ-02 awaiting maintainer answer in .aw/records/reviews/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.review.md
 - 2026-11-18 to-review (aw set): status set to to-review
 - 2026-11-18 draft (antigravity): created and authored as self-contained Order 01 of Set `installmore`.
 
@@ -33,32 +35,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Module implementation and behavioral verification
 
-- [ ] E-01 Create `agent_workflows/gemini_quota.py` implementing the quota payload reader/refresher (`DEFAULT_CACHE_PATHS = (Path("/tmp/antigravity_quota.json"), Path.home() / ".gemini" / "antigravity-cli" / "last_quota.json")`, `HISTORY_PATH = Path.home() / ".gemini" / "antigravity-cli" / "quota_history.json"`, `load_quota_payload`, `obtain_quota_payload`, `refresh_quota`, `load_history_samples`, `record_history_sample`), the ANSI/256-color renderers (`supports_color`, `format_bar`, `format_duration`, `compute_reset_in_seconds`, `format_single_status_bar`, `render_dashboard`), and the 5-hour OLS burn-rate analyzer (`analyze_bucket`, `render_watch_forecast_panel`, `build_json_forecast`), using Python stdlib only and keeping all paths free of user-specific or machine-local strings.
+- [ ] E-01 Create `agent_workflows/gemini_quota.py` (with `from __future__ import annotations` and Python 3.9+ stdlib only, using `datetime.timezone.utc` rather than `datetime.UTC` and no runtime `X | Y` unions) implementing:
+  - Cache & history: `AGY_QUOTA_FILE` override; `DEFAULT_CACHE_PATHS = (Path.home() / ".gemini" / "antigravity-cli" / "last_quota.json",)` (with `/tmp/antigravity_quota.json` removed); `HISTORY_PATH = Path.home() / ".gemini" / "antigravity-cli" / "quota_history.json"` storing `{"samples": [{"ts": <float>, "quota": {<bucket>: {"remaining_fraction": <float>, "reset_time": <str>}}}]}` for buckets `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly`, pruned to a 6-hour window (`21600`s, max `720` samples); `load_quota_payload`, `obtain_quota_payload`, `load_history_samples`, `record_history_sample` (atomic write via temp file + `os.replace`).
+  - Live refresh (`refresh_quota`): never invoke `agy` (no `refresh_quota_via_agy`, no `agy` lookup). `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (fallback host `cloudcode-pa.googleapis.com`) with JSON body `{"project": "aicode-consumers"}` and headers `Authorization: Bearer <access token>`, `Content-Type: application/json`, and `User-Agent: antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)`. Map `groups[].buckets[]` (`bucketId`, `remainingFraction`, `resetTime`) to `payload["quota"][<bucketId>] = {"remaining_fraction": ..., "reset_time": ..., "reset_in_seconds": ...}` plus `quota_updated_at` (epoch seconds).
+  - Tokens: read `token.access_token`, `token.refresh_token`, `token.expiry` from `[TOKEN FILE 1 - pending OQ-03]`, else `accounts[activeIndex].refreshToken` from `[TOKEN FILE 2 - pending OQ-03]`. Never store or hardcode client credentials in tracked code; refresh via `https://oauth2.googleapis.com/token` only when `AW_GEMINI_QUOTA_CLIENT_ID` and `AW_GEMINI_QUOTA_CLIENT_SECRET` are set. Otherwise use the access token until `token.expiry`, then fall back to the cache and report `"token expired; run agy to renew it"` (exit non-zero if no cache either). Never print or log any token.
+  - Renderers & forecast: `supports_color` (honoring `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, `isatty()`), `format_bar`, `format_duration`, `compute_reset_in_seconds`, `format_single_status_bar`, `render_dashboard` (rendering `--context` when cache payload has `context_window`: `used_percentage`, `total_input_tokens + total_output_tokens` of `context_window_size`, `remaining_percentage`, and `current_usage.cache_read_input_tokens` if `> 0`; omitting the section silently when absent), `analyze_bucket`, `render_watch_forecast_panel`, and `build_json_forecast` (5-hour OLS `burn_forecast` in `--json`).
+  - Trust-boundary safety: sanitize control/ANSI characters in payload strings, enforce `https://` and finite timeouts on all `urllib` requests, handle corrupt/unreadable JSON gracefully, and keep all paths free of user-specific or machine-local strings.
   - Depends on: none
-  - Expected outcome: `agent_workflows/gemini_quota.py` imports cleanly with zero third-party dependencies and passes `ruff`, `mypy`, and `aw check-local-leaks`.
+  - Expected outcome: `agent_workflows/gemini_quota.py` imports cleanly on Python 3.9+ with zero third-party dependencies and passes `ruff`, `mypy`, and `aw check-local-leaks`.
   - Execution state: pending
 
-- [ ] E-02 Implement `build_parser()` and `main(argv: list[str] | None = None) -> int` in `agent_workflows/gemini_quota.py` supporting `--bar`/`-b`/`--status-bar`/`--compact`, `--gemini`/`-g`/`--gemini-only`, `--3p`/`-3`/`--third-party`, `--json`/`-j`, `--watch`/`-w` (optional float seconds, default `2.0`), `--max-staleness`/`-m` (float seconds, default `60.0`), `--no-color`/`--plain`, `--color`, `--plot`/`-p`/`--charts`, `--context`, and `--file`/`-f`, plus runnable `if __name__ == "__main__": sys.exit(main())`.
+- [ ] E-02 Implement `build_parser()` and `main(argv: list[str] | None = None) -> int` in `agent_workflows/gemini_quota.py` supporting `--bar`/`-b`/`--status-bar`/`--compact`, `--gemini`/`-g`/`--gemini-only` (selects `gemini-*` buckets), `--3p`/`-3`/`--third-party` (selects `3p-*` buckets), `--json`/`-j`, `--watch`/`-w` (optional float seconds, default `2.0`), `--max-staleness`/`-m` (float seconds, default `60.0`), `--no-color`/`--plain`, `--color`, `--plot`/`-p`/`--charts`, `--context` (show `context_window` metrics when present in cache payload, omit silently when absent), and `--file`/`-f`, plus runnable `if __name__ == "__main__": sys.exit(main())`. When `--file` is supplied, read only that file without falling back to `DEFAULT_CACHE_PATHS` or `refresh_quota`, and do not write to live `HISTORY_PATH`. Handle `BrokenPipeError` cleanly.
   - Depends on: E-01
-  - Expected outcome: `python3 -m agent_workflows.gemini_quota --help` renders all flags, missing/unreadable payload files print an actionable error on stderr and return non-zero, and `--file`, `--bar`, `--json`, and dashboard modes render from fixture JSON.
+  - Expected outcome: `python3 -m agent_workflows.gemini_quota --help` renders all flags, missing/unreadable `--file` or expired token without cache prints an actionable error on stderr and returns non-zero without side effects, and `--file`, `--bar`, `--json`, `--watch`, `--context`, and dashboard modes render from fixture JSON.
   - Execution state: pending
 
-- [ ] E-03 Add behavioral tests in `tests/test_gemini_quota.py` driving `gemini_quota.main` and helper APIs against synthetic quota fixture files (`--file`): single-line `--bar` output, `--json` output with `burn_forecast`, `--gemini` vs `--3p` bucket filtering, `--no-color` plain output, `--plot` Braille forecast panel, non-zero exit when quota data is missing (`obtain_quota_payload` returning `None` without network access), and history sample recording/pruning under a temporary home path.
+- [ ] E-03 Add behavioral tests in `tests/test_gemini_quota.py` (marked with `pytestmark = pytest.mark.core` at module scope and using fast in-process `gemini_quota.main(argv)` and helper calls) using synthetic fixtures and a stubbed HTTP layer (zero network access, zero `agy` invocation): single-line `--bar` output, `--json` output with `burn_forecast`, `--gemini` (`gemini-*`) vs `--3p` (`3p-*`) bucket filtering, `--no-color` plain output (and `NO_COLOR`/`FORCE_COLOR`), `--plot` Braille forecast panel, `--context` present vs silently omitted when `context_window` is absent, bounded `--watch` loop termination (e.g., via `KeyboardInterrupt` or sleep mock after 1-2 iterations), stubbed `refresh_quota` (`groups[].buckets[]` mapping, `cloudcode-pa.googleapis.com` host fallback, expired token cache fallback with `"token expired; run agy to renew it"` vs non-zero exit when cache absent, env-gated OAuth refresh when `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` are set, and token non-exposure in stdout/stderr/JSON/history), `AGY_QUOTA_FILE` override, non-zero exit on missing/corrupt `--file`, and 6-hour (`21600`s, max `720` samples) history recording/pruning under a temporary home path.
   - Depends on: E-02
-  - Expected outcome: All tests in `tests/test_gemini_quota.py` pass deterministically without requiring network access or live Antigravity credentials, and contain no source-code inspection assertions.
+  - Expected outcome: All tests in `tests/test_gemini_quota.py` run under the `core` tier, pass deterministically without network access or live Antigravity credentials, complete well below the 2s slow threshold, and contain no source-code inspection assertions.
   - Execution state: pending
 
-- [ ] E-04 Run `aw check-local-leaks` and `python3 -m pytest -v tests/test_gemini_quota.py` (plus bare `python3 -m pytest`) confirming zero leaks, zero mypy regressions, and passing tests.
+- [ ] E-04 Run `aw check-local-leaks`, `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `python3 -m mypy agent_workflows`, `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py` (after staging), `python3 -m pytest -v tests/test_gemini_quota.py`, and bare `python3 -m pytest` confirming zero leaks, zero mypy regressions, and passing tests within budget.
   - Depends on: E-03
-  - Expected outcome: `tests/test_gemini_quota.py` passes cleanly, leak check passes, and core pytest suite remains green.
+  - Expected outcome: `tests/test_gemini_quota.py` passes cleanly, `mypy` and `ruff` pass, leak check passes, and core pytest suite remains green within budget.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Runtime dependencies in `pyproject.toml` are strictly minimized (`filelock>=3` only); `agent_workflows/gemini_quota.py` uses stdlib modules only (`argparse`, `datetime`, `json`, `os`, `re`, `shutil`, `subprocess`, `sys`, `time`, `urllib.*`, `pathlib`) so `dependencies` in `pyproject.toml` stays unchanged.
+- Runtime dependencies in `pyproject.toml` are strictly minimized (`filelock>=3` only), and `requires-python = ">=3.9"` across Linux, macOS, and Windows: `agent_workflows/gemini_quota.py` uses `from __future__ import annotations` and Python 3.9+ stdlib modules only (`argparse`, `datetime`, `json`, `os`, `re`, `shutil`, `sys`, `time`, `urllib.*`, `pathlib`) so `dependencies` in `pyproject.toml` stays unchanged.
 - `pyproject.toml` packages `agent_workflows` into wheels and sdists automatically (`packages = ["agent_workflows"]`).
+- Bare `python3 -m pytest` runs only `@pytest.mark.core` tests (`conftest.py::pytest_collection_modifyitems`) within a 30s budget, and tests taking over 2s must appear in `tests/slow_allowlist.txt`; `tests/test_gemini_quota.py` uses `pytestmark = pytest.mark.core` and fast in-process calls.
 - All tracked files must pass `aw check-local-leaks` (no local usernames or machine-local home paths; use `Path.home()` or `~/.gemini/...`).
-- Tests must exercise observable behavior (`main`, CLI subprocess invocation, temp JSON fixtures) with no `inspect`/`ast` source-pinning checks.
+- Tests must exercise observable behavior (`main`, temp JSON fixtures, stubbed HTTP) with no `inspect`/`ast` source-pinning checks (`GUIDING_PRINCIPLES.md` P16).
 
 ## Findings
 
@@ -73,31 +81,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ```mermaid
 flowchart TD
     A["cli main(argv)"] --> B["obtain_quota_payload(file, max_staleness)"]
-    B -->|Missing and refresh failed| C["Write error to stderr; exit 1"]
-    B -->|Payload loaded| D["record_history_sample / load_history_samples"]
+    B -->|Missing or unreadable| C["Write error to stderr; exit 1"]
+    B -->|Payload loaded via cache or refresh| D["record_history_sample then load_history_samples"]
+    B -->|Payload loaded via --file| D2["load_history_samples (no live history write)"]
     D --> E{"Output mode"}
+    D2 --> E
     E -->|--json| F["Emit JSON with burn_forecast"]
     E -->|--bar| G["Print format_single_status_bar"]
     E -->|Default / --plot| H["Print render_dashboard (+ forecast charts)"]
+    E -->|--watch| I["Sleep interval and repeat until interrupted"]
+    I --> B
 ```
 
 1. Add `agent_workflows/gemini_quota.py` implementing the quota dashboard, cache/history handling, live refresh helpers, burn-rate forecast, and CLI entrypoint `main(argv=None)`.
-2. Add `tests/test_gemini_quota.py` exercising all CLI flags and forecast/rendering paths with local temp fixtures (zero network calls).
-3. Verify with `pytest`, `mypy`, `ruff`, and `aw check-local-leaks`.
+2. Add `tests/test_gemini_quota.py` (with `pytestmark = pytest.mark.core`) exercising all CLI flags (including bounded `--watch`) and forecast/rendering paths with local temp fixtures (zero network calls).
+3. Verify with `pytest`, `mypy`, `ruff`, `pre-commit`, and `aw check-local-leaks`.
 
 ## Deferred / out of scope (with reason)
 
 - Registering `gemini-quota` in `aw install more` and adding the `aw install` discovery tip: owned by sibling Order 02 (`58isyp`).
+  - Carrier: 58isyp
 - Installing launchers into user bin directories by default in `pyproject.toml`: omitted intentionally because installation must be opt-in after asking (`aw install more`).
+  - Carrier-Declined: intentional exclusion by design (default pyproject.toml script entry omitted so installation stays opt-in via aw install more in 58isyp)
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. Packaging inside `agent_workflows/` gives `58isyp` a clean `python3 -m agent_workflows.gemini_quota` target.
+- Under-scope: `PR-001` (`OQ-03`, blocking) remains open only for the two home-relative token file paths redacted to `~<path>` in the forwarded `OQ-02` answer (`token.*` file and `accounts[activeIndex].refreshToken` file); all other schema, HTTP refresh, cache/history, and `--context` details are specified.
 
 ## Required tests / validation
 
 - `python3 -m pytest -v tests/test_gemini_quota.py`
+- `python3 -m mypy agent_workflows`
+- `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py` and `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`
 - `aw check-local-leaks`
 - `python3 -m pytest` (core suite)
 
@@ -114,6 +130,22 @@ flowchart TD
 - Owner: maintainer
 - Resolution or deferral rationale: Self-contained default for autonomous lanes: implement `agent_workflows/gemini_quota.py` from this plan's contract with no out-of-lane reads. If the maintainer wants byte-identical preservation of their local `~/.gemini/antigravity-cli/bin/gemini-quota` script, they can copy it to `agent_workflows/gemini_quota.py` on `main` before running `z403j4` (after adjusting `main()` to accept `argv: list[str] | None = None`).
 
+### OQ-02: PR-001 leaves the Antigravity quota payload schema, `refresh_quota` protocol, history/`--json` schema, and `--context` semantics unspecified; how should autonomous execution obtain them?
+
+- Blocking: yes
+- Status: resolved
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: Answered by maintainer (2026-11-18, question `02-z403j4-a1-oq02-quota-schema-refresh`): Option 1 contract adopted in `E-01`..`E-03` and `V-02`..`V-03` (never invoke `agy`; `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` with `cloudcode-pa.googleapis.com` fallback; `groups[].buckets[]` mapping; `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` OAuth refresh and expired-token cache fallback; `AGY_QUOTA_FILE` override and single default cache `~/.gemini/antigravity-cli/last_quota.json` with `/tmp/antigravity_quota.json` removed; `quota_history.json` 6h/720-sample pruning; `--gemini`/`--3p` prefix filter; `--context` `context_window` formatting). The two home-relative token file paths were redacted to `~<path>` by `_redact_absolute_paths` and are tracked in `OQ-03`.
+
+### OQ-03: Which two home-relative token file paths (redacted as `~<path>` in the `OQ-02` answer) hold `token.access_token`/`token.refresh_token`/`token.expiry` and `accounts[activeIndex].refreshToken`?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: Pending maintainer reply specifying the two home-relative JSON paths without a leading `/` or `~/` prefix (e.g. `.gemini/antigravity-cli/...`) so the runner's `_redact_absolute_paths` sanitizer preserves them verbatim. Recommendation strength: strong (supply both home-relative paths so `E-01` token lookup works against real Antigravity credentials).
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
@@ -124,17 +156,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `python3 -m agent_workflows.gemini_quota --help` output showing `-b`/`--bar`, `-g`/`--gemini`, `-3`/`--3p`, `-j`/`--json`, `-w`/`--watch`, `-m`/`--max-staleness`, `--no-color`, `--color`, `-p`/`--plot`, `--context`, and `-f`/`--file`, plus `python3 -m agent_workflows.gemini_quota --file /nonexistent/quota.json --max-staleness -1` exiting non-zero with an error message.
+  - Required evidence: paste `python3 -m agent_workflows.gemini_quota --help` output showing `-b`/`--bar`, `-g`/`--gemini`, `-3`/`--3p`, `-j`/`--json`, `-w`/`--watch`, `-m`/`--max-staleness`, `--no-color`, `--color`, `-p`/`--plot`, `--context`, and `-f`/`--file`, plus `python3 -m agent_workflows.gemini_quota --file /nonexistent/quota.json --max-staleness -1` exiting non-zero with an error message on stderr and zero writes to `HISTORY_PATH`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `python3 -m pytest -v tests/test_gemini_quota.py` showing every test node PASSED and 0 failed, plus `rg -n "^(import|from) (inspect|ast)\b" tests/test_gemini_quota.py` returning exit 1.
+  - Required evidence: paste `python3 -m pytest -v tests/test_gemini_quota.py` showing every test node PASSED and 0 failed (covering `--bar`, `--json` `burn_forecast`, `--gemini`/`--3p`, `--no-color`, `--plot`, `--context`, bounded `--watch`, stubbed `refresh_quota` + host fallback + expired-token fallback + env-gated OAuth refresh + token non-exposure, `AGY_QUOTA_FILE` override, missing/corrupt `--file`, and temp-home 6h/720-sample history pruning), plus `rg -n "^(import|from) (inspect|ast)\b" tests/test_gemini_quota.py` returning exit 1.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py` showing all hooks passed and the summary line of bare `python3 -m pytest` passing within budget.
+  - Required evidence: paste `python3 -m mypy agent_workflows`, `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py` (after staging) showing all hooks passed, `aw check-local-leaks` clean output, and the summary line of bare `python3 -m pytest` passing within budget with `tests/test_gemini_quota.py` executed in the core tier.
   - Observed evidence:
   - Result: pending
 
@@ -143,4 +175,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Once reviewed and approved, execute inside an isolated worktree, verify all `V-*` checks, and finalize with `aw ipd finalize`.
+Execution contract:
+- **Open questions**: `OQ-01` and `OQ-02` are resolved; `OQ-03` (`- Blocking: yes`, `- Finding: PR-001`) must be answered and resolved before approval or execution.
+- **Scope fence**: Declared work paths are listed in `- Scope-Paths:`. An out-of-scope edit must be justified at finalize with `--scope-reason`, and any declared path left unmodified must be acknowledged with `--scope-ack`.
+- **Safety stop**: Stop and report only on a genuinely unsafe condition (such as an unresolvable concurrent-edit conflict).
+- **Evidence honesty**: MUST paste the actual runner output for every check and test run; never claim passing results without running them after the final edit.
+- **Commit and push**: Commit only files you changed for this plan, limited to named paths, via `aw commit z403j4 -- <paths>`. Never use `git add -A`, `git commit -a`, or `--no-verify`, and never push without an explicit human directive.
+- **Lifecycle transition**: When `aw oc run` or `aw agy run` executes this plan, the runner performs the terminal finalize (`aw ipd finalize z403j4`); a hand executor runs `aw ipd finalize z403j4` itself (never a hand `git mv` to `executed/`).
