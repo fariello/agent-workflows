@@ -24,7 +24,7 @@ import os
 import re as _re
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple
+from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -5054,15 +5054,157 @@ _ITEM_FROM_SPEC_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(\S+)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
 
+def _meta_single_token(val: Any) -> Optional[str]:
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if (s and len(s.split()) == 1) else None
+
+
+def _meta_blocks_release_preserving_empty(val: Any) -> Optional[str]:
+    if val is None:
+        return None
+    s = str(val).strip()
+    if s == "":
+        return ""
+    return s if len(s.split()) == 1 else None
+
+
+def _meta_declared_id6(st: Any) -> Optional[str]:
+    if st is None or getattr(st, "id_derived", False):
+        return None
+    id6 = getattr(st, "id6", None)
+    return id6 if (id6 and _ID6_RE.fullmatch(str(id6))) else None
+
+
+def _meta_from_backlog(st: Any) -> Optional[str]:
+    if st is None:
+        return None
+    raw = (getattr(st, "fields", None) or {}).get("from_backlog")
+    if not raw:
+        return None
+    cls = _S.classify_source_link(str(raw))
+    return cls.id6 if cls.verdict == _S.SOURCE_LINK_USABLE else None
+
+
+def _meta_records_with_fields(
+    repo_root: Path,
+    meta_type: str,
+    *,
+    suffix: Optional[str] = None,
+    parent_dirs: Optional[FrozenSet[str]] = None,
+) -> List[Tuple[Path, Any]]:
+    """Query `artifact_meta` for `meta_type` records and load each record's typed fields."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    repo_root = Path(repo_root)
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return []
+
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    out: List[Tuple[Path, Any]] = []
+    seen_paths: Set[Path] = set()
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(type=meta_type, project_context=ctx)
+        for st in res.rows:
+            if not st.path or not st.id6:
+                continue
+            try:
+                abs_p = _meta.source_path(st.path, records_root, scan_repo)
+                resolved_p = abs_p.resolve()
+            except Exception:
+                continue
+            if resolved_p in seen_paths:
+                continue
+            if abs_p.name in _SKIP_NAMES or _core.is_ignored_path(
+                abs_p, repo_root, ignored_dirs
+            ):
+                continue
+            if suffix and not abs_p.name.endswith(suffix):
+                continue
+            if parent_dirs is not None and abs_p.parent.name not in parent_dirs:
+                continue
+            try:
+                full = _meta.read(st.id6, project_context=ctx)
+            except Exception:
+                continue
+            seen_paths.add(resolved_p)
+            out.append((abs_p, full))
+    out.sort(key=lambda item: str(item[0]))
+    return out
+
+
+def _meta_state_for_path(
+    repo_root: Path, path: Path, *, meta_type: Optional[str] = None
+) -> Optional[Any]:
+    """Return `artifact_meta.read` State for an on-disk record path, or None if uncached."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    repo_root = Path(repo_root)
+    try:
+        target_res = Path(path).resolve()
+    except OSError:
+        return None
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return None
+    filters: Dict[str, Any] = {"project_context": ctx}
+    if meta_type is not None:
+        filters["type"] = meta_type
+    rel_target: Optional[str] = None
+    try:
+        rel_target = _meta.stored_path(target_res, records_root, scan_repo)
+    except ValueError:
+        pass
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(**filters)
+        if rel_target is not None:
+            for st in res.rows:
+                if st.path == rel_target and st.id6:
+                    try:
+                        return _meta.read(st.id6, project_context=ctx)
+                    except Exception:
+                        return st
+        for st in res.rows:
+            if not st.path or not st.id6:
+                continue
+            try:
+                abs_res = _meta.source_path(st.path, records_root, scan_repo).resolve()
+            except Exception:
+                continue
+            if abs_res == target_res:
+                try:
+                    return _meta.read(st.id6, project_context=ctx)
+                except Exception:
+                    return st
+    return None
+
+
 def _from_backlog_value(text: str) -> Optional[str]:
     """Return the captured `- From-Backlog:` value, or None if absent, sentinel, or malformed (plan okp2o4)."""
-    m = _META_FROM_BACKLOG_RE.search(text)
-    if not m:
-        return None
-    cls = _S.classify_source_link(m.group(1))
-    if cls.verdict == _S.SOURCE_LINK_USABLE:
-        return cls.id6
-    return None
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text)
+    return _meta_from_backlog(st)
 
 
 _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
@@ -5170,12 +5312,18 @@ def _evidence_spec_unshipped(repo_root: Path, evidence: str) -> bool:
     if len(rel) > prefix_len + 1 and rel[prefix_len] != "implemented":
         return True
 
+    st = _meta_state_for_path(repo_root, candidate, meta_type="spec")
+    if st is not None:
+        return st.status != "implemented"
+
     try:
         text = candidate.read_text(encoding="utf-8")
     except OSError:
         return True
 
-    return _status_meta(text) != "implemented"
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.read_text(text, record_type="spec").status != "implemented"
 
 
 def _iter_plan_ipds(repo_root: Path):
@@ -5238,10 +5386,9 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     out: List[Tuple[Path, str]] = []
     if not item_id6:
         return out
-    for p, text in _iter_plan_ipds(repo_root):
-        val = _from_backlog_value(text)
-        if val == item_id6:
-            out.append((p, _read_blocks_release(text) or ""))
+    for p, st in _meta_records_with_fields(repo_root, "ipd", suffix=".ipd.md"):
+        if _meta_from_backlog(st) == item_id6:
+            out.append((p, _meta_single_token(st.fields.get("blocks_release")) or ""))
     return out
 
 
@@ -5256,10 +5403,9 @@ def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     out: List[Tuple[Path, str]] = []
     if not item_id6:
         return out
-    for p, text in _iter_spec_records(repo_root):
-        val = _from_backlog_value(text)
-        if val == item_id6:
-            out.append((p, _read_blocks_release(text) or ""))
+    for p, st in _meta_records_with_fields(repo_root, "spec", suffix=".spec.md"):
+        if _meta_from_backlog(st) == item_id6:
+            out.append((p, _meta_single_token(st.fields.get("blocks_release")) or ""))
     return out
 
 
@@ -5742,11 +5888,19 @@ def _carrier_is_executed(path: Path) -> bool:
     if p.name.endswith(".ipd.md"):
         return "executed" in p.parts
     if p.name.endswith(".spec.md"):
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import project_context as _proj_ctx
+
+        owner = _proj_ctx.record_owner_root(p)
+        if owner is not None:
+            st = _meta_state_for_path(owner, p, meta_type="spec")
+            if st is not None:
+                return st.status == "implemented"
         try:
             text = p.read_text(encoding="utf-8")
         except OSError:
             return False
-        return _status_meta(text) == "implemented"
+        return _meta.read_text(text, record_type="spec").status == "implemented"
     return False
 
 
@@ -5816,6 +5970,7 @@ def evaluate_blocking_close(
     evidence: Optional[str] = None,
     *,
     item_text: Optional[str] = None,
+    item_state: Optional[Any] = None,
     prior_priority: Optional[str] = None,
     lane_carrier_ref: Optional[str] = None,
     lane_carrier_path: Optional[str] = None,
@@ -5838,17 +5993,23 @@ def evaluate_blocking_close(
       priority-demote of a blocker (prior_priority outranks the new one): WARN (allowed).
       everything else: ok (unchecked).
     """
+    from agent_workflows import artifact_meta as _meta
+
     repo_root = Path(repo_root)
-    text = (
-        item_text
-        if item_text is not None
-        else Path(item_path).read_text(encoding="utf-8")
-    )
-    item_id6 = _read_item_id(text)
-    blocks_release = _read_blocks_release(text)
-    # gh409m byzkr7 E-05 (PR-002): bound Close-Evidence reader to metadata region so body-quoted bullet is ignored.
-    mce = _META_CLOSE_EVIDENCE_RE.search(_metadata_region(text))
-    item_close_evidence = mce.group(1) if mce else None
+    st: Any = item_state
+    if st is None:
+        if item_text is not None:
+            st = _meta.read_text(item_text, record_type="backlog")
+        else:
+            st = _meta_state_for_path(repo_root, Path(item_path), meta_type="backlog")
+            if st is None:
+                st = _meta.read_text(
+                    Path(item_path).read_text(encoding="utf-8"), record_type="backlog"
+                )
+    item_id6 = _meta_declared_id6(st)
+    blocks_release = _meta_single_token((st.fields or {}).get("blocks_release"))
+    raw_ce = (st.fields or {}).get("close_evidence")
+    item_close_evidence = str(raw_ce).strip() or None if raw_ce else None
 
     # Resolve lane carrier override pair if provided
     ov_ref = lane_carrier_ref
@@ -6046,8 +6207,7 @@ def evaluate_blocking_close(
         and prior_priority is not None
         and target_status not in ("done", "parked")
     ):
-        mp = _ITEM_PRIORITY_RE.search(text)
-        new_priority = mp.group(1) if mp else None
+        new_priority = _meta_single_token((st.fields or {}).get("priority"))
         pr = _PRIORITY_RANK.get((prior_priority or "").lower())
         nr = _PRIORITY_RANK.get((new_priority or "").lower())
         if pr is not None and nr is not None and nr < pr:
@@ -6140,22 +6300,56 @@ def _from_backlog_carrier_index(
     kept DISTINCT from the empty string so a caller can tell "no gate field" from a malformed one.
     """
     index: Dict[str, List[Tuple[Path, Optional[str]]]] = {}
-    for iterator in (_iter_plan_ipds, _iter_spec_records):
-        for p, text in iterator(repo_root):
-            val = _from_backlog_value(text)
+    for meta_type, suffix in (("ipd", ".ipd.md"), ("spec", ".spec.md")):
+        for p, st in _meta_records_with_fields(repo_root, meta_type, suffix=suffix):
+            val = _meta_from_backlog(st)
             if not val:
                 continue
-            index.setdefault(val, []).append((p, _read_blocks_release(text)))
+            index.setdefault(val, []).append(
+                (
+                    p,
+                    _meta_blocks_release_preserving_empty(
+                        st.fields.get("blocks_release")
+                    ),
+                )
+            )
     return index
 
 
-def _item_close_date(item_text: str) -> Optional[str]:
+def _item_close_date(
+    item_text: Optional[str] = None,
+    *,
+    repo_root: Optional[Path] = None,
+    item_id6: Optional[str] = None,
+) -> Optional[str]:
     """Derive the close date (compact YYYYMMDD) for a backlog item from its workflow history (b24o3q E-02).
 
-    Uses `attention_contract.history_block` to read history section records and
-    `attention_contract.last_history_at` to extract the newest record date.
-    Returns compact YYYYMMDD, or None if no parseable date is found.
+    Reads events via `artifact_meta.history(item_id6)` when repository context is provided,
+    extracting the newest record date and formatting compact YYYYMMDD (D-6). Falls back to
+    `attention_contract.history_block`/`last_history_at` when called directly on in-memory text.
     """
+    if repo_root is not None and item_id6 is not None:
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import project_context as _proj_ctx
+
+        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+        try:
+            events = _meta.history(item_id6, project_context=ctx)
+        except Exception:
+            events = []
+        dates: List[str] = []
+        for ev in events:
+            day = ev.get("observed_day")
+            if not day and ev.get("at"):
+                day = str(ev["at"])[:10]
+            if day:
+                compact = str(day).replace("-", "").strip()
+                if len(compact) >= 8 and compact[:8].isdigit():
+                    dates.append(compact[:8])
+        return max(dates) if dates else None
+
+    if not item_text:
+        return None
     from agent_workflows import attention_contract as _ac
 
     records = _ac.history_block(item_text).records
@@ -6665,172 +6859,179 @@ def check_release_gate_consistency(
     # Rule 1 at-rest arm (gateatrest b24o3q E-03) and grandfathered advisory arm (heh05a E-03):
     # judges committed done backlog items on disk against the stamped cutover date, deduplicating
     # against the staged arm and each other by location.
-    if at_rest or grandfathered:
-        from agent_workflows import config as _config
-
-        cutover = _config.resolve_cutover_date(
-            repo_root, "release_gate_at_rest", compact=True
-        )
-        from agent_workflows import backlog as _backlog
-
-        at_rest_candidates: List[Tuple[Path, str, str]] = []
-        grandfathered_candidates: List[Tuple[Path, str, str, Optional[str]]] = []
-        for item_p in _backlog._iter_items(repo_root):
-            try:
-                rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
-            except ValueError:
-                rel_path = str(item_p).replace("\\", "/")
-            if rel_path in seen_blocking_locations:
-                continue
-            try:
-                item_txt = item_p.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            if _status_meta(item_txt) != "done":
-                continue
-            if not _read_blocks_release(item_txt):
-                continue
-            cdate = _item_close_date(item_txt)
-            if (
-                at_rest
-                and cutover is not None
-                and cdate is not None
-                and cdate >= cutover
-            ):
-                at_rest_candidates.append((item_p, rel_path, item_txt))
-            elif grandfathered:
-                # The grandfathered arm is the complement:
-                # When cutover is None: every done+gated item is grandfathered/exempt from at_rest
-                # When cutover is not None: items with cdate is None or cdate < cutover
-                if cutover is None or cdate is None or cdate < cutover:
-                    grandfathered_candidates.append((item_p, rel_path, item_txt, cdate))
-
-        if at_rest_candidates or grandfathered_candidates:
-            shared_carrier_idx = _from_backlog_carrier_index(repo_root)
-            release_cache_gf: Dict[str, Optional[Path]] = {}
-
-            if at_rest_candidates:
-                for item_p, rel_path, item_txt in at_rest_candidates:
-                    verdict = evaluate_blocking_close(
-                        repo_root,
-                        item_p,
-                        "done",
-                        item_text=item_txt,
-                        carrier_index=shared_carrier_idx,
-                    )
-                    if not verdict.legitimate and verdict.severity == "error":
-                        seen_blocking_locations.add(rel_path)
-                        drift.append(
-                            _core.Drift(
-                                rel_path,
-                                "check.blocking-item-closed-without-gate",
-                                (
-                                    "a done backlog item still carries Blocks-Release with no handoff "
-                                    "(From-Backlog plan), resolvable evidence, or de-gate; close it via "
-                                    "`aw backlog set done` (which enforces the gate) rather than by hand"
-                                ),
-                            )
-                        )
-
-            if grandfathered_candidates:
-                for item_p, rel_path, item_txt, cdate in grandfathered_candidates:
-                    if rel_path in seen_blocking_locations:
-                        continue
-                    verdict = evaluate_blocking_close(
-                        repo_root,
-                        item_p,
-                        "done",
-                        item_text=item_txt,
-                        carrier_index=shared_carrier_idx,
-                    )
-                    if not verdict.legitimate and verdict.severity == "error":
-                        seen_blocking_locations.add(rel_path)
-                        item_id = _read_item_id(item_txt)
-                        blocks_rel = _read_blocks_release(item_txt) or ""
-                        carrier_items = (
-                            shared_carrier_idx.get(item_id, []) if item_id else []
-                        )
-                        same_gate_carriers = [
-                            p
-                            for p, c_br in carrier_items
-                            if _same_release(
-                                repo_root, c_br, blocks_rel, cache=release_cache_gf
-                            )
-                        ]
-                        if cutover is not None:
-                            boundary_desc = (
-                                f"closed on {cdate} before cutover {cutover}"
-                                if cdate
-                                else f"undatable close predating cutover {cutover}"
-                            )
-                        else:
-                            boundary_desc = "no cutover configured"
-
-                        if same_gate_carriers:
-                            if all(_carrier_is_executed(p) for p in same_gate_carriers):
-                                cohort_desc = "same-gate carrier(s) executed but a sibling carrier is not"
-                            else:
-                                cohort_desc = (
-                                    "same-gate carrier(s) present but not all executed"
-                                )
-                        else:
-                            cohort_desc = "no same-gate carrier"
-
-                        detail = (
-                            f"grandfathered: done backlog item carries Blocks-Release {blocks_rel!r} "
-                            f"({boundary_desc}; cohort: {cohort_desc})"
-                        )
-                        drift.append(
-                            _core.Drift(
-                                rel_path,
-                                "check.blocking-close-grandfathered",
-                                detail,
-                                severity="info",
-                            )
-                        )
-
-    # Rule 2: From-Backlog plan whose Blocks-Release differs from the backlog item's.
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
 
-    item_gate: Dict[str, Tuple[str, str]] = {}  # id6 -> (blocks_release, item_path)
-    for f in _backlog._iter_items(repo_root):
-        try:
-            text = f.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item_id = _read_item_id(text)
-        gate = _read_blocks_release(text)
-        if item_id and gate:
-            item_gate[item_id] = (gate, str(f))
-    # bklgrad Order 01 (v58bvy) E-07: scan PLANS AND SPECS. A spec is now an accepted HANDOFF gate
-    # carrier (E-06), so the consistency rule must cover it too or the checker and the setter diverge:
-    # a spec could carry a mismatched gate, be accepted as a carrier by nothing, and never be flagged.
-    #
-    # nobugship rgaasb E-01: the walk itself now comes from the shared `_from_backlog_carrier_index`
-    # so this rule and `check_live_bug_gate` have ONE definition of a carrier between them.
-    release_cache: Dict[str, Optional[Path]] = {}
-    for target_id6, carriers in _from_backlog_carrier_index(repo_root).items():
-        if target_id6 not in item_gate:
-            continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
-        item_br, _item_path = item_gate[target_id6]
-        for p, carrier_br in carriers:
-            # nobugship rgaasb: SKIP A TERMINAL CARRIER (parent qmgn12 OQ-03 ruling). See the
-            # docstring: a finished plan's gate is history, not a live claim, and it cannot drop a
-            # future obligation.
-            if is_retired(p):
-                continue
-            if not _same_release(repo_root, carrier_br, item_br, cache=release_cache):
-                kind = "spec" if str(p).endswith(".spec.md") else "plan"
-                drift.append(
-                    _core.Drift(
-                        str(p),
-                        "check.from-backlog-gate-mismatch",
-                        (
-                            f"From-Backlog {kind}'s Blocks-Release {carrier_br!r} does not match "
-                            f"backlog item {target_id6}'s Blocks-Release {item_br!r}"
-                        ),
+    backlog_states = _meta_records_with_fields(
+        repo_root,
+        "backlog",
+        suffix=".md",
+        parent_dirs=frozenset(_backlog.STATUS_DIRS),
+    )
+
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        if at_rest or grandfathered:
+            from agent_workflows import config as _config
+
+            cutover = _config.resolve_cutover_date(
+                repo_root, "release_gate_at_rest", compact=True
+            )
+
+            at_rest_candidates: List[Tuple[Path, str, Any]] = []
+            grandfathered_candidates: List[Tuple[Path, str, Any, Optional[str]]] = []
+            for item_p, st in backlog_states:
+                try:
+                    rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
+                except ValueError:
+                    rel_path = str(item_p).replace("\\", "/")
+                if rel_path in seen_blocking_locations:
+                    continue
+                if st.status != "done":
+                    continue
+                if not _meta_single_token((st.fields or {}).get("blocks_release")):
+                    continue
+                cdate = _item_close_date(repo_root=repo_root, item_id6=st.id6)
+                if (
+                    at_rest
+                    and cutover is not None
+                    and cdate is not None
+                    and cdate >= cutover
+                ):
+                    at_rest_candidates.append((item_p, rel_path, st))
+                elif grandfathered:
+                    # The grandfathered arm is the complement:
+                    # When cutover is None: every done+gated item is grandfathered/exempt from at_rest
+                    # When cutover is not None: items with cdate is None or cdate < cutover
+                    if cutover is None or cdate is None or cdate < cutover:
+                        grandfathered_candidates.append((item_p, rel_path, st, cdate))
+
+            if at_rest_candidates or grandfathered_candidates:
+                shared_carrier_idx = _from_backlog_carrier_index(repo_root)
+                release_cache_gf: Dict[str, Optional[Path]] = {}
+
+                if at_rest_candidates:
+                    for item_p, rel_path, st in at_rest_candidates:
+                        verdict = evaluate_blocking_close(
+                            repo_root,
+                            item_p,
+                            "done",
+                            item_state=st,
+                            carrier_index=shared_carrier_idx,
+                        )
+                        if not verdict.legitimate and verdict.severity == "error":
+                            seen_blocking_locations.add(rel_path)
+                            drift.append(
+                                _core.Drift(
+                                    rel_path,
+                                    "check.blocking-item-closed-without-gate",
+                                    (
+                                        "a done backlog item still carries Blocks-Release with no handoff "
+                                        "(From-Backlog plan), resolvable evidence, or de-gate; close it via "
+                                        "`aw backlog set done` (which enforces the gate) rather than by hand"
+                                    ),
+                                )
+                            )
+
+                if grandfathered_candidates:
+                    for item_p, rel_path, st, cdate in grandfathered_candidates:
+                        if rel_path in seen_blocking_locations:
+                            continue
+                        verdict = evaluate_blocking_close(
+                            repo_root,
+                            item_p,
+                            "done",
+                            item_state=st,
+                            carrier_index=shared_carrier_idx,
+                        )
+                        if not verdict.legitimate and verdict.severity == "error":
+                            seen_blocking_locations.add(rel_path)
+                            item_id = _meta_declared_id6(st)
+                            blocks_rel = (
+                                _meta_single_token(
+                                    (st.fields or {}).get("blocks_release")
+                                )
+                                or ""
+                            )
+                            carrier_items = (
+                                shared_carrier_idx.get(item_id, []) if item_id else []
+                            )
+                            same_gate_carriers = [
+                                p
+                                for p, c_br in carrier_items
+                                if _same_release(
+                                    repo_root, c_br, blocks_rel, cache=release_cache_gf
+                                )
+                            ]
+                            if cutover is not None:
+                                boundary_desc = (
+                                    f"closed on {cdate} before cutover {cutover}"
+                                    if cdate
+                                    else f"undatable close predating cutover {cutover}"
+                                )
+                            else:
+                                boundary_desc = "no cutover configured"
+
+                            if same_gate_carriers:
+                                if all(
+                                    _carrier_is_executed(p) for p in same_gate_carriers
+                                ):
+                                    cohort_desc = "same-gate carrier(s) executed but a sibling carrier is not"
+                                else:
+                                    cohort_desc = "same-gate carrier(s) present but not all executed"
+                            else:
+                                cohort_desc = "no same-gate carrier"
+
+                            detail = (
+                                f"grandfathered: done backlog item carries Blocks-Release {blocks_rel!r} "
+                                f"({boundary_desc}; cohort: {cohort_desc})"
+                            )
+                            drift.append(
+                                _core.Drift(
+                                    rel_path,
+                                    "check.blocking-close-grandfathered",
+                                    detail,
+                                    severity="info",
+                                )
+                            )
+
+        # Rule 2: From-Backlog plan whose Blocks-Release differs from the backlog item's.
+        item_gate: Dict[str, Tuple[str, str]] = {}  # id6 -> (blocks_release, item_path)
+        for f, st in backlog_states:
+            item_id = _meta_declared_id6(st)
+            gate = _meta_single_token((st.fields or {}).get("blocks_release"))
+            if item_id and gate:
+                item_gate[item_id] = (gate, str(f))
+        # bklgrad Order 01 (v58bvy) E-07: scan PLANS AND SPECS. A spec is now an accepted HANDOFF gate
+        # carrier (E-06), so the consistency rule must cover it too or the checker and the setter diverge:
+        # a spec could carry a mismatched gate, be accepted as a carrier by nothing, and never be flagged.
+        #
+        # nobugship rgaasb E-01: the walk itself now comes from the shared `_from_backlog_carrier_index`
+        # so this rule and `check_live_bug_gate` have ONE definition of a carrier between them.
+        release_cache: Dict[str, Optional[Path]] = {}
+        for target_id6, carriers in _from_backlog_carrier_index(repo_root).items():
+            if target_id6 not in item_gate:
+                continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
+            item_br, _item_path = item_gate[target_id6]
+            for p, carrier_br in carriers:
+                # nobugship rgaasb: SKIP A TERMINAL CARRIER (parent qmgn12 OQ-03 ruling). See the
+                # docstring: a finished plan's gate is history, not a live claim, and it cannot drop a
+                # future obligation.
+                if is_retired(p):
+                    continue
+                if not _same_release(
+                    repo_root, carrier_br, item_br, cache=release_cache
+                ):
+                    kind = "spec" if str(p).endswith(".spec.md") else "plan"
+                    drift.append(
+                        _core.Drift(
+                            str(p),
+                            "check.from-backlog-gate-mismatch",
+                            (
+                                f"From-Backlog {kind}'s Blocks-Release {carrier_br!r} does not match "
+                                f"backlog item {target_id6}'s Blocks-Release {item_br!r}"
+                            ),
+                        )
                     )
-                )
     return drift
 
 
@@ -6888,6 +7089,7 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
     (backlog `59t9x5` was filed `chore` and reclassified `bug` by the maintainer). This is a strict
     improvement over nothing; it is NOT a completeness claim.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import attention_contract as _A
     from agent_workflows import backlog as _backlog
     from agent_workflows import config as _config
@@ -6898,59 +7100,62 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
     drift: List[_core.Drift] = []
     carrier_index: Optional[Dict[str, List[Tuple[Path, Optional[str]]]]] = None
 
-    for f in _backlog._iter_items(repo_root):
-        try:
-            text = f.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item = _backlog.parse_item(text)
-        if item.kind not in gating_kinds:
-            continue
-        if (item.status or "") not in live:
-            continue
-        if item.blocks_release:
-            continue
-        if (
-            item.release_exempt_kind
-            and item.release_exempt_ref
-            and item.release_exempt_kind in _A.GATE_KINDS
-            and _A.validate_gate_ref(item.release_exempt_kind, item.release_exempt_ref)
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        for f, st in _meta_records_with_fields(
+            repo_root,
+            "backlog",
+            suffix=".md",
+            parent_dirs=frozenset(_backlog.STATUS_DIRS),
         ):
-            continue
-        # Only now is the carrier index needed, so a clean tree never pays for the walk.
-        if carrier_index is None:
-            carrier_index = _from_backlog_carrier_index(repo_root)
-        if item.id and any(
-            carrier_br for _p, carrier_br in carrier_index.get(item.id, ())
-        ):
-            continue  # HANDOFF: a From-Backlog carrier holds the gate (AGENTS.md)
-        # `enrich_drift` with a structured `recovery`, matching the family's shape rather than
-        # embedding the fix in the detail text: `recovery` is the field the human renderer prints as
-        # the Fix line and the machine record carries verbatim, so a fix written into `detail` is
-        # invisible where a reader looks for it (driven: the generic "inspect ... frontmatter"
-        # fallback was printed instead).
-        selector = item.id or f.name
-        drift.append(
-            enrich_drift(
-                _core.Drift(
-                    str(f),
-                    _LIVE_BUG_GATE_RULE,
-                    (
-                        f"a LIVE (status {item.status!r}) Work-Kind: {item.kind} item carries no "
-                        f"- Blocks-Release:; we do not ship known bugs, so every live {item.kind} item must "
-                        "gate a release (AGENTS.md, 'Every live bug gates the next release')"
+            fields = st.fields or {}
+            item_kind = _meta_single_token(fields.get("work_kind"))
+            if item_kind not in gating_kinds:
+                continue
+            item_status = st.status or ""
+            if item_status not in live:
+                continue
+            if _meta_single_token(fields.get("blocks_release")):
+                continue
+            exempt_kind = _meta_single_token(fields.get("release_exempt_kind"))
+            raw_exempt_ref = fields.get("release_exempt_ref")
+            exempt_ref = str(raw_exempt_ref).strip() or None if raw_exempt_ref else None
+            if (
+                exempt_kind
+                and exempt_ref
+                and exempt_kind in _A.GATE_KINDS
+                and _A.validate_gate_ref(exempt_kind, exempt_ref)
+            ):
+                continue
+            # Only now is the carrier index needed, so a clean tree never pays for the walk.
+            if carrier_index is None:
+                carrier_index = _from_backlog_carrier_index(repo_root)
+            item_id = _meta_declared_id6(st)
+            if item_id and any(
+                carrier_br for _p, carrier_br in carrier_index.get(item_id, ())
+            ):
+                continue  # HANDOFF: a From-Backlog carrier holds the gate (AGENTS.md)
+            selector = item_id or f.name
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(f),
+                        _LIVE_BUG_GATE_RULE,
+                        (
+                            f"a LIVE (status {item_status!r}) Work-Kind: {item_kind} item carries no "
+                            f"- Blocks-Release:; we do not ship known bugs, so every live {item_kind} item must "
+                            "gate a release (AGENTS.md, 'Every live bug gates the next release')"
+                        ),
                     ),
-                ),
-                observed=f"Work-Kind: {item.kind}, Status: {item.status}, no Blocks-Release",
-                required="- Blocks-Release: <release id6 or 'next'>, or a From-Backlog carrier "
-                "holding the gate",
-                recovery=(
-                    f"aw backlog set {item.status} {selector} --blocks-release next"
-                    "  (or hand the gate to the plan/spec that graduated it, or file an explicit "
-                    "exemption with - Release-Exempt-Kind: and - Release-Exempt-Ref: if this bug genuinely does not gate the release)"
-                ),
+                    observed=f"Work-Kind: {item_kind}, Status: {item_status}, no Blocks-Release",
+                    required="- Blocks-Release: <release id6 or 'next'>, or a From-Backlog carrier "
+                    "holding the gate",
+                    recovery=(
+                        f"aw backlog set {item_status} {selector} --blocks-release next"
+                        "  (or hand the gate to the plan/spec that graduated it, or file an explicit "
+                        "exemption with - Release-Exempt-Kind: and - Release-Exempt-Ref: if this bug genuinely does not gate the release)"
+                    ),
+                )
             )
-        )
     return drift
 
 
@@ -7024,71 +7229,66 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         probably be closed `done` via the handoff path.
     """
     repo_root = Path(repo_root)
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
 
-    # Build the plan handoff index once. Calling `find_from_backlog_plans` for every
-    # open blocker re-walked the complete plans tree per item, even when no warning
-    # existed. The warning needs only a source backlog id6 and its inherited release
-    # gate, so this index preserves its plan-only semantics without the repeated scans.
-    # Note: this index is PLANS-ONLY (_iter_plan_ipds plus From-Backlog), so a spec
-    # carrier produces no warning here. This asymmetry is deliberate (E-05): the predicate
-    # is spec-aware, but widening this advisory is a separate behavior change.
-    # We record whether ALL same-gate plans are executed and whether ALL plans are executed (closescope 2a6phj E-05, anycarrier 2o5wka E-05, kntbbc jykyqb E-05).
     plan_gates_by_backlog: Dict[str, Dict[str, bool]] = {}
     all_plans_executed_by_backlog: Dict[str, bool] = {}
-    for _p, text in _iter_plan_ipds(repo_root):
-        backlog_id = _from_backlog_value(text)
-        if not backlog_id:
-            continue
-        gate = _read_blocks_release(text) or ""
-        is_exec = _carrier_is_executed(_p)
-        gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
-        gates_map[gate] = gates_map.get(gate, True) and is_exec
-        all_plans_executed_by_backlog[backlog_id] = (
-            all_plans_executed_by_backlog.get(backlog_id, True) and is_exec
-        )
-
     warnings: List[_core.Drift] = []
-    for f in _backlog._iter_items(repo_root):
-        if f.parent.name != "open":
-            continue
-        try:
-            text = f.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item_gate = _read_blocks_release(text)
-        _id6 = _read_item_id(text)
-        if not item_gate or not _id6:
-            continue
-        gates_map = plan_gates_by_backlog.get(_id6)
-        all_plans_exec = all_plans_executed_by_backlog.get(_id6, False)
-        if gates_map is not None and item_gate in gates_map:
-            if gates_map[item_gate] and all_plans_exec:
-                # Executed carrier: remedy advises closing done with the corrected --status spelling (F-9)
-                warnings.append(
-                    _core.Drift(
-                        str(f),
-                        "check.orphaned-live-blocker",
-                        (
-                            "an open release-blocking item is already graduated to a From-Backlog "
-                            "plan; close it `done` (the gate is preserved via handoff).\n"
-                            f"    Fix: aw backlog set {_id6} --status done"
-                        ),
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        for _p, st in _meta_records_with_fields(repo_root, "ipd", suffix=".ipd.md"):
+            backlog_id = _meta_from_backlog(st)
+            if not backlog_id:
+                continue
+            gate = _meta_single_token((st.fields or {}).get("blocks_release")) or ""
+            is_exec = _carrier_is_executed(_p)
+            gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
+            gates_map[gate] = gates_map.get(gate, True) and is_exec
+            all_plans_executed_by_backlog[backlog_id] = (
+                all_plans_executed_by_backlog.get(backlog_id, True) and is_exec
+            )
+
+        for f, st in _meta_records_with_fields(
+            repo_root,
+            "backlog",
+            suffix=".md",
+            parent_dirs=frozenset(_backlog.STATUS_DIRS),
+        ):
+            if f.parent.name != "open":
+                continue
+            item_gate = _meta_single_token((st.fields or {}).get("blocks_release"))
+            _id6 = _meta_declared_id6(st)
+            if not item_gate or not _id6:
+                continue
+            gates_map = plan_gates_by_backlog.get(_id6)
+            all_plans_exec = all_plans_executed_by_backlog.get(_id6, False)
+            if gates_map is not None and item_gate in gates_map:
+                if gates_map[item_gate] and all_plans_exec:
+                    # Executed carrier: remedy advises closing done with the corrected --status spelling (F-9)
+                    warnings.append(
+                        _core.Drift(
+                            str(f),
+                            "check.orphaned-live-blocker",
+                            (
+                                "an open release-blocking item is already graduated to a From-Backlog "
+                                "plan; close it `done` (the gate is preserved via handoff).\n"
+                                f"    Fix: aw backlog set {_id6} --status done"
+                            ),
+                        )
                     )
-                )
-            else:
-                # Pending carrier: remedy advises graduating the item until the carrier executes
-                warnings.append(
-                    _core.Drift(
-                        str(f),
-                        "check.orphaned-live-blocker",
-                        (
-                            "an open release-blocking item is graduated to a pending From-Backlog "
-                            "plan; keep it `graduated` until the plan executes.\n"
-                            f"    Fix: aw backlog set {_id6} --status graduated"
-                        ),
+                else:
+                    # Pending carrier: remedy advises graduating the item until the carrier executes
+                    warnings.append(
+                        _core.Drift(
+                            str(f),
+                            "check.orphaned-live-blocker",
+                            (
+                                "an open release-blocking item is graduated to a pending From-Backlog "
+                                "plan; keep it `graduated` until the plan executes.\n"
+                                f"    Fix: aw backlog set {_id6} --status graduated"
+                            ),
+                        )
                     )
-                )
     return warnings
 
 
@@ -7911,76 +8111,76 @@ def check_decision_ref_dangling(repo_root: Path) -> List[_core.Drift]:
     except Exception:
         return drift
 
-    # 1. Backlog items
-    try:
-        from agent_workflows import backlog as _backlog
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import backlog as _backlog
 
-        backlog_items = list(_backlog._iter_items(repo_root))
-    except Exception:
-        backlog_items = []
-
-    for path in backlog_items:
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        # 1. Backlog items
         try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item = _backlog.parse_item(text)
-        if item.gate_kind != "decision":
-            continue
-        ref = item.gate_ref
-        if not ref or not _A.validate_gate_ref("decision", ref):
-            continue
-        if ref not in known_decision_ids:
-            drift.append(
-                enrich_drift(
-                    _core.Drift(
-                        str(path),
-                        _DECISION_REF_DANGLING_RULE,
-                        f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
-                    ),
-                    observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
-                    required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
-                    recovery=(
-                        f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
-                        "or remove/update the gate"
-                    ),
-                )
+            backlog_items = _meta_records_with_fields(
+                repo_root,
+                "backlog",
+                suffix=".md",
+                parent_dirs=frozenset(_backlog.STATUS_DIRS),
             )
+        except Exception:
+            backlog_items = []
 
-    # 2. Specs
-    try:
-        from agent_workflows import specs as _specs
+        for path, st in backlog_items:
+            fields = st.fields or {}
+            if _meta_single_token(fields.get("gate_kind")) != "decision":
+                continue
+            raw_ref = fields.get("gate_ref")
+            ref = str(raw_ref).strip() or None if raw_ref else None
+            if not ref or not _A.validate_gate_ref("decision", ref):
+                continue
+            if ref not in known_decision_ids:
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(path),
+                            _DECISION_REF_DANGLING_RULE,
+                            f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
+                        ),
+                        observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
+                        required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
+                        recovery=(
+                            f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
+                            "or remove/update the gate"
+                        ),
+                    )
+                )
 
-        spec_files = list(_specs._spec_files(repo_root))
-    except Exception:
-        spec_files = []
-
-    for path in spec_files:
+        # 2. Specs
         try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        kind, ref, _summary = _specs._read_gate(_specs._lines(text))
-        if kind != "decision":
-            continue
-        if not ref or not _A.validate_gate_ref("decision", ref):
-            continue
-        if ref not in known_decision_ids:
-            drift.append(
-                enrich_drift(
-                    _core.Drift(
-                        str(path),
-                        _DECISION_REF_DANGLING_RULE,
-                        f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
-                    ),
-                    observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
-                    required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
-                    recovery=(
-                        f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
-                        "or remove/update the gate"
-                    ),
+            spec_files = _meta_records_with_fields(repo_root, "spec", suffix=".md")
+        except Exception:
+            spec_files = []
+
+        for path, st in spec_files:
+            fields = st.fields or {}
+            if _meta_single_token(fields.get("gate_kind")) != "decision":
+                continue
+            raw_ref = fields.get("gate_ref")
+            ref = str(raw_ref).strip() or None if raw_ref else None
+            if not ref or not _A.validate_gate_ref("decision", ref):
+                continue
+            if ref not in known_decision_ids:
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(path),
+                            _DECISION_REF_DANGLING_RULE,
+                            f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
+                        ),
+                        observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
+                        required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
+                        recovery=(
+                            f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
+                            "or remove/update the gate"
+                        ),
+                    )
                 )
-            )
 
     return drift
 
@@ -8091,52 +8291,52 @@ def _iter_live_gate_carriers(
     except Exception:
         return
 
-    # 1. Backlog items at status "blocked"
-    try:
-        from agent_workflows import backlog as _backlog
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import backlog as _backlog
 
-        backlog_items = list(_backlog._iter_items(repo_root))
-    except Exception:
-        backlog_items = []
-
-    for path in backlog_items:
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        # 1. Backlog items at status "blocked"
         try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item = _backlog.parse_item(text)
-        if item.status != "blocked":
-            continue
-        kind = item.gate_kind
-        if kind not in ("artifact", "todo"):
-            continue
-        ref = item.gate_ref
-        if not ref or not _A.validate_gate_ref(kind, ref):
-            continue
-        yield path, kind, ref
+            backlog_items = _meta_records_with_fields(
+                repo_root,
+                "backlog",
+                suffix=".md",
+                parent_dirs=frozenset(_backlog.STATUS_DIRS),
+            )
+        except Exception:
+            backlog_items = []
 
-    # 2. Specs at status "deferred"
-    try:
-        from agent_workflows import specs as _specs
+        for path, st in backlog_items:
+            if st.status != "blocked":
+                continue
+            fields = st.fields or {}
+            kind = _meta_single_token(fields.get("gate_kind"))
+            if kind not in ("artifact", "todo"):
+                continue
+            raw_ref = fields.get("gate_ref")
+            ref = str(raw_ref).strip() or None if raw_ref else None
+            if not ref or not _A.validate_gate_ref(kind, ref):
+                continue
+            yield path, kind, ref
 
-        spec_files = list(_specs._spec_files(repo_root))
-    except Exception:
-        spec_files = []
-
-    for path in spec_files:
+        # 2. Specs at status "deferred"
         try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        lines = _specs._lines(text)
-        if _specs._read_status(lines) != "deferred":
-            continue
-        kind, ref, _summary = _specs._read_gate(lines)
-        if kind not in ("artifact", "todo"):
-            continue
-        if not ref or not _A.validate_gate_ref(kind, ref):
-            continue
-        yield path, kind, ref
+            spec_files = _meta_records_with_fields(repo_root, "spec", suffix=".md")
+        except Exception:
+            spec_files = []
+
+        for path, st in spec_files:
+            if st.status != "deferred":
+                continue
+            fields = st.fields or {}
+            kind = _meta_single_token(fields.get("gate_kind"))
+            if kind not in ("artifact", "todo"):
+                continue
+            raw_ref = fields.get("gate_ref")
+            ref = str(raw_ref).strip() or None if raw_ref else None
+            if not ref or not _A.validate_gate_ref(kind, ref):
+                continue
+            yield path, kind, ref
 
 
 def check_gate_ref_dangling(

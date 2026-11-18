@@ -4413,9 +4413,15 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
     state_root = Path(ctx.logical_roots["state"])
 
     scan_repo = _scan_repo_root(ctx, records_root)
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
+        _maybe_check_freshness(
+            conn,
+            records_root,
+            state_root,
+            project_context=ctx,
+            repo_root=scan_repo,
+        )
 
         # Check if we have events
         events = conn.execute(
@@ -4495,7 +4501,8 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
 
         return legacy_rows
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def resolve(
