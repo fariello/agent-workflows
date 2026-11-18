@@ -114,6 +114,7 @@ flowchart TD
   - Carrier: 9zcuyh
 - Moved to b3eilr (round-3 split 2026-11-09 per research nj8zdp guidance): the `support.CONFORMING_ORCHESTRATOR` conversion and fixture deletion from E-10.
   - Carrier: b3eilr
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-217-b3eilr-generate-the-conforming-orchestrator-fixture-from-the-shared.ipd.md
 - The test-module batches G1 to G6 and the first half of G7.
   - Carrier: x05v02
 - The switch-point proof, the F-06 census, the second half of G7 with the shared helpers, and the full-suite comparison.
