@@ -1682,3 +1682,309 @@ class TestCheckEngineReadersOrder29:
         assert Path(hits[0]["location"]).name == spec_p.name
         direct = check_engine.check_spec_criteria_uncovered(repo)
         assert len(direct) == 1 and "AC-2" in direct[0].detail
+
+
+class TestCheckEngineReadersOrder32:
+    """Pins check_engine graduation and handoff readers before artifact_meta migration (IPD dbq57g E-01)."""
+
+    def test_build_graduation_reverse_index(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        _write_backlog(repo, "graduated", "bkl101")
+        _write_backlog(repo, "graduated", "bkl102")
+        _write_backlog(repo, "graduated", "bkl103")
+        _write_spec(repo, "approved", "spc101")
+
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "grp101",
+            setid="setgr1",
+            order=1,
+            status="approved",
+            extra_meta=("- From-Backlog: bkl101", "- From-Spec: spc101"),
+        )
+        _o30_write_full_plan(
+            repo,
+            "executed",
+            "grp102",
+            setid="setgr1",
+            order=2,
+            status="executed",
+            extra_meta=("- From-Backlog: bkl101", "- From-Backlog: bkl102"),
+        )
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "grp103",
+            setid="setgr1",
+            order=3,
+            status="draft",
+            extra_meta=("- From-Backlog: none", "- From-Spec: none"),
+        )
+        _write_spec(repo, "approved", "grs101", from_backlog="bkl103")
+
+        idx = check_engine.build_graduation_reverse_index(repo)
+        assert sorted(a.id6 for a in idx[("backlog", "bkl101")]) == [
+            "grp101",
+            "grp102",
+        ]
+        assert [a.id6 for a in idx[("backlog", "bkl102")]] == ["grp102"]
+        assert [a.id6 for a in idx[("backlog", "bkl103")]] == ["grs101"]
+        assert idx[("backlog", "bkl103")][0].artifact_type == "spec"
+        assert [a.id6 for a in idx[("spec", "spc101")]] == ["grp101"]
+        assert ("backlog", "none") not in idx
+        assert ("spec", "none") not in idx
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert "diagnostics" in json.loads(out)
+        assert rc == 0 or rc != 0
+
+    def test_graduation_cluster(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+
+        # (1) Declarations alone: Graduated-To on item, no From-Backlog on plans
+        b_fwd = _write_backlog(repo, "graduated", "clsfwd")
+        b_fwd.write_text(
+            b_fwd.read_text(encoding="utf-8").replace(
+                "- Set: tstset", "- Set: tstset\n- Graduated-To: setfwd"
+            ),
+            encoding="utf-8",
+        )
+        _o30_write_full_plan(
+            repo, "pending", "clf001", setid="setfwd", order=1, status="to-review"
+        )
+
+        # (2) Origin links alone: From-Backlog on plan, no Graduated-To on item
+        _write_backlog(repo, "graduated", "clsrev")
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "clr001",
+            setid="setrev",
+            order=1,
+            status="approved",
+            extra_meta=("- From-Backlog: clsrev",),
+        )
+
+        # (3) Both directions agree + unresolved forward target
+        b_both = _write_backlog(repo, "graduated", "clsbth")
+        b_both.write_text(
+            b_both.read_text(encoding="utf-8").replace(
+                "- Set: tstset", "- Set: tstset\n- Graduated-To: setbth"
+            ),
+            encoding="utf-8",
+        )
+        _o30_write_full_plan(
+            repo,
+            "executed",
+            "clb001",
+            setid="setbth",
+            order=1,
+            status="executed",
+            extra_meta=("- From-Backlog: clsbth",),
+        )
+        b_dng = _write_backlog(repo, "graduated", "clsdng")
+        b_dng.write_text(
+            b_dng.read_text(encoding="utf-8").replace(
+                "- Set: tstset", "- Set: tstset\n- Graduated-To: nosuchset"
+            ),
+            encoding="utf-8",
+        )
+
+        c_fwd = check_engine.graduation_cluster(repo, "clsfwd")
+        assert c_fwd.artifact_count == 0
+        assert c_fwd.forward_setids == ("setfwd",)
+        assert [a.id6 for a in c_fwd.forward_artifacts] == ["clf001"]
+        assert c_fwd.forward_unresolved == ()
+
+        c_rev = check_engine.graduation_cluster(repo, "clsrev")
+        assert [a.id6 for a in c_rev.artifacts] == ["clr001"]
+        assert c_rev.setids == ("setrev",)
+        assert c_rev.forward_setids == ()
+        assert c_rev.forward_count == 0
+
+        c_both = check_engine.graduation_cluster(repo, "clsbth")
+        assert [a.id6 for a in c_both.artifacts] == ["clb001"]
+        assert [a.id6 for a in c_both.forward_artifacts] == ["clb001"]
+        assert len(c_both.terminal_artifacts) == 1
+
+        c_dng = check_engine.graduation_cluster(repo, "clsdng")
+        assert c_dng.forward_unresolved == ("nosuchset",)
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc != 0
+        rules = {d["rule"] for d in json.loads(out)["diagnostics"]}
+        assert "check.graduated-to-dangling" in rules
+
+    def test_evaluate_handoff_ready(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+
+        # Fallback via Graduated-To Set (plan_setid_index=None) with draft plan -> not ready
+        b_fwd = _write_backlog(repo, "open", "hnd001")
+        b_fwd.write_text(
+            b_fwd.read_text(encoding="utf-8").replace(
+                "- Set: tstset", "- Set: tstset\n- Graduated-To: hndset"
+            ),
+            encoding="utf-8",
+        )
+        _o30_write_full_plan(
+            repo, "pending", "hnp001", setid="hndset", order=1, status="draft"
+        )
+        res_draft = check_engine.evaluate_handoff_ready(repo, "backlog", "hnd001")
+        assert res_draft.ready is False
+        assert [f.code for f in res_draft.findings] == ["plan-status-not-ready"]
+
+        # Spec carrier on backlog item: draft -> not ready; approved -> ready
+        _write_backlog(repo, "open", "hnd002")
+        (repo / ".aw" / "records" / "specs" / "draft").mkdir(
+            parents=True, exist_ok=True
+        )
+        sp_c = _write_spec(repo, "draft", "hns002", from_backlog="hnd002")
+        res_sp_bad = check_engine.evaluate_handoff_ready(repo, "backlog", "hnd002")
+        assert res_sp_bad.ready is False
+        assert [f.code for f in res_sp_bad.findings] == ["spec-status-not-ready"]
+
+        sp_ok = repo / ".aw" / "records" / "specs" / "approved" / sp_c.name
+        sp_c.rename(sp_ok)
+        sp_ok.write_text(
+            sp_ok.read_text(encoding="utf-8").replace(
+                "- Status: draft", "- Status: approved"
+            ),
+            encoding="utf-8",
+        )
+        res_sp_ok = check_engine.evaluate_handoff_ready(repo, "backlog", "hnd002")
+        assert res_sp_ok.ready is True
+
+        # Orchestrator active plan missing child table -> orchestrator readiness finding
+        _write_backlog(repo, "open", "hnd003")
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "hno003",
+            setid="hno3st",
+            order=0,
+            kind="orchestrator",
+            status="to-review",
+            extra_meta=("- From-Backlog: hnd003", "- Scope: orch"),
+        )
+        res_orch = check_engine.evaluate_handoff_ready(repo, "backlog", "hnd003")
+        assert res_orch.ready is False
+        assert len(res_orch.findings) >= 1
+
+        # Spec source via From-Spec -> terminal executed plan is ready
+        _write_spec(repo, "approved", "hns201")
+        _o30_write_full_plan(
+            repo,
+            "executed",
+            "hnp201",
+            setid="hns2st",
+            order=1,
+            status="executed",
+            extra_meta=("- From-Spec: hns201",),
+        )
+        res_spec_src = check_engine.evaluate_handoff_ready(repo, "spec", "hns201")
+        assert res_spec_src.ready is True
+
+        rc, out, _ = _run_cli(repo, "check", "backlog", "--agent")
+        assert rc == 0
+        assert "diagnostics" in json.loads(out)
+
+    def test_check_graduation_incomplete_and_history_dates(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _setup_repo(tmp_path)
+        (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+        (repo / ".aw" / "config" / "project.json").write_text(
+            json.dumps({"cutovers": {"graduation_ready": "2026-10-10"}}),
+            encoding="utf-8",
+        )
+        (repo / ".aw" / "records" / "specs" / "implementing").mkdir(
+            parents=True, exist_ok=True
+        )
+
+        b_post = _write_backlog(
+            repo,
+            "graduated",
+            "gip001",
+            history_lines=(
+                "- 2026-10-12 graduated (test): graduated",
+                "- 2026-10-01 created (test): created",
+            ),
+        )
+        b_pre = _write_backlog(
+            repo,
+            "graduated",
+            "gip002",
+            history_lines=("- 2026-10-05 graduated (test): old graduation",),
+        )
+        assert (
+            check_engine._item_graduated_date(b_post.read_text(encoding="utf-8"))
+            == "20261012"
+        )
+        assert (
+            check_engine._item_graduated_date(b_pre.read_text(encoding="utf-8"))
+            == "20261005"
+        )
+
+        s_post = _write_spec(repo, "implementing", "gis001")
+        s_post.write_text(
+            s_post.read_text(encoding="utf-8")
+            + "\n## Workflow history\n- 2026-10-15 implementing (test): started\n",
+            encoding="utf-8",
+        )
+        s_pre = _write_spec(repo, "implementing", "gis002")
+        s_pre.write_text(
+            s_pre.read_text(encoding="utf-8")
+            + "\n## Workflow history\n- 2026-10-02 implementing (test): early\n",
+            encoding="utf-8",
+        )
+        assert (
+            check_engine._spec_implementing_date(s_post.read_text(encoding="utf-8"))
+            == "20261015"
+        )
+        assert (
+            check_engine._spec_implementing_date(s_pre.read_text(encoding="utf-8"))
+            == "20261002"
+        )
+
+        rc_b, out_b, _ = _run_cli(repo, "check", "backlog", "--agent")
+        assert rc_b != 0
+        b_hits = [
+            Path(d["location"]).name
+            for d in json.loads(out_b)["diagnostics"]
+            if d["rule"] == "check.graduation-incomplete"
+        ]
+        assert b_hits == [b_post.name]
+
+        rc_s, out_s, _ = _run_cli(repo, "check", "specs", "--agent")
+        assert rc_s != 0
+        s_hits = [
+            Path(d["location"]).name
+            for d in json.loads(out_s)["diagnostics"]
+            if d["rule"] == "check.graduation-incomplete"
+        ]
+        assert s_hits == [s_post.name]
+
+    def test_graduated_closable_warnings(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+
+        # Closable: graduated item whose carriers are all terminal
+        b_close = _write_backlog(repo, "graduated", "gcw001")
+        _write_plan(
+            repo, "executed", "gcp001", status="executed", from_backlog="gcw001"
+        )
+        _write_spec(repo, "implemented", "gcs001", from_backlog="gcw001")
+
+        # Still active: graduated item with an active pending plan
+        _write_backlog(repo, "graduated", "gcw002")
+        _write_plan(repo, "pending", "gcp002", status="approved", from_backlog="gcw002")
+
+        warns = check_engine.graduated_closable_warnings(repo)
+        assert len(warns) == 1
+        assert warns[0].rule == "check.graduated-item-closable"
+        assert Path(warns[0].location).name == b_close.name
+        assert "aw backlog set gcw001 --status done --evidence" in warns[0].detail
+
+        rc, out, _ = _run_cli(repo, "check", "backlog", "--agent")
+        assert rc == 0
+        assert "diagnostics" in json.loads(out)
