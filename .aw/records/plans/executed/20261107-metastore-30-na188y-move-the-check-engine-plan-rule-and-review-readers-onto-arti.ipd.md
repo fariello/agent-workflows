@@ -6,7 +6,7 @@
 - Scope: Pin then move the plan-rule readers (draft-ready, review-stale, scope-drift, dependency, priority, work kind, lint reach, orchestrator readiness, obligations) and the review readers (`check_spec_review_attestation`, the review-escalation and review-subject readers) of `check_engine` onto `artifact_meta` (`ffceq0` E-06 and E-07, partitioned). EXCLUDES: the other check_engine subsets (Orders 29, 31, 32) and git-content readers (`t4gl15`).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_spec_review_attestation.py, tests/test_gate_ref_resolution.py
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,13 +16,13 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: na188y
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 - Readiness: go-pending-approval
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: na188y verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_gate_ref_resolution.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_spec_review_attestation.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-14 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261107-metastore-30-na188y-move-the-check-engine-plan-rule-and-review-readers-onto-arti.review.md
