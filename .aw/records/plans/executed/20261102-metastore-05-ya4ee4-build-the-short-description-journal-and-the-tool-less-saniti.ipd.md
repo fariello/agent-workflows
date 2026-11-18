@@ -6,7 +6,7 @@
 - Scope: Integration and finishing part of the description work, after `830wku` builds `agent_workflows/migrations/m0001_describe.py::validate`, `odeo9z` builds the prompt loader, journal, tool-less call, and regenerate-once logic in `agent_workflows/migrations/m0001_describe.py` (original E-01 to E-06), and `g5hpbb` (`9vf2iv`, `6oi2nu`, `3g20ms`, `bv4kkj`) generalizes `m0001` across all five `4sd62s` C12 repository shapes: add OpenCode v1/v2 host compatibility, `Describer`, and `describe_all`, and wire them into the `describer` seam of `agent_workflows/migrations/m0001_metadata_v2.py` across every C12 shape (E-07); add the `aw migrate metadata` options `--describe-host`, `--describe-model`, `--describe-limit`, and `--no-describe` in `agent_workflows/cli.py` routed through `agent_workflows/migrations/chain.py::Migration.run` (E-08); add the fake-host integration tests in `tests/test_m0001_describe.py` and `tests/fixtures/describe/fake_host.py` proving AC-36 cases 3, 4, 5, and 7 plus C12 shapes (E-09); run a bounded 40-record real trial on a clone to measure cost and time per record (E-10); and record the `CHANGELOG.md` entry and run the regression and check gates (E-11). EXCLUDES: `validate` (`830wku`) and the base `m0001_describe` helpers (`odeo9z`); the `m0001` framework, census, and refusal logic (`dcerjg`, `g5hpbb`, and their parts); the creating-command `--summary` options and the `short_description` setter (Order 07, `xexn45`); `aw attention --details` and `aw find` reading the column (Order 08, `ffceq0`); the full run over this repository and the AC-13 cost line (Order 13, `cxxmyv`).
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, agent_workflows/migrations/m0001_describe.py, agent_workflows/cli.py, tests/test_m0001_describe.py, tests/fixtures/describe/fake_host.py, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-05-ya4ee4-build-the-short-description-journal-and-the-tool-less-saniti.ipd.md
 - Item-Dependencies: executed:dcerjg, executed:830wku, executed:odeo9z, executed:g5hpbb
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -17,12 +17,12 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ya4ee4
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: ya4ee4 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-007..PR-011, PR-013 FIXED; PR-012 OPEN as non-blocking OQ-05
