@@ -5,8 +5,9 @@
 - Concern: Split from `ffceq0` (Task group 1) under the maintainer's step-complexity rule, and split again on 2026-11-09 (round 3, research `nj8zdp` guidance). `status_set` reads `id`, `status` and `set_id` with its own regexes (`_ID_RE`, `_STATUS_RE`, `_SET_RE` and two inline YAML regexes) and its transition-line, priority and dependency readers parse bullets on in-memory text; spec `4sd62s` C5 requires them to answer from `artifact_meta`.
 - Scope: FINISHING PART after the round-3 split: move the `status_set` inventory and transition reads onto `artifact_meta`, applying D-6 (`ffceq0` E-15 and E-16, carried here as E-04 and E-05). The `selectors`, `aw find`, `aw search`, `aw ipd board` and `artifact_meta.read_text` work (E-01 to E-03) moved to `cdglt1` (Order 142). EXCLUDES: `attention`, `ipd_lint`, `check_engine`, the meta commands and the cache-parity test.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_artifact_meta_loader_parity.py, .aw/records/plans/pending/20261107-metastore-27-r81uvz-move-selectors-aw-find-aw-ipd-board-and-status-set-reads-ont.ipd.md
+- Scope-Exceeded: agent_workflows/artifact_meta.py (Fix legacy_v7 backlog - Kind: -> work_kind mapping in load_legacy_artifact and read_text so legacy backlog items retain work_kind for gate-defaulting); tests/test_status_set.py (Update test_scoped_setid_resolution_returns_only_the_scoped_type for D-6 research resolves via set_id and test_spec_leaving_deferred_still_clears_gate for D-4 place gate bullets in metadata region); tests/test_status_set_metadata_region.py (Update test_read_artifact_record_yaml_fence_declared_or_nothing assertion for D-6 set_id now comes from artifact_meta instead of None)
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:cdglt1
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: r81uvz
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: r81uvz verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_meta.py: Fix legacy_v7 backlog - Kind: -> work_kind mapping in load_legacy_artifact and read_text so legacy backlog items retain work_kind for gate-defaulting; out-of-scope tests/test_status_set.py: Update test_scoped_setid_resolution_returns_only_the_scoped_type for D-6 (research resolves via set_id) and test_spec_leaving_deferred_still_clears_gate for D-4 (place gate bullets in metadata region); out-of-scope tests/test_status_set_metadata_region.py: Update test_read_artifact_record_yaml_fence_declared_or_nothing assertion for D-6 (set_id now comes from artifact_meta instead of None); in-scope-unmodified tests/test_artifact_meta_loader_parity.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
