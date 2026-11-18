@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -28,6 +29,7 @@ from agent_workflows import (
     attention_contract,
     lane_containment,
     leak_sanitizer,
+    oc_models,
     opencode_cli,
     platform_lock,
     project_context,
@@ -947,11 +949,13 @@ def describe_record(
     journal_dir: Path | str,
     host: str = "oc",
     model: str | None = None,
+    recorded_model: str | None = None,
     ruleset: leak_sanitizer.Ruleset | None = None,
     base_env: Mapping[str, str] | None = None,
     opencode: str = "opencode",
     runner: DescribeRunnerFn | None = None,
     major: int | None = None,
+    skip_lookup: bool = False,
 ) -> DescribeRecordResult:
     """Describe one record via journal reuse, tool-less generation, validation, and 1 retry."""
     repo_path = Path(repo)
@@ -961,18 +965,19 @@ def describe_record(
     source_digest = hashlib.sha256(record_bytes).hexdigest()
     prompt_version, _template, prompt_digest = load_prompt()
 
-    cached = lookup(j_path, key, source_digest, prompt_digest)
-    if cached is not None:
-        cached_text = cached.get("text")
-        return DescribeRecordResult(
-            status="reused" if cached_text is not None else "failed",
-            text=cached_text,
-            failure=cached.get("failure"),
-            entry=dict(cached),
-            cost=0.0,
-            tokens=0,
-            calls=0,
-        )
+    if not skip_lookup:
+        cached = lookup(j_path, key, source_digest, prompt_digest)
+        if cached is not None:
+            cached_text = cached.get("text")
+            return DescribeRecordResult(
+                status="reused" if cached_text is not None else "failed",
+                text=cached_text,
+                failure=cached.get("failure"),
+                entry=dict(cached),
+                cost=0.0,
+                tokens=0,
+                calls=0,
+            )
 
     record_text = record_bytes.decode("utf-8", errors="replace")
     active_ruleset = ruleset
@@ -1019,12 +1024,13 @@ def describe_record(
         if active_ruleset is None:
             active_ruleset = build_describe_ruleset(repo_path)
         refusal = validate(cleaned, repo_path, ruleset=active_ruleset)
+        effective_model = last_model if last_model is not None else recorded_model
         if refusal is None:
             entry: dict[str, Any] = {
                 "key": key,
                 "text": cleaned,
                 "host": host,
-                "model": last_model,
+                "model": effective_model,
                 "prompt_version": prompt_version,
                 "prompt_digest": prompt_digest,
                 "source_digest": source_digest,
@@ -1044,12 +1050,13 @@ def describe_record(
 
         last_failure = refusal
 
+    effective_model = last_model if last_model is not None else recorded_model
     failed_entry: dict[str, Any] = {
         "key": key,
         "text": None,
         "failure": last_failure,
         "host": host,
-        "model": last_model,
+        "model": effective_model,
         "prompt_version": prompt_version,
         "prompt_digest": prompt_digest,
         "source_digest": source_digest,
@@ -1065,4 +1072,509 @@ def describe_record(
         cost=total_cost,
         tokens=total_tokens,
         calls=calls,
+    )
+
+
+# ---------------------------------------------------------------------------
+# E-07: Describer facade and describe_all batch runner
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DescribeTarget:
+    """One convertible record queued for short-description lookup or generation."""
+
+    key: str
+    rel_path: str
+    record_bytes: bytes
+    id6: str = ""
+    new_rel: str | None = None
+
+
+@dataclass(frozen=True)
+class DescribeAllResult:
+    """Aggregate outcome of running ``describe_all`` across migration records."""
+
+    enabled: bool
+    host: str
+    model: str
+    prompt_version: int
+    prompt_digest: str
+    total_records: int
+    generated: int
+    reused: int
+    failed: int
+    could_not_ask: int
+    limit_skipped: int
+    calls: int
+    total_cost: float
+    mean_cost_per_call: float
+    total_tokens: int
+    total_seconds: float
+    summary_line: str
+    descriptions: dict[str, dict[str, Any]]
+    deliberate_absences: dict[str, str]
+    lacking_description: tuple[str, ...]
+    records: tuple[dict[str, Any], ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize summary metrics (without large text blobs) for journal/report output."""
+        return {
+            "enabled": self.enabled,
+            "host": self.host,
+            "model": self.model,
+            "prompt_version": self.prompt_version,
+            "prompt_digest": self.prompt_digest,
+            "total_records": self.total_records,
+            "generated": self.generated,
+            "reused": self.reused,
+            "failed": self.failed,
+            "could_not_ask": self.could_not_ask,
+            "limit_skipped": self.limit_skipped,
+            "calls": self.calls,
+            "total_cost": self.total_cost,
+            "mean_cost_per_call": self.mean_cost_per_call,
+            "total_tokens": self.total_tokens,
+            "total_seconds": self.total_seconds,
+            "summary_line": self.summary_line,
+            "deliberate_absences": dict(self.deliberate_absences),
+            "lacking_description": list(self.lacking_description),
+            "records": list(self.records),
+        }
+
+
+class Describer:
+    """Configured short-description generator passed into ``m0001`` migration runs."""
+
+    def __init__(
+        self,
+        *,
+        host: str = "oc",
+        model: str | None = None,
+        limit: int | None = None,
+        enabled: bool = True,
+        base_env: Mapping[str, str] | None = None,
+        opencode: str = "opencode",
+        runner: DescribeRunnerFn | None = None,
+        major: int | None = None,
+        progress_fn: Callable[[str], None] | None = None,
+    ) -> None:
+        if limit is not None and (isinstance(limit, bool) or int(limit) <= 0):
+            raise ValueError(
+                f"--describe-limit must be a positive integer, got {limit!r}"
+            )
+        self.host = host
+        self.model = model.strip() if isinstance(model, str) and model.strip() else None
+        self.limit = int(limit) if limit is not None else None
+        self.enabled = bool(enabled)
+        self.base_env = dict(base_env) if base_env is not None else None
+        self.opencode = opencode
+        self.runner = runner
+        self.major = major
+        self.progress_fn = progress_fn
+
+    def validate_host(self, scratch_dir: Path | str = ".") -> None:
+        """Validate host via ``describe_argv`` before preflight or scratch writes."""
+        describe_argv(
+            self.host,
+            self.model,
+            scratch_dir=scratch_dir,
+            opencode=self.opencode,
+            major=self.major,
+        )
+
+    def resolve_model(
+        self, repo: Path | str, *, child_env: Mapping[str, str] | None = None
+    ) -> tuple[str | None, str]:
+        """Return ``(cli_model_arg, recorded_model_label)`` resolved once per run."""
+        if self.model is not None:
+            return self.model, self.model
+        env_for_probe = (
+            child_env if child_env is not None else describe_env(self.base_env)
+        )
+        default = oc_models.resolve_host_default_model(
+            env=env_for_probe,
+            cwd=Path(repo),
+            agent=DESCRIBE_AGENT_NAME,
+        )
+        label = default.model if default.resolved else "host-default"
+        return None, label
+
+
+def _coerce_describe_target(item: Any) -> DescribeTarget:
+    if isinstance(item, DescribeTarget):
+        return item
+    if isinstance(item, Mapping):
+        key = str(item["key"])
+        rel_path = str(item.get("rel_path") or key)
+        raw = item.get("record_bytes")
+        if raw is None and item.get("path") is not None:
+            raw = Path(item["path"]).read_bytes()
+        if isinstance(raw, str):
+            raw = raw.encode("utf-8")
+        return DescribeTarget(
+            key=key,
+            rel_path=rel_path,
+            record_bytes=bytes(raw or b""),
+            id6=str(item.get("id6") or ""),
+            new_rel=str(item["new_rel"]) if item.get("new_rel") else None,
+        )
+    if isinstance(item, tuple) and len(item) == 2:
+        key, raw = item
+        raw_b = raw.encode("utf-8") if isinstance(raw, str) else bytes(raw)
+        return DescribeTarget(key=str(key), rel_path=str(key), record_bytes=raw_b)
+    raise TypeError(f"Unsupported describe_all target: {type(item).__name__}")
+
+
+def _verify_policy_for_run(
+    host: str,
+    *,
+    journal_dir: Path,
+    child_env: Mapping[str, str],
+    opencode: str,
+    runner: DescribeRunnerFn | None,
+    major: int | None,
+) -> DescribePolicyResult:
+    """Create a temporary ``0o500`` policy scratch dir, verify policy, and clean up."""
+    journal_dir.mkdir(parents=True, exist_ok=True)
+    policy_scratch = Path(
+        tempfile.mkdtemp(prefix="describe-policy-", dir=str(journal_dir))
+    )
+    try:
+        write_v2_scratch_config(policy_scratch)
+        os.chmod(policy_scratch, 0o500)
+        return verify_describe_policy(
+            host,
+            scratch_dir=policy_scratch,
+            env=child_env,
+            opencode=opencode,
+            runner=runner,
+            major=major,
+        )
+    finally:
+        _restore_and_remove_scratch(policy_scratch)
+
+
+def describe_all(
+    records: Sequence[Any],
+    *,
+    repo: Path | str,
+    journal_dir: Path | str | None = None,
+    describer: Describer | None = None,
+    host: str = "oc",
+    model: str | None = None,
+    limit: int | None = None,
+    enabled: bool = True,
+    base_env: Mapping[str, str] | None = None,
+    opencode: str = "opencode",
+    runner: DescribeRunnerFn | None = None,
+    major: int | None = None,
+    progress_fn: Callable[[str], None] | None = None,
+) -> DescribeAllResult:
+    """Look up, lazily verify policy, and generate descriptions in stable path order."""
+    eff = (
+        describer
+        if describer is not None
+        else Describer(
+            host=host,
+            model=model,
+            limit=limit,
+            enabled=enabled,
+            base_env=base_env,
+            opencode=opencode,
+            runner=runner,
+            major=major,
+            progress_fn=progress_fn,
+        )
+    )
+    emit_progress = progress_fn if progress_fn is not None else eff.progress_fn
+
+    repo_path = Path(repo)
+    j_dir = (
+        Path(journal_dir)
+        if journal_dir is not None
+        else journal_path_for_repo(repo_path).parent
+    )
+    j_path = j_dir / _JOURNAL_FILENAME
+
+    targets = sorted(
+        (_coerce_describe_target(item) for item in records),
+        key=lambda t: t.rel_path,
+    )
+    prompt_version, _template, prompt_digest = load_prompt()
+    child_env = describe_env(eff.base_env)
+    cli_model, recorded_model = eff.resolve_model(repo_path, child_env=child_env)
+
+    if not eff.enabled:
+        lacking = tuple(t.rel_path for t in targets)
+        summary_line = (
+            "Descriptions: skipped (--no-describe; "
+            f"0 generated, {len(targets)} undescribed)"
+        )
+        return DescribeAllResult(
+            enabled=False,
+            host=eff.host,
+            model=recorded_model,
+            prompt_version=prompt_version,
+            prompt_digest=prompt_digest,
+            total_records=len(targets),
+            generated=0,
+            reused=0,
+            failed=0,
+            could_not_ask=0,
+            limit_skipped=len(targets),
+            calls=0,
+            total_cost=0.0,
+            mean_cost_per_call=0.0,
+            total_tokens=0,
+            total_seconds=0.0,
+            summary_line=summary_line,
+            descriptions={},
+            deliberate_absences={},
+            lacking_description=lacking,
+            records=(),
+        )
+
+    eff.validate_host(j_dir)
+    existing_journal = read_journal(j_path)
+
+    generated = 0
+    reused = 0
+    failed = 0
+    could_not_ask = 0
+    limit_skipped = 0
+    uncached_attempted = 0
+    total_calls = 0
+    total_cost = 0.0
+    total_tokens = 0
+    total_seconds = 0.0
+
+    descriptions: dict[str, dict[str, Any]] = {}
+    deliberate_absences: dict[str, str] = {}
+    lacking_list: list[str] = []
+    record_rows: list[dict[str, Any]] = []
+
+    policy_checked = False
+    policy_ok = True
+    policy_detail = ""
+    active_ruleset: leak_sanitizer.Ruleset | None = None
+
+    total_count = len(targets)
+    for idx, target in enumerate(targets, start=1):
+        source_digest = hashlib.sha256(target.record_bytes).hexdigest()
+        cached = existing_journal.get(target.key)
+        if (
+            cached is not None
+            and cached.get("source_digest") == source_digest
+            and cached.get("prompt_digest") == prompt_digest
+        ):
+            cached_text = cached.get("text")
+            if isinstance(cached_text, str) and cached_text.strip():
+                reused += 1
+                descriptions[target.key] = {
+                    "short_description": cached_text,
+                    "description_source": "generated",
+                    "description_model": str(cached.get("model") or recorded_model),
+                    "description_prompt_version": str(
+                        cached.get("prompt_version") or prompt_version
+                    ),
+                }
+                record_rows.append(
+                    {
+                        "key": target.key,
+                        "rel_path": target.rel_path,
+                        "bytes": len(target.record_bytes),
+                        "tokens": 0,
+                        "cost": 0.0,
+                        "seconds": 0.0,
+                        "status": "reused",
+                        "failure": None,
+                        "calls": 0,
+                    }
+                )
+            else:
+                failed += 1
+                reason = str(cached.get("failure") or "failed")
+                deliberate_absences[target.key] = reason
+                record_rows.append(
+                    {
+                        "key": target.key,
+                        "rel_path": target.rel_path,
+                        "bytes": len(target.record_bytes),
+                        "tokens": 0,
+                        "cost": 0.0,
+                        "seconds": 0.0,
+                        "status": "failed",
+                        "failure": reason,
+                        "calls": 0,
+                    }
+                )
+        elif eff.limit is not None and uncached_attempted >= eff.limit:
+            limit_skipped += 1
+            lacking_list.append(target.rel_path)
+            record_rows.append(
+                {
+                    "key": target.key,
+                    "rel_path": target.rel_path,
+                    "bytes": len(target.record_bytes),
+                    "tokens": 0,
+                    "cost": 0.0,
+                    "seconds": 0.0,
+                    "status": "limit-skipped",
+                    "failure": None,
+                    "calls": 0,
+                }
+            )
+        else:
+            uncached_attempted += 1
+            if not policy_checked:
+                policy_checked = True
+                if eff.runner is None:
+                    try:
+                        probe_argv = describe_argv(
+                            eff.host,
+                            cli_model,
+                            scratch_dir=j_dir,
+                            opencode=eff.opencode,
+                            major=eff.major,
+                        )
+                        runner_shared._assert_probe_spawn_is_permitted(probe_argv)
+                    except runner_shared.DriverError as exc:
+                        policy_ok = False
+                        policy_detail = f"pytest-spawn-refused: {exc}"
+                if policy_ok:
+                    pol = _verify_policy_for_run(
+                        eff.host,
+                        journal_dir=j_dir,
+                        child_env=child_env,
+                        opencode=eff.opencode,
+                        runner=eff.runner,
+                        major=eff.major,
+                    )
+                    if not pol.ok:
+                        policy_ok = False
+                        policy_detail = pol.detail
+
+            if not policy_ok:
+                could_not_ask += 1
+                lacking_list.append(target.rel_path)
+                record_rows.append(
+                    {
+                        "key": target.key,
+                        "rel_path": target.rel_path,
+                        "bytes": len(target.record_bytes),
+                        "tokens": 0,
+                        "cost": 0.0,
+                        "seconds": 0.0,
+                        "status": COULD_NOT_ASK,
+                        "failure": None,
+                        "detail": policy_detail,
+                        "calls": 0,
+                    }
+                )
+            else:
+                if active_ruleset is None:
+                    active_ruleset = build_describe_ruleset(repo_path)
+                t0 = time.monotonic()
+                rec_res = describe_record(
+                    target.key,
+                    target.record_bytes,
+                    repo=repo_path,
+                    journal_dir=j_dir,
+                    host=eff.host,
+                    model=cli_model,
+                    recorded_model=recorded_model,
+                    ruleset=active_ruleset,
+                    base_env=eff.base_env,
+                    opencode=eff.opencode,
+                    runner=eff.runner,
+                    major=eff.major,
+                    skip_lookup=True,
+                )
+                elapsed = time.monotonic() - t0
+                total_seconds += elapsed
+                total_cost += rec_res.cost
+                total_tokens += rec_res.tokens
+                total_calls += rec_res.calls
+
+                if rec_res.status == "generated" and rec_res.text is not None:
+                    generated += 1
+                    entry_map = rec_res.entry or {}
+                    descriptions[target.key] = {
+                        "short_description": rec_res.text,
+                        "description_source": "generated",
+                        "description_model": str(
+                            entry_map.get("model") or recorded_model
+                        ),
+                        "description_prompt_version": str(
+                            entry_map.get("prompt_version") or prompt_version
+                        ),
+                    }
+                    if entry_map:
+                        existing_journal[target.key] = dict(entry_map)
+                elif rec_res.status == "failed":
+                    failed += 1
+                    reason = rec_res.failure or "failed"
+                    deliberate_absences[target.key] = reason
+                    if rec_res.entry:
+                        existing_journal[target.key] = dict(rec_res.entry)
+                else:
+                    could_not_ask += 1
+                    lacking_list.append(target.rel_path)
+
+                record_rows.append(
+                    {
+                        "key": target.key,
+                        "rel_path": target.rel_path,
+                        "bytes": len(target.record_bytes),
+                        "tokens": rec_res.tokens,
+                        "cost": rec_res.cost,
+                        "seconds": elapsed,
+                        "status": rec_res.status,
+                        "failure": rec_res.failure,
+                        "detail": rec_res.detail,
+                        "calls": rec_res.calls,
+                    }
+                )
+
+        if emit_progress is not None and idx % 50 == 0:
+            emit_progress(
+                f"Descriptions progress: {idx}/{total_count} "
+                f"(generated={generated}, reused={reused}, failed={failed}, "
+                f"could-not-ask={could_not_ask})"
+            )
+
+    mean_cost = (total_cost / total_calls) if total_calls > 0 else 0.0
+    summary_line = (
+        f"Descriptions: generated={generated}, reused={reused}, failed={failed}, "
+        f"could-not-ask={could_not_ask}, total cost={total_cost:.6f}, "
+        f"mean cost per call={mean_cost:.6f}"
+    )
+    if limit_skipped:
+        summary_line += f", limit-skipped={limit_skipped}"
+    if emit_progress is not None:
+        emit_progress(summary_line)
+
+    return DescribeAllResult(
+        enabled=True,
+        host=eff.host,
+        model=recorded_model,
+        prompt_version=prompt_version,
+        prompt_digest=prompt_digest,
+        total_records=total_count,
+        generated=generated,
+        reused=reused,
+        failed=failed,
+        could_not_ask=could_not_ask,
+        limit_skipped=limit_skipped,
+        calls=total_calls,
+        total_cost=total_cost,
+        mean_cost_per_call=mean_cost,
+        total_tokens=total_tokens,
+        total_seconds=total_seconds,
+        summary_line=summary_line,
+        descriptions=descriptions,
+        deliberate_absences=deliberate_absences,
+        lacking_description=tuple(lacking_list),
+        records=tuple(record_rows),
     )

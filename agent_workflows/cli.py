@@ -5669,6 +5669,30 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Fault injection name for test harness.",
     )
+    p_migrate_metadata.add_argument(
+        "--describe-host",
+        choices=("oc", "agy"),
+        default="oc",
+        help="Host for tool-less short-description generation (default: oc; agy is refused per OQ-31).",
+    )
+    p_migrate_metadata.add_argument(
+        "--describe-model",
+        default=None,
+        metavar="PROVIDER/MODEL",
+        help="Model for short-description generation (default: OpenCode host default).",
+    )
+    p_migrate_metadata.add_argument(
+        "--describe-limit",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="Describe at most N uncached records this run; remaining uncached records are listed as still lacking a description.",
+    )
+    p_migrate_metadata.add_argument(
+        "--no-describe",
+        action="store_true",
+        help="Skip short-description generation (no record text is sent to any model) and list undescribed records as still lacking a description.",
+    )
 
     p_migrate_layout = migrate_sub.add_parser(
         "layout",
@@ -18759,6 +18783,25 @@ def _print_metadata_migration_report(
 
     mode_label = "Apply" if apply_mode else "Dry Run"
     term.heading(f"AW Metadata Migration ({mig_id} - {mode_label})")
+    desc_summary = report.get("descriptions_summary")
+    if isinstance(desc_summary, dict):
+        if desc_summary.get("enabled", True):
+            desc_host = desc_summary.get("host") or "oc"
+            desc_model = desc_summary.get("model") or "host-default"
+            desc_pv = desc_summary.get("prompt_version") or 1
+            term.status(
+                "info",
+                f"Descriptions:  host={desc_host}, model={desc_model}, prompt_version=v{desc_pv}",
+            )
+            term.status(
+                "info",
+                f"Provider note: Every described record's full text is sent to host '{desc_host}' ({desc_model}).",
+            )
+        else:
+            term.status(
+                "info",
+                "Descriptions:  skipped (--no-describe; no record text is sent to any model)",
+            )
     preflight = report.get("preflight") or {}
     for warn in preflight.get("warnings") or []:
         term.status("warn", str(warn))
@@ -18840,6 +18883,13 @@ def _print_metadata_migration_report(
 
         for ln in _m0001_verify.format_census(census).splitlines():
             term.line(ln)
+        if isinstance(desc_summary, dict) and desc_summary.get("summary_line"):
+            term.status("info", str(desc_summary["summary_line"]))
+        missing_desc = census.get("missing_description_paths") or []
+        if missing_desc:
+            term.status("info", f"Still lacking a description ({len(missing_desc)}):")
+            for mp in missing_desc:
+                term.line(f"  - {mp}")
 
     round_trip = report.get("round_trip")
     if round_trip:
@@ -18886,6 +18936,7 @@ def _run_migrate_metadata(
     """Execute or dry-run `aw migrate metadata` through `chain.MIGRATIONS` (E-01)."""
     from agent_workflows import layout_migration as _lm
     from agent_workflows.migrations import chain as _chain
+    from agent_workflows.migrations import m0001_describe as _m0001_describe
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
@@ -18901,6 +18952,10 @@ def _run_migrate_metadata(
     force_mode = bool(getattr(args, "force", False))
     force_wt = bool(getattr(args, "force_worktree", False))
     fault_inj = getattr(args, "fault_injection", None)
+    describe_host = str(getattr(args, "describe_host", "oc") or "oc")
+    describe_model = getattr(args, "describe_model", None)
+    describe_limit = getattr(args, "describe_limit", None)
+    no_describe = bool(getattr(args, "no_describe", False))
 
     m0001 = next((m for m in _chain.MIGRATIONS if m.number == 1), None)
     if m0001 is None:
@@ -18922,16 +18977,35 @@ def _run_migrate_metadata(
         return 1
 
     try:
+        if describe_host != "oc" or not no_describe:
+            _m0001_describe.describe_argv(
+                describe_host, describe_model, scratch_dir=repo_path
+            )
+        describer = _m0001_describe.Describer(
+            host=describe_host,
+            model=describe_model,
+            limit=describe_limit,
+            enabled=not no_describe,
+            progress_fn=(
+                None if (ctx.is_json or ctx.is_agent) else (lambda msg: term.line(msg))
+            ),
+        )
         report = m0001.run(
             repo_path,
             apply=apply_mode,
             force=force_mode,
             force_worktree=force_wt,
+            describer=describer,
             fault_injection=fault_inj,
         )
-    except (_lm.PreflightGateError, _lm.MigrationError) as exc:
+    except (
+        _lm.PreflightGateError,
+        _lm.MigrationError,
+        _m0001_describe.DescribeHostRefused,
+    ) as exc:
         err_text = str(exc)
         rolled_back = "rolled back" in err_text.lower()
+        is_host_refusal = isinstance(exc, _m0001_describe.DescribeHostRefused)
         if ctx.is_json:
             print(
                 json.dumps(
@@ -18948,6 +19022,11 @@ def _run_migrate_metadata(
             return 1
         if ctx.is_agent:
             safe_msg = _sanitize_migrate_text(err_text, repo_path)
+            rule_name = (
+                "migrate.describe-host"
+                if is_host_refusal
+                else ("migrate.rollback" if rolled_back else "migrate.preflight")
+            )
             res = CommandResult(
                 command="migrate metadata",
                 status="fail",
@@ -18956,7 +19035,7 @@ def _run_migrate_metadata(
                 diagnostics=[
                     Diagnostic(
                         location=".",
-                        rule="migrate.rollback" if rolled_back else "migrate.preflight",
+                        rule=rule_name,
                         detail=safe_msg,
                         severity="error",
                     )
@@ -19051,6 +19130,25 @@ def _run_migrate_metadata(
                         "without_description_count": int(
                             census_info.get("without_description_count", 0) or 0
                         ),
+                    },
+                    status="verified",
+                )
+            )
+        desc_info = report.get("descriptions_summary")
+        if isinstance(desc_info, dict):
+            ev.append(
+                Evidence(
+                    key="descriptions",
+                    value={
+                        "enabled": bool(desc_info.get("enabled", True)),
+                        "host": str(desc_info.get("host") or "oc"),
+                        "model": str(desc_info.get("model") or "host-default"),
+                        "prompt_version": int(desc_info.get("prompt_version") or 1),
+                        "generated": int(desc_info.get("generated", 0) or 0),
+                        "reused": int(desc_info.get("reused", 0) or 0),
+                        "failed": int(desc_info.get("failed", 0) or 0),
+                        "could_not_ask": int(desc_info.get("could_not_ask", 0) or 0),
+                        "limit_skipped": int(desc_info.get("limit_skipped", 0) or 0),
                     },
                     status="verified",
                 )

@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from agent_workflows import (
     artifact_core,
@@ -30,6 +30,7 @@ from agent_workflows import (
 from agent_workflows.migrations import (
     chain,
     m0001_convert,
+    m0001_describe,
     m0001_discover,
     m0001_preflight,
     m0001_renames,
@@ -1213,6 +1214,7 @@ def _format_run_report(
         "citations": steps.get("citations"),
         "conversion": steps.get("conversion"),
         "cleanup": steps.get("cleanup"),
+        "descriptions_summary": steps.get("descriptions"),
         "census": steps.get("census"),
         "round_trip": steps.get("round_trip"),
         "commit": tx_data.get("commit_result"),
@@ -1598,6 +1600,66 @@ def _plan_and_apply_stage2_locked(
             return _format_run_report(tx_data, journal_dir, applied=False)
         m0001_verify.ensure_apply_gates_pass(census, round_trip_skipped)
 
+    # Description generation / lookup (4sd62s 5.2 step 0, 4.2, 5.2a) over ONLY
+    # m0001_discover-classified convertible records, keyed by id6 or pre-rename
+    # resolved-records-root-relative path when m0001 mints id6.
+    eff_describer = m0001_describe.Describer() if describer is None else describer
+    deliberate_absences: Dict[str, str] = {}
+    if isinstance(eff_describer, m0001_describe.Describer):
+        pre_step3_root = scratch_dir / "records"
+        inv_pre = m0001_discover.discover(scratch_repo, records_root=pre_step3_root)
+        minted_by_old_rel = {e.old_rel: e.id6 for e in rename_map.entries if e.minted}
+        rename_by_old_rel = {e.old_rel: e.new_rel for e in rename_map.entries}
+        describe_targets: List[m0001_describe.DescribeTarget] = []
+        for rec in sorted(inv_pre.records, key=lambda r: r.rel_path):
+            is_minted = (
+                rec.needs_mint
+                or (rec.rel_path in minted_by_old_rel)
+                or (not rec.identity)
+            )
+            desc_key = rec.rel_path if is_minted else str(rec.identity)
+            final_id6 = minted_by_old_rel.get(rec.rel_path) or rec.identity or ""
+            new_rel = rename_by_old_rel.get(rec.rel_path) or rec.rel_path
+            describe_targets.append(
+                m0001_describe.DescribeTarget(
+                    key=desc_key,
+                    rel_path=rec.rel_path,
+                    record_bytes=rec.path.read_bytes(),
+                    id6=final_id6,
+                    new_rel=new_rel,
+                )
+            )
+        desc_res = m0001_describe.describe_all(
+            describe_targets,
+            repo=repo_path,
+            journal_dir=journal_dir,
+            describer=eff_describer,
+        )
+        if eff_describer.enabled:
+            merged_descs = dict(tx_data.get("descriptions") or {})
+            merged_descs.update(desc_res.descriptions)
+            for tgt in describe_targets:
+                if tgt.key in desc_res.deliberate_absences:
+                    merged_descs.pop(tgt.key, None)
+        else:
+            merged_descs = {}
+        tx_data["descriptions"] = merged_descs
+        tx_data["steps"]["descriptions"] = desc_res.to_dict()
+        for tgt in describe_targets:
+            if tgt.key in desc_res.deliberate_absences:
+                reason = desc_res.deliberate_absences[tgt.key]
+                deliberate_absences[tgt.key] = reason
+                deliberate_absences[tgt.rel_path] = reason
+                if tgt.id6:
+                    deliberate_absences[tgt.id6] = reason
+                if tgt.new_rel:
+                    deliberate_absences[tgt.new_rel] = reason
+        convert_describer: Optional[Any] = None
+        convert_descriptions: Optional[Mapping[str, Any]] = merged_descs
+    else:
+        convert_describer = eff_describer
+        convert_descriptions = tx_data.get("descriptions")
+
     # Step 4: build event logs and rewrite record mirrors/bodies in scratch.
     convert_summary = m0001_convert.convert_records(
         scratch_repo,
@@ -1606,8 +1668,8 @@ def _plan_and_apply_stage2_locked(
         repo_root=repo_path,
         rename_map=tx_data["rename_map"],
         sidecar_events=sidecar_events,
-        describer=describer,
-        descriptions=tx_data.get("descriptions"),
+        describer=convert_describer,
+        descriptions=convert_descriptions,
         record_types=m0001_convert.ALL_RECORD_TYPES,
         include_reviews=True,
     )
@@ -1624,7 +1686,11 @@ def _plan_and_apply_stage2_locked(
     tx_data["steps"]["cleanup"] = cleanup_summary
 
     # Step 6b (post-conversion): update description counts from logs, run round-trip & leak scan.
-    m0001_verify.populate_description_counts(census, scratch_repo / ".aw" / "records")
+    m0001_verify.populate_description_counts(
+        census,
+        scratch_repo / ".aw" / "records",
+        deliberate_description_absences=deliberate_absences,
+    )
     round_trip = m0001_verify.verify_round_trip(
         repo_path,
         pre_conversion_records_root=scratch_dir / "records",
@@ -1943,6 +2009,12 @@ def run(
 ) -> Dict[str, Any]:
     """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``."""
     repo_path = Path(repo)
+    eff_describer = m0001_describe.Describer() if describer is None else describer
+    if isinstance(eff_describer, m0001_describe.Describer) and (
+        eff_describer.enabled or eff_describer.host != "oc"
+    ):
+        eff_describer.validate_host(repo_path)
+
     schema_ver = chain.read_metadata_schema(repo_path)
     if schema_ver is not None and schema_ver >= 2:
         return {
@@ -1971,7 +2043,7 @@ def run(
             records_root,
             force=force,
             force_worktree=force_worktree,
-            describer=describer,
+            describer=eff_describer,
             fault_injection=fault_injection,
             commit=commit,
         )
@@ -2121,7 +2193,7 @@ def run(
                     journal_dir,
                     eff_records,
                     apply=apply,
-                    describer=describer,
+                    describer=eff_describer,
                     fault_injection=fault_injection,
                     commit=commit,
                     sidecar_path=sidecar_path,
