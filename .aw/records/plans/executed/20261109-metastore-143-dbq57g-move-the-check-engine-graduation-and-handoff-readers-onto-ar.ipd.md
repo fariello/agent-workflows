@@ -5,8 +5,9 @@
 - Concern: Split from `ebrc4t` (Order 32) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 8 work Scope-Paths per plan): `ebrc4t` declared 11 work Scope-Paths, because it combined the graduation and handoff subset of the `ffceq0` E-07 site list (19 site lines in 6 functions of `check_engine`) with the skip-list change across seven modules. This part takes the `check_engine` subset.
 - Scope: Pin then move the graduation and handoff readers of `check_engine` (`build_graduation_reverse_index`, `graduation_cluster` through it, `evaluate_handoff_ready`, `check_graduation_incomplete`, `graduated_closable_warnings` and their history-date readers) onto `artifact_meta` (`ebrc4t` E-01 and E-02, carried unchanged). EXCLUDES: the record skip list (`i16on1`, Order 144, then `ebrc4t`), the other check_engine subsets (Orders 29 to 31), and git-content readers (`t4gl15` family).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_readers_check_engine.py, tests/test_graduation_forward_links.py, tests/test_handoff_ready_gate.py, .aw/records/plans/pending/20261109-metastore-143-dbq57g-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261118-2i04so-01-2i04so-wrap-check-engine-check-types-in-artifact-meta-sca.backlog.md (Defect report carrier 2i04so filed per execute prompt for check_engine.check_types missing outer artifact_meta.scan_once and ephemeral_if_uninitialized); .aw/records/backlog/open/20261118-fffv16-01-fffv16-align-artifact-meta-read-text-and-project-artifact.backlog.md (Defect report carrier fffv16 filed per execute prompt for artifact_meta.read_text and project_artifact multi-bullet lineage parity); agent_workflows/artifact_meta.py (Fix missing legacy lineage extraction/projection and add query_lineage so build_graduation_reverse_index preserves multi-bullet From-Backlog records for tests/test_from_backlog_cardinality.py)
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:w1cs3p, executed:na188y, executed:i3b5zu
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +19,9 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dbq57g
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: dbq57g verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261118-2i04so-01-2i04so-wrap-check-engine-check-types-in-artifact-meta-sca.backlog.md: Defect report carrier 2i04so filed per execute prompt for check_engine.check_types missing outer artifact_meta.scan_once and ephemeral_if_uninitialized; out-of-scope .aw/records/backlog/open/20261118-fffv16-01-fffv16-align-artifact-meta-read-text-and-project-artifact.backlog.md: Defect report carrier fffv16 filed per execute prompt for artifact_meta.read_text and project_artifact multi-bullet lineage parity; out-of-scope agent_workflows/artifact_meta.py: Fix missing legacy lineage extraction/projection and add query_lineage so build_graduation_reverse_index preserves multi-bullet From-Backlog records for tests/test_from_backlog_cardinality.py; in-scope-unmodified tests/test_graduation_forward_links.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_handoff_ready_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
