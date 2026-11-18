@@ -119,6 +119,7 @@ flowchart TD
 
 - The builder module.
   - Carrier: j6o96i
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
 - The switch-point test (`RECORD_FORMAT` monkeypatch).
   - Carrier: 59aiyh
 

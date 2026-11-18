@@ -102,6 +102,7 @@ flowchart TD
 
 - Moved to j6o96i (round-3 split 2026-11-09 per research nj8zdp guidance): E-13 (baselines and F-10) and E-01 (the builder, split into E-01, E-15 and E-16).
   - Carrier: j6o96i
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
 - Moved to ijpay0 (round-3 split 2026-11-09 per research nj8zdp guidance): E-02 (the builder's test module, split into E-02 and E-18 to E-21).
   - Carrier: ijpay0
 - Moved to 7fpc8v (round-3 split 2026-11-09 per research nj8zdp guidance): the consumer conversions of E-10 (attnview `specs-valid` readers).

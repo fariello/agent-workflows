@@ -106,6 +106,7 @@ flowchart TD
   - Carrier: 7fpc8v
 - The `tests/support.py` record-text helpers (`support.ready_plan_text`).
   - Carrier: j6o96i
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
 
 ## Scope check
 
