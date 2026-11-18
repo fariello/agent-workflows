@@ -12,6 +12,7 @@ from __future__ import annotations
 import unittest
 from agent_workflows import render_stream as rs
 from agent_workflows import run_viewer as rv
+from agent_workflows import runner_shared
 from agent_workflows.artifact_audit import ArtifactAudit
 from agent_workflows.term import Term
 
@@ -159,6 +160,42 @@ class SlashCommandAndIdempotenceTests(unittest.TestCase):
         self.assertEqual(rf1["reason"], rf2.reason)
         self.assertEqual(rf1["remedy"], rf2.remedy)
         self.assertEqual(rf1, item2["refusal"])
+
+    def test_tilde_home_paths_preserved_in_refusals_and_answer_notices(self) -> None:
+        """Portable ~/... home paths survive redaction while SYNTHETIC_HOME paths still redact."""
+        item = {}
+        rf = rs.record_refusal(
+            item,
+            code="config-missing",
+            reason=f"checked ~/.gemini/antigravity-cli/last_quota.json and {SYNTHETIC_HOME}",
+            remedy="update ~/.config/opencode/antigravity-accounts.json",
+        )
+        self.assertIn("~/.gemini/antigravity-cli/last_quota.json", rf.reason)
+        self.assertNotIn("~<path>", rf.reason)
+        self.assertNotIn(SYNTHETIC_HOME, rf.reason)
+        self.assertIn("<path>", rf.reason)
+        self.assertEqual(
+            "update ~/.config/opencode/antigravity-accounts.json", rf.remedy
+        )
+
+        notice = runner_shared.build_answer_notice(
+            [
+                {
+                    "question_id": "q1",
+                    "question_text": "Read ~/.gemini/antigravity-cli/antigravity-oauth-token?",
+                    "answer": (
+                        "Yes, read ~/.gemini/antigravity-cli/antigravity-oauth-token or "
+                        "~/.config/opencode/antigravity-accounts.json (not /srv/private/creds.json)"
+                    ),
+                    "channel": "cli",
+                }
+            ]
+        )
+        self.assertIn("~/.gemini/antigravity-cli/antigravity-oauth-token", notice)
+        self.assertIn("~/.config/opencode/antigravity-accounts.json", notice)
+        self.assertNotIn("~<path>", notice)
+        self.assertNotIn("/srv/private/creds.json", notice)
+        self.assertIn("<path>", notice)
 
 
 if __name__ == "__main__":

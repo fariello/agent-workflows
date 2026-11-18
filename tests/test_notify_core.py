@@ -266,7 +266,8 @@ def test_sanitize_outbound_all_leak_classes(tmp_path: Path) -> None:
 
     assert "\x1b[" not in sanitized
     assert ("/home/" + "testuser") not in sanitized
-    assert "~/project/module.py" in sanitized or "<redacted>" in sanitized
+    assert "~/project/module.py" in sanitized
+    assert "~<path>" not in sanitized
     assert "/srv/production/data" not in sanitized
     assert "<path>" in sanitized or "<redacted>" in sanitized
     assert session_leak not in sanitized

@@ -4055,11 +4055,12 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
 #: in a refusal remedy breaks actionable remedies. Multi-segment paths such as `/home/<user>/VC/proj` or
 #: `/Users/<user>/proj` are still caught.
 #:
-#: The leading `(?<![\w/])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
-#: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
+#: The leading `(?<![\w/~])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
+#: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), portable home-relative
+#: paths (`~/...`, preserving them instead of mangling them into `~<path>`), test node ids,
 #: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
 _ABSOLUTE_PATH_IN_TEXT = re.compile(
-    r"(?:(?<![\w/\\])[A-Za-z]:[/\\]+(?:[\w.\-+@~]+[/\\]+)+[\w.\-+@~]+|(?<![\w/])/(?:[\w.\-+@~]+/)+[\w.\-+@~]+)"
+    r"(?:(?<![\w/\\])[A-Za-z]:[/\\]+(?:[\w.\-+@~]+[/\\]+)+[\w.\-+@~]+|(?<![\w/~])/(?:[\w.\-+@~]+/)+[\w.\-+@~]+)"
 )
 
 
