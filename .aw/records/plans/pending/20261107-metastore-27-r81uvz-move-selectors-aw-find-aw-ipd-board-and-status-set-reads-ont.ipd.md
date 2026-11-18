@@ -110,7 +110,7 @@ flowchart TD
 - `attention` reads (`ffceq0` E-04, E-05). Moved to dqutt8 (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: dqutt8
 - `check_engine` working-tree readers (`ffceq0` E-06, E-07) and the skip list (E-08). Moved to w1cs3p, na188y, i3b5zu and ebrc4t (split 2026-11-07 per maintainer step-complexity rule).
-  - Carrier: w1cs3p
+  - Carrier: ebrc4t
 - `ipd_lint` reads (`ffceq0` E-09). Moved to dqutt8 (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: dqutt8
 - E-01, E-02, E-03 (`selectors`, `aw find`/`aw search`/`aw ipd board`, `artifact_meta.read_text` and its spec 4.3 entry). Moved to cdglt1 (round-3 split 2026-11-09 per research nj8zdp guidance).

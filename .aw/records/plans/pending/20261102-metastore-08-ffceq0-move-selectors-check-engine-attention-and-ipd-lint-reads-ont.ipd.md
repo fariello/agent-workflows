@@ -161,6 +161,7 @@ flowchart TD
   - Carrier: dqutt8
 - E-06, E-07 identity, Set, date and From-Spec subset of the check_engine site list. Moved to w1cs3p (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: w1cs3p
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-29-w1cs3p-move-the-check-engine-identity-set-date-and-from-spec-reader.ipd.md
 - E-06, E-07 plan-rule and review subset. Moved to na188y (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: na188y
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-30-na188y-move-the-check-engine-plan-rule-and-review-readers-onto-arti.ipd.md
