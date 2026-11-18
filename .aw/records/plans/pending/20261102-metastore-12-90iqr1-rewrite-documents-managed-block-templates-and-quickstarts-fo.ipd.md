@@ -100,7 +100,8 @@ flowchart TD
 - Applying the patch to the live documents and building the two documented commands: they must land in the cutover commit (C10a).
   - Carrier: cxxmyv
 - The description-generation prompt file.
-  - Carrier: ya4ee4
+  - Carrier: odeo9z
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-20-odeo9z-build-the-m0001-description-journal-tool-less-model-call-and.ipd.md
 - Documentation for the execution record and the run index.
   - Carrier: nq1src
 - Inventory (old E-01), managed block and AGENTS.md (old E-02), and writing the first version of the patch (part of old E-08). Moved to qhay6a (round-3 split 2026-11-09 per research nj8zdp guidance).
