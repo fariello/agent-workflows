@@ -6,7 +6,9 @@
 - Scope: Orchestration only: sequence the two child plans below (`z403j4` Order 01 and `58isyp` Order 02) in dependency order and confirm each reaches `executed`. No code, test, or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261117-installmore-00-5qqgfb-package-gemini-quota-and-add-opt-in-aw-install-more-with-dis.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: orchestrator
 - Coverage: pass
 - Coverage-Fingerprint: 33886112ea5b9b0d69b4219282c1044340fc8d9ec073ecc21220a2727edee576
 - Coverage-Checked: 2026-11-18 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -23,6 +25,8 @@
 
 ## Workflow history
 
+- 2026-11-18 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
+- 2026-11-18 /plan-review (antigravity/gemini-4-hydrogen-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003; review record .aw/records/reviews/20261117-installmore-00-5qqgfb-package-gemini-quota-and-add-opt-in-aw-install-more-with-dis.review.md
 - 2026-11-18 to-review (aw set): status set to to-review
 - 2026-11-18 coverage pass (aw oc run): fingerprint 33886112ea5b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-18 coverage pass (aw oc run): fingerprint 913513f30092, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -68,6 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Unattended default installation without user consent, dotfile RC modification, and additional extras beyond `gemini-quota`: handled or explicitly deferred by `58isyp`.
+  - Carrier: 58isyp
 
 ## Scope check
 
@@ -80,7 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-None; resolved inside `z403j4` (Order 01) and `58isyp` (Order 02).
+None (child-level open questions are tracked in `z403j4` and `58isyp`).
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
@@ -101,4 +106,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Sequence execution as `z403j4` -> `58isyp`; once both children reach `executed` on disk, retire `5qqgfb` cleanly via `aw ipd finalize` or automated runner retirement.
+Execution contract:
+- **Open questions**: None in `5qqgfb` itself; child-level open questions are gated inside `z403j4` and `58isyp` before child execution.
+- **Scope fence**: Declared work paths are listed in `- Scope-Paths:`. An out-of-scope edit must be justified at finalize with `--scope-reason`, and any declared path left unmodified must be acknowledged with `--scope-ack`.
+- **Safety stop**: Stop and report only on a genuinely unsafe condition (such as an unresolvable concurrent-edit conflict or a child plan failing to reach `executed`).
+- **Evidence honesty**: MUST paste the actual `aw find plans` output confirming both children reached `.aw/records/plans/executed/` with `Status: executed` before marking `V-01`/`V-02` `pass`.
+- **Commit and push**: Commit only orchestrator-owned changes, limited to named paths, via `aw commit 5qqgfb -- <paths>`. Never use `git add -A`, `git commit -a`, or `--no-verify`, and never push without an explicit human directive.
+- **Lifecycle transition**: Sequence execution as `z403j4` -> `58isyp`. Once both children reach `executed` on disk, the runner retires `5qqgfb` automatically (`aw ipd finalize 5qqgfb` for a hand executor); never perform a hand `git mv` to `executed/`.
