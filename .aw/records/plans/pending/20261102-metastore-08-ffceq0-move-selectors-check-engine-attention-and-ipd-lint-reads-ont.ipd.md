@@ -171,6 +171,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-31-i3b5zu-move-the-check-engine-release-gate-and-from-backlog-readers.ipd.md
 - E-06, E-07 graduation and handoff subset, and E-08 (the one record skip list). Moved to ebrc4t (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: ebrc4t
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-32-ebrc4t-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
 - Readers of HEAD, staged or branch content (`check_engine._blob_text`/`_status_meta` git callers: `check_status_untooled`, `check_status_untooled_range`, `check_staged_illegal_backlog_transition`, `_lane_carrier_is_executed`, `_staged_backlog_done_items`, `check_release_gate_consistency`), the hooks, the runners and `runner_shared`, `plan_readiness.review_staleness_index`, `ipd_lifecycle._release_own_plan_edit_before_landing`, `status_set._prepare_status_change`: they need `read_at` (4.4 list).
   - Carrier: t4gl15
 - The `plans_index`, `plans_archive`, `plans_refs`, `research_*`, `prompts_index`, `artifact_audit`, `review_findings`, `review_*`, `orchestrator_readiness`, `production_checks`, `work_cmd`, `artifact_adopt`, `ipd_set_plan` and `completion` readers (section 7 step 5, second half).
