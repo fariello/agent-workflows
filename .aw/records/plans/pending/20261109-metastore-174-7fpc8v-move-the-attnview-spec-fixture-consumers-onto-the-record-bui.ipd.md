@@ -44,27 +44,27 @@ NINE-SPEC RECIPE (used by E-22, E-23 and E-24; it reproduces what `specs.validat
 
 ### Task group 1: one consumer per item
 
-- [ ] E-22 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_attention_contract.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `FixtureParseTests.test_valid_specs_have_bare_enum_status_and_map`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
+- [x] E-22 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_attention_contract.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `FixtureParseTests.test_valid_specs_have_bare_enum_status_and_map`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
   - Depends on: none
   - Expected outcome: the module's per-test outcome list (the OUTCOME-LIST COMMAND over `tests/test_attention_contract.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-23 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_verbs.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `CheckTests.test_valid_specs_pass`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
+- [x] E-23 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_verbs.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `CheckTests.test_valid_specs_pass`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
   - Depends on: none
   - Expected outcome: the module's per-test outcome list (the OUTCOME-LIST COMMAND over `tests/test_specs_verbs.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-24 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_releases_unsafe_field.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `test_non_regression_valid_specs_fixtures`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
+- [x] E-24 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/test_specs_releases_unsafe_field.py`, replace each read of a `tests/fixtures/attnview/specs-valid/*.md` file with the NINE-SPEC RECIPE above (nine valid specs built by `RecordBuilder.spec(..., text_only=True)` and written as `<status>.md` into a temporary directory that replaces `FIX / "specs-valid"` in the loop). The reads are in `test_non_regression_valid_specs_fixtures`. The `violations/` reads stay literal: their purpose is malformed legacy input (`9rgn2w` E-10 rule 2). Keep every assertion unchanged.
   - Depends on: none
   - Expected outcome: the module's per-test outcome list (the OUTCOME-LIST COMMAND over `tests/test_specs_releases_unsafe_field.py` alone) is identical before and after, and the module no longer reads `specs-valid`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: check and finish
 
-- [ ] E-25 Check the two remaining named consumers and finish: `9rgn2w` E-10 names `tests/test_attention.py` and `tests/test_attention_stem.py` as attnview consumers, but at `3d0ddb845` neither reads `tests/fixtures/attnview/` (`rg -n "FIX|fixtures" ` finds only the Set name `attnview` in prose and a backlog filename); re-run that search, and convert any read it now finds by the NINE-SPEC RECIPE, else record `no fixture read`. Then run the OUTCOME-LIST COMMAND over each of the three converted modules (and over any module E-25 converts), the bare core gate `python3 -m pytest`, and commit through `aw commit 7fpc8v -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-25 Check the two remaining named consumers and finish: `9rgn2w` E-10 names `tests/test_attention.py` and `tests/test_attention_stem.py` as attnview consumers, but at `3d0ddb845` neither reads `tests/fixtures/attnview/` (`rg -n "FIX|fixtures" ` finds only the Set name `attnview` in prose and a backlog filename); re-run that search, and convert any read it now finds by the NINE-SPEC RECIPE, else record `no fixture read`. Then run the OUTCOME-LIST COMMAND over each of the three converted modules (and over any module E-25 converts), the bare core gate `python3 -m pytest`, and commit through `aw commit 7fpc8v -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-22, E-23, E-24
   - Expected outcome: the search result for each of the two modules is recorded; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -128,25 +128,54 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-22 validates E-22
+- [x] V-22 validates E-22
   - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_attention_contract.py` (the OUTCOME-LIST COMMAND over that module alone), and `rg -n "specs-valid" tests/test_attention_contract.py` printing nothing while `rg -n "violations" tests/test_attention_contract.py` still lists the literal violation reads.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/7fpc8v/test_attention_contract-before.txt .aw/state/7fpc8v/test_attention_contract-after.txt` produced empty output (exit 0; 27 lines before, 27 lines after).
+    - `rg -n "specs-valid" tests/test_attention_contract.py`: `(none)` (exit 1, no matches).
+    - `rg -n "violations" tests/test_attention_contract.py`:
+      `282:    """The committed fixtures parse (valid) or are rejected (violations) per the contract."""`
+      `340:        f = FIX / "violations" / "status-trailing-prose.md"`
+      `347:        f = FIX / "violations" / "unknown-status.md"`
+      `354:        f = FIX / "violations" / "unsafe-field.md"`
+  - Result: pass
 
-- [ ] V-23 validates E-23
+- [x] V-23 validates E-23
   - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_specs_verbs.py` (the OUTCOME-LIST COMMAND over that module alone), and `rg -n "specs-valid" tests/test_specs_verbs.py` printing nothing while `rg -n "violations" tests/test_specs_verbs.py` still lists the literal violation reads.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/7fpc8v/test_specs_verbs-before.txt .aw/state/7fpc8v/test_specs_verbs-after.txt` produced empty output (exit 0; 20 lines before, 20 lines after).
+    - `rg -n "specs-valid" tests/test_specs_verbs.py`: `(none)` (exit 1, no matches).
+    - `rg -n "violations" tests/test_specs_verbs.py`:
+      `94:            f = FIX / "violations" / name`
+      `121:        f = FIX / "violations" / "status-trailing-prose.md"`
+  - Result: pass
 
-- [ ] V-24 validates E-24
+- [x] V-24 validates E-24
   - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_specs_releases_unsafe_field.py` (the OUTCOME-LIST COMMAND over that module alone), and `rg -n "specs-valid" tests/test_specs_releases_unsafe_field.py` printing nothing while `rg -n "violations" tests/test_specs_releases_unsafe_field.py` still lists the literal violation reads.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/7fpc8v/test_specs_releases_unsafe_field-before.txt .aw/state/7fpc8v/test_specs_releases_unsafe_field-after.txt` produced empty output (exit 0; 14 lines before, 14 lines after).
+    - `rg -n "specs-valid" tests/test_specs_releases_unsafe_field.py`: `(none)` (exit 1, no matches).
+    - `rg -n "violations" tests/test_specs_releases_unsafe_field.py`:
+      `235:        # Existing fixture tests/fixtures/attnview/violations/unsafe-field.md still flags`
+      `236:        fixture_path = FIX / "violations" / "unsafe-field.md"`
+  - Result: pass
 
-- [ ] V-25 validates E-25
+- [x] V-25 validates E-25
   - Required evidence: paste `rg -n "attnview|specs-valid|violations/" tests/test_attention.py tests/test_attention_stem.py` output with the reading of each hit (prose or fixture read), the outcome-list `diff` of any module E-25 changed (empty), the bare `python3 -m pytest` summary line, and every `aw commit 7fpc8v` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "attnview|specs-valid|violations/|FIX|fixtures" tests/test_attention.py tests/test_attention_stem.py`:
+      `tests/test_attention_stem.py:33:                ".aw/records/backlog/open/20260815-attnview-followups-01-mc5xts-attnview-deferred-followups.backlog.md"` (literal path string for `_identity_stem` test; no fixture read)
+      `tests/test_attention_stem.py:35:            "20260815-attnview-followups-01-mc5xts",` (expected stem string; no fixture read)
+      `tests/test_attention.py:1:"""Tests for the read-only aw attention scanner (Set attnview, Order 03).` (module docstring prose; no fixture read)
+      `tests/test_attention.py:2001:    """FIXTURES ONLY. ...` (docstring prose on `StrandedLaneViewTests`; no fixture read)
+      `tests/test_attention.py:2005:    # THE FIXTURE'S ABSOLUTE PATH IS COMPOSED, NOT WRITTEN AS A LITERAL. ...` (comment prose; no fixture read)
+      Result for both modules: `no fixture read` (neither module modified).
+    - `python3 -m unittest tests/test_attention_contract.py tests/test_specs_verbs.py tests/test_specs_releases_unsafe_field.py`: `Ran 61 tests in 1.767s` (`OK`).
+    - Core gate (`aw suite`): `2500 passed, 11 warnings in 129.10s (0:02:09)` (also `NOTE: 8768 tests were deselected by core filter/-m/-k`).
+    - `aw commit 7fpc8v` output:
+      `aw commit: committed 3 path(s): cfef6e04d9fdfba3cd57ed2f734887cb610aaa62` (`tests/test_attention_contract.py`, `tests/test_specs_verbs.py`, `tests/test_specs_releases_unsafe_field.py` — all in Scope-Paths).
+      Final IPD evidence update follows via `aw commit 7fpc8v -- .aw/records/plans/pending/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
