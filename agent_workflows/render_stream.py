@@ -3254,6 +3254,55 @@ def progress_display_total(queue: Sequence[Mapping[str, Any]]) -> int:
     return sum(1 for item in queue if item_is_dispatchable_work(item)) or len(queue)
 
 
+#: Queue statuses that mean an entry's turn in this run is over, for progress counting.
+_SETTLED_PROGRESS_STATUSES: frozenset[str] = frozenset(
+    {
+        "executed",
+        "reviewed",
+        "approved",
+        "substantially-complete",
+        "partial",
+        "blocked",
+        "dependency-blocked",
+        "failed-safely",
+        "fail-gate",
+        "fail-begin",
+        "fail-lane",
+        "fail-verify",
+        "fail-depend",
+        "fail-merge",
+        "not-run",
+        "failed",
+        "integration-blocked",
+        "merge-conflict",
+        "merge-needs-human",
+        "merge-refused",
+    }
+)
+
+
+def completed_work_count(item: Mapping[str, Any], state: Mapping[str, Any]) -> int:
+    """How many OTHER dispatchable entries have settled: the live statusline's progress numerator.
+
+    `execution_index` is a position in the run order, so `seq - 1` under-counts whenever an item
+    resumes after later items finished. Measured on `run-20261118T041454Z-805005`: `z403j4` (first
+    in the run order) paused for a question while `5qqgfb` was reviewed, and on resume the live box
+    read `0/3` beside `1 ok`. Counting settled entries keeps the live box consistent with its tally.
+    An entry counts only once this run has attempted it: a queued execute entry starts `approved`,
+    which is also a settled review outcome.
+    """
+    id6 = str(item.get("id6") or "")
+    return sum(
+        1
+        for it in state.get("queue") or []
+        if isinstance(it, Mapping)
+        and str(it.get("id6") or "") != id6
+        and item_is_dispatchable_work(it)
+        and it.get("attempts")
+        and it.get("status") in _SETTLED_PROGRESS_STATUSES
+    )
+
+
 def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
     """The 1-based index of an item in the run's execution sequence.
 
@@ -3285,29 +3334,7 @@ def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
         if str(it.get("id6")) in not_work:
             continue
         if str(it.get("id6")) != id6 and (
-            it.get("status")
-            in {
-                "executed",
-                "reviewed",
-                "approved",
-                "substantially-complete",
-                "partial",
-                "blocked",
-                "dependency-blocked",
-                "failed-safely",
-                "fail-gate",
-                "fail-begin",
-                "fail-lane",
-                "fail-verify",
-                "fail-depend",
-                "fail-merge",
-                "not-run",
-                "failed",
-                "integration-blocked",
-                "merge-conflict",
-                "merge-needs-human",
-                "merge-refused",
-            }
+            it.get("status") in _SETTLED_PROGRESS_STATUSES
             or (it.get("attempts") and it.get("status") != "queued")
         ):
             completed += 1

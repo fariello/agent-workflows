@@ -116,7 +116,7 @@ from agent_workflows.render_stream import (
     StreamTracker,
     _one_line,
     _strip_ansi,
-    execution_index,
+    completed_work_count,
     format_compact_tokens,
     format_progress_bar,
     format_stall_countdown,
@@ -3094,9 +3094,9 @@ def run_opencode(
 
     queue = state.get("queue", [])
     total_items = dispatchable_work_total(queue) or 1
-    # When working on item at 1-based execution sequence S, number of completed items is S - 1 (e.g. 0 of 2 done).
-    seq = execution_index(item, state)
-    current_idx = max(0, seq - 1)
+    # Settled entries, not run-order position: an item resumed after later items finished must not
+    # read `0/N` beside a non-zero ok tally.
+    current_idx = completed_work_count(item, state)
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 

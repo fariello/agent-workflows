@@ -59,5 +59,39 @@ class PartiallyExecutedSetProgressTests(unittest.TestCase):
             item["status"] = "executed"
 
 
+class ResumedItemProgressTests(unittest.TestCase):
+    """An item resumed after a later item settled counts that item as done.
+
+    Measured on a live review run: the first item in the run order paused for a human answer, the
+    next item was reviewed, and on resume the live statusline read `0/3` beside `1 ok`.
+    """
+
+    def test_resumed_first_item_counts_later_settled_item(self):
+        queue = _queue(3, 0)
+        state = {"queue": queue, "run_order": oc_runipd.run_order_rationale(queue)}
+        first, second, _third = queue
+        oc_runipd.update_execution_order(state, first)
+        first["status"] = "awaiting-human"
+        first["attempts"] = [{"n": 1}]
+        oc_runipd.update_execution_order(state, second)
+        second["status"] = "reviewed"
+        second["attempts"] = [{"n": 1}]
+        first["status"] = "running"
+
+        done = render_stream.completed_work_count(first, state)
+        self.assertEqual(done, 1)
+        self.assertIn("1/3", render_stream.format_progress_bar(done, 3))
+
+    def test_nothing_settled_reads_zero(self):
+        queue = _queue(3, 0)
+        state = {"queue": queue, "run_order": oc_runipd.run_order_rationale(queue)}
+        self.assertEqual(render_stream.completed_work_count(queue[0], state), 0)
+
+    def test_pre_executed_members_are_not_counted(self):
+        queue = _queue(10, 4)
+        state = {"queue": queue, "run_order": oc_runipd.run_order_rationale(queue)}
+        self.assertEqual(render_stream.completed_work_count(queue[4], state), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

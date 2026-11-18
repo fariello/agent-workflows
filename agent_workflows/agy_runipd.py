@@ -91,6 +91,7 @@ from agent_workflows.render_stream import (
     record_integration_refusal as record_integration_refusal,
     record_refusal as record_refusal,
     refusal_of_item as refusal_of_item,
+    completed_work_count as completed_work_count,
     execution_index as execution_index,
     # `progdenom`: shared with the oc host and the summary bar, so all three agree.
     dispatchable_work_total as dispatchable_work_total,
@@ -2664,9 +2665,9 @@ def run_agy_turn(
     # the oc twin and the summary bar. `len` counted Set members that arrived already `executed` and
     # entries frozen `reviewed` awaiting approval, neither of which a run can dispatch.
     total_items = dispatchable_work_total(queue) or 1
-    # When working on item at 1-based execution sequence S, number of completed items is S - 1 (e.g. 0 of 2 done).
-    seq = execution_index(item, state)
-    current_idx = max(0, seq - 1)
+    # Settled entries, not run-order position: an item resumed after later items finished must not
+    # read `0/N` beside a non-zero ok tally.
+    current_idx = completed_work_count(item, state)
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
