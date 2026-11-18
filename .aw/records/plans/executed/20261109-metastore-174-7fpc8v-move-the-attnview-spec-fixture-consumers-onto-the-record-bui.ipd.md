@@ -6,7 +6,7 @@
 - Scope: Part of the round-3 split of `9rgn2w` E-10 (2026-11-09, research `nj8zdp` guidance): the attnview consumers (E-22 to E-24 one module each, E-25 the two named modules that read no fixture plus the finish). EXCLUDES: deleting the fixture files (`z4x192`, `9zcuyh`); the orchestrator fixture (`b3eilr`); the `violations/` and `review-pilot/plans/` sets (kept literal); production code.
 - Scope-Paths: tests/test_attention_contract.py, tests/test_specs_verbs.py, tests/test_specs_releases_unsafe_field.py, tests/test_attention.py, tests/test_attention_stem.py, .aw/records/plans/pending/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 25
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7fpc8v
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: 7fpc8v verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_attention.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_attention_stem.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/claude-opus-5.5): plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-14 /plan-review (antigravity/claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.review.md
