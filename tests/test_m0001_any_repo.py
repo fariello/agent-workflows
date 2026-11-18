@@ -5,10 +5,9 @@ and real `m0001_metadata_v2`, `artifact_meta`, `status_set`, `project_context`, 
 and `chain` functions on isolated `git init` repositories built by `tests/migration_corpus.py`.
 No test inspects production source code.
 
-Pre-cutover boundary: `aw find` and `aw attention --format json` parity/pass assertions
-and the `this_repository` clone execution are blocked until metastore Order 08
-(`cdglt1`/`r81uvz`/`dqutt8`/`ffceq0`) moves `aw find` and `attention` onto `artifact_meta`
-and `e49gzt` optimizes large-repo migration runtime.
+Pre-cutover boundary: `aw find` and `aw attention --format json` parity assertions
+and the `this_repository` clone case are carried by follow-up plan `60mazt`
+(graduated from backlog `mzw0kk`, gated on `executed:ffceq0` and `state:backlog:done:e49gzt`).
 """
 
 from __future__ import annotations
