@@ -5,7 +5,7 @@
 - Concern: `cxxmyv` E-17 rehearsed the whole cutover on a clone during the attended turn, after the code switch had been written there. With the switch now prepared as the docs and code patches (`90iqr1` family and `2k5t16` family) and the demonstrations as a script (`33vxoi`), the rehearsal can run BEFORE the attended cutover turn, on a `git clone --no-hardlinks` copy, without touching this checkout or `main` (spec `4sd62s` 5.2, C10a). It proves the one-commit mechanism (`clors0` E-19 extra-path argument) on a full copy, and rehearses the demonstration script on a migrated tree. Round-3 split, research `nj8zdp`.
 - Scope: In a gitignored clone of the maintainer's main checkout: apply both patches, copy the sidecar and the description journal, run both test tiers on the switched unmigrated tree, run `aw migrate metadata --apply` without `--force` with the extra-path argument, check the one commit and both tiers, run the demonstration script; record the exact invocation for `cxxmyv`. Edits only this plan.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-260-5qyba0-rehearse-the-full-metadata-cutover-on-a-clone-with-the-prepa.ipd.md
-- Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:tub3ir, executed:0zylig, executed:33vxoi
+- Item-Dependencies: executed:0zylig, executed:1ajqaa, executed:33vxoi, executed:60mazt, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:tub3ir, executed:w13bkp, executed:ya4ee4, executed:zgyna1
 - Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
@@ -24,6 +24,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-18 same-status (aw set): Add executed:60mazt per maintainer decision on g5hpbb-ac42-order08-circular-dependency
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005

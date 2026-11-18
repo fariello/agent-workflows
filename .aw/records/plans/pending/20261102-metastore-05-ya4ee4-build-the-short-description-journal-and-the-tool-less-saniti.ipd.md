@@ -151,6 +151,7 @@ flowchart TD
 - The `m0001` framework, the census, the `--apply` refusal for missing descriptions, and the `describer` seam, plus discovery and stage-1 layout migration across prior-format repositories.
   - Carrier: dcerjg
   - Carrier: g5hpbb
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md
 - `--summary` on every creating command and the `short_description` setter (AC-36 case 1).
   - Carrier: xexn45
   - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
