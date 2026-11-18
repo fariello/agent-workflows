@@ -3,8 +3,8 @@
 Deterministic fixtures the attention-view contracts, the `aw specs` verbs (Order 02), and the
 `aw attention` scanner (Order 03) test against. Two groups:
 
-- `specs-valid/` one spec file per spec native status, each mapping to its attention class.
-- `violations/` one sample per `--check` violation class (each ties to a `RULE_IDS` catalog id).
+- `specs-valid/` is retired from tracked fixtures. The consuming test modules (`tests/test_attention_contract.py`, `tests/test_specs_verbs.py`, and `tests/test_specs_releases_unsafe_field.py`) build one spec per spec native status dynamically with `RecordBuilder.spec(...)` (`tests/record_builder.py`), each mapping to its attention class.
+- `violations/` stays literal malformed input, providing one sample per `--check` violation class (each ties to a `RULE_IDS` catalog id).
 
 Some violation classes (unreadable file, unsupported-encoding, symlink-escaping-repo) cannot be
 committed as portable text fixtures; they are documented here and simulated in-test:
