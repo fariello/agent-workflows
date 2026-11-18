@@ -3706,20 +3706,25 @@ def check_ipd_draft_ready(
     from agent_workflows import ipd_authoring as _authoring
 
     drift: List[_core.Drift] = []
+    state_map = _meta_state_map(repo_root, "ipd")
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
         # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
         if "pending" not in p.parts:
             continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+        st_obj, text = _meta_state_for_cached_path(p, state_map)
+        if st_obj is None:
             continue
-        st = _read_plan_status(text)
+        st = st_obj.status
         if not st or st.strip().lower() != "draft":
             continue
+        if text is None:
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
         if not _authoring.authoring_placeholders_resolved(text):
             continue  # still a stub: stay silent
-        id6 = _read_item_id(text) or p.stem
+        id6 = _meta_declared_id6(st_obj) or p.stem
         recovery = f"aw ipd set to-review {id6}"
         drift.append(
             enrich_drift(
@@ -3754,19 +3759,19 @@ def check_ipd_review_stale(
     pending_plans: List[Path] = []
     path_map: Dict[str, Path] = {}
     id_map: Dict[str, str] = {}
+    state_map = _meta_state_map(repo_root, "ipd")
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
         if "pending" not in p.parts:
             continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+        st_obj, _ = _meta_state_for_cached_path(p, state_map)
+        if st_obj is None:
             continue
         try:
             rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
         except ValueError:
             rel = p.as_posix()
         path_map[rel] = p
-        id_map[rel] = _read_item_id(text) or p.stem
+        id_map[rel] = _meta_declared_id6(st_obj) or p.stem
         pending_plans.append(p)
 
     if not pending_plans:
@@ -4250,12 +4255,12 @@ def check_scope_drift(
     from agent_workflows import worktree_lease as _lease
 
     drift: List[_core.Drift] = []
+    state_map = _meta_state_map(repo_root, "ipd")
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+        st_obj, text = _meta_state_for_cached_path(p, state_map)
+        if st_obj is None:
             continue
-        plan_id = _read_item_id(text)
+        plan_id = _meta_declared_id6(st_obj)
         if not plan_id:
             continue
         receipt = _life.read_receipt(repo_root, plan_id)
@@ -4266,6 +4271,11 @@ def check_scope_drift(
         base_head = str(receipt.get("base_head") or "").strip()
         if not base_head or base_head == "unversioned":
             continue
+        if text is None:
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
         scope_paths = _life._frozen_scope_paths(text)
         if not scope_paths:
             continue  # grandfathered/absent allowlist: advisory-satisfied, not hard-flagged
@@ -5197,6 +5207,72 @@ def _meta_state_for_path(
                 except Exception:
                     return st
     return None
+
+
+def _meta_state_map(
+    repo_root: Path,
+    meta_type: str,
+    *,
+    load_fields: bool = False,
+) -> Dict[Path, Any]:
+    """Return resolved-path -> `artifact_meta` State map for `meta_type` in one cache scan."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    repo_root = Path(repo_root)
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return {}
+    out: Dict[Path, Any] = {}
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(type=meta_type, project_context=ctx)
+        for st in res.rows:
+            if not st.path or not st.id6:
+                continue
+            try:
+                resolved_p = _meta.source_path(
+                    st.path, records_root, scan_repo
+                ).resolve()
+            except Exception:
+                continue
+            if load_fields:
+                try:
+                    st = _meta.read(st.id6, project_context=ctx)
+                except Exception:
+                    pass
+            out[resolved_p] = st
+    return out
+
+
+def _meta_state_for_cached_path(
+    p: Path,
+    state_map: Dict[Path, Any],
+    *,
+    record_type: str = "ipd",
+    errors: str = "strict",
+) -> Tuple[Optional[Any], Optional[str]]:
+    """Look up cached State for `p` in `state_map`, falling back to `artifact_meta.read_text`."""
+    from agent_workflows import artifact_meta as _meta
+
+    try:
+        st_obj = state_map.get(p.resolve())
+    except OSError:
+        st_obj = None
+    if st_obj is not None:
+        return st_obj, None
+    try:
+        text = p.read_text(encoding="utf-8", errors=errors)
+    except OSError:
+        return None, None
+    return _meta.read_text(text, record_type=record_type), text
 
 
 def _from_backlog_value(text: str) -> Optional[str]:
@@ -7495,6 +7571,7 @@ def evaluate_ipd_dependencies(
     parameter can only ever RELAX the gate for a turn that provably writes no code.
     """
     repo_root = Path(repo_root)
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import config as _config
 
     cutover_date = _config.dependency_cutover_date(repo_root)
@@ -7517,6 +7594,7 @@ def evaluate_ipd_dependencies(
     all_plans: List[Tuple[Path, str]] = [
         (Path(ps), text) for ps, text in merged.items()
     ]
+    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
     own_id: Dict[str, str] = {}  # path_str -> declared id6
     dep_value: Dict[
         str, Optional[str]
@@ -7532,11 +7610,20 @@ def evaluate_ipd_dependencies(
         # than a behavior change - which is exactly why it should be made now, before a plan
         # discussing `Item-Dependencies` (a normal thing for a plan about the graph to do) acquires a
         # quoted `- Id:` and silently takes over another plan's node.
-        mid_declared = _read_declared_id(text)
+        if ps in overlay:
+            st_obj = _meta.read_text(text, record_type="ipd")
+        else:
+            try:
+                st_obj = state_map.get(p.resolve())
+            except OSError:
+                st_obj = None
+            if st_obj is None:
+                st_obj = _meta.read_text(text, record_type="ipd")
+        mid_declared = _meta_declared_id6(st_obj)
         if mid_declared:
             own_id[ps] = mid_declared
-        mdep = _ITEM_DEPENDENCIES_RE.search(text)
-        dep_value[ps] = mdep.group(1).strip() if mdep else None
+        raw_dep = (getattr(st_obj, "fields", None) or {}).get("item_dependencies")
+        dep_value[ps] = str(raw_dep).strip() if raw_dep is not None else None
 
     # Build the IPD->IPD edge graph (by owner id6) from ALL plans for cycle detection.
     edges_by_plan: Dict[str, List[str]] = {}
@@ -7571,11 +7658,20 @@ def evaluate_ipd_dependencies(
     )
     for p, text in sorted(target_plans, key=lambda pt: str(pt[0])):
         ps = str(p)
-        raw = dep_value.get(ps, None)
-        if raw is None:
-            raw = None
-            mdep = _ITEM_DEPENDENCIES_RE.search(text)
-            raw = mdep.group(1).strip() if mdep else None
+        if ps in dep_value and plans is None:
+            raw = dep_value[ps]
+        else:
+            if ps in overlay or plans is not None:
+                st_t = _meta.read_text(text, record_type="ipd")
+            else:
+                try:
+                    st_t = state_map.get(p.resolve())
+                except OSError:
+                    st_t = None
+                if st_t is None:
+                    st_t = _meta.read_text(text, record_type="ipd")
+            raw_dep = (getattr(st_t, "fields", None) or {}).get("item_dependencies")
+            raw = str(raw_dep).strip() if raw_dep is not None else None
         oid = own_id.get(ps)
         # (1) missing statement - CUTOVER-GATED: a grandfathered (pre-cutover / no-cutover) plan is
         # NEVER flagged for a missing statement, at ANY phase, so the existing corpus is not
@@ -7732,26 +7828,27 @@ def check_plan_priority(
     from agent_workflows import ipd_schema as _schema
 
     drift: List[_core.Drift] = []
+    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
     for p in _iter_type_files(
         repo_root,
         "plans",
         include_untracked=include_untracked,
         include_retired=include_retired,
     ):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+        st_obj, _ = _meta_state_for_cached_path(p, state_map)
+        if st_obj is None:
             continue
-        m = _ITEM_PRIORITY_RE.search(text)
-        if not m:
+        value = _meta_single_token(
+            (getattr(st_obj, "fields", None) or {}).get("priority")
+        )
+        if not value:
             continue  # absent Priority is fine (optional)
-        value = m.group(1).strip()
         if value in _backlog.PRIORITIES or value in (
             _schema.PLAN_PRIORITY_GRANDFATHERED,
             _schema.PLAN_PRIORITY_UNRESOLVED,
         ):
             continue
-        id6 = _read_item_id(text) or p.stem
+        id6 = _meta_declared_id6(st_obj) or p.stem
         drift.append(
             enrich_drift(
                 _core.Drift(
@@ -7790,26 +7887,27 @@ def check_plan_work_kind(
     from agent_workflows import ipd_schema as _schema
 
     drift: List[_core.Drift] = []
+    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
     for p in _iter_type_files(
         repo_root,
         "plans",
         include_untracked=include_untracked,
         include_retired=include_retired,
     ):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+        st_obj, _ = _meta_state_for_cached_path(p, state_map)
+        if st_obj is None:
             continue
-        m = _ITEM_WORK_KIND_RE.search(text)
-        if not m:
+        value = _meta_single_token(
+            (getattr(st_obj, "fields", None) or {}).get("work_kind")
+        )
+        if not value:
             continue  # absent Work-Kind is fine (optional)
-        value = m.group(1).strip()
         if value in _backlog.KINDS or value in (
             _schema.PLAN_WORK_KIND_GRANDFATHERED,
             _schema.PLAN_WORK_KIND_UNRESOLVED,
         ):
             continue
-        id6 = _read_item_id(text) or p.stem
+        id6 = _meta_declared_id6(st_obj) or p.stem
         drift.append(
             enrich_drift(
                 _core.Drift(
@@ -7898,10 +7996,12 @@ def check_plan_priority_required(
     Reads the SAME predicates as the lint gate (ipd_lint.check_plan_priority / check_plan_work_kind),
     so the checkpoint gate and the repo-wide sweep cannot drift apart.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
 
     drift: List[_core.Drift] = []
+    state_map = _meta_state_map(repo_root, "ipd")
     for p in _iter_type_files(
         repo_root,
         "plans",
@@ -7920,7 +8020,13 @@ def check_plan_priority_required(
         if not _lint._scope_paths_gate_applies("author", status):
             continue
         blocking_prio, _ = _lint.check_plan_priority(doc, "author", None)
-        id6 = _read_item_id(text) or p.stem
+        try:
+            st_obj = state_map.get(p.resolve())
+        except OSError:
+            st_obj = None
+        if st_obj is None:
+            st_obj = _meta.read_text(text, record_type="ipd")
+        id6 = _meta_declared_id6(st_obj) or p.stem
         for b in blocking_prio:
             drift.append(
                 enrich_drift(
@@ -7962,28 +8068,35 @@ def _review_subject_id_sets(repo_root: Path) -> Dict[str, set]:
     """The known-id6 set for each `Subject-Type`, keyed by the CLOSED vocabulary's own values.
 
     ONE place decides which tree a subject type resolves against (revsweep `eyh1fu` E-03). Both
-    entries reuse the EXISTING typed iterators (`_iter_plan_ipds`, `_iter_spec_records`), so this
-    helper adds no second "which ids exist" mechanism and, in particular, no `.aw/records/reviews`
-    or specs-tree path literal of its own.
+    entries query `artifact_meta` over `.ipd.md` / `.spec.md` records, so this helper adds no
+    second "which ids exist" mechanism and, in particular, no `.aw/records/reviews` or specs-tree
+    path literal of its own.
 
     A type in `review_findings.SUBJECT_TYPES` with no entry here would silently resolve against
     NOTHING and report every record of that type as dangling, so the mapping is asserted complete by
     a test rather than left to inspection.
     """
-    return {
-        "ipd": {
-            id6
-            for _p, text in _iter_plan_ipds(repo_root)
-            for id6 in (_read_item_id(text),)
-            if id6
-        },
-        "spec": {
-            id6
-            for _p, text in _iter_spec_records(repo_root)
-            for id6 in (_read_item_id(text),)
-            if id6
-        },
-    }
+    from agent_workflows import artifact_meta as _meta
+
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        return {
+            "ipd": {
+                id6
+                for _p, st in _meta_records_with_fields(
+                    repo_root, "ipd", suffix=".ipd.md"
+                )
+                for id6 in (_meta_declared_id6(st),)
+                if id6
+            },
+            "spec": {
+                id6
+                for _p, st in _meta_records_with_fields(
+                    repo_root, "spec", suffix=".spec.md"
+                )
+                for id6 in (_meta_declared_id6(st),)
+                if id6
+            },
+        }
 
 
 def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
@@ -8014,6 +8127,7 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
     """
     drift: List[_core.Drift] = []
     try:
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import review_findings as _rf
     except Exception:
         return drift
@@ -8028,17 +8142,18 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _REVIEW_SUBJECT_ID_RE.search(text)
-        if m is None:
+        st = _meta.read_text(text)
+        raw_sid = _meta_single_token((st.fields or {}).get("subject_id"))
+        if not raw_sid or not _ID6_RE.fullmatch(raw_sid):
             continue  # a missing/malformed Subject-Id is the parser's diagnostic, not this rule's
-        mt = _REVIEW_SUBJECT_TYPE_RE.search(text)
-        subject_type = mt.group(1).strip().lower() if mt else ""
+        raw_stype = _meta_single_token((st.fields or {}).get("subject_type"))
+        subject_type = raw_stype.lower() if raw_stype else ""
         known = known_by_type.get(subject_type)
         if known is None:
             # Absent or out-of-vocabulary type: the parser owns that complaint (see the docstring).
             # Deliberately NOT resolved against the plans tree as a fallback.
             continue
-        subject_id = m.group(1)
+        subject_id = raw_sid
         if subject_id in known:
             continue
         drift.append(
@@ -8479,11 +8594,15 @@ def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
     except Exception:
         return drift
 
-    for path, text in _iter_spec_records(repo_root):
-        ms = _re.search(r"(?m)^-[ \t]*Status:[ \t]*(\S+)[ \t]*$", text)
-        if ms is None or ms.group(1).strip().lower() != "reviewed":
+    try:
+        spec_rows = _meta_records_with_fields(repo_root, "spec", suffix=".spec.md")
+    except Exception:
+        return drift
+
+    for path, st in spec_rows:
+        if (st.status or "").lower() != "reviewed":
             continue
-        id6 = _read_item_id(text) or ""
+        id6 = _meta_declared_id6(st) or ""
         try:
             missing = _rf.review_attestation_missing(repo_root, id6, "spec")
         except Exception:
@@ -9490,6 +9609,7 @@ def evaluate_review_finding_escalation(
     """
     drift: List[_core.Drift] = []
     try:
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import config as _cfg
         from agent_workflows import review_findings as _rf
     except Exception:
@@ -9502,7 +9622,7 @@ def evaluate_review_finding_escalation(
     if str(thr).strip().lower() in ("off", ""):
         return drift
 
-    plan_id6 = _read_item_id(plan_text)
+    plan_id6 = _meta_declared_id6(_meta.read_text(plan_text, record_type="ipd"))
     if plan_id6 is None:
         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
 
@@ -9692,12 +9812,13 @@ def evaluate_review_decision_escalation(
     """
     drift: List[_core.Drift] = []
     try:
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import review_findings as _rf
         from agent_workflows import reviews as _reviews
     except Exception:
         return drift
 
-    plan_id6 = _read_item_id(plan_text)
+    plan_id6 = _meta_declared_id6(_meta.read_text(plan_text, record_type="ipd"))
     if plan_id6 is None:
         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
 
@@ -10230,11 +10351,12 @@ def find_obligations_carried_by(
                 plan_id6 = ""
 
             if not plan_id6:
-                m = _re.search(r"(?m)^- Id:\s*([a-z0-9]{6})\b", text)
-                if m:
-                    plan_id6 = m.group(1)
-                else:
-                    plan_id6 = p.name[:6]
+                from agent_workflows import artifact_meta as _meta
+
+                plan_id6 = (
+                    _meta_declared_id6(_meta.read_text(text, record_type="ipd"))
+                    or p.name[:6]
+                )
 
             lines = text.splitlines()
             obligations = _deferred_section_obligations(text) + _question_obligations(
@@ -11011,8 +11133,11 @@ def check_ipd_lint_reach(
         except OSError:
             continue
 
-        m = _re.search(r"^- Date:\s*(\S+)", text, _re.MULTILINE)
-        raw_date = m.group(1) if m else None
+        from agent_workflows import artifact_meta as _meta
+
+        st_date = _meta.read_text(text, record_type="ipd")
+        raw_date_val = str((st_date.fields or {}).get("date") or "").strip()
+        raw_date = raw_date_val.split()[0] if raw_date_val else None
         if not _lint._m105_terminal_date_applies(raw_date):
             continue
 
@@ -11077,29 +11202,30 @@ def check_orchestrator_not_review_ready(
     except Exception:
         return drift
 
+    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
         if "pending" not in p.parts:
             continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        st_obj, _ = _meta_state_for_cached_path(p, state_map, errors="replace")
+        if st_obj is None:
             continue
 
-        m_kind = _re.search(r"^- Kind:\s*(\S+)", text, _re.MULTILINE)
-        if (
-            not m_kind
-            or m_kind.group(1).strip("'\"").lower() != _schema.KIND_ORCHESTRATOR
-        ):
+        raw_kind = _meta_single_token(
+            (getattr(st_obj, "fields", None) or {}).get("plan_role")
+        )
+        if not raw_kind or raw_kind.strip("'\"").lower() != _schema.KIND_ORCHESTRATOR:
             continue
 
-        m_stat = _re.search(r"^- Status:\s*(\S+)", text, _re.MULTILINE)
-        stat = m_stat.group(1).strip("'\"").lower() if m_stat else "draft"
+        raw_stat = st_obj.legacy_raw_status or st_obj.status
+        stat = (
+            raw_stat.split()[0].strip("'\"").lower()
+            if raw_stat and raw_stat.strip()
+            else "draft"
+        )
         if stat not in ("to-review", "reviewed", "approved", "auto-approved"):
             continue
 
-        m_set = _re.search(r"^- Set:\s*([^\n]+)", text, _re.MULTILINE)
-        raw_set = m_set.group(1).strip() if m_set else ""
-        setid = raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+        setid = st_obj.legacy_raw_set or st_obj.set_id or ""
         active_membership = memberships.get(setid) if memberships else None
 
         ready_res = _orch.review_readiness(
