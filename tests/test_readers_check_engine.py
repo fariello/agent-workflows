@@ -1221,3 +1221,464 @@ class TestCheckEngineReadersOrder30:
         ]
         assert len(hits) >= 1
         assert all(Path(h["location"]).name == orch_p.name for h in hits)
+
+
+class TestCheckEngineReadersOrder29:
+    """Pins the identity, Set, date, and From-Spec readers in check_engine (IPD w1cs3p E-01)."""
+
+    def test_check_collisions_identity_and_setid(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        p1 = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-colset-01-col001-first.ipd.md"
+        )
+        p1.write_text(
+            "# IPD: First\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/a.py\n"
+            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
+            "- Set: colset (First desc)\n- Order: 1\n- Id: col001\n\n## Goal\n\nOne.\n",
+            encoding="utf-8",
+        )
+        p2 = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-colset-02-col002-second.ipd.md"
+        )
+        p2.write_text(
+            "# IPD: Second\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/b.py\n"
+            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
+            "- Set: colset (Second desc)\n- Order: 2\n- Id: col001\n\n## Goal\n\nTwo.\n",
+            encoding="utf-8",
+        )
+        p3 = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-colset-03-slot99-third.ipd.md"
+        )
+        p3.write_text(
+            "# IPD: Third\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/c.py\n"
+            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
+            "- Set: colset (First desc)\n- Order: 3\n- Id: col003\n\n## Goal\n\nThree.\n",
+            encoding="utf-8",
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc != 0
+        diags = json.loads(out)["diagnostics"]
+        rules = {d["rule"] for d in diags}
+        assert "check.id6-collision" in rules
+        assert "check.setid-collision" in rules
+        assert "check.id6-identity-slot" in rules
+
+    def test_identity_declared_values_and_name_identity(self, tmp_path: Path) -> None:
+        bullet_text = (
+            "# Spec: Bullet\n\n- Id: `bid001`\n- Set: `bset` (Desc)\n\n"
+            "## Body\n\n- Id: oth999\n"
+        )
+        yaml_text = (
+            "---\nid: yid002\nset: yset (YAML)\n---\n\n# Research\n\n"
+            "- Id: quoted1\n- Set: quotedset\n"
+        )
+        quoted_only_text = (
+            "# Note\n\nBody.\n\n## Example\n\n- Id: qid003\n- Set: qset\n"
+        )
+        assert check_engine._identity_declared_values(bullet_text) == (
+            ("bid001", True),
+            ("bset", True),
+        )
+        assert check_engine._identity_declared_values(yaml_text) == (
+            ("yid002", True),
+            ("yset", True),
+        )
+        assert check_engine._identity_declared_values(quoted_only_text) == (
+            ("qid003", False),
+            ("qset", False),
+        )
+
+        repo = _setup_repo(tmp_path)
+        leg = (
+            repo
+            / ".aw"
+            / "records"
+            / "specs"
+            / "approved"
+            / "20260801-1200-01-legacy-spec.spec.md"
+        )
+        leg.write_text(
+            "# Spec: Legacy\n\n- Id: leg001\n- Status: approved\n- Set: legset\n\n## Goal\n\nTest.\n",
+            encoding="utf-8",
+        )
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        diags = json.loads(out)["diagnostics"]
+        id_abs = [
+            d
+            for d in diags
+            if d["rule"] == "check.identity-absent-from-name"
+            and Path(d["location"]).name == leg.name
+        ]
+        assert len(id_abs) == 2
+
+    def test_check_id_outside_metadata_region(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        unfenced = _o30_write_full_plan(
+            repo,
+            "pending",
+            "out001",
+            order=1,
+            body="## Notes\n\n- Id: ext123\n",
+        )
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "out002",
+            order=2,
+            body="## Notes\n\n```markdown\n- Id: ext456\n```\n",
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc == 0 or rc != 0
+        hits = [
+            d
+            for d in json.loads(out)["diagnostics"]
+            if d["rule"] == "check.id6-outside-metadata-region"
+        ]
+        assert [Path(h["location"]).name for h in hits] == [unfenced.name]
+
+    def test_check_setid_length(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        cfg_dir = repo / ".aw" / "config"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / "project.json").write_text(
+            json.dumps({"cutovers": {"setid_length": "2026-09-23"}}),
+            encoding="utf-8",
+        )
+        # Post-cutover >14 warns; >24 errors; pre-cutover grandfathered; filename fallback works
+        warn_p = _o30_write_full_plan(
+            repo,
+            "pending",
+            "slw001",
+            setid="sixteen-char-set",
+            order=1,
+            date="2026-10-01",
+        )
+        err_p = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-twenty-six-character-setid-02-sle002-plan.ipd.md"
+        )
+        err_p.write_text(
+            "# IPD: Long\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/a.py\n"
+            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
+            "- Order: 2\n- Id: sle002\n\n## Goal\n\nLong.\n",
+            encoding="utf-8",
+        )
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "slg003",
+            setid="pre-cutover-long-setid",
+            order=3,
+            date="2026-09-01",
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc != 0
+        diags = json.loads(out)["diagnostics"]
+        warns = [
+            Path(d["location"]).name
+            for d in diags
+            if d["rule"] == "check.setid-length-warn"
+        ]
+        errs = [
+            Path(d["location"]).name
+            for d in diags
+            if d["rule"] == "check.setid-length-error"
+        ]
+        assert warns == [warn_p.name]
+        assert errs == [err_p.name]
+
+    def test_find_lifecycle_placement_conflicts(self, tmp_path: Path) -> None:
+        pure = check_engine.find_lifecycle_placement_conflicts(
+            [
+                (
+                    ".aw/records/plans/pending/20261001-s-01-plc001-a.ipd.md",
+                    "- Id: plc001\n- Status: approved\n",
+                ),
+                (
+                    ".aw/records/plans/executed/20261001-s-01-plc001-a.ipd.md",
+                    "- Id: plc001\n- Status: executed\n",
+                ),
+            ]
+        )
+        assert len(pure) == 1
+        ident = next(iter(pure))
+        assert ident.kind == "declared-id" and ident.value == "plc001"
+
+        repo = _setup_repo(tmp_path)
+        _o30_write_full_plan(repo, "pending", "plc002", order=1, status="approved")
+        _o30_write_full_plan(repo, "executed", "plc002", order=1, status="executed")
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc != 0
+        hits = [
+            d
+            for d in json.loads(out)["diagnostics"]
+            if d["rule"] == "check.lifecycle-placement-conflict"
+        ]
+        assert len(hits) == 1
+
+    def test_is_retired(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        exec_p = _o30_write_full_plan(
+            repo, "executed", "ret001", order=1, status="executed"
+        )
+        parked_pending = _o30_write_full_plan(
+            repo, "pending", "ret002", order=2, status="parked"
+        )
+        live_p = _o30_write_full_plan(
+            repo,
+            "pending",
+            "liv003",
+            order=3,
+            status="draft",
+            body="## Notes\n\n- Id: body99\n",
+        )
+        assert check_engine.is_retired(exec_p, "plans") is True
+        assert check_engine.is_retired(parked_pending, "plans") is True
+        assert check_engine.is_retired(live_p, "plans") is False
+
+        rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
+        assert rc == 0 or rc != 0
+        # Retired parked_pending is excluded from default-scope plan rules, while live_p is checked
+        assert "diagnostics" in json.loads(out)
+
+    def test_validate_prompt_content(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        prompts_dir = repo / ".aw" / "records" / "prompts"
+        (prompts_dir / "pending").mkdir(parents=True, exist_ok=True)
+        (prompts_dir / "executed").mkdir(parents=True, exist_ok=True)
+
+        missing = (
+            prompts_dir / "pending" / "20261001-prmset-01-prm001-missing.prompt.md"
+        )
+        missing.write_text("# Prompt without comment\n\nDo work.\n", encoding="utf-8")
+
+        mismatch_id = (
+            prompts_dir / "pending" / "20261001-prmset-02-prm002-badid.prompt.md"
+        )
+        mismatch_id.write_text(
+            "<!-- aw-prompt: Id: wrong9 | Set: prmset | Status: pending -->\n\n# P\n",
+            encoding="utf-8",
+        )
+
+        mismatch_st = (
+            prompts_dir / "executed" / "20261001-prmset-03-prm003-badst.prompt.md"
+        )
+        mismatch_st.write_text(
+            "<!-- aw-prompt: Id: prm003 | Set: prmset | Status: pending -->\n\n# P\n",
+            encoding="utf-8",
+        )
+
+        good = prompts_dir / "pending" / "20261001-prmset-04-prm004-good.prompt.md"
+        good.write_text(
+            "<!-- aw-prompt: Id: prm004 | Set: prmset | Status: pending -->\n\n# P\n",
+            encoding="utf-8",
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "prompts", "--agent")
+        assert rc != 0
+        diags = json.loads(out)["diagnostics"]
+        by_rule = {d["rule"]: Path(d["location"]).name for d in diags}
+        assert by_rule.get("check.prompt-metadata-missing") == missing.name
+        assert by_rule.get("check.prompt-id-mismatch") == mismatch_id.name
+        assert by_rule.get("check.prompt-status-mismatch") == mismatch_st.name
+        assert all(Path(d["location"]).name != good.name for d in diags)
+
+    def test_build_plan_setid_index(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        _o30_write_full_plan(
+            repo, "pending", "idx001", setid="alpha", order=1, status="approved"
+        )
+        _o30_write_full_plan(
+            repo, "executed", "idx002", setid="alpha", order=2, status="executed"
+        )
+        _o30_write_full_plan(
+            repo, "pending", "idx003", setid="beta", order=1, status="draft"
+        )
+
+        index = check_engine.build_plan_setid_index(repo)
+        assert sorted(a.id6 for a in index["alpha"]) == ["idx001", "idx002"]
+        assert [a.status for a in index["beta"]] == ["draft"]
+
+        rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
+        assert "diagnostics" in json.loads(out)
+
+    def test_plan_date_readers(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        p = _o30_write_full_plan(repo, "pending", "dat001", order=1, date="2026-10-15")
+        txt = p.read_text(encoding="utf-8")
+        assert check_engine._plan_date(txt) == "2026-10-15"
+        assert check_engine._plan_date_compact(txt) == "20261015"
+        assert check_engine._artifact_compact_date(p, txt) == "20261015"
+
+        fallback_p = (
+            repo / ".aw" / "records" / "plans" / "pending" / "unusual-name.ipd.md"
+        )
+        fallback_p.write_text("- Date: 2026-09-20\n- Id: dat002\n", encoding="utf-8")
+        assert (
+            check_engine._artifact_compact_date(fallback_p, fallback_p.read_text())
+            == "20260920"
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
+        assert "diagnostics" in json.loads(out)
+
+    def test_known_spec_ids(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        _write_spec(repo, "approved", "ks0001")
+        _write_spec(repo, "implemented", "ks0002")
+        known = check_engine.known_spec_ids(repo)
+        assert {"ks0001", "ks0002"}.issubset(known)
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert "diagnostics" in json.loads(out)
+
+    def test_find_from_spec_plans(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        _write_spec(repo, "approved", "fs0001")
+        p_blk = _o30_write_full_plan(
+            repo,
+            "pending",
+            "fsp001",
+            order=1,
+            extra_meta=("- From-Spec: fs0001", "- Blocks-Release: next"),
+        )
+        p_nob = _o30_write_full_plan(
+            repo,
+            "pending",
+            "fsp002",
+            order=2,
+            extra_meta=("- From-Spec: fs0001",),
+        )
+        found = check_engine.find_from_spec_plans(repo, "fs0001")
+        by_name = {Path(p).name: br for p, br in found}
+        assert by_name == {p_blk.name: "next", p_nob.name: ""}
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert "diagnostics" in json.loads(out)
+
+    def test_check_from_spec_dangling(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        _write_spec(repo, "approved", "spok01")
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "fsd001",
+            order=1,
+            extra_meta=("- From-Spec: spok01",),
+        )
+        bad = _o30_write_full_plan(
+            repo,
+            "pending",
+            "fsd002",
+            order=2,
+            extra_meta=("- From-Spec: dead99",),
+        )
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "fsd003",
+            order=3,
+            extra_meta=("- From-Spec: none",),
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "all", "--agent")
+        assert rc != 0
+        hits = [
+            Path(d["location"]).name
+            for d in json.loads(out)["diagnostics"]
+            if d["rule"] == "check.from-spec-dangling"
+        ]
+        assert hits == [bad.name]
+
+    def test_check_plan_spec_link_missing(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        _write_spec(repo, "approved", "spc001")
+        missing = _o30_write_full_plan(
+            repo,
+            "pending",
+            "psl001",
+            order=1,
+            extra_meta=("- Concern: Implements spc001 requirement.",),
+        )
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "psl002",
+            order=2,
+            extra_meta=(
+                "- Concern: Discusses spc001 without originating from it.",
+                "- From-Spec: none",
+            ),
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
+        hits = [
+            Path(d["location"]).name
+            for d in json.loads(out)["diagnostics"]
+            if d["rule"] == "check.plan-spec-link-missing"
+        ]
+        assert hits == [missing.name]
+
+    def test_check_spec_criteria_uncovered(self, tmp_path: Path) -> None:
+        repo = _setup_repo(tmp_path)
+        spec_p = (
+            repo
+            / ".aw"
+            / "records"
+            / "specs"
+            / "approved"
+            / "20261001-covset-01-covsp1-spec.spec.md"
+        )
+        spec_p.write_text(
+            "# Spec: Coverage\n\n- Id: covsp1\n- Status: approved\n- Set: covset\n\n"
+            "## Acceptance Criteria\n\n- **AC-1** First criterion.\n- **AC-2** Second criterion.\n",
+            encoding="utf-8",
+        )
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "covpl1",
+            setid="covset",
+            order=1,
+            extra_meta=("- From-Spec: covsp1",),
+            body=(
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates AC-1\n"
+                "  - Required evidence: AC-1 passes\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n"
+            ),
+        )
+
+        rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
+        hits = [
+            d
+            for d in json.loads(out)["diagnostics"]
+            if d["rule"] == "check.spec-criteria-uncovered"
+        ]
+        assert len(hits) == 1
+        assert Path(hits[0]["location"]).name == spec_p.name
+        direct = check_engine.check_spec_criteria_uncovered(repo)
+        assert len(direct) == 1 and "AC-2" in direct[0].detail

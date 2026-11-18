@@ -1258,12 +1258,17 @@ def is_retired(path: Path, record_type: str = "") -> bool:
     if any(seg in parts_lower for seg in _RETIRED_PATH_SEGMENTS):
         return True
 
+    from agent_workflows import artifact_meta as _meta
+
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return False
 
-    return _metadata_status(text) in _RETIRED_STATUSES
+    st = _meta.read_text(
+        text, record_type=_meta._LEGACY_PLURAL_TO_TYPE.get(record_type)
+    )
+    return st.status in _RETIRED_STATUSES
 
 
 def _iter_type_files(
@@ -1841,11 +1846,44 @@ def validate_prompt_content(
         )
 
     if has_comment:
-        from agent_workflows.prompts_index import _parse_metadata_comment
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import project_context as _proj_ctx
 
-        meta = _parse_metadata_comment(text)
-        comment_id = meta.get("Id")
-        comment_status = meta.get("Status")
+        owner = (
+            Path(repo_root)
+            if repo_root is not None
+            else _proj_ctx.record_owner_root(path)
+        )
+        st_obj = (
+            _meta_state_for_path(owner, path, meta_type="prompt")
+            if owner is not None
+            else None
+        )
+        if st_obj is not None:
+            comment_id = _meta_declared_id6(st_obj)
+            comment_status = st_obj.status or st_obj.legacy_raw_status
+        else:
+            records_root = (
+                Path(
+                    _proj_ctx.resolve_project_context(
+                        target_repo=str(owner)
+                    ).logical_roots["records"]
+                )
+                if owner is not None
+                else path.parent.parent
+            )
+            try:
+                art_row, _ = _meta.load_legacy_artifact(
+                    path, records_root, text=text, repo_root=owner
+                )
+                comment_id = None if art_row.get("id_derived") else art_row.get("id6")
+                comment_status = art_row.get("status") or art_row.get(
+                    "legacy_raw_status"
+                )
+            except Exception:
+                st_fb = _meta.read_text(text, record_type="prompt")
+                comment_id = _meta_declared_id6(st_fb)
+                comment_status = st_fb.status or st_fb.legacy_raw_status
 
         m = _naming.parse_clustered(path.name)
         if m and not _re.fullmatch(r"\d{4}", m.group("set")):
@@ -2094,8 +2132,11 @@ def check_collisions(
     #
     # IPD sk7ggr E-05, collpop t0jyb2: the enumeration is ALWAYS terminal-inclusive. Both identity
     # passes take every file; the setid pass takes only what the caller asked for.
+    from agent_workflows import artifact_meta as _meta
+
     records: List[tuple] = []
     for record_type in SUPPORTED:
+        meta_type = _meta._LEGACY_PLURAL_TO_TYPE.get(record_type)
         for p in _iter_type_files(
             repo_root,
             record_type,
@@ -2106,10 +2147,24 @@ def check_collisions(
                 text = p.read_text(encoding="utf-8")
             except OSError:
                 continue
-            # IPD `76w6mq`: bounded to the metadata region, so a QUOTED example `- Id:` block is
-            # not counted as this file DECLARING that id6 (which manufactured 2 of the 17 findings
-            # measured before the fix, between two research docs quoting one plan's metadata).
-            declared_id = _read_declared_id(text)
+            st_obj = _meta.read_text(text, record_type=meta_type)
+            raw_id = (
+                st_obj.id6 if (st_obj.id6 and _ID6_RE.fullmatch(st_obj.id6)) else None
+            )
+            # Preserve bullet-vs-YAML parity: YAML research records declare `id:` in YAML frontmatter,
+            # while `_read_declared_id` only reads bullet `- Id:` declarations.
+            declared_id = (
+                raw_id
+                if (
+                    raw_id
+                    and not (
+                        text.startswith("---")
+                        and not st_obj.fields.get("Id")
+                        and st_obj.fields.get("id")
+                    )
+                )
+                else None
+            )
             slot_id6 = _identity_slot_token(p.name)
             records.append((str(p), declared_id, slot_id6))
 
@@ -2132,7 +2187,18 @@ def check_collisions(
             caller_visible = include_retired or not is_retired(p, record_type)
             if not caller_visible:
                 continue
-            sid, desc = _parse_setid(text)
+            raw_set = str((st_obj.fields or {}).get("set") or "").strip()
+            if raw_set:
+                head = raw_set.split("(")[0].strip()
+                sid = head.split()[0] if head else None
+                desc = (
+                    raw_set[raw_set.index("(") + 1 : raw_set.rindex(")")].strip()
+                    or None
+                    if "(" in raw_set and ")" in raw_set
+                    else None
+                )
+            else:
+                sid, desc = None, None
             if sid:
                 set_key = (record_type, sid)
                 if set_key in seen_sets:
@@ -2235,6 +2301,8 @@ def find_lifecycle_placement_conflicts(
         declared_id: Optional[str]
         stem: str
 
+    from agent_workflows import artifact_meta as _meta
+
     items: List[_Item] = []
     for rec in records:
         if isinstance(rec, (tuple, list)):
@@ -2249,8 +2317,17 @@ def find_lifecycle_placement_conflicts(
         if r_type is None or bucket is None:
             continue
 
-        status = _metadata_status(text) or "" if text else ""
-        declared_id = _read_declared_id(text) if text else None
+        if text:
+            st_obj = _meta.read_text(
+                text, record_type=_meta._LEGACY_PLURAL_TO_TYPE.get(r_type, "ipd")
+            )
+            status = st_obj.status or ""
+            declared_id = (
+                st_obj.id6 if (st_obj.id6 and _ID6_RE.fullmatch(st_obj.id6)) else None
+            )
+        else:
+            status = ""
+            declared_id = None
         stem = Path(p_str).name
 
         items.append(_Item(p_str, r_type, bucket, status, declared_id, stem))
@@ -2456,9 +2533,7 @@ def _artifact_compact_date(path: Path, text: str = "") -> Optional[str]:
     if m is not None:
         return m.group(1)
     if text:
-        dm = _re.search(r"(?m)^-[ \t]*Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$", text)
-        if dm is not None:
-            return "{0}{1}{2}".format(*dm.groups())
+        return _plan_date_compact(text)
     return None
 
 
@@ -2506,6 +2581,7 @@ def check_setid_length(
     `aw check all` on this corpus, and a nonzero delta is a defect in this function rather than a
     discovery about the tree.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import config as _config
 
     repo_root = Path(repo_root)
@@ -2521,6 +2597,8 @@ def check_setid_length(
     drift: List[_core.Drift] = []
     seen: set = set()
     for record_type in SUPPORTED:
+        meta_type = _meta._LEGACY_PLURAL_TO_TYPE.get(record_type)
+        state_map = _meta_state_map(repo_root, meta_type) if meta_type else {}
         for p in _iter_type_files(
             repo_root,
             record_type,
@@ -2534,18 +2612,42 @@ def check_setid_length(
             if key in seen:
                 continue
             seen.add(key)
-            try:
-                text = p.read_text(encoding="utf-8")
-            except OSError:
+            st_obj, text = _meta_state_for_cached_path(
+                p, state_map, record_type=meta_type or "ipd"
+            )
+            if st_obj is None:
                 continue
-            declared, _desc = _parse_setid(text)
+            declared = st_obj.legacy_raw_set
             setid = declared or _filename_setid(p.name)
             if not setid:
                 continue
             tier = policy.tier_for(setid)
             if tier is None:
                 continue
-            if not policy.applies_to_artifact_date(_artifact_compact_date(p, text)):
+            if declared and record_type == "research":
+                if text is None:
+                    try:
+                        text = p.read_text(encoding="utf-8")
+                    except OSError:
+                        text = ""
+                if text.startswith("---"):
+                    # Preserve _parse_setid bullet-only parity on YAML-envelope research records.
+                    declared = None
+                    setid = _filename_setid(p.name)
+                    if not setid:
+                        continue
+                    tier = policy.tier_for(setid)
+                    if tier is None:
+                        continue
+            compact_date = _artifact_compact_date(p)
+            if compact_date is None:
+                if text is None:
+                    try:
+                        text = p.read_text(encoding="utf-8")
+                    except OSError:
+                        text = ""
+                compact_date = _artifact_compact_date(p, text)
+            if not policy.applies_to_artifact_date(compact_date):
                 continue
             where = "declared `- Set:`" if declared else "filename setid segment"
             if tier == "error":
@@ -2644,24 +2746,32 @@ def check_id_outside_metadata_region(
                 continue
             region_len = len(_metadata_region(text))
             fenced = _fenced_line_numbers(text)
-            for m in _ID_LINE_RE.finditer(text):
-                if m.start() < region_len:
+            offset = 0
+            for line_no, raw_line in enumerate(text.splitlines(keepends=True), start=1):
+                line_start = offset
+                offset += len(raw_line)
+                if line_start < region_len:
                     continue
-                line_no = text.count("\n", 0, m.start()) + 1
                 # A line inside a fenced code block is a QUOTATION by construction (the fence is the
                 # author saying "this is an example"), so it can never be a misplaced declaration.
                 # Skipping it leaves this rule reporting only the genuinely ambiguous case.
                 if line_no in fenced:
+                    continue
+                stripped = raw_line.rstrip("\r\n")
+                if not stripped.startswith("- Id:"):
+                    continue
+                cand = stripped[len("- Id:") :].strip()
+                if not _ID6_RE.fullmatch(cand):
                     continue
                 drift.append(
                     enrich_drift(
                         _core.Drift(
                             str(p),
                             "check.id6-outside-metadata-region",
-                            f"`- Id: {m.group(1)}` at line {line_no} is outside the metadata region",
+                            f"`- Id: {cand}` at line {line_no} is outside the metadata region",
                         ),
                         observed=(
-                            f"a metadata-shaped `- Id: {m.group(1)}` line appears at line {line_no}, "
+                            f"a metadata-shaped `- Id: {cand}` line appears at line {line_no}, "
                             "after this record's metadata region ends"
                         ),
                         required=(
@@ -2919,38 +3029,47 @@ def _identity_declared_values(text: str):
     a correctly-named file. Values are compared STRIPPED of backticks and quotes.
     """
 
+    from agent_workflows import artifact_meta as _meta
+
     region = _identity_metadata_region(text)
-    out = []
-    for bullet_re, yaml_re, is_set in (
-        (_IDENT_ID_BULLET_RE, _IDENT_ID_YAML_RE, False),
-        (_IDENT_SET_BULLET_RE, _IDENT_SET_YAML_RE, True),
-    ):
-        # THE REGION IS SEARCHED FIRST, ACROSS BOTH DIALECTS, BEFORE THE FULL BODY IS CONSULTED, and
-        # the ordering is a fix rather than a preference. A research record declares `set:` in its
-        # YAML envelope but QUOTES a plan's `- Set:` bullet later in its body; searching by dialect
-        # first meant the quoted BULLET shadowed the file's own YAML declaration, so a record whose
-        # real Set is correct was read as an artifact. Region-first means a file's OWN declaration
-        # always wins, and the full-body pass exists only to catch a field the record does not
-        # actually declare - which is exactly the artifact bucket's definition.
-        value = None
-        in_region = False
-        for haystack, is_region in ((region, True), (text, False)):
-            for rx in (bullet_re, yaml_re):
-                m = rx.search(haystack)
-                if m is None:
+    reg_id: Optional[str] = None
+    reg_set: Optional[str] = None
+    if region:
+        st_reg = _meta.read_text(region)
+        raw_id = _meta_single_token((st_reg.fields or {}).get("id"))
+        if raw_id:
+            reg_id = raw_id.strip("`\"'") or None
+        raw_set = st_reg.legacy_raw_set
+        if raw_set:
+            reg_set = raw_set.strip("`\"'") or None
+
+    def _body_quote_scan(is_set: bool) -> Optional[str]:
+        prefixes = ("- Set:", "set:") if is_set else ("- Id:", "id:")
+        lines = text.splitlines()
+        for pref in prefixes:
+            for raw_line in lines:
+                if not raw_line.startswith(pref):
                     continue
-                raw = m.group(1).strip()
+                rem = raw_line[len(pref) :].strip()
+                if not rem:
+                    continue
                 if is_set:
-                    # `- Set: <terse> (<descriptive>)`: the setid is the first token before any '('.
-                    head = raw.split("(")[0].strip()
-                    raw = head.split()[0] if head.split() else ""
-                value = raw.strip("`\"'") or None
-                in_region = is_region
-                break
-            if value is not None:
-                break
-        out.append((value, in_region))
-    return out[0], out[1]
+                    head = rem.split("(")[0].strip()
+                    tok = head.split()[0] if head.split() else ""
+                else:
+                    if len(rem.split()) != 1:
+                        continue
+                    tok = rem
+                cleaned = tok.strip("`\"'") or None
+                if cleaned:
+                    return cleaned
+        return None
+
+    id_pair = (reg_id, True) if reg_id is not None else (_body_quote_scan(False), False)
+    set_pair = (
+        (reg_set, True) if reg_set is not None else (_body_quote_scan(True), False)
+    )
+    return id_pair, set_pair
 
 
 def _identity_name_is_modern(
@@ -5530,10 +5649,11 @@ def find_from_spec_plans(repo_root: Path, spec_id6: str) -> List[Tuple[Path, str
     out: List[Tuple[Path, str]] = []
     if not spec_id6:
         return out
-    for p, text in _iter_plan_ipds(repo_root):
-        m = _ITEM_FROM_SPEC_RE.search(text)
-        if m and m.group(1).strip() == spec_id6:
-            out.append((p, _read_blocks_release(text) or ""))
+    for p, st in _meta_records_with_fields(repo_root, "ipd", suffix=".ipd.md"):
+        if _meta_single_token((st.fields or {}).get("from_spec")) == spec_id6:
+            out.append(
+                (p, _meta_single_token((st.fields or {}).get("blocks_release")) or "")
+            )
     return out
 
 
@@ -5658,13 +5778,21 @@ def build_plan_setid_index(
     directory) and is deliberately NOT the reverse index, which indexes only artifacts
     carrying a `From-*` bullet (F-4).
     """
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
     index: Dict[str, List[GraduationArtifact]] = {}
-    for path, text in _iter_plan_ipds(repo_root):
-        setid, _descriptive = _parse_setid(text)
+    state_map = _meta_state_map(repo_root, "ipd")
+    for path, st_obj in sorted(state_map.items(), key=lambda kv: str(kv[0])):
+        if not path.name.endswith(".ipd.md"):
+            continue
+        if path.name in _SKIP_NAMES or _core.is_ignored_path(
+            path, repo_root, ignored_dirs
+        ):
+            continue
+        setid = st_obj.legacy_raw_set
         if not setid:
             continue
-        declared_id = _read_declared_id(text) or ""
-        status = _read_plan_status(text) or ""
+        declared_id = _meta_declared_id6(st_obj) or ""
+        status = _meta_single_token(st_obj.legacy_raw_status) or st_obj.status or ""
         try:
             rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
         except ValueError:
@@ -7524,8 +7652,10 @@ def _resolve_edge(
 
 
 def _plan_date(text: str) -> Optional[str]:
-    m = _DATE_LINE_RE.search(text)
-    return m.group(1).strip() if m else None
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type="ipd")
+    return _meta_single_token((st.fields or {}).get("date"))
 
 
 def evaluate_ipd_dependencies(
@@ -8654,8 +8784,8 @@ def known_spec_ids(repo_root: Path) -> Set[str]:
     """
     repo_root = Path(repo_root)
     known: Set[str] = set()
-    for _p, _t in _iter_spec_records(repo_root):
-        id6 = _read_item_id(_t)
+    for _p, st in _meta_records_with_fields(repo_root, "spec", suffix=".spec.md"):
+        id6 = _meta_declared_id6(st)
         if id6:
             known.add(id6)
     try:
@@ -8712,12 +8842,11 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
         # flag every link in the repo. Same fail-safe posture as the sibling dangling scans.
         return drift
 
-    for iterator in (_iter_plan_ipds, _iter_spec_records):
-        for path, text in iterator(repo_root):
-            m = _ITEM_FROM_SPEC_RE.search(text)
-            if m is None:
+    for meta_type, suffix in (("ipd", ".ipd.md"), ("spec", ".spec.md")):
+        for path, st in _meta_records_with_fields(repo_root, meta_type, suffix=suffix):
+            target = _meta_single_token((st.fields or {}).get("from_spec"))
+            if not target:
                 continue
-            target = m.group(1)
             if _S.source_link_is_absent(target):
                 continue
             if target in known:
@@ -8817,8 +8946,8 @@ def check_plan_spec_link_missing(
 
     spec_files_by_id6: Dict[str, Set[str]] = {}
     resolved_root = repo_root.resolve()
-    for sp, stext in _iter_spec_records(repo_root):
-        sid = _read_item_id(stext)
+    for sp, st in _meta_records_with_fields(repo_root, "spec", suffix=".spec.md"):
+        sid = _meta_declared_id6(st)
         if sid:
             try:
                 rel = sp.resolve().relative_to(resolved_root).as_posix()
@@ -8826,23 +8955,29 @@ def check_plan_spec_link_missing(
                 rel = sp.as_posix()
             spec_files_by_id6.setdefault(sid, set()).add(rel)
 
+    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
         if "pending" not in p.parts:
             continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+        st_obj, text = _meta_state_for_cached_path(p, state_map)
+        if st_obj is None:
             continue
 
         # Check existing From-Spec (E-01: skip explicit "none" or "-")
-        m_fs = _FROM_SPEC_LINE_RE.search(text)
-        if m_fs is not None:
-            raw_target = m_fs.group(1)
+        raw_fs = (st_obj.fields or {}).get("from_spec")
+        if raw_fs is not None:
+            raw_target = str(raw_fs)
             cleaned_target = raw_target.strip().strip("\"'").strip().lower()
             if cleaned_target in PLAN_SPEC_LINK_NO_SOURCE_SENTINELS:
                 continue
             if not _ipd_schema.source_link_is_absent(raw_target):
                 # Valid edge already present
+                continue
+
+        if text is None:
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
                 continue
 
         cited = parse_cited_spec_ids(text, known)
@@ -8867,7 +9002,7 @@ def check_plan_spec_link_missing(
                 if not cited:
                     continue
 
-        id6 = _read_item_id(text) or p.stem
+        id6 = _meta_declared_id6(st_obj) or p.stem
         cited_str = ", ".join(cited)
         recovery = (
             f"link it (aw ipd set {id6} --from-spec {cited[0]}), "
@@ -9018,35 +9153,42 @@ def check_spec_criteria_uncovered(
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
 
-    specs: Dict[str, Tuple[Path, str]] = {}
-    for path, text in _iter_spec_records(repo_root):
-        mid = _read_item_id(text)
+    specs: Dict[str, Path] = {}
+    for path, st in _meta_records_with_fields(repo_root, "spec", suffix=".spec.md"):
+        mid = _meta_declared_id6(st)
         if mid:
-            specs[mid] = (path, text)
+            specs[mid] = path
 
-    plans_by_spec: Dict[str, List[Tuple[Path, str]]] = {}
-    for path, text in _iter_plan_ipds(repo_root):
-        m = _ITEM_FROM_SPEC_RE.search(text)
-        if m is None:
+    plans_by_spec: Dict[str, List[Path]] = {}
+    for path, st in _meta_records_with_fields(repo_root, "ipd", suffix=".ipd.md"):
+        target = _meta_single_token((st.fields or {}).get("from_spec"))
+        if not target:
             continue
-        target = m.group(1)
         if _S.source_link_is_absent(target):
             continue
-        plans_by_spec.setdefault(target, []).append((path, text))
+        plans_by_spec.setdefault(target, []).append(path)
 
     for spec_id6 in sorted(specs):
         linked_plans = plans_by_spec.get(spec_id6)
         if not linked_plans:
             continue
 
-        spec_path, spec_text = specs[spec_id6]
+        spec_path = specs[spec_id6]
+        try:
+            spec_text = spec_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
         criteria = parse_spec_acceptance_criteria(spec_text)
         if not criteria:
             continue
 
-        search_spaces = [
-            extract_plan_validation_space(p_text) for _p, p_text in linked_plans
-        ]
+        search_spaces = []
+        for p in linked_plans:
+            try:
+                p_text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            search_spaces.append(extract_plan_validation_space(p_text))
         combined_space = "\n".join(search_spaces)
 
         matched: List[str] = []
@@ -10120,10 +10262,22 @@ class CarriedObligation(NamedTuple):
 
 def _plan_date_compact(text: str) -> Optional[str]:
     """The plan's own `- Date:` as compact YYYYMMDD, or None when absent/malformed."""
-    m = _CARRIER_DATE_RE.search(text)
-    if m is None:
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type="ipd")
+    raw = _meta_single_token((st.fields or {}).get("date"))
+    if not raw or not raw.isascii():
         return None
-    return f"{m.group(1)}{m.group(2)}{m.group(3)}"
+    parts = raw.split("-")
+    if (
+        len(parts) == 3
+        and len(parts[0]) == 4
+        and len(parts[1]) == 2
+        and len(parts[2]) == 2
+        and all(p.isdigit() for p in parts)
+    ):
+        return "".join(parts)
+    return None
 
 
 def carrier_severity_for_plan(plan_text: str, repo_root: Optional[Path] = None) -> str:
