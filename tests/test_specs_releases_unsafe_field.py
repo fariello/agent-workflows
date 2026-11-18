@@ -7,11 +7,13 @@ Also pins honest limits: newline injection (F-05) and whole-document read-region
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 
 from agent_workflows import attention, check_engine, releases, specs
 from agent_workflows import attention_contract as A
+from tests.record_builder import RecordBuilder
 
 REPO = Path(__file__).resolve().parent.parent
 FIX = REPO / "tests" / "fixtures" / "attnview"
@@ -251,12 +253,50 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
         self.assertEqual(drift, [])
 
     def test_non_regression_valid_specs_fixtures(self):
-        # Every spec in tests/fixtures/attnview/specs-valid/ validates clean
-        valid_specs = list((FIX / "specs-valid").glob("*.md"))
-        self.assertTrue(len(valid_specs) > 0)
-        for f in valid_specs:
-            drift = specs.validate_spec(f, f.read_text(encoding="utf-8"))
-            self.assertEqual(drift, [], f"{f.name} should be clean, got {drift}")
+        # Every valid spec status built via RecordBuilder validates clean
+        builder = RecordBuilder()
+        statuses = (
+            "approved",
+            "deferred",
+            "draft",
+            "implemented",
+            "implementing",
+            "parked",
+            "reviewed",
+            "superseded",
+            "to-review",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for spec_status in statuses:
+                extra: dict[str, str] = (
+                    {
+                        "gate_kind": "issue",
+                        "gate_ref": "https://example.com/issues/1",
+                        "gate_summary": "waiting on an upstream decision",
+                    }
+                    if spec_status == "deferred"
+                    else {}
+                )
+                text = builder.spec(
+                    status=spec_status,
+                    history=[
+                        {
+                            "day": "2026-08-08",
+                            "tag": "draft",
+                            "actor": "fixture",
+                            "message": "created.",
+                        }
+                    ],
+                    text_only=True,
+                    **extra,
+                )
+                assert isinstance(text, str)
+                (Path(tmp) / f"{spec_status}.md").write_text(text, encoding="utf-8")
+            valid_specs = list(Path(tmp).glob("*.md"))
+            self.assertTrue(len(valid_specs) > 0)
+            for f in valid_specs:
+                drift = specs.validate_spec(f, f.read_text(encoding="utf-8"))
+                self.assertEqual(drift, [], f"{f.name} should be clean, got {drift}")
 
     def test_non_regression_live_committed_release(self):
         # The ACTUAL committed 2.0.0 release record validates clean through validate_release

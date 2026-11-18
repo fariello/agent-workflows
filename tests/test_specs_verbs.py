@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import specs
+from tests.record_builder import RecordBuilder
 
 FIX = Path(__file__).parent / "fixtures" / "attnview"
 
@@ -37,9 +38,47 @@ def _args(**kw):
 
 class CheckTests(unittest.TestCase):
     def test_valid_specs_pass(self):
-        for f in sorted((FIX / "specs-valid").glob("*.md")):
-            drift = specs.validate_spec(f, f.read_text(encoding="utf-8"))
-            self.assertEqual(drift, [], f"{f.name} should be clean, got {drift}")
+        builder = RecordBuilder()
+        statuses = (
+            "approved",
+            "deferred",
+            "draft",
+            "implemented",
+            "implementing",
+            "parked",
+            "reviewed",
+            "superseded",
+            "to-review",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for spec_status in statuses:
+                extra: dict[str, str] = (
+                    {
+                        "gate_kind": "issue",
+                        "gate_ref": "https://example.com/issues/1",
+                        "gate_summary": "waiting on an upstream decision",
+                    }
+                    if spec_status == "deferred"
+                    else {}
+                )
+                text = builder.spec(
+                    status=spec_status,
+                    history=[
+                        {
+                            "day": "2026-08-08",
+                            "tag": "draft",
+                            "actor": "fixture",
+                            "message": "created.",
+                        }
+                    ],
+                    text_only=True,
+                    **extra,
+                )
+                assert isinstance(text, str)
+                (Path(tmp) / f"{spec_status}.md").write_text(text, encoding="utf-8")
+            for f in sorted(Path(tmp).glob("*.md")):
+                drift = specs.validate_spec(f, f.read_text(encoding="utf-8"))
+                self.assertEqual(drift, [], f"{f.name} should be clean, got {drift}")
 
     def test_each_violation_fixture_flags(self):
         want = {

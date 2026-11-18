@@ -19,6 +19,7 @@ from pathlib import Path
 from agent_workflows import attention_contract as A
 from agent_workflows import plans
 from agent_workflows import research_contract
+from tests.record_builder import RecordBuilder
 
 import pytest
 
@@ -288,13 +289,51 @@ class FixtureParseTests(unittest.TestCase):
         return None
 
     def test_valid_specs_have_bare_enum_status_and_map(self):
-        for f in sorted((FIX / "specs-valid").glob("*.md")):
-            status = self._read_status(f)
-            self.assertIsNotNone(status, f"{f.name}: no bare-enum - Status: bullet")
-            self.assertIn(
-                status, A.SPEC_STATUSES, f"{f.name}: {status} not a spec status"
-            )
-            self.assertIn(A.class_of("specs", status), A.ATTENTION_CLASSES)
+        builder = RecordBuilder()
+        statuses = (
+            "approved",
+            "deferred",
+            "draft",
+            "implemented",
+            "implementing",
+            "parked",
+            "reviewed",
+            "superseded",
+            "to-review",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for spec_status in statuses:
+                extra: dict[str, str] = (
+                    {
+                        "gate_kind": "issue",
+                        "gate_ref": "https://example.com/issues/1",
+                        "gate_summary": "waiting on an upstream decision",
+                    }
+                    if spec_status == "deferred"
+                    else {}
+                )
+                text = builder.spec(
+                    status=spec_status,
+                    history=[
+                        {
+                            "day": "2026-08-08",
+                            "tag": "draft",
+                            "actor": "fixture",
+                            "message": "created.",
+                        }
+                    ],
+                    text_only=True,
+                    **extra,
+                )
+                assert isinstance(text, str)
+                (Path(tmp) / f"{spec_status}.md").write_text(text, encoding="utf-8")
+            for f in sorted(Path(tmp).glob("*.md")):
+                status = self._read_status(f)
+                self.assertIsNotNone(status, f"{f.name}: no bare-enum - Status: bullet")
+                self.assertIn(
+                    status, A.SPEC_STATUSES, f"{f.name}: {status} not a spec status"
+                )
+                self.assertIn(A.class_of("specs", status), A.ATTENTION_CLASSES)
 
     def test_trailing_prose_status_is_rejected(self):
         # The grammar requires a bare token; the trailing-prose fixture must NOT parse as a bare status.
