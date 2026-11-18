@@ -372,6 +372,9 @@ def describe_argv(
 def describe_env(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
     """Merge ``OPENCODE_CONFIG_CONTENT`` for OpenCode v1 tool denial while preserving operator keys."""
     env = dict(os.environ if base_env is None else base_env)
+    # Strip inherited PWD so OpenCode v2 (Bun/Node) resolves .opencode/opencode.json from OS cwd
+    # (scratch_dir) rather than the caller's checkout.
+    env.pop("PWD", None)
     raw_operator = env.get(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV)
     policy_req = lane_containment.build_permission_policy_env(
         raw_operator, policy={"*": "deny"}
@@ -588,10 +591,12 @@ def verify_describe_policy(
             )
         else:
             runner_shared._assert_probe_spawn_is_permitted(argv)
+            spawn_env = dict(env)
+            spawn_env.pop("PWD", None)
             proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
                 argv,
                 cwd=str(scratch),
-                env=dict(env),
+                env=spawn_env,
                 capture_output=True,
                 text=True,
                 timeout=_POLICY_PROBE_TIMEOUT_SECONDS,
@@ -773,11 +778,13 @@ def generate(
                 )
             else:
                 runner_shared._assert_probe_spawn_is_permitted(argv)
+                spawn_env = dict(env)
+                spawn_env.pop("PWD", None)
                 proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
                     list(argv),
                     input=stdin_text,
                     cwd=str(scratch_dir),
-                    env=dict(env),
+                    env=spawn_env,
                     capture_output=True,
                     text=True,
                     timeout=_DESCRIBE_TIMEOUT_SECONDS,

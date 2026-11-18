@@ -1722,3 +1722,28 @@ def test_e07_describe_all_progress_line_every_50_records(
     assert progress_lines[-1].startswith(
         "Descriptions: generated=55, reused=0, failed=0"
     )
+
+
+def test_describe_env_strips_inherited_pwd_for_v2_cwd_resolution(
+    tmp_path: Path,
+) -> None:
+    stale_pwd = str(tmp_path / "caller-checkout")
+    env = m0001_describe.describe_env({"PWD": stale_pwd, "KEEP": "1"})
+    assert "PWD" not in env
+    assert env["KEEP"] == "1"
+
+    seen_envs: list[dict[str, str]] = []
+
+    def _capture_runner(_argv, _cwd, _stdin, child_env, _timeout):
+        seen_envs.append(dict(child_env))
+        return 0, _oc_text_and_finish("Adds pwd strip check."), ""
+
+    res = m0001_describe.generate(
+        "Adds check.",
+        journal_dir=tmp_path / "j",
+        base_env={"PWD": stale_pwd},
+        runner=_capture_runner,
+        major=2,
+    )
+    assert res.status == "ok"
+    assert seen_envs and "PWD" not in seen_envs[0]
