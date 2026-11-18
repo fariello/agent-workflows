@@ -41,22 +41,22 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
 
 ### Task group 1: delete fixtures
 
-- [ ] E-29 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/parked.md`, `tests/fixtures/attnview/specs-valid/reviewed.md`, `tests/fixtures/attnview/specs-valid/superseded.md` with `git rm`, after confirming `rg -n "specs-valid" tests/test_*.py` lists no reader in test modules (Order 174, `7fpc8v`, moved every reader onto builder recipes; `tests/fixtures/review-pilot/` is kept literal).
+- [x] E-29 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/parked.md`, `tests/fixtures/attnview/specs-valid/reviewed.md`, `tests/fixtures/attnview/specs-valid/superseded.md` with `git rm`, after confirming `rg -n "specs-valid" tests/test_*.py` lists no reader in test modules (Order 174, `7fpc8v`, moved every reader onto builder recipes; `tests/fixtures/review-pilot/` is kept literal).
   - Depends on: none
   - Expected outcome: the named files are gone and no test references them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-30 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/to-review.md` with `git rm`, after confirming `rg -n "specs-valid" tests/test_*.py` lists no reader in test modules (Order 174, `7fpc8v`, moved every reader onto builder recipes; `tests/fixtures/review-pilot/` is kept literal).
+- [x] E-30 (part of `9rgn2w` E-10, round-3 split 2026-11-09) Delete the converted fixtures `tests/fixtures/attnview/specs-valid/to-review.md` with `git rm`, after confirming `rg -n "specs-valid" tests/test_*.py` lists no reader in test modules (Order 174, `7fpc8v`, moved every reader onto builder recipes; `tests/fixtures/review-pilot/` is kept literal).
   - Depends on: none
   - Expected outcome: the named files are gone and no test references them.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-31 Finish: Then update `tests/fixtures/attnview/README.md` so it says `specs-valid/` is now built by `RecordBuilder.spec(...)` in the consuming tests and that `violations/` stays literal malformed input. Run the batch-rule step-2 command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`) over `tests/test_attention_contract.py`, `tests/test_specs_verbs.py` and `tests/test_specs_releases_unsafe_field.py` and the bare core gate `python3 -m pytest`; commit through `aw commit 9zcuyh -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-31 Finish: Then update `tests/fixtures/attnview/README.md` so it says `specs-valid/` is now built by `RecordBuilder.spec(...)` in the consuming tests and that `violations/` stays literal malformed input. Run the batch-rule step-2 command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`) over `tests/test_attention_contract.py`, `tests/test_specs_verbs.py` and `tests/test_specs_releases_unsafe_field.py` and the bare core gate `python3 -m pytest`; commit through `aw commit 9zcuyh -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-29, E-30
   - Expected outcome: the three modules' outcome lists match their Order 174 after-lists; all runs pass; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -131,20 +131,54 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-29 validates E-29
+- [x] V-29 validates E-29
   - Required evidence: paste `rg -n "specs-valid" tests/test_*.py` (no reader in test modules; non-test occurrences in literal `review-pilot/` fixtures are noted), and `git status --short tests/fixtures/attnview/specs-valid/` listing each of `tests/fixtures/attnview/specs-valid/parked.md`, `tests/fixtures/attnview/specs-valid/reviewed.md`, `tests/fixtures/attnview/specs-valid/superseded.md` as deleted.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "specs-valid" tests/test_*.py`: `(none)` (`exit=1`, no reader in test modules).
+    - `rg -n "specs-valid" tests/` non-test occurrences: `tests/fixtures/attnview/README.md` (line 6), `tests/fixtures/review-pilot/manifest.json` (lines 61, 62), and `tests/fixtures/review-pilot/plans/20261011-6bolin-01-z2rygb-verify-grandfatheringandcheckertests-passes-on-the-89xjll-sp.ipd.md` (lines 67, 81).
+    - `git status --short tests/fixtures/attnview/specs-valid/` after E-29 `git rm`:
+      `D  tests/fixtures/attnview/specs-valid/parked.md`
+      `D  tests/fixtures/attnview/specs-valid/reviewed.md`
+      `D  tests/fixtures/attnview/specs-valid/superseded.md`
+  - Result: pass
 
-- [ ] V-30 validates E-30
+- [x] V-30 validates E-30
   - Required evidence: paste `rg -n "specs-valid" tests/test_*.py` (no reader in test modules), and `git status --short tests/fixtures/attnview/specs-valid/` listing each of `tests/fixtures/attnview/specs-valid/to-review.md` as deleted.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "specs-valid" tests/test_*.py`: `(none)` (`exit=1`, no reader in test modules).
+    - `git status --short tests/fixtures/attnview/specs-valid/` after E-30 `git rm`:
+      `D  tests/fixtures/attnview/specs-valid/parked.md`
+      `D  tests/fixtures/attnview/specs-valid/reviewed.md`
+      `D  tests/fixtures/attnview/specs-valid/superseded.md`
+      `D  tests/fixtures/attnview/specs-valid/to-review.md`
+  - Result: pass
 
-- [ ] V-31 validates E-31
+- [x] V-31 validates E-31
   - Required evidence: paste the `git diff tests/fixtures/attnview/README.md`; the PASSED/FAILED counts of `tests/test_attention_contract.py` (27 passed), `tests/test_specs_verbs.py` (20 passed) and `tests/test_specs_releases_unsafe_field.py` (14 passed) each (unchanged from Order 174), the bare `python3 -m pytest` summary line, and every `aw commit 9zcuyh` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `git diff tests/fixtures/attnview/README.md`:
+      ```diff
+      --- a/tests/fixtures/attnview/README.md
+      +++ b/tests/fixtures/attnview/README.md
+      @@ -3,8 +3,8 @@
+       Deterministic fixtures the attention-view contracts, the `aw specs` verbs (Order 02), and the
+       `aw attention` scanner (Order 03) test against. Two groups:
+
+      -- `specs-valid/` one spec file per spec native status, each mapping to its attention class.
+      -- `violations/` one sample per `--check` violation class (each ties to a `RULE_IDS` catalog id).
+      +- `specs-valid/` is retired from tracked fixtures. The consuming test modules (`tests/test_attention_contract.py`, `tests/test_specs_verbs.py`, and `tests/test_specs_releases_unsafe_field.py`) build one spec per spec native status dynamically with `RecordBuilder.spec(...)` (`tests/record_builder.py`), each mapping to its attention class.
+      +- `violations/` stays literal malformed input, providing one sample per `--check` violation class (each ties to a `RULE_IDS` catalog id).
+      ```
+    - Batch-rule step-2 command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`) and `python3 -m pytest <module> -n 0`:
+      - `tests/test_attention_contract.py`: 27 PASSED, 0 FAILED (`27 passed in 0.55s`)
+      - `tests/test_specs_verbs.py`: 20 PASSED, 0 FAILED (`20 passed in 1.93s`)
+      - `tests/test_specs_releases_unsafe_field.py`: 14 PASSED, 0 FAILED (`14 passed in 0.43s`)
+    - Bare `python3 -m pytest` summary line: `2507 passed, 11 warnings in 120.45s (0:02:00)` (`NOTE: 8768 tests were deselected by core filter/-m/-k`; exited 1 solely because `Core tier wall time: 120.45s exceeded budget of 30.00s.` under host load average 6.38 on 12 CPUs).
+    - `aw suite` (core tier with 6 workers, `AW_CORE_BUDGET_ENFORCE=0`): exit 0, `2507 passed, 11 warnings in 83.62s (0:01:23)`.
+    - `aw commit 9zcuyh` output for the retired fixtures and updated README (all 5 paths in Scope-Paths):
+      `aw commit: committed 5 path(s): ea9be7888349ac39319565c1340010382b187985` (`tests/fixtures/attnview/specs-valid/parked.md`, `tests/fixtures/attnview/specs-valid/reviewed.md`, `tests/fixtures/attnview/specs-valid/superseded.md`, `tests/fixtures/attnview/specs-valid/to-review.md`, `tests/fixtures/attnview/README.md`).
+    - Final IPD evidence update follows via `aw commit 9zcuyh -- .aw/records/plans/pending/20261109-metastore-214-9zcuyh-retire-four-converted-attnview-spec-fixtures-and-update-the.ipd.md` (in Scope-Paths).
+  - Result: pass
 
 ## Approval and execution gate
 
