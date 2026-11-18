@@ -111,6 +111,7 @@ DECISIONS carried as context (only D-5 governs E-03; copied verbatim from `ffceq
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-143-dbq57g-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
 - E-03, the `layout` constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` subset with its `meta_dir` fixture test. Moved to i16on1 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: i16on1
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-144-i16on1-add-the-one-record-skip-list-in-layout-and-use-it-in-check-e.ipd.md
 - The git-content readers of `check_engine` (`_blob_text`/`_status_meta` callers).
   - Carrier: t4gl15
 - The other check_engine site subsets of `ffceq0` E-06/E-07 (split 2026-11-07 per maintainer step-complexity rule): see Orders 29 (w1cs3p), 30 (na188y), 31 (i3b5zu) and 32 (ebrc4t).
