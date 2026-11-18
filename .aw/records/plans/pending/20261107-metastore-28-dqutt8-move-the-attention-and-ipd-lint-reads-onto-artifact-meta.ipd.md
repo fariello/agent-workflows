@@ -116,8 +116,9 @@ flowchart TD
   - Carrier: 1suzlp
 - The post-cutover `last_history_at` from the newest event `at` with `last_history_precision`.
   - Carrier: cxxmyv
-- `selectors` and `aw find` (`ffceq0` E-01 to E-03). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule).
-  - Carrier: r81uvz
+- `selectors` and `aw find` (`ffceq0` E-01 to E-03). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule), then round-3 split to `cdglt1` (2026-11-09), which executed them.
+  - Carrier: cdglt1
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-142-cdglt1-pin-and-move-the-selectors-and-aw-find-reads-onto-artifact-m.ipd.md
 - The event-owned readiness/approval/coverage rules (AC-15).
   - Carrier: 2xwb9b
   - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md

@@ -155,8 +155,9 @@ flowchart TD
 
 - E-10, E-11 (`aw check meta`, `aw meta repair`). Moved to a5ijjx (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: a5ijjx
-- E-01, E-02, E-03 (selectors, `aw find`, `read_text` and its spec 4.3 entry) and E-15, E-16 (the `status_set` reads). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule).
+- E-01, E-02, E-03 (selectors, `aw find`, `read_text` and its spec 4.3 entry) and E-15, E-16 (the `status_set` reads). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule; `r81uvz` completed E-15/E-16 and round-3 split E-01..E-03 to executed `cdglt1`).
   - Carrier: r81uvz
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-27-r81uvz-move-selectors-aw-find-aw-ipd-board-and-status-set-reads-ont.ipd.md
 - E-04, E-05 (attention) and E-09 (ipd_lint). Moved to dqutt8 (split 2026-11-07 per maintainer step-complexity rule).
   - Carrier: dqutt8
 - E-06, E-07 identity, Set, date and From-Spec subset of the check_engine site list. Moved to w1cs3p (split 2026-11-07 per maintainer step-complexity rule).
