@@ -1425,11 +1425,12 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
             "specset",
             "deferred",
         )
-        spec.write_text(
-            spec.read_text(encoding="utf-8")
-            + "- Gate-Kind: decision\n- Gate-Ref: D7\n",
-            encoding="utf-8",
+        spec_text = spec.read_text(encoding="utf-8").replace(
+            "- Id: sp0001\n",
+            "- Id: sp0001\n- Gate-Kind: decision\n- Gate-Ref: D7\n",
+            1,
         )
+        spec.write_text(spec_text, encoding="utf-8")
         rc = cli.main(
             ["spec", "set", "draft", "sp0001", "--yes", "--dir", str(self.repo_root)]
         )
@@ -1970,12 +1971,9 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
         )
         self.assertEqual(
             sorted({r.record_type for r in unscoped}),
-            ["backlog", "plans"],
-            "the fixture no longer spans the types the measured `agentadhere` case resolves to. At "
-            "HEAD a setid resolves across plans and backlog but NOT research (the YAML-versus-bullet "
-            "front-matter dialect gap owned by plan `xo3244`), so this is the honest shape. If "
-            "research now appears here, `xo3244` has landed: that is CORRECT, and the fix is to add "
-            f"'research' to this expectation: {[(r.record_type, r.id6) for r in unscoped]}",
+            ["backlog", "plans", "research"],
+            "the fixture no longer spans the expected types under D-6 (research now resolves "
+            f"via set_id from artifact_meta): {[(r.record_type, r.id6) for r in unscoped]}",
         )
         self.assertTrue(
             any(r.record_type == "research" for r in self._research_in_corpus()),

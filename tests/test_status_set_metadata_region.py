@@ -56,9 +56,8 @@ def fixture_records_tree(tmp_path: Path):
 
 
 def test_read_artifact_record_yaml_fence_declared_or_nothing(fixture_records_tree):
-    """Assert declared-or-nothing: YAML fence answers id6 and status via fallbacks,
+    """Assert declared-or-nothing: YAML fence answers id6, status, and set_id via artifact_meta (D-6).
 
-    and set_id is None because read_artifact_record has no YAML set: fallback.
     The quoted body block (bbb222 / approved / otherset) must never win.
     """
     repo_root, quoting_doc, _ = fixture_records_tree
@@ -68,8 +67,9 @@ def test_read_artifact_record_yaml_fence_declared_or_nothing(fixture_records_tre
     # Declared via YAML fallback in metadata region
     assert rec.id6 == "aaa111"
     assert rec.status == "active"
-    # set_id has no YAML fallback in status_set; must be None, NOT "otherset"
-    assert rec.set_id is None
+    # Under D-6, set_id comes from artifact_meta (YAML set: fxset), NEVER quoted "otherset"
+    assert rec.set_id == "fxset"
+    assert rec.set_id != "otherset"
 
 
 def test_read_artifact_record_bullet_frontmatter_all_fields(tmp_path: Path):

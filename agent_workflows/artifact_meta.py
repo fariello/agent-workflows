@@ -1995,7 +1995,8 @@ LAYOUT_VERSION = "layout_v1"
 #: derive deterministic `id6` values for id-less records (`id_derived`), and add `artifacts.id_derived`.
 #: "legacy_v6" (2026-11-18, cdglt1): add `artifacts.legacy_raw_status` and `artifacts.legacy_raw_set`,
 #: enforce strict `^- <Key>:` bullet matching and lowercase scalar normalization for YAML front matter.
-LEGACY_LOADER_VERSION = "legacy_v6"
+#: "legacy_v7" (2026-11-18, r81uvz): map legacy backlog `- Kind:` bullets to `work_kind` when `- Work-Kind:` is absent.
+LEGACY_LOADER_VERSION = "legacy_v7"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
@@ -3000,7 +3001,12 @@ def load_legacy_artifact(
     for bk, bv in bullets.items():
         if bk in ("Id", "id", "Status", "status"):
             continue
-        target_k = field_map.get(bk, bk.lower().replace("-", "_"))
+        if bk == "Kind" and art_type == "backlog":
+            if "Work-Kind" in bullets:
+                continue
+            target_k = "work_kind"
+        else:
+            target_k = field_map.get(bk, bk.lower().replace("-", "_"))
         if bv == "" and target_k in mapped_fields:
             continue
         reg = REGISTRY.get(art_type, {})
@@ -4382,7 +4388,11 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
     fields_out: Dict[str, Any] = {}
     for bk, bv in bullets.items():
         if bk == "Kind":
-            fields_out["plan_role"] = bv
+            if art_type == "backlog":
+                if "Work-Kind" not in bullets:
+                    fields_out["work_kind"] = bv
+            else:
+                fields_out["plan_role"] = bv
         else:
             fields_out[bk.lower().replace("-", "_")] = bv
     for loose_key in (

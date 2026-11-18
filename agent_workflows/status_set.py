@@ -22,7 +22,6 @@ from collections.abc import Mapping, Sequence
 import contextlib
 import dataclasses
 import json
-import re
 import shlex
 import subprocess
 import sys
@@ -114,14 +113,6 @@ TYPE_ALIASES: dict[str, str] = {
     "others": "other",
     "misc": "other",
 }
-
-# Regexes for front-matter inspection and manipulation
-_ID_RE = re.compile(r"^-\s*Id:\s*([0-9a-z]{6})\s*$", re.MULTILINE)
-_STATUS_RE = re.compile(r"^-\s*Status:\s*(\S+)\s*$", re.MULTILINE)
-_SET_RE = re.compile(r"^-\s*Set:\s*(.+?)\s*$", re.MULTILINE)
-_GATE_KIND_RE = re.compile(r"^-\s*Gate-Kind:\s*(\S+)\s*$", re.MULTILINE)
-_GATE_REF_RE = re.compile(r"^-\s*Gate-Ref:\s*(.+?)\s*$", re.MULTILINE)
-_GATE_SUMMARY_RE = re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$", re.MULTILINE)
 
 # The ONE status per record type in which a typed `Gate-Kind`/`Gate-Ref` pair is valid. A gate is
 # valid IFF the record sits in that status, so ANY transition to a different status must clear it,
@@ -227,49 +218,123 @@ def _non_lifecycle_record_type(path: Path, repo_root: Path) -> str | None:
     return None
 
 
-def read_artifact_record(
-    path: Path, repo_root: Path, default_type: str | None = None
-) -> ArtifactRecord | None:
-    """Read and parse an artifact record from disk."""
-    if not path.is_file():
-        return None
+_RECORD_TYPE_TO_META_TYPE: dict[str, str] = {
+    "plans": "ipd",
+    "specs": "spec",
+    "prompts": "prompt",
+    "backlog": "backlog",
+    "releases": "release",
+    "research": "research",
+    "walkthroughs": "walkthrough",
+    "roadmaps": "roadmap",
+}
+_META_TYPE_TO_RECORD_TYPE: dict[str, str] = {
+    v: k for k, v in _RECORD_TYPE_TO_META_TYPE.items()
+}
+
+
+def _cached_states_by_path(repo_root: Path) -> dict[Path, Any]:
+    """Query `artifact_meta` for cached states keyed by resolved Path."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        return {}
+    with _meta.ephemeral_if_uninitialized():
+        res = _meta.query(project_context=ctx)
+    by_path: dict[Path, Any] = {}
+    for st in res.rows:
+        if not st.path:
+            continue
+        try:
+            abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        by_path[abs_p] = st
+    return by_path
+
+
+def _cached_state_for_path(
+    path: Path, repo_root: Path, *, load_fields: bool = False
+) -> Any | None:
+    """Resolve `path` through `artifact_meta` (`resolve`/`query`/`read`), or None if uncached."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
     try:
-        text = path.read_text(encoding="utf-8")
+        target_res = path.resolve()
     except OSError:
         return None
-
-    rtype = detect_artifact_type(path, repo_root)
-    if not rtype and default_type:
-        rtype = default_type
-    if not rtype:
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
         return None
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        try:
+            rel_target = _meta.stored_path(target_res, records_root, scan_repo)
+        except ValueError:
+            rel_target = None
+        if rel_target is not None:
+            resolved_rel = _meta.resolve(rel_target, project_context=ctx)
+            if resolved_rel is not None:
+                try:
+                    resolved_abs = _meta.source_path(
+                        resolved_rel, records_root, scan_repo
+                    ).resolve()
+                except Exception:
+                    resolved_abs = None
+                if resolved_abs == target_res:
+                    rows = _meta.query(path=resolved_rel, project_context=ctx).rows
+                    if rows:
+                        st = rows[0]
+                        if load_fields and st.id6:
+                            with contextlib.suppress(Exception):
+                                return _meta.read(st.id6, project_context=ctx)
+                        return st
+        for st in _meta.query(project_context=ctx).rows:
+            if not st.path:
+                continue
+            try:
+                abs_res = _meta.source_path(st.path, records_root, scan_repo).resolve()
+            except Exception:
+                continue
+            if abs_res == target_res:
+                if load_fields and st.id6:
+                    with contextlib.suppress(Exception):
+                        return _meta.read(st.id6, project_context=ctx)
+                return st
+    return None
 
-    meta = _sel.metadata_region(text)
 
-    id_match = _ID_RE.search(meta)
-    id6 = id_match.group(1) if id_match else None
-    if not id6:
-        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", meta)
-        if yaml_id:
-            id6 = yaml_id.group(1)
-
-    status_match = _STATUS_RE.search(meta)
-    status = status_match.group(1) if status_match else None
-    if not status:
-        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
-        if yaml_status:
-            status = yaml_status.group(1)
-    if not status and rtype == "prompts":
-        from agent_workflows import prompts as _prompts
-
-        status = _prompts.read_metadata_status(text)
-
-    set_match = _SET_RE.search(meta)
-    set_id = None
-    if set_match:
-        raw_set = set_match.group(1).strip()
-        set_id = raw_set.split("(")[0].strip().split()[0] if raw_set else None
-
+def _record_from_state(path: Path, rtype: str, st: Any, text: str) -> ArtifactRecord:
+    """Build an `ArtifactRecord` from an `artifact_meta.State` and raw file body."""
+    id6 = (
+        None if getattr(st, "id_derived", False) else (getattr(st, "id6", None) or None)
+    )
+    raw_st = getattr(st, "legacy_raw_status", None)
+    if raw_st:
+        toks = str(raw_st).strip().split()
+        status = toks[0] if len(toks) == 1 else None
+    else:
+        status = getattr(st, "status", None)
+    raw_set = getattr(st, "legacy_raw_set", None)
+    set_id = raw_set if raw_set is not None else getattr(st, "set_id", None)
     return ArtifactRecord(
         path=path,
         record_type=rtype,
@@ -280,10 +345,55 @@ def read_artifact_record(
     )
 
 
+def _read_artifact_record_with_state(
+    path: Path,
+    repo_root: Path,
+    default_type: str | None = None,
+    *,
+    st: Any | None = None,
+) -> ArtifactRecord | None:
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    rtype = detect_artifact_type(path, repo_root)
+    if not rtype and default_type:
+        rtype = default_type
+
+    if st is None:
+        st = _cached_state_for_path(path, repo_root, load_fields=False)
+    if st is None:
+        from agent_workflows import artifact_meta as _meta
+
+        st = _meta.read_text(
+            _sel.metadata_region(text),
+            record_type=_RECORD_TYPE_TO_META_TYPE.get(rtype or ""),
+        )
+
+    if not rtype:
+        rtype = _META_TYPE_TO_RECORD_TYPE.get(getattr(st, "type", "") or "")
+    if not rtype:
+        return None
+
+    return _record_from_state(path, rtype, st, text)
+
+
+def read_artifact_record(
+    path: Path, repo_root: Path, default_type: str | None = None
+) -> ArtifactRecord | None:
+    """Read an artifact record via `artifact_meta`, keeping body `raw_text` for prose consumers."""
+    return _read_artifact_record_with_state(path, repo_root, default_type=default_type)
+
+
 def inventory_all_artifacts(
     repo_root: Path, scoped_type: str | None = None
 ) -> list[ArtifactRecord]:
     """Scan and index all non-index *.md artifacts in the repository across all types."""
+    from agent_workflows import artifact_meta as _meta
+
     records: list[ArtifactRecord] = []
     seen: set[str] = set()
 
@@ -303,25 +413,31 @@ def inventory_all_artifacts(
         )
     )
 
-    for rtype in types:
-        for d in _sel.record_dirs(repo_root, rtype):
-            if not d.is_dir():
-                continue
-            for p in d.rglob("*.md"):
-                if p.name in _sel._SKIP_NAMES:
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        by_path = _cached_states_by_path(repo_root)
+        for rtype in types:
+            for d in _sel.record_dirs(repo_root, rtype):
+                if not d.is_dir():
                     continue
-                if rtype == "research":
-                    from agent_workflows import research_contract as _rc
-
-                    if _rc.companion_owner_stem(p, d) is not None:
+                for p in d.rglob("*.md"):
+                    if p.name in _sel._SKIP_NAMES:
                         continue
-                rp = p.as_posix()
-                if rp in seen:
-                    continue
-                seen.add(rp)
-                rec = read_artifact_record(p, repo_root)
-                if rec:
-                    records.append(rec)
+                    if rtype == "research":
+                        from agent_workflows import research_contract as _rc
+
+                        if _rc.companion_owner_stem(p, d) is not None:
+                            continue
+                    rp = p.as_posix()
+                    if rp in seen:
+                        continue
+                    seen.add(rp)
+                    try:
+                        st = by_path.get(p.resolve())
+                    except OSError:
+                        st = None
+                    rec = _read_artifact_record_with_state(p, repo_root, st=st)
+                    if rec:
+                        records.append(rec)
     return records
 
 
@@ -497,6 +613,65 @@ def _resolve_record_lifecycle(record_type: str, native_status: str) -> _LS.Resol
     return _T.resolve_lifecycle(family, native_status)
 
 
+def _state_for_record(rec: ArtifactRecord, repo_root: Path | None = None) -> Any:
+    """Return `artifact_meta.State` (with per-type `fields`) for `rec`."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    eff_root = repo_root if repo_root is not None else _repo_root_of(rec.path)
+    try:
+        target_res = rec.path.resolve()
+    except OSError:
+        target_res = None
+
+    if rec.id6:
+        try:
+            ctx = _proj_ctx.resolve_project_context(target_repo=str(eff_root))
+            records_root = Path(ctx.logical_roots["records"])
+            scan_repo = _meta._scan_repo_root(ctx, records_root)
+            has_tree = records_root.is_dir() or (
+                scan_repo is not None
+                and (
+                    (scan_repo / ".aw" / "records").is_dir()
+                    or (scan_repo / ".agents").is_dir()
+                )
+            )
+            if has_tree:
+                with _meta.ephemeral_if_uninitialized():
+                    st = _meta.read(rec.id6, project_context=ctx)
+                if st.path and target_res is not None:
+                    st_res = _meta.source_path(
+                        st.path, records_root, scan_repo
+                    ).resolve()
+                    if st_res == target_res:
+                        return st
+        except Exception:
+            pass
+
+    st = _cached_state_for_path(rec.path, eff_root, load_fields=True)
+    if st is not None:
+        return st
+
+    return _meta.read_text(
+        rec.raw_text or "",
+        record_type=_RECORD_TYPE_TO_META_TYPE.get(rec.record_type),
+    )
+
+
+def _first_field_token(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    parts = value.strip().split()
+    return parts[0] if parts else None
+
+
+def _single_field_token(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    parts = value.strip().split()
+    return parts[0] if len(parts) == 1 else None
+
+
 def _format_status_transition_line(
     rec: ArtifactRecord,
     dest_path: Path,
@@ -536,20 +711,20 @@ def _format_status_transition_line(
         new_marker = term.format_lifecycle_marker(new_resolved, width=2)
         status_part = f"{old_styled} {arrow} {new_marker} {new_styled}"
 
-    m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", rec.raw_text)
-    priority = m_prio.group(1).lower() if m_prio else None
+    st = _state_for_record(rec)
+    fields = getattr(st, "fields", None) or {}
+    prio_tok = _first_field_token(fields.get("priority"))
+    priority = prio_tok.lower() if prio_tok else None
 
     br_arg = getattr(args, "blocks_release", None) if args else None
     if br_arg:
         blocks_release = None if br_arg == "-" else br_arg
     else:
-        # Note: the previous unanchored regex r"(?m)^-\s*Blocks-Release:\s*(\S+)" was missing the
-        # '$' anchor and unbounded to metadata region, diverging from releases.py.
-        blocks_release = _sel.read_front_matter_blocks_release(rec.raw_text)
+        blocks_release = _single_field_token(fields.get("blocks_release"))
 
-    m_gk = re.search(r"(?m)^-\s*Gate-Kind:\s*(\S+)", rec.raw_text)
-    m_gr = re.search(r"(?m)^-\s*Gate-Ref:\s*(\S+)", rec.raw_text)
-    gate = f"{m_gk.group(1)}:{m_gr.group(1)}" if (m_gk and m_gr) else None
+    gk = _first_field_token(fields.get("gate_kind"))
+    gr = _first_field_token(fields.get("gate_ref"))
+    gate = f"{gk}:{gr}" if (gk and gr) else None
 
     prio_txt = ""
     if priority:
@@ -635,28 +810,34 @@ def _repo_root_of(artifact_path: Path) -> Path:
 
 
 def plan_priority_work_kind_problems(
-    text: str, *, priority: str | None = None, work_kind: str | None = None
+    state: Any, *, priority: str | None = None, work_kind: str | None = None
 ) -> list[str]:
     """Why a plan's Priority / Work-Kind do not clear the ready-to-execute tier. Empty means clear.
 
     planprio lkexaw E-11. ``priority``/``work_kind`` are values about to be written in the same call;
-    they take precedence over the file's. Judged by the SAME ``ipd_schema.parse_plan_priority`` /
-    ``parse_plan_work_kind`` the lint gate uses, so the setter and the gate cannot disagree about what
-    is decided. ``grandfathered`` passes here exactly as it passes (advisory-satisfied) at the gate.
+    they take precedence over the cached state's. Judged by the SAME
+    ``ipd_schema.parse_plan_priority`` / ``parse_plan_work_kind`` the lint gate uses, so the setter
+    and the gate cannot disagree about what is decided. ``grandfathered`` passes here exactly as it
+    passes (advisory-satisfied) at the gate.
     """
-    # Read the metadata region the SAME forgiving way the setter reads `- Status:` (any `- Field:`
-    # bullet above the first `## ` heading), not through `ipd_lint.parse`, which requires the H1 first.
-    # A stricter reader here would report "missing" for a field the setter can plainly see.
-    head = re.split(r"(?m)^## ", text, maxsplit=1)[0]
-    fields: dict[str, str] = {}
-    for m in re.finditer(r"(?m)^- ([A-Za-z][A-Za-z-]*):[ \t]*(.*?)[ \t]*$", head):
-        fields.setdefault(m.group(1), m.group(2))
+    fields = getattr(state, "fields", None)
+    field_map = fields if isinstance(fields, Mapping) else {}
     problems: list[str] = []
-    for name, override, parser in (
-        (_ipd_schema.META_PRIORITY, priority, _ipd_schema.parse_plan_priority),
-        (_ipd_schema.META_WORK_KIND, work_kind, _ipd_schema.parse_plan_work_kind),
+    for name, field_key, override, parser in (
+        (
+            _ipd_schema.META_PRIORITY,
+            "priority",
+            priority,
+            _ipd_schema.parse_plan_priority,
+        ),
+        (
+            _ipd_schema.META_WORK_KIND,
+            "work_kind",
+            work_kind,
+            _ipd_schema.parse_plan_work_kind,
+        ),
     ):
-        value = override if override is not None else fields.get(name)
+        value = override if override is not None else field_map.get(field_key)
         if value is None:
             problems.append(f"{name} is missing")
             continue
@@ -937,7 +1118,7 @@ def validate_transition_allowed(
     # SAME call (`--priority`/`--work-kind`) counts, since `apply_status_change` writes it.
     if rec.record_type == "plans" and norm_status in _ipd_schema.READY_TO_EXECUTE:
         _undecided = plan_priority_work_kind_problems(
-            rec.raw_text,
+            _state_for_record(rec, repo_root),
             priority=getattr(args, "priority", None),
             work_kind=getattr(args, "work_kind", None),
         )
@@ -1130,35 +1311,30 @@ def inherited_backlog_release_gate(
 
 
 def _record_state(rec: ArtifactRecord, repo_root: Path) -> dict[str, Any]:
-    """The current values of the fields the setter's events depend on, read from the record's file.
-
-    Phase B (plan 2xwb9b D-01): the `artifact_meta` cache does not yet hold these per-type fields
-    (its legacy loader fills only the shared `artifacts` row), so the setter still reads them here
-    with the readers it used before the move; E-11 moves them to the cache once the loader does."""
-    text = (
-        rec.path.read_text(encoding="utf-8")
-        if rec.path.is_file()
-        else (rec.raw_text or "")
-    )
-    lines = text.split("\n")
+    """The current values of the fields the setter's events depend on, read from `artifact_meta`."""
+    st = _state_for_record(rec, repo_root)
+    fields = getattr(st, "fields", None)
+    field_map = fields if isinstance(fields, Mapping) else {}
     state: dict[str, Any] = {}
-    for field, pat in (
-        ("gate_kind", _GATE_KIND_RE),
-        ("gate_ref", _GATE_REF_RE),
-        ("gate_summary", _GATE_SUMMARY_RE),
-    ):
-        state[field] = next((ln for ln in lines if pat.match(ln)), None)
-    state["approval"] = next((ln for ln in lines if ln.startswith("- Approval:")), None)
-    state["readiness"] = next(
-        (ln for ln in lines if ln.startswith("- Readiness:")), None
-    )
-    state["blocks_release"] = _sel.read_front_matter_blocks_release(text)
+    gk = _single_field_token(field_map.get("gate_kind"))
+    state["gate_kind"] = gk
+    for field in ("gate_ref", "gate_summary"):
+        raw = field_map.get(field)
+        state[field] = raw if isinstance(raw, str) and raw.strip() else None
+    for field in ("approval", "readiness"):
+        raw = field_map.get(field)
+        state[field] = raw if raw is not None else None
+    state["blocks_release"] = _single_field_token(field_map.get("blocks_release"))
     if rec.record_type == "backlog":
-        item = _backlog_mod.parse_item(text)
-        state["work_kind"] = item.kind
-        state["release_exempt_kind"] = item.release_exempt_kind
-        state["release_exempt_ref"] = item.release_exempt_ref
-        state["close_evidence"] = item.close_evidence
+        for field in (
+            "work_kind",
+            "release_exempt_kind",
+            "release_exempt_ref",
+            "close_evidence",
+            "priority",
+        ):
+            raw = field_map.get(field)
+            state[field] = raw if isinstance(raw, str) and raw.strip() else None
     return state
 
 
@@ -1693,7 +1869,6 @@ def _prepare_status_change(
         verdict = close_verdict
         if verdict is None and getattr(args, "evidence", None):
             from agent_workflows import check_engine as _ce
-            from agent_workflows import backlog as _backlog_eval
 
             verdict = _ce.evaluate_blocking_close(
                 effective_gate_root,
@@ -1701,7 +1876,7 @@ def _prepare_status_change(
                 norm_status,
                 evidence=getattr(args, "evidence", None),
                 item_text=_preview(events, history=False).text.rstrip("\n"),
-                prior_priority=_backlog_eval.parse_item(text).priority,
+                prior_priority=current_state.get("priority"),
                 lane_carrier_ref=effective_lane_carrier_ref,
                 lane_carrier_path=effective_lane_carrier_path,
             )
@@ -3248,23 +3423,27 @@ def run_set_command(
                 item_text, getattr(args, "work_kind", None)
             )
 
+        _cached = _record_state(rec, repo_root)
         br_arg = getattr(args, "blocks_release", None)
         if br_arg is not None:
             item_text = _releases.set_blocks_release_line(item_text, br_arg)
         else:
             _current_text = item_text
-            _effective_kind = (
-                getattr(args, "work_kind", None)
-                or _backlog_mod.parse_item(_current_text).kind
+            _effective_kind = getattr(args, "work_kind", None) or _cached.get(
+                "work_kind"
             )
-            _existing_br = _sel.read_front_matter_blocks_release(_current_text)
-            _parsed_item = _backlog_mod.parse_item(_current_text)
-            _is_exempt = bool(
-                _parsed_item.release_exempt_kind
-                and _parsed_item.release_exempt_ref
-                and _parsed_item.release_exempt_kind != "-"
-                and _parsed_item.release_exempt_ref != "-"
+            _existing_br = _cached.get("blocks_release")
+            _ek = (
+                getattr(args, "release_exempt_kind", None)
+                if getattr(args, "release_exempt_kind", None) is not None
+                else _cached.get("release_exempt_kind")
             )
+            _er = (
+                getattr(args, "release_exempt_ref", None)
+                if getattr(args, "release_exempt_ref", None) is not None
+                else _cached.get("release_exempt_ref")
+            )
+            _is_exempt = bool(_ek and _er and _ek != "-" and _er != "-")
             _gate_default, _ = _backlog_mod.decide_gate_default(
                 repo_root,
                 kind=_effective_kind,
@@ -3279,7 +3458,7 @@ def run_set_command(
                 )
 
         ev_arg = getattr(args, "evidence", None)
-        prior_prio = _backlog_mod.parse_item(rec.raw_text).priority
+        prior_prio = _cached.get("priority")
 
         verdict = _ce.evaluate_blocking_close(
             gate_root,
@@ -4389,21 +4568,24 @@ def _write_item_dependencies(
     )
 
 
-def read_item_dependencies_value(text: str) -> str | None:
-    """The plan's raw ``Item-Dependencies`` value, or None when the field is absent.
-
-    Reads the metadata block through ``ipd_lint.parse`` - the SAME structural, fence-aware reader the
-    lint/lifecycle surfaces and both host runners use - so no private regex for this field is added
-    here (spec 25kzda 2.10's single-authority rule; depverb f6idxs E-05).
-    """
-    from agent_workflows import ipd_lint as _lint
-    from agent_workflows import ipd_schema as _schema
-
-    try:
-        fields = _lint.parse(text).meta_fields
-    except Exception:
+def read_item_dependencies_value(state: Any) -> str | None:
+    """The plan's raw ``Item-Dependencies`` value from ``artifact_meta.State``, or None when absent."""
+    fields = getattr(state, "fields", None)
+    if not isinstance(fields, Mapping):
         return None
-    return fields.get(_schema.META_ITEM_DEPENDENCIES)
+    val = fields.get("item_dependencies")
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        parts = [
+            entry.get("raw", "") if isinstance(entry, Mapping) else str(entry)
+            for entry in val
+        ]
+        joined = ", ".join(p for p in parts if p)
+        return joined or None
+    return str(val)
 
 
 def run_dependencies_remove_command(
@@ -4498,7 +4680,7 @@ def run_dependencies_remove_command(
     # one call, while the non-zero exit still tells the operator something did not apply.
     rc_final = 0
     for rec in plan_matches:
-        present_raw = read_item_dependencies_value(rec.raw_text)
+        present_raw = read_item_dependencies_value(_state_for_record(rec, repo_root))
         current_edges, _cready, cerr = _schema.parse_item_dependencies(
             present_raw or ""
         )
