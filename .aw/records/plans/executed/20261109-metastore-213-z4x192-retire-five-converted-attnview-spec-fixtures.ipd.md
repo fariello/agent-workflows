@@ -6,7 +6,7 @@
 - Scope: Part of the round-3 split of `9rgn2w` E-10 (2026-11-09, research `nj8zdp` guidance): delete 5 of the 9 converted `specs-valid` fixtures. EXCLUDES: the `violations/` set and `review-pilot/plans/` (kept literal); the consumer conversion (`7fpc8v`); production code.
 - Scope-Paths: tests/fixtures/attnview/specs-valid/approved.md, tests/fixtures/attnview/specs-valid/deferred.md, tests/fixtures/attnview/specs-valid/draft.md, tests/fixtures/attnview/specs-valid/implemented.md, tests/fixtures/attnview/specs-valid/implementing.md, .aw/records/plans/pending/20261109-metastore-213-z4x192-retire-five-converted-attnview-spec-fixtures.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i, executed:7fpc8v
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,13 +16,13 @@
 - Highest E allocated: 28
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: z4x192
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: z4x192 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
