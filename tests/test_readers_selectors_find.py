@@ -358,12 +358,12 @@ def test_multiword_executed_plan_disagreement_fixture(tmp_path: Path) -> None:
     # Canonical plan status reader already reports 'executed'
     assert plans.read_status(fx["p_multi"]) == "executed"
 
-    # Prior behavior before D-1: filter path includes it, selector path misses it
+    # D-1 convergence: selector path and filter path both normalize multi-word EXECUTED to 'executed'
     rc_flt, out_flt, _ = _run_find(repo, "plans", "--status", "executed", "--paths")
     assert rc_flt == 0
     assert multi_rel in out_flt.splitlines()
 
     rc_sel, out_sel, _ = _run_find(repo, "plans", "executed", "--paths")
     assert rc_sel == 0
-    assert multi_rel not in out_sel.splitlines()
-    assert selectors._read_status(multi_text) is None
+    assert multi_rel in out_sel.splitlines()
+    assert selectors._read_status(multi_text) == "executed"

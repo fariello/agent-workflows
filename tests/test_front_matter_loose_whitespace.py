@@ -80,10 +80,10 @@ class FrontMatterLooseWhitespaceTests(unittest.TestCase):
         self.assertIsNone(selectors._read_status(self.TAB))
 
     def test_single_token_status_contract_survives(self):
-        """E-03: multi-word status returns None from status readers and falls back to directory bucket."""
+        """E-03: multi-word status yields canonical status in _read_status (D-1) while public reader returns None."""
         multi = "- Status: EXECUTED (approved by maintainer)\n"
         self.assertIsNone(selectors.read_front_matter_status(multi))
-        self.assertIsNone(selectors._read_status(multi))
+        self.assertEqual(selectors._read_status(multi), "executed")
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

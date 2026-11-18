@@ -57,7 +57,7 @@ import functools
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -173,20 +173,6 @@ class Resolution(NamedTuple):
     @property
     def is_ambiguous(self) -> bool:
         return len(self.paths) > 1
-
-
-_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-# PARITY CONSTRAINT (IPD e32j35 E-03), and editing this line CHANGES WHAT `aw find` MATCHES.
-# This `(\S+)` requires the WHOLE status value to be a single token, so a multi-word value yields
-# NO status match at all. Its twin `plans_index._META_RE["Status"]` (plans_index.py:37) uses
-# `(.+?)` and captures the whole line, so the two readers DIVERGE by design of history, not intent.
-# Measured 2026-09-01 on this repo: 24 of 469 plans carry a multi-word `- Status:` (e.g.
-# `EXECUTED (approved by maintainer ...)`) and the two regexes disagree on exactly those 24.
-# Consequence: widening this regex would make `aw find plans EXECUTED` start matching records it
-# deliberately does not match today. That is a MATCHING-BEHAVIOR decision, not a cleanup; do not
-# "harmonize" the two patterns without owning that contract change.
-_STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
-_SET_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 
 
 # ----------------------------------------------------------------------------------------------
@@ -393,58 +379,55 @@ def _normalize_yaml_scalar(value: str) -> str:
 
 
 def _read_yaml_scalar(text: str, key: str) -> str | None:
-    """Return the normalized scalar for `key` from `text`'s leading YAML fence, or ``None``.
-
-    `text` is normally a BOUNDED header read (`_read_header`), and that bound is safe for this
-    dialect: `parse_frontmatter` returns None when it never sees the CLOSING `---`, so a front-matter
-    block straddling the read window would read as no-metadata (the exact silent-miss class this
-    change removes). Measured at execution over all 126 research `.md` files, the 119 that parse from
-    the full text parse IDENTICALLY from `_read_header`'s window, and the largest closing fence sits
-    at byte 602 - two orders of magnitude inside `_HEADER_CHUNK_BYTES` (4096). The window is also
-    STRUCTURAL rather than a cap (it grows until the metadata block provably ends), so a future
-    front-matter growth spurt cannot silently truncate a fence. `_HEADER_BYTES` is deliberately NOT
-    enlarged by this change.
-    """
+    """Return the normalized scalar for `key` from `text`'s leading YAML fence, or ``None``."""
 
     if not text.startswith("---"):
-        # Cheap pre-filter: a document with no leading fence cannot have YAML front matter, and this
-        # keeps the import and the parse off the path of every bullet-dialect record.
         return None
-    from agent_workflows import research_contract as _rc  # lazy: see the note above
+    from agent_workflows import artifact_meta as _meta
 
-    data = _rc.parse_frontmatter(text)
-    if not data:
-        return None
-    val = data.get(key)  # CASE-SENSITIVE BY CONTRACT - see the note above
-    if not isinstance(val, str):
-        return None
-    out = _normalize_yaml_scalar(val)
-    return out or None
+    st = _meta.read_text(text)
+    if key == "id":
+        return st.id6 or None
+    if key == "status":
+        return st.legacy_raw_status
+    if key == "set":
+        return st.legacy_raw_set
+    val = st.fields.get(key.lower().replace("-", "_"))
+    return val or None if isinstance(val, str) else None
 
 
-# BOTH DIALECTS ARE READ, BULLET FIRST AND YAML ONLY ON A MISS (IPD `xo3244`). Each of the three
-# readers below tries its BULLET pattern against the metadata region first and, only when that finds
-# nothing, consults the leading YAML fence via `_read_yaml_scalar`. The bullet path is therefore
-# byte-for-byte unchanged for every record that matches it today, and the fallback exists purely to
-# give a value where the bullet dialect previously produced `None`.
-#
-# THE COMPOSITION WITH `76w6mq` IS WHY BULLET-FIRST IS CORRECT RATHER THAN MERELY CONSERVATIVE. The
-# region bound above is what makes the bullet path MISS on a YAML-fenced document that quotes an
-# example `- Id:` block in its body (unbounded, such a quotation returned a FOREIGN id6 and the
-# fallback below would never have run). Region-bounding plus YAML fallback together yield the
-# document's OWN declared id; either alone does not.
+def _is_yaml_front_matter(text: str) -> bool:
+    return bool(text and text.startswith("---"))
+
+
 def _read_id(text: str) -> str | None:
-    m = _ID_RE.search(metadata_region(text))
-    if m:
-        return m.group(1)
-    return _read_yaml_scalar(text, "id")
+    from agent_workflows import artifact_meta as _meta
+
+    region = metadata_region(text)
+    st = _meta.read_text(region)
+    if not st.id6:
+        return None
+    # YAML fallback accepts any non-empty normalized lowercase id scalar;
+    # bullet strict reader requires exact 6-char id6 matching the whole value.
+    if _is_yaml_front_matter(region) and st.loose_id is None and "id" in st.fields:
+        return st.id6
+    if _core.ID6_RE.fullmatch(st.id6) and st.fields.get("id") == st.id6:
+        return st.id6
+    return None
 
 
 def _read_status(text: str) -> str | None:
-    m = _STATUS_RE.search(metadata_region(text))
-    if m:
-        return m.group(1)
-    return _read_yaml_scalar(text, "status")
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import plans as _plans
+
+    st = _meta.read_text(metadata_region(text))
+    raw = st.legacy_raw_status
+    if not raw:
+        return None
+    toks = raw.split()
+    if len(toks) > 1:
+        return _plans.normalize_status(toks[0])
+    return toks[0]
 
 
 # --- Public front-matter readers (rununify 01, `2r306y`) --------------------------------------
@@ -494,11 +477,6 @@ def _read_status(text: str) -> str | None:
 # is documented as SILENTLY DEGRADING a runner to a directory-derived status, so its surface is kept
 # as narrow as its callers need. If a driver ever has to read a YAML-fenced record, add the fallback
 # HERE explicitly with its own evidence; do not infer it from the internal readers having one.
-_FRONT_MATTER_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
-_FRONT_MATTER_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
-_FRONT_MATTER_BLOCKS_RELEASE_RE = re.compile(r"(?m)^-\s*Blocks-Release:\s*(\S+)\s*$")
-
-
 def read_front_matter_id(text: str) -> str | None:
     """Return the `- Id:` id6 from a record's METADATA REGION, or ``None``.
 
@@ -506,8 +484,9 @@ def read_front_matter_id(text: str) -> str | None:
     matching use the strict internal reader instead, so `aw find` behavior is unchanged.
     Bounded to `metadata_region`, so a QUOTED `- Id:` in a body is not read as a declaration.
     """
-    m = _FRONT_MATTER_ID_RE.search(metadata_region(text))
-    return m.group(1) if m else None
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.read_text(metadata_region(text)).loose_id
 
 
 def read_front_matter_status(text: str) -> str | None:
@@ -517,8 +496,9 @@ def read_front_matter_status(text: str) -> str | None:
     internal reader's `(\\S+)` contract; only the leading whitespace tolerance differs.
     Bounded to `metadata_region`, like its `read_front_matter_id` twin.
     """
-    m = _FRONT_MATTER_STATUS_RE.search(metadata_region(text))
-    return m.group(1) if m else None
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.read_text(metadata_region(text)).loose_status
 
 
 def read_front_matter_blocks_release(text: str) -> str | None:
@@ -529,28 +509,15 @@ def read_front_matter_blocks_release(text: str) -> str | None:
     `read_front_matter_status`, so a QUOTED `- Blocks-Release:` in a body is not read
     as a declaration.
     """
-    m = _FRONT_MATTER_BLOCKS_RELEASE_RE.search(metadata_region(text))
-    return m.group(1) if m else None
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.read_text(metadata_region(text)).loose_blocks_release
 
 
-# THIS READER RETURNS THE `- Set:` TOKEN VERBATIM, INCLUDING ANY QUOTING CHARACTERS, AND THAT IS
-# PINNED RATHER THAN AN OVERSIGHT (plan 826o13 E-04,
-# `tests/test_cli_find.py::BacktickSetValueIsPinnedTests`). A record whose front matter reads
-# `- Set: `awoptimize`` yields the BACKTICK-BEARING string, so it does NOT match the `setid` rule
-# and is reached by `substring` instead. Stripping the backticks here would make it newly match
-# `setid`, and `setid` (precedence 3) OUTRANKS `substring` (6), so the winning KIND flips and the
-# answer SHRINKS: measured, `aw find research awoptimize` returns FOUR files by substring today and
-# ONE by setid after such a normalization. That is a MATCHING-BEHAVIOR change of the same class as
-# the `_STATUS_RE` parity constraint above, so the fix belongs at plan `3i6rso`'s report-only
-# comparison site, where it changes no selector answer, and NOT here.
 def _read_setid(text: str) -> str | None:
-    m = _SET_RE.search(metadata_region(text))
-    if not m:
-        # YAML dialect fallback (IPD `xo3244`); the same first-token rule applies to its value.
-        yaml_val = _read_yaml_scalar(text, "set")
-        return _first_set_token(yaml_val) if yaml_val else None
-    # The set-id is the first whitespace token before any '(' (mirrors plans_index.set_terse_id).
-    return _first_set_token(m.group(1))
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.read_text(metadata_region(text)).legacy_raw_set
 
 
 def _first_set_token(value: str) -> str | None:
@@ -611,46 +578,22 @@ def _metadata_region_complete(chunk: str) -> bool:
 # its first `## ` heading. Those bullets are narrative, not metadata, and the fence is the record's
 # real declaration site, so the fence is where the region ends.
 _YAML_FENCE_OPEN_RE = re.compile(r"\A---[ \t]*\r?\n")
-_YAML_FENCE_CLOSE_RE = re.compile(r"(?m)^---[ \t]*\r?$")
 
 
 def metadata_region(text: str) -> str:
-    """Return the leading METADATA REGION of a record: where it DECLARES its own identity.
-
-    This is the ONE boundary every identity/status/setid reader in the toolkit is bounded to, so a
-    document that merely QUOTES a metadata block (which is ordinary, legitimate prose in a
-    repository that documents its own metadata format) cannot be read as ASSERTING the quoted
-    values. Identity comes from where an artifact declares it, not from anywhere the pattern
-    happens to match.
-
-    Two shapes, because both are present in the corpus:
-
-    * BULLET front matter (plans, specs, backlog, releases, reviews, prompts, walkthroughs): the
-      region is everything before the first ``##``+ heading. A leading ``# `` H1 title does NOT
-      end it - the boundary is ``##``, not ``#`` - so a title-then-bullets file keeps its whole
-      bullet block.
-    * YAML front matter (research, roadmaps): the region is the leading ``---`` fence block ONLY,
-      ending at its closing fence. See the note above `_YAML_FENCE_OPEN_RE` for the measured record
-      that makes this stricter bound the correct one rather than a refinement.
-
-    HEADER EXHAUSTION MEANS "THE REGION CONTINUES", NEVER AN ERROR AND NEVER AN EMPTY REGION, and
-    this is the case most likely to be got wrong because it is COMMON rather than exotic. Callers
-    pass a BOUNDED header read (`_read_header`), not a whole file, so the terminator may simply lie
-    past the end of the window: measured on this repo, 25 of 1614 tracked records present no ``##``
-    heading inside that window at all. For them "everything before the first ``##``" legitimately
-    means the WHOLE window, and a helper that returned empty, raised, or refused would break
-    identity extraction for 25 records while fixing 2. The same rule covers a truncated YAML fence:
-    an unterminated leading fence yields the whole input.
-    """
+    """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
 
     if not text:
         return text or ""
     m_open = _YAML_FENCE_OPEN_RE.match(text)
     if m_open is not None:
-        m_close = _YAML_FENCE_CLOSE_RE.search(text, m_open.end())
-        if m_close is None:
-            return text  # fence unterminated within the input -> the region continues
-        return text[: m_close.end()]
+        pos = m_open.end()
+        for line in text[pos:].splitlines(keepends=True):
+            stripped = line.rstrip("\r\n")
+            pos += len(line)
+            if stripped.rstrip(" \t") == "---":
+                return text[: pos - (len(line) - len(stripped))]
+        return text  # fence unterminated within the input -> the region continues
     m_end = _METADATA_END_RE.search(text)
     if m_end is None:
         return text  # no `##` in the input -> the region continues (the common 25-record case)
@@ -727,17 +670,20 @@ _SCAN_ID_INDEX: Dict[Tuple[str, str, bool, Optional[int]], Dict[str, List[Path]]
 
 @contextlib.contextmanager
 def scan_once():
-    """Within this block, `resolve` reuses one directory walk and one header read per record type.
+    """Within this block, `resolve` reuses one directory walk and one metadata query per type.
 
     Use only around READ-ONLY work (see the note above). Nested scopes share the outer cache."""
     global _SCAN_CACHE
     if _SCAN_CACHE is not None:
         yield
         return
+    from agent_workflows import artifact_meta as _meta
+
     _SCAN_CACHE = {}
     _SCAN_ID_INDEX.clear()
     try:
-        yield
+        with _meta.scan_once():
+            yield
     finally:
         _SCAN_CACHE = None
         _SCAN_ID_INDEX.clear()
@@ -912,6 +858,78 @@ def _stem_of(name: str) -> Optional[str]:
     return None
 
 
+_META_TYPE_FOR_RECORD: Dict[str, str] = {
+    "plans": "ipd",
+    "specs": "spec",
+    "prompts": "prompt",
+    "research": "research",
+    "backlog": "backlog",
+    "walkthroughs": "walkthrough",
+    "releases": "release",
+}
+
+
+def _cached_states_by_path(repo_root: Path, record_type: str) -> Dict[Path, Any]:
+    """Query `artifact_meta` for cached states keyed by resolved Path."""
+    if record_type == "reviews":
+        return {}
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    if not records_root.is_dir():
+        return {}
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    filters: Dict[str, Any] = {"project_context": ctx}
+    meta_t = _META_TYPE_FOR_RECORD.get(record_type)
+    if meta_t is not None:
+        filters["type"] = meta_t
+    res = _meta.query(**filters)
+    by_path: Dict[Path, Any] = {}
+    for st in res.rows:
+        if not st.path:
+            continue
+        try:
+            abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        by_path[abs_p] = st
+    return by_path
+
+
+def _state_id_for_resolve(st: Any) -> Optional[str]:
+    if not st or getattr(st, "id_derived", False):
+        return None
+    val = getattr(st, "id6", None)
+    return val or None
+
+
+def _state_set_for_resolve(st: Any) -> Optional[str]:
+    if not st:
+        return None
+    raw = getattr(st, "legacy_raw_set", None)
+    if raw is not None:
+        return raw
+    return getattr(st, "set_id", None)
+
+
+def _state_matches_status(st: Any, tok: str, record_type: str) -> bool:
+    if not st:
+        return False
+    raw = getattr(st, "legacy_raw_status", None)
+    if not raw:
+        return False
+    toks = raw.strip().split()
+    if not toks:
+        return False
+    if record_type == "plans":
+        from agent_workflows import plans as _plans
+
+        return _plans.normalize_status(toks[0]) == tok
+    return len(toks) == 1 and toks[0] == tok
+
+
 def resolve(
     repo_root: Path,
     record_type: str,
@@ -952,14 +970,8 @@ def resolve(
             return False
         return True
 
-    # Candidate hits per kind (computed lazily in precedence order). We first find the WINNING kind
-    # ignoring allow/deny (so a denied-kind match becomes an explicit rejection, not a silent skip).
-    # ONE traversal, shared by both views (IPD e32j35 E-05). `_paths()` is the text-free candidate
-    # list; `_files()` layers a bounded header read over THAT SAME list rather than walking again.
-    # Walking twice would make a filename query SLOWER than before the split (measured: 83ms vs
-    # 50ms on this repo's 469 plans), so the sharing is load-bearing, not tidiness.
     paths = None  # lazy: the single enumeration
-    files = None  # lazy: (path, header-text) pairs derived from `paths`
+    states = None  # lazy: (path, State) pairs derived from `paths` via artifact_meta
 
     cache_entry = (
         _SCAN_CACHE.get(_scan_key(repo_root, record_type))
@@ -967,7 +979,7 @@ def resolve(
         else None
     )
     if cache_entry is not None:
-        paths, files = cache_entry[0], cache_entry[1]
+        paths, states = cache_entry[0], cache_entry[1]
 
     def _paths():
         """Candidate paths with NO file read at all - for the path/stem/substring rules."""
@@ -978,24 +990,27 @@ def resolve(
                 _SCAN_CACHE[_scan_key(repo_root, record_type)] = (paths, None)
         return paths
 
-    def _files():
-        """Candidates paired with a BOUNDED header read - only for the front-matter rules.
+    def _states():
+        """Candidates paired with `artifact_meta.State` for front-matter rules."""
+        nonlocal states
+        if states is None:
+            from agent_workflows import artifact_meta as _meta
 
-        Reuses `_paths()`, so a query that consults BOTH views pays for ONE traversal. A file whose
-        header cannot be read is dropped here (it has no front matter to match on) but remains
-        visible to the filename rules via `_paths()`.
-        """
-        nonlocal files
-        if files is None:
+            cands = _paths()
+            by_path = _cached_states_by_path(repo_root, record_type) if cands else {}
             out = []
-            for p in _paths():
-                text = _read_header(p)
-                if text is not None:
-                    out.append((p, text))
-            files = out
+            for p in cands:
+                st = by_path.get(p)
+                if st is None:
+                    hdr = _read_header(p)
+                    if hdr is not None:
+                        st = _meta.read_text(metadata_region(hdr))
+                if st is not None:
+                    out.append((p, st))
+            states = out
             if _SCAN_CACHE is not None:
-                _SCAN_CACHE[_scan_key(repo_root, record_type)] = (_paths(), files)
-        return files
+                _SCAN_CACHE[_scan_key(repo_root, record_type)] = (_paths(), states)
+        return states
 
     def _hits_for(kind: str) -> List[Path]:
         if kind == MATCH_PATH:
@@ -1019,20 +1034,22 @@ def resolve(
                 index = _SCAN_ID_INDEX.get(key)
                 if index is None:
                     index = {}
-                    for p, text in _files():
-                        rid = _read_id(text)
+                    for p, st in _states():
+                        rid = _state_id_for_resolve(st)
                         if rid:
                             index.setdefault(rid, []).append(p)
                     _SCAN_ID_INDEX[key] = index
                 return list(index.get(tok, []))
-            return [p for p, text in _files() if _read_id(text) == tok]
+            return [p for p, st in _states() if _state_id_for_resolve(st) == tok]
         if kind == MATCH_SETID:
-            return [p for p, text in _files() if _read_setid(text) == tok]
+            return [p for p, st in _states() if _state_set_for_resolve(st) == tok]
         if kind == MATCH_STATUS:
-            return [p for p, text in _files() if _read_status(text) == tok]
+            return [
+                p for p, st in _states() if _state_matches_status(st, tok, record_type)
+            ]
         # The filename-only rules read NO file content (E-05): they consult `_paths()`, never
-        # `_files()`. Keep it that way - routing either one back through `_files()` silently
-        # reintroduces a bounded header read per candidate for a match that cannot use it.
+        # `_states()`. Keep it that way - routing either one back through `_states()` silently
+        # reintroduces metadata reads for filename matching.
         if kind == MATCH_STEM:
             return [p for p in _paths() if _stem_of(p.name) == tok]
         if kind == MATCH_SUBSTRING:
@@ -1194,24 +1211,29 @@ def id6_ownership(path: Path, id6: str) -> str:
     return OWNERSHIP_REFERENCE
 
 
-# The TYPED reference fields D140 prescribes for pointing at another artifact
-# ("expresses that link as a TYPED frontmatter field (e.g. `Target-Id:`/`References: <id6>`)").
-# `Subject-Id` is the reviews tree's spelling of the same idea.
-_TYPED_SUBJECT_RE = re.compile(
-    r"(?m)^-\s*(?:Subject-Id|Target-Id|References|From-Backlog|From-Spec|Reviewed-Id)"
-    r":\s*([0-9a-z]{6})\s*$"
-)
-
-
 def _declares_typed_subject(path: Path, id6: str) -> bool:
     """True iff the file names ``id6`` through a TYPED reference field in its metadata region."""
 
+    if not id6 or not _core.ID6_RE.fullmatch(id6):
+        return False
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
-    region = metadata_region(text)
-    return any(m.group(1) == id6 for m in _TYPED_SUBJECT_RE.finditer(region))
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(metadata_region(text))
+    return any(
+        st.fields.get(k) == id6
+        for k in (
+            "subject_id",
+            "target_id",
+            "references",
+            "from_backlog",
+            "from_spec",
+            "reviewed_id",
+        )
+    )
 
 
 # ----------------------------------------------------------------------------------------------
