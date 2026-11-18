@@ -84,3 +84,58 @@ AW-TIER: standard
 | D-3 | Should `--file` mutate `HISTORY_PATH` or fall back to `refresh_quota` when unreadable? | No: `--file` reads only the named path without falling back to cache/refresh and does not write live `HISTORY_PATH`. | Allow `--file` to write `~/.gemini/antigravity-cli/quota_history.json` or fall back to cache (corrupts user history during fixture inspection). | `z403j4` `E-02`, `E-03`; `steps/r3-security.md` | yes |
 | D-4 | How should `V-04` verify `mypy` and `ruff` claims from `E-01` and `E-04`? | Run `python3 -m mypy agent_workflows`, `ruff check`, and `ruff format --check` directly in addition to staged `pre-commit` and `aw check-local-leaks`. | Rely solely on `pre-commit run --files ...` (skips `static-type-gate-commit` on unstaged files). | `.pre-commit-config.yaml:120-125`; `Makefile:10-11` | yes |
 | D-5 | How should `## Approval and execution gate` specify lifecycle transition and execution rules? | Include the full execution contract with conditional runner/executor `aw ipd finalize z403j4` ownership (`never a hand git mv` to `executed/`). | Keep unconditional `aw ipd finalize` prose (violates `steps/s7-finalize.md`). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-46` | yes |
+
+## Round 2
+
+Resumed on HEAD `b52600697` after maintainer answered `02-z403j4-a1-oq02-quota-schema-refresh` (`OQ-02`). Folded the maintainer's Option 1 specification into `z403j4`: never invoke `agy`; `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (`cloudcode-pa.googleapis.com` fallback, `{"project": "aicode-consumers"}`, `User-Agent: antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)`, `groups[].buckets[]` mapping, `quota_updated_at`); `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` env-gated OAuth refresh and expired-token fallback (`"token expired; run agy to renew it"`); `AGY_QUOTA_FILE` override and single default cache `~/.gemini/antigravity-cli/last_quota.json` (removing `/tmp/antigravity_quota.json`); `quota_history.json` 6h/`21600`s/max-`720`-sample schema for `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly`; `--gemini`/`--3p` prefix selection; `--context` `context_window` formatting; and stubbed-HTTP tests. Marked `OQ-02` `resolved`. Because `runner_shared._redact_absolute_paths` scrubbed the two home-relative token file paths in the forwarded answer to `~<path>`, `PR-001` remains `OPEN` narrowly for those two paths and is escalated as `OQ-03` (`- Blocking: yes`, `- Finding: PR-001`) with `questions[]` in `attempt-2/outcomes/02-z403j4.json`.
+
+### Proofreading
+
+Checked updated `E-01`..`E-03`, `Scope check`, `OQ-02`, `OQ-03`, `V-03`, and `Approval and execution gate` against `.aw/system/workflows/technical-writing/technical-writing.md`.
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+| --- | --- | --- | --- |
+| Workflow history | Round 1 `review progress` line | Prepended Round 2 `review progress` line summarizing `OQ-02` adoption and `OQ-03` park | `steps/s6-rereview.md` non-verdict progress rule while parked `awaiting-human`. |
+| E-01, E-02, Project conventions | Unspecified HTTP refresh, token rules, `/tmp/antigravity_quota.json` in `DEFAULT_CACHE_PATHS`, `subprocess` listed | Added exact HTTP endpoint/headers/mapping, no-`agy` rule, token fields & OAuth env-var gating, removed `/tmp/antigravity_quota.json` and `subprocess`, added `AGY_QUOTA_FILE`, 6h/720-sample history schema, `--gemini`/`--3p` prefixes, and `--context` `context_window` rules; marked two token file paths pending `OQ-03` | `OQ-02` maintainer answer. |
+| E-03, V-03 | Tested generic fixture behavior only | Added stubbed HTTP `refresh_quota`, fallback host, expired-token fallback/exit, env-gated OAuth refresh, token non-exposure, `AGY_QUOTA_FILE`, 6h/720-sample pruning, and `--context` present/absent assertions | `OQ-02` test requirements. |
+| Scope check, Open questions, Execution gate | `OQ-02` open blocking | Marked `OQ-02` `resolved`; added `OQ-03` (`- Blocking: yes`, `- Status: open`, `- Finding: PR-001`) for the two redacted token paths; updated `Scope check` and `Execution contract` | `OQ-02` partial resolution and `OQ-03` narrow escalation. |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+| --- | --- | --- | --- | --- | --- |
+| I-02 | `E-01`, `OQ-03` | In the forwarded `OQ-02` answer, `_redact_absolute_paths` scrubbed both home-relative token file paths to `~<path>` (`token.access_token`/`token.refresh_token`/`token.expiry` from `~<path>`, else `accounts[activeIndex].refreshToken` from `~<path>`). | Both home-relative JSON file paths written without a leading `/` or `~/` prefix (e.g. `.gemini/antigravity-cli/...`) so the redactor preserves them verbatim. | Supply the two home-relative paths without leading `/` or `~/`. | strong |
+
+### Step R1
+
+- Checked: `agent_workflows/render_stream.py::_redact_absolute_paths:4061-4087` and `agent_workflows/runner_shared.py::build_answer_notice:6558-6603` (confirmed why `~/...` in the maintainer's answer rendered as `~<path>` and that paths without leading `/` or `~/` survive unredacted).
+
+### Step R2
+
+- Checked: `E-01`..`E-04` and `V-01`..`V-04` 1:1 mapping; verified `E-01` removes `/tmp/antigravity_quota.json` and forbids `agy` subprocess invocation; verified `V-03` covers all new `E-03` test behaviors.
+
+### Step R3
+
+- Checked: Token non-exposure rule ("Never print or log any token"), zero hardcoded client credentials (`AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` env-only), `https://` enforcement on `daily-cloudcode-pa.googleapis.com` / `cloudcode-pa.googleapis.com` / `oauth2.googleapis.com`, and stubbed HTTP in tests (no network).
+
+### Step R4
+
+- Checked: All `OQ-02` requirements folded cleanly into `E-01`..`E-03` while keeping 4 E-items and 3 Scope-Paths; only the two redacted token file paths remain unresolved.
+
+### Step S5
+
+- Checked: Marked `OQ-02` `Status: resolved`; opened `OQ-03` (`- Blocking: yes`, `- Status: open`, `- Owner: maintainer`, `- Finding: PR-001`) and recorded `oq03-token-file-paths` in `attempt-2/outcomes/02-z403j4.json`. Recorded `D-6` in `### Decisions`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PR-001 | HIGH | UNDER-SCOPE | Architecture / Token File Paths (`render_stream.py::_redact_absolute_paths`) | `.aw/records/plans/pending/20261117-installmore-01-z403j4-add-gemini-quota-cli-module-and-behavioral-tests-to-agent-wo.ipd.md:40,141-147` (`E-01`, `OQ-03`); `agent_workflows/render_stream.py::_redact_absolute_paths:4061-4087` | All `OQ-02` contract details except the two home-relative token file paths (`token.access_token`/`token.refresh_token`/`token.expiry` and `accounts[activeIndex].refreshToken`) are now specified; those two paths were scrubbed to `~<path>` by `_redact_absolute_paths` when forwarding the maintainer's answer, and do not exist in the repository. | C:Low; U:High; S:Low; F:High; Overall:High | OPEN | Narrowed `PR-001` to the two token file paths and escalated as `OQ-03` (`- Blocking: yes`, `- Finding: PR-001`) with `questions[]` (`gates_verdict: true`), asking the maintainer to supply both paths without a leading `/` or `~/`. Recommendation strength: strong. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | --- | --- | --- | --- | --- |
+| D-6 | Should Round 2 guess the two `~<path>` token file paths scrubbed by `_redact_absolute_paths` or ask the maintainer in a slash-free format? | Fold all unredacted `OQ-02` details into `z403j4`, resolve `OQ-02`, and open blocking `OQ-03` asking for the two home-relative paths without leading `/` or `~/`. | Guess standard `~/.gemini/...` filenames (risks reading nonexistent token files in production). | `agent_workflows/render_stream.py::_redact_absolute_paths:4061-4087`; `technical-writing.md` Requirement 10 | yes |
