@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 6 requires that test data be written by ONE shared record builder in phase B, so that the cutover (Order 13) changes the builder and not hundreds of test files. Research `nj8zdp` and the maintainer's ruling ("plans that obtuse and not-too-smart agents won't mess up") set the guidance of at most 5 E-items and 8 work Scope-Paths per plan and about 8 named units per item; `9rgn2w` held the baselines, the builder, its tests and the fixture conversion in one plan with a builder item of eight methods. This part, split from `9rgn2w`, captures every baseline and writes the builder.
 - Scope: Part 1 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-13 (baselines, with F-10) and E-01 (the builder), E-01 split into E-01 (class, rules, four methods), E-15 (the other four methods) and E-16 (the `support.ready_plan_text` supersession), plus the finishing item E-17. EXCLUDES: the builder's test module (`ijpay0`); the tracked-fixture conversion (`7fpc8v`, `z4x192`, `9zcuyh`, `9rgn2w`); every test-module batch; production code; the log format (Order 13).
 - Scope-Paths: tests/record_builder.py, tests/support.py, tests/fixtures/record_builder/ready_plan_text_golden.json, .aw/records/plans/pending/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261118-xxdzcq-01-xxdzcq-artifact-meta-load-legacy-artifact-drops-prompt-ki.backlog.md (Defect report backlog item xxdzcq filed per execution contract for bug discovered in agent_workflows/artifact_meta.py::load_legacy_artifact while verifying RecordBuilder.prompt)
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 17
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: j6o96i
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-18 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: j6o96i verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261118-xxdzcq-01-xxdzcq-artifact-meta-load-legacy-artifact-drops-prompt-ki.backlog.md: Defect report backlog item xxdzcq filed per execution contract for bug discovered in agent_workflows/artifact_meta.py::load_legacy_artifact while verifying RecordBuilder.prompt()]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
