@@ -16,7 +16,46 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # Static, checked-in test fixtures (decoupled from the mutable live plans board).
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-CONFORMING_ORCHESTRATOR = FIXTURES / "conforming-orchestrator.md"
+
+
+def _conforming_orchestrator_path() -> Path:
+    """Write a builder-generated conforming orchestrator IPD once per process.
+
+    Consumers (`tests/test_ipd_lint.py` and `tests/test_ipd_schema.py`) bind
+    ``CONFORMING_ORCHESTRATOR`` at import time, so the file is materialized into a
+    process-isolated temporary directory (avoiding pytest-xdist worker collisions) and
+    removed at process exit via ``atexit``.
+    """
+    import atexit
+    import shutil
+    import tempfile
+
+    try:
+        from tests.record_builder import RecordBuilder
+    except ModuleNotFoundError:
+        from record_builder import RecordBuilder  # type: ignore[import-not-found]
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="aw-conforming-orch-"))
+    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
+    dest = tmp_dir / "conforming-orchestrator.md"
+    text = str(
+        RecordBuilder().plan(
+            id6="fix000",
+            kind="orchestrator",
+            title="sample fixture (Set fixture, Order 0)",
+            author="fixture",
+            when="2026-08-03",
+            set="fixture",
+            order=0,
+            status="draft",
+            text_only=True,
+        )
+    )
+    dest.write_text(text, encoding="utf-8")
+    return dest
+
+
+CONFORMING_ORCHESTRATOR = _conforming_orchestrator_path()
 INSTALLER = REPO_ROOT / "install-workflows.py"
 
 
