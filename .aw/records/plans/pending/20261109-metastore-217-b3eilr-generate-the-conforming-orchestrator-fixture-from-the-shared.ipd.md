@@ -40,27 +40,27 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
 
 ### Task group 1: generate and prove
 
-- [ ] E-32 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/support.py`, make `support.CONFORMING_ORCHESTRATOR` a builder-generated file: because the orchestrator fixture is a `Path` used by name and evaluated at import time in test consumers, it becomes a file written once per test session under a process-isolated temporary directory by `RecordBuilder.plan(kind="orchestrator", text_only=True, ...)` (with orchestrator headings, matching the fields and sections of `tests/fixtures/conforming-orchestrator.md`), written via a helper with `atexit` cleanup to avoid xdist worker collisions, so its consumers stay unchanged.
+- [x] E-32 (part of `9rgn2w` E-10, round-3 split 2026-11-09) In `tests/support.py`, make `support.CONFORMING_ORCHESTRATOR` a builder-generated file: because the orchestrator fixture is a `Path` used by name and evaluated at import time in test consumers, it becomes a file written once per test session under a process-isolated temporary directory by `RecordBuilder.plan(kind="orchestrator", text_only=True, ...)` (with orchestrator headings, matching the fields and sections of `tests/fixtures/conforming-orchestrator.md`), written via a helper with `atexit` cleanup to avoid xdist worker collisions, so its consumers stay unchanged.
   - Depends on: none
   - Expected outcome: `support.CONFORMING_ORCHESTRATOR` names an existing file whose `aw ipd lint` disposition equals that of `tests/fixtures/conforming-orchestrator.md`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-33 Run `tests/test_ipd_lint.py` and `tests/test_ipd_schema.py` (the two consumers, through `support.CONFORMING_ORCHESTRATOR` and `ORCH_IPD`) with the batch-rule step-2 command before E-32 and after it, and require the two outcome lists to be identical.
+- [x] E-33 Run `tests/test_ipd_lint.py` and `tests/test_ipd_schema.py` (the two consumers, through `support.CONFORMING_ORCHESTRATOR` and `ORCH_IPD`) with the batch-rule step-2 command before E-32 and after it, and require the two outcome lists to be identical.
   - Depends on: E-32
   - Expected outcome: an empty before/after `diff` for each of the two modules.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-34 Delete `tests/fixtures/conforming-orchestrator.md` with `git rm` after `rg -n "\bconforming-orchestrator\b" tests tools agent_workflows` shows no reader other than the old constant in `tests/support.py` (avoiding collisions with `nonconforming-orchestrator-rows`), then re-run E-33's after-list.
+- [x] E-34 Delete `tests/fixtures/conforming-orchestrator.md` with `git rm` after `rg -n "\bconforming-orchestrator\b" tests tools agent_workflows` shows no reader other than the old constant in `tests/support.py` (avoiding collisions with `nonconforming-orchestrator-rows`), then re-run E-33's after-list.
   - Depends on: E-33
   - Expected outcome: the file is gone; the two modules' outcome lists are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-35 Finish: run the bare core gate `python3 -m pytest`; commit through `aw commit b3eilr -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-35 Finish: run the bare core gate `python3 -m pytest`; commit through `aw commit b3eilr -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-34
   - Expected outcome: the core gate passes; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -134,25 +134,41 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-32 validates E-32
+- [x] V-32 validates E-32
   - Required evidence: paste the `git diff tests/support.py` for `support.CONFORMING_ORCHESTRATOR`, and `python3 -c` output printing the generated path and `ipd_lint.lint_file` dispositions of the generated file and of the tracked fixture side by side (both conforming).
   - Observed evidence:
-  - Result: pending
+    - `git diff 4743599a8..c70553fb4 -- tests/support.py`: replaced `CONFORMING_ORCHESTRATOR = FIXTURES / "conforming-orchestrator.md"` with `tests/support.py::_conforming_orchestrator_path()` (`+40/-1` lines), creating a process-isolated `tempfile.mkdtemp(prefix="aw-conforming-orch-")` directory registered for `atexit` cleanup (`shutil.rmtree(tmp_dir, ignore_errors=True)`), writing `RecordBuilder().plan(id6="fix000", kind="orchestrator", title="sample fixture (Set fixture, Order 0)", author="fixture", when="2026-08-03", set="fixture", order=0, status="draft", text_only=True)` to `dest = tmp_dir / "conforming-orchestrator.md"`, and binding `CONFORMING_ORCHESTRATOR = _conforming_orchestrator_path()`.
+    - `python3 -c` side-by-side `ipd_lint.lint_file` output (run before E-34 deleted the tracked fixture):
+      `generated=/tmp/aw-conforming-orch-d8l9fuj5/conforming-orchestrator.md exists=True disposition=conforming`
+      `tracked=tests/fixtures/conforming-orchestrator.md exists=True disposition=conforming`
+  - Result: pass
 
-- [ ] V-33 validates E-33
+- [x] V-33 validates E-33
   - Required evidence: paste the empty `diff` of the before and after outcome lists of `tests/test_ipd_lint.py` and, separately, of `tests/test_ipd_schema.py`, with both line counts.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/b3eilr/test_ipd_lint-before.txt .aw/state/b3eilr/test_ipd_lint-after.txt` produced empty output (exit 0); line counts (`wc -l`): `77` before, `77` after (`154 total`, all `PASSED`).
+    - `diff .aw/state/b3eilr/test_ipd_schema-before.txt .aw/state/b3eilr/test_ipd_schema-after.txt` produced empty output (exit 0); line counts (`wc -l`): `26` before, `26` after (`52 total`, all `PASSED`).
+  - Result: pass
 
-- [ ] V-34 validates E-34
+- [x] V-34 validates E-34
   - Required evidence: paste `rg -n "\bconforming-orchestrator\b" tests tools agent_workflows` (no reader outside `tests/support.py`), `git status --short tests/fixtures/conforming-orchestrator.md` showing it deleted, and the two modules' after-lists `diff` (empty).
   - Observed evidence:
-  - Result: pending
+    - `rg -n "\bconforming-orchestrator\b" tests tools agent_workflows`:
+      `tests/support.py`
+      `40:    dest = tmp_dir / "conforming-orchestrator.md"`
+    - `git rm tests/fixtures/conforming-orchestrator.md` -> `rm 'tests/fixtures/conforming-orchestrator.md'`; `git status --short tests/fixtures/conforming-orchestrator.md`:
+      `D  tests/fixtures/conforming-orchestrator.md` (committed in `c70553fb4`).
+    - Re-run after-lists after deletion: `diff .aw/state/b3eilr/test_ipd_lint-before.txt .aw/state/b3eilr/test_ipd_lint-after-del.txt` empty (exit 0; `77` lines), `diff .aw/state/b3eilr/test_ipd_lint-after.txt .aw/state/b3eilr/test_ipd_lint-after-del.txt` empty (exit 0); `diff .aw/state/b3eilr/test_ipd_schema-before.txt .aw/state/b3eilr/test_ipd_schema-after-del.txt` empty (exit 0; `26` lines).
+  - Result: pass
 
-- [ ] V-35 validates E-35
+- [x] V-35 validates E-35
   - Required evidence: paste the bare `python3 -m pytest` summary line and wall time and every `aw commit b3eilr` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Bare `python3 -m pytest` test execution summary line and wall time: `2500 passed, 11 warnings in 126.56s (0:02:06)` (note: exited 1 only from the 30.00s `CORE TIER BUDGET EXCEEDED` check at host 1-minute load average `6.11` on 12 CPUs); `aw suite` (bounded 6 workers, `AW_CORE_BUDGET_ENFORCE=0`): exit 0, `2500 passed, 11 warnings in 80.24s (0:01:20)`.
+    - `aw commit b3eilr -m "test(b3eilr): generate CONFORMING_ORCHESTRATOR from RecordBuilder and remove tracked fixture" -- tests/support.py tests/fixtures/conforming-orchestrator.md`:
+      `aw commit: committed 2 path(s): c70553fb45c3de810766922d3d178a16ba771675` (`tests/fixtures/conforming-orchestrator.md`, `tests/support.py` — both in Scope-Paths).
+      Final IPD evidence update follows via `aw commit b3eilr -- .aw/records/plans/pending/20261109-metastore-217-b3eilr-generate-the-conforming-orchestrator-fixture-from-the-shared.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
