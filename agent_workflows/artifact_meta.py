@@ -4121,6 +4121,22 @@ def check_freshness(
 _SCAN_ONCE_FRESH: contextvars.ContextVar[Optional[Set[Tuple[str, str]]]] = (
     contextvars.ContextVar("_SCAN_ONCE_FRESH", default=None)
 )
+_SCAN_ONCE_CONNS: contextvars.ContextVar[
+    Optional[Dict[Tuple[str, str], sqlite3.Connection]]
+] = contextvars.ContextVar("_SCAN_ONCE_CONNS", default=None)
+_EPHEMERAL_IF_ABSENT: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_EPHEMERAL_IF_ABSENT", default=False
+)
+
+
+@contextlib.contextmanager
+def ephemeral_if_uninitialized() -> Any:
+    """Use an in-memory cache during read queries if neither state dir nor meta/ exists."""
+    token = _EPHEMERAL_IF_ABSENT.set(True)
+    try:
+        yield
+    finally:
+        _EPHEMERAL_IF_ABSENT.reset(token)
 
 
 @contextlib.contextmanager
@@ -4130,11 +4146,33 @@ def scan_once() -> Any:
     if existing is not None:
         yield
         return
-    token = _SCAN_ONCE_FRESH.set(set())
+    token_f = _SCAN_ONCE_FRESH.set(set())
+    conns_map: Dict[Tuple[str, str], sqlite3.Connection] = {}
+    token_c = _SCAN_ONCE_CONNS.set(conns_map)
     try:
         yield
     finally:
-        _SCAN_ONCE_FRESH.reset(token)
+        for conn in conns_map.values():
+            with contextlib.suppress(Exception):
+                conn.close()
+        _SCAN_ONCE_CONNS.reset(token_c)
+        _SCAN_ONCE_FRESH.reset(token_f)
+
+
+def _open_for_read(
+    records_root: Path, state_root: Path
+) -> Tuple[sqlite3.Connection, bool]:
+    """Open or reuse a cache connection for a read operation; returns (conn, should_close)."""
+    key = (str(records_root.resolve()), str(state_root.resolve()))
+    conns_map = _SCAN_ONCE_CONNS.get()
+    if conns_map is not None and key in conns_map:
+        return conns_map[key], False
+    use_mem = _EPHEMERAL_IF_ABSENT.get() and not (state_root / "index.db").exists()
+    conn = open_cache(records_root, state_root, in_memory=use_mem)
+    if conns_map is not None:
+        conns_map[key] = conn
+        return conn, False
+    return conn, True
 
 
 def _maybe_check_freshness(
@@ -4292,7 +4330,7 @@ def read(id6: str, *, project_context: Any = None) -> State:
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
 
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
         _maybe_check_freshness(
             conn,
@@ -4363,7 +4401,8 @@ def read(id6: str, *, project_context: Any = None) -> State:
 
         return st
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
@@ -4468,7 +4507,7 @@ def resolve(
     state_root = Path(ctx.logical_roots["state"])
 
     scan_repo = _scan_repo_root(ctx, records_root)
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
         _maybe_check_freshness(
             conn,
@@ -4504,7 +4543,8 @@ def resolve(
 
         return None
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def query(*, project_context: Any = None, **filters) -> QueryResult:
@@ -4514,7 +4554,7 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
     state_root = Path(ctx.logical_roots["state"])
 
     scan_repo = _scan_repo_root(ctx, records_root)
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
         _maybe_check_freshness(
             conn,
@@ -4616,7 +4656,8 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
 
         return QueryResult(states, incomplete)
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 def review_rows(

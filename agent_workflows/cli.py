@@ -15382,7 +15382,7 @@ def _find_type_records(
     if getattr(args, "topic", None):
         highlight_tokens.append(args.topic)
 
-    with _meta.scan_once(), sel_mod.scan_once():
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), sel_mod.scan_once():
         ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
         records_root = Path(ctx.logical_roots["records"])
         scan_repo = _meta._scan_repo_root(ctx, records_root)
@@ -15580,7 +15580,7 @@ def _find_type_records(
             research_extras: Dict[str, Tuple[List[str], str]] = {}
             if _has_records_tree():
                 state_root = Path(ctx.logical_roots["state"])
-                conn = _meta.open_cache(records_root, state_root)
+                conn, should_close = _meta._open_for_read(records_root, state_root)
                 try:
                     for rid6, rtopic, rsummary in conn.execute(
                         "SELECT id6, topic, summary FROM research"
@@ -15597,7 +15597,8 @@ def _find_type_records(
                                 ]
                         research_extras[rid6] = (topics_list, str(rsummary or ""))
                 finally:
-                    conn.close()
+                    if should_close:
+                        conn.close()
 
             if selectors_list:
                 matched_paths, type_matches = _resolve_selectors_with_kinds(
@@ -17128,7 +17129,9 @@ def _run_search(
     )
     cached_by_path: Dict[Path, _meta.State] = {}
     if (status_filters or status_not_filters) and search_has_tree:
-        for st_row in _meta.query(project_context=search_ctx).rows:
+        with _meta.ephemeral_if_uninitialized():
+            _qrows = _meta.query(project_context=search_ctx).rows
+        for st_row in _qrows:
             if not st_row.path:
                 continue
             try:

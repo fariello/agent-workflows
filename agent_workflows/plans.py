@@ -128,7 +128,8 @@ def _cached_states_by_path(root: Path) -> Dict[Path, object]:
     )
     if not has_tree:
         return {}
-    res = _meta.query(project_context=ctx)
+    with _meta.ephemeral_if_uninitialized():
+        res = _meta.query(project_context=ctx)
     by_path: Dict[Path, object] = {}
     for st in res.rows:
         if not st.path:

@@ -891,7 +891,8 @@ def _cached_states_by_path(repo_root: Path, record_type: str) -> Dict[Path, Any]
     meta_t = _META_TYPE_FOR_RECORD.get(record_type)
     if meta_t is not None:
         filters["type"] = meta_t
-    res = _meta.query(**filters)
+    with _meta.ephemeral_if_uninitialized():
+        res = _meta.query(**filters)
     by_path: Dict[Path, Any] = {}
     for st in res.rows:
         if not st.path:
@@ -932,7 +933,12 @@ def _state_matches_status(st: Any, tok: str, record_type: str) -> bool:
     if record_type == "plans":
         from agent_workflows import plans as _plans
 
-        return _plans.normalize_status(toks[0]) == tok
+        norm = _plans.normalize_status(toks[0])
+        if norm != _plans.LEGACY_GROUP:
+            return norm == tok
+        if norm == tok:
+            return True
+        return len(toks) == 1 and toks[0] == tok
     return len(toks) == 1 and toks[0] == tok
 
 
