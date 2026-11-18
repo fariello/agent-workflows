@@ -101,6 +101,7 @@ flowchart TD
 
 - Converting the consumer modules.
   - Carrier: 7fpc8v
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.ipd.md
 - The `violations/` set stays literal malformed input (`9rgn2w` E-10 rule 2).
   - Carrier: 9rgn2w
 

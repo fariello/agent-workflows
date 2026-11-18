@@ -107,6 +107,7 @@ flowchart TD
   - Carrier: ijpay0
 - Moved to 7fpc8v (round-3 split 2026-11-09 per research nj8zdp guidance): the consumer conversions of E-10 (attnview `specs-valid` readers).
   - Carrier: 7fpc8v
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.ipd.md
 - Moved to z4x192 (round-3 split 2026-11-09 per research nj8zdp guidance): the deletion of five converted `specs-valid` fixtures from E-10.
   - Carrier: z4x192
 - Moved to 9zcuyh (round-3 split 2026-11-09 per research nj8zdp guidance): the deletion of four converted `specs-valid` fixtures and the README update from E-10.
