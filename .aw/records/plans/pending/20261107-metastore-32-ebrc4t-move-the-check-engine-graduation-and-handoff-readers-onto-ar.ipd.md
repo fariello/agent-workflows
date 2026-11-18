@@ -108,6 +108,7 @@ DECISIONS carried as context (only D-5 governs E-03; copied verbatim from `ffceq
 
 - E-01, E-02 (the graduation and handoff readers of `check_engine`). Moved to dbq57g (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: dbq57g
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-143-dbq57g-move-the-check-engine-graduation-and-handoff-readers-onto-ar.ipd.md
 - E-03, the `layout` constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` subset with its `meta_dir` fixture test. Moved to i16on1 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: i16on1
 - The git-content readers of `check_engine` (`_blob_text`/`_status_meta` callers).
