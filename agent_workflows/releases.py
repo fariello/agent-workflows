@@ -21,6 +21,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
+from agent_workflows import layout
 from agent_workflows import selectors as _sel
 from agent_workflows.project_context import project_records_dir
 
@@ -724,11 +725,9 @@ def count_blocks_release_sentinel(repo_root: Path) -> int:
             ):
                 continue
             for p in base.rglob("*.md"):
-                if p.name in (
-                    "README.md",
-                    "INDEX.md",
-                    "STATUS.md",
-                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+                    p, repo_root, ignored_dirs
+                ):
                     continue
                 try:
                     text = p.read_text(encoding="utf-8")
@@ -778,11 +777,9 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
             ):
                 continue
             for p in base.rglob("*.md"):
-                if p.name in (
-                    "README.md",
-                    "INDEX.md",
-                    "STATUS.md",
-                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+                    p, repo_root, ignored_dirs
+                ):
                     continue
                 try:
                     text = p.read_text(encoding="utf-8")
@@ -879,11 +876,9 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
             ):
                 continue
             for p in base.rglob("*.md"):
-                if p.name in (
-                    "README.md",
-                    "INDEX.md",
-                    "STATUS.md",
-                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+                    p, repo_root, ignored_dirs
+                ):
                     continue
                 try:
                     text = p.read_text(encoding="utf-8")
@@ -1011,11 +1006,9 @@ def check_graduated_to(
             ):
                 continue
             for p in base.rglob("*.md"):
-                if p.name in (
-                    "README.md",
-                    "INDEX.md",
-                    "STATUS.md",
-                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+                    p, repo_root, ignored_dirs
+                ):
                     continue
                 try:
                     text = p.read_text(encoding="utf-8")

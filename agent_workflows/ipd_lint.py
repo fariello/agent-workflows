@@ -36,6 +36,7 @@ from typing import (
 )
 
 from agent_workflows import ipd_schema as S
+from agent_workflows import layout
 from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import plans as _plans
@@ -3125,10 +3126,6 @@ BOUNDARY_TEXT = (
 )
 
 
-# Generated index / scaffolding files under .agents/plans that are NOT IPDs and must not be linted.
-_NON_IPD_BASENAMES = frozenset(("README.md", "STATUS.md", "INDEX.md"))
-
-
 # citeanchor `mzc019` E-05: the advisory codes whose text is printed in DEFAULT human output.
 #
 # WHY THIS EXISTS. Without it, E-03 would ship a nudge that nudges nobody. The per-advisory render
@@ -3191,7 +3188,9 @@ def _iter_plan_files(root: Path) -> Tuple[Optional[Path], List[Path]]:
     if base is None or not base.is_dir():
         return None, []
 
-    files = sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
+    files = sorted(
+        p for p in base.rglob("*.md") if p.name not in layout.RECORD_SCAN_SKIP_NAMES
+    )
     return base, files
 
 
@@ -3209,7 +3208,7 @@ def _default_pending_files() -> List[Path]:
     for r in roots:
         if r.is_dir():
             for p in sorted(r.rglob("*.md")):
-                if p.name not in ("README.md", "INDEX.md", "STATUS.md"):
+                if p.name not in layout.RECORD_SCAN_SKIP_NAMES:
                     out.append(p)
     return out
 

@@ -46,10 +46,10 @@ The baseline directory stays `.aw/state/ffceq0/`, not this plan's own id6, becau
 
 Round-3 note (2026-11-09): E-01 and E-02 moved to `dbq57g`, and the first part of E-03 moved to `i16on1`; both are `- Item-Dependencies:` edges, so E-03's former `Depends on: E-02` is carried by them.
 
-- [ ] E-03 (remaining subset of the original; the constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` share are done by `i16on1`) Replace the remaining record skip-name copies with the ONE list `layout.RECORD_SCAN_SKIP_NAMES` and the ONE excluded records subdirectory constant `layout.RECORD_SCAN_EXCLUDED_DIRS` (both added by `i16on1`): the inline sets with the same three names in `specs` (`skip_names` in `specs._spec_files`), `releases` (the four record walkers `count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog` and `check_graduated_to`, each an inline `("README.md", "INDEX.md", "STATUS.md")` tuple) and `ipd_lint` (`_NON_IPD_BASENAMES` and the inline tuple in `_default_pending_files`). These sites consult `layout.RECORD_SCAN_SKIP_NAMES` only: every one of these walkers roots at a type directory (`<records>/specs`, `<records>/backlog`, `<records>/plans`, `<records>/plans/pending` or their `.agents/` legacy twins) and globs `*.md`, so `<records>/meta/` (`layout.RECORD_SCAN_EXCLUDED_DIRS`) is never reached and a `meta/*.jsonl` log is never walked as a record by construction (D-5 holds without a directory check here). Update the `specs._spec_files` comment "Skip names aligned with check_engine._SKIP_NAMES" to name `layout.RECORD_SCAN_SKIP_NAMES`.
+- [x] E-03 (remaining subset of the original; the constants and the `check_engine`, `selectors`, `artifact_refs` and `artifact_core` share are done by `i16on1`) Replace the remaining record skip-name copies with the ONE list `layout.RECORD_SCAN_SKIP_NAMES` and the ONE excluded records subdirectory constant `layout.RECORD_SCAN_EXCLUDED_DIRS` (both added by `i16on1`): the inline sets with the same three names in `specs` (`skip_names` in `specs._spec_files`), `releases` (the four record walkers `count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog` and `check_graduated_to`, each an inline `("README.md", "INDEX.md", "STATUS.md")` tuple) and `ipd_lint` (`_NON_IPD_BASENAMES` and the inline tuple in `_default_pending_files`). These sites consult `layout.RECORD_SCAN_SKIP_NAMES` only: every one of these walkers roots at a type directory (`<records>/specs`, `<records>/backlog`, `<records>/plans`, `<records>/plans/pending` or their `.agents/` legacy twins) and globs `*.md`, so `<records>/meta/` (`layout.RECORD_SCAN_EXCLUDED_DIRS`) is never reached and a `meta/*.jsonl` log is never walked as a record by construction (D-5 holds without a directory check here). Update the `specs._spec_files` comment "Skip names aligned with check_engine._SKIP_NAMES" to name `layout.RECORD_SCAN_SKIP_NAMES`.
   - Depends on: none
   - Expected outcome: the `i16on1` fixture tests still pass; `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=" agent_workflows` lists only `layout.py` and the three `_SKIP_NAMES` alias lines of `i16on1`; `rg -n '"STATUS.md"' agent_workflows/specs.py agent_workflows/releases.py agent_workflows/ipd_lint.py` prints nothing; the REGRESSION MODULES outcome-list `diff` is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -147,10 +147,33 @@ N/A: no spec text changes; implements `4sd62s` 4.4 last bullet (one exclusion li
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=|RECORD_SCAN_SKIP_NAMES\s*=|RECORD_SCAN_EXCLUDED_DIRS\s*=" agent_workflows` listing only `agent_workflows/layout.py` and the three `_SKIP_NAMES` alias lines of `i16on1`, with no line in `specs.py`, `releases.py` or `ipd_lint.py`; `rg -n '"STATUS.md"' agent_workflows/specs.py agent_workflows/releases.py agent_workflows/ipd_lint.py` printing nothing (this catches the inline tuples the first pattern cannot); the empty `diff .aw/state/ffceq0/E-03-ebrc4t-before.txt .aw/state/ffceq0/E-03-ebrc4t-after.txt`; `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py -k meta_dir` PASSED; and the summary lines of `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py`, `tests/test_specs_recursive_read.py`, `tests/test_releases.py`, `tests/test_blocks_release_reader_bounding.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_graduation_forward_links.py` and `tests/test_ipd_lint.py`, each named with 0 failed; and the bare `python3 -m pytest` summary line.
   - Observed evidence:
-  - Result: pending
+    - Replaced the remaining skip-name copies in `agent_workflows/specs.py` (`_spec_files` and its comment/docstring), `agent_workflows/releases.py` (`count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog`, `check_graduated_to`), and `agent_workflows/ipd_lint.py` (deleted `_NON_IPD_BASENAMES`, updated `_iter_plan_files` and `_default_pending_files`) to use `layout.RECORD_SCAN_SKIP_NAMES`.
+    - `rg -n "_SKIP_NAMES\s*=|_NON_IPD_BASENAMES\s*=|skip_names\s*=|RECORD_SCAN_SKIP_NAMES\s*=|RECORD_SCAN_EXCLUDED_DIRS\s*=" agent_workflows`:
+      `agent_workflows/layout.py:122:RECORD_SCAN_SKIP_NAMES = (`
+      `agent_workflows/layout.py:129:RECORD_SCAN_EXCLUDED_DIRS = ("meta",)`
+      `agent_workflows/check_engine.py:1175:_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES`
+      `agent_workflows/selectors.py:67:_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES`
+      `agent_workflows/artifact_refs.py:63:_SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES`
+    - `rg -n '"STATUS.md"' agent_workflows/specs.py agent_workflows/releases.py agent_workflows/ipd_lint.py`: exit 1, printed nothing.
+    - `diff .aw/state/ffceq0/E-03-ebrc4t-before.txt .aw/state/ffceq0/E-03-ebrc4t-after.txt`: exit 0, empty output (`156` lines before and `156` lines after; combined `156 passed in 79.97s` before and `156 passed in 83.40s` after).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_check_engine.py -k meta_dir`:
+      `tests/test_readers_check_engine.py::TestRecordSkipListAndMetaDirExclusion::test_meta_dir_readme_citation_rewrite_preserved PASSED [ 50%]`
+      `tests/test_readers_check_engine.py::TestRecordSkipListAndMetaDirExclusion::test_meta_dir_and_skip_names_yield_no_find_check_or_attention_row PASSED [100%]`
+      `2 passed, 43 deselected in 1.40s`
+    - Individual `python3 -m pytest -o addopts=""` summary lines:
+      `tests/test_artifact_refs_rewrite.py`: `25 passed in 3.52s`
+      `tests/test_specs_recursive_read.py`: `8 passed in 0.38s`
+      `tests/test_releases.py`: `21 passed in 0.53s`
+      `tests/test_blocks_release_reader_bounding.py`: `9 passed in 32.70s`
+      `tests/test_from_backlog_cardinality.py`: `7 passed in 0.52s`
+      `tests/test_graduation_forward_links.py`: `9 passed in 1.00s`
+      `tests/test_ipd_lint.py`: `77 passed in 82.17s (0:01:22)`
+    - Core gate (`aw suite` running `python3 -m pytest`): `2507 passed, 11 warnings in 119.59s (0:01:59)` (exit 0; `AW_CORE_BUDGET_ENFORCE=0` under host 1-minute load average 9.72 on 12 CPUs).
+    - Additional checks: `python3 -m mypy agent_workflows/specs.py agent_workflows/releases.py agent_workflows/ipd_lint.py` (`Success: no issues found in 3 source files`); `aw sanitize --agent` (`outcome: "clean"`, `checked: 6774`, `findings: 0`); `aw check all --agent` (73 pre-existing repo findings, 0 attributable to the skip-list change).
+  - Result: pass
 
 ## Approval and execution gate
 

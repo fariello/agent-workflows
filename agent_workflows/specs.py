@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
+from agent_workflows import layout
 
 SPECS_ROOT = ".aw/records/specs"
 
@@ -108,7 +109,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
     recursive without this filter would cause gitignored specs to be returned
     and validated, potentially refusing on box-local files that are never committed.
 
-    Skips `README.md`, `INDEX.md`, and `STATUS.md`, aligning with `check_engine._SKIP_NAMES`.
+    Skips `README.md`, `INDEX.md`, and `STATUS.md`, using `layout.RECORD_SCAN_SKIP_NAMES`.
     De-duplicates by resolved path while returning Path instances.
     """
     from agent_workflows.record_producers import resolve_record_read_paths
@@ -137,8 +138,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
     if legacy not in roots:
         roots.append(legacy)
 
-    # Skip names aligned with check_engine._SKIP_NAMES (README.md, INDEX.md, STATUS.md)
-    skip_names = {"README.md", "INDEX.md", "STATUS.md"}
+    # Skip names from layout.RECORD_SCAN_SKIP_NAMES (README.md, INDEX.md, STATUS.md)
     ignored_dirs = core.get_ignored_dirs(repo_root)
     files: List[Path] = []
     seen_resolved: set = set()
@@ -146,7 +146,9 @@ def _spec_files(repo_root: Path) -> List[Path]:
         if not r.is_dir() or core.is_ignored_path(r, repo_root, ignored_dirs):
             continue
         for p in r.rglob("*.md"):
-            if p.name in skip_names or core.is_ignored_path(p, repo_root, ignored_dirs):
+            if p.name in layout.RECORD_SCAN_SKIP_NAMES or core.is_ignored_path(
+                p, repo_root, ignored_dirs
+            ):
                 continue
             try:
                 key = str(p.resolve())
