@@ -114,6 +114,9 @@ from agent_workflows.render_stream import (
     refusal_of_item as refusal_of_item,
     Statusline,
     StreamTracker,
+    get_active_statusline,
+    item_statusline,
+    open_or_reuse_statusline,
     _one_line,
     _strip_ansi,
     completed_work_count,
@@ -3155,33 +3158,7 @@ def run_opencode(
                 subprocess.Popen(argv, **popen_kwargs)
             )
             assert process.stdout is not None
-            statusline = Statusline(
-                pal=pal,
-                stream=sys.stdout,
-                tracker=tracker,
-                interval=1.0 if is_tty and output_mode == "clean" else 0.0,
-                current_idx=current_idx,
-                total_items=total_items or 1,
-                setid=item.get("setid", ""),
-                id6=item.get("id6", ""),
-                run_start_mono=run_start_mono,
-                action=statusline_action_for_item(item),
-                artifact_kind=item.get("kind", item.get("type", "ipd")),
-                # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
-                # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
-                # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
-                # entry signals nothing, which renders no activity cell rather than a guessed one.
-                activity=activity_for_item(item),
-                runner="opencode",
-                model=options.get(model_key),
-                variant=options.get(variant_key),
-                run_dir=run_dir,
-                state=state,
-            )
             watchdog = StallWatchdog(process, timeout=stall_timeout)
-            # The countdown the operator sees must come from the watchdog that kills, so the
-            # display reads it directly rather than keeping a second timestamp.
-            statusline.watchdog = watchdog
 
             # SUBAGENT PROGRESS (stallfp kaga7s): stdout carries ONLY parent-session events, so a
             # turn working inside a Task/subagent looks idle and used to be killed at the timeout.
@@ -3200,7 +3177,9 @@ def run_opencode(
 
             def _subagent_progress() -> None:
                 watchdog.touch()
-                statusline.touch("subagent")
+                active_sl = get_active_statusline()
+                if active_sl is not None:
+                    active_sl.touch("subagent")
 
             # Poll often enough that progress is always seen before the watchdog could fire.
             # Mirrors StallWatchdog.check_interval's own timeout/4 clamp, so a short timeout (as
@@ -3320,7 +3299,26 @@ def run_opencode(
                 # (lanectn lhmrhx) joins it too: `__enter__` is what starts `MAX_TURN_TIMEOUT`'s clock,
                 # so entering here means it measures from child start.
                 with (
-                    statusline,
+                    open_or_reuse_statusline(
+                        pal=pal,
+                        stream=sys.stdout,
+                        tracker=tracker,
+                        interval=1.0 if is_tty and output_mode == "clean" else 0.0,
+                        current_idx=current_idx,
+                        total_items=total_items or 1,
+                        setid=item.get("setid", ""),
+                        id6=item.get("id6", ""),
+                        run_start_mono=run_start_mono,
+                        watchdog=watchdog,
+                        action=statusline_action_for_item(item),
+                        artifact_kind=item.get("kind", item.get("type", "ipd")),
+                        activity=activity_for_item(item),
+                        runner="opencode",
+                        model=options.get(model_key),
+                        variant=options.get(variant_key),
+                        run_dir=run_dir,
+                        state=state,
+                    ) as statusline,
                     watchdog,
                     poller,
                     force_watch,
@@ -3620,20 +3618,29 @@ def execute_item(
             telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
         )
 
-    runner_shared.execute_item_core(
+    pal = Palette(should_color(sys.stdout))
+    with item_statusline(
         run_dir,
         state,
         item,
-        recovery,
-        host_labels=runner_shared.OC_HOST_LABELS,
-        spawn_executor=_spawn_executor,
-        spawn_verifier=_spawn_verifier,
-        raw_launcher=run_opencode,
-        run_suite_check=run_suite_check,
-        process_backlog_close=process_backlog_close,
-        driver_module=sys.modules[__name__],
+        pal=pal,
         tracker=tracker,
-    )
+        runner="opencode",
+    ):
+        runner_shared.execute_item_core(
+            run_dir,
+            state,
+            item,
+            recovery,
+            host_labels=runner_shared.OC_HOST_LABELS,
+            spawn_executor=_spawn_executor,
+            spawn_verifier=_spawn_verifier,
+            raw_launcher=run_opencode,
+            run_suite_check=run_suite_check,
+            process_backlog_close=process_backlog_close,
+            driver_module=sys.modules[__name__],
+            tracker=tracker,
+        )
 
 
 # attmodel Order 02 (`ov2c9n`) E-02 / E-03 / E-04:

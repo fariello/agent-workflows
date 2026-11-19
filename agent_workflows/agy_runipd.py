@@ -77,7 +77,9 @@ from agent_workflows.run_selection_policy import (
 from agent_workflows import selectors as _selectors
 
 from agent_workflows.render_stream import (
-    Statusline,
+    get_active_statusline,
+    item_statusline,
+    open_or_reuse_statusline,
     print_final_statusline,
     render_run_summary_table,
     install_exit_signal_handler,
@@ -2712,29 +2714,6 @@ def run_agy_turn(
                 terminate_process(process)
                 raise DriverError("Failed to open child agy stdout stream")
 
-            statusline = Statusline(
-                pal=pal,
-                stream=sys.stdout,
-                tracker=tracker,
-                interval=1.0 if is_tty and output_mode == "clean" else 0.0,
-                current_idx=current_idx,
-                total_items=total_items or 1,
-                setid=item.get("setid", ""),
-                id6=item.get("id6", ""),
-                run_start_mono=run_start_mono,
-                action=statusline_action_for_item(item),
-                artifact_kind=item.get("kind", item.get("type", "ipd")),
-                # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
-                # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
-                # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
-                # entry signals nothing, which renders no activity cell rather than a guessed one.
-                activity=activity_for_item(item),
-                runner="agy",
-                model=options.get("model"),
-                variant=options.get("variant"),
-                run_dir=run_dir,
-                state=state,
-            )
             # stallfp: Observe transcript and task log updates when background tasks are active.
             # When background tasks run (e.g. pytest in background or schedule timers), the root
             # agent goes idle and reactive wakeups emit steps directly to transcript.jsonl with
@@ -2754,13 +2733,13 @@ def run_agy_turn(
                     observer.poll, suite_observer.poll
                 ),
             )
-            # stallfp kaga7s (display parity): show the countdown from the clock that kills.
-            statusline.watchdog = watchdog
 
             def _task_progress() -> None:
                 watchdog.touch()
                 source = getattr(observer, "last_progress_source", "task") or "task"
-                statusline.touch(source)
+                active_sl = get_active_statusline()
+                if active_sl is not None:
+                    active_sl.touch(source)
 
             poll_interval = (
                 min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
@@ -2879,7 +2858,26 @@ def run_agy_turn(
                 # `turn_bounds` (lanectn lhmrhx) joins it too: `__enter__` starts `MAX_TURN_TIMEOUT`'s
                 # clock, so entering here means it measures from child start.
                 with (
-                    statusline,
+                    open_or_reuse_statusline(
+                        pal=pal,
+                        stream=sys.stdout,
+                        tracker=tracker,
+                        interval=1.0 if is_tty and output_mode == "clean" else 0.0,
+                        current_idx=current_idx,
+                        total_items=total_items or 1,
+                        setid=item.get("setid", ""),
+                        id6=item.get("id6", ""),
+                        run_start_mono=run_start_mono,
+                        watchdog=watchdog,
+                        action=statusline_action_for_item(item),
+                        artifact_kind=item.get("kind", item.get("type", "ipd")),
+                        activity=activity_for_item(item),
+                        runner="agy",
+                        model=options.get("model"),
+                        variant=options.get("variant"),
+                        run_dir=run_dir,
+                        state=state,
+                    ) as statusline,
                     watchdog,
                     poller,
                     force_watch,
@@ -3256,20 +3254,29 @@ def execute_item(
             telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
         )
 
-    runner_shared.execute_item_core(
+    pal = Palette(should_color(sys.stdout))
+    with item_statusline(
         run_dir,
         state,
         item,
-        recovery,
-        host_labels=runner_shared.AGY_HOST_LABELS,
-        spawn_executor=_spawn_executor,
-        spawn_verifier=_spawn_verifier,
-        raw_launcher=run_agy_turn,
-        run_suite_check=run_suite_check,
-        process_backlog_close=process_backlog_close,
-        driver_module=sys.modules[__name__],
+        pal=pal,
         tracker=tracker,
-    )
+        runner="agy",
+    ):
+        runner_shared.execute_item_core(
+            run_dir,
+            state,
+            item,
+            recovery,
+            host_labels=runner_shared.AGY_HOST_LABELS,
+            spawn_executor=_spawn_executor,
+            spawn_verifier=_spawn_verifier,
+            raw_launcher=run_agy_turn,
+            run_suite_check=run_suite_check,
+            process_backlog_close=process_backlog_close,
+            driver_module=sys.modules[__name__],
+            tracker=tracker,
+        )
 
 
 # runrecon-02 (`fduoj4`) E-01: one-line wrapper over the shared `reconcile_interrupted`, the exact

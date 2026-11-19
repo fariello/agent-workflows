@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import itertools
+import sys
 import threading
 import time
 from pathlib import Path
@@ -935,6 +936,105 @@ class TestStatuslineClass:
             assert sl._paused
             rs.resume_active_statusline()
             assert not sl._paused
+
+    def test_open_or_reuse_statusline_keeps_bar_drawn_and_ticking_after_turn(
+        self,
+    ) -> None:
+        """Inner turn reuse detaches watchdog and redraws immediately while outer bar keeps ticking."""
+
+        class FakeWatchdog:
+            timeout = 1800.0
+
+            def remaining(self) -> float:
+                return 1795.0
+
+        stream = FakeTTY()
+        item: dict[str, Any] = {
+            "id6": "vo0y6q",
+            "setid": "vo0y6q",
+            "action": "plan",
+            "kind": "backlog",
+            "status": "running",
+        }
+        outer = rs.Statusline(
+            rs.Palette(False),
+            stream,
+            interval=0.02,
+            current_idx=1,
+            total_items=2,
+            setid="vo0y6q",
+            id6="vo0y6q",
+            action="plan",
+            artifact_kind="backlog",
+            item=item,
+        )
+        with outer:
+            with rs.open_or_reuse_statusline(
+                pal=rs.Palette(False),
+                stream=stream,
+                interval=0.02,
+                current_idx=1,
+                total_items=2,
+                setid="vo0y6q",
+                id6="vo0y6q",
+                watchdog=FakeWatchdog(),
+                action="plan",
+                artifact_kind="backlog",
+                activity=None,
+            ) as inner:
+                assert inner is outer
+                assert inner.watchdog is not None
+                inner.write_event("  \u2713 Antigravity turn finished: SUCCESS")
+
+            # After the child turn finishes, the outer statusline stays active, clear of the
+            # subprocess watchdog, immediately redrawn below the finish line, and still ticking.
+            assert rs.get_active_statusline() is outer
+            assert outer._has_drawn is True
+            assert outer.watchdog is None
+            assert outer._thread is not None and outer._thread.is_alive()
+
+            size_after_detach = len(stream.getvalue())
+            time.sleep(0.06)
+            assert len(stream.getvalue()) > size_after_detach
+            assert "Timeout:--:--" in outer.render_line()
+
+            item["integration_signal"] = "integrating"
+            assert "Integrtg" in outer.render_line()
+
+        assert rs.get_active_statusline() is None
+
+    def test_redirect_stdio_routes_stderr_and_stdout_above_statusline(self) -> None:
+        """redirect_stdio forwards sys.stdout/sys.stderr prints above the sticky status box."""
+        stream = FakeTTY()
+        orig_out, orig_err = sys.stdout, sys.stderr
+        sl = rs.Statusline(
+            rs.Palette(False),
+            stream,
+            interval=0.02,
+            current_idx=1,
+            total_items=1,
+            setid="vo0y6q",
+            id6="vo0y6q",
+            redirect_stdio=True,
+        )
+        sys.stdout = stream
+        sys.stderr = stream
+        try:
+            with sl:
+                print(
+                    "[BACKLOG-CROSS-TREE] Warning: check.orphaned-live-blocker",
+                    file=sys.stderr,
+                )
+                out_after = stream.getvalue()
+                idx_warn = out_after.rfind("[BACKLOG-CROSS-TREE] Warning:")
+                assert idx_warn != -1
+                # Boxed statusline is immediately redrawn after the warning.
+                assert "vo0y6q" in out_after[idx_warn:]
+        finally:
+            assert sys.stdout is stream
+            assert sys.stderr is stream
+            sys.stdout = orig_out
+            sys.stderr = orig_err
 
 
 class TestUnifiedStatuslineLayout:

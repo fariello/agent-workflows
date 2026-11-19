@@ -24371,7 +24371,13 @@ def run_attended_turn(
         file=sys.stderr,
         flush=True,
     )
-    rc = att.run_interactive_session(argv, cwd=cwd, env=att.child_env(extra_env))
+    from agent_workflows import render_stream as _rs
+
+    _rs.pause_active_statusline()
+    try:
+        rc = att.run_interactive_session(argv, cwd=cwd, env=att.child_env(extra_env))
+    finally:
+        _rs.resume_active_statusline()
     ended = utc_now()
     with open(log_path, "a", encoding="utf-8") as handle:
         handle.write(

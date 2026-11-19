@@ -27,6 +27,7 @@ output for the same event stream.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import datetime as dt
 import json
 import os
@@ -2229,6 +2230,63 @@ def _restore_terminal_cursor() -> None:
 atexit.register(_restore_terminal_cursor)
 
 
+class _StatuslineStreamProxy:
+    """Line-buffered stdout/stderr proxy keeping prints cleanly above an active Statusline."""
+
+    def __init__(self, statusline: Statusline, orig_stream: TextIO) -> None:
+        self._statusline = statusline
+        self._orig_stream = orig_stream
+        self._buf = ""
+
+    def write(self, s: str) -> int:
+        if not s:
+            return 0
+        with self._statusline._lock:
+            if self._statusline._paused or not self._statusline._has_drawn:
+                text = f"{self._buf}{s}" if self._buf else s
+                self._buf = ""
+                self._orig_stream.write(text)
+                return len(s)
+            self._buf += s
+            while "\n" in self._buf:
+                line, self._buf = self._buf.split("\n", 1)
+                self._statusline.write_event(line)
+            return len(s)
+
+    def flush(self) -> None:
+        with self._statusline._lock:
+            if self._buf and (
+                self._statusline._paused or not self._statusline._has_drawn
+            ):
+                self._orig_stream.write(self._buf)
+                self._buf = ""
+            self._orig_stream.flush()
+
+    def pop_remainder(self) -> str:
+        with self._statusline._lock:
+            rem = self._buf
+            self._buf = ""
+            return rem
+
+    def isatty(self) -> bool:
+        fn = getattr(self._orig_stream, "isatty", None)
+        return bool(fn()) if callable(fn) else False
+
+    def fileno(self) -> int:
+        return self._orig_stream.fileno()
+
+    @property
+    def encoding(self) -> str:
+        return getattr(self._orig_stream, "encoding", "utf-8")
+
+    @property
+    def errors(self) -> str | None:
+        return getattr(self._orig_stream, "errors", None)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._orig_stream, name)
+
+
 class Statusline:
     """A live sticky 4-line boxed statusline pinned to the bottom of the terminal during execution."""
 
@@ -2260,6 +2318,8 @@ class Statusline:
         cwd: str | Path | None = None,
         run_id: str | None = None,
         stall_timeout: float | None = None,
+        redirect_stdio: bool = False,
+        item: Mapping[str, Any] | None = None,
     ) -> None:
         self.pal = pal
         self.use_unicode = use_unicode if use_unicode is not None else pal.use_unicode
@@ -2294,6 +2354,13 @@ class Statusline:
         self.cwd = cwd
         self.run_id = run_id
         self._stall_timeout = stall_timeout
+        self._redirect_stdio = bool(redirect_stdio)
+        self._item = item
+        self._turn_activity_override = False
+        self._saved_stdio: tuple[TextIO, TextIO] | None = None
+        self._stdio_proxies: (
+            tuple[_StatuslineStreamProxy, _StatuslineStreamProxy] | None
+        ) = None
 
         mono_now = time.monotonic()
         self._item_start_mono = mono_now
@@ -2385,6 +2452,46 @@ class Statusline:
             if variant is not None:
                 self.variant = variant
 
+    def attach_turn(
+        self,
+        *,
+        watchdog: object | None = None,
+        activity: str | None = None,
+        current_idx: int | None = None,
+        total_items: int | None = None,
+        model: str | None = None,
+        variant: str | None = None,
+        stall_timeout: float | None = None,
+    ) -> None:
+        """Bind a child-process turn (watchdog, activity, model) onto an active Statusline."""
+        with self._lock:
+            self.watchdog = watchdog
+            self.activity = activity
+            self._turn_activity_override = activity is not None
+            if current_idx is not None:
+                self.current_idx = current_idx
+            if total_items is not None:
+                self.total_items = total_items
+            if model is not None:
+                self.model = model
+            if variant is not None:
+                self.variant = variant
+            if stall_timeout is not None:
+                self._stall_timeout = stall_timeout
+            self._last_activity = time.monotonic()
+            self.progress_source = "stdout"
+            self.redraw()
+
+    def detach_turn(self, *, activity: str | None = None) -> None:
+        """Detach a finished child turn while keeping the Statusline visible and ticking."""
+        with self._lock:
+            self.watchdog = None
+            self.progress_source = None
+            self._turn_activity_override = activity is not None
+            self.activity = activity
+            self._last_activity = time.monotonic()
+            self.redraw()
+
     def _render_lines_unlocked(self) -> tuple[str, str, str, str]:
         now_wall = time.time()
         cur_mono = time.monotonic()
@@ -2436,6 +2543,13 @@ class Statusline:
             except Exception:
                 parked_questions = None
 
+        if self._turn_activity_override:
+            eff_activity = self.activity
+        elif self._item is not None:
+            eff_activity = activity_for_item(dict(self._item)) or self.activity
+        else:
+            eff_activity = self.activity
+
         return format_statusline_lines(
             now_ts=now_wall,
             run_start_ts=run_wall,
@@ -2451,7 +2565,7 @@ class Statusline:
             progress_source=self.progress_source,
             action=self.action,
             artifact_kind=self.artifact_kind,
-            activity=self.activity,
+            activity=eff_activity,
             use_unicode=self.use_unicode,
             runner=self.runner,
             model=self.model,
@@ -2538,6 +2652,14 @@ class Statusline:
             self.stream.write(_CURSOR_HIDE)
             self.stream.flush()
             if self.interval > 0:
+                if self._redirect_stdio:
+                    orig_out, orig_err = sys.stdout, sys.stderr
+                    out_proxy = _StatuslineStreamProxy(self, orig_out)
+                    err_proxy = _StatuslineStreamProxy(self, orig_err)
+                    self._saved_stdio = (orig_out, orig_err)
+                    self._stdio_proxies = (out_proxy, err_proxy)
+                    sys.stdout = out_proxy  # type: ignore[assignment]
+                    sys.stderr = err_proxy  # type: ignore[assignment]
                 self.redraw()
                 self._thread = threading.Thread(target=self._run, daemon=True)
                 self._thread.start()
@@ -2550,7 +2672,24 @@ class Statusline:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
+        rem_out = ""
+        rem_err = ""
+        if self._saved_stdio is not None:
+            orig_out, orig_err = self._saved_stdio
+            if self._stdio_proxies is not None:
+                rem_out = self._stdio_proxies[0].pop_remainder()
+                rem_err = self._stdio_proxies[1].pop_remainder()
+            sys.stdout = orig_out
+            sys.stderr = orig_err
+            self._saved_stdio = None
+            self._stdio_proxies = None
         self.clear()
+        if rem_out and self._is_tty:
+            sys.stdout.write(rem_out)
+            sys.stdout.flush()
+        if rem_err and self._is_tty:
+            sys.stderr.write(rem_err)
+            sys.stderr.flush()
         if self._is_tty:
             self.stream.write(_CURSOR_SHOW)
             self.stream.flush()
@@ -2724,6 +2863,130 @@ def resume_active_statusline() -> None:
     """Resume any active statusline after a prompt completes."""
     if _ACTIVE_STATUSLINE is not None:
         _ACTIVE_STATUSLINE.resume()
+
+
+def get_active_statusline() -> Statusline | None:
+    """Return the currently active Statusline instance, if any."""
+    return _ACTIVE_STATUSLINE
+
+
+@contextlib.contextmanager
+def item_statusline(
+    run_dir: Path | str | None,
+    state: Mapping[str, Any],
+    item: Mapping[str, Any],
+    *,
+    pal: Palette,
+    tracker: StreamTracker | None = None,
+    runner: str = "agy",
+    model: str | None = None,
+    variant: str | None = None,
+    stream: TextIO | None = None,
+) -> Any:
+    """Keep a live Statusline pinned and ticking for the full item lifecycle (turn + post-turn work)."""
+    if _ACTIVE_STATUSLINE is not None:
+        yield _ACTIVE_STATUSLINE
+        return
+    options = state.get("options") or {}
+    output_mode = options.get("output_mode", "clean")
+    out_stream = sys.stdout if stream is None else stream
+    is_tty = bool(getattr(out_stream, "isatty", None) and out_stream.isatty())
+    queue = state.get("queue", []) or []
+    total_items = dispatchable_work_total(queue) or 1
+    current_idx = completed_work_count(dict(item), dict(state))
+    run_start_mono = state.get("_invocation_start_mono")
+    if run_start_mono is None:
+        run_start_mono = time.monotonic()
+    active_tty_clean = is_tty and output_mode == "clean"
+    sl = Statusline(
+        pal=pal,
+        stream=out_stream,
+        tracker=tracker,
+        interval=1.0 if active_tty_clean else 0.0,
+        current_idx=current_idx,
+        total_items=total_items,
+        setid=str(item.get("setid", "")),
+        id6=str(item.get("id6", "")),
+        run_start_mono=run_start_mono,
+        action=statusline_action_for_item(dict(item)),
+        artifact_kind=str(item.get("kind", item.get("type", "ipd"))),
+        activity=activity_for_item(dict(item)),
+        runner=runner,
+        model=model if model is not None else options.get("model"),
+        variant=variant if variant is not None else options.get("variant"),
+        run_dir=run_dir,
+        state=state,
+        redirect_stdio=active_tty_clean,
+        item=item,
+    )
+    with sl:
+        yield sl
+
+
+@contextlib.contextmanager
+def open_or_reuse_statusline(
+    *,
+    pal: Palette,
+    stream: TextIO,
+    tracker: StreamTracker | None = None,
+    interval: float = 1.0,
+    current_idx: int = 0,
+    total_items: int = 0,
+    setid: str = "",
+    id6: str = "",
+    run_start_mono: float | None = None,
+    watchdog: object | None = None,
+    action: str | None = None,
+    artifact_kind: str | None = None,
+    activity: str | None = None,
+    runner: str = "agy",
+    model: str | None = None,
+    variant: str | None = None,
+    run_dir: Path | str | None = None,
+    state: Mapping[str, Any] | None = None,
+    stall_timeout: float | None = None,
+) -> Any:
+    """Attach a turn to the outer item Statusline if active, else manage a turn-scoped Statusline."""
+    active = _ACTIVE_STATUSLINE
+    if active is not None:
+        active.attach_turn(
+            watchdog=watchdog,
+            activity=activity,
+            current_idx=current_idx,
+            total_items=total_items,
+            model=model,
+            variant=variant,
+            stall_timeout=stall_timeout,
+        )
+        try:
+            yield active
+        finally:
+            active.detach_turn()
+        return
+
+    sl = Statusline(
+        pal=pal,
+        stream=stream,
+        tracker=tracker,
+        interval=interval,
+        current_idx=current_idx,
+        total_items=total_items,
+        setid=setid,
+        id6=id6,
+        run_start_mono=run_start_mono,
+        watchdog=watchdog,
+        action=action,
+        artifact_kind=artifact_kind,
+        activity=activity,
+        runner=runner,
+        model=model,
+        variant=variant,
+        run_dir=run_dir,
+        state=state,
+        stall_timeout=stall_timeout,
+    )
+    with sl:
+        yield sl
 
 
 class Heartbeat:
