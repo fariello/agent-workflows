@@ -1,5 +1,6 @@
 - Id: 5uqo2g
-- Status: open
+- Status: graduated
+- Graduated-To: 5uqo2g
 - Blocks-Release: next
 - Set: 5uqo2g
 - Priority: medium
@@ -9,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-19 graduated (aw backlog): graduated by run run-20261119T154257Z-4175363: rowsi5
 - 2026-11-17 same-status (aw set): status -> open
 - 2026-11-17 created (aw backlog): Generic test git identity tokens like Test collide with artifact_meta._writer_ruleset when leak_sanitizer._GENERIC_DERIVED_TOKENS omits them
 
