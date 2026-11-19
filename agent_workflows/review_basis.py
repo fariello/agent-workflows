@@ -92,23 +92,32 @@ def provisional_targets(
 ) -> List[Dict[str, str]]:
     """The prerequisites of a review `item` that are satisfied ONLY because of the flag."""
     from agent_workflows import runner_shared as rs
+    from agent_workflows import selectors
     from agent_workflows.selectors import read_front_matter_status
 
     out: List[Dict[str, str]] = []
-    for dep in item.get("dependencies") or ():
-        edge = rs.parse_dependency_token(str(dep))
-        if edge is None or getattr(edge, "target_type", None) != "ipd":
-            continue
-        try:
-            dep_path = rs.resolve_plan_path(Path(repo), "", edge.id6)
-            text = dep_path.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        status = read_front_matter_status(text)
-        if status in PROVISIONAL_STATUSES:
-            out.append(
-                {"id6": edge.id6, "digest": contract_digest(text), "status": status}
-            )
+    deps = item.get("dependencies") or ()
+    if not deps:
+        return out
+    seen_targets: set[str] = set()
+    with selectors.scan_once():
+        for dep in deps:
+            edge = rs.parse_dependency_token(str(dep))
+            if edge is None or getattr(edge, "target_type", None) != "ipd":
+                continue
+            if edge.id6 in seen_targets:
+                continue
+            seen_targets.add(edge.id6)
+            try:
+                dep_path = rs.resolve_plan_path(Path(repo), "", edge.id6)
+                text = dep_path.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            status = read_front_matter_status(text)
+            if status in PROVISIONAL_STATUSES:
+                out.append(
+                    {"id6": edge.id6, "digest": contract_digest(text), "status": status}
+                )
     return out
 
 
@@ -124,58 +133,80 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
     one, so there is nothing left to recheck.
     """
     from agent_workflows import runner_shared as rs
+    from agent_workflows import selectors
     from agent_workflows.selectors import read_front_matter_status
 
     d = basis_dir(repo)
     if not d.is_dir():
         return []
+    basis_files = sorted(d.glob("*.json"))
+    if not basis_files:
+        return []
+
     out: List[StaleBasis] = []
-    for f in sorted(d.glob("*.json")):
+    # Cache per target id6 within one read-only sweep: many consumers reference the same prerequisites,
+    # and selectors.scan_once() avoids re-walking/re-querying the plans tree on each unique target.
+    target_cache: Dict[str, Optional[tuple[Optional[str], str]]] = {}
+
+    def _read_target(tid: str) -> Optional[tuple[Optional[str], str]]:
+        if tid in target_cache:
+            return target_cache[tid]
         try:
-            rec = json.loads(f.read_text(encoding="utf-8"))
+            text = rs.resolve_plan_path(Path(repo), "", tid).read_text(encoding="utf-8")
+            snapshot: Optional[tuple[Optional[str], str]] = (
+                read_front_matter_status(text),
+                contract_digest(text),
+            )
         except Exception:
-            continue
-        consumer = str(rec.get("consumer") or f.stem)
-        settled = 0
-        targets = list(rec.get("targets") or ())
-        for t in targets:
-            tid = str(t.get("id6") or "")
-            if not tid:
-                continue
+            snapshot = None
+        target_cache[tid] = snapshot
+        return snapshot
+
+    with selectors.scan_once():
+        for f in basis_files:
             try:
-                text = rs.resolve_plan_path(Path(repo), "", tid).read_text(
-                    encoding="utf-8"
-                )
+                rec = json.loads(f.read_text(encoding="utf-8"))
             except Exception:
+                continue
+            consumer = str(rec.get("consumer") or f.stem)
+            run_id = str(rec.get("run_id") or "")
+            settled = 0
+            targets = list(rec.get("targets") or ())
+            for t in targets:
+                tid = str(t.get("id6") or "")
+                if not tid:
+                    continue
+                snapshot = _read_target(tid)
+                if snapshot is None:
+                    out.append(
+                        StaleBasis(
+                            consumer,
+                            tid,
+                            None,
+                            "prerequisite plan not found",
+                            run_id,
+                        )
+                    )
+                    continue
+                status, digest = snapshot
+                if digest == t.get("digest"):
+                    if status in SETTLED_STATUSES:
+                        settled += 1
+                    continue
                 out.append(
                     StaleBasis(
                         consumer,
                         tid,
-                        None,
-                        "prerequisite plan not found",
-                        str(rec.get("run_id") or ""),
+                        status,
+                        f"{tid}'s steps or scope changed (now {status or 'unknown'}) since {consumer} was reviewed against it",
+                        run_id,
                     )
                 )
-                continue
-            status = read_front_matter_status(text)
-            if contract_digest(text) == t.get("digest"):
-                if status in SETTLED_STATUSES:
-                    settled += 1
-                continue
-            out.append(
-                StaleBasis(
-                    consumer,
-                    tid,
-                    status,
-                    f"{tid}'s steps or scope changed (now {status or 'unknown'}) since {consumer} was reviewed against it",
-                    str(rec.get("run_id") or ""),
-                )
-            )
-        if prune and targets and settled == len(targets):
-            try:
-                f.unlink()
-            except OSError:
-                pass
+            if prune and targets and settled == len(targets):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
     return out
 
 

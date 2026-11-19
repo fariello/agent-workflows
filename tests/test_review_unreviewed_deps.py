@@ -264,3 +264,72 @@ def test_stale_advice_says_the_run_succeeded_and_groups_by_changed_prerequisite(
     assert "Not yet: 1 other run(s) are still active (run-live-1)" in waiting
     assert "Then re-review with: aw agy run --action review bbb002 ccc003" in waiting
     assert "re-review now" not in waiting
+
+
+def test_stale_bases_handles_shared_settled_changed_and_missing_prerequisites(
+    tmp_path: Path,
+) -> None:
+    """Overlapping targets across many consumers: settled prunes cleanly, modified & missing flag all consumers."""
+    repo = _repo(tmp_path)
+    p1 = _plan(repo, "pre001", 1, "to-review")
+    p2 = _plan(repo, "pre002", 2, "to-review")
+    p3 = _plan(repo, "pre003", 3, "to-review")
+
+    # Multiple consumers depend on overlapping targets (including duplicate edges in item deps).
+    for cid, order, deps in (
+        ("con001", 4, "executed:pre001, executed:pre002"),
+        ("con002", 5, "executed:pre001, executed:pre002"),
+        ("con003", 6, "executed:pre001"),
+        ("con004", 7, "executed:pre003"),
+    ):
+        _plan(repo, cid, order, "to-review", deps=deps)
+        dep_list = [d.strip() for d in deps.split(",")]
+        dep_list.append(
+            dep_list[0]
+        )  # duplicate edge should deduplicate in provisional_targets
+        targets = review_basis.provisional_targets(
+            repo,
+            {"id6": cid, "action": "review", "dependencies": dep_list},
+            _state(repo, True),
+        )
+        assert len({t["id6"] for t in targets}) == len(targets)
+        review_basis.record_basis(
+            repo, cid, targets, run_id="run-shared", at="2026-11-19T00:00:00Z"
+        )
+
+    # Settle pre001 unchanged -> con003 (which depends only on pre001) should prune on stale_bases().
+    p1.write_text(
+        p1.read_text(encoding="utf-8").replace(
+            "- Status: to-review", "- Status: reviewed"
+        ),
+        encoding="utf-8",
+    )
+    # Modify pre002's step text -> con001 and con002 both go stale on pre002.
+    p2.write_text(
+        p2.read_text(encoding="utf-8").replace("Do it", "Do something different"),
+        encoding="utf-8",
+    )
+    # Delete pre003 -> con004 sees "prerequisite plan not found".
+    p3.unlink()
+
+    stale = review_basis.stale_bases(repo, prune=True)
+    got = {(s.consumer, s.target, s.reason) for s in stale}
+    assert (
+        "con001",
+        "pre002",
+        "pre002's steps or scope changed (now to-review) since con001 was reviewed against it",
+    ) in got
+    assert (
+        "con002",
+        "pre002",
+        "pre002's steps or scope changed (now to-review) since con002 was reviewed against it",
+    ) in got
+    assert ("con004", "pre003", "prerequisite plan not found") in got
+    assert len(got) == 3
+
+    # con003 was pruned because its sole target pre001 settled without design change.
+    bdir = review_basis.basis_dir(repo)
+    assert not (bdir / "con003.json").exists()
+    assert (bdir / "con001.json").is_file()
+    assert (bdir / "con002.json").is_file()
+    assert (bdir / "con004.json").is_file()
