@@ -6,7 +6,9 @@
 - Scope: Update `agent_workflows/artifact_meta.py::load_legacy_artifact` to map `Kind` and `kind` to `prompt_kind` and `Created` and `created` to `created_day` when `art_type == "prompt"`, set `artifact_row["created_day"]` from `mapped_fields.get("created_day")` for prompts, bump `agent_workflows/artifact_meta.py::LEGACY_LOADER_VERSION` from `"legacy_v7"` to `"legacy_v8"`, and add behavioral outcome tests in `tests/test_artifact_meta_legacy.py` and `tests/test_artifact_meta_legacy_writer.py`. EXCLUDES changing non-prompt record mappings (`ipd`, `spec`, `backlog`, `research`, `release`, `walkthrough`, `roadmap`), changing `agent_workflows/artifact_meta.py::read_text`, or modifying `agent_workflows/prompts.py`.
 - Scope-Paths: agent_workflows/artifact_meta.py, tests/test_artifact_meta_legacy.py, tests/test_artifact_meta_legacy_writer.py, .aw/records/plans/pending/20261119-xxdzcq-01-acqenf-preserve-prompt-kind-and-created-day-in-artifact-meta-load-l.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - Short-Description: Map prompt Kind to prompt_kind and Created to created_day in artifact_meta.load_legacy_artifact
 - Work-Kind: bug
 - Priority: medium
@@ -22,6 +24,8 @@
 
 ## Workflow history
 
+- 2026-11-19 reviewed (aw set): reviewed via plan-review (PR-001, PR-002, PR-003)
+- 2026-11-19 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-11-19 to-review (aw set): ready for review: authored for backlog xxdzcq
 - 2026-11-19 draft (antigravity/gemini): created.
 
@@ -48,7 +52,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Add behavioral outcome tests in `tests/test_artifact_meta_legacy.py` and `tests/test_artifact_meta_legacy_writer.py`:
   - In `tests/test_artifact_meta_legacy.py`, assert `art_row["fields"]["prompt_kind"]` in `test_legacy_load_staged_prompt_with_comment_artifact`, add a test verifying `load_legacy_artifact` maps `Kind:` to `prompt_kind` and `Created:` to `created_day` (both `art_row["fields"]["created_day"]` and `art_row["created_day"]`) on `<!-- aw-prompt: ... -->` prompts, and add assertions verifying `ipd` (`Kind` -> `plan_role`), `backlog` (`Kind` -> `work_kind`), and `research` (`kind` -> `research_kind`) mappings remain intact.
-  - In `tests/test_artifact_meta_legacy_writer.py`, assert via `meta.read` (after `meta.create` on a legacy root and via `cli.main` / `aw prompts new` in an isolated repo) that `state.fields["prompt_kind"]`, `state.fields["created_day"]`, and `state.created_day` match the written `Kind:` and `Created:` header values, and verify that a stale `.aw/state/index.db` cache missing those prompt columns is rebuilt under `LEGACY_LOADER_VERSION`.
+  - In `tests/test_artifact_meta_legacy_writer.py`, assert via `agent_workflows/artifact_meta.py::read` (after `agent_workflows/artifact_meta.py::create` on a legacy root and via `agent_workflows/cli.py::main` / `aw prompts new` in an isolated repo) that `state.fields["prompt_kind"]`, `state.fields["created_day"]`, and `state.created_day` match the written `Kind:` and `Created:` header values, and verify that a stale `.aw/state/index.db` cache with `NULL` `prompt_kind` and `created_day` values under an older `schema_hash` is rebuilt under `LEGACY_LOADER_VERSION`.
   - Depends on: E-01
   - Expected outcome: All new and existing behavioral tests pass and fail against the unpatched `load_legacy_artifact` implementation.
   - Execution state: pending
@@ -93,11 +97,11 @@ flowchart TD
     A["bullets key bk in load_legacy_artifact"] --> B{"bk in (Kind, kind) or (Created, created)?"}
     B -->|No| C["target_k = field_map.get(bk, lowercase)"]
     B -->|Yes| D{"art_type?"}
-    D -->|backlog and Kind| E["target_k = work_kind (unless Work-Kind set)"]
+    D -->|backlog and Kind| E["If Work-Kind set, skip Kind; else target_k = work_kind"]
     D -->|prompt and Kind or kind| F["target_k = prompt_kind"]
     D -->|prompt and Created or created| G["target_k = created_day"]
     D -->|other art_type| C
-    E --> H["Filter mapped_fields by REGISTRY[art_type]"]
+    E -->|when Work-Kind absent| H["Filter mapped_fields by REGISTRY[art_type]"]
     F --> H
     G --> H
     C --> H
@@ -134,7 +138,7 @@ N/A: this bugfix restores already-specified prompt field mapping (`prompt_kind` 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes, for `art_type == "prompt"` only (`mapped_fields.get("created_day") if art_type == "prompt" else None`). In `agent_workflows/artifact_meta.py::replay`, `State.created_day` is populated from `current_fields.get("created_day")`, so setting `artifact_row["created_day"]` for prompts keeps `State.created_day` and `State.fields["created_day"]` consistent across legacy and log-backed reads while leaving non-prompt legacy rows unchanged.
 
 ## Validation and cross-check (verify before reporting done)
@@ -161,4 +165,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execution proceeds only after `aw ipd set approved acqenf --by-human` (or runner dispatch on an approved plan). Commit only the files named in `- Scope-Paths:` using `aw commit acqenf -- <paths>`, never `git add -A`, bare `git add`, or `git commit -a`, and never push without explicit human instruction. After `V-01` through `V-03` reach `pass`, finalize the plan lifecycle to `executed/` through `aw ipd finalize acqenf` (or `aw ipd set executed acqenf --actor ...`).
+Execution proceeds only after `OQ-01` remains resolved and `aw ipd set approved acqenf --by-human` (or runner dispatch on an approved plan). `- Scope-Paths:` declares the expected modified files; if execution requires editing an additional file or leaves a declared path untouched, complete the work and justify the variance via `--scope-reason` or `--scope-ack` at finalize rather than stopping over scope. When reporting tests or checks passed, you MUST paste the actual runner output and never claim success you did not run. Commit only the paths you modified using `aw commit acqenf -- <paths>`, never `git add -A`, bare `git add`, or `git commit -a`, and never push without explicit human instruction. Never perform a hand-rolled `git mv` to `executed/`. After `V-01` through `V-03` reach `pass`, finalize the plan lifecycle to `executed/` unconditionally: when `aw oc run` or `aw agy run` executes the plan, the runner owns `aw ipd finalize`; when executed directly outside a runner, run `aw ipd finalize acqenf --actor ...`.
