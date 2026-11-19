@@ -48,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Add behavioral outcome tests in `tests/test_artifact_meta_legacy.py` and `tests/test_artifact_meta_legacy_writer.py`:
   - In `tests/test_artifact_meta_legacy.py`, assert `art_row["fields"]["prompt_kind"]` in `test_legacy_load_staged_prompt_with_comment_artifact`, add a test verifying `load_legacy_artifact` maps `Kind:` to `prompt_kind` and `Created:` to `created_day` (both `art_row["fields"]["created_day"]` and `art_row["created_day"]`) on `<!-- aw-prompt: ... -->` prompts, and add assertions verifying `ipd` (`Kind` -> `plan_role`), `backlog` (`Kind` -> `work_kind`), and `research` (`kind` -> `research_kind`) mappings remain intact.
-  - In `tests/test_artifact_meta_legacy_writer.py`, assert via `meta.read` (after `meta.create` on a legacy root and via `prompts.main` / `aw prompts new` in an isolated repo) that `state.fields["prompt_kind"]`, `state.fields["created_day"]`, and `state.created_day` match the written `Kind:` and `Created:` header values, and verify that a stale `.aw/state/index.db` cache missing those prompt columns is rebuilt under `LEGACY_LOADER_VERSION`.
+  - In `tests/test_artifact_meta_legacy_writer.py`, assert via `meta.read` (after `meta.create` on a legacy root and via `cli.main` / `aw prompts new` in an isolated repo) that `state.fields["prompt_kind"]`, `state.fields["created_day"]`, and `state.created_day` match the written `Kind:` and `Created:` header values, and verify that a stale `.aw/state/index.db` cache missing those prompt columns is rebuilt under `LEGACY_LOADER_VERSION`.
   - Depends on: E-01
   - Expected outcome: All new and existing behavioral tests pass and fail against the unpatched `load_legacy_artifact` implementation.
   - Execution state: pending
@@ -65,7 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - Prompt comment metadata keys are defined in `agent_workflows/artifact_meta.py::_PROMPT_COMMENT_KEY`, which writes `prompt_kind` as `Kind` and `created_day` as `Created`.
-- `agent_workflows/prompts.py::cmd_new` passes `"prompt_kind"` and `"created_day"` into `artifact_meta.create(..., legacy_render=...)`, which renders `<!-- aw-prompt: Kind: ... | Id: ... | Set: ... | Status: ... | Created: ... -->`.
+- `agent_workflows/prompts.py::run_new` passes `"prompt_kind"` and `"created_day"` into `artifact_meta.create(..., legacy_render=...)`, which renders `<!-- aw-prompt: Kind: ... | Id: ... | Set: ... | Status: ... | Created: ... -->`.
 - `agent_workflows/artifact_meta.py::REGISTRY["prompt"]` defines `"prompt_kind"` and inherits `"created_day"` from `_COMMON_FIELDS`, whereas `"plan_role"` exists only in `REGISTRY["ipd"]` and `"created"` exists only in `REGISTRY["research"]`.
 - `agent_workflows/artifact_meta.py::compute_schema_hash` includes `LEGACY_LOADER_VERSION` so any change to `load_legacy_artifact` output for an unchanged file requires bumping `LEGACY_LOADER_VERSION` (from `"legacy_v7"` to `"legacy_v8"`).
 - `agent_workflows/artifact_meta.py::replay` sets `state.created_day = current_fields.get("created_day")`, so `State.created_day` and `State.fields["created_day"]` agree in the log-backed path.
@@ -75,7 +75,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 1. In `agent_workflows/artifact_meta.py::load_legacy_artifact`, `field_map` maps `"Kind"` to `"plan_role"` and `"kind"` to `"research_kind"`, and contains no mapping for `"Created"`.
 2. In the bullet/comment mapping loop of `load_legacy_artifact`, only `bk == "Kind" and art_type == "backlog"` has a type-specific branch; for `art_type == "prompt"`, `"Kind"` falls through to `field_map["Kind"]` (`"plan_role"`) and `"Created"` falls through to `bk.lower().replace("-", "_")` (`"created"`).
-3. Neither `"plan_role"` nor `"created"` is present in `REGISTRY["prompt"]`, so the `fields` filter at the end of `load_legacy_artifact` drops both keys before `_upsert_legacy_artifact` writes the `"prompt"` SQLite table.
+3. Neither `"plan_role"` nor `"created"` is present in `REGISTRY["prompt"]`, so the `fields` filter at the end of `load_legacy_artifact` drops both keys before `_store_legacy_artifact_projection` writes the `"prompt"` SQLite table.
 4. `artifact_row["created_day"]` in `load_legacy_artifact` is hardcoded to `None`, so `State.created_day` is also `None` when `artifact_meta.read` loads a legacy prompt.
 5. In `tests/test_artifact_meta_legacy.py::test_legacy_load_staged_prompt_with_comment_artifact`, the docstring states `"Staged prompt comment maps Kind to prompt_kind."`, but the test body never inspects `art_row["fields"]`, leaving the bug undetected.
 
@@ -99,10 +99,10 @@ flowchart TD
     D -->|other art_type| C
     E --> H["Filter mapped_fields by REGISTRY[art_type]"]
     F --> H
-    G --> I["Set artifact_row created_day for prompt"]
-    I --> H
+    G --> H
     C --> H
-    H --> J["LEGACY_LOADER_VERSION legacy_v8 triggers cache rebuild"]
+    H --> I["Set artifact_row created_day for prompt"]
+    I --> J["LEGACY_LOADER_VERSION legacy_v8 triggers cache rebuild"]
 ```
 
 ## Deferred / out of scope (with reason)
