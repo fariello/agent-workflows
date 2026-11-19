@@ -942,8 +942,9 @@ def partition(
                             break
                 if not set_id:
                     _, set_id, _, _ = _att._extract_identity_parts(comp[0])
+                noun = "plans" if comp[0].tree == "plans" else "items"
                 print(
-                    f"note: Set '{set_id}' ({len(comp)} plans) kept whole in shard {target_idx}, exceeding the even share of {cap}",
+                    f"note: Set '{set_id}' ({len(comp)} {noun}) kept whole in shard {target_idx}, exceeding the even share of {cap}",
                     file=sys.stderr,
                 )
         else:
@@ -1160,8 +1161,15 @@ def collect(
                         matched_other = other_t
                         break
                 if matched_other:
+                    hint = ""
+                    if (
+                        action == "plan"
+                        and matched_other == "backlog"
+                        and artifact_type == "plans"
+                    ):
+                        hint = " (hint: pass -t backlog for backlog items, or omit -t to auto-detect)"
                     raise ValueError(
-                        f"selector {tok!r} belongs to {matched_other!r}, not {artifact_type!r}"
+                        f"selector {tok!r} belongs to {matched_other!r}, not {artifact_type!r}{hint}"
                     )
                 raise ValueError(
                     f"unknown selector {tok!r} for artifact type {artifact_type!r}"
@@ -1372,6 +1380,120 @@ def collect(
     return candidates
 
 
+def _infer_partition_artifact_type(
+    repo_root: Path,
+    tokens: Sequence[str],
+    action: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Infer 'plans', 'backlog', or 'specs' from selectors when -t/--type is omitted."""
+    if not tokens:
+        return (
+            None,
+            "-t/--type/--tree is required (or pass selectors whose type can be inferred)",
+        )
+
+    partition_types: Tuple[str, ...] = ("plans", "backlog", "specs")
+    if action:
+        action_norm = action.strip().lower()
+        filtered = tuple(
+            t
+            for t in partition_types
+            if action_norm
+            in _run_selection_policy._ACTION_TABLES.get(
+                _run_selection_policy.SPEC_TYPE_BY_RESOLVER_TYPE.get(t, t), {}
+            ).values()
+        )
+        if filtered:
+            partition_types = filtered
+
+    kind_rank = {
+        _selectors.MATCH_PATH: 0,
+        _selectors.MATCH_ID6: 0,
+        _selectors.MATCH_STEM: 0,
+        _selectors.MATCH_SETID: 1,
+        _selectors.MATCH_STATUS: 1,
+        _selectors.MATCH_SUBSTRING: 2,
+    }
+
+    matched_types: Set[str] = set()
+    by_token_types: Dict[str, Set[str]] = {}
+
+    for tok in tokens:
+        hits: List[Tuple[int, str]] = []
+        for t in partition_types:
+            res = _selectors.resolve(repo_root, t, tok)
+            if res.is_match:
+                hits.append((kind_rank.get(res.kind or "", 2), t))
+        if not hits:
+            by_token_types[tok] = set()
+            continue
+        best_rank = min(r for r, _t in hits)
+        best_types = {t for r, t in hits if r == best_rank}
+        matched_types.update(best_types)
+        by_token_types[tok] = best_types
+
+    if len(matched_types) == 1:
+        return next(iter(matched_types)), None
+
+    if len(matched_types) > 1:
+        detail = ", ".join(
+            f"{tok}->({'/'.join(sorted(types))})"
+            for tok, types in by_token_types.items()
+            if types
+        )
+        return (
+            None,
+            f"selectors match multiple artifact types ({detail}); specify -t plans|backlog|specs",
+        )
+
+    return (
+        None,
+        "-t/--type/--tree is required when selectors do not uniquely identify an artifact type",
+    )
+
+
+def _cluster_backlog_sets(
+    repo_root: Path, candidates: Sequence[_att.Item]
+) -> Tuple[List[Tuple[str, str]], Dict[str, str]]:
+    """Cluster backlog candidates that share a non-singleton Set so Set orders stay serialized."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    set_by_id6: Dict[str, str] = {}
+    try:
+        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+        with _meta.ephemeral_if_uninitialized():
+            rows = _meta.query(project_context=ctx, type="backlog").rows
+        for row in rows:
+            if row.id6 and getattr(row, "set_id", None):
+                set_by_id6[str(row.id6)] = str(row.set_id)
+    except Exception:
+        pass
+
+    by_set: Dict[str, List[str]] = {}
+    set_by_item: Dict[str, str] = {}
+    for it in candidates:
+        if not it.id:
+            continue
+        sid = set_by_id6.get(it.id)
+        if not sid:
+            _, sid_from_name, _, _ = _att._extract_identity_parts(it)
+            sid = sid_from_name
+        if sid:
+            by_set.setdefault(sid, []).append(it.id)
+
+    extra_edges: List[Tuple[str, str]] = []
+    for sid, member_ids in by_set.items():
+        if len(member_ids) < 2:
+            continue
+        for cid in member_ids:
+            set_by_item[cid] = sid
+        for i in range(len(member_ids) - 1):
+            extra_edges.append((member_ids[i], member_ids[i + 1]))
+
+    return extra_edges, set_by_item
+
+
 def run_partition(args: Any, term: Any, context: Any = None) -> int:
     """CLI execution entrypoint for 'aw partition'.
 
@@ -1386,9 +1508,6 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     repo_root = Path(getattr(args, "dir", None) or Path.cwd())
 
     artifact_type = getattr(args, "artifact_type", None)
-    if not artifact_type:
-        print("Error: -t/--type/--tree is required", file=sys.stderr)
-        return 2
 
     # Shards validation
     shards_val = getattr(args, "shards", 3)
@@ -1459,6 +1578,19 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     allow_partial_sets = bool(getattr(args, "allow_partial_sets", False))
     skip_ineligible = bool(getattr(args, "skip_ineligible", False))
     include_active = bool(getattr(args, "include_active", False))
+
+    if not artifact_type:
+        infer_tokens = stdin_ids if stdin_ids is not None else selectors
+        inferred_type, infer_err = _infer_partition_artifact_type(
+            repo_root, infer_tokens, action_flag
+        )
+        if not inferred_type:
+            err_term = _make_err_term(term)
+            err_label = err_term.colorize("Error:", "red", "bold")
+            print(f"{err_label} {infer_err}", file=sys.stderr)
+            return 2
+        artifact_type = inferred_type
+
     run_map: Optional[Dict[str, str]] = None
     if not include_active:
         run_map = _att.get_active_runs_map(repo_root)
@@ -1665,6 +1797,12 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             err_label = err_term.colorize("Error:", "red", "bold")
             print(f"{err_label} {e}", file=sys.stderr)
             return 2
+
+        if canon_type == "backlog" and candidates:
+            bkl_edges, bkl_set_map = _cluster_backlog_sets(repo_root, candidates)
+            if bkl_edges:
+                extra_edges = bkl_edges
+                set_by_item = bkl_set_map
 
     # `--review-unreviewed-deps` (spec 25kzda 2.9): a review consumer then accepts a `to-review`
     # prerequisite, so nothing forces a chain into one shard. Dropping the Set-cohesion edges lets an

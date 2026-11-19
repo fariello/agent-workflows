@@ -4966,6 +4966,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw partition -t plans -n 3 -s approved    # same with explicit shard count\n"
             "  aw partition -t plans --allow-partial-sets # schedule ready plans, holding back orchestrators\n"
             "  aw partition -t backlog -s open -n 2 --max 100 # split 100 oldest open backlog items to plan\n"
+            "  aw partition -n 4 --action plan id1 id2   # infer type (-t backlog) from selectors\n"
             "  aw partition -t specs -s to-review -n 2   # partition specs needing review\n"
             "  aw partition -t plans --max 30 --run oc   # partition first 30 approved plans for OpenCode\n"
             "  aw partition -t plans --as gem            # format with 'aw run as gem' launch profile\n"
@@ -4978,10 +4979,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--type",
         "--tree",
         dest="artifact_type",
-        required=True,
+        required=False,
+        default=None,
         type=_canonical_partition_type,
         choices=("plans", "backlog", "specs"),
-        help="Artifact type to partition: 'plans', 'backlog', or 'specs' (singular aliases accepted).",
+        help=(
+            "Artifact type to partition: 'plans', 'backlog', or 'specs' (singular aliases accepted; "
+            "optional when selectors uniquely identify one type)."
+        ),
     )
     p_partition.add_argument(
         "selectors",
@@ -20743,6 +20748,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return runners_monitor.main(list(argv_list[1:]))
         argv = _rewrite_help_token(argv_list)
         args = parser.parse_args(argv)
+        if (
+            getattr(args, "command", None) == "partition"
+            and getattr(args, "artifact_type", None) is None
+            and not getattr(args, "selectors", None)
+            and not getattr(args, "stdin", False)
+        ):
+            parser.error(
+                "partition: -t/--type/--tree is required (unless selectors or --stdin are provided)"
+            )
     finally:
         _RAW_DISPATCH_ARGV.reset(_token)
 

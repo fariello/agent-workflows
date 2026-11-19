@@ -961,6 +961,116 @@ def test_cli_partition_backlog_errors_and_wrong_type(
     assert "belongs to 'plans', not 'backlog'" in capsys.readouterr().err
 
 
+def test_cli_partition_infers_backlog_type_and_clusters_shared_sets(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Omitting -t infers backlog from selectors, and shared backlog Sets stay in one shard."""
+    repo = tmp_path / "bkl_set_repo"
+    open_dir = repo / ".aw" / "records" / "backlog" / "open"
+    plans_dir = repo / ".aw" / "records" / "plans" / "pending"
+    open_dir.mkdir(parents=True)
+    plans_dir.mkdir(parents=True)
+    (plans_dir / "20261119-demo-01-pln901-demo-plan.ipd.md").write_text(
+        "- Id: pln901\n- Set: demo\n- Order: 01\n- Status: approved\n",
+        encoding="utf-8",
+    )
+
+    # 3 items in Set 'metastore' and 3 singleton items.
+    for idx, (bid, sid) in enumerate(
+        (
+            ("ms0001", "metastore"),
+            ("ms0002", "metastore"),
+            ("ms0003", "metastore"),
+            ("sg0001", "sg0001"),
+            ("sg0002", "sg0002"),
+            ("sg0003", "sg0003"),
+        ),
+        start=1,
+    ):
+        (open_dir / f"2026111{idx}-{sid}-01-{bid}-item.backlog.md").write_text(
+            f"- Id: {bid}\n- Status: open\n- Work-Kind: bug\n- Set: {sid}\n",
+            encoding="utf-8",
+        )
+
+    # Also add a plan whose Set name collides with backlog id ms0001 (e.g. a sibling plan).
+    (plans_dir / "20261119-ms0001-01-pln902-sibling.ipd.md").write_text(
+        "- Id: pln902\n- Set: ms0001\n- Order: 01\n- Status: approved\n",
+        encoding="utf-8",
+    )
+
+    # 1. Passing -t plan --action plan on a backlog selector produces the actionable hint.
+    rc_hint = cli.main(
+        [
+            "partition",
+            "-t",
+            "plan",
+            "--action",
+            "plan",
+            "sg0001",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_hint == 2
+    err_hint = capsys.readouterr().err
+    assert "belongs to 'backlog', not 'plans'" in err_hint
+    assert "-t backlog" in err_hint
+
+    # 2. Omitting -t (even WITHOUT --action plan, and even when a plan has Set: ms0001)
+    # prefers id6 over setid, infers backlog, and keeps all 3 'metastore' items in ONE shard.
+    rc_no_action = cli.main(
+        [
+            "partition",
+            "-n",
+            "3",
+            "ms0001",
+            "ms0002",
+            "ms0003",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_no_action == 0
+    assert "ms0001" in capsys.readouterr().out
+
+    rc_ok = cli.main(
+        [
+            "partition",
+            "-n",
+            "3",
+            "--action",
+            "plan",
+            "ms0001",
+            "ms0002",
+            "ms0003",
+            "sg0001",
+            "sg0002",
+            "sg0003",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert rc_ok == 0
+    out_lines = [
+        ln for ln in capsys.readouterr().out.splitlines() if "run --action plan" in ln
+    ]
+    assert len(out_lines) == 3
+    metastore_shards = [
+        ln for ln in out_lines if "ms0001" in ln or "ms0002" in ln or "ms0003" in ln
+    ]
+    assert len(metastore_shards) == 1
+    assert all(m in metastore_shards[0] for m in ("ms0001", "ms0002", "ms0003"))
+
+    # 3. Omitting -t with mixed plans + backlog or with no selectors fails cleanly (exit 2).
+    assert cli.main(["partition", "ms0001", "pln901", "--dir", str(repo)]) == 2
+    assert "multiple artifact types" in capsys.readouterr().err
+
+    with pytest.raises(SystemExit) as exc_missing:
+        cli.main(["partition", "--dir", str(repo)])
+    assert exc_missing.value.code == 2
+    assert "-t/--type/--tree is required" in capsys.readouterr().err
+
+
 # ==============================================================================
 # (g) Specs partitioning fixture, action derivation, mixed refusal, profile formatting
 # ==============================================================================
