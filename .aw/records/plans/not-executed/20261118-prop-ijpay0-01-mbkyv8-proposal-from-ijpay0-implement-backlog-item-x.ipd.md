@@ -6,7 +6,7 @@
 - Scope: TODO.
 - Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Item-Dependencies: unresolved
-- Status: draft
+- Status: not-executed
 - Blocks-Release: next
 - Work-Kind: feature
 - Priority: high
@@ -20,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-11-19 not-executed (aw set): Retired: duplicate stub proposal from ijpay0; tracked by backlog xxdzcq and plan g9a3a9
 - 2026-11-18 draft (aw agy run model=Gemini-4-Hydrogen-High): created.
 
 ## Goal
