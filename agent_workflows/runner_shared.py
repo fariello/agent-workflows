@@ -1957,10 +1957,22 @@ def lane_plan_is_terminal(repo: Path, lane: Mapping[str, Any]) -> Optional[bool]
     try:
         plan_path = resolve_plan_path(repo, str(lane.get("configured_file") or ""), id6)
     except Exception:
-        # UNRESOLVABLE IS UNKNOWN, NEVER "not terminal". A plan this function cannot find must not be
-        # reported as non-terminal, because the caller would then keep a STRANDED verdict it has no
-        # evidence for either way; returning None makes the caller fall through to its existing
-        # readings unchanged.
+        # When no plan matches `id6`, check whether this lane belonged to a BACKLOG item whose
+        # graduation/completion already moved its durable directory on disk to `graduated/` or
+        # `done/` (same durable-directory principle as plan buckets: `open/`, `blocked/`, `parked/`
+        # remain non-terminal False, and unresolvable stays None fail-closed).
+        try:
+            from agent_workflows import selectors as _sel
+
+            backlog_matches = _sel.resolve_selectors(repo, "backlog", [id6])
+        except Exception:
+            backlog_matches = []
+        if len(backlog_matches) == 1:
+            bucket = backlog_matches[0].parent.name.lower()
+            if bucket in ("graduated", "done"):
+                return True
+            if bucket in ("open", "blocked", "parked"):
+                return False
         return None
     if plan_bucket(plan_path) is None:
         # NOT IN A RECOGNIZED LIFECYCLE DIRECTORY AT ALL, so the question is unanswered rather than

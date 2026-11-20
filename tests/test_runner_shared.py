@@ -3857,6 +3857,34 @@ class SupersededLaneTests(unittest.TestCase):
                 "no id6 at all is UNKNOWN, never False",
             )
 
+    def test_backlog_graduated_and_done_lanes_are_superseded_while_open_stays_stranded(
+        self,
+    ):
+        """A failed backlog graduation attempt whose item later moved to graduated/ or done/ is SUPERSEDED."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            for status_dir, id6 in (
+                ("graduated", "bkl001"),
+                ("done", "bkl002"),
+                ("open", "bkl003"),
+            ):
+                bdir = repo / ".aw" / "records" / "backlog" / status_dir
+                bdir.mkdir(parents=True, exist_ok=True)
+                (bdir / f"20261120-set-01-{id6}-slug.backlog.md").write_text(
+                    f"# Backlog: {id6}\n\n- Id: {id6}\n- Status: {status_dir}\n",
+                    encoding="utf-8",
+                )
+            self.assertIs(
+                runner_shared.lane_plan_is_terminal(repo, {"id6": "bkl001"}), True
+            )
+            self.assertIs(
+                runner_shared.lane_plan_is_terminal(repo, {"id6": "bkl002"}), True
+            )
+            self.assertIs(
+                runner_shared.lane_plan_is_terminal(repo, {"id6": "bkl003"}), False
+            )
+
     def test_superseded_is_reported_but_does_NOT_fail_the_gate(self):
         """The severity split is the whole point: report it, do not red the board for it."""
         from agent_workflows import artifact_core as core
