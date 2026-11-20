@@ -1990,21 +1990,22 @@ def format_statusline_lines(
         bot_seg01_plain = f"{c_h * col0_w}{c_bm}{c_h * col1_w}"
         bot_seg01_color = f"{c_h * col0_w}{bdr_color}{c_bm}{c_h * col1_w}"
 
-    # Bottom-Center Run ID (Option A):
+    # Bottom-Center Run ID (Option A): wrap with one space on each side so double-clicking selects it.
     if run_id:
         r_str = str(run_id)
-        if _T.visible_width(r_str) > col2_w - 2:
-            display_run = _T.truncate_visible(r_str, col2_w - 2)
+        max_run_w = max(1, col2_w - 2)
+        if _T.visible_width(r_str) > max_run_w:
+            display_run = _T.truncate_visible(r_str, max_run_w)
         else:
             display_run = r_str
-        vis_run = _T.visible_width(display_run)
-        pad_run = col2_w - vis_run
-        pad_run_l = 1
+        vis_run = _T.visible_width(display_run) + 2
+        pad_run = max(0, col2_w - vis_run)
+        pad_run_l = min(1, pad_run)
         pad_run_r = max(0, pad_run - pad_run_l)
         c_dim_run = _sgr256(244, depth=tier) if color_enabled else ""
-        bot_seg2_plain = f"{c_h * pad_run_l}{display_run}{c_h * pad_run_r}"
+        bot_seg2_plain = f"{c_h * pad_run_l} {display_run} {c_h * pad_run_r}"
         bot_seg2_color = (
-            f"{c_h * pad_run_l}{c_dim_run}{display_run}{bdr_color}{c_h * pad_run_r}"
+            f"{c_h * pad_run_l} {c_dim_run}{display_run}{bdr_color} {c_h * pad_run_r}"
         )
     else:
         bot_seg2_plain = c_h * col2_w

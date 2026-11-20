@@ -1392,10 +1392,53 @@ class TestCwdBadgeAndOptionARunId:
         bot_plain = rs._strip_ansi(lines[3])
         # Tally at bottom left
         assert bot_plain.startswith("╰─[✓ 6 ok · ✗ 2 fail]")
-        # Run ID centered in Col 2
-        assert f"─{run_id}──┴" in bot_plain
+        # Run ID centered in Col 2 with one space before and after for double-click selection
+        assert f"─ {run_id} ┴" in bot_plain
         # Stop badge at bottom right
         assert bot_plain.endswith("─ ⏹ STOP: finish current ─╯")
+
+    def test_run_id_has_single_space_padding_for_double_click_selection(self) -> None:
+        """Bottom-border run_id always has one space before and after across Unicode/ASCII and lengths."""
+        for use_unicode in (True, False):
+            for run_id in (
+                "run-20261014T004917Z-378578",  # 27 chars
+                "run-20261014T004917Z-3785780",  # 28 chars
+                "run-20261014T004917Z-12345678",  # 29 chars
+                "run-20261014T004917Z-123456789012345",  # truncated (> col2_w - 2)
+            ):
+                pal = rs.Palette(True, use_unicode=use_unicode)
+                lines = rs.format_statusline_lines(
+                    now_ts=1700000000.0,
+                    run_start_ts=1700000000.0 - 10.0,
+                    item_start_ts=1700000000.0 - 5.0,
+                    last_act_ts=1700000000.0 - 1.0,
+                    current_idx=1,
+                    total_items=2,
+                    setid="iosmvn",
+                    id6="cntxsm",
+                    run_id=run_id,
+                    pal=pal,
+                    use_unicode=use_unicode,
+                )
+                widths = [_T.visible_width(line) for line in lines]
+                assert len(set(widths)) == 1
+                bot_plain = rs._strip_ansi(lines[3])
+                # Col 2 is between the 1st and 2nd bottom column separators (`┴` or `+`)
+                sep = "┴" if use_unicode else "+"
+                row1_plain = rs._strip_ansi(lines[1])
+                v_sep = "│" if use_unicode else "|"
+                v_positions = [idx for idx, ch in enumerate(row1_plain) if ch == v_sep]
+                col2_bot = bot_plain[v_positions[2] + 1 : v_positions[3]]
+                assert sep not in col2_bot
+                # Strip outer border dashes (`─` or `-`) to inspect the framed run_id
+                dash = "─" if use_unicode else "-"
+                inner = col2_bot.strip(dash)
+                assert inner.startswith(" ") and inner.endswith(
+                    " "
+                ), f"expected space-framed run_id in {col2_bot!r}"
+                assert inner[1] != " " and inner[-2] != " "
+                if len(run_id) <= 29:
+                    assert inner == f" {run_id} "
 
     def test_now_time_shares_muted_header_color(self) -> None:
         """Now: label and HH:MM:SS clock share the same muted color without cyan jump."""
