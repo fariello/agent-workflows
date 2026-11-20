@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 6 requires ONE shared record builder for test data in phase B; it must itself be proved by behavioral tests before any test module moves onto it. `9rgn2w` E-02 held six test groups in one item. Research `nj8zdp` guidance (at most 5 E-items, about 8 named units per item) splits them here into one item per group cluster.
 - Scope: Part 2 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-02 (`tests/test_record_builder.py`), split into E-02 (groups (a), (b), (f)), E-18 (c), E-19 (d) and E-20 (e), plus the finishing item E-21 that applies the 10 s bound. EXCLUDES: the builder itself (`j6o96i`); the fixture conversion; production code; the switch-point test (`59aiyh` E-11).
 - Scope-Paths: tests/test_record_builder.py, tests/slow_allowlist.txt, .aw/records/plans/pending/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.ipd.md
+- Scope-Exceeded: tests/record_builder.py (Fixed RecordBuilder.research order padding, created YYYYMMDD format, and list topic handling exposed by round-trip, visibility, and parity tests.); tests/test_record_builder_slow.py (Moved visibility c and parity e CLI subprocess tests out of the core module per E-21's > 10 s wall-time fallback rule.)
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45, executed:j6o96i
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 21
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ijpay0
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-20 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: ijpay0 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope tests/record_builder.py: Fixed RecordBuilder.research order padding, created YYYYMMDD format, and list topic handling exposed by round-trip, visibility, and parity tests.; out-of-scope tests/test_record_builder_slow.py: Moved visibility (c) and parity (e) CLI subprocess tests out of the core module per E-21's > 10 s wall-time fallback rule.]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
