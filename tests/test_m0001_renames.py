@@ -486,17 +486,13 @@ def test_apply_step3_protected_bytes_moves_idempotency_and_resume(
     old_spec = "20260808-0004-01-artifact-org.spec.md"
     spec_file = rec / "specs" / "implemented" / old_spec
     spec_hist = "## Workflow history\n\n- 2026-08-08 implemented (alice): cites 20260808-0004-01-artifact-org.spec.md\n"
-    spec_file.write_text(
-        "# Spec\n\n- Status: implemented\n\n" + spec_hist,
-        encoding="utf-8",
-        newline="\n",
+    spec_file.write_bytes(
+        ("# Spec\n\n- Status: implemented\n\n" + spec_hist).encode("utf-8")
     )
 
     ex_plan = "20260808-0004-06-migrate-existing-plans.ipd.md"
-    (rec / "plans" / "executed" / ex_plan).write_text(
-        "- Id: 7qx7ys\n- Set: plans-adopter\n- Order: 6\n- Status: executed\n",
-        encoding="utf-8",
-        newline="\n",
+    (rec / "plans" / "executed" / ex_plan).write_bytes(
+        b"- Id: 7qx7ys\n- Set: plans-adopter\n- Order: 6\n- Status: executed\n"
     )
 
     plan_file = rec / "plans" / "executed" / "20261101-demo-01-pl0001-citer.ipd.md"
@@ -505,19 +501,17 @@ def test_apply_step3_protected_bytes_moves_idempotency_and_resume(
         f"- 2026-11-01 executed (bob): cites {old_spec} and 20260808-0004-01\n"
     )
     fence_block = f"```sh\necho {old_spec}\n```\n"
-    plan_file.write_text(
-        "# Plan\n\n- Id: pl0001\n\n"
-        f"Body cites {old_spec}.\n\n" + fence_block + "\n" + hist_block,
-        encoding="utf-8",
-        newline="\n",
+    plan_file.write_bytes(
+        (
+            "# Plan\n\n- Id: pl0001\n\n"
+            f"Body cites {old_spec}.\n\n" + fence_block + "\n" + hist_block
+        ).encode("utf-8")
     )
 
     rev_file = rec / "reviews" / "20261101-demo-01-pl0001-rev.review.md"
     verdict_line = f"- Verdict: APPROVED ({old_spec})\n"
-    rev_file.write_text(
-        "# Review\n\n" + verdict_line + f"\nBody: {old_spec}\n",
-        encoding="utf-8",
-        newline="\n",
+    rev_file.write_bytes(
+        ("# Review\n\n" + verdict_line + f"\nBody: {old_spec}\n").encode("utf-8")
     )
 
     ex_file = repo / "tests" / "test_plans_rename_selectors.py"
@@ -608,8 +602,8 @@ def test_apply_step3_protected_bytes_moves_idempotency_and_resume(
     cplan_int = m0001_renames.plan_citation_rewrites(repo_int, rmap_int)
 
     # Simulate partial completion: TODO.md already rewritten, first file not moved yet
-    (repo_int / "TODO.md").write_text(
-        f"Ref {rmap_int.name_map[old_spec]}\n", encoding="utf-8"
+    (repo_int / "TODO.md").write_bytes(
+        f"Ref {rmap_int.name_map[old_spec]}\n".encode("utf-8")
     )
     j_state = json.loads(j_int.read_text(encoding="utf-8"))
     j_state["step3_progress"] = {"rewritten_files": ["TODO.md"], "moved_files": []}

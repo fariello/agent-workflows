@@ -461,6 +461,9 @@ def write_user_hints(tokens: list[str], patterns: list[str]) -> Path:
 @functools.lru_cache(maxsize=1)
 def _cached_getfqdn() -> str | None:
     try:
+        host = socket.gethostname()
+        if host and host.lower().endswith(".local"):
+            return host
         return socket.getfqdn() or None
     except Exception:
         return None

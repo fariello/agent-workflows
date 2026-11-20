@@ -104,10 +104,10 @@ def _init_repo(
 
 
 def _snapshot_tree(root: Path) -> dict[str, bytes]:
-    """Capture relative-path -> bytes map for everything outside .git/."""
+    """Capture relative-path -> bytes map for everything outside .git/ (skipping held *.lock files)."""
     snap: dict[str, bytes] = {}
     for p in sorted(root.rglob("*")):
-        if ".git" in p.relative_to(root).parts:
+        if ".git" in p.relative_to(root).parts or p.suffix == ".lock":
             continue
         if p.is_file():
             snap[p.relative_to(root).as_posix()] = p.read_bytes()

@@ -1353,19 +1353,19 @@ def test_ac6_phase_b_backlog_done_git_diff(tmp_path: Path) -> None:
         / "open"
         / "20261109-ac6bkl-01-ac6bkl-item.backlog.md"
     )
-    bkl_path.write_text(
-        "# Backlog: AC-6 non-blocking item\n\n"
-        "- Id: ac6bkl\n"
-        "- Date: 2026-11-09\n"
-        "- Status: open\n"
-        "- Priority: medium\n"
-        "- Work-Kind: chore\n\n"
-        "## Workflow history\n\n"
-        "- 2026-11-09 open (tester): created.\n\n"
-        "## Summary\n\n"
-        "Simple non-blocking chore.\n",
-        encoding="utf-8",
-        newline="\n",
+    bkl_path.write_bytes(
+        (
+            "# Backlog: AC-6 non-blocking item\n\n"
+            "- Id: ac6bkl\n"
+            "- Date: 2026-11-09\n"
+            "- Status: open\n"
+            "- Priority: medium\n"
+            "- Work-Kind: chore\n\n"
+            "## Workflow history\n\n"
+            "- 2026-11-09 open (tester): created.\n\n"
+            "## Summary\n\n"
+            "Simple non-blocking chore.\n"
+        ).encode("utf-8")
     )
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "init backlog"], cwd=repo, check=True)
@@ -1447,7 +1447,7 @@ def test_ac6_phase_b_ipd_finalize_within_and_out_of_scope_git_diff(
                 )
                 .replace("  - Result: pending", "  - Result: pass", 1)
             )
-            plan_path.write_text(plan_text, encoding="utf-8", newline="\n")
+            plan_path.write_bytes(plan_text.encode("utf-8"))
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init plan"], cwd=repo, check=True)
 

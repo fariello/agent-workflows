@@ -1510,6 +1510,24 @@ class ConfigReconciliationTests(unittest.TestCase):
         stray = list(REPO_ROOT.glob(".agents/leak-sanitizer-allow*"))
         self.assertEqual(stray, [], f"competing config file present: {stray}")
 
+    def test_cached_getfqdn_skips_blocking_dns_for_dot_local_hostnames(self):
+        """A .local hostname already carries its Bonjour FQDN and must not call blocking socket.getfqdn()."""
+        from unittest import mock
+
+        ls._cached_getfqdn.cache_clear()
+        try:
+            with mock.patch.object(
+                ls.socket, "gethostname", return_value="mac-runner-test.local"
+            ):
+                with mock.patch.object(
+                    ls.socket,
+                    "getfqdn",
+                    side_effect=AssertionError("must not call getfqdn for .local"),
+                ):
+                    self.assertEqual(ls._cached_getfqdn(), "mac-runner-test.local")
+        finally:
+            ls._cached_getfqdn.cache_clear()
+
 
 if __name__ == "__main__":
     unittest.main()
