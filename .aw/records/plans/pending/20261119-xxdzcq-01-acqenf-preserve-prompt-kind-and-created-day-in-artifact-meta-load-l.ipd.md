@@ -6,7 +6,7 @@
 - Scope: Update `agent_workflows/artifact_meta.py::load_legacy_artifact` to map `Kind` and `kind` to `prompt_kind` and `Created` and `created` to `created_day` when `art_type == "prompt"`, set `artifact_row["created_day"]` from `mapped_fields.get("created_day")` for prompts, bump `agent_workflows/artifact_meta.py::LEGACY_LOADER_VERSION` from `"legacy_v7"` to `"legacy_v8"`, and add behavioral outcome tests in `tests/test_artifact_meta_legacy.py` and `tests/test_artifact_meta_legacy_writer.py`. EXCLUDES changing non-prompt record mappings (`ipd`, `spec`, `backlog`, `research`, `release`, `walkthrough`, `roadmap`), changing `agent_workflows/artifact_meta.py::read_text`, or modifying `agent_workflows/prompts.py`.
 - Scope-Paths: agent_workflows/artifact_meta.py, tests/test_artifact_meta_legacy.py, tests/test_artifact_meta_legacy_writer.py, .aw/records/plans/pending/20261119-xxdzcq-01-acqenf-preserve-prompt-kind-and-created-day-in-artifact-meta-load-l.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Map prompt Kind to prompt_kind and Created to created_day in artifact_meta.load_legacy_artifact
@@ -19,11 +19,13 @@
 - Highest E allocated: 03
 - Author: antigravity/gemini
 - Id: acqenf
+- Approval: 2026-11-20, human ("approved"): Approve acqenf (xxdzcq fix) to unblock ijpay0
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-20 approved (aw set, --by-human): Approve acqenf (xxdzcq fix) to unblock ijpay0
 - 2026-11-19 reviewed (aw set): reviewed via plan-review (PR-001, PR-002, PR-003)
 - 2026-11-19 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-11-19 to-review (aw set): ready for review: authored for backlog xxdzcq
