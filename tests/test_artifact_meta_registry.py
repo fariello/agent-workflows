@@ -313,6 +313,72 @@ def test_refusals_message_absolute_posix_path(tmp_path: Path):
     assert "absolute" in str(exc_info.value).lower()
 
 
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "scope reason: route '/api/contracts/:id' added for contract lookup",
+        "finalize: added /contracts/:id/request-audit handler",
+        "wildcard middleware mounted at '/api/audit-logs/*'",
+        "endpoint route=/users/:id/profile and /applications/:id/approve",
+        "docs link https://example.com/home/alice/page stays valid",
+    ],
+)
+def test_message_allows_http_and_rest_api_routes(tmp_path: Path, msg: str):
+    ev = {
+        "v": 1,
+        "seq": 1,
+        "append": 1,
+        "at": "2026-11-19T12:00:00Z",
+        "actor": {"tool": "test"},
+        "op": "note",
+        "message": msg,
+    }
+    meta.validate_new_events("ipd", [ev], records_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "bad_msg",
+    [
+        'wrapped ("/opt/x/a.md").',
+        "kv profile=/etc/shadow",
+        "mac path " + "/" + "Users" + "/alice/repo/file.py",
+        "var log /var/log/app.log",
+        "tmp file /tmp/secret.txt",
+        "win path C:" + "\\work\\secret.txt",
+    ],
+)
+def test_message_still_refuses_os_root_and_windows_paths(tmp_path: Path, bad_msg: str):
+    ev = {
+        "v": 1,
+        "seq": 1,
+        "append": 1,
+        "at": "2026-11-19T12:00:00Z",
+        "actor": {"tool": "test"},
+        "op": "note",
+        "message": bad_msg,
+    }
+    with pytest.raises(ValueError) as exc_info:
+        meta.validate_new_events("ipd", [ev], records_root=tmp_path)
+    assert "absolute" in str(exc_info.value).lower()
+
+
+def test_structured_path_field_still_refuses_leading_slash_api_like_value(
+    tmp_path: Path,
+):
+    ev = {
+        "v": 1,
+        "seq": 1,
+        "append": 1,
+        "at": "2026-11-19T12:00:00Z",
+        "actor": {"tool": "test"},
+        "op": "create",
+        "path": "/api/contracts/a.md",
+    }
+    with pytest.raises(ValueError) as exc_info:
+        meta.validate_new_events("ipd", [ev], records_root=tmp_path)
+    assert "relative" in str(exc_info.value).lower()
+
+
 def test_refusals_path_home_and_dots(tmp_path: Path):
     home_path = str(Path.home() / "a.md")
     ev1 = {
