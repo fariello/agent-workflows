@@ -1088,24 +1088,26 @@ class TestFixFirstEndToEnd(unittest.TestCase):
     # -------------------------------------------------------------------------
 
     def _run_proposal_continuation(self, host_label: str, mod: Any) -> None:
+        from agent_workflows import lane_containment
+
+        host_tag = host_label[:2]
+        idA = f"prp1{host_tag}"
+        idB = f"prp2{host_tag}"
+        idC = f"prp3{host_tag}"
         repo = _make_test_repo(self.root / f"repo_prop_{host_label}")
-        planA = _write_plan(repo, id6=f"prp1{host_label}", order=1)
-        planB = _write_plan(repo, id6=f"prp2{host_label}", order=2)
+        planA = _write_plan(repo, id6=idA, order=1)
+        planB = _write_plan(repo, id6=idB, order=2)
         # B depends on A
         b_text = planB.read_text(encoding="utf-8").replace(
-            "Item-Dependencies: none", f"Item-Dependencies: executed:prp1{host_label}"
+            "Item-Dependencies: none", f"Item-Dependencies: executed:{idA}"
         )
         planB.write_text(b_text, encoding="utf-8")
-        planC = _write_plan(repo, id6=f"prp3{host_label}", order=3)
+        planC = _write_plan(repo, id6=idC, order=3)
         subprocess.run(["git", "add", ".aw"], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "add plans"], cwd=repo, check=True)
 
         run_dir = self.root / f"run_prop_{host_label}"
         run_dir.mkdir(parents=True)
-
-        idA = f"prp1{host_label}"
-        idB = f"prp2{host_label}"
-        idC = f"prp3{host_label}"
 
         itemA = {
             "id6": idA,
@@ -1156,8 +1158,17 @@ class TestFixFirstEndToEnd(unittest.TestCase):
             st: Any, rd: Any, itm: Any, plan_p: Any, prompt_p: Any, att: Any, **kw: Any
         ) -> Any:
             dispatched.append(itm["id6"])
+            work_dir = kw.get("work_dir")
+            if work_dir:
+                out_root = lane_containment.lane_submission_root(
+                    Path(work_dir), st["run_id"], itm, att
+                )
+            else:
+                out_root = rd
             if itm["id6"] == idA:
-                rec_p = rd / "outcomes" / f"{itm['position']:02d}-{itm['id6']}.json"
+                rec_p = (
+                    out_root / "outcomes" / f"{itm['position']:02d}-{itm['id6']}.json"
+                )
                 rec_p.parent.mkdir(parents=True, exist_ok=True)
                 rec_p.write_text(
                     json.dumps(
@@ -1195,7 +1206,7 @@ class TestFixFirstEndToEnd(unittest.TestCase):
                 )
                 return 0, "s1", rd / "log", ["cmd"]
             elif itm["id6"] == idC:
-                _write_outcome_file(rd, itm, disposition="executed")
+                _write_outcome_file(out_root, itm, disposition="executed")
                 return 0, "s3", rd / "log", ["cmd"]
             return 0, "sX", rd / "log", ["cmd"]
 

@@ -19,12 +19,24 @@ phase where it belongs, to ONE plan that is actually transitioning."""
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import os
 import re as _re
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+)
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -4848,6 +4860,26 @@ def check_push_authorization(repo_root: Path, ack: bool = False) -> List[_core.D
     ]
 
 
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _with_scan_once(fn: _F) -> _F:
+    @functools.wraps(fn)
+    def _wrapped(*args: Any, **kwargs: Any) -> Any:
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import selectors as _sel
+
+        with (
+            _meta.scan_once(),
+            _meta.ephemeral_if_uninitialized(),
+            _sel.scan_once(),
+        ):
+            return fn(*args, **kwargs)
+
+    return _wrapped  # type: ignore[return-value]
+
+
+@_with_scan_once
 def check_type(
     repo_root: Path,
     record_type: str,
@@ -4905,6 +4937,7 @@ def check_type(
     return drift
 
 
+@_with_scan_once
 def check_types(
     repo_root: Path,
     types: List[str],

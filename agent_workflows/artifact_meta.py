@@ -2325,8 +2325,10 @@ def init_cache(
 ) -> None:
     """Initialize or reset the SQLite cache schema and metadata."""
     schema_sql = generate_schema(registry)
+    # Wrap DDL statements in a single explicit transaction so `executescript` does not
+    # issue a separate disk fsync per CREATE TABLE / CREATE INDEX statement.
+    conn.executescript(f"BEGIN;\n{schema_sql}\nCOMMIT;")
     with conn:
-        conn.executescript(schema_sql)
         shash = compute_schema_hash(registry)
         now_str = datetime.datetime.now(timezone.utc).isoformat()
         conn.execute(
@@ -3435,21 +3437,20 @@ def _load_sources(
         from agent_workflows import artifact_adopt as _adopt
         from agent_workflows import check_engine as _check
 
+        cached_files_count = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
         changed_paths_abs: Set[Path] = set()
         for it in changed_sources:
             p_s = it["path"]
-            ap = source_path(p_s, records_root, scan_repo)
-            with contextlib.suppress(OSError):
-                changed_paths_abs.add(ap.resolve())
+            if cached_files_count > 0:
+                ap = source_path(p_s, records_root, scan_repo)
+                with contextlib.suppress(OSError):
+                    changed_paths_abs.add(ap.resolve())
             if it.get("id6"):
                 pool.add(it["id6"])
             if p_s in pre_reads:
                 _, _, raw_b = pre_reads[p_s]
                 with contextlib.suppress(UnicodeDecodeError):
-                    pool.update(
-                        _adopt.scan_body_identities(raw_b.decode("utf-8")).declared
-                    )
-        cached_files_count = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+                    pool.update(_adopt.scan_declared_identities(raw_b.decode("utf-8")))
         if cached_files_count > 0:
             for rt in _check.SUPPORTED:
                 for tp in _check._iter_type_files(scan_repo, rt, include_retired=True):
@@ -3464,11 +3465,38 @@ def _load_sources(
                             continue
                     with contextlib.suppress(OSError, UnicodeDecodeError):
                         pool.update(
-                            _adopt.scan_body_identities(
+                            _adopt.scan_declared_identities(
                                 tp.read_text(encoding="utf-8")
-                            ).declared
+                            )
                         )
         _LEGACY_MINT_POOLS[_pool_key] = pool
+
+    # Track (id6 <-> path) in memory across this batch so legacy loading does not run an
+    # O(N^2) `SELECT id6 FROM artifacts WHERE path != ?` full table scan on every file.
+    _art_id_by_path: Dict[str, str] = {}
+    _art_path_by_id: Dict[str, str] = {}
+    for _r_id, _r_p in conn.execute("SELECT id6, path FROM artifacts").fetchall():
+        _art_id_by_path[_r_p] = _r_id
+        _art_path_by_id[_r_id] = _r_p
+
+    def _track_del_id(removed_id: str) -> None:
+        old_p = _art_path_by_id.pop(removed_id, None)
+        if old_p is not None and _art_id_by_path.get(old_p) == removed_id:
+            _art_id_by_path.pop(old_p, None)
+
+    def _track_put(put_id: str, put_path: str) -> None:
+        _track_del_id(put_id)
+        old_id_for_path = _art_id_by_path.get(put_path)
+        if old_id_for_path is not None and old_id_for_path != put_id:
+            _track_del_id(old_id_for_path)
+        _art_id_by_path[put_path] = put_id
+        _art_path_by_id[put_id] = put_path
+
+    def _other_ids_for(cur_path: str) -> Iterable[str]:
+        cur_id = _art_id_by_path.get(cur_path)
+        if cur_id is None:
+            return _art_path_by_id.keys()
+        return set(_art_path_by_id.keys()) - {cur_id}
 
     with conn:
         for item in changed_sources:
@@ -3521,6 +3549,7 @@ def _load_sources(
                         owns_projection = False
             if owns_projection:
                 _delete_artifact_projection(conn, id6)
+                _track_del_id(id6)
 
             if not abs_p.exists():
                 # Removed file. A removed source arrives with role "removed", so its former role
@@ -3862,13 +3891,7 @@ def _load_sources(
             elif role in ("artifact", "walkthrough"):
                 # Phase B legacy loader
                 try:
-                    other_ids = {
-                        r[0]
-                        for r in conn.execute(
-                            "SELECT id6 FROM artifacts WHERE path != ?",
-                            (path_str,),
-                        ).fetchall()
-                    }
+                    other_ids = _other_ids_for(path_str)
                     art_row, _h_rows = load_legacy_artifact(
                         abs_p,
                         records_root,
@@ -3893,17 +3916,12 @@ def _load_sources(
                             )
                             if old_derived:
                                 _delete_artifact_projection(conn, loaded_id6)
+                                _track_del_id(loaded_id6)
                                 old_abs = source_path(
                                     old_path_str, records_root, scan_repo
                                 )
                                 if old_abs.exists():
-                                    old_taken = {
-                                        r[0]
-                                        for r in conn.execute(
-                                            "SELECT id6 FROM artifacts WHERE path != ?",
-                                            (old_path_str,),
-                                        ).fetchall()
-                                    }
+                                    old_taken = set(_other_ids_for(old_path_str))
                                     old_taken.add(loaded_id6)
                                     old_art_row, _ = load_legacy_artifact(
                                         old_abs,
@@ -3930,6 +3948,7 @@ def _load_sources(
                                         now_str,
                                         records_root,
                                     )
+                                    _track_put(old_art_row["id6"], old_path_str)
                             elif path_str.startswith("@repo/"):
                                 conn.execute(
                                     """INSERT OR REPLACE INTO files (
@@ -3950,6 +3969,7 @@ def _load_sources(
                     _store_legacy_artifact_projection(
                         conn, art_row, path_str, role, st, digest, now_str, records_root
                     )
+                    _track_put(loaded_id6, path_str)
                 except Exception as exc:
                     conn.execute(
                         """INSERT OR REPLACE INTO files (
@@ -5417,13 +5437,20 @@ def legacy_context(repo_root: Union[str, Path]) -> Any:
     tree the setter edits."""
     root = Path(repo_root).resolve()
     records = Path(_proj_ctx.project_records_dir(root))
+    records_res = records.resolve()
     state: Optional[Path] = None
-    with contextlib.suppress(Exception):
-        resolved = _proj_ctx.resolve_project_context(target_repo=str(root))
-        if Path(resolved.logical_roots["records"]).resolve() == records.resolve():
-            state = Path(resolved.logical_roots["state"])
-    if state is None:
-        state = root / ".aw" / "state"
+    if not records_res.is_relative_to(root):
+        # External records root (e.g. AW_HOME or companion backend): keep meta locks/cache
+        # beside the external records root rather than creating untracked `.aw/state/` inside
+        # a clean target repo.
+        state = records_res.parent / "state"
+    else:
+        with contextlib.suppress(Exception):
+            resolved = _proj_ctx.resolve_project_context(target_repo=str(root))
+            if Path(resolved.logical_roots["records"]).resolve() == records_res:
+                state = Path(resolved.logical_roots["state"])
+        if state is None:
+            state = root / ".aw" / "state"
     return type(
         "LegacyContext",
         (),

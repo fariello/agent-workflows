@@ -53,7 +53,6 @@ explicitly could not override."""
 from __future__ import annotations
 
 import contextlib
-import functools
 import os
 import re
 from pathlib import Path
@@ -245,7 +244,6 @@ _OTHER_SWEEP_SKIP_DIRS = (
 )
 
 
-@functools.lru_cache(maxsize=128)
 def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...]:
     repo_root = Path(repo_root_str)
     out: List[Path] = []
@@ -308,6 +306,10 @@ def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...
         # is the authority for the subpath and research_contract.resolve_research_root is the authority that research reads it.
         _add(repo_root / ".agents" / "docs" / "research")
     return tuple(out)
+
+
+# Compatibility no-op: callers/tests that previously cleared the stale lru_cache still find it.
+_record_dirs_cached.cache_clear = lambda: None  # type: ignore[attr-defined]
 
 
 def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
@@ -912,6 +914,18 @@ def _cached_states_by_path(repo_root: Path, record_type: str) -> Dict[Path, Any]
         )
     )
     if not has_tree:
+        return {}
+    state_root = Path(ctx.logical_roots["state"])
+    if (
+        not (state_root / "index.db").exists()
+        and not (records_root / "meta").is_dir()
+        and _meta._SCAN_ONCE_CONNS.get() is None
+    ):
+        # Without a persistent index.db, log-format meta/ tree, or outer scan_once() session,
+        # calling _meta.query() under ephemeral_if_uninitialized() parses the entire multi-thousand
+        # file corpus across all record types + reviews into a throwaway :memory: DB just to read
+        # one record type. Returning {} lets resolve() use bounded header reads over this type's
+        # candidate paths only.
         return {}
     filters: Dict[str, Any] = {"project_context": ctx}
     meta_t = _META_TYPE_FOR_RECORD.get(record_type)

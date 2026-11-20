@@ -87,7 +87,8 @@ def test_exclusion_set_size_and_members() -> None:
     # 69: `ipd sync` takes zero-or-more paths since legacyfin bulk mode (`--all`), so it is no
     # longer a required-positional leaf; its bare invocation still refuses (exit 2, a FILE is required).
     # 70: `describe` added in metastore h06gs7 (requires <selector> and --summary|--clear).
-    assert len(REQUIRED_LEAVES) == 70
+    # 69: `partition` made `-t/--type` optional in 3734d54a7 (infers artifact type from selectors).
+    assert len(REQUIRED_LEAVES) == 69
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)

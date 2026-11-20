@@ -39,7 +39,17 @@ import hashlib
 import re
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 from agent_workflows import artifact_core as _core
 
@@ -114,6 +124,19 @@ def _yaml_frontmatter_block(text: str) -> Optional[str]:
         if lines[i].strip() == "---":
             return "\n".join(lines[1:i])
     return None
+
+
+def scan_declared_identities(text: str) -> FrozenSet[str]:
+    """Return only the id6s explicitly DECLARED in bullet or YAML front matter.
+
+    Matches `scan_body_identities(text).declared` without scanning the full prose body
+    for 6-char tokens (`iter_id6_in_text`), which is orders of magnitude faster on large corpora.
+    """
+    declared = set(_BULLET_ID_RE.findall(text))
+    block = _yaml_frontmatter_block(text)
+    if block:
+        declared.update(_YAML_ID_RE.findall(block))
+    return frozenset(declared)
 
 
 def scan_body_identities(text: str) -> BodyIdentities:

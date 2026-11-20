@@ -467,9 +467,37 @@ def test_partition_fields_branch_behavior(tmp_path: Path) -> None:
     """(b) partition: both exit-0 ok and exit-2 blocked_sets branches honor --fields, --json unprojected."""
     from tests.test_partition_set_cohesion import cohesion_repo
 
-    # Exit-0 normal branch
+    # Exit-0 normal branch (isolated repo so live-checkout blocked sets cannot perturb exit code)
+    ok_repo = tmp_path / "part_ok_repo"
+    ok_pending = ok_repo / ".aw" / "records" / "plans" / "pending"
+    ok_pending.mkdir(parents=True, exist_ok=True)
+    for idx, id6 in ((1, "pk0001"), (2, "pk0002")):
+        (ok_pending / f"20261101-okset-{idx:02d}-{id6}-sample.ipd.md").write_text(
+            f"# IPD: Sample {idx}\n\n"
+            f"- Date: 2026-11-01\n"
+            f"- Kind: child\n"
+            f"- Set: okset\n"
+            f"- Order: {idx}\n"
+            f"- Id: {id6}\n"
+            f"- Status: approved\n"
+            f"- Item-Dependencies: none\n"
+            f"- Scope-Paths: src/mod_{idx}.py\n",
+            encoding="utf-8",
+        )
+
     res = run_cli(
-        ["partition", "-t", "plans", "-s", "approved", "--agent", "--fields", "cmd"]
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "--agent",
+            "--fields",
+            "cmd",
+            "--dir",
+            str(ok_repo),
+        ]
     )
     assert res.returncode == 0
     rec = [
@@ -480,7 +508,9 @@ def test_partition_fields_branch_behavior(tmp_path: Path) -> None:
     for k in ("shards", "commands", "split_components", "cycles"):
         assert k not in rec
 
-    res = run_cli(["partition", "-t", "plans", "-s", "approved", "--agent"])
+    res = run_cli(
+        ["partition", "-t", "plans", "-s", "approved", "--agent", "--dir", str(ok_repo)]
+    )
     assert res.returncode == 0
     rec = [
         json.loads(line)
@@ -491,7 +521,18 @@ def test_partition_fields_branch_behavior(tmp_path: Path) -> None:
         assert k in rec
 
     res = run_cli(
-        ["partition", "-t", "plans", "-s", "approved", "--json", "--fields", "cmd"]
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "--json",
+            "--fields",
+            "cmd",
+            "--dir",
+            str(ok_repo),
+        ]
     )
     assert res.returncode == 0
     payload = json.loads(res.stdout)

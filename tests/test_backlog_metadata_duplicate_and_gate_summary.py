@@ -14,18 +14,15 @@ Outcome tests covering:
 
 from __future__ import annotations
 
-import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from agent_workflows import artifact_core as core
 from agent_workflows import backlog
 from agent_workflows import check_engine
 from agent_workflows import cli
 from agent_workflows import doctor
-from agent_workflows import releases
 
 
 def _make_item(
@@ -392,10 +389,10 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
             self.assertIn("Blocks-Release", repeated_drift.detail)
             self.assertIn("2", repeated_drift.detail)
 
-            # 2. Producer simulation matching F-04:
-            # Before releases.set_blocks_release_line was fixed, _BLOCKS_RELEASE_LINE_RE stripped \S+,
-            # leaving empty-valued '- Blocks-Release:' lines in place when setting a new value.
-            legacy_re = re.compile(r"(?m)^- Blocks-Release:[ \t]*\S+[ \t]*$\n?")
+            # 2. Regression check matching F-04:
+            # Setting --blocks-release on an item carrying a bare/empty '- Blocks-Release:' line
+            # must replace it in place (via artifact_meta / releases.set_blocks_release_line)
+            # rather than leaving two '- Blocks-Release:' bullets behind.
             seed_bare = (
                 "- Id: prod01\n"
                 "- Status: open\n"
@@ -407,24 +404,24 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
                 "## Workflow history\n- 2026-10-01 created: note\n"
             )
             item_path.write_text(seed_bare, encoding="utf-8")
-            with mock.patch.object(releases, "_BLOCKS_RELEASE_LINE_RE", legacy_re):
-                rc = cli.main(
-                    [
-                        "backlog",
-                        "set",
-                        "open",
-                        "prod01",
-                        "--blocks-release",
-                        "next",
-                        "--no-commit",
-                        "--dir",
-                        str(root),
-                    ]
-                )
-                self.assertEqual(rc, 0)
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "open",
+                    "prod01",
+                    "--blocks-release",
+                    "next",
+                    "--no-commit",
+                    "--dir",
+                    str(root),
+                ]
+            )
+            self.assertEqual(rc, 0)
 
             written_content = item_path.read_text(encoding="utf-8")
-            self.assertEqual(written_content.count("- Blocks-Release:"), 2)
+            self.assertEqual(written_content.count("- Blocks-Release:"), 1)
+            self.assertIn("- Blocks-Release: next", written_content)
             drifts_written = backlog.validate_item(item_path, written_content)
             rules_written = [d.rule for d in drifts_written]
-            self.assertIn("backlog.metadata-bullet-repeated", rules_written)
+            self.assertNotIn("backlog.metadata-bullet-repeated", rules_written)
