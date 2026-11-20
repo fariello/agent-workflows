@@ -80,6 +80,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agent_workflows import config as _config
 from agent_workflows import versioning as _versioning
+from agent_workflows._cli_vocab import SUPPORTED_SHELLS as SUPPORTED_SHELLS
 
 # The three console-script entrypoints (pyproject.toml [project.scripts]). Completion binds all three.
 ENTRYPOINTS = ("aw", "agentwf", "agent-workflows")
@@ -1092,8 +1093,6 @@ def complete_query(
 # The self-identifying marker written into every file this tool creates. Its presence is the ONLY
 # license to overwrite or remove a file in a shared completion directory.
 INSTALL_SENTINEL = "# installed-by: agent-workflows (aw completion install)"
-
-SUPPORTED_SHELLS = ("bash", "zsh", "fish")
 
 # Per-shell drop-in layout: (XDG env var, fallback dir relative to $HOME, subdir, primary filename).
 _DROPIN_LAYOUT: Dict[str, Any] = {

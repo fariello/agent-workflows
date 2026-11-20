@@ -48,7 +48,7 @@ from typing import (
     Union,
 )
 
-from . import __version__, config, discovery, engine, project_context, versioning
+from . import config, discovery, engine, project_context, versioning
 from . import lifecycle_style as _LS
 from . import run_dispatch as _run_dispatch
 from . import term as _term_mod
@@ -1326,7 +1326,7 @@ class _VersionAction(argparse.Action):
         version_str = (
             self.version
             if self.version is not None
-            else f"agent-workflows {__version__}"
+            else f"agent-workflows {_packaged_version()}"
         )
         lines = [version_str]
         try:
@@ -1579,7 +1579,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "-V",
         "--version",
         action=_VersionAction,
-        version=f"agent-workflows {__version__}",
         help="Print the agent-workflows version and exit.",
     )
     sub = parser.add_subparsers(dest="command", metavar="<command>")
@@ -2977,7 +2976,7 @@ def _build_parser() -> argparse.ArgumentParser:
     #: READ FROM ONE PLACE (runsverify 7wei1o E-02): the unresolvable-target refusal names these
     #: leaves as the suggestion set, so a second hardcoded copy would let the message and the
     #: registration drift into disagreeing about what is actually registered.
-    from agent_workflows.run_viewer import RUNS_VIEWER_LEAF_NAMES as _RUNS_LEAF_NAMES
+    from agent_workflows._cli_vocab import RUNS_VIEWER_LEAF_NAMES as _RUNS_LEAF_NAMES
 
     _RUNS_VIEWER_LEAVES = frozenset(_RUNS_LEAF_NAMES)
     _run_leaf_specs = (
@@ -6878,13 +6877,14 @@ def _build_parser() -> argparse.ArgumentParser:
     # told a maintainer to close a release blocker `done` because `--help` offered no `graduated`, and
     # `done` on unimplemented work is exactly the false completion claim the status exists to prevent.
     # Reads from the one definition, following the `--work-kind`/`--priority` precedent below.
-    from agent_workflows import backlog as _backlog_status_vocab
+    from agent_workflows import _cli_vocab as _backlog_status_vocab
 
     p_backlog_new.add_argument(
         "--status",
         default="open",
-        choices=sorted(_backlog_status_vocab.STATUSES),
-        help=" | ".join(sorted(_backlog_status_vocab.STATUSES)) + " (default: open).",
+        choices=sorted(_backlog_status_vocab.BACKLOG_STATUSES),
+        help=" | ".join(sorted(_backlog_status_vocab.BACKLOG_STATUSES))
+        + " (default: open).",
     )
     p_backlog_new.add_argument(
         "--priority",
@@ -6986,9 +6986,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog_set.add_argument(
         "--status",
         default=None,
-        choices=sorted(_backlog_status_vocab.STATUSES),
+        choices=sorted(_backlog_status_vocab.BACKLOG_STATUSES),
         help="Target status: "
-        + " | ".join(sorted(_backlog_status_vocab.STATUSES))
+        + " | ".join(sorted(_backlog_status_vocab.BACKLOG_STATUSES))
         + ". 'graduated' means the design is handed off to a plan or spec while the code is "
         "not yet written, and is the honest transition for an item whose plan exists but has "
         "not been executed; 'done' claims the code is written and validated.",
@@ -7073,15 +7073,15 @@ def _build_parser() -> argparse.ArgumentParser:
     # pull in `backlog`. The two existing registrations (`ipd set`, `specs set`) type the five values
     # out by hand and are pinned to `backlog.KINDS` only by a test; a third hand-written copy would
     # widen that drift surface for no gain.
-    from agent_workflows import backlog as _backlog_vocab_mod
+    from agent_workflows import _cli_vocab as _backlog_vocab_mod
 
     p_backlog_set.add_argument(
         "--work-kind",
         dest="work_kind",
         default=None,
-        choices=sorted(_backlog_vocab_mod.KINDS),
+        choices=sorted(_backlog_vocab_mod.BACKLOG_KINDS),
         help="Set the item's Work-Kind ("
-        + "|".join(sorted(_backlog_vocab_mod.KINDS))
+        + "|".join(sorted(_backlog_vocab_mod.BACKLOG_KINDS))
         + "). Persists on a no-op transition. No '-' clear: the field is REQUIRED on a "
         "backlog item (OQ-02).",
     )
@@ -7089,9 +7089,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--priority",
         dest="priority",
         default=None,
-        choices=sorted(_backlog_vocab_mod.PRIORITIES),
+        choices=sorted(_backlog_vocab_mod.BACKLOG_PRIORITIES),
         help="Set the item's Priority ("
-        + "|".join(sorted(_backlog_vocab_mod.PRIORITIES))
+        + "|".join(sorted(_backlog_vocab_mod.BACKLOG_PRIORITIES))
         + "). Persists on a no-op transition. No '-' clear: the field is REQUIRED on a "
         "backlog item (OQ-02).",
     )
@@ -8199,7 +8199,7 @@ EXAMPLES
     # this list (one line) rather than silently accepted at parse time and rejected in the handler.
     # KEEP THE SHELL NAMES IN ONE PLACE: they come from `completion.SUPPORTED_SHELLS`, which `--shell`
     # below already uses, because a second hand-written literal is exactly the drift this defect was.
-    from agent_workflows import completion as completion_mod
+    from agent_workflows import _cli_vocab as completion_mod
 
     _COMPLETION_VERBS = ("install", "uninstall", "status")
     _completion_targets = [*completion_mod.SUPPORTED_SHELLS, *_COMPLETION_VERBS]
@@ -8268,8 +8268,15 @@ EXAMPLES
 
 def _packaged_version() -> str:
     """The version this distribution ships (what installed repos are compared against)."""
+    import agent_workflows as _pkg
 
-    return __version__
+    return _pkg.__version__
+
+
+def __getattr__(name: str):
+    if name == "__version__":
+        return _packaged_version()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _confirm(term: Term, prompt: str, assume_yes: bool, default: bool = False) -> bool:

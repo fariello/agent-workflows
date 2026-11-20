@@ -14,9 +14,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import versioning
-from ._compat import packaged_source_root
-
 
 def _resolve_own_version() -> str:
     """Best-effort version of this package for `__version__` (never raises).
@@ -31,6 +28,9 @@ def _resolve_own_version() -> str:
     """
 
     try:
+        from . import versioning
+        from ._compat import packaged_source_root
+
         bundled = packaged_source_root()
         if bundled is not None:
             # Installed package: look up the sibling dist-info that owns this module.
@@ -60,4 +60,9 @@ def _resolve_own_version() -> str:
         return "unknown"
 
 
-__version__ = _resolve_own_version()
+def __getattr__(name: str):
+    if name == "__version__":
+        val = _resolve_own_version()
+        globals()["__version__"] = val
+        return val
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

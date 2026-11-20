@@ -66,8 +66,13 @@ from typing import Dict, List, Optional, Tuple
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
 from agent_workflows import config as _config
-from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import record_placement as _rp
+from agent_workflows._cli_vocab import (
+    BACKLOG_KINDS as KINDS,
+    BACKLOG_PRIORITIES as PRIORITIES,
+    BACKLOG_STATUS_DIRS as STATUS_DIRS,
+    BACKLOG_STATUSES as STATUSES,
+)
 
 BACKLOG_ROOTS = (".agents/backlog", ".aw/records/backlog")
 # bklgrad Order 01 (v58bvy) E-01: `graduated` sits between `open` and `done` and means the item's
@@ -78,10 +83,6 @@ BACKLOG_ROOTS = (".agents/backlog", ".aw/records/backlog")
 # release-gate satisfier: `aw attention` maps it to `active` (not `done`), so a graduated blocker stays
 # in the outstanding release-blocker set, and closing to `done` still requires the HANDOFF / SATISFIED
 # / DE-GATED legitimacy fixes in `check_engine.evaluate_blocking_close`.
-STATUS_DIRS = _LD.LIFECYCLE_SUBDIRS["backlog"]
-STATUSES = frozenset(STATUS_DIRS)
-PRIORITIES = frozenset(("high", "medium", "low"))
-KINDS = frozenset(("bug", "feature", "chore", "security", "followup"))
 
 # gatekinds kxawm4: the work-kinds whose items AUTOMATICALLY carry a release gate are configured
 # per repository via `release_gate_work_kinds` in `.aw/config/project.json` (reading

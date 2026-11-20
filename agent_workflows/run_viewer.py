@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_workflows import agent_schema as _agent_schema
+from agent_workflows._cli_vocab import RUNS_VIEWER_LEAF_NAMES as RUNS_VIEWER_LEAF_NAMES
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
@@ -3514,18 +3515,6 @@ LIMITS WORTH KNOWING
 #: The nine READ-ONLY leaves registered under `aw runs`. Kept as ONE list so the refusal message
 #: below and `cli._RUNS_VIEWER_LEAVES` cannot drift into disagreeing about what is registered; the
 #: parser imports this rather than holding a second copy (runsverify 7wei1o E-02).
-RUNS_VIEWER_LEAF_NAMES: tuple[str, ...] = (
-    "decisions",
-    "evidence",
-    "list",
-    "next",
-    "questions",
-    "resume",
-    "show",
-    "status",
-    "verify-ledger",
-)
-
 #: Exit code for an unresolvable target. Reuses the SHIPPED invalid-invocation code
 #: (`run_cli.EXIT_INVALID_INVOCATION` == 2) rather than inventing one, so this refusal reads the
 #: same as the analogous `aw runs verify-ledger <absent>` refusal that already exits 2.

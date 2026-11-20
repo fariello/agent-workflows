@@ -1663,6 +1663,102 @@ def redact_public_context(ctx_dict: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+_RESOLVE_CTX_CACHE: Dict[
+    tuple, tuple[tuple[tuple[str, Optional[tuple]], ...], ProjectContext]
+] = {}
+_RESOLVE_CTX_CACHE_MAX = 128
+
+
+def _stat_sig(path_str: str) -> Optional[tuple]:
+    try:
+        st = os.stat(path_str)
+        return (st.st_mode, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+    except OSError:
+        return None
+
+
+def _clone_project_context(ctx: ProjectContext) -> ProjectContext:
+    return ProjectContext(
+        target_repo=ctx.target_repo,
+        project_id=ctx.project_id,
+        delivery_mode=ctx.delivery_mode,
+        effective_aw_home=ctx.effective_aw_home,
+        logical_roots=dict(ctx.logical_roots),
+        records_backend=ctx.records_backend,
+        durability_state=ctx.durability_state,
+        effective_framework_version=ctx.effective_framework_version,
+        enabled_hosts=list(ctx.enabled_hosts),
+        permitted_commit_destinations=dict(ctx.permitted_commit_destinations),
+        root_accessibility=dict(ctx.root_accessibility),
+        open_aw_actions=[dict(a) for a in ctx.open_aw_actions],
+        provenance={k: dict(v) for k, v in ctx.provenance.items()},
+        physical_classes=(
+            dict(ctx.physical_classes) if ctx.physical_classes is not None else None
+        ),
+        git_policies=(dict(ctx.git_policies) if ctx.git_policies is not None else None),
+        project_role=ctx.project_role,
+        preset=ctx.preset,
+        is_configured=ctx.is_configured,
+    )
+
+
+def _watched_context_paths(ctx: ProjectContext) -> tuple[str, ...]:
+    repo = ctx.target_repo
+    aw_home = ctx.effective_aw_home
+    pid = ctx.project_id
+    user_cfg_dir = os.environ.get("AW_CONFIG_DIR") or os.path.join(
+        os.environ.get("XDG_CONFIG_HOME") or os.path.join(str(Path.home()), ".config"),
+        "agent-workflows",
+    )
+    paths = [
+        repo,
+        os.path.join(repo, ".git"),
+        os.path.join(repo, ".git", "index"),
+        os.path.join(repo, ".aw"),
+        os.path.join(repo, ".aw", "config"),
+        os.path.join(repo, ".aw", "config", "project.json"),
+        os.path.join(repo, ".aw", "config", "local.json"),
+        os.path.join(repo, ".aw", "config", "config.json"),
+        os.path.join(repo, ".aw", "config", "policy.json"),
+        os.path.join(repo, ".aw", "system", "VERSION"),
+        os.path.join(repo, ".agents"),
+        os.path.join(repo, ".agents", "config.json"),
+        os.path.join(repo, ".agents", "workflows", "VERSION"),
+        os.path.join(user_cfg_dir, "config.json"),
+        os.path.join(user_cfg_dir, "profiles"),
+        os.path.join(aw_home, "registry.json"),
+        os.path.join(aw_home, "projects", pid, "config"),
+        os.path.join(aw_home, "projects", pid, "config", "project.json"),
+        os.path.join(aw_home, "projects", pid, "config", "local.json"),
+    ]
+    dot_git = os.path.join(repo, ".git")
+    if os.path.isfile(dot_git):
+        try:
+            with open(dot_git, "r", encoding="utf-8") as f:
+                line = f.readline().strip()
+            if line.startswith("gitdir:"):
+                gd = line[len("gitdir:") :].strip()
+                if not os.path.isabs(gd):
+                    gd = os.path.normpath(os.path.join(repo, gd))
+                paths.append(os.path.join(gd, "index"))
+        except OSError:
+            pass
+    for p in ctx.logical_roots.values():
+        if p:
+            paths.append(p)
+    if ctx.physical_classes:
+        for p in ctx.physical_classes.values():
+            if p:
+                paths.append(p)
+    seen: set[str] = set()
+    unique: List[str] = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return tuple(unique)
+
+
 def resolve_project_context(
     target_repo: Optional[str] = None,
     aw_home: Optional[str] = None,
@@ -1685,6 +1781,71 @@ def resolve_project_context(
       5. GLOBAL_DEFAULTS (config.json default keys in user config dir via config.config_dir())
       6. BUILTIN_DEFAULTS (built-in fallbacks)
     """
+    cacheable = (
+        aw_home is None
+        and delivery_mode is None
+        and records_backend is None
+        and enabled_hosts is None
+        and profile is None
+        and user_config_dir is None
+        and preset is None
+        and role is None
+        and companion_dir is None
+    )
+    cache_key: Optional[tuple] = None
+    if cacheable:
+        repo_key = str(target_repo) if target_repo else os.getcwd()
+        cache_key = (
+            repo_key,
+            target_repo is not None,
+            os.environ.get("AW_HOME"),
+            os.environ.get("XDG_CONFIG_HOME"),
+            os.environ.get("AW_CONFIG_DIR"),
+            os.environ.get("HOME"),
+            os.environ.get("AW_PROJECT_CEILING"),
+            os.environ.get("TMPDIR"),
+            os.environ.get("TEMP"),
+            os.environ.get("TMP"),
+        )
+        entry = _RESOLVE_CTX_CACHE.get(cache_key)
+        if entry is not None:
+            watched_sigs, cached_ctx = entry
+            if all(_stat_sig(p) == sig for p, sig in watched_sigs):
+                return _clone_project_context(cached_ctx)
+
+    ctx = _resolve_project_context_uncached(
+        target_repo=target_repo,
+        aw_home=aw_home,
+        delivery_mode=delivery_mode,
+        records_backend=records_backend,
+        enabled_hosts=enabled_hosts,
+        profile=profile,
+        user_config_dir=user_config_dir,
+        preset=preset,
+        role=role,
+        companion_dir=companion_dir,
+    )
+    if cacheable and cache_key is not None:
+        if len(_RESOLVE_CTX_CACHE) >= _RESOLVE_CTX_CACHE_MAX:
+            _RESOLVE_CTX_CACHE.clear()
+        watched = _watched_context_paths(ctx)
+        sigs = tuple((p, _stat_sig(p)) for p in watched)
+        _RESOLVE_CTX_CACHE[cache_key] = (sigs, _clone_project_context(ctx))
+    return ctx
+
+
+def _resolve_project_context_uncached(
+    target_repo: Optional[str] = None,
+    aw_home: Optional[str] = None,
+    delivery_mode: Optional[str] = None,
+    records_backend: Optional[str] = None,
+    enabled_hosts: Optional[List[str]] = None,
+    profile: Optional[str] = None,
+    user_config_dir: Optional[str] = None,
+    preset: Optional[str] = None,
+    role: Optional[str] = None,
+    companion_dir: Optional[str] = None,
+) -> ProjectContext:
     provenance_map: Dict[str, Provenance] = {}
 
     # 1. Target Repo Resolution & Security Check

@@ -245,6 +245,18 @@ _OTHER_SWEEP_SKIP_DIRS = (
 
 
 def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...]:
+    scan_cache = current_scan_cache()
+    cache_key = ("selectors.record_dirs", repo_root_str, record_type)
+    if scan_cache is not None and cache_key in scan_cache:
+        return scan_cache[cache_key]
+
+    result = _compute_record_dirs(repo_root_str, record_type)
+    if scan_cache is not None:
+        scan_cache[cache_key] = result
+    return result
+
+
+def _compute_record_dirs(repo_root_str: str, record_type: str) -> tuple[Path, ...]:
     repo_root = Path(repo_root_str)
     out: List[Path] = []
     seen: set = set()

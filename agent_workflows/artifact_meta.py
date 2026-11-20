@@ -4226,30 +4226,43 @@ def check_freshness(
     need_seen_files = bool(extra_root_dirs)
     now_ns = time.time_ns()
 
-    # Discover directories and files inside records_root
+    # Discover directories and files inside records_root using os.scandir so unchanged
+    # files skip Path construction, _detect_file_role/parse_attributed, and redundant stat joins.
     if records_root.exists():
         records_root_str = str(records_root)
-        for root, dirs, files in os.walk(records_root_str):
-            # Prune non-record trees (spec 4sd62s N4: runs/, comms/, scratch/, etc.)
-            # and research companion data dirs (.data/) before descending.
-            dirs[:] = [
-                d
-                for d in dirs
-                if not d.startswith(".")
-                and d not in _FRESHNESS_EXCLUDED_DIRS
-                and not d.endswith(".data")
-            ]
-            rel_dir = os.path.relpath(root, records_root_str).replace("\\", "/")
-            if rel_dir == ".":
-                rel_dir = ""
-            st_dir = os.stat(root)
+        dir_stack: List[Tuple[str, str]] = [(records_root_str, "")]
+        while dir_stack:
+            cur_dir, rel_dir = dir_stack.pop()
+            try:
+                st_dir = os.stat(cur_dir)
+            except OSError:
+                continue
             current_mtime = st_dir.st_mtime_ns
             if known_dirs.get(rel_dir) != current_mtime:
                 dirty_dirs.append((rel_dir, current_mtime))
 
             is_meta_dir = rel_dir == "meta" or rel_dir.startswith("meta/")
             rel_prefix = f"{rel_dir}/" if rel_dir else ""
-            for fname in files:
+            try:
+                with os.scandir(cur_dir) as it:
+                    entries = list(it)
+            except OSError:
+                continue
+            subdirs: List[Tuple[str, str]] = []
+            for entry in entries:
+                fname = entry.name
+                try:
+                    is_dir = entry.is_dir(follow_symlinks=False)
+                except OSError:
+                    continue
+                if is_dir:
+                    if (
+                        not fname.startswith(".")
+                        and fname not in _FRESHNESS_EXCLUDED_DIRS
+                        and not fname.endswith(".data")
+                    ):
+                        subdirs.append((entry.path, f"{rel_prefix}{fname}"))
+                    continue
                 if (
                     fname.startswith(".")
                     or fname.startswith("INDEX.")
@@ -4260,16 +4273,27 @@ def check_freshness(
                 current_files_set.add(rel_f)
                 if need_seen_files:
                     with contextlib.suppress(OSError):
-                        seen_files.add(os.path.realpath(os.path.join(root, fname)))
+                        seen_files.add(os.path.realpath(entry.path))
+
+                known = known_files.get(rel_f)
+                if known is not None and not force:
+                    try:
+                        st_f = entry.stat(follow_symlinks=True)
+                    except OSError:
+                        st_f = None
+                    if (
+                        st_f is not None
+                        and st_f.st_size == known[0]
+                        and st_f.st_mtime_ns == known[1]
+                        and (now_ns - st_f.st_mtime_ns) >= _RACY_MTIME_WINDOW_NS
+                    ):
+                        continue
 
                 role, f_id6, f_type = _detect_file_role(fname, is_meta=is_meta_dir)
                 if not role:
                     continue
 
-                fpath = Path(root, fname)
-                if _is_source_stale(
-                    fpath, known_files.get(rel_f), force, now_ns=now_ns
-                ):
+                if _is_source_stale(Path(entry.path), known, force, now_ns=now_ns):
                     changed_sources.append(
                         {
                             "path": rel_f,
@@ -4278,6 +4302,8 @@ def check_freshness(
                             "type": f_type,
                         }
                     )
+            if subdirs:
+                dir_stack.extend(reversed(subdirs))
 
     # Discover directories and files in extra roots (e.g., legacy .agents/ trees)
     if extra_root_dirs:
