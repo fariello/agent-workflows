@@ -321,6 +321,34 @@ def test_prompt_aw_prompt_comment_edit_create_and_commentless_purity(
     assert bare_file.read_bytes() == before_bytes
 
 
+def test_write_legacy_noop_preserves_crlf_bytes(tmp_path: Path) -> None:
+    """No-op write_legacy preserves original CRLF bytes on disk (Windows core.autocrlf parity)."""
+    root = _init_repo(tmp_path)
+    ctx = meta.legacy_context(root)
+    crlf_body = b"# Legacy Prompt\r\n\r\nDo the work with zero preamble.\r\n"
+    crlf_file = (
+        root
+        / ".aw"
+        / "records"
+        / "prompts"
+        / "executed"
+        / "20260701-0000-01-crlf.prompt.md"
+    )
+    crlf_file.parent.mkdir(parents=True, exist_ok=True)
+    crlf_file.write_bytes(crlf_body)
+
+    preview = meta.write_legacy(
+        crlf_file,
+        [{"op": "set", "fields": {"short_description": "Must not be added"}}],
+        record_type="prompts",
+        render=_render("same-status", history=False, is_prompt=True),
+        repo_root=root,
+        project_context=ctx,
+    )
+    assert preview.changed is False
+    assert crlf_file.read_bytes() == crlf_body
+
+
 # --------------------------------------------------------------------------------------------------
 # (4) Research --- YAML front matter field edit
 # --------------------------------------------------------------------------------------------------

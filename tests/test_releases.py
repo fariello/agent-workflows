@@ -86,6 +86,25 @@ class ReleasesClassTests(unittest.TestCase):
         self.assertEqual(act.path, p)
         self.assertRegex(act.id6, r"^[0-9a-z]{6}$")
 
+    def test_resolve_and_load_active_match_create_through_symlinked_repo_root(
+        self,
+    ) -> None:
+        """Create, resolve_release, and load_active_release return identical paths through symlinks (macOS /var -> /private/var)."""
+        import os
+
+        if os.name == "nt":
+            self.skipTest("symlinks may require elevated privileges on Windows")
+        real_repo = self.root / "real_repo"
+        real_repo.mkdir()
+        link_repo = self.root / "link_repo"
+        link_repo.symlink_to(real_repo)
+        p = releases.create_release(link_repo, "2.0.0", "symlink test")
+        self.assertEqual(releases.resolve_release(link_repo, "next"), p)
+        act = releases.load_active_release(link_repo)
+        self.assertIsNotNone(act)
+        assert act is not None
+        self.assertEqual(act.path, p)
+
     def test_attention_release_reader(self) -> None:
         # Unit-level: the attention release reader maps a planned release to the `ready` class.
         from agent_workflows import attention

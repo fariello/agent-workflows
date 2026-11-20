@@ -52,7 +52,7 @@ _SUMMARY_RE = re.compile(r"(?m)^- Summary:[ \t]*(.*?)[ \t]*$")
 
 
 def _releases_dir(repo_root: Path) -> Path:
-    return project_records_dir(repo_root) / "releases"
+    return project_records_dir(Path(repo_root).resolve()) / "releases"
 
 
 def _existing_ids(repo_root: Path) -> set:

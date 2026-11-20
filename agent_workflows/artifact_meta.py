@@ -7216,7 +7216,8 @@ def write_legacy(
             except ValueError:
                 rel_src, rel_dst = str(src), str(dest)
             _core.git_mv(git_root, rel_src, rel_dst)
-        _core.atomic_write(dest, rendered)
+        if preview.changed:
+            _core.atomic_write(dest, rendered)
         if moving and src.exists():
             with contextlib.suppress(OSError):
                 src.unlink()
