@@ -3410,6 +3410,7 @@ def run_queue(
                 # The pass selects on durable lane facts plus this recorded prior disposition, and
                 # E-04's hold-back restores exactly this value rather than inventing one.
                 runner_shared.remark_attended_on_requeue(item)
+                runner_shared._archive_prior_stopped(item)
                 item["requeue_from_status"] = item["status"]
                 item["status"] = "queued"
                 item["recovery_next"] = True
@@ -3418,18 +3419,15 @@ def run_queue(
     # runstop m0z0ti (E-04, spec R19/A6): REFUSE the resume outright when the queue still holds an
     # indeterminate item, exiting NONZERO and naming the item, its state, and the reconciliation
     # required. Kept symmetric with `oc_runipd.run_queue` (orchestrator CID-3).
-    unresolved = runner_stop.indeterminate_items(state["queue"])
-    if unresolved:
-        for item in unresolved:
-            print(runner_stop.resume_refusal_message(item), file=sys.stderr)
-        save_state(run_dir, state)
-        write_report(run_dir, state)
-        print(
-            f"resume refused: {len(unresolved)} item(s) require reconciliation first: "
-            f"{', '.join(item.get('id6', '?') for item in unresolved)}",
-            file=sys.stderr,
-        )
-        return 1
+    refusal_rc = runner_shared.refuse_unresolved_indeterminate_resume(
+        run_dir,
+        state,
+        host_cmd="aw agy run",
+        save_state=save_state,
+        write_report=write_report,
+    )
+    if refusal_rc is not None:
+        return refusal_rc
 
     # integpath-04 (`rl67b0`) E-03/E-04, symmetric with `oc_runipd.run_queue` (CID-3): MERGE
     # ALREADY-VERIFIED LANES INSTEAD OF RE-DISPATCHING THEM.
@@ -4352,6 +4350,17 @@ RED-CI GATE:
         help="Retry interrupted, partial, failed, or blocked items in recovery mode",
     )
     resume.add_argument(
+        "--reconcile",
+        dest="reconcile_ids",
+        action="append",
+        default=[],
+        metavar="ID6",
+        help=(
+            "Acknowledge an indeterminate (level-4 force-stopped) item by id6 after "
+            "inspecting git/lane state so resume can requeue it (repeatable; spec c4gd2h R19)"
+        ),
+    )
+    resume.add_argument(
         "--stall-timeout",
         type=float,
         default=None,
@@ -4671,9 +4680,21 @@ def main(argv: list[str] | None = None) -> int:
             # runstop 71vjbn: a resumed run is just as interruptible as a fresh one.
             install_stop_triggers(run_dir)
             with locked_run(run_dir):
+                resume_state = load_state(run_dir)
+                reconcile_ids = getattr(args, "reconcile_ids", None) or []
+                if reconcile_ids:
+                    reconcile_rc = runner_shared.apply_operator_reconciliation(
+                        run_dir,
+                        resume_state,
+                        reconcile_ids=reconcile_ids,
+                        save_state=save_state,
+                        git_status_fn=git_status,
+                    )
+                    if reconcile_rc != 0:
+                        return reconcile_rc
                 runner_shared.clear_stale_stop_request_on_manual_resume(
                     run_dir,
-                    state=load_state(run_dir),
+                    state=resume_state,
                     invocation_started_at=invocation_start_wall,
                 )
                 return run_queue(

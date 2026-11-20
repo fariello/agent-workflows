@@ -39041,6 +39041,35 @@ def _record_deliberate_stop(
     )
 
 
+def host_command_for_state(state: Mapping[str, Any]) -> str:
+    """Return the operator CLI prefix (`aw agy run` or `aw oc run`) for a run state."""
+
+    driver = state.get("driver") if isinstance(state, Mapping) else None
+    driver_id = str(driver.get("id", "") if isinstance(driver, Mapping) else "").lower()
+    if "agy" in driver_id:
+        return "aw agy run"
+    if "oc" in driver_id:
+        return "aw oc run"
+    return "aw <agy|oc> run"
+
+
+def _archive_prior_stopped(item: dict[str, Any]) -> None:
+    """Archive and clear a non-indeterminate `stopped` record before re-running an item.
+
+    Prevents a prior attempt's `stopped_deliberately: True` (for example from a level-3
+    checkpoint stop) from causing `reconcile_disposition` to misclassify the next resumed
+    attempt as `interrupted`. Preserves the historical record on `item["prior_stops"]`.
+    """
+
+    prior_stopped = item.pop("stopped", None)
+    if isinstance(prior_stopped, dict):
+        history = item.setdefault("prior_stops", [])
+        if isinstance(history, list):
+            history.append(prior_stopped)
+        else:
+            item["prior_stops"] = [prior_stopped]
+
+
 def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     """Re-queue items left `interrupted` so resume retries in recovery mode.
 
@@ -39063,6 +39092,8 @@ def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     """
     from agent_workflows import runner_stop
 
+    run_id = str(state.get("run_id") or "") or None
+    host_cmd = host_command_for_state(state)
     requeued: list[str] = []
     for item in state["queue"]:
         if item["status"] != "interrupted":
@@ -39071,10 +39102,12 @@ def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
             item["requires_reconciliation"] = True
             append_jsonl(
                 run_dir / "events.jsonl",
-                runner_stop.refused_resume_event(item, at=utc_now()),
+                runner_stop.refused_resume_event(
+                    item, at=utc_now(), run_id=run_id, host_cmd=host_cmd
+                ),
             )
-            print(runner_stop.resume_refusal_message(item), file=sys.stderr)
             continue
+        _archive_prior_stopped(item)
         item["status"] = "queued"
         item["recovery_next"] = True
         requeued.append(item["id6"])
@@ -39472,6 +39505,183 @@ def reset_driver_restart_loop_state_on_manual_resume(state: dict[str, Any]) -> b
         state["driver_restarts_without_progress"] = 0
         changed = True
     return changed
+
+
+def _normalize_reconcile_ids(raw_ids: Iterable[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_ids:
+        for tok in str(raw).split(","):
+            id6 = tok.strip()
+            if id6 and id6 not in seen:
+                seen.add(id6)
+                normalized.append(id6)
+    return normalized
+
+
+def _item_git_and_branch_for_reconciliation(
+    state: Mapping[str, Any],
+    item: Mapping[str, Any],
+    *,
+    git_status_fn: Callable[[Path], str],
+) -> tuple[str, str | None]:
+    attempts = item.get("attempts")
+    latest_attempt = (
+        attempts[-1]
+        if isinstance(attempts, list) and attempts and isinstance(attempts[-1], Mapping)
+        else {}
+    )
+    lane_branch = item.get("preserved_branch") or latest_attempt.get("worktree_branch")
+    branch_str = str(lane_branch).strip() if lane_branch else None
+    worktree_candidate = item.get("worktree") or latest_attempt.get("worktree")
+    target_dir = None
+    if worktree_candidate:
+        cand_path = Path(str(worktree_candidate))
+        if cand_path.is_dir():
+            target_dir = cand_path
+    if target_dir is None:
+        target_dir = Path(str(state.get("repo") or "."))
+    try:
+        observed_git = git_status_fn(target_dir)
+    except Exception as exc:  # noqa: BLE001 - best-effort snapshot must not block reconciliation
+        observed_git = f"<unobserved: {exc}>"
+    return observed_git, branch_str
+
+
+def apply_operator_reconciliation(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    reconcile_ids: Iterable[str],
+    save_state: Callable[[Path, dict[str, Any]], None],
+    git_status_fn: Callable[[Path], str],
+    acknowledged_by: str = "operator",
+) -> int:
+    """Validate and apply explicit operator reconciliation (`--reconcile <id6>`) on `resume`.
+
+    Validates all requested IDs before mutating any item. Only explicitly named indeterminate
+    items have their R19 gate cleared; any other indeterminate item in the queue remains blocked.
+    Returns 0 on success or 2 when a requested ID is unknown or not indeterminate.
+    """
+    from agent_workflows import runner_stop
+
+    requested = _normalize_reconcile_ids(reconcile_ids)
+    if not requested:
+        return 0
+
+    run_id = str(state.get("run_id") or run_dir.name)
+    by_id: dict[str, dict[str, Any]] = {
+        str(item.get("id6", "")): item
+        for item in state.get("queue", [])
+        if isinstance(item, dict) and item.get("id6")
+    }
+
+    errors: list[str] = []
+    targets: list[tuple[str, dict[str, Any], bool]] = []
+    for id6 in requested:
+        item = by_id.get(id6)
+        if item is None:
+            errors.append(
+                f"error: --reconcile {id6} does not match any item in run {run_id}"
+            )
+            continue
+        if runner_stop.is_indeterminate(item):
+            targets.append((id6, item, True))
+        elif isinstance(item.get("reconciliations"), list) and item["reconciliations"]:
+            targets.append((id6, item, False))
+        else:
+            errors.append(
+                f"error: --reconcile {id6} is not indeterminate "
+                f"(status: {item.get('status', 'unknown')})"
+            )
+
+    if errors:
+        for line in errors:
+            print(line, file=sys.stderr)
+        return 2
+
+    mutated = False
+    for id6, item, needs_reconcile in targets:
+        if not needs_reconcile:
+            print(
+                f"note: {id6} was already reconciled in run {run_id}",
+                file=sys.stderr,
+            )
+            continue
+        observed_git, branch = _item_git_and_branch_for_reconciliation(
+            state, item, git_status_fn=git_status_fn
+        )
+        prior_stopped = (
+            item.get("stopped") if isinstance(item.get("stopped"), dict) else {}
+        )
+        prior_level = prior_stopped.get("level", runner_stop.LEVEL_NOW_FORCE)
+        prior_level_name = runner_stop.LEVEL_NAMES.get(prior_level, "unknown")
+        event = runner_stop.reconcile_indeterminate_item(
+            item,
+            at=utc_now(),
+            acknowledged_by=acknowledged_by,
+            git_state=observed_git,
+            branch=branch,
+        )
+        append_jsonl(run_dir / "events.jsonl", event)
+        print(
+            f"reconciled indeterminate item {id6} "
+            f"(prior stop: level {prior_level} {prior_level_name})",
+            file=sys.stderr,
+        )
+        mutated = True
+
+    if mutated:
+        save_state(run_dir, state)
+    return 0
+
+
+def refuse_unresolved_indeterminate_resume(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    host_cmd: str,
+    save_state: Callable[[Path, dict[str, Any]], None],
+    write_report: Callable[[Path, dict[str, Any]], Any],
+) -> int | None:
+    """Refuse `resume` when any queue item remains indeterminate (spec c4gd2h R19/A6).
+
+    Emits each unresolved item's refusal message to stderr exactly once, saves state and report,
+    and returns exit code 1. Returns None when no indeterminate items remain.
+    """
+    from agent_workflows import runner_stop
+
+    unresolved = runner_stop.indeterminate_items(state.get("queue", []))
+    if not unresolved:
+        return None
+    run_id = str(state.get("run_id") or run_dir.name)
+    for item in unresolved:
+        if item.get("status") != "interrupted":
+            item["requires_reconciliation"] = True
+            append_jsonl(
+                run_dir / "events.jsonl",
+                runner_stop.refused_resume_event(
+                    item, at=utc_now(), run_id=run_id, host_cmd=host_cmd
+                ),
+            )
+        print(
+            runner_stop.resume_refusal_message(item, run_id=run_id, host_cmd=host_cmd),
+            file=sys.stderr,
+        )
+    save_state(run_dir, state)
+    write_report(run_dir, state)
+    ids = [str(item.get("id6", "?")) for item in unresolved]
+    summary = (
+        f"resume refused: {len(unresolved)} item(s) require reconciliation first: "
+        f"{', '.join(ids)}"
+    )
+    if len(unresolved) > 1:
+        cmd = runner_stop.reconcile_command_for_items(
+            ids, run_id=run_id, host_cmd=host_cmd
+        )
+        summary = f"{summary}\nAfter inspecting git/lane state, run: {cmd}"
+    print(summary, file=sys.stderr)
+    return 1
 
 
 def clear_stale_stop_request_on_manual_resume(

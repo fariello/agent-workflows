@@ -166,6 +166,10 @@ __all__ = [
     "forced_stop_event",
     "is_indeterminate",
     "indeterminate_items",
+    "RECONCILED_ITEM_EVENT",
+    "reconcile_command_for_item",
+    "reconcile_command_for_items",
+    "reconcile_indeterminate_item",
     "resume_refusal_message",
     "refused_resume_event",
     # trigger UX (runstop Phase 5, `71vjbn`): the surfaces a HUMAN actually touches. Everything
@@ -744,6 +748,7 @@ def clear_stop_request_on_manual_resume(
     run_dir = Path(run_dir)
     path = stop_request_path(run_dir)
     if not path.exists():
+        reset_deferred_request()
         return None
 
     try:
@@ -751,6 +756,7 @@ def clear_stop_request_on_manual_resume(
             try:
                 stat = path.stat()
             except FileNotFoundError:
+                reset_deferred_request()
                 return None
             existing = read_stop_request(run_dir)
             if stat.st_mtime > invocation_started_at:
@@ -762,7 +768,9 @@ def clear_stop_request_on_manual_resume(
             try:
                 path.unlink()
             except FileNotFoundError:
+                reset_deferred_request()
                 return None
+            reset_deferred_request()
             return existing
     except (_LockBusy, OSError):
         return None
@@ -1645,26 +1653,125 @@ def indeterminate_items(queue: Iterable[Any]) -> list[dict]:
     return [item for item in queue if is_indeterminate(item)]
 
 
-def resume_refusal_message(item: dict) -> str:
+RECONCILED_ITEM_EVENT = "indeterminate-item-reconciled"
+
+
+def reconcile_command_for_items(
+    item_ids: Iterable[str],
+    *,
+    run_id: str | None = None,
+    host_cmd: str | None = None,
+) -> str:
+    """Exact runnable operator command to acknowledge reconciliation and resume."""
+
+    cmd_prefix = (host_cmd or "").strip() or "aw <agy|oc> run"
+    rid = (run_id or "").strip() or "<run-id>"
+    flags = " ".join(f"--reconcile {i}" for i in item_ids if str(i).strip())
+    if not flags:
+        flags = "--reconcile <id6>"
+    return f"{cmd_prefix} resume {rid} {flags}"
+
+
+def reconcile_command_for_item(
+    item_id6: str,
+    *,
+    run_id: str | None = None,
+    host_cmd: str | None = None,
+) -> str:
+    """Exact runnable operator command to acknowledge one indeterminate item and resume."""
+
+    return reconcile_command_for_items(
+        (item_id6 or "<id6>",),
+        run_id=run_id,
+        host_cmd=host_cmd,
+    )
+
+
+def reconcile_indeterminate_item(
+    item: dict,
+    *,
+    at: str,
+    acknowledged_by: str = "operator",
+    git_state: str = "",
+    branch: str | None = None,
+) -> dict:
+    """Record explicit operator reconciliation for an indeterminate item and clear its R19 gate.
+
+    Preserves the prior level-4 ``stopped`` record in ``item["reconciliations"]`` and returns
+    the ``events.jsonl`` audit event dict rather than erasing what happened.
+    """
+
+    prior_stopped_raw = item.get("stopped")
+    prior_stopped = (
+        dict(prior_stopped_raw) if isinstance(prior_stopped_raw, dict) else {}
+    )
+    record: dict[str, Any] = {
+        "at": at,
+        "acknowledged_by": acknowledged_by,
+        "prior_stopped": prior_stopped,
+        "git_state": git_state,
+    }
+    if branch:
+        record["branch"] = branch
+    history = item.setdefault("reconciliations", [])
+    if isinstance(history, list):
+        history.append(record)
+    else:
+        item["reconciliations"] = [record]
+    item.pop("stopped", None)
+    item["requires_reconciliation"] = False
+    if item.get("status") == FORCED_DISPOSITION:
+        item["status"] = STOPPED_DISPOSITION
+    event: dict[str, Any] = {
+        "at": at,
+        "event": RECONCILED_ITEM_EVENT,
+        "id6": item.get("id6", ""),
+        "acknowledged_by": acknowledged_by,
+        "prior_level": prior_stopped.get("level"),
+        "prior_certainty": prior_stopped.get("certainty"),
+        "prior_disposition": prior_stopped.get("disposition"),
+        "prior_stopped": prior_stopped,
+        "git_state": git_state,
+    }
+    if branch:
+        event["branch"] = branch
+    return event
+
+
+def resume_refusal_message(
+    item: dict,
+    *,
+    run_id: str | None = None,
+    host_cmd: str | None = None,
+) -> str:
     """The operator-facing REFUSAL for a resume over an indeterminate item (spec R19, A6).
 
     Refusing must not be indistinguishable from an opaque error: the operator needs to know WHICH
     item, WHY, and WHAT TO DO. So the message names the item id, its indeterminate state and the stop
-    level that produced it, and the reconciliation action required.
+    level that produced it, and the exact reconciliation command to run once git/lane state is verified.
     """
 
     stopped = item.get("stopped") if isinstance(item, dict) else None
     stopped = stopped if isinstance(stopped, dict) else {}
     level = stopped.get("level", LEVEL_NOW_FORCE)
+    id6 = str(item.get("id6", "?") if isinstance(item, dict) else "?")
+    cmd = reconcile_command_for_item(id6, run_id=run_id, host_cmd=host_cmd)
     return (
-        f"refusing to resume {item.get('id6', '?')}: its turn was force-interrupted by a level "
+        f"refusing to resume {id6}: its turn was force-interrupted by a level "
         f"{level} ({LEVEL_NAMES.get(level, 'unknown')}) stop, so its outcome is "
         f"{FORCED_DISPOSITION} (certainty {CERTAINTY_INDETERMINATE}) and this run will NOT re-run it "
-        f"blindly (spec c4gd2h R19). {RECONCILIATION_ACTION}"
+        f"blindly (spec c4gd2h R19). Inspect git/lane state first, then reconcile and resume with: "
+        f"{cmd}"
     )
 
 
-def refused_resume_event(item: dict, *, at: str) -> dict:
+def refused_resume_event(
+    item: dict,
+    *,
+    at: str,
+    run_id: str | None = None,
+    host_cmd: str | None = None,
+) -> dict:
     """The ledger event recording that a resume REFUSED an indeterminate item (spec R19)."""
 
     stopped = item.get("stopped") if isinstance(item, dict) else None
@@ -1677,7 +1784,7 @@ def refused_resume_event(item: dict, *, at: str) -> dict:
         "certainty": CERTAINTY_INDETERMINATE,
         "disposition": FORCED_DISPOSITION,
         "requires_reconciliation": True,
-        "reason": resume_refusal_message(item),
+        "reason": resume_refusal_message(item, run_id=run_id, host_cmd=host_cmd),
     }
 
 
