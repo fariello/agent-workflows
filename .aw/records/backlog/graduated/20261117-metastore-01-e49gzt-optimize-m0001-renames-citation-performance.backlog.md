@@ -1,5 +1,6 @@
 - Id: e49gzt
-- Status: open
+- Status: graduated
+- Graduated-To: e49gzt
 - Set: metastore
 - Work-Kind: chore
 - Priority: medium
@@ -9,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-20 graduated (aw backlog): graduated by run run-20261120T044041Z-1175270: n2bfd4
 - 2026-11-17 created (aw backlog): Optimize m0001_renames.build_rename_map repeated global_id6s scan and artifact_refs.plan_reference_rewrites_with_warnings regex prefilter (~430s dry run)
 
 ## Problem
