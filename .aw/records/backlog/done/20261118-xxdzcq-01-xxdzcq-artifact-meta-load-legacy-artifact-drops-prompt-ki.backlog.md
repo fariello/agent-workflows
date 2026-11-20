@@ -1,5 +1,5 @@
 - Id: xxdzcq
-- Status: graduated
+- Status: done
 - Graduated-To: xxdzcq
 - Set: xxdzcq
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-20 done (aw backlog): closed by aw agy run: IPD acqenf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261119-xxdzcq-01-acqenf-preserve-prompt-kind-and-created-day-in-artifact-meta-load-l.ipd.md); evidence .aw/records/plans/executed/20261119-xxdzcq-01-acqenf-preserve-prompt-kind-and-created-day-in-artifact-meta-load-l.ipd.md
 - 2026-11-19 graduated (aw backlog): graduated by run run-20261119T154308Z-4175911: acqenf
 - 2026-11-18 created (aw backlog): artifact_meta.load_legacy_artifact drops prompt_kind and created_day when reading prompt records
 
