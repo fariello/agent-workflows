@@ -184,6 +184,15 @@ def _spec_5_5_owner_problems(spec_text: str, repo_root: Path) -> list[str]:
             table_rows.append(stripped)
 
     # (b), (c), (d)
+    from agent_workflows import artifact_meta as _meta
+
+    with selectors.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        return _spec_5_5_owner_problems_scan(table_rows, repo_root, problems)
+
+
+def _spec_5_5_owner_problems_scan(
+    table_rows: list[str], repo_root: Path, problems: list[str]
+) -> list[str]:
     for row_line in table_rows:
         cells = [c.strip() for c in row_line.split("|")[1:-1]]
         if len(cells) < 5:

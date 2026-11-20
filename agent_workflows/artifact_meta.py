@@ -3631,9 +3631,13 @@ def _load_sources(
                 _delete_artifact_projection(conn, id6)
                 _track_del_id(id6)
 
-            if not abs_p.exists():
-                # Removed file. A removed source arrives with role "removed", so its former role
-                # is read from the files table (1ajqaa: a deleted review file kept its row).
+            if role == "removed" or not abs_p.exists():
+                # Removed or newly-excluded file (e.g. comms/, runs/, .data/ pruned by
+                # check_freshness). A removed source arrives with role "removed", so its former
+                # role is read from the files table (1ajqaa: a deleted review file kept its row).
+                # Checking `role == "removed"` BEFORE `abs_p.exists()` is critical: files in
+                # excluded directories still exist on disk, and falling through would re-read and
+                # SHA-256 hash them on every query without ever deleting their zombie rows.
                 prior_role = role
                 if role == "removed":
                     pr = conn.execute(

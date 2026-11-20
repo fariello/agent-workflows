@@ -855,10 +855,19 @@ def _iter_paths(repo_root: Path, record_type: str):
         return
 
     for d in record_dirs(repo_root, record_type):
+        d_str = str(d)
+        try:
+            d_res_str = str(d.resolve())
+        except OSError:
+            d_res_str = None
         for p in _iter_md(d):
             if p.name in _SKIP_NAMES:
                 continue
-            rp = str(p.resolve())
+            p_str = str(p)
+            if d_res_str is not None and p_str.startswith(d_str) and not p.is_symlink():
+                rp = d_res_str + p_str[len(d_str) :]
+            else:
+                rp = str(p.resolve())
             if rp in seen:
                 continue
             seen.add(rp)

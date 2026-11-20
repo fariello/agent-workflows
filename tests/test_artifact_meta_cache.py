@@ -512,3 +512,55 @@ def test_check_freshness_concurrent_threads_no_lock_error(tmp_path: Path):
 
     assert all(c >= 10 for c in counts)
     assert any(st.id6 == "thr999" for st in meta.query(project_context=ctx))
+
+
+def test_check_freshness_purges_existing_excluded_dir_rows_from_files_table(
+    tmp_path: Path,
+):
+    import sqlite3
+
+    records_root = tmp_path / "records"
+    state_root = tmp_path / "state"
+    records_root.mkdir()
+    state_root.mkdir()
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+    _create_sample_record(records_root, "exc001", "draft")
+    excluded_file = records_root / "comms" / "README.md"
+    excluded_file.parent.mkdir(parents=True)
+    excluded_file.write_text("# Comms\n", encoding="utf-8")
+
+    # Populate cache first, then inject a stale row for an existing file in an excluded dir.
+    assert len(meta.query(project_context=ctx)) == 1
+    db_path = state_root / "index.db"
+    conn = sqlite3.connect(str(db_path))
+    try:
+        st = excluded_file.stat()
+        conn.execute(
+            "INSERT OR REPLACE INTO files (path, file_role, id6, size, mtime_ns, content_digest, loaded_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "comms/README.md",
+                "artifact",
+                None,
+                st.st_size,
+                st.st_mtime_ns,
+                "deadbeef",
+                "2026-01-01T00:00:00Z",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Next query must purge the zombie row even though comms/README.md still exists on disk.
+    assert len(meta.query(project_context=ctx)) == 1
+    conn = sqlite3.connect(str(db_path))
+    try:
+        remaining = conn.execute(
+            "SELECT path FROM files WHERE path = ?", ("comms/README.md",)
+        ).fetchall()
+    finally:
+        conn.close()
+    assert remaining == []

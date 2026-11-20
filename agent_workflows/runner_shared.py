@@ -16449,6 +16449,14 @@ def summarize_graduation_cluster(repo: Path | None, source_id6: str) -> str:
 
 def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
     """Provide an informative, context-aware error message when a plan selector cannot be resolved."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import selectors as _sel
+
+    with _sel.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        return _describe_unresolved_plan_selector_impl(repo, sel_str)
+
+
+def _describe_unresolved_plan_selector_impl(repo: Path | None, sel_str: str) -> str:
     r = repo or Path(".")
     # A FILENAME-SUBSTRING hit is not an identification: the runner's own selector never matches a
     # non-plan by substring, so saying "'ufawp' is a backlog item" for a truncated id6 blames the
