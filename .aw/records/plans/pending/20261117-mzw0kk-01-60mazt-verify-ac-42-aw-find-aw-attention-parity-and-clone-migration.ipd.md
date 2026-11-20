@@ -6,7 +6,7 @@
 - Scope: Extend `tests/test_m0001_any_repo.py` after Order 08 (`ffceq0`) and `e49gzt` (`n2bfd4`) land to: (1) assert spec `4sd62s` AC-42 item (4) (`aw find` and `aw attention --format json` / `--all --format json` on migrated records) and item (5) (before/after `aw find --agent` parity by mapped path and normalized status) across all five `tests/migration_corpus.py` shapes; (2) add the `this_repository` (`git clone --no-hardlinks`) test marked `@pytest.mark.slow`, `@pytest.mark.livecorpus`, and `@pytest.mark.timeout(...)` (excluded from `@pytest.mark.core`) and allowlisted in `tests/slow_allowlist.txt`; and (3) record one `CHANGELOG.md` entry and run all validation gates. EXCLUDES: AC-42 items (1)-(3), (6), (7), `aw show --history`/`--format json`, and `agent_workflows/status_set.py::inventory_all_artifacts`-vs-`agent_workflows/artifact_meta.py::query` parity on the five corpus shapes (already delivered by `g5hpbb`); modifying production readers (`ffceq0` and its split parts); and optimizing `m0001` runtime (`e49gzt` / `n2bfd4`).
 - Scope-Paths: tests/test_m0001_any_repo.py, tests/slow_allowlist.txt, CHANGELOG.md, .aw/records/plans/pending/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.ipd.md
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, state:backlog:done:e49gzt
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Verify AC-42 items (4), (5), and the this-repository clone migration in tests/test_m0001_any_repo.py after ffceq0 and e49gzt.
@@ -20,11 +20,13 @@
 - Highest E allocated: 03
 - Author: antigravity/gemini
 - Id: 60mazt
+- Approval: 2026-11-20, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-20 approved (aw set): status set to approved
 - 2026-11-20 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-20 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.review.md
 - 2026-11-18 to-review (aw set): Authored review-ready follow-up plan graduated from backlog mzw0kk
