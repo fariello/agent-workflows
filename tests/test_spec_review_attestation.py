@@ -1126,7 +1126,7 @@ class GrandfatheringAndCheckerTests(unittest.TestCase):
         wrong = []
         for status, has_record, should_fire, why in self.GRID:
             with TemporaryDirectory() as d:
-                root = Path(d)
+                root = Path(d).resolve()
                 p = _write_spec(root, "aaa111", status)
                 if has_record:
                     _write_record(root, "aaa111")

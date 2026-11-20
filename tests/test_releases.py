@@ -14,7 +14,7 @@ from agent_workflows.record_producers import RecordClass, resolve_record_path
 class ReleasesClassTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
+        self.root = Path(self._tmp.name).resolve()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -138,7 +138,7 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
+        self.root = Path(self._tmp.name).resolve()
         self.rec = self.root / ".aw" / "records"
         # Two release records: ONE planned (so `next` resolves) and one shipped.
         _write(

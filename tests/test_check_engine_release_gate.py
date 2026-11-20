@@ -2092,6 +2092,18 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             findings = check_engine.check_release_gates(repo)
             rules = [d.rule for d in findings]
             self.assertEqual(rules.count("check.blocking-item-closed-without-gate"), 1)
+            # Symlinked repo root (macOS /var -> /private/var) must also deduplicate
+            import os
+
+            if os.name != "nt":
+                with TemporaryDirectory() as link_parent:
+                    link_repo = Path(link_parent) / "symlink_repo"
+                    link_repo.symlink_to(repo)
+                    link_findings = check_engine.check_release_gates(link_repo)
+                    link_rules = [d.rule for d in link_findings]
+                    self.assertEqual(
+                        link_rules.count("check.blocking-item-closed-without-gate"), 1
+                    )
 
     def test_rule_blocking_close_grandfathered_pre_cutover_reported(self) -> None:
         """heh05a E-05 case 1: pre-cutover illegitimate close reported under check.blocking-close-grandfathered."""

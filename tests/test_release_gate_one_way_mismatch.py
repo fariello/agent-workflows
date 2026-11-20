@@ -186,7 +186,7 @@ class ReleaseGateOneWayMismatchTests(unittest.TestCase):
         # (a) gated item (next) with a live pending/ plan carrying NO gate
         with self.subTest(case="a_ungated_plan"):
             with tempfile.TemporaryDirectory() as td:
-                root = Path(td)
+                root = Path(td).resolve()
                 _release(root)
                 _item(root, "item01", status="graduated", work_kind="bug", gate="next")
                 plan_p = _plan(
@@ -208,7 +208,7 @@ class ReleaseGateOneWayMismatchTests(unittest.TestCase):
         # (b) gated item (next) with a live plan gated to a DIFFERENT, unresolvable release string
         with self.subTest(case="b_differently_gated_plan"):
             with tempfile.TemporaryDirectory() as td:
-                root = Path(td)
+                root = Path(td).resolve()
                 _release(root)
                 _item(root, "item02", status="graduated", work_kind="bug", gate="next")
                 plan_p = _plan(
@@ -230,7 +230,7 @@ class ReleaseGateOneWayMismatchTests(unittest.TestCase):
         # (c) gated item with a matching-gated live plan and assert zero findings
         with self.subTest(case="c_matching_plan_zero_findings"):
             with tempfile.TemporaryDirectory() as td:
-                root = Path(td)
+                root = Path(td).resolve()
                 _release(root)
                 _item(root, "item03", status="graduated", work_kind="bug", gate="next")
                 _plan(
@@ -250,7 +250,7 @@ class ReleaseGateOneWayMismatchTests(unittest.TestCase):
         # (d) gated item (next) with a SPEC carrier gated to v9z9z9, built with the SAME spec helper E-01(b) uses
         with self.subTest(case="d_differently_gated_spec"):
             with tempfile.TemporaryDirectory() as td:
-                root = Path(td)
+                root = Path(td).resolve()
                 _release(root)
                 _item(root, "item04", status="graduated", work_kind="bug", gate="next")
                 spec_p = _spec(root, "spec04", "item04", gate="v9z9z9")

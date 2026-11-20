@@ -994,7 +994,12 @@ class TestStatuslineClass:
             assert outer._thread is not None and outer._thread.is_alive()
 
             size_after_detach = len(stream.getvalue())
-            time.sleep(0.06)
+            deadline = time.monotonic() + 1.0
+            while (
+                len(stream.getvalue()) <= size_after_detach
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.02)
             assert len(stream.getvalue()) > size_after_detach
             assert "Timeout:--:--" in outer.render_line()
 

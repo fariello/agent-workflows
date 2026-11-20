@@ -261,7 +261,7 @@ def test_find_active_runners(tmp_path: Path) -> None:
     (run_b / "driver.lock").write_text(json.dumps({"pid": 999999}), encoding="utf-8")
 
     def mock_holder_state(path: Path) -> str:
-        if str(my_pid) in path.name:
+        if path.name.endswith(f"-{my_pid}"):
             return HOLDER_LIVE
         return HOLDER_NONE
 
@@ -270,7 +270,7 @@ def test_find_active_runners(tmp_path: Path) -> None:
         side_effect=mock_holder_state,
     ), patch(
         "agent_workflows.runners_monitor.platform_lock.read_lock_record_pid",
-        side_effect=lambda p: my_pid if str(my_pid) in str(p) else None,
+        side_effect=lambda p: my_pid if p.parent.name.endswith(f"-{my_pid}") else None,
     ):
         runners = runners_monitor.find_active_runners(tmp_path)
 

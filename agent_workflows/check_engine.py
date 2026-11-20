@@ -7397,11 +7397,14 @@ def check_release_gate_consistency(
                 repo_root, "release_gate_at_rest", compact=True
             )
 
+            repo_root_resolved = repo_root.resolve()
             at_rest_candidates: List[Tuple[Path, str, Any]] = []
             grandfathered_candidates: List[Tuple[Path, str, Any, Optional[str]]] = []
             for item_p, st in backlog_states:
                 try:
-                    rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
+                    rel_path = str(
+                        item_p.resolve().relative_to(repo_root_resolved)
+                    ).replace("\\", "/")
                 except ValueError:
                     rel_path = str(item_p).replace("\\", "/")
                 if rel_path in seen_blocking_locations:
