@@ -1,5 +1,6 @@
 - Id: o2or8a
-- Status: open
+- Status: graduated
+- Graduated-To: o2or8a
 - Set: o2or8a
 - Work-Kind: bug
 - Priority: medium
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-20 graduated (aw backlog): graduated by run run-20261119T154257Z-4175363: ippuby
 - 2026-11-17 created (aw backlog): aw install writes .aw/config/project.json via write_metadata_schema outside diff preview and leaves it unstaged on re-run when git_policies is absent
 
 ## Problem
