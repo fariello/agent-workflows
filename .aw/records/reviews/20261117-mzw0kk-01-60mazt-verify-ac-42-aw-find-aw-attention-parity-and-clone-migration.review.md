@@ -63,7 +63,7 @@ AW-TIER: standard
 
 ### Step S5
 
-- Checked: Pre-existing `## Open questions` confirmed none open (circular dependency and runtime bottleneck resolved by maintainer decision `g5hpbb-ac42-order08-circular-dependency` on 2026-11-17). All 7 findings fixed in place; every decision `D-1..D-5` recorded in `### Decisions` is `Reversible: yes` and grounded in repository code/specs. Zero human-owned blocking questions remain (`questions: []` in `.aw/state/lane-submissions/run-20261120T054627Z-1732272/01-60mazt/attempt-1/outcomes/01-60mazt.json`).
+- Checked: Pre-existing `## Open questions` confirmed none open (circular dependency and runtime bottleneck resolved by maintainer decision `g5hpbb-ac42-order08-circular-dependency` on 2026-11-17). All 7 findings fixed in place; every decision `D-1..D-5` recorded in `### Decisions` is `Reversible: yes` and grounded in repository code/specs. Zero human-owned blocking questions remain (`questions: []` in `.aw/state/lane-submissions/run-20261120T054627Z-1732272/01-60mazt/attempt-2/outcomes/01-60mazt.json`).
 
 ### Pass 2
 
