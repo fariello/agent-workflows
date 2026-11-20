@@ -2573,6 +2573,33 @@ def lint_file(
     membership_cache: Optional[Dict[str, Any]] = None,
 ) -> LintResult:
     text = path.read_text(encoding="utf-8")
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import selectors as _selectors
+
+    with _selectors.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        return _lint_file_impl(
+            path,
+            text,
+            checkpoint=checkpoint,
+            legacy=legacy,
+            citation_anchors=citation_anchors,
+            suppress_s408=suppress_s408,
+            membership=membership,
+            membership_cache=membership_cache,
+        )
+
+
+def _lint_file_impl(
+    path: Path,
+    text: str,
+    *,
+    checkpoint: str = "author",
+    legacy: bool = False,
+    citation_anchors: bool = False,
+    suppress_s408: bool = False,
+    membership: Optional[Any] = None,
+    membership_cache: Optional[Dict[str, Any]] = None,
+) -> LintResult:
     # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
     # consume the already-parsed document instead of re-parsing the same text.
     doc = parse(text)

@@ -2534,6 +2534,9 @@ def _system_member_destination(
     *,
     home_trees: Optional[dict[str, Any]] = None,
     side: Optional[str] = None,
+    sys_dir_override: Optional[Path] = None,
+    canon_root_override: Optional[str] = None,
+    sys_dir_in_tree_override: Optional[bool] = None,
 ) -> tuple[Path, bool]:
     """Map a member path onto its physical destination and report whether it is inside repo_root."""
     from agent_workflows.project_context import (
@@ -2543,9 +2546,12 @@ def _system_member_destination(
     )
 
     prefix = f"{AW_SYSTEM_DIR}/"
+    is_sys_rel = relative_posix.startswith(prefix) or relative_posix == AW_SYSTEM_DIR
     if side == "target":
         sys_dir = repo_root / AW_SYSTEM_DIR
-    elif relative_posix.startswith(prefix) or relative_posix == AW_SYSTEM_DIR:
+    elif sys_dir_override is not None:
+        sys_dir = sys_dir_override
+    elif is_sys_rel:
         if home_trees is None:
             home_trees = _clean_delta_home_trees(repo_root)
         if home_trees is not None and "system" in home_trees:
@@ -2563,7 +2569,25 @@ def _system_member_destination(
     else:
         dest = repo_root / relative_posix
 
-    is_in_tree = _is_safe_subpath(_canonical_path(dest), _canonical_path(repo_root))
+    # Fast path when caller pre-verified sys_dir / repo_root containment and the relative path
+    # has no traversal segments and no existing symlink along the destination path.
+    if (
+        canon_root_override is not None
+        and ".." not in relative_posix.split("/")
+        and not dest.is_symlink()
+    ):
+        if is_sys_rel and sys_dir_in_tree_override is not None:
+            if not dest.exists():
+                return dest, sys_dir_in_tree_override
+        elif not is_sys_rel and not dest.exists():
+            return dest, True
+
+    canon_root = (
+        canon_root_override
+        if canon_root_override is not None
+        else _canonical_path(repo_root)
+    )
+    is_in_tree = _is_safe_subpath(_canonical_path(dest), canon_root)
     return dest, is_in_tree
 
 
@@ -2599,6 +2623,11 @@ def write_file(
     skipped: list[str],
     conflicted: list[str],
     executable: bool = False,
+    *,
+    deferred_stage: Optional[list[str]] = None,
+    sys_dir_override: Optional[Path] = None,
+    canon_root_override: Optional[str] = None,
+    sys_dir_in_tree_override: Optional[bool] = None,
 ) -> None:
     """Install one file.
 
@@ -2614,7 +2643,13 @@ def write_file(
     fixed and re-staged, so a mode-only change is not silently left unstaged.
     """
 
-    destination, is_in_tree = _system_member_destination(plan.repo_root, relative_posix)
+    destination, is_in_tree = _system_member_destination(
+        plan.repo_root,
+        relative_posix,
+        sys_dir_override=sys_dir_override,
+        canon_root_override=canon_root_override,
+        sys_dir_in_tree_override=sys_dir_in_tree_override,
+    )
 
     # Honor a decline tombstone (IPD 20260723-1100-01): a file the user previously declined
     # is not re-added on future installs. The interactive per-directive consent prompt that
@@ -2715,7 +2750,10 @@ def write_file(
         destination.write_bytes(data)
     _apply_executable_bit(destination, executable)
     if use_git and is_in_tree:
-        _stage_installed_file(plan.repo_root, relative_posix)
+        if deferred_stage is not None:
+            deferred_stage.append(relative_posix)
+        else:
+            _stage_installed_file(plan.repo_root, relative_posix)
     _record_written(plan, relative_posix, data)
     installed.append(f"{relative_posix} [{action}]")
 
@@ -2743,6 +2781,70 @@ def _stage_installed_file(repo_root: Path, relative_posix: str) -> None:
     staged = git_add_optional(repo_root, relative_posix)
     if not staged:
         _warn_ignored_shim(relative_posix)
+
+
+def _stage_installed_files_batch(repo_root: Path, relative_paths: list[str]) -> None:
+    """Batch-stage installed files, preserving exact required vs optional-shim semantics.
+
+    Turns hundreds of per-file ``git add`` subprocesses during ``install_all`` into 1-2
+    batched invocations while still warning once per gitignored shim directory and failing
+    loud on any real git error.
+    """
+    if not relative_paths:
+        return
+
+    required: list[str] = []
+    optional: list[str] = []
+    for rel in relative_paths:
+        if in_framework_namespace(rel) and not (
+            rel.startswith(".opencode/") or rel.startswith(".claude/")
+        ):
+            required.append(rel)
+        else:
+            optional.append(rel)
+
+    chunk_size = 200
+    for i in range(0, len(required), chunk_size):
+        git_run(repo_root, ["add", "--", *required[i : i + chunk_size]])
+
+    for i in range(0, len(optional), chunk_size):
+        chunk = optional[i : i + chunk_size]
+        res = subprocess.run(
+            ["git", "-C", str(repo_root), "add", "--", *chunk],
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode == 0:
+            continue
+        if "ignored by" in res.stderr:
+            chk = subprocess.run(
+                ["git", "-C", str(repo_root), "check-ignore", "--stdin"],
+                input="\n".join(chunk) + "\n",
+                capture_output=True,
+                text=True,
+            )
+            ignored_set = {
+                line.strip() for line in chk.stdout.splitlines() if line.strip()
+            }
+            non_ignored: list[str] = []
+            for rel in chunk:
+                if rel in ignored_set:
+                    _warn_ignored_shim(rel)
+                else:
+                    non_ignored.append(rel)
+            if non_ignored:
+                res2 = subprocess.run(
+                    ["git", "-C", str(repo_root), "add", "--", *non_ignored],
+                    capture_output=True,
+                    text=True,
+                )
+                if res2.returncode != 0:
+                    # Fall back per-path so exact warning/error attribution is preserved.
+                    for rel in non_ignored:
+                        if not git_add_optional(repo_root, rel):
+                            _warn_ignored_shim(rel)
+            continue
+        raise SystemExit(f"git add failed:\n{res.stderr.strip()}")
 
 
 _IGNORED_SHIM_WARNED: set[str] = set()
@@ -2884,7 +2986,22 @@ def install_all(
     installed: list[str] = []
     skipped: list[str] = []
     conflicted: list[str] = []
+    pending_stage: list[str] = []
     timestamp = _plan_backup_timestamp(plan)
+
+    from agent_workflows.project_context import (
+        _canonical_path,
+        _is_safe_subpath,
+        project_system_dir,
+    )
+
+    home_trees = _clean_delta_home_trees(plan.repo_root)
+    if home_trees is not None and "system" in home_trees:
+        cached_sys_dir = home_trees["system"]
+    else:
+        cached_sys_dir = project_system_dir(plan.repo_root)
+    canon_root = _canonical_path(plan.repo_root)
+    sys_dir_in_tree = _is_safe_subpath(_canonical_path(cached_sys_dir), canon_root)
 
     for member in body_members:
         # member is e.g. ".aw/system/workflows/release-review/README.md" or ".agents/workflows/..."; map to source.
@@ -2906,6 +3023,10 @@ def install_all(
             skipped,
             conflicted,
             executable=executable,
+            deferred_stage=pending_stage,
+            sys_dir_override=cached_sys_dir,
+            canon_root_override=canon_root,
+            sys_dir_in_tree_override=sys_dir_in_tree,
         )
 
     for rel, content in sorted(shim_members.items()):
@@ -2920,7 +3041,14 @@ def install_all(
             skipped,
             conflicted,
             executable=False,
+            deferred_stage=pending_stage,
+            sys_dir_override=cached_sys_dir,
+            canon_root_override=canon_root,
+            sys_dir_in_tree_override=sys_dir_in_tree,
         )
+
+    if use_git and not plan.dry_run and pending_stage:
+        _stage_installed_files_batch(plan.repo_root, pending_stage)
 
     if conflicted:
         message = [
@@ -7092,7 +7220,13 @@ def create_prepush_authorization_gate_hook(
 
 
 def _create_if_absent(
-    repo_root: Path, rel: str, content: str, use_git: bool, created: list[str]
+    repo_root: Path,
+    rel: str,
+    content: str,
+    use_git: bool,
+    created: list[str],
+    *,
+    deferred_add: Optional[list[str]] = None,
 ) -> None:
     """Write ``content`` to ``rel`` ONLY if it does not already exist (no-clobber, R-2).
 
@@ -7106,8 +7240,44 @@ def _create_if_absent(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     if use_git and _is_dest_in_repo(target, repo_root):
-        git_add_optional(repo_root, rel)
+        if deferred_add is not None:
+            deferred_add.append(rel)
+        else:
+            git_add_optional(repo_root, rel)
     created.append(rel)
+
+
+def _git_add_optional_batch(repo_root: Path, paths: list[str]) -> None:
+    """Batch version of ``git_add_optional``: stages non-ignored paths in one git call."""
+    if not paths:
+        return
+    res = subprocess.run(
+        ["git", "-C", str(repo_root), "add", "--", *paths],
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode == 0:
+        return
+    if "ignored by" in res.stderr:
+        chk = subprocess.run(
+            ["git", "-C", str(repo_root), "check-ignore", "--stdin"],
+            input="\n".join(paths) + "\n",
+            capture_output=True,
+            text=True,
+        )
+        ignored_set = {line.strip() for line in chk.stdout.splitlines() if line.strip()}
+        non_ignored = [p for p in paths if p not in ignored_set]
+        if non_ignored:
+            res2 = subprocess.run(
+                ["git", "-C", str(repo_root), "add", "--", *non_ignored],
+                capture_output=True,
+                text=True,
+            )
+            if res2.returncode != 0:
+                for p in non_ignored:
+                    git_add_optional(repo_root, p)
+        return
+    raise SystemExit(f"git add failed:\n{res.stderr.strip()}")
 
 
 def collect_scaffold_members(
@@ -7614,6 +7784,7 @@ def create_setup_artifacts(
         return created
 
     comms_readme = f"{dirs['comms']}/README.md"
+    deferred_add: list[str] = []
     for rel, content in files:
         if rel == comms_readme:
             target = _records_member_destination(repo_root, rel)
@@ -7658,7 +7829,12 @@ def create_setup_artifacts(
                     if installed is not None:
                         installed.append(f"{rel} [overwrite]")
                     continue
-        _create_if_absent(repo_root, rel, content, use_git, created)
+        _create_if_absent(
+            repo_root, rel, content, use_git, created, deferred_add=deferred_add
+        )
+
+    if use_git and deferred_add:
+        _git_add_optional_batch(repo_root, deferred_add)
 
     # awuntrackedfix Order 01 (PR-002): rename any existing `local/` lane to `untracked/` FIRST, so a
     # populated lane is cleanly renamed/merged BEFORE we mkdir the empty `untracked/<sub>` dirs (which

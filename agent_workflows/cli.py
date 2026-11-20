@@ -10995,7 +10995,15 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
         ):
             repos = [cwd]
 
-    repo_details = [_collect_repo_status_details(r, packaged) for r in repos]
+    from agent_workflows import artifact_meta as _st_meta
+    from agent_workflows import selectors as _st_sel
+
+    with (
+        _st_meta.scan_once(),
+        _st_meta.ephemeral_if_uninitialized(),
+        _st_sel.scan_once(),
+    ):
+        repo_details = [_collect_repo_status_details(r, packaged) for r in repos]
     repo_details.sort(key=lambda rd: str(rd["path"]).lower())
     excluded_entries = sorted(
         config.repo_setting(cfg, "exclude"), key=lambda e: str(e).lower()
@@ -16274,7 +16282,20 @@ def _run_find(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
     """awcmdsurf Order 02 / highpbacklog0822 Order 04: find artifacts with empty-state UX."""
+    from agent_workflows import artifact_meta as _find_meta
+    from agent_workflows import selectors as _find_sel
 
+    with (
+        _find_meta.scan_once(),
+        _find_meta.ephemeral_if_uninitialized(),
+        _find_sel.scan_once(),
+    ):
+        return _run_find_impl(args, term, context)
+
+
+def _run_find_impl(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     from agent_workflows import artifact_types as at
     from agent_workflows.artifact_types import EXIT_CANNOT_RUN
     from agent_workflows.project_context import (
@@ -20565,8 +20586,23 @@ def _consume_early_flags(
 _consume_presentation_flags = _consume_early_flags
 
 
+_ORIG_BUILD_PARSER = _build_parser
+_CACHED_DISPATCH_PARSER: Optional[argparse.ArgumentParser] = None
+
+
+def _get_dispatch_parser() -> argparse.ArgumentParser:
+    global _CACHED_DISPATCH_PARSER
+    if _build_parser is _ORIG_BUILD_PARSER and not os.environ.get(
+        "AW_ALLOW_DEST_SHADOWING"
+    ):
+        if _CACHED_DISPATCH_PARSER is None:
+            _CACHED_DISPATCH_PARSER = _build_parser()
+        return _CACHED_DISPATCH_PARSER
+    return _build_parser()
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
-    parser = _build_parser()
+    parser = _get_dispatch_parser()
     _maybe_argcomplete(parser)
     # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
     # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).

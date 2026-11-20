@@ -1098,16 +1098,20 @@ def backlog_graduate_ipd(
     repo = Path(repo)
     findings: list[tuple[str, str, str]] = []
 
-    for p_raw in produced_paths:
-        plan_id, diags = _check_ipd_conformance(
-            repo, p_raw, "From-Backlog", item_id6, continued_ids=continued_ids
-        )
-        for code, detail in diags:
-            msg = (
-                f"[BACKLOG-GRADUATE-IPD] IPD {plan_id} generated from backlog {item_id6} "
-                f"fails {code}: {detail}. Fix it, then: aw {host} run resume {run_id}"
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import selectors as _selectors
+
+    with _selectors.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        for p_raw in produced_paths:
+            plan_id, diags = _check_ipd_conformance(
+                repo, p_raw, "From-Backlog", item_id6, continued_ids=continued_ids
             )
-            findings.append(("BACKLOG-GRADUATE-IPD", plan_id, msg))
+            for code, detail in diags:
+                msg = (
+                    f"[BACKLOG-GRADUATE-IPD] IPD {plan_id} generated from backlog {item_id6} "
+                    f"fails {code}: {detail}. Fix it, then: aw {host} run resume {run_id}"
+                )
+                findings.append(("BACKLOG-GRADUATE-IPD", plan_id, msg))
 
     return findings
 

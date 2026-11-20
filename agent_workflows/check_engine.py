@@ -8040,6 +8040,29 @@ def evaluate_ipd_dependencies(
     """
     repo_root = Path(repo_root)
     from agent_workflows import artifact_meta as _meta
+    from agent_workflows import selectors as _selectors
+
+    with _selectors.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        return _evaluate_ipd_dependencies_impl(
+            repo_root,
+            phase=phase,
+            plans=plans,
+            overlay=overlay,
+            include_retired=include_retired,
+            actions=actions,
+        )
+
+
+def _evaluate_ipd_dependencies_impl(
+    repo_root: Path,
+    *,
+    phase: str = "check",
+    plans: Optional[List[Tuple[Path, str]]] = None,
+    overlay: Optional[Dict[str, str]] = None,
+    include_retired: bool = False,
+    actions: Optional[Dict[str, str]] = None,
+) -> List[_core.Drift]:
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import config as _config
     from agent_workflows import selectors as _selectors
 
@@ -9089,10 +9112,18 @@ def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
     """
     drift: List[_core.Drift] = []
     try:
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import review_findings as _rf
+        from agent_workflows import selectors as _selectors
     except Exception:
         return drift
 
+    with _selectors.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        return _check_spec_review_attestation_impl(repo_root, _rf)
+
+
+def _check_spec_review_attestation_impl(repo_root: Path, _rf: Any) -> List[_core.Drift]:
+    drift: List[_core.Drift] = []
     try:
         spec_rows = _meta_records_with_fields(repo_root, "spec", suffix=".spec.md")
     except Exception:

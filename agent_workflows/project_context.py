@@ -146,6 +146,45 @@ def _git_cached_entries(repo_abs: str, _stamp: tuple):
     return entries
 
 
+@functools.lru_cache(maxsize=64)
+def _git_cached_index(
+    repo_abs: str, _stamp: tuple
+) -> Optional[
+    tuple[tuple[str, ...], Dict[str, tuple[str, ...]], Dict[str, tuple[str, ...]]]
+]:
+    """Pre-indexed tracked files for O(1) lookup in ``validate_physical_git_policy``.
+
+    Returns ``(symlinks, by_basename, by_segment)`` where:
+      - ``symlinks`` lists every tracked symlink (always canonicalized because a symlink
+        can alias a forbidden target under any basename);
+      - ``by_basename`` maps each regular file's basename to its tracked ``rel_path``s;
+      - ``by_segment`` maps each path segment of a regular file to its tracked ``rel_path``s
+        (for matching ``state_runtime`` directory ancestors).
+    """
+    entries = _git_cached_entries(repo_abs, _stamp)
+    if entries is None:
+        return None
+    symlinks: List[str] = []
+    by_basename_mut: Dict[str, List[str]] = {}
+    by_segment_mut: Dict[str, List[str]] = {}
+    for rel_path, is_symlink in entries:
+        if is_symlink:
+            symlinks.append(rel_path)
+            continue
+        rel_norm = rel_path.replace(os.sep, "/")
+        parts = rel_norm.split("/")
+        base = parts[-1]
+        by_basename_mut.setdefault(base, []).append(rel_path)
+        for seg in set(parts):
+            if seg:
+                by_segment_mut.setdefault(seg, []).append(rel_path)
+    return (
+        tuple(symlinks),
+        {k: tuple(v) for k, v in by_basename_mut.items()},
+        {k: tuple(v) for k, v in by_segment_mut.items()},
+    )
+
+
 def validate_physical_git_policy(
     target_repo: str, physical_classes: Dict[str, str]
 ) -> None:
@@ -160,19 +199,8 @@ def validate_physical_git_policy(
         return
 
     try:
-        cached_entries = _git_cached_entries(repo_abs, _git_index_stamp(repo_abs))
-        if cached_entries is not None:
-            # PERF (awfindperf): canonicalize the two forbidden TARGETS once, then compare each
-            # tracked file by string. The previous form called _canonical_path()
-            # (Path.resolve() -> lstat) and _is_safe_subpath() for EVERY tracked file; on a
-            # ~1,400-file repo that cost >1M lstat calls per `aw find` (the resolver runs ~30x
-            # per command), which was ~90% of its runtime.
-            #
-            # Semantics are preserved exactly: config_local must match exactly; state_runtime
-            # matches itself or any descendant. Comparison is done on CANONICAL absolute paths
-            # (same basis as before), so a symlinked repo or tmpdir behaves identically -- we
-            # canonicalize each tracked path only when a cheap basename prefilter says it could
-            # possibly match, so the expensive call happens O(candidates) not O(tracked files).
+        cached_idx = _git_cached_index(repo_abs, _git_index_stamp(repo_abs))
+        if cached_idx is not None:
             config_local_path = physical_classes.get(RootClass.CONFIG_LOCAL.value)
             state_runtime_path = physical_classes.get(RootClass.STATE_RUNTIME.value)
             if not config_local_path and not state_runtime_path:
@@ -181,22 +209,25 @@ def validate_physical_git_policy(
             sr_canon = (
                 _canonical_path(state_runtime_path) if state_runtime_path else None
             )
-            # Cheap prefilter: only a tracked path whose basename matches the forbidden file's
-            # basename (config_local), or which lies under the runtime dir's basename, can match.
             cl_base = os.path.basename(cl_canon) if cl_canon else None
             sr_base = os.path.basename(sr_canon.rstrip("/")) if sr_canon else None
-            for rel_path, is_symlink in cached_entries:
-                rel_norm = rel_path.replace(os.sep, "/")
-                base = rel_norm.rsplit("/", 1)[-1]
-                may_be_config = cl_base is not None and base == cl_base
-                may_be_runtime = sr_base is not None and (
-                    f"/{sr_base}/" in f"/{rel_norm}" or rel_norm.endswith(f"/{sr_base}")
-                )
-                # A SYMLINK can resolve to a forbidden target under any basename, so the cheap
-                # basename prefilter is not sound for it: always canonicalize a symlink. Regular
-                # files cannot alias another path, so the prefilter is sound for them.
-                if not is_symlink and not may_be_config and not may_be_runtime:
-                    continue
+            symlinks, by_basename, by_segment = cached_idx
+
+            # Collect only candidates that could possibly match (O(1) dict lookups + all symlinks).
+            candidates: List[str] = list(symlinks)
+            seen_candidates: set[str] = set(symlinks)
+            if cl_base:
+                for rel_path in by_basename.get(cl_base, ()):
+                    if rel_path not in seen_candidates:
+                        seen_candidates.add(rel_path)
+                        candidates.append(rel_path)
+            if sr_base:
+                for rel_path in by_segment.get(sr_base, ()):
+                    if rel_path not in seen_candidates:
+                        seen_candidates.add(rel_path)
+                        candidates.append(rel_path)
+
+            for rel_path in candidates:
                 abs_path = _canonical_path(os.path.join(repo_abs, rel_path))
                 if cl_canon and abs_path == cl_canon:
                     raise PathSecurityError(

@@ -836,6 +836,37 @@ def _ensure_xdist_then_reexec() -> None:
     os.execv(sys.executable, [sys.executable, "-m", "pytest", *sys.argv[1:]])
 
 
+_RUNNER_SAFETY_PROBE_TEST_MODULES = frozenset(
+    {
+        "test_runner_safety_probe_memo.py",
+        "test_host_capability_extension.py",
+        "test_runwire_verifier_authority.py",
+        "test_host_sandbox_profile.py",
+    }
+)
+
+
+_WORKER_RUNNER_SAFETY_MEMO: dict = {}
+
+
+@pytest.fixture(autouse=True)
+def _memoize_runner_safety_probes_for_non_probe_tests(request: pytest.FixtureRequest):
+    """Enable the opt-in runner-safety probe memo for tests that do not test the probes directly.
+
+    `host_sandbox_profile.memoized_runner_safety_verdicts` is explicitly designed for test
+    processes that call `detect_host_capabilities` repeatedly (e.g. runner suites), while
+    keeping production uncached and excluding the four modules that test probe mechanics.
+    """
+    test_file = Path(str(request.path)).name
+    if test_file in _RUNNER_SAFETY_PROBE_TEST_MODULES:
+        yield
+        return
+    from agent_workflows import host_sandbox_profile as _hsp
+
+    with _hsp.memoized_runner_safety_verdicts(_WORKER_RUNNER_SAFETY_MEMO):
+        yield
+
+
 @pytest.fixture
 def template_repo(tmp_path: Path) -> Path:
     """Provide a fresh copy of the process-cached git repository template (IPD 83nnyn E-09)."""
