@@ -41,10 +41,6 @@ from agent_workflows import (
 _VALIDATION_VERB = "aw migrate metadata"
 _FIELD_NAME = "short_description"
 
-_LEADING_PUNCT = "`\"'([{<"
-_TRAILING_PUNCT = "`\"'.,;:!?)]}>"
-_WINDOWS_DRIVE_RE = re.compile(r"\b[A-Za-z]:[/\\]")
-
 
 def normalize_description(text: str) -> str:
     """Strip surrounding whitespace and at most one matching pair of outer quotes."""
@@ -60,33 +56,20 @@ def build_describe_ruleset(repo: Path) -> leak_sanitizer.Ruleset:
 
 
 def _check_no_absolute_paths(text: str) -> str | None:
-    """Refuse absolute POSIX (>=2 segments, excluding '//') or Windows drive tokens."""
-    for token in text.split():
-        stripped = token.lstrip(_LEADING_PUNCT).rstrip(_TRAILING_PUNCT)
-        if not stripped:
-            continue
-        raw_parts = (
-            (stripped, stripped.split("=", 1)[1]) if "=" in stripped else (stripped,)
+    """Refuse absolute OS filesystem POSIX paths or Windows drive tokens via artifact_meta."""
+    hit = artifact_meta.find_absolute_path_in_text(text)
+    if hit is None:
+        return None
+    kind, token = hit
+    if kind == "windows":
+        return (
+            f"{_VALIDATION_VERB}: {_FIELD_NAME} must not contain "
+            f"absolute Windows drive path: {token!r}"
         )
-        for raw_part in raw_parts:
-            cand = raw_part.lstrip(_LEADING_PUNCT).rstrip(_TRAILING_PUNCT)
-            if not cand:
-                continue
-            if _WINDOWS_DRIVE_RE.search(cand):
-                return (
-                    f"{_VALIDATION_VERB}: {_FIELD_NAME} must not contain "
-                    f"absolute Windows drive path: {token!r}"
-                )
-            if (
-                cand.startswith("/")
-                and not cand.startswith("//")
-                and cand.count("/") >= 2
-            ):
-                return (
-                    f"{_VALIDATION_VERB}: {_FIELD_NAME} must not contain "
-                    f"absolute multi-segment path: {token!r}"
-                )
-    return None
+    return (
+        f"{_VALIDATION_VERB}: {_FIELD_NAME} must not contain "
+        f"absolute multi-segment path: {token!r}"
+    )
 
 
 def validate(

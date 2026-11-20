@@ -699,8 +699,41 @@ def validate_event(
 # 4. Writer-Side Refusals (E-03)
 # --------------------------------------------------------------------------------------
 
-_ABSOLUTE_POSIX_PATH_RE = re.compile(r"/(?:[^/\s]+/)+[^/\s]+")
 _WINDOWS_DRIVE_RE = re.compile(r"\b[a-zA-Z]:[/\\]")
+_TEXT_LEADING_PUNCT = "`\"'([{<"
+_TEXT_TRAILING_PUNCT = "`\"'.,;:!?)]}>"
+
+#: Real POSIX OS filesystem root prefixes refused in free-text event fields (`message`, `actor`,
+#: `short_description`). Matching known OS roots instead of every `/a/b` token avoids rejecting
+#: HTTP/REST API routes such as `/api/contracts/:id` or `/contracts/:id/request-audit` while
+#: continuing to block machine-local POSIX filesystem paths alongside `_check_leak_sanitizer`.
+POSIX_OS_ROOT_PREFIXES: tuple[str, ...] = (
+    "/home/",
+    "/Users/",
+    "/opt/",
+    "/etc/",
+    "/var/",
+    "/tmp/",
+    "/usr/",
+    "/root/",
+    "/srv/",
+    "/mnt/",
+    "/media/",
+    "/private/",
+    "/Volumes/",
+    "/Library/",
+    "/System/",
+    "/Applications/",
+    "/bin/",
+    "/sbin/",
+    "/lib/",
+    "/lib64/",
+    "/proc/",
+    "/sys/",
+    "/dev/",
+    "/run/",
+    "/boot/",
+)
 
 
 #: Where `artifact_meta` puts its per-record write locks, relative to the repository's state root.
@@ -742,21 +775,46 @@ def _check_string_safety(
         raise ValueError(refusal)
 
 
-def _check_no_absolute_paths_in_text(token_source: str, text: str) -> None:
-    # Check POSIX paths with two or more segments, e.g. /opt/x or /home/user/a.md
-    # but allowing single-segment tool commands like /plan-review or /spec-review.
-    # Also inspect the value half of key=value tokens (e.g. profile=/opt/secret/file or key=C:\...).
+def find_absolute_path_in_text(text: str) -> Optional[Tuple[str, str]]:
+    """Return ``('windows' | 'posix', token)`` if free text contains a local OS absolute path.
+
+    Checks whitespace-separated tokens (stripping wrapping quotes/punctuation and inspecting the
+    value side of ``key=value`` pairs) for Windows drive paths and multi-segment POSIX paths rooted
+    under :data:`POSIX_OS_ROOT_PREFIXES`. Single-segment slash commands (``/plan-review``) and
+    HTTP/REST route literals (``/api/contracts/:id``, ``/users/:id/profile``) are permitted.
+    """
     for token in text.split():
-        candidates = (token, token.split("=", 1)[1]) if "=" in token else (token,)
-        for cand in candidates:
+        stripped = token.lstrip(_TEXT_LEADING_PUNCT).rstrip(_TEXT_TRAILING_PUNCT)
+        if not stripped:
+            continue
+        raw_parts = (
+            (stripped, stripped.split("=", 1)[1]) if "=" in stripped else (stripped,)
+        )
+        for raw_part in raw_parts:
+            cand = raw_part.lstrip(_TEXT_LEADING_PUNCT).rstrip(_TEXT_TRAILING_PUNCT)
+            if not cand:
+                continue
             if _WINDOWS_DRIVE_RE.search(cand):
-                raise ValueError(
-                    f"{token_source} must not contain absolute Windows drive path: {token!r}"
-                )
-            if cand.startswith("/") and cand.count("/") >= 2:
-                raise ValueError(
-                    f"{token_source} must not contain absolute multi-segment path: {token!r}"
-                )
+                return ("windows", token)
+            if cand.startswith("/") and not cand.startswith("//"):
+                for prefix in POSIX_OS_ROOT_PREFIXES:
+                    if cand.startswith(prefix) and len(cand) > len(prefix):
+                        return ("posix", token)
+    return None
+
+
+def _check_no_absolute_paths_in_text(token_source: str, text: str) -> None:
+    hit = find_absolute_path_in_text(text)
+    if hit is None:
+        return
+    kind, token = hit
+    if kind == "windows":
+        raise ValueError(
+            f"{token_source} must not contain absolute Windows drive path: {token!r}"
+        )
+    raise ValueError(
+        f"{token_source} must not contain absolute multi-segment path: {token!r}"
+    )
 
 
 def _check_leak_sanitizer(

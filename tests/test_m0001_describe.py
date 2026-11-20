@@ -113,6 +113,15 @@ def test_validate_refuses_bare_and_wrapped_absolute_paths(tmp_path: Path) -> Non
     assert "absolute Windows drive path" in wrapped_win
 
 
+def test_validate_accepts_rest_api_routes(tmp_path: Path) -> None:
+    for desc in (
+        "Add GET /api/contracts/:id endpoint and audit logging.",
+        "Expose '/contracts/:id/request-audit' and '/api/audit-logs/*' handlers.",
+        "Route /users/:id/profile requests through auth middleware.",
+    ):
+        assert m0001_describe.validate(desc, tmp_path) is None
+
+
 def test_validate_refuses_derived_hostname_warn(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
