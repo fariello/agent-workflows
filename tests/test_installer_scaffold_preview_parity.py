@@ -232,3 +232,87 @@ def test_overwrite_body_members_still_diff(tmp_path: Path) -> None:
     out = _run_diff(repo)
     headers = _extract_diff_headers(out)
     assert ".aw/system/workflows/advise/README.md" in headers
+
+
+def test_project_json_skipped_when_legacy_records_present(tmp_path: Path) -> None:
+    """Legacy records without project.json: neither apply nor --diff creates or previews project.json."""
+    source_root = engine.resolve_source_root(None)
+    repo = tmp_path / "legacy_records_repo"
+    legacy_plan = (
+        repo
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20261120-leg-01-leg001-legacy.ipd.md"
+    )
+    legacy_plan.parent.mkdir(parents=True)
+    legacy_plan.write_text(
+        "# IPD: Legacy\n\n- Id: leg001\n- Status: draft\n", encoding="utf-8"
+    )
+
+    out = _run_diff(repo)
+    assert ".aw/config/project.json" not in _extract_diff_headers(out)
+    assert not (repo / ".aw" / "config" / "project.json").exists()
+
+    engine.install_into_repo(repo, source_root, yes=True, no_color=True)
+    assert not (repo / ".aw" / "config" / "project.json").exists()
+
+
+def test_project_json_preview_preserves_custom_keys_and_adds_missing(
+    tmp_path: Path,
+) -> None:
+    """Existing customized project.json missing metadata_schema and cutovers previews additions only."""
+    import json
+
+    repo = tmp_path / "custom_proj_repo"
+    proj_path = repo / ".aw" / "config" / "project.json"
+    proj_path.parent.mkdir(parents=True)
+    proj_path.write_text(
+        json.dumps({"schema_version": 2, "custom_team_flag": "keep-me"}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+
+    out = _run_diff(repo)
+    headers = _extract_diff_headers(out)
+    assert ".aw/config/project.json" in headers
+    assert '"metadata_schema"' in out
+    assert '"cutovers"' in out
+    assert '+  "custom_team_flag": "keep-me",' in out
+
+    planned = engine.plan_project_json_update(repo)
+    assert ".aw/config/project.json" in planned
+    parsed = json.loads(planned[".aw/config/project.json"].decode("utf-8"))
+    assert parsed["custom_team_flag"] == "keep-me"
+    assert "metadata_schema" in parsed
+    assert "cutovers" in parsed
+
+
+def test_project_json_external_aw_home_not_written_or_previewed_in_repo(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """External aw_home project.json: neither apply nor --diff writes or previews inside repo_root."""
+    import json
+    from agent_workflows import project_context
+
+    source_root = engine.resolve_source_root(None)
+    aw_home = tmp_path / "aw_home"
+    repo = tmp_path / "clean_delta_repo"
+    repo.mkdir()
+    monkeypatch.setenv("AW_HOME", str(aw_home))
+
+    pid = project_context._derive_project_id(repo)
+    ext_proj = aw_home / "projects" / pid / "config" / "project.json"
+    ext_proj.parent.mkdir(parents=True)
+    ext_proj.write_text(
+        json.dumps({"schema_version": 2, "preset": "clean-delta"}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    out = _run_diff(repo)
+    assert ".aw/config/project.json" not in _extract_diff_headers(out)
+    assert engine.plan_project_json_update(repo) == {}
+
+    engine.install_into_repo(repo, source_root, yes=True, no_color=True)
+    assert not (repo / ".aw" / "config" / "project.json").exists()

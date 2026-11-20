@@ -124,6 +124,43 @@ def read_metadata_schema(
     return _validate_metadata_schema_value(raw["metadata_schema"])
 
 
+def build_metadata_schema_data(
+    repo: Union[str, Path],
+    value: int,
+    *,
+    existing_data: Optional[dict[str, Any]] = None,
+    config_project: Optional[Union[str, Path]] = None,
+) -> dict[str, Any]:
+    """Build the updated ``project.json`` dictionary for ``metadata_schema: value`` without writing."""
+    validated = _validate_metadata_schema_value(value)
+
+    if existing_data is not None:
+        if not isinstance(existing_data, dict):
+            raise ValueError(
+                f"Expected JSON object for existing_data, got {type(existing_data).__name__}"
+            )
+        data: dict[str, Any] = dict(existing_data)
+    else:
+        proj_path = _resolve_project_json(repo, config_project=config_project)
+        if proj_path.exists():
+            raw = json.loads(proj_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise ValueError(
+                    f"Expected JSON object in {proj_path}, got {type(raw).__name__}"
+                )
+            data = dict(raw)
+        else:
+            default_schema_version = getattr(
+                project_schema,
+                "SCHEMA_VERSION",
+                project_schema.ProjectPolicySchema().schema_version,
+            )
+            data = {"schema_version": default_schema_version}
+
+    data["metadata_schema"] = validated
+    return data
+
+
 def write_metadata_schema(
     repo: Union[str, Path],
     value: int,
@@ -131,26 +168,10 @@ def write_metadata_schema(
     config_project: Optional[Union[str, Path]] = None,
 ) -> Path:
     """Atomically write ``metadata_schema: value`` into ``repo``'s resolved ``project.json``."""
-    validated = _validate_metadata_schema_value(value)
+    data = build_metadata_schema_data(repo, value, config_project=config_project)
     proj_path = _resolve_project_json(repo, config_project=config_project)
     proj_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if proj_path.exists():
-        raw = json.loads(proj_path.read_text(encoding="utf-8"))
-        if not isinstance(raw, dict):
-            raise ValueError(
-                f"Expected JSON object in {proj_path}, got {type(raw).__name__}"
-            )
-        data: dict[str, Any] = dict(raw)
-    else:
-        default_schema_version = getattr(
-            project_schema,
-            "SCHEMA_VERSION",
-            project_schema.ProjectPolicySchema().schema_version,
-        )
-        data = {"schema_version": default_schema_version}
-
-    data["metadata_schema"] = validated
     payload = json.dumps(data, indent=2) + "\n"
 
     fd, tmp_name = tempfile.mkstemp(

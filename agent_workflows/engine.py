@@ -2797,15 +2797,31 @@ def stage_tracked_policy_files(
     if not isinstance(proj_data, dict):
         return
 
-    git_policies = proj_data.get("git_policies", {})
-    if not isinstance(git_policies, dict):
+    raw_git_policies = proj_data.get("git_policies")
+    if raw_git_policies is not None and not isinstance(raw_git_policies, dict):
         return
+
+    resolved_policies: dict[str, str] | None = None
 
     for rel_path in WIZARD_WRITTEN_PATHS:
         root_class = WIZARD_PATH_CLASSES.get(rel_path)
         if not root_class:
             continue
-        policy = git_policies.get(root_class)
+        if isinstance(raw_git_policies, dict) and root_class in raw_git_policies:
+            policy = raw_git_policies[root_class]
+        else:
+            if resolved_policies is None:
+                try:
+                    from agent_workflows import project_context as _pc
+
+                    resolved_policies = dict(
+                        _pc.resolve_project_context(
+                            target_repo=str(repo_root)
+                        ).git_policies
+                    )
+                except Exception:
+                    resolved_policies = {}
+            policy = resolved_policies.get(root_class)
         if policy != GitPolicy.TARGET_GIT.value:
             continue
 
@@ -4660,11 +4676,71 @@ def prune_old_backups(repo_root: Path) -> None:
         pass
 
 
+def plan_project_json_update(repo_root: Path) -> dict[str, bytes]:
+    """Compute the proposed ``.aw/config/project.json`` bytes that ``install_into_repo`` would write.
+
+    Side-effect-free: never creates directories or writes files. Returns ``{rel_posix: bytes}``
+    only when the resolved ``project.json`` sits inside ``repo_root`` and would be created or
+    modified, else ``{}``.
+    """
+    from agent_workflows import config as _config
+    from agent_workflows.migrations import chain as _mig_chain
+    from agent_workflows.project_context import _canonical_path, _is_safe_subpath
+
+    proj_path = _mig_chain._resolve_project_json(repo_root)
+    canon_proj = _canonical_path(proj_path)
+    canon_root = _canonical_path(repo_root)
+    if not _is_safe_subpath(canon_proj, canon_root):
+        return {}
+
+    rel_posix = Path(canon_proj).relative_to(Path(canon_root)).as_posix()
+
+    file_exists = proj_path.is_file()
+    disk_bytes: bytes | None = None
+    existing_data: dict[str, Any] | None = None
+    if file_exists:
+        try:
+            disk_bytes = proj_path.read_bytes()
+            parsed = json.loads(disk_bytes.decode("utf-8"))
+            existing_data = dict(parsed) if isinstance(parsed, dict) else {}
+        except (OSError, ValueError):
+            existing_data = {}
+
+    try:
+        current_meta_schema = _mig_chain.read_metadata_schema(repo_root)
+    except (OSError, ValueError):
+        current_meta_schema = None
+
+    initialized = False
+    if current_meta_schema is None and not _mig_chain.repo_has_legacy_records(
+        repo_root
+    ):
+        data = _mig_chain.build_metadata_schema_data(
+            repo_root,
+            _mig_chain.CURRENT_METADATA_SCHEMA,
+            existing_data=existing_data,
+        )
+        initialized = True
+    elif file_exists:
+        data = dict(existing_data) if isinstance(existing_data, dict) else {}
+    else:
+        return {}
+
+    if file_exists or initialized:
+        data, _ = _config.plan_cutovers_update(repo_root, data)
+
+    payload_bytes = (json.dumps(data, indent=2) + "\n").encode("utf-8")
+    if not file_exists or payload_bytes != disk_bytes:
+        return {rel_posix: payload_bytes}
+    return {}
+
+
 def show_install_diffs(
     plan: InstallPlan,
     body_members: list[str],
     shim_members: dict[str, str],
     scaffold_members: dict[str, bytes] | None = None,
+    policy_members: dict[str, bytes] | None = None,
 ) -> None:
     """Generate and display a colorized unified diff of the proposed changes."""
     import difflib
@@ -4677,6 +4753,10 @@ def show_install_diffs(
     # where install_all runs before the no-clobber scaffolding ensurers.
     if scaffold_members:
         for rel, content_bytes in scaffold_members.items():
+            proposed[rel] = content_bytes
+
+    if policy_members:
+        for rel, content_bytes in policy_members.items():
             proposed[rel] = content_bytes
 
     for member in body_members:
@@ -8191,15 +8271,17 @@ def install_into_repo(
         from agent_workflows import config as _config
         from agent_workflows.migrations import chain as _mig_chain
 
-        _config.sync_cutovers_on_install(plan.repo_root)
         # Stamp empty/v2-clean repositories with CURRENT_METADATA_SCHEMA (spec 4sd62s 5.3 / 1vfqdu E-03).
-        # Never stamp a repository that has legacy records or already carries a stamp.
+        # Run before sync_cutovers_on_install so a fresh install writes both metadata_schema and
+        # cutovers in one pass (ippuby E-01). Never stamp a repository that has legacy records or
+        # already carries a stamp.
         if _mig_chain.read_metadata_schema(
             plan.repo_root
         ) is None and not _mig_chain.repo_has_legacy_records(plan.repo_root):
             _mig_chain.write_metadata_schema(
                 plan.repo_root, _mig_chain.CURRENT_METADATA_SCHEMA
             )
+        _config.sync_cutovers_on_install(plan.repo_root)
         # gzsfqn E-02: stage wizard-written tracked policy files so commit captures them
         if not clean:
             stage_tracked_policy_files(plan.repo_root, use_git, installed)
@@ -8382,11 +8464,13 @@ def run(args: argparse.Namespace) -> int:
                 for rel, b in scaffold_all.items()
                 if not (plan.repo_root / rel).exists()
             }
+            policy_members = plan_project_json_update(plan.repo_root)
             show_install_diffs(
                 plan,
                 body_members,
                 {**shim_members, **skill_members},
                 scaffold_members=scaffold_members,
+                policy_members=policy_members,
             )
             continue
 

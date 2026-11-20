@@ -1541,6 +1541,61 @@ def resolve_cutover_date(
     return None
 
 
+def plan_cutovers_update(
+    repo_root: "os.PathLike[str] | str",
+    data: Dict[str, Any],
+    *,
+    install_timestamp: Optional[str] = None,
+    aw_home: Optional["os.PathLike[str] | str"] = None,
+) -> Tuple[Dict[str, Any], bool]:
+    """Compute updated ``project.json`` data with missing cutovers stamped, without writing to disk.
+
+    Returns ``(updated_data, modified)`` on a copy of ``data``.
+    """
+    _ = aw_home
+    root = Path(repo_root)
+    updated: Dict[str, Any] = dict(data)
+    raw_cutovers = updated.get(CUTOVERS_KEY)
+    if isinstance(raw_cutovers, dict):
+        cutovers: Dict[str, Any] = dict(raw_cutovers)
+        updated[CUTOVERS_KEY] = cutovers
+    else:
+        cutovers = {}
+        updated[CUTOVERS_KEY] = cutovers
+
+    now_iso = _format_date(
+        install_timestamp or time.strftime("%Y-%m-%d", time.gmtime()), compact=False
+    )
+    modified = False
+
+    for feature, _intro_date in KNOWN_FEATURE_CUTOVERS.items():
+        if feature not in cutovers or not cutovers[feature]:
+            legacy_date = None
+            if (
+                feature == "dependency_schema"
+                and DEPENDENCY_SCHEMA_CUTOVER_KEY in updated
+            ):
+                marker = updated[DEPENDENCY_SCHEMA_CUTOVER_KEY]
+                if isinstance(marker, dict):
+                    legacy_date = marker.get("date")
+                elif isinstance(marker, str):
+                    legacy_date = marker
+
+            if legacy_date:
+                cutovers[feature] = _format_date(legacy_date, compact=False)
+                modified = True
+            else:
+                hist_date = _find_install_history_cutover(root, feature)
+                if hist_date:
+                    cutovers[feature] = _format_date(hist_date, compact=False)
+                    modified = True
+                else:
+                    cutovers[feature] = now_iso
+                    modified = True
+
+    return updated, modified
+
+
 def sync_cutovers_on_install(
     repo_root: "os.PathLike[str] | str",
     install_timestamp: Optional[str] = None,
@@ -1567,50 +1622,25 @@ def sync_cutovers_on_install(
     if not data and not project_file.exists():
         return {}
 
-    cutovers = data.get(CUTOVERS_KEY)
-    if not isinstance(cutovers, dict):
-        cutovers = {}
-        data[CUTOVERS_KEY] = cutovers
-
-    now_iso = _format_date(
-        install_timestamp or time.strftime("%Y-%m-%d", time.gmtime()), compact=False
+    updated, modified = plan_cutovers_update(
+        root,
+        data,
+        install_timestamp=install_timestamp,
+        aw_home=aw_home,
     )
-    modified = False
-
-    for feature, intro_date in KNOWN_FEATURE_CUTOVERS.items():
-        if feature not in cutovers or not cutovers[feature]:
-            # Check legacy key
-            legacy_date = None
-            if feature == "dependency_schema" and DEPENDENCY_SCHEMA_CUTOVER_KEY in data:
-                marker = data[DEPENDENCY_SCHEMA_CUTOVER_KEY]
-                if isinstance(marker, dict):
-                    legacy_date = marker.get("date")
-                elif isinstance(marker, str):
-                    legacy_date = marker
-
-            if legacy_date:
-                cutovers[feature] = _format_date(legacy_date, compact=False)
-                modified = True
-            else:
-                # Check history
-                hist_date = _find_install_history_cutover(root, feature)
-                if hist_date:
-                    cutovers[feature] = _format_date(hist_date, compact=False)
-                    modified = True
-                else:
-                    # Stamped with current install date
-                    cutovers[feature] = now_iso
-                    modified = True
 
     if modified:
         project_file.parent.mkdir(parents=True, exist_ok=True)
         tmp_project = project_file.with_name(".tmp_project.json")
         with open(tmp_project, "w", encoding="utf-8", newline="\n") as f:
-            json.dump(data, f, indent=2)
+            json.dump(updated, f, indent=2)
             f.write("\n")
         os.replace(tmp_project, project_file)
 
-    return {k: str(v) for k, v in cutovers.items()}
+    cutovers = updated.get(CUTOVERS_KEY, {})
+    return (
+        {k: str(v) for k, v in cutovers.items()} if isinstance(cutovers, dict) else {}
+    )
 
 
 def read_dependency_schema_cutover(

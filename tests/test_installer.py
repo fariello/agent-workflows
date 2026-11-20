@@ -789,6 +789,56 @@ class InstallerEndToEndTests(unittest.TestCase):
                 indexed.startswith("100755"), f"exec bit not in index: {indexed!r}"
             )
 
+    def test_minimal_project_json_without_git_policies_staged_and_idempotent(self):
+        """Fresh install_into_repo without install_wizard stages minimal project.json and stays clean on re-run."""
+        from agent_workflows import engine
+
+        source_root = engine.resolve_source_root(None)
+        engine.install_into_repo(self.repo, source_root, yes=True, no_color=True)
+        staged = git(self.repo, "diff", "--cached", "--name-only").stdout.splitlines()
+        self.assertIn(".aw/config/project.json", staged)
+        unstaged = git(self.repo, "diff", "--name-only").stdout.splitlines()
+        self.assertNotIn(".aw/config/project.json", unstaged)
+
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "init")
+        engine.install_into_repo(self.repo, source_root, yes=True, no_color=True)
+        leftover = git(self.repo, "status", "--porcelain").stdout.strip()
+        self.assertEqual(leftover, "", f"re-run left files dirty:\n{leftover}")
+
+    def test_ignored_and_companion_preset_project_json_not_staged(self):
+        """Explicit ignored git_policies or public-target-private-companion preset leaves project.json unstaged."""
+        import json
+        from agent_workflows import engine
+
+        source_root = engine.resolve_source_root(None)
+        for idx, payload in enumerate(
+            (
+                {
+                    "schema_version": 2,
+                    "git_policies": {"config_project": "ignored"},
+                },
+                {
+                    "schema_version": 2,
+                    "preset": "public-target-private-companion",
+                },
+            )
+        ):
+            sub_repo = self.repo.parent / f"policy_unstaged_{idx}"
+            sub_repo.mkdir()
+            git(sub_repo, "init", "-q")
+            git(sub_repo, "config", "user.name", "Test")
+            git(sub_repo, "config", "user.email", "test@example.com")
+            proj_file = sub_repo / ".aw" / "config" / "project.json"
+            proj_file.parent.mkdir(parents=True)
+            proj_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+            engine.install_into_repo(sub_repo, source_root, yes=True, no_color=True)
+            staged = git(
+                sub_repo, "diff", "--cached", "--name-only"
+            ).stdout.splitlines()
+            self.assertNotIn(".aw/config/project.json", staged)
+
     def test_gitignored_opencode_does_not_abort(self):
         """Kept separate: the subject is which paths reached the git INDEX, with a gitignore precondition."""
         (self.repo / ".gitignore").write_text(".opencode/\n", encoding="utf-8")
