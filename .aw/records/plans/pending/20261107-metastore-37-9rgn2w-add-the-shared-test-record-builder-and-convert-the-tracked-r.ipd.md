@@ -105,6 +105,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-170-j6o96i-capture-the-test-baselines-and-build-the-shared-test-record.ipd.md
 - Moved to ijpay0 (round-3 split 2026-11-09 per research nj8zdp guidance): E-02 (the builder's test module, split into E-02 and E-18 to E-21).
   - Carrier: ijpay0
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.ipd.md
 - Moved to 7fpc8v (round-3 split 2026-11-09 per research nj8zdp guidance): the consumer conversions of E-10 (attnview `specs-valid` readers).
   - Carrier: 7fpc8v
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-174-7fpc8v-move-the-attnview-spec-fixture-consumers-onto-the-record-bui.ipd.md
