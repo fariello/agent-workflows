@@ -54,6 +54,7 @@ def _init_git_repo(repo: Path) -> None:
     )
     _git(repo, "config", "user.name", "Test User")
     _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "core.autocrlf", "false")
 
 
 def _commit_all(repo: Path, message: str) -> None:

@@ -488,3 +488,22 @@ def test_journal_interrupt_mid_apply_resume_and_rollback(
         hashlib.sha256((repo_b / ".aw" / ".gitignore").read_bytes()).hexdigest()
         == hashlib.sha256(ref_gitignore_bytes).hexdigest()
     )
+
+
+def test_stage_scratch_ignores_lock_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """_stage_scratch skips *.lock files such as runs/integration.lock so Windows mandatory locks never fail copytree."""
+    repo = _init_repo(tmp_path, monkeypatch, name="lock_ignore")
+    runs_dir = repo / ".aw" / "records" / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    lock_file = runs_dir / "integration.lock"
+    lock_file.write_text("held\n", encoding="utf-8")
+
+    scratch_dir = tmp_path / "scratch"
+    m0001_metadata_v2._stage_scratch(repo, repo / ".aw" / "records", scratch_dir)
+
+    assert not (
+        scratch_dir / "repo" / ".aw" / "records" / "runs" / "integration.lock"
+    ).exists()
+    assert not (scratch_dir / "records" / "runs" / "integration.lock").exists()

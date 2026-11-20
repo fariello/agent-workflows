@@ -455,6 +455,7 @@ _SCRATCH_COPY_IGNORE = shutil.ignore_patterns(
     "node_modules",
     "tmp",
     ".tmp",
+    "*.lock",
 )
 
 

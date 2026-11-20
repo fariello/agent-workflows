@@ -431,9 +431,11 @@ def test_policy_verification_v1_and_v2_pass_and_refuse(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg_path = m0001_describe.write_v2_scratch_config(tmp_path)
+    expected_file_mode = 0o444 if sys.platform == "win32" else 0o400
+    expected_dir_mode = 0o555 if sys.platform == "win32" else 0o500
     try:
-        assert stat.S_IMODE(cfg_path.stat().st_mode) == 0o400
-        assert stat.S_IMODE(cfg_path.parent.stat().st_mode) == 0o500
+        assert stat.S_IMODE(cfg_path.stat().st_mode) == expected_file_mode
+        assert stat.S_IMODE(cfg_path.parent.stat().st_mode) == expected_dir_mode
         cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
         assert cfg_data["agents"]["aw-describe"]["permissions"] == [
             {"action": "*", "resource": "*", "effect": "deny"}
@@ -611,9 +613,11 @@ def test_generate_scratch_permissions_env_and_cleanup(tmp_path: Path) -> None:
     assert res.cost == pytest.approx(0.004)
     assert res.tokens == 512
     assert res.model == "google/gemini-3.1-flash-lite"
-    assert observed["cwd_mode"] == 0o500
-    assert observed["oc_dir_mode"] == 0o500
-    assert observed["cfg_mode"] == 0o400
+    expected_dir_mode = 0o555 if sys.platform == "win32" else 0o500
+    expected_file_mode = 0o444 if sys.platform == "win32" else 0o400
+    assert observed["cwd_mode"] == expected_dir_mode
+    assert observed["oc_dir_mode"] == expected_dir_mode
+    assert observed["cfg_mode"] == expected_file_mode
     assert observed["env_has_policy"] is True
     assert "Sample record body" in str(observed["stdin"])
     assert not Path(observed["cwd_path"]).exists()  # type: ignore[arg-type]
@@ -936,6 +940,7 @@ def _init_git_repo(repo: Path) -> None:
     )
     _git(repo, "config", "user.name", "Test User")
     _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "core.autocrlf", "false")
 
 
 def _commit_all(repo: Path, message: str) -> None:
@@ -1460,8 +1465,10 @@ def test_e09_ac36_case7_injection_and_policy_v1_v2_and_leak_refusal(
         assert "--dir" in calls[0]["argv"]
     else:
         assert calls[0]["v2_tools_disabled"] is True
-        assert calls[0]["v2_cfg_mode"] == "0o400"
-        assert calls[0]["cwd_mode"] == "0o500"
+        expected_cfg_mode = "0o444" if sys.platform == "win32" else "0o400"
+        expected_cwd_mode = "0o555" if sys.platform == "win32" else "0o500"
+        assert calls[0]["v2_cfg_mode"] == expected_cfg_mode
+        assert calls[0]["cwd_mode"] == expected_cwd_mode
         assert "--dir" not in calls[0]["argv"]
 
     # 2. Tool event (v1 tool_use / v2 tool shell) counts as failed generation ('tool-use')

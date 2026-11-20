@@ -489,12 +489,14 @@ def test_apply_step3_protected_bytes_moves_idempotency_and_resume(
     spec_file.write_text(
         "# Spec\n\n- Status: implemented\n\n" + spec_hist,
         encoding="utf-8",
+        newline="\n",
     )
 
     ex_plan = "20260808-0004-06-migrate-existing-plans.ipd.md"
     (rec / "plans" / "executed" / ex_plan).write_text(
         "- Id: 7qx7ys\n- Set: plans-adopter\n- Order: 6\n- Status: executed\n",
         encoding="utf-8",
+        newline="\n",
     )
 
     plan_file = rec / "plans" / "executed" / "20261101-demo-01-pl0001-citer.ipd.md"
@@ -507,6 +509,7 @@ def test_apply_step3_protected_bytes_moves_idempotency_and_resume(
         "# Plan\n\n- Id: pl0001\n\n"
         f"Body cites {old_spec}.\n\n" + fence_block + "\n" + hist_block,
         encoding="utf-8",
+        newline="\n",
     )
 
     rev_file = rec / "reviews" / "20261101-demo-01-pl0001-rev.review.md"
@@ -514,6 +517,7 @@ def test_apply_step3_protected_bytes_moves_idempotency_and_resume(
     rev_file.write_text(
         "# Review\n\n" + verdict_line + f"\nBody: {old_spec}\n",
         encoding="utf-8",
+        newline="\n",
     )
 
     ex_file = repo / "tests" / "test_plans_rename_selectors.py"

@@ -1365,6 +1365,7 @@ def test_ac6_phase_b_backlog_done_git_diff(tmp_path: Path) -> None:
         "## Summary\n\n"
         "Simple non-blocking chore.\n",
         encoding="utf-8",
+        newline="\n",
     )
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "init backlog"], cwd=repo, check=True)
@@ -1446,7 +1447,7 @@ def test_ac6_phase_b_ipd_finalize_within_and_out_of_scope_git_diff(
                 )
                 .replace("  - Result: pending", "  - Result: pass", 1)
             )
-            plan_path.write_text(plan_text, encoding="utf-8")
+            plan_path.write_text(plan_text, encoding="utf-8", newline="\n")
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init plan"], cwd=repo, check=True)
 

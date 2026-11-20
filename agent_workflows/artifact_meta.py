@@ -3668,9 +3668,14 @@ def _load_sources(
             now_str = datetime.datetime.now(timezone.utc).isoformat()
 
             if role == "log":
-                # Load jsonl log
+                # Load jsonl log (normalize CRLF -> LF like read_text() in append/repair so
+                # Windows checkouts with core.autocrlf=true do not trip decode_line).
                 try:
-                    lines = pre_bytes.decode("utf-8").splitlines(keepends=True)
+                    lines = (
+                        pre_bytes.decode("utf-8")
+                        .replace("\r\n", "\n")
+                        .splitlines(keepends=True)
+                    )
                     art_type = item.get("type")
                     if not art_type and lines:
                         ev0 = decode_line(lines[0])

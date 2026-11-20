@@ -35,6 +35,7 @@ from agent_workflows import ipd_lint
 
 def _create_minimal_repo(root: Path) -> Path:
     """Create minimal directory structure for check_engine tests."""
+    root = root.resolve()
     for p in (
         root / ".aw" / "records" / "plans" / "pending",
         root / ".aw" / "records" / "plans" / "executed",

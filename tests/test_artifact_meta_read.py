@@ -608,3 +608,24 @@ def test_read_at_finds_a_phase_b_legacy_record_with_crlf_line_endings(tmp_path: 
     assert res.state is not None
     assert res.state.id6 == "cr0001"
     assert res.state.status == "approved"
+
+
+def test_read_and_query_accept_crlf_jsonl_log(tmp_path: Path):
+    """A meta/<id6>.jsonl log with CRLF line endings loads cleanly into the cache."""
+    records_root = tmp_path / "records"
+    state_root = tmp_path / "state"
+    records_root.mkdir()
+    state_root.mkdir()
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+
+    log_p = _create_plan_log(records_root, "cr0002", "approved")
+    crlf_bytes = log_p.read_text(encoding="utf-8").replace("\n", "\r\n").encode("utf-8")
+    log_p.write_bytes(crlf_bytes)
+
+    state = meta.read("cr0002", project_context=ctx)
+    assert state.id6 == "cr0002"
+    assert state.status == "approved"
+    rows = meta.query(project_context=ctx, status="approved")
+    assert [r.id6 for r in rows] == ["cr0002"]
