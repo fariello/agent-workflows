@@ -2194,10 +2194,17 @@ def stranded_lane_records(
     collapse applies to the REPORTED set only (`attention_only=True`), since a caller asking for every
     lane's classification is asking a per-run question and must keep the per-run rows.
     """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import selectors as _sel
     from agent_workflows import worktree_lease
 
     if worktree_lease._WORKTREE_CACHE is None:
-        with worktree_lease.memoize_worktrees(repo):
+        with (
+            worktree_lease.memoize_worktrees(repo),
+            _meta.scan_once(),
+            _meta.ephemeral_if_uninitialized(),
+            _sel.scan_once(),
+        ):
             return stranded_lane_records(
                 repo, states, target=target, attention_only=attention_only
             )

@@ -416,3 +416,99 @@ def test_freshness_new_nested_directory(tmp_path: Path):
 
     q = meta.query(project_context=ctx, status="draft")
     assert any(st.id6 == "nst123" for st in q)
+
+
+def test_open_cache_does_not_unlink_db_under_lock_contention(
+    tmp_path: Path, monkeypatch
+):
+    import sqlite3
+
+    records_root = tmp_path / "records"
+    state_root = tmp_path / "state"
+    records_root.mkdir()
+    state_root.mkdir()
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+    _create_sample_record(records_root, "lck001", "draft")
+    assert len(meta.query(project_context=ctx)) == 1
+
+    db_path = state_root / "index.db"
+    assert db_path.exists()
+    original_inode = db_path.stat().st_ino
+
+    holder = sqlite3.connect(str(db_path), isolation_level=None)
+    try:
+        holder.execute("BEGIN EXCLUSIVE")
+        monkeypatch.setattr(meta, "_SQLITE_CONNECT_TIMEOUT", 0.05)
+        monkeypatch.setattr(meta, "_SQLITE_BUSY_TIMEOUT_MS", 50)
+        monkeypatch.setattr(meta, "_CACHE_REFRESH_LOCK_TIMEOUT", 0.05)
+
+        conn = meta.open_cache(records_root, state_root=state_root)
+        try:
+            assert conn is not None
+        finally:
+            conn.close()
+    finally:
+        holder.execute("ROLLBACK")
+        holder.close()
+
+    assert db_path.exists()
+    assert db_path.stat().st_ino == original_inode
+
+
+def test_freshness_detects_same_mtime_same_size_edit_within_racy_window(tmp_path: Path):
+    import os
+
+    records_root = tmp_path / "records"
+    state_root = tmp_path / "state"
+    records_root.mkdir()
+    state_root.mkdir()
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+
+    plan_dir = records_root / "plans" / "pending"
+    plan_dir.mkdir(parents=True)
+    plan_file = plan_dir / "20261120-race-01-rac001-slug.ipd.md"
+    content_a = "# IPD: Title A\n\n- Id: rac001\n- Status: draft\n"
+    content_b = "# IPD: Title B\n\n- Id: rac001\n- Status: ready\n"
+    assert len(content_a) == len(content_b)
+    plan_file.write_text(content_a, encoding="utf-8")
+    st_before = plan_file.stat()
+
+    q1 = meta.query(project_context=ctx, id6="rac001")
+    assert len(q1) == 1
+    assert q1[0].status == "draft"
+
+    plan_file.write_text(content_b, encoding="utf-8")
+    os.utime(plan_file, ns=(st_before.st_atime_ns, st_before.st_mtime_ns))
+
+    q2 = meta.query(project_context=ctx, id6="rac001")
+    assert len(q2) == 1
+    assert q2[0].status == "ready"
+
+
+def test_check_freshness_concurrent_threads_no_lock_error(tmp_path: Path):
+    import concurrent.futures
+
+    records_root = tmp_path / "records"
+    state_root = tmp_path / "state"
+    records_root.mkdir()
+    state_root.mkdir()
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+    for idx in range(10):
+        _create_sample_record(records_root, f"thr{idx:03d}", "draft")
+
+    def _worker(i: int) -> int:
+        if i == 0:
+            _create_sample_record(records_root, "thr999", "approved")
+        return len(meta.query(project_context=ctx))
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        counts = list(pool.map(_worker, range(6)))
+
+    assert all(c >= 10 for c in counts)
+    assert any(st.id6 == "thr999" for st in meta.query(project_context=ctx))

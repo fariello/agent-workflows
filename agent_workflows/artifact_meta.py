@@ -23,6 +23,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import time
 from typing import (
     Any,
     Callable,
@@ -2356,6 +2357,55 @@ def init_cache(
         )
 
 
+_SQLITE_CONNECT_TIMEOUT = 30.0
+_SQLITE_BUSY_TIMEOUT_MS = 30000
+_CACHE_REFRESH_LOCK_TIMEOUT = 30.0
+
+
+def _is_sqlite_lock_error(exc: BaseException) -> bool:
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    msg = str(exc).lower()
+    return "locked" in msg or "busy" in msg
+
+
+def _db_file_path(conn: sqlite3.Connection) -> Optional[Path]:
+    try:
+        rows = conn.execute("PRAGMA database_list").fetchall()
+    except Exception:
+        return None
+    for row in rows:
+        if len(row) >= 3 and row[1] == "main" and row[2]:
+            return Path(str(row[2]))
+    return None
+
+
+@contextlib.contextmanager
+def _cache_refresh_lock(
+    db_path: Path, *, timeout: float = _CACHE_REFRESH_LOCK_TIMEOUT
+) -> Any:
+    """Serialize persistent `index.db` rebuild/refresh writes across concurrent processes."""
+    lock_path = db_path.parent / f"{db_path.name}.lock"
+    deadline = time.monotonic() + max(0.0, timeout)
+    held = None
+    while True:
+        try:
+            held = _lock.acquire(lock_path)
+            break
+        except _lock.LockBusy:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.02)
+        except OSError:
+            break
+    try:
+        yield held is not None
+    finally:
+        if held is not None:
+            with contextlib.suppress(Exception):
+                held.release()
+
+
 def open_cache(
     records_root: Path,
     state_root: Optional[Path] = None,
@@ -2381,18 +2431,19 @@ def open_cache(
         init_cache(conn, records_root, registry)
         return conn
 
-    need_rebuild = False
-    if not db_path.exists():
-        need_rebuild = True
-    else:
+    def _try_open_existing() -> Tuple[Optional[sqlite3.Connection], bool, bool]:
+        """Return (conn, need_rebuild, lock_contended)."""
+        if not db_path.exists():
+            return None, True, False
+        conn_local: Optional[sqlite3.Connection] = None
         try:
-            conn = sqlite3.connect(str(db_path), timeout=5.0)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout=5000;")
-            row_hash = conn.execute(
+            conn_local = sqlite3.connect(str(db_path), timeout=_SQLITE_CONNECT_TIMEOUT)
+            conn_local.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS};")
+            conn_local.execute("PRAGMA journal_mode=WAL;")
+            row_hash = conn_local.execute(
                 "SELECT value FROM meta WHERE key = 'schema_hash'"
             ).fetchone()
-            row_root = conn.execute(
+            row_root = conn_local.execute(
                 "SELECT value FROM meta WHERE key = 'records_root'"
             ).fetchone()
             if (
@@ -2401,32 +2452,61 @@ def open_cache(
                 or not row_root
                 or row_root[0] != str(records_root)
             ):
-                need_rebuild = True
-                conn.close()
-            else:
-                return conn
-        except Exception:
-            need_rebuild = True
-            with contextlib.suppress(Exception):
-                conn.close()
+                conn_local.close()
+                return None, True, False
+            return conn_local, False, False
+        except Exception as exc:
+            if conn_local is not None:
+                with contextlib.suppress(Exception):
+                    conn_local.close()
+            if _is_sqlite_lock_error(exc):
+                # Lock contention is NOT corruption: never unlink an index.db actively held
+                # by another process/worker; fall back to an in-memory cache instead.
+                return None, False, True
+            return None, True, False
+
+    conn_ok, need_rebuild, lock_contended = _try_open_existing()
+    if conn_ok is not None:
+        return conn_ok
+    if lock_contended:
+        conn = sqlite3.connect(":memory:")
+        init_cache(conn, records_root, registry)
+        return conn
 
     if need_rebuild:
         try:
-            if db_path.exists():
-                if db_path.is_dir():
-                    shutil.rmtree(db_path)
-                else:
-                    db_path.unlink()
-            conn = sqlite3.connect(str(db_path), timeout=5.0)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout=5000;")
-            init_cache(conn, records_root, registry)
-            return conn
+            with _cache_refresh_lock(db_path) as acquired:
+                if acquired:
+                    # Another worker may have already rebuilt index.db while we waited.
+                    conn_rechecked, still_rebuild, still_locked = _try_open_existing()
+                    if conn_rechecked is not None:
+                        return conn_rechecked
+                    if still_locked or not still_rebuild:
+                        conn = sqlite3.connect(":memory:")
+                        init_cache(conn, records_root, registry)
+                        return conn
+                    if db_path.exists():
+                        if db_path.is_dir():
+                            shutil.rmtree(db_path)
+                        else:
+                            with contextlib.suppress(FileNotFoundError):
+                                db_path.unlink()
+                            for suffix in ("-wal", "-shm"):
+                                with contextlib.suppress(OSError):
+                                    Path(f"{db_path}{suffix}").unlink()
+                    conn = sqlite3.connect(
+                        str(db_path), timeout=_SQLITE_CONNECT_TIMEOUT
+                    )
+                    conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS};")
+                    conn.execute("PRAGMA journal_mode=WAL;")
+                    init_cache(conn, records_root, registry)
+                    return conn
         except Exception:
-            # Fallback to in-memory
-            conn = sqlite3.connect(":memory:")
-            init_cache(conn, records_root, registry)
-            return conn
+            pass
+        # Fallback to in-memory
+        conn = sqlite3.connect(":memory:")
+        init_cache(conn, records_root, registry)
+        return conn
 
     conn = sqlite3.connect(":memory:")
     init_cache(conn, records_root, registry)
@@ -4051,8 +4131,15 @@ _FRESHNESS_EXCLUDED_DIRS: FrozenSet[str] = frozenset(
 ) | frozenset({"comms"})
 
 
+_RACY_MTIME_WINDOW_NS = 2_000_000_000
+
+
 def _is_source_stale(
-    fpath: Path, prev_info: Optional[Tuple[int, int, str]], force: bool
+    fpath: Path,
+    prev_info: Optional[Tuple[int, int, str]],
+    force: bool,
+    *,
+    now_ns: Optional[int] = None,
 ) -> bool:
     if force or prev_info is None:
         return True
@@ -4060,6 +4147,10 @@ def _is_source_stale(
     prev_size, prev_mtime_f, prev_digest = prev_info
     if prev_size != st_f.st_size or prev_mtime_f != st_f.st_mtime_ns:
         return True
+    # Standard racy-git fast path: when size and mtime_ns match and the file has not been
+    # modified within the last 2 seconds, skip re-hashing its full contents on every check.
+    if now_ns is not None and (now_ns - st_f.st_mtime_ns) > _RACY_MTIME_WINDOW_NS:
+        return False
     return _compute_digest(fpath) != prev_digest
 
 
@@ -4133,6 +4224,7 @@ def check_freshness(
     seen_files: Set[str] = set()
     dirty_dirs: List[Tuple[str, int]] = []
     need_seen_files = bool(extra_root_dirs)
+    now_ns = time.time_ns()
 
     # Discover directories and files inside records_root
     if records_root.exists():
@@ -4175,7 +4267,9 @@ def check_freshness(
                     continue
 
                 fpath = Path(root, fname)
-                if _is_source_stale(fpath, known_files.get(rel_f), force):
+                if _is_source_stale(
+                    fpath, known_files.get(rel_f), force, now_ns=now_ns
+                ):
                     changed_sources.append(
                         {
                             "path": rel_f,
@@ -4244,7 +4338,9 @@ def check_freshness(
                     if not role:
                         continue
 
-                    if _is_source_stale(fpath, known_files.get(rel_f), force):
+                    if _is_source_stale(
+                        fpath, known_files.get(rel_f), force, now_ns=now_ns
+                    ):
                         changed_sources.append(
                             {
                                 "path": rel_f,
@@ -4253,13 +4349,6 @@ def check_freshness(
                                 "type": f_type,
                             }
                         )
-
-    if dirty_dirs:
-        with conn:
-            conn.executemany(
-                "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
-                dirty_dirs,
-            )
 
     # Detect deleted files
     for old_path in known_files:
@@ -4272,52 +4361,103 @@ def check_freshness(
                 }
             )
 
-    if changed_sources:
-        _load_sources(conn, changed_sources, records_root, repo_root=scan_repo)
+    if not dirty_dirs and not changed_sources:
+        return
 
-        # Recompute resolved references after target inventory change
-        with conn:
-            # 1. dependencies.target_id6: resolve if NULL or if target_raw was a path/set
-            conn.execute(
-                """UPDATE dependencies
-                   SET target_id6 = (
-                       SELECT a.id6 FROM artifacts a
-                       WHERE a.path = dependencies.target_raw
-                          OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = dependencies.target_raw)
-                   )
-                   WHERE target_id6 IS NULL"""
-            )
-            # 2. lineage.parent_id6: resolve if NULL or if parent_raw was a path/citation
-            conn.execute(
-                """UPDATE lineage
-                   SET parent_id6 = (
-                       SELECT a.id6 FROM artifacts a
-                       WHERE a.path = lineage.parent_raw
-                          OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = lineage.parent_raw)
-                   )
-                   WHERE parent_id6 IS NULL"""
-            )
-            # 3. release_gates.release_id6
-            try:
-                rel_outcome = _releases.resolve_release_outcome(
-                    records_root.parent, "next"
+    def _apply_refresh_writes(
+        dirs_to_write: List[Tuple[str, int]],
+        sources_to_load: List[Dict[str, Any]],
+    ) -> None:
+        if dirs_to_write:
+            with conn:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
+                    dirs_to_write,
                 )
-                next_release_id: Optional[str] = None
-                if (
-                    rel_outcome.status == _releases.SENTINEL_RESOLVED
-                    and rel_outcome.candidates
-                ):
-                    cand_p = rel_outcome.candidates[0]
-                    cand_attr = _naming.parse_attributed(cand_p.name)
-                    if cand_attr:
-                        next_release_id = cand_attr.id6
-                if next_release_id:
-                    conn.execute(
-                        "UPDATE release_gates SET release_id6 = ? WHERE release_raw = 'next'",
-                        (next_release_id,),
+        if sources_to_load:
+            _load_sources(conn, sources_to_load, records_root, repo_root=scan_repo)
+
+            # Recompute resolved references after target inventory change
+            with conn:
+                # 1. dependencies.target_id6: resolve if NULL or if target_raw was a path/set
+                conn.execute(
+                    """UPDATE dependencies
+                       SET target_id6 = (
+                           SELECT a.id6 FROM artifacts a
+                           WHERE a.path = dependencies.target_raw
+                              OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = dependencies.target_raw)
+                       )
+                       WHERE target_id6 IS NULL"""
+                )
+                # 2. lineage.parent_id6: resolve if NULL or if parent_raw was a path/citation
+                conn.execute(
+                    """UPDATE lineage
+                       SET parent_id6 = (
+                           SELECT a.id6 FROM artifacts a
+                           WHERE a.path = lineage.parent_raw
+                              OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = lineage.parent_raw)
+                       )
+                       WHERE parent_id6 IS NULL"""
+                )
+                # 3. release_gates.release_id6
+                try:
+                    rel_outcome = _releases.resolve_release_outcome(
+                        records_root.parent, "next"
                     )
-            except Exception:
-                pass
+                    next_release_id: Optional[str] = None
+                    if (
+                        rel_outcome.status == _releases.SENTINEL_RESOLVED
+                        and rel_outcome.candidates
+                    ):
+                        cand_p = rel_outcome.candidates[0]
+                        cand_attr = _naming.parse_attributed(cand_p.name)
+                        if cand_attr:
+                            next_release_id = cand_attr.id6
+                    if next_release_id:
+                        conn.execute(
+                            "UPDATE release_gates SET release_id6 = ? WHERE release_raw = 'next'",
+                            (next_release_id,),
+                        )
+                except Exception:
+                    pass
+
+    db_file = _db_file_path(conn)
+    if db_file is None:
+        _apply_refresh_writes(dirty_dirs, changed_sources)
+        return
+
+    with _cache_refresh_lock(db_file):
+        # Re-read DB state inside the refresh lock: if a peer worker just completed
+        # refreshing index.db while we waited, skip already-applied directories and files.
+        fresh_dirs: Dict[str, int] = dict(
+            conn.execute("SELECT path, mtime_ns FROM directories").fetchall()
+        )
+        fresh_files: Dict[str, Tuple[int, int, str]] = {
+            row[0]: (row[1], row[2], row[3])
+            for row in conn.execute(
+                "SELECT path, size, mtime_ns, content_digest FROM files"
+            ).fetchall()
+        }
+        remaining_dirs = [
+            (d_path, m_ns)
+            for d_path, m_ns in dirty_dirs
+            if fresh_dirs.get(d_path) != m_ns
+        ]
+        remaining_sources: List[Dict[str, Any]] = []
+        now_ns_locked = time.time_ns()
+        for src in changed_sources:
+            p_str = src["path"]
+            if src["role"] == "removed":
+                if p_str in fresh_files:
+                    remaining_sources.append(src)
+            else:
+                abs_p = source_path(p_str, records_root, scan_repo)
+                if not abs_p.exists() or _is_source_stale(
+                    abs_p, fresh_files.get(p_str), force, now_ns=now_ns_locked
+                ):
+                    remaining_sources.append(src)
+        if remaining_dirs or remaining_sources:
+            _apply_refresh_writes(remaining_dirs, remaining_sources)
 
 
 # --------------------------------------------------------------------------------------

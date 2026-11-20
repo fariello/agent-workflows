@@ -48,7 +48,11 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     from agent_workflows import check_engine as _ce
 
     root = Path(repo_root) if repo_root is not None else Path(".")
-    drift = [d for d in _ce.check_release_gate_consistency(root) if d.rule == _RULE]
+    drift = [
+        d
+        for d in _ce.check_release_gate_consistency(root, staged_only=True)
+        if d.rule == _RULE
+    ]
     if not drift:
         return 0, []
     from agent_workflows.hooks.executed_transition_gate import (

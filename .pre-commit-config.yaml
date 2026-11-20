@@ -103,7 +103,7 @@ repos:
       # Local feedback only (skippable with --no-verify); not an authority boundary.
       - id: thorough-suite
         name: thorough test suite before push
-        entry: python3 -m agent_workflows suite --thorough
+        entry: python3 -m agent_workflows suite --thorough --slots 1
         language: system
         pass_filenames: false
         always_run: true

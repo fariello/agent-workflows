@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import os
+import time
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -25,6 +27,10 @@ class CodeChange(NamedTuple):
 
 # Module-level memo storing what this process loaded, keyed by canonical package_root path.
 _LOADED_CODE_MEMO: dict[str, dict[str, Any]] = {}
+# Stat-keyed file digest cache: abs_path -> (mtime_ns, size, sha256_hex).
+# Entries are only reused when mtime_ns is strictly older than the 2s racy-git window.
+_DIGEST_STAT_CACHE: dict[str, tuple[int, int, str]] = {}
+_RACY_MTIME_WINDOW_NS = 2_000_000_000
 
 
 def _resolve_root(root: Path | str) -> tuple[Path, Path]:
@@ -47,16 +53,34 @@ def file_digests(root: Path | str) -> dict[str, str]:
     if not pkg_dir.is_dir():
         return digests
 
-    for p in pkg_dir.rglob("*.py"):
-        if "__pycache__" in p.parts:
-            continue
-        if not p.is_file():
-            continue
-        try:
-            rel = p.relative_to(root_path).as_posix()
-            digests[rel] = hashlib.sha256(p.read_bytes()).hexdigest()
-        except OSError:
-            pass
+    root_str = str(root_path)
+    pkg_str = str(pkg_dir)
+    now_ns = time.time_ns()
+
+    for dirpath, dirnames, filenames in os.walk(pkg_str):
+        dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+        for fname in filenames:
+            if not fname.endswith(".py"):
+                continue
+            full = os.path.join(dirpath, fname)
+            try:
+                st = os.stat(full)
+                rel = os.path.relpath(full, root_str).replace("\\", "/")
+                cached = _DIGEST_STAT_CACHE.get(full)
+                if (
+                    cached is not None
+                    and cached[0] == st.st_mtime_ns
+                    and cached[1] == st.st_size
+                    and (now_ns - st.st_mtime_ns) > _RACY_MTIME_WINDOW_NS
+                ):
+                    digests[rel] = cached[2]
+                else:
+                    with open(full, "rb") as fh:
+                        digest = hashlib.sha256(fh.read()).hexdigest()
+                    _DIGEST_STAT_CACHE[full] = (st.st_mtime_ns, st.st_size, digest)
+                    digests[rel] = digest
+            except OSError:
+                pass
     return digests
 
 
@@ -192,3 +216,4 @@ def code_changed(
 def _reset_for_tests() -> None:
     """Clear the process-level memoized loaded-code records (test use only)."""
     _LOADED_CODE_MEMO.clear()
+    _DIGEST_STAT_CACHE.clear()

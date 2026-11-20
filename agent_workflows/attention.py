@@ -4302,7 +4302,6 @@ def run(args) -> int:
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
-        Diagnostic,
         Evidence,
         NextAction,
         select_output,
@@ -4367,6 +4366,25 @@ def run(args) -> int:
         return EXIT_CANNOT_RUN
 
     type_filters = parse_type_filters(getattr(args, "types", None))
+
+    from agent_workflows import artifact_meta as _att_meta
+    from agent_workflows import selectors as _att_sel
+
+    with (
+        _att_meta.scan_once(),
+        _att_meta.ephemeral_if_uninitialized(),
+        _att_sel.scan_once(),
+    ):
+        return _run_with_scan_once(args, repo_root, check, ctx, type_filters)
+
+
+def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+    )
 
     try:
         items, drift = scan(repo_root, type_filters=type_filters)

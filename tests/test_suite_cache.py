@@ -883,3 +883,41 @@ def test_build_suite_child_env_scrubs_local_git_env_vars() -> None:
     ):
         assert var not in child_env
     assert child_env["UNRELATED_VAR"] == "keep-me"
+
+
+def test_suite_cli_slots_flag_respects_existing_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agent_workflows import cli
+
+    repo = _init_fixture_repo(tmp_path / "slots_repo")
+    captured_envs: list[dict[str, str] | None] = []
+
+    def _fake_run_full_suite(repo_arg, **kwargs):
+        captured_envs.append(kwargs.get("env"))
+        return suite_cache.SuiteRunResult(
+            passed=True,
+            exit_code=0,
+            summary="1 passed",
+            failures=(),
+            duration_seconds=0.1,
+            cached=False,
+            digest="0" * 64,
+            reason="ok",
+            slot={"acquired": True, "slot_index": 0, "waited_seconds": 0.0},
+        )
+
+    monkeypatch.setattr(suite_cache, "run_full_suite", _fake_run_full_suite)
+    monkeypatch.chdir(repo)
+
+    monkeypatch.delenv("AW_SUITE_SLOTS", raising=False)
+    rc1 = cli.main(["suite", "--slots", "1"])
+    assert rc1 == 0
+    assert captured_envs[-1] is not None
+    assert captured_envs[-1]["AW_SUITE_SLOTS"] == "1"
+
+    monkeypatch.setenv("AW_SUITE_SLOTS", "3")
+    rc2 = cli.main(["suite", "--slots", "1"])
+    assert rc2 == 0
+    effective_env = captured_envs[-1] if captured_envs[-1] is not None else os.environ
+    assert effective_env["AW_SUITE_SLOTS"] == "3"

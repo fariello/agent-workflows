@@ -1858,6 +1858,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run the thorough test tier (all tests including non-core; used before push and release).",
     )
     p_suite.add_argument(
+        "--slots",
+        type=int,
+        default=None,
+        help="Default AW_SUITE_SLOTS when unset in the environment (e.g. 1 to use all CPUs for pre-push).",
+    )
+    p_suite.add_argument(
         "--no-serve-failures",
         action="store_true",
         dest="no_serve_failures",
@@ -21111,6 +21117,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return exit_rc
 
         stream_live = not (ctx.is_agent or ctx.is_json)
+        suite_env: Optional[Dict[str, str]] = None
+        cli_slots = getattr(args, "slots", None)
+        if cli_slots is not None and not os.environ.get("AW_SUITE_SLOTS"):
+            suite_env = dict(os.environ)
+            suite_env["AW_SUITE_SLOTS"] = str(cli_slots)
         res = _sc.run_full_suite(
             repo_root,
             argv=suite_argv,
@@ -21118,6 +21129,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             use_cache=not bool(getattr(args, "no_cache", False)),
             serve_failures=not bool(getattr(args, "no_serve_failures", False)),
             stream=stream_live,
+            env=suite_env,
         )
         cli_exit = 0 if res.passed else 1
         if res.passed:

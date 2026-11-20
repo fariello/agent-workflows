@@ -7299,6 +7299,7 @@ def check_release_gate_consistency(
     *,
     at_rest: bool = False,
     grandfathered: bool = False,
+    staged_only: bool = False,
 ) -> List[_core.Drift]:
     """bklggrad orb9zb E-05: cross-tree consistency rules reusing `evaluate_blocking_close`.
 
@@ -7373,20 +7374,22 @@ def check_release_gate_consistency(
                 )
             )
 
+    if staged_only:
+        return drift
+
     # Rule 1 at-rest arm (gateatrest b24o3q E-03) and grandfathered advisory arm (heh05a E-03):
     # judges committed done backlog items on disk against the stamped cutover date, deduplicating
     # against the staged arm and each other by location.
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
 
-    backlog_states = _meta_records_with_fields(
-        repo_root,
-        "backlog",
-        suffix=".md",
-        parent_dirs=frozenset(_backlog.STATUS_DIRS),
-    )
-
     with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        backlog_states = _meta_records_with_fields(
+            repo_root,
+            "backlog",
+            suffix=".md",
+            parent_dirs=frozenset(_backlog.STATUS_DIRS),
+        )
         if at_rest or grandfathered:
             from agent_workflows import config as _config
 
