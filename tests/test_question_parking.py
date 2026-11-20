@@ -945,9 +945,10 @@ def test_review_sweep_lane_parking_and_refusal_e06_v06(
     (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
     (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
 
-    # Review 1: deferred integration
+    # Review 1: deferred integration -> parked onto aw/parked/<run_id>/rv0001, sweep lane reset
     # Review 2: gating question -> parks, branches aw/parked/<run_id>/rv0002, resets to tip_before
-    # Review 3: normal review -> merges sweep lane (carrying Rev 1 + Rev 3) to main
+    # Review 3: normal review -> merges ONLY Rev 3 to main (isolated from deferred Rev 1 & parked Rev 2)
+    # Retry ladder: integrates deferred Rev 1 from its parked branch to main while Rev 2 stays parked
     p1 = _create_plan_file(
         repo,
         "rv0001",
@@ -1178,7 +1179,20 @@ def test_review_sweep_lane_parking_and_refusal_e06_v06(
         check=True,
     ).stdout.strip()
 
-    assert "review 1 pass" in log_main
+    log_parked_rev1 = subprocess.run(
+        ["git", "log", "--oneline", f"aw/parked/{run_id}/rv0001"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    assert (
+        "review 1 pass" not in log_main
+    ), "Deferred Review 1 must stay isolated on its parked branch rather than piggybacking onto Review 3"
+    assert (
+        "review 1 pass" in log_parked_rev1
+    ), "Deferred Review 1 commits must be preserved on its parked branch"
     assert "review 3 pass" in log_main
     assert (
         "review 2 intermediate finding" not in log_main
@@ -1186,6 +1200,19 @@ def test_review_sweep_lane_parking_and_refusal_e06_v06(
     assert (
         "review 2 intermediate finding" in log_parked
     ), "Review 2 commits must be on parked branch"
+
+    # Retrying deferred integrations merges Review 1 cleanly from its parked branch while Review 2 stays parked.
+    with coordinator_role():
+        driver_module.retry_deferred_integrations(run_dir, state)
+    log_main_after_retry = subprocess.run(
+        ["git", "log", "--oneline", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert "review 1 pass" in log_main_after_retry
+    assert "review 2 intermediate finding" not in log_main_after_retry
 
     # Print for V-06 visibility
     print(f"V-06 git log --oneline main:\n{log_main}")
