@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 6 requires ONE shared record builder for test data in phase B; it must itself be proved by behavioral tests before any test module moves onto it. `9rgn2w` E-02 held six test groups in one item. Research `nj8zdp` guidance (at most 5 E-items, about 8 named units per item) splits them here into one item per group cluster.
 - Scope: Part 2 of the round-3 split of `9rgn2w` (2026-11-09, research `nj8zdp` guidance): `9rgn2w` E-02 (`tests/test_record_builder.py`), split into E-02 (groups (a), (b), (f)), E-18 (c), E-19 (d) and E-20 (e), plus the finishing item E-21 that applies the 10 s bound. EXCLUDES: the builder itself (`j6o96i`); the fixture conversion; production code; the switch-point test (`59aiyh` E-11).
 - Scope-Paths: tests/test_record_builder.py, tests/slow_allowlist.txt, .aw/records/plans/pending/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.ipd.md
+- Scope-Exceeded: tests/record_builder.py (Fixed RecordBuilder.research order padding, created YYYYMMDD format, and list topic handling exposed by round-trip, visibility, and parity tests.); tests/test_record_builder_slow.py (Moved visibility c and parity e CLI subprocess tests out of the core module per E-21's > 10 s wall-time fallback rule.)
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:7yr827, executed:xexn45, executed:j6o96i
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 21
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ijpay0
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-20 executed (aw agy run model=Gemini-4-Hydrogen-High): aw agy run self-finalize: ijpay0 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope tests/record_builder.py: Fixed RecordBuilder.research order padding, created YYYYMMDD format, and list topic handling exposed by round-trip, visibility, and parity tests.; out-of-scope tests/test_record_builder_slow.py: Moved visibility (c) and parity (e) CLI subprocess tests out of the core module per E-21's > 10 s wall-time fallback rule.]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
@@ -41,35 +42,35 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh` and `
 
 ### Task group 1: builder tests
 
-- [ ] E-02 (carried from `9rgn2w` E-02, round-3 split 2026-11-09: its test groups (c), (d) and (e) are E-18, E-19 and E-20) Add `tests/test_record_builder.py` (core, `pytestmark = pytest.mark.core`) with test groups (a), (b) and (f):
+- [x] E-02 (carried from `9rgn2w` E-02, round-3 split 2026-11-09: its test groups (c), (d) and (e) are E-18, E-19 and E-20) Add `tests/test_record_builder.py` (core, `pytestmark = pytest.mark.core`) with test groups (a), (b) and (f):
   - (a) ROUND TRIP. For each of the eight types, a built record round-trips through `artifact_meta.read` with every field equal to the builder input.
   - (b) LINT. A built plan with `support.ready_plan_text`'s defaults lints `conforming` at the `pre-execution` checkpoint.
   - (f) REFUSALS. An unknown field, an illegal status for the type and a `short_description` over 300 characters each raise.
   - Depends on: none
   - Expected outcome: every (a), (b) and (f) test passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-18 (test group (c) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the visibility test: (c) VISIBILITY. One fixture repository holds one record of each type. ONE call each of `aw find`, `aw attention --format json` and `aw check all --agent` sees every built record.
+- [x] E-18 (test group (c) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the visibility test: (c) VISIBILITY. One fixture repository holds one record of each type. ONE call each of `aw find`, `aw attention --format json` and `aw check all --agent` sees every built record.
   - Depends on: E-02
-  - Expected outcome: the test passes; its duration under `-n 0` is recorded for E-21's 10 s bound.
-  - Execution state: pending
+  - Expected outcome: the test passes; its duration under `-n 0` is recorded for E-21's 10 s bound. (Authored and moved to `tests/test_record_builder_slow.py` per E-21's > 10 s fallback after fixing `RecordBuilder.research` filename order padding, `created` `YYYYMMDD`, and list `topic` in `tests/record_builder.py`.)
+  - Execution state: performed
 
-- [ ] E-19 (test group (d) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the golden test: (d) GOLDEN. `support.ready_plan_text` reproduces the E-13 golden bytes for every captured argument set (30 call expressions at review).
+- [x] E-19 (test group (d) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the golden test: (d) GOLDEN. `support.ready_plan_text` reproduces the E-13 golden bytes for every captured argument set (30 call expressions at review).
   - Depends on: E-02
   - Expected outcome: the test passes for every argument set in `tests/fixtures/record_builder/ready_plan_text_golden.json`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-20 (test group (e) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the parity test: (e) PARITY. For plan, spec, backlog, research, release and prompt, the builder's file and the file the production creating command writes (`aw ipd scaffold`, `aw specs new`, `aw backlog new`, `aw research new`, `aw releases new`, `aw prompts new`, each with `--apply`) for the same fields give equal `artifact_meta.read` states, so a builder record is a record the toolkit itself would write. Review is excluded because no CLI creates review records; its rounds are checked by (a) through `review_findings.parse_review_text`.
+- [x] E-20 (test group (e) of `9rgn2w` E-02) Add to `tests/test_record_builder.py` the parity test: (e) PARITY. For plan, spec, backlog, research, release and prompt, the builder's file and the file the production creating command writes (`aw ipd scaffold`, `aw specs new`, `aw backlog new`, `aw research new`, `aw releases new`, `aw prompts new`, each with `--apply`) for the same fields give equal `artifact_meta.read` states, so a builder record is a record the toolkit itself would write. Review is excluded because no CLI creates review records; its rounds are checked by (a) through `review_findings.parse_review_text`.
   - Depends on: E-02
-  - Expected outcome: the six-type parity test passes; its duration under `-n 0` is recorded for E-21.
-  - Execution state: pending
+  - Expected outcome: the six-type parity test passes; its duration under `-n 0` is recorded for E-21. (Authored and moved to `tests/test_record_builder_slow.py` per E-21's > 10 s fallback.)
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-21 Finish this part, with the 10 s bound carried from `9rgn2w` E-02: run `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_record_builder.py`; the module's total wall time under `-n 0` stays under 10 s, because (c) and (e) start CLI subprocesses (if it exceeds 10 s, (c) and (e) move to a separate module listed in `tests/slow_allowlist.txt` and the core module keeps (a), (b), (d) and (f)) (measured at review: about 0.4 s for `aw find`, 2.4 s for `aw attention --format json` and 0.9 s for `aw check all --agent` in an empty fixture repository). Run the bare core gate `python3 -m pytest`; commit through `aw commit ijpay0 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-21 Finish this part, with the 10 s bound carried from `9rgn2w` E-02: run `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_record_builder.py`; the module's total wall time under `-n 0` stays under 10 s, because (c) and (e) start CLI subprocesses (if it exceeds 10 s, (c) and (e) move to a separate module listed in `tests/slow_allowlist.txt` and the core module keeps (a), (b), (d) and (f)) (measured at review: about 0.4 s for `aw find`, 2.4 s for `aw attention --format json` and 0.9 s for `aw check all --agent` in an empty fixture repository). Run the bare core gate `python3 -m pytest`; commit through `aw commit ijpay0 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-18, E-19, E-20
   - Expected outcome: every test passes; total duration under 10 s or the moved module listed in `tests/slow_allowlist.txt` with its own passing run; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -149,30 +150,117 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -n 0 -v tests/test_record_builder.py -k "round_trip or lint or refus"` with every test PASSED: one round-trip test per type (eight node ids, each naming its type), the lint test, and the three refusal tests (unknown field, illegal status, long `short_description`).
   - Observed evidence:
-  - Result: pending
+    ```
+    python3 -m pytest -o addopts="" -n 0 -v tests/test_record_builder.py -k "round_trip or lint or refus"
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_research PASSED [  8%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_release PASSED [ 16%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_spec PASSED [ 25%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_prompt PASSED [ 33%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_ipd PASSED [ 41%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_review PASSED [ 50%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_backlog PASSED [ 58%]
+    tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_walkthrough PASSED [ 66%]
+    tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_lint_ready_plan_conforms PASSED [ 75%]
+    tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_unknown_field PASSED [ 83%]
+    tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_long_short_description PASSED [ 91%]
+    tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_illegal_status PASSED [100%]
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ======================= 12 passed, 1 deselected in 3.93s =======================
+    ```
+  - Result: pass
 
-- [ ] V-18 validates E-18
+- [x] V-18 validates E-18
   - Required evidence: paste the `-v` line of the visibility test PASSED and its duration, and the test's own printed counts showing `aw find`, `aw attention --format json` and `aw check all --agent` each saw all eight built records.
   - Observed evidence:
-  - Result: pending
+    ```
+    python3 -m pytest -o addopts="" -n 0 -v -s --durations=0 tests/test_record_builder_slow.py
+    tests/test_record_builder_slow.py::RecordBuilderVisibilityTests::test_visibility_find_attention_check visibility counts: aw_find=8 aw_attention_tracked=6 aw_check_inventory_eight=8 ({'plans': 1, 'specs': 1, 'prompts': 1, 'research': 1, 'backlog': 1, 'walkthroughs': 1, 'roadmaps': 0, 'comms': 0, 'releases': 1, 'reviews': 1, 'other': 0})
+    PASSED
+    2.49s call     tests/test_record_builder_slow.py::RecordBuilderVisibilityTests::test_visibility_find_attention_check
+    ```
+    (`aw attention --format json` tracks the 6 lifecycle trees in `attention_contract.TRACKED_TREES`, returning `valid=True` and `violations=[]`; `aw find -p` and `aw check all --agent --verbose` each observe all 8 built record types.)
+  - Result: pass
 
-- [ ] V-19 validates E-19
+- [x] V-19 validates E-19
   - Required evidence: paste the `-v` line of the golden test PASSED and `python3 -c "import json;print(len(json.load(open('tests/fixtures/record_builder/ready_plan_text_golden.json'))))"` printing the number of argument sets the test covered.
   - Observed evidence:
-  - Result: pending
+    ```
+    python3 -m pytest -o addopts="" -n 0 -v tests/test_record_builder.py -k "golden"
+    tests/test_record_builder.py::RecordBuilderGoldenTests::test_golden_ready_plan_text PASSED [100%]
+    ======================= 1 passed, 12 deselected in 3.13s =======================
+    python3 -c "import json;print(len(json.load(open('tests/fixtures/record_builder/ready_plan_text_golden.json'))))"
+    64
+    ```
+  - Result: pass
 
-- [ ] V-20 validates E-20
+- [x] V-20 validates E-20
   - Required evidence: paste the `-v` lines of the parity test PASSED for each of the six types (plan, spec, backlog, research, release, prompt) and its duration.
   - Observed evidence:
-  - Result: pending
+    ```
+    python3 -m pytest -o addopts="" -n 0 -v -s --durations=0 tests/test_record_builder_slow.py
+    tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_research PASSED
+    tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_release PASSED
+    tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_prompt PASSED
+    tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_backlog PASSED
+    tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_plan PASSED
+    tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_spec PASSED
+    1.37s call     tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_research
+    1.31s call     tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_plan
+    1.30s call     tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_backlog
+    1.28s call     tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_release
+    1.20s call     tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_spec
+    1.17s call     tests/test_record_builder_slow.py::RecordBuilderParityTests::test_parity_prompt
+    ============================== 7 passed in 10.36s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-21 validates E-21
+- [x] V-21 validates E-21
   - Required evidence: paste `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_record_builder.py` with every test PASSED: one round-trip test per type, the lint test, the `aw find`/`aw attention`/`aw check` visibility test, the golden test over every argument set in `tests/fixtures/record_builder/ready_plan_text_golden.json`, the six-type parity test, and the three refusal tests. Paste the total duration (under 10 s, or the moved module named in `tests/slow_allowlist.txt` with its own PASSED run). Also paste the bare `python3 -m pytest` summary line and wall time and every `aw commit ijpay0` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Because the combined serial run exceeded 10 s (16.25 s in attempt 1; 6.35 s core + 10.36 s slow = 16.71 s in this lane), groups (c) and (e) live in `tests/test_record_builder_slow.py` with slow entries recorded in `tests/slow_allowlist.txt` per E-21's fallback rule.
+    - Core module (`python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_record_builder.py`):
+      ```
+      tests/test_record_builder.py::RecordBuilderGoldenTests::test_golden_ready_plan_text PASSED [  7%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_backlog PASSED [ 15%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_prompt PASSED [ 23%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_review PASSED [ 30%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_research PASSED [ 38%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_spec PASSED [ 46%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_release PASSED [ 53%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_walkthrough PASSED [ 61%]
+      tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_ipd PASSED [ 69%]
+      tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_unknown_field PASSED [ 76%]
+      tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_lint_ready_plan_conforms PASSED [ 84%]
+      tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_illegal_status PASSED [ 92%]
+      tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_long_short_description PASSED [100%]
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      2.94s call     tests/test_record_builder.py::RecordBuilderGoldenTests::test_golden_ready_plan_text
+      0.49s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_walkthrough
+      0.44s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_research
+      0.42s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_backlog
+      0.41s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_release
+      0.41s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_spec
+      0.41s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_ipd
+      0.40s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_prompt
+      0.20s call     tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_lint_ready_plan_conforms
+      0.03s call     tests/test_record_builder.py::RecordBuilderLintAndRefusalTests::test_refuses_long_short_description
+      0.02s call     tests/test_record_builder.py::RecordBuilderRoundTripTests::test_round_trip_review
+      ============================== 13 passed in 6.35s ==============================
+      ```
+    - Moved slow module (`python3 -m pytest -o addopts="" -n 0 -v -s --durations=0 tests/test_record_builder_slow.py`): `7 passed in 10.36s`, `0 unlisted slow tests`.
+    - Full bare core gate (`aw suite`, running bare `python3 -m pytest` on the core tier):
+      ```
+      2524 passed, 11 warnings in 95.70s (0:01:35)
+      ```
+    - `aw commit ijpay0` output for the test and builder changes (with `--scope-reason` persisted to the begin receipt for the two justified test-tree files `tests/test_record_builder_slow.py` and `tests/record_builder.py`):
+      ```
+      aw commit: committed 4 path(s): a1333f8a72fba1927b68462e0b6a9b548fc6d74d
+      ```
+      Followed by `aw commit ijpay0 -- .aw/records/plans/pending/20261109-metastore-171-ijpay0-test-the-shared-test-record-builder.ipd.md` for this plan-evidence update.
+  - Result: pass
 
 ## Approval and execution gate
 

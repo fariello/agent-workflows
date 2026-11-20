@@ -980,7 +980,7 @@ class RecordBuilder:
         self,
         *,
         id6: str = "rs1001",
-        topic: str = "Demo research topic",
+        topic: str | Sequence[str] = "Demo research topic",
         research_kind: str | None = None,
         kind: str | None = None,
         status: str | None = "reference",
@@ -1031,11 +1031,18 @@ class RecordBuilder:
             )
         eff_disp = _resolve_disposition("research", None, disposition)
 
+        if isinstance(topic, str):
+            topic_list = [topic.strip()] if topic.strip() else []
+            topic_label = topic
+        else:
+            topic_list = [str(t).strip() for t in topic if str(t).strip()]
+            topic_label = ", ".join(topic_list)
+
         render_fields: dict[str, Any] = {
-            "created": when,
+            "created": ymd,
             "set": eff_set,
             "order": order,
-            "topic": topic,
+            "topic": topic_list,
             "model": model,
             "research_kind": eff_kind,
             "outcome": outcome,
@@ -1049,12 +1056,12 @@ class RecordBuilder:
                 render_fields[fk] = fv
         _validate_fields("research", render_fields)
 
-        eff_slug = _core.kebab(slug or topic or eff_set) or "research"
+        eff_slug = _core.kebab(slug or topic_label or eff_set) or "research"
         filename = _research_contract.format_name(
             _research_contract.ResearchName(
                 date=ymd,
                 set_id=eff_set,
-                order=order,
+                order=f"{int(order):02d}",
                 id6=eff_id,
                 slug=eff_slug,
                 model=model,
@@ -1064,7 +1071,7 @@ class RecordBuilder:
         initial_text = (
             body
             if body is not None
-            else f"# {topic}\n\n## Findings\n\nResearch notes.\n"
+            else f"# {topic_label or eff_set}\n\n## Findings\n\nResearch notes.\n"
         )
         return self._emit_record(
             id6=eff_id,

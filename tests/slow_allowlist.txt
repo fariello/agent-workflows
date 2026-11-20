@@ -634,3 +634,5 @@ tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[idles
 tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[legacy_agents_layout]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
 tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[mixed_layout]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
 tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[no_sidecar]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
+tests/test_record_builder.py::RecordBuilderGoldenTests::test_golden_ready_plan_text	64-set golden byte parity sweep via artifact_meta.render_legacy_text
+tests/test_record_builder_slow.py::RecordBuilderVisibilityTests::test_visibility_find_attention_check	Subprocess CLI execution and isolated worktree integration boundary
