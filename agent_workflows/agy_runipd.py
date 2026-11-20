@@ -4500,6 +4500,7 @@ def install_stop_triggers(run_dir: Path) -> dict[str, str]:
 
 def main(argv: list[str] | None = None) -> int:
     script_start_mono = runner_shared.resolve_invocation_start_mono()
+    invocation_start_wall = time.time()
     if argv is None:
         argv = sys.argv[1:]
     from agent_workflows import term as _term_stdio
@@ -4670,6 +4671,11 @@ def main(argv: list[str] | None = None) -> int:
             # runstop 71vjbn: a resumed run is just as interruptible as a fresh one.
             install_stop_triggers(run_dir)
             with locked_run(run_dir):
+                runner_shared.clear_stale_stop_request_on_manual_resume(
+                    run_dir,
+                    state=load_state(run_dir),
+                    invocation_started_at=invocation_start_wall,
+                )
                 return run_queue(
                     run_dir,
                     retry_incomplete=args.retry_incomplete,

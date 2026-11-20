@@ -39474,6 +39474,41 @@ def reset_driver_restart_loop_state_on_manual_resume(state: dict[str, Any]) -> b
     return changed
 
 
+def clear_stale_stop_request_on_manual_resume(
+    run_dir: Path,
+    *,
+    state: dict[str, Any],
+    invocation_started_at: float,
+) -> Any:
+    """Clear a stale stop-request.json on manual resume, emitting stderr notice + event.
+
+    MUST be called inside ``locked_run(run_dir)`` so a failed duplicate ``resume`` cannot
+    delete a live driver's stop request. Preserves stop requests across driver self-restarts
+    (``AW_DRIVER_RESTART``) and skips clearing when the run has indeterminate items that
+    ``run_queue`` is about to refuse.
+    """
+    from agent_workflows import runner_stop
+
+    if os.environ.get("AW_DRIVER_RESTART"):
+        return None
+    if runner_stop.indeterminate_items(state.get("queue", [])):
+        return None
+    cleared = runner_stop.clear_stop_request_on_manual_resume(
+        run_dir, invocation_started_at=invocation_started_at
+    )
+    if cleared is not None:
+        print(
+            f"cleared prior stop request: level {cleared.level} ({cleared.level_name}), "
+            f"requested at {cleared.requested_at} by {cleared.requester or 'unknown'}",
+            file=sys.stderr,
+        )
+        append_jsonl(
+            run_dir / "events.jsonl",
+            runner_stop.cleared_stop_event(cleared, at=utc_now()),
+        )
+    return cleared
+
+
 def restart_on_new_code_if_needed(
     run_dir: Path,
     state: dict[str, Any],

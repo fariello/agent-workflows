@@ -125,6 +125,9 @@ __all__ = [
     "request_stop",
     "request_stop_nowait",
     "poll_stop",
+    "STOP_REQUEST_CLEARED_EVENT",
+    "cleared_stop_event",
+    "clear_stop_request_on_manual_resume",
     "pending_deferred_request",
     "reset_deferred_request",
     "BETWEEN_TURN_LEVELS",
@@ -685,6 +688,84 @@ def poll_stop(run_dir: Path | str) -> int | None:
                 _DEFERRED_REQUEST = None
     request = read_stop_request(run_dir)
     return request.level if request is not None else None
+
+
+STOP_REQUEST_CLEARED_EVENT = "stop-request-cleared-on-resume"
+
+
+def cleared_stop_event(request: StopRequest, *, at: str) -> dict:
+    """Ledger event recording that a manual resume cleared a prior stop request."""
+
+    return {
+        "at": at,
+        "event": STOP_REQUEST_CLEARED_EVENT,
+        "prior_level": request.level,
+        "prior_level_name": request.level_name,
+        "prior_requested_at": request.requested_at,
+        "prior_requester": request.requester,
+    }
+
+
+def _parse_iso_timestamp(value: str) -> float | None:
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.timestamp()
+
+
+def clear_stop_request_on_manual_resume(
+    run_dir: Path | str,
+    *,
+    invocation_started_at: float,
+    timeout: float = DEFAULT_LOCK_TIMEOUT_SECONDS,
+) -> StopRequest | None:
+    """Remove a prior run's stop-request file on a manual operator `resume`.
+
+    Returns the cleared ``StopRequest`` when a pre-existing request predating
+    ``invocation_started_at`` was unlinked, or ``None`` when nothing was cleared.
+
+    Guards:
+    - Driver self-restarts (``AW_DRIVER_RESTART`` set in the environment) NEVER clear
+      the stop request: a code-reload re-exec must keep an active operator stop in force.
+    - A request whose file ``st_mtime`` or ``requested_at`` timestamp is newer than
+      ``invocation_started_at`` is preserved, so an out-of-band ``stop`` issued after
+      ``resume`` launched is never dropped.
+    - Serialized under the sidecar lock so it cannot race with ``request_stop``.
+    - Callers MUST already hold ``locked_run(run_dir)`` so a failed duplicate ``resume``
+      cannot delete a live driver's active stop request.
+    """
+
+    if os.environ.get("AW_DRIVER_RESTART"):
+        return None
+
+    run_dir = Path(run_dir)
+    path = stop_request_path(run_dir)
+    if not path.exists():
+        return None
+
+    try:
+        with _sidecar_lock(run_dir, timeout=timeout):
+            try:
+                stat = path.stat()
+            except FileNotFoundError:
+                return None
+            existing = read_stop_request(run_dir)
+            if stat.st_mtime > invocation_started_at:
+                return None
+            if existing is not None:
+                req_ts = _parse_iso_timestamp(existing.requested_at)
+                if req_ts is not None and req_ts > invocation_started_at:
+                    return None
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                return None
+            return existing
+    except (_LockBusy, OSError):
+        return None
 
 
 # --- levels 1 and 2: the BETWEEN-TURN wind-down (spec `c4gd2h` R20/R21, A1/A4) ---------------------
