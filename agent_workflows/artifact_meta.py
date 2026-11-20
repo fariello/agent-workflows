@@ -1996,7 +1996,8 @@ LAYOUT_VERSION = "layout_v1"
 #: "legacy_v6" (2026-11-18, cdglt1): add `artifacts.legacy_raw_status` and `artifacts.legacy_raw_set`,
 #: enforce strict `^- <Key>:` bullet matching and lowercase scalar normalization for YAML front matter.
 #: "legacy_v7" (2026-11-18, r81uvz): map legacy backlog `- Kind:` bullets to `work_kind` when `- Work-Kind:` is absent.
-LEGACY_LOADER_VERSION = "legacy_v7"
+#: "legacy_v8" (2026-11-19, xxdzcq): map prompt `Kind`/`kind` to `prompt_kind` and `Created`/`created` to `created_day`, and set `artifact_row["created_day"]` for prompts.
+LEGACY_LOADER_VERSION = "legacy_v8"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
@@ -3005,6 +3006,10 @@ def load_legacy_artifact(
             if "Work-Kind" in bullets:
                 continue
             target_k = "work_kind"
+        elif art_type == "prompt" and bk in ("Kind", "kind"):
+            target_k = "prompt_kind"
+        elif art_type == "prompt" and bk in ("Created", "created"):
+            target_k = "created_day"
         else:
             target_k = field_map.get(bk, bk.lower().replace("-", "_"))
         if bv == "" and target_k in mapped_fields:
@@ -3052,7 +3057,9 @@ def load_legacy_artifact(
         "set_id": set_id,
         "order_nn": order_nn,
         "filename_date": filename_date,
-        "created_day": None,
+        "created_day": mapped_fields.get("created_day")
+        if art_type == "prompt"
+        else None,
         "created_at": None,
         "updated_at": None,
         "last_history_day": last_hist_day,

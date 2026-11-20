@@ -171,6 +171,89 @@ Execute prompt here.
     assert art_row["type"] == "prompt"
     assert art_row["status"] == "pending"
     assert art_row["title"] == "Prompt Task"
+    assert art_row["fields"]["prompt_kind"] == "pipeline"
+
+
+def test_legacy_load_aw_prompt_maps_kind_and_created_day(tmp_path: Path):
+    """Legacy aw-prompt comment maps Kind/kind to prompt_kind and Created/created to created_day."""
+    records_root = tmp_path / "records"
+    p_dir = records_root / "prompts" / "pending"
+    p_dir.mkdir(parents=True)
+
+    p_title_case = p_dir / "20261119-prset-01-prm011-research.prompt.md"
+    p_title_case.write_text(
+        "<!-- aw-prompt: Kind: research | Id: prm011 | Set: prset | Status: pending | Created: 2026-11-19 -->\n"
+        "# Research Prompt\n\nInvestigate legacy prompt metadata.\n",
+        encoding="utf-8",
+    )
+    art_row, _ = meta.load_legacy_artifact(p_title_case, records_root)
+    assert art_row["id6"] == "prm011"
+    assert art_row["type"] == "prompt"
+    assert art_row["fields"]["prompt_kind"] == "research"
+    assert art_row["fields"]["created_day"] == "2026-11-19"
+    assert art_row["created_day"] == "2026-11-19"
+
+    p_lower_case = p_dir / "20261119-prset-02-prm012-handoff.prompt.md"
+    p_lower_case.write_text(
+        "<!-- aw-prompt: kind: session-handoff | id: prm012 | set: prset | status: pending | created: 2026-11-18 -->\n"
+        "# Handoff Prompt\n\nContinue task.\n",
+        encoding="utf-8",
+    )
+    art_row_lower, _ = meta.load_legacy_artifact(p_lower_case, records_root)
+    assert art_row_lower["id6"] == "prm012"
+    assert art_row_lower["type"] == "prompt"
+    assert art_row_lower["fields"]["prompt_kind"] == "session-handoff"
+    assert art_row_lower["fields"]["created_day"] == "2026-11-18"
+    assert art_row_lower["created_day"] == "2026-11-18"
+
+
+def test_legacy_load_non_prompt_kind_mappings_preserved(tmp_path: Path):
+    """Non-prompt records retain ipd Kind->plan_role, backlog Kind->work_kind, and research kind->research_kind."""
+    records_root = tmp_path / "records"
+
+    plans_dir = records_root / "plans" / "pending"
+    plans_dir.mkdir(parents=True)
+    ipd_path = plans_dir / "20261119-pset-01-pln021-sample.ipd.md"
+    ipd_path.write_text(
+        "# IPD: Sample\n\n- Id: pln021\n- Status: draft\n- Kind: child\n- Created: 2026-11-19\n\n## Goal\nG\n",
+        encoding="utf-8",
+    )
+    ipd_row, _ = meta.load_legacy_artifact(ipd_path, records_root)
+    assert ipd_row["fields"]["plan_role"] == "child"
+    assert "prompt_kind" not in ipd_row["fields"]
+    assert ipd_row["created_day"] is None
+
+    backlog_dir = records_root / "backlog" / "open"
+    backlog_dir.mkdir(parents=True)
+    bkl_fallback = backlog_dir / "20261119-bkl021-01-bkl021-legacy-kind.backlog.md"
+    bkl_fallback.write_text(
+        "- Id: bkl021\n- Status: open\n- Kind: bug\n- Priority: medium\n",
+        encoding="utf-8",
+    )
+    bkl_fallback_row, _ = meta.load_legacy_artifact(bkl_fallback, records_root)
+    assert bkl_fallback_row["fields"]["work_kind"] == "bug"
+    assert bkl_fallback_row["created_day"] is None
+
+    bkl_explicit = backlog_dir / "20261119-bkl022-01-bkl022-work-kind.backlog.md"
+    bkl_explicit.write_text(
+        "- Id: bkl022\n- Status: open\n- Work-Kind: feature\n- Kind: bug\n- Priority: high\n",
+        encoding="utf-8",
+    )
+    bkl_explicit_row, _ = meta.load_legacy_artifact(bkl_explicit, records_root)
+    assert bkl_explicit_row["fields"]["work_kind"] == "feature"
+    assert bkl_explicit_row["created_day"] is None
+
+    research_dir = records_root / "research" / "active"
+    research_dir.mkdir(parents=True)
+    res_path = research_dir / "20261119-rset-01-res021-topic.research.md"
+    res_path.write_text(
+        "---\nid: res021\ncreated: 20261119\nkind: investigation\nstatus: active\nset: rset\n---\n\n# Research\n",
+        encoding="utf-8",
+    )
+    res_row, _ = meta.load_legacy_artifact(res_path, records_root)
+    assert res_row["fields"]["research_kind"] == "investigation"
+    assert res_row["fields"]["created"] == "20261119"
+    assert res_row["created_day"] is None
 
 
 def test_legacy_load_staged_prompt_without_comment_artifact(tmp_path: Path):

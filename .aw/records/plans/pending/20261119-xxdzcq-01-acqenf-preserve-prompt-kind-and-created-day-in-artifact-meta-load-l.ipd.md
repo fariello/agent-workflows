@@ -41,32 +41,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Map prompt Kind and Created in load_legacy_artifact and bump loader version
 
-- [ ] E-01 Update `agent_workflows/artifact_meta.py::load_legacy_artifact` and `agent_workflows/artifact_meta.py::LEGACY_LOADER_VERSION`:
+- [x] E-01 Update `agent_workflows/artifact_meta.py::load_legacy_artifact` and `agent_workflows/artifact_meta.py::LEGACY_LOADER_VERSION`:
   - When `art_type == "prompt"`, map bullet or comment key `bk in ("Kind", "kind")` to `target_k = "prompt_kind"`, and map `bk in ("Created", "created")` to `target_k = "created_day"`.
   - Keep existing key-mapping behavior unchanged for all other values of `art_type` (`backlog` `Kind` fallback to `work_kind` when `Work-Kind` is absent, `ipd` `Kind` to `plan_role`, `research` `kind` to `research_kind`, and `field_map` defaults).
   - Set `artifact_row["created_day"]` to `mapped_fields.get("created_day") if art_type == "prompt" else None` so `State.created_day` and `State.fields["created_day"]` agree on legacy prompts without altering non-prompt records.
   - Increment `LEGACY_LOADER_VERSION` from `"legacy_v7"` to `"legacy_v8"` and document the `xxdzcq` prompt field fix in the adjacent version comment so `compute_schema_hash` triggers cache rebuilds for pre-existing `.aw/state/index.db` files.
   - Depends on: none
   - Expected outcome: `load_legacy_artifact` populates `prompt_kind` and `created_day` in `artifact_row["fields"]`, populates `artifact_row["created_day"]` for prompts, preserves non-prompt behavior, and bumps `LEGACY_LOADER_VERSION` to `"legacy_v8"`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Add behavioral tests and run validation
 
-- [ ] E-02 Add behavioral outcome tests in `tests/test_artifact_meta_legacy.py` and `tests/test_artifact_meta_legacy_writer.py`:
+- [x] E-02 Add behavioral outcome tests in `tests/test_artifact_meta_legacy.py` and `tests/test_artifact_meta_legacy_writer.py`:
   - In `tests/test_artifact_meta_legacy.py`, assert `art_row["fields"]["prompt_kind"]` in `test_legacy_load_staged_prompt_with_comment_artifact`, add a test verifying `load_legacy_artifact` maps `Kind:` to `prompt_kind` and `Created:` to `created_day` (both `art_row["fields"]["created_day"]` and `art_row["created_day"]`) on `<!-- aw-prompt: ... -->` prompts, and add assertions verifying `ipd` (`Kind` -> `plan_role`), `backlog` (`Kind` -> `work_kind`), and `research` (`kind` -> `research_kind`) mappings remain intact.
   - In `tests/test_artifact_meta_legacy_writer.py`, assert via `agent_workflows/artifact_meta.py::read` (after `agent_workflows/artifact_meta.py::create` on a legacy root and via `agent_workflows/cli.py::main` / `aw prompts new` in an isolated repo) that `state.fields["prompt_kind"]`, `state.fields["created_day"]`, and `state.created_day` match the written `Kind:` and `Created:` header values, and verify that a stale `.aw/state/index.db` cache with `NULL` `prompt_kind` and `created_day` values under an older `schema_hash` is rebuilt under `LEGACY_LOADER_VERSION`.
   - Depends on: E-01
   - Expected outcome: All new and existing behavioral tests pass and fail against the unpatched `load_legacy_artifact` implementation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run targeted tests, full test suite, static type check, and repository hygiene checks after the final edit:
+- [x] E-03 Run targeted tests, full test suite, static type check, and repository hygiene checks after the final edit:
   - Run `python3 -m pytest -v tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py tests/test_artifact_meta_loader_parity.py tests/test_prompts_new.py`.
   - Run `python3 -m pytest`.
   - Run `python3 -m mypy agent_workflows`.
   - Run `aw check all --agent` and `aw sanitize --agent`.
   - Depends on: E-02
   - Expected outcome: Every test run, `mypy`, `aw check all --agent`, and `aw sanitize --agent` exits 0 with zero errors.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -147,20 +147,94 @@ N/A: this bugfix restores already-specified prompt field mapping (`prompt_kind` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the unified `git diff agent_workflows/artifact_meta.py` showing `art_type == "prompt"` mapping `Kind`/`kind` to `prompt_kind` and `Created`/`created` to `created_day`, setting `artifact_row["created_day"]` for prompts, preserving non-prompt mappings, and bumping `LEGACY_LOADER_VERSION` to `"legacy_v8"`.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/artifact_meta.py b/agent_workflows/artifact_meta.py
+    index cbc362026..a91f558f9 100644
+    --- a/agent_workflows/artifact_meta.py
+    +++ b/agent_workflows/artifact_meta.py
+    @@ -1996,7 +1996,8 @@ LAYOUT_VERSION = "layout_v1"
+     #: "legacy_v6" (2026-11-18, cdglt1): add `artifacts.legacy_raw_status` and `artifacts.legacy_raw_set`,
+     #: enforce strict `^- <Key>:` bullet matching and lowercase scalar normalization for YAML front matter.
+     #: "legacy_v7" (2026-11-18, r81uvz): map legacy backlog `- Kind:` bullets to `work_kind` when `- Work-Kind:` is absent.
+    -LEGACY_LOADER_VERSION = "legacy_v7"
+    +#: "legacy_v8" (2026-11-19, xxdzcq): map prompt `Kind`/`kind` to `prompt_kind` and `Created`/`created` to `created_day`, and set `artifact_row["created_day"]` for prompts.
+    +LEGACY_LOADER_VERSION = "legacy_v8"
 
-- [ ] V-02 validates E-02
+     # The 4.5a Table Set as listed in E-08: exactly 26 tables
+     CACHE_TABLES_4_5A: Tuple[str, ...] = (
+    @@ -3005,6 +3006,10 @@ def load_legacy_artifact(
+                 if "Work-Kind" in bullets:
+                     continue
+                 target_k = "work_kind"
+    +        elif art_type == "prompt" and bk in ("Kind", "kind"):
+    +            target_k = "prompt_kind"
+    +        elif art_type == "prompt" and bk in ("Created", "created"):
+    +            target_k = "created_day"
+             else:
+                 target_k = field_map.get(bk, bk.lower().replace("-", "_"))
+             if bv == "" and target_k in mapped_fields:
+    @@ -3052,7 +3057,7 @@ def load_legacy_artifact(
+             "set_id": set_id,
+             "order_nn": order_nn,
+             "filename_date": filename_date,
+    -        "created_day": None,
+    +        "created_day": mapped_fields.get("created_day") if art_type == "prompt" else None,
+             "created_at": None,
+             "updated_at": None,
+             "last_history_day": last_hist_day,
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `python3 -m pytest -v tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py` output showing all PASSED test node IDs covering `load_legacy_artifact` prompt `Kind`/`Created` mapping, non-prompt `Kind`/`kind` preservation, `artifact_meta.create` and `aw prompts new` round-trip via `artifact_meta.read`, and stale cache rebuild on `LEGACY_LOADER_VERSION` bump.
   - Observed evidence:
-  - Result: pending
+    Ran `python3 -m pytest -vv tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py` (`-vv` overrides `-q` in `pyproject.toml` so pytest prints individual node IDs; exit 0):
+    ```text
+    [gw3] [  3%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_two_review_files_distinct_bindings
+    [gw0] [  6%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_staged_prompt_without_comment_artifact
+    [gw2] [ 10%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_spec_artifact
+    [gw3] [ 13%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_multiword_status_artifact
+    [gw1] [ 17%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_non_prompt_kind_mappings_preserved
+    [gw2] [ 20%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_release_artifact
+    [gw0] [ 24%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_three_round_review
+    [gw3] [ 27%] PASSED tests/test_artifact_meta_legacy.py::test_read_text_strict_two_space_and_tab_whitespace
+    [gw3] [ 31%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_attributed_naming_d177_artifact
+    [gw2] [ 34%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_staged_prompt_with_comment_artifact
+    [gw0] [ 37%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_naming_precedence_artifact
+    [gw1] [ 41%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_plan_artifact
+    [gw3] [ 44%] PASSED tests/test_artifact_meta_legacy.py::test_read_text_yaml_only_and_multiword_status
+    [gw2] [ 48%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_aw_prompt_maps_kind_and_created_day
+    [gw0] [ 51%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_walkthrough_artifact
+    [gw1] [ 55%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_research_artifact
+    [gw2] [ 58%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_load_backlog_artifact
+    [gw1] [ 62%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_history_lines_order_and_last_history_day
+    [gw2] [ 65%] PASSED tests/test_artifact_meta_legacy.py::test_legacy_unregistered_bullet_artifact
+    [gw4] [ 68%] PASSED tests/test_artifact_meta_legacy_writer.py::test_phase_b_create_preview_apply_lock_and_source_digest_refusal
+    [gw2] [ 72%] PASSED tests/test_artifact_meta_legacy_writer.py::test_research_yaml_front_matter_field_edit
+    [gw0] [ 75%] PASSED tests/test_artifact_meta_legacy_writer.py::test_workflow_history_prepend_blank_line_rules_and_legacy_op
+    [gw4] [ 79%] PASSED tests/test_artifact_meta_legacy_writer.py::test_set_readiness_refusal_sha256_and_restore_legacy_snapshot
+    [gw0] [ 82%] PASSED tests/test_artifact_meta_legacy_writer.py::test_prompt_aw_prompt_comment_edit_create_and_commentless_purity
+    [gw5] [ 86%] PASSED tests/test_artifact_meta_legacy_writer.py::test_prompt_create_and_cli_new_preserve_prompt_kind_and_created_day
+    [gw3] [ 89%] PASSED tests/test_artifact_meta_legacy_writer.py::test_stale_prompt_cache_rebuilt_under_legacy_loader_version
+    [gw5] [ 93%] PASSED tests/test_artifact_meta_legacy_writer.py::test_new_bullet_anchor_fallback_and_a88210_prose_only_non_insertion
+    [gw3] [ 96%] PASSED tests/test_artifact_meta_legacy_writer.py::test_inplace_bullet_edit_and_unset
+    [gw1] [100%] PASSED tests/test_artifact_meta_legacy_writer.py::test_tracked_corpus_five_type_byte_identity_round_trip
+    ============================== 29 passed in 4.18s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the pass summaries and exit codes from `python3 -m pytest -v tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py tests/test_artifact_meta_loader_parity.py tests/test_prompts_new.py`, `python3 -m pytest`, `python3 -m mypy agent_workflows`, `aw check all --agent`, and `aw sanitize --agent`.
   - Observed evidence:
-  - Result: pending
+    - Targeted pytest (`python3 -m pytest -v tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py tests/test_artifact_meta_loader_parity.py tests/test_prompts_new.py`): exit 0, `56 passed in 7.31s`.
+    - Full test suite (`aw suite`, running default `python3 -m pytest` core tier): exit 0, `2511 passed, 11 warnings in 112.09s (0:01:52)`.
+    - Static type check (`python3 -m mypy agent_workflows`): exit 0, `Success: no issues found in 226 source files`.
+    - Self-check (`aw check all --agent`): exit 1 due to 79 pre-existing repository-wide findings on unrelated artifacts (`findings_by_severity: {"error": 13, "warning": 2, "info": 64}`; the 13 errors are on `ijpay0`, `60mazt`, `1tx9t8`, six `specflow` prompt files, and `9t7u5r`). Zero findings reference `acqenf` or any file in `Scope-Paths` (`agent_workflows/artifact_meta.py`, `tests/test_artifact_meta_legacy.py`, `tests/test_artifact_meta_legacy_writer.py`, or this IPD). `aw ipd lint` on this IPD reports only non-blocking `IPD-C802` advisories on the template note at line 148.
+    - Leak scan (`aw sanitize --agent`): exit 0, `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6786,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 

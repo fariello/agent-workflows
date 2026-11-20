@@ -7,14 +7,19 @@ Uses `tmp_path` fixtures only and drives the real `artifact_meta` API without re
 from __future__ import annotations
 
 import hashlib
+import io
 import re
+import sqlite3
 import subprocess
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pytest
 
 from agent_workflows import artifact_meta as meta
+from agent_workflows import cli
+from agent_workflows import prompts as prompts_mod
 from agent_workflows import selectors as sel
 
 pytestmark = pytest.mark.core
@@ -812,3 +817,140 @@ def test_tracked_corpus_five_type_byte_identity_round_trip(tmp_path: Path) -> No
 
     assert identical == len(selected)
     print(f"corpus_round_trip: {identical}/{len(selected)} byte-identical")
+
+
+# --------------------------------------------------------------------------------------------------
+# (9) Prompt prompt_kind and created_day round-trip via create, aw prompts new, and stale cache
+# --------------------------------------------------------------------------------------------------
+
+
+def test_prompt_create_and_cli_new_preserve_prompt_kind_and_created_day(
+    tmp_path: Path,
+) -> None:
+    root = _init_repo(tmp_path)
+    ctx = meta.legacy_context(root)
+
+    # Path 1: artifact_meta.create on a legacy root -> artifact_meta.read
+    meta.create(
+        "pr1001",
+        "prompt",
+        {
+            "prompt_kind": "session-handoff",
+            "set": "prset",
+            "status": "pending",
+            "created_day": "2030-01-02",
+        },
+        "Hand off this work cleanly.\n",
+        destination="prompts/pending/20300102-prset-01-pr1001-handoff.prompt.md",
+        project_context=ctx,
+        legacy_render=_render("pending", history=False, is_prompt=True),
+        repo_root=root,
+    )
+    st_created = meta.read("pr1001", project_context=ctx)
+    assert st_created.type == "prompt"
+    assert st_created.fields["prompt_kind"] == "session-handoff"
+    assert st_created.fields["created_day"] == "2030-01-02"
+    assert st_created.created_day == "2030-01-02"
+
+    # Path 2: aw prompts new via cli.main -> artifact_meta.read
+    out, err = io.StringIO(), io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        rc = cli.main(
+            [
+                "prompts",
+                "new",
+                "--slug",
+                "cache-roundtrip",
+                "--kind",
+                "research",
+                "--set",
+                "prset",
+                "--date",
+                "2030-01-03",
+                "--apply",
+                "--dir",
+                str(root),
+            ]
+        )
+    assert rc == 0, out.getvalue() + err.getvalue()
+    cli_files = sorted(
+        (root / ".aw" / "records" / "prompts" / "pending").glob(
+            "*cache-roundtrip.prompt.md"
+        )
+    )
+    assert len(cli_files) == 1
+    cli_text = cli_files[0].read_text(encoding="utf-8")
+    cli_id6 = prompts_mod.read_metadata_id6(cli_text)
+    assert cli_id6 is not None
+
+    st_cli = meta.read(cli_id6, project_context=ctx)
+    assert st_cli.type == "prompt"
+    assert st_cli.fields["prompt_kind"] == "research"
+    assert st_cli.fields["created_day"] == "2030-01-03"
+    assert st_cli.created_day == "2030-01-03"
+
+
+def test_stale_prompt_cache_rebuilt_under_legacy_loader_version(
+    tmp_path: Path,
+) -> None:
+    root = _init_repo(tmp_path)
+    ctx = meta.legacy_context(root)
+
+    meta.create(
+        "pr2001",
+        "prompt",
+        {
+            "prompt_kind": "research",
+            "set": "prset",
+            "status": "pending",
+            "created_day": "2030-02-04",
+        },
+        "Analyze cache rebuild behavior.\n",
+        destination="prompts/pending/20300204-prset-01-pr2001-rebuild.prompt.md",
+        project_context=ctx,
+        legacy_render=_render("pending", history=False, is_prompt=True),
+        repo_root=root,
+    )
+    initial = meta.read("pr2001", project_context=ctx)
+    assert initial.fields["prompt_kind"] == "research"
+    assert initial.fields["created_day"] == "2030-02-04"
+    assert initial.created_day == "2030-02-04"
+
+    # Simulate a pre-legacy_v8 index.db with NULL prompt_kind/created_day and an older schema_hash
+    db_path = root / ".aw" / "state" / "index.db"
+    con = sqlite3.connect(str(db_path))
+    try:
+        con.execute(
+            "UPDATE prompt SET prompt_kind = NULL, created_day = NULL WHERE id6 = ?",
+            ("pr2001",),
+        )
+        con.execute(
+            "UPDATE artifacts SET created_day = NULL WHERE id6 = ?",
+            ("pr2001",),
+        )
+        con.execute(
+            "UPDATE meta SET value = 'stale_legacy_v7_schema_hash' WHERE key = 'schema_hash'"
+        )
+        con.commit()
+    finally:
+        con.close()
+
+    rebuilt = meta.read("pr2001", project_context=ctx)
+    assert rebuilt.fields["prompt_kind"] == "research"
+    assert rebuilt.fields["created_day"] == "2030-02-04"
+    assert rebuilt.created_day == "2030-02-04"
+
+    con = sqlite3.connect(str(db_path))
+    try:
+        stored_hash = con.execute(
+            "SELECT value FROM meta WHERE key = 'schema_hash'"
+        ).fetchone()[0]
+        assert stored_hash == meta.compute_schema_hash()
+        assert con.execute(
+            "SELECT prompt_kind, created_day FROM prompt WHERE id6 = ?", ("pr2001",)
+        ).fetchone() == ("research", "2030-02-04")
+        assert con.execute(
+            "SELECT created_day FROM artifacts WHERE id6 = ?", ("pr2001",)
+        ).fetchone() == ("2030-02-04",)
+    finally:
+        con.close()
