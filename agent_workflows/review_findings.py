@@ -48,7 +48,7 @@ from __future__ import annotations
 import functools
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_naming as _naming
 
@@ -845,6 +845,63 @@ class GatingBlock(NamedTuple):
         )
 
 
+_REVIEW_ID_TOKEN_RE = re.compile(r"[a-z0-9]{6}")
+_REVIEW_SUBJECT_HEADER_RE = re.compile(
+    r"^\s*-\s*(?:Subject-Id|Plan-Id)\s*:\s*`?([^\s`]+)`?",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _cached_review_candidates(
+    root: Path, wanted: str, scan_cache: Dict[Any, Any]
+) -> List[Path]:
+    """Return candidate review paths for `wanted` using a once-per-`scan_once()` index."""
+    idx_key = ("review_findings.subject_index", str(root.resolve()))
+    cached = scan_cache.get(idx_key)
+    if cached is None:
+        by_token: Dict[str, List[Path]] = {}
+        fallback: List[Path] = []
+        review_paths = sorted(iter_review_files(root), key=lambda p: str(p))
+        for path in review_paths:
+            tokens: set[str] = set(_REVIEW_ID_TOKEN_RE.findall(path.name))
+            has_header = False
+            try:
+                with open(path, "r", encoding="utf-8") as _f:
+                    head = _f.read(1024)
+            except OSError:
+                head = ""
+            if head:
+                for m in _REVIEW_SUBJECT_HEADER_RE.finditer(head):
+                    val = m.group(1).strip()
+                    if val:
+                        tokens.add(val)
+                        has_header = True
+                tokens.update(_REVIEW_ID_TOKEN_RE.findall(head))
+            for tok in tokens:
+                by_token.setdefault(tok, []).append(path)
+            if not has_header:
+                fallback.append(path)
+        cached = (by_token, fallback)
+        scan_cache[idx_key] = cached
+    by_token, fallback = cached
+    hits = by_token.get(wanted)
+    if not hits and not fallback:
+        return []
+    if not fallback:
+        return list(hits or ())
+    if not hits:
+        return list(fallback)
+    seen: set[str] = set()
+    merged: List[Path] = []
+    for p in (*hits, *fallback):
+        ps = str(p)
+        if ps not in seen:
+            seen.add(ps)
+            merged.append(p)
+    merged.sort(key=str)
+    return merged
+
+
 def subject_gating_blocks(
     repo_root, subject_id6: str, threshold: Optional[str] = None
 ) -> Tuple[GatingBlock, ...]:
@@ -893,9 +950,29 @@ def subject_gating_blocks(
     if not wanted:
         return ()
 
+    from agent_workflows import selectors as _selectors
+
+    scan_cache = _selectors.current_scan_cache()
+    result_key = None
+    if scan_cache is not None:
+        try:
+            result_key = (
+                "review_findings.gating_blocks",
+                str(root.resolve()),
+                wanted,
+                thr,
+            )
+            if result_key in scan_cache:
+                return scan_cache[result_key]
+        except OSError:
+            result_key = None
+
     out: List[GatingBlock] = []
     try:
-        review_paths = sorted(iter_review_files(root), key=lambda p: str(p))
+        if scan_cache is not None:
+            review_paths = _cached_review_candidates(root, wanted, scan_cache)
+        else:
+            review_paths = sorted(iter_review_files(root), key=lambda p: str(p))
     except Exception:
         return ()
     for path in review_paths:
@@ -944,7 +1021,10 @@ def subject_gating_blocks(
                     detail="",
                 )
             )
-    return tuple(out)
+    result = tuple(out)
+    if scan_cache is not None and result_key is not None:
+        scan_cache[result_key] = result
+    return result
 
 
 # NO BOOLEAN CONVENIENCE WRAPPER LIVES HERE, deliberately. `plan_blocks_dependents` used to, a one

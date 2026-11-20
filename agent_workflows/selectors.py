@@ -670,6 +670,14 @@ _SCAN_CACHE: Optional[
 ] = None
 # Declared `- Id:` -> paths, built once per scan key inside `scan_once()` (lives and dies with it).
 _SCAN_ID_INDEX: Dict[Tuple[str, str, bool, Optional[int]], Dict[str, List[Path]]] = {}
+# Shared per-scope read-only cache for sibling modules (review_findings, check_engine) that run
+# inside `scan_once()`. Cleared automatically on `drop_scan()` and when the outer scope exits.
+_SCAN_EXTRAS: Optional[Dict[Any, Any]] = None
+
+
+def current_scan_cache() -> Optional[Dict[Any, Any]]:
+    """Return the active `scan_once()` read-only cache dict, or None outside a scope."""
+    return _SCAN_EXTRAS
 
 
 @contextlib.contextmanager
@@ -677,7 +685,7 @@ def scan_once():
     """Within this block, `resolve` reuses one directory walk and one metadata query per type.
 
     Use only around READ-ONLY work (see the note above). Nested scopes share the outer cache."""
-    global _SCAN_CACHE
+    global _SCAN_CACHE, _SCAN_EXTRAS
     if _SCAN_CACHE is not None:
         yield
         return
@@ -685,12 +693,14 @@ def scan_once():
 
     _SCAN_CACHE = {}
     _SCAN_ID_INDEX.clear()
+    _SCAN_EXTRAS = {}
     try:
         with _meta.scan_once():
             yield
     finally:
         _SCAN_CACHE = None
         _SCAN_ID_INDEX.clear()
+        _SCAN_EXTRAS = None
 
 
 def drop_scan() -> None:
@@ -700,6 +710,11 @@ def drop_scan() -> None:
     if _SCAN_CACHE is not None:
         _SCAN_CACHE.clear()
     _SCAN_ID_INDEX.clear()
+    if _SCAN_EXTRAS is not None:
+        _SCAN_EXTRAS.clear()
+    from agent_workflows import artifact_meta as _meta
+
+    _meta.drop_scan_freshness()
 
 
 def _scan_key(

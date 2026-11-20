@@ -798,6 +798,22 @@ def _resolved_root(root: Path) -> Path:
     return Path(_resolved_root_str(str(root)))
 
 
+_ALWAYS_IGNORED_PARTS = frozenset(
+    (
+        "tmp",
+        ".tmp",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".git",
+    )
+)
+_EXCLUDED_RECORD_DIR_SET = frozenset(layout.RECORD_SCAN_EXCLUDED_DIRS)
+
+
 def is_ignored_path(
     path: Path,
     repo_root: Path,
@@ -805,61 +821,68 @@ def is_ignored_path(
     include_untracked: bool = False,
 ) -> bool:
     """Return True if path is within an ignored directory or matches ignore rules."""
-    try:
-        rel_path = path.relative_to(repo_root)
-    except ValueError:
+    path_str = str(path)
+    repo_str = str(repo_root)
+    rel_posix: Optional[str] = None
+    if path_str == repo_str:
+        rel_posix = ""
+    elif path_str.startswith(repo_str + os.sep):
+        rel_posix = path_str[len(repo_str) + 1 :].replace("\\", "/")
+    else:
+        res_repo_str = _resolved_root_str(repo_str)
+        if path_str == res_repo_str:
+            rel_posix = ""
+        elif path_str.startswith(res_repo_str + os.sep):
+            rel_posix = path_str[len(res_repo_str) + 1 :].replace("\\", "/")
+
+    if rel_posix is not None:
+        rel_parts = tuple(p for p in rel_posix.split("/") if p)
+        rel = rel_posix
+    else:
         try:
-            rel_path = path.resolve().relative_to(_resolved_root(repo_root))
-        except (ValueError, OSError):
-            from agent_workflows.project_context import project_records_dir
-
+            rel_path = path.relative_to(repo_root)
+        except ValueError:
             try:
-                rec_root = project_records_dir(repo_root)
-                sub_rel = path.resolve().relative_to(rec_root.resolve())
-                rel_path = Path(".aw") / "records" / sub_rel
+                rel_path = path.resolve().relative_to(_resolved_root(repo_root))
             except (ValueError, OSError):
-                rel_path = Path(path.as_posix())
+                from agent_workflows.project_context import project_records_dir
 
-    rel_parts = rel_path.parts
-    if any(
-        p
-        in (
-            "tmp",
-            ".tmp",
-            "__pycache__",
-            ".pytest_cache",
-            ".ruff_cache",
-            "node_modules",
-            ".venv",
-            "venv",
-            ".git",
-        )
-        for p in rel_parts
-    ):
+                try:
+                    rec_root = project_records_dir(repo_root)
+                    sub_rel = path.resolve().relative_to(rec_root.resolve())
+                    rel_path = Path(".aw") / "records" / sub_rel
+                except (ValueError, OSError):
+                    rel_path = Path(path.as_posix())
+        rel_parts = rel_path.parts
+        rel = rel_path.as_posix()
+
+    if any(p in _ALWAYS_IGNORED_PARTS for p in rel_parts):
         return True
 
     if (
         len(rel_parts) >= 3
         and rel_parts[:2] == (".aw", "records")
-        and rel_parts[2] in layout.RECORD_SCAN_EXCLUDED_DIRS
+        and rel_parts[2] in _EXCLUDED_RECORD_DIR_SET
     ) or (
         len(rel_parts) >= 2
         and rel_parts[0] == ".agents"
-        and rel_parts[1] in layout.RECORD_SCAN_EXCLUDED_DIRS
+        and rel_parts[1] in _EXCLUDED_RECORD_DIR_SET
     ):
         return True
 
     if not include_untracked and "untracked" in rel_parts:
         return True
 
-    rel = rel_path.as_posix()
     if ignored_dirs is None:
         ignored_dirs = get_ignored_dirs(repo_root)
+    if not ignored_dirs:
+        return False
     parts_list = rel.split("/")
-    for i in range(1, len(parts_list) + 1):
-        sub = "/".join(parts_list[:i])
-        if sub in ignored_dirs:
-            if include_untracked and "untracked" in sub.split("/"):
+    prefix = ""
+    for part in parts_list:
+        prefix = f"{prefix}/{part}" if prefix else part
+        if prefix in ignored_dirs:
+            if include_untracked and "untracked" in prefix.split("/"):
                 continue
             return True
     return False
@@ -901,13 +924,23 @@ def iter_scan_files(
         if p.is_file():
             files.append(p)
         elif p.is_dir():
-            for f in sorted(p.rglob("*")):
-                if _is_excluded_record_dir(f, p, is_dir=False):
-                    continue
-                if is_ignored_path(f, repo_root, ignored_dirs):
-                    continue
-                if f.is_file() and f.suffix in suffixes:
-                    files.append(f)
+            excluded_names = set(layout.RECORD_SCAN_EXCLUDED_DIRS)
+            for root_str, dirnames, filenames in os.walk(str(p)):
+                root_path = Path(root_str)
+                dirnames[:] = sorted(
+                    d
+                    for d in dirnames
+                    if d not in excluded_names
+                    and not is_ignored_path(root_path / d, repo_root, ignored_dirs)
+                )
+                for fname in filenames:
+                    f = root_path / fname
+                    if f.suffix not in suffixes:
+                        continue
+                    if is_ignored_path(f, repo_root, ignored_dirs):
+                        continue
+                    if f.is_file():
+                        files.append(f)
     return sorted(set(files))
 
 

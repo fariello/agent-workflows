@@ -373,6 +373,53 @@ def _structural_lines(text: str) -> List[Tuple[int, str]]:
     return out
 
 
+def parse_meta_fields(text: str) -> Dict[str, str]:
+    """Parse only the top metadata block (between H1 and first H2), fence-aware.
+
+    Produces the exact same ``meta_fields`` dict as ``parse(text).meta_fields`` without
+    scanning the document body past the first H2 heading.
+    """
+    lines = (text or "").splitlines()
+    in_fence = False
+    fence_marker = ""
+    idx = 0
+    n = len(lines)
+    if n and lines[0].strip() == "---":
+        idx = 1
+        while idx < n and lines[idx].strip() != "---":
+            idx += 1
+        idx += 1
+    meta_slice: List[str] = []
+    seen_h1 = False
+    for i in range(idx, n):
+        raw = lines[i]
+        m = _FENCE_RE.match(raw)
+        if m:
+            marker = m.group(2)
+            if not in_fence:
+                in_fence = True
+                fence_marker = marker
+            elif marker == fence_marker:
+                in_fence = False
+                fence_marker = ""
+            continue
+        if in_fence:
+            continue
+        if raw.startswith("    ") or raw.startswith("\t"):
+            continue
+        if raw.lstrip().startswith(">"):
+            continue
+        if not seen_h1:
+            if _H1_RE.match(raw):
+                seen_h1 = True
+            continue
+        if _H2_RE.match(raw):
+            break
+        meta_slice.append(raw)
+    meta_fields, _meta_errors = S.parse_metadata_block(meta_slice)
+    return meta_fields
+
+
 def parse(text: str) -> ParsedDoc:
     """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
     raw_lines = (text or "").splitlines()

@@ -14841,7 +14841,9 @@ def _read_kind(text: str) -> str | None:
     return m.group(1).lower() if m else None
 
 
-def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
+def _read_item_dependencies(
+    text: str, *, _meta_fields: Mapping[str, str] | None = None
+) -> tuple[list[str], str | None]:
     """Read the plan's canonical `- Item-Dependencies:` statement as CANONICAL TYPED edge tokens.
 
     Returns ``(edges, error)`` where ``edges`` is the list of canonical edge strings (e.g.
@@ -14856,17 +14858,20 @@ def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
     token is what the record and the frozen queue must carry.
 
     Two shared authorities, no private parsing: the field NAME is `ipd_schema`'s constant and the
-    metadata block is read by `ipd_lint.parse` (the same structural, fence-aware reader the lint and
-    lifecycle surfaces use, measured byte-identical to `check_engine`'s extraction across the whole
-    plans tree); the VALUE grammar is `ipd_schema.parse_item_dependencies`.
+    metadata block is read by `ipd_lint.parse_meta_fields` (the same structural, fence-aware reader
+    the lint and lifecycle surfaces use, measured byte-identical to `check_engine`'s extraction
+    across the whole plans tree); the VALUE grammar is `ipd_schema.parse_item_dependencies`.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
 
-    try:
-        fields = _lint.parse(text).meta_fields
-    except Exception:
-        return [], None
+    if _meta_fields is None:
+        try:
+            fields: Mapping[str, str] = _lint.parse_meta_fields(text)
+        except Exception:
+            return [], None
+    else:
+        fields = _meta_fields
     raw = fields.get(_schema.META_ITEM_DEPENDENCIES)
     if raw is None:
         return [], None
@@ -14876,23 +14881,29 @@ def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
     return [edge.canonical() for edge in edges], None
 
 
-def _read_from_backlog(text: str) -> str | None:
+def _read_from_backlog(
+    text: str, *, _meta_fields: Mapping[str, str] | None = None
+) -> str | None:
     """The plan's `- From-Backlog:` id6, or None when the field is absent/empty/malformed (okp2o4).
 
     THE FIELD NAME IS THE SCHEMA'S, NOT A LOCAL REGEX (zhr6mc E-01). `ipd_schema.META_FROM_BACKLOG`
     is the single authority the checkers already use, so the runner and `aw check` cannot come to
-    disagree about what the field is called. The metadata block is read by `ipd_lint.parse`, the same
-    structural fence-aware reader the lint and lifecycle surfaces use -- identical in form to how
-    `_read_item_dependencies` reads its own field, and for the identical reason. The value is classified
-    by `ipd_schema.classify_source_link`, so malformed inputs yield None rather than a junk token.
+    disagree about what the field is called. The metadata block is read by `ipd_lint.parse_meta_fields`,
+    the same structural fence-aware reader the lint and lifecycle surfaces use -- identical in form
+    to how `_read_item_dependencies` reads its own field, and for the identical reason. The value is
+    classified by `ipd_schema.classify_source_link`, so malformed inputs yield None rather than a
+    junk token.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
 
-    try:
-        fields = _lint.parse(text).meta_fields
-    except Exception:
-        return None
+    if _meta_fields is None:
+        try:
+            fields: Mapping[str, str] = _lint.parse_meta_fields(text)
+        except Exception:
+            return None
+    else:
+        fields = _meta_fields
     raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
     cls = _schema.classify_source_link(raw)
     if cls.verdict == _schema.SOURCE_LINK_USABLE:
@@ -14975,9 +14986,15 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     setid = _read_set(text)
     status = _read_status(text)
     order = _read_order(text)
-    deps, dep_err = _read_item_dependencies(text)
+    from agent_workflows import ipd_lint as _lint
+
+    try:
+        _meta_fields: Mapping[str, str] | None = _lint.parse_meta_fields(text)
+    except Exception:
+        _meta_fields = None
+    deps, dep_err = _read_item_dependencies(text, _meta_fields=_meta_fields)
     kind = _read_kind(text)
-    from_backlog = _read_from_backlog(text)
+    from_backlog = _read_from_backlog(text, _meta_fields=_meta_fields)
     # The ONE file-name library reads the filename identity (maintainer ruling 2026-11-09).
     from agent_workflows import artifact_naming as _an_id
 
@@ -37417,85 +37434,86 @@ def initialize_run_core(
     refuse_unsweepable_run_types(run_types, args.selectors)
     refuse_type_scoping_outside_the_review_sweep(run_types, args.selectors)
     report_untracked_dirt_at_run_start(repo)
-    report_invalid_board_at_run_start(repo)
 
-    queue_ids = expand_selectors_fn(
-        manifest, args.selectors, repo=repo, types=run_types
-    )
-
-    if is_status_selector(args.selectors):
-        queue_ids, draft_verdict = enforce_draft_admission_gate(
-            manifest,
-            queue_ids,
-            repo=repo,
-            allow_drafts=bool(getattr(args, "allow_drafts", False)),
-            interactive=is_interactive_run(args),
-            host=host,
-            selector=" ".join(str(s) for s in args.selectors),
-        )
-        if not queue_ids:
-            raise (
-                EmptyStatusSelection(
-                    "No items in 'to-review' state found in repository"
-                )
-                if is_review_selector(args.selectors)
-                else DriverError("No actionable pending IPDs found in repository")
-            )
-    else:
-        draft_verdict = None
-
-    # depclosure 01 (`dhycim`) E-04: THE SEAM. `--with-dependencies` REBINDS the selection here,
-    # after selector expansion and the draft gate (whose rebind-rather-than-raise shape this borrows)
-    # and BEFORE `selected_plan_paths` is built.
-    #
-    # BEFORE THAT LIST, NOT MERELY BEFORE THE MIXED-TYPE GATE, and the distinction is the whole
-    # correctness argument: the list immediately below - not `queue_ids` - is what feeds BOTH
-    # `enforce_dependency_preflight` and `enforce_mixed_type_gate`, so an expansion placed after it
-    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda Section 5.4 fixes
-    # the order as a contract: the closure "computes the transitive closure before mixed-type
-    # confirmation and freezing".
-    #
-    # NOT WRAPPED IN `is_status_selector`, unlike the draft gate above, because spec 2.5a scopes THAT
-    # gate to status sweeps and `--with-dependencies` carries no such scoping: the flag means expand,
-    # whatever the selector.
-    #
-    # AHEAD OF THE RUN DIRECTORY, so a `ClosureRefusal` leaves nothing durable behind, which is the
-    # same property `refuse_unimplemented_run_flags` has and for the same reason.
-    queue_ids, closure_record = expand_dependency_closure(
-        repo,
-        manifest,
-        queue_ids,
-        with_dependencies=bool(getattr(args, "with_dependencies", False)),
-        edge_satisfied_fn=edge_satisfied_fn,
-    )
-    if closure_record["applied"] and closure_record["added"]:
-        # An expansion that changed the queue is ANNOUNCED. The operator asked for prerequisites to be
-        # pulled in; which ones, and on whose behalf, is the answer to that request.
-        print(
-            "--with-dependencies expanded the selection by "
-            f"{len(closure_record['added'])} item(s): "
-            + ", ".join(
-                f"{row['id6']} (required by {row['required_by']} via {row['edge']})"
-                for row in closure_record["added"]
-            ),
-            file=sys.stderr,
-        )
-
-    # specsweep-01 (`ui8b9b`) E-02/DECISION D5: resolved through the TYPE-AWARE resolver, which keeps
-    # PLAN paths distinguishable from the rest. The two consumers below are NOT interchangeable once a
-    # selection can hold more than one type: the dependency preflight hands each path's TEXT to the IPD
-    # dependency evaluator and must therefore see PLANS ONLY, while the mixed-type gate must see EVERY
-    # path, because judging the mix is its entire job. For the IPD-only default both lists are
-    # identical and identical to what the single list held before, so no existing run's behavior moves.
-    # THE PRE-QUEUE GATES AND THE QUEUE BUILD RUN INSIDE `selectors.scan_once()`. Each of them
-    # resolves plan paths per item or per dependency edge through `resolve_plan_path`, and outside
-    # the scope every such call re-walks the records tree and re-reads every header. Measured
-    # 2026-11-11: a 209-plan review run spent well over an hour here before printing anything. The
-    # one write in this region (`set_plan_approved_fn`) drops the scan right after it, so a later
+    # THE PRE-QUEUE GATES, BOARD CHECK, SELECTOR EXPANSION, DEPENDENCY CLOSURE, AND QUEUE BUILD
+    # RUN INSIDE ONE `selectors.scan_once()` SCOPE. Each of them resolves paths and queries
+    # `artifact_meta` / `review_findings` / `check_engine`, and outside the scope every call would
+    # re-run `check_freshness`, re-walk the records tree, and rebuild the dependency graph. The one
+    # write in this region (`set_plan_approved_fn`) calls `drop_scan()` right after it, so a later
     # lookup sees the updated record.
     from agent_workflows import selectors as _scan_selectors
 
     with _scan_selectors.scan_once():
+        report_invalid_board_at_run_start(repo)
+
+        queue_ids = expand_selectors_fn(
+            manifest, args.selectors, repo=repo, types=run_types
+        )
+
+        if is_status_selector(args.selectors):
+            queue_ids, draft_verdict = enforce_draft_admission_gate(
+                manifest,
+                queue_ids,
+                repo=repo,
+                allow_drafts=bool(getattr(args, "allow_drafts", False)),
+                interactive=is_interactive_run(args),
+                host=host,
+                selector=" ".join(str(s) for s in args.selectors),
+            )
+            if not queue_ids:
+                raise (
+                    EmptyStatusSelection(
+                        "No items in 'to-review' state found in repository"
+                    )
+                    if is_review_selector(args.selectors)
+                    else DriverError("No actionable pending IPDs found in repository")
+                )
+        else:
+            draft_verdict = None
+
+        # depclosure 01 (`dhycim`) E-04: THE SEAM. `--with-dependencies` REBINDS the selection here,
+        # after selector expansion and the draft gate (whose rebind-rather-than-raise shape this borrows)
+        # and BEFORE `selected_plan_paths` is built.
+        #
+        # BEFORE THAT LIST, NOT MERELY BEFORE THE MIXED-TYPE GATE, and the distinction is the whole
+        # correctness argument: the list immediately below - not `queue_ids` - is what feeds BOTH
+        # `enforce_dependency_preflight` and `enforce_mixed_type_gate`, so an expansion placed after it
+        # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda Section 5.4 fixes
+        # the order as a contract: the closure "computes the transitive closure before mixed-type
+        # confirmation and freezing".
+        #
+        # NOT WRAPPED IN `is_status_selector`, unlike the draft gate above, because spec 2.5a scopes THAT
+        # gate to status sweeps and `--with-dependencies` carries no such scoping: the flag means expand,
+        # whatever the selector.
+        #
+        # AHEAD OF THE RUN DIRECTORY, so a `ClosureRefusal` leaves nothing durable behind, which is the
+        # same property `refuse_unimplemented_run_flags` has and for the same reason.
+        queue_ids, closure_record = expand_dependency_closure(
+            repo,
+            manifest,
+            queue_ids,
+            with_dependencies=bool(getattr(args, "with_dependencies", False)),
+            edge_satisfied_fn=edge_satisfied_fn,
+        )
+        if closure_record["applied"] and closure_record["added"]:
+            # An expansion that changed the queue is ANNOUNCED. The operator asked for prerequisites to be
+            # pulled in; which ones, and on whose behalf, is the answer to that request.
+            print(
+                "--with-dependencies expanded the selection by "
+                f"{len(closure_record['added'])} item(s): "
+                + ", ".join(
+                    f"{row['id6']} (required by {row['required_by']} via {row['edge']})"
+                    for row in closure_record["added"]
+                ),
+                file=sys.stderr,
+            )
+
+        # specsweep-01 (`ui8b9b`) E-02/DECISION D5: resolved through the TYPE-AWARE resolver, which keeps
+        # PLAN paths distinguishable from the rest. The two consumers below are NOT interchangeable once a
+        # selection can hold more than one type: the dependency preflight hands each path's TEXT to the IPD
+        # dependency evaluator and must therefore see PLANS ONLY, while the mixed-type gate must see EVERY
+        # path, because judging the mix is its entire job. For the IPD-only default both lists are
+        # identical and identical to what the single list held before, so no existing run's behavior moves.
         selection = resolve_selected_artifact_paths(
             repo, manifest, queue_ids, run_types
         )

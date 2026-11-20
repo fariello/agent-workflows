@@ -5363,8 +5363,24 @@ def _meta_state_map(
     """Return resolved-path -> `artifact_meta` State map for `meta_type` in one cache scan."""
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import project_context as _proj_ctx
+    from agent_workflows import selectors as _selectors
 
     repo_root = Path(repo_root)
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = (
+                "check_engine._meta_state_map",
+                str(repo_root.resolve()),
+                meta_type,
+                bool(load_fields),
+            )
+            if cache_key in scan_cache:
+                return scan_cache[cache_key]
+        except OSError:
+            cache_key = None
+
     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
     records_root = Path(ctx.logical_roots["records"])
     scan_repo = _meta._scan_repo_root(ctx, records_root)
@@ -5377,23 +5393,41 @@ def _meta_state_map(
     if not has_tree:
         return {}
     out: Dict[Path, Any] = {}
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
     with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
-        res = _meta.query(type=meta_type, project_context=ctx)
+        res = _meta.query(
+            type=meta_type, project_context=ctx, include_fields=load_fields
+        )
         for st in res.rows:
             if not st.path or not st.id6:
                 continue
             try:
-                resolved_p = _meta.source_path(
-                    st.path, records_root, scan_repo
-                ).resolve()
+                if (
+                    st.path.startswith("@repo/")
+                    and scan_repo_res is not None
+                    and "/../" not in st.path
+                    and not st.path.endswith("/..")
+                ):
+                    cand = scan_repo_res / st.path[6:]
+                    resolved_p = cand.resolve() if cand.is_symlink() else cand
+                elif (
+                    not st.path.startswith("@repo/")
+                    and not st.path.startswith("..")
+                    and not st.path.startswith("/")
+                    and "/../" not in st.path
+                ):
+                    cand = records_root_res / st.path
+                    resolved_p = cand.resolve() if cand.is_symlink() else cand
+                else:
+                    resolved_p = _meta.source_path(
+                        st.path, records_root, scan_repo
+                    ).resolve()
             except Exception:
                 continue
-            if load_fields:
-                try:
-                    st = _meta.read(st.id6, project_context=ctx)
-                except Exception:
-                    pass
             out[resolved_p] = st
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = out
     return out
 
 
@@ -7868,6 +7902,18 @@ def build_dependency_index(repo_root: Path) -> _DepIndex:
     Uses the unified artifact inventory (plans/specs/backlog + more) so an edge's typed id6 can be
     resolved and a multi-owner id6 (ambiguous) detected. Lazy import avoids any import cycle.
     """
+    from agent_workflows import selectors as _selectors
+
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = ("check_engine.dep_index", str(Path(repo_root).resolve()))
+            if cache_key in scan_cache:
+                return scan_cache[cache_key]
+        except OSError:
+            cache_key = None
+
     owners: Dict[str, List[Tuple[str, Optional[str], str]]] = {}
     try:
         from agent_workflows import status_set as _ss
@@ -7880,7 +7926,10 @@ def build_dependency_index(repo_root: Path) -> _DepIndex:
         if not rid:
             continue
         owners.setdefault(rid, []).append((rec.record_type, rec.status, str(rec.path)))
-    return _DepIndex(owners)
+    dep_index = _DepIndex(owners)
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = dep_index
+    return dep_index
 
 
 def _resolve_edge(
@@ -7956,9 +8005,9 @@ def evaluate_ipd_dependencies(
     repo_root = Path(repo_root)
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import config as _config
+    from agent_workflows import selectors as _selectors
 
     cutover_date = _config.dependency_cutover_date(repo_root)
-    index = build_dependency_index(repo_root)
     # revgate Order 03 (7nkcgp) E-03: resolve the findings threshold ONCE per evaluation rather than
     # per edge. `off` short-circuits the new check entirely inside the shared predicate.
     try:
@@ -7970,61 +8019,90 @@ def evaluate_ipd_dependencies(
     # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph). The
     # staged overlay (if any) overrides on-disk text and contributes any newly-staged plan path.
     overlay = dict(overlay or {})
-    disk_plans: List[Tuple[Path, str]] = list(_iter_plan_ipds(repo_root))
-    merged: Dict[str, str] = {str(p): text for p, text in disk_plans}
-    for ov_ps, ov_text in overlay.items():
-        merged[ov_ps] = ov_text
-    all_plans: List[Tuple[Path, str]] = [
-        (Path(ps), text) for ps, text in merged.items()
-    ]
-    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
-    own_id: Dict[str, str] = {}  # path_str -> declared id6
-    dep_value: Dict[
-        str, Optional[str]
-    ] = {}  # path_str -> raw Item-Dependencies value (or None)
-    plan_text: Dict[str, str] = {}
-    for p, text in all_plans:
-        ps = str(p)
-        plan_text[ps] = text
-        # IPD `76w6mq`: the owner id6 is read from the plan's METADATA REGION, the same bound every
-        # other identity reader uses, so a plan that QUOTES another plan's metadata block cannot be
-        # entered into the dependency graph under the quoted id6. Measured at the time of the change:
-        # no plan in the corpus changes its graph identity, so this is a fail-safe alignment rather
-        # than a behavior change - which is exactly why it should be made now, before a plan
-        # discussing `Item-Dependencies` (a normal thing for a plan about the graph to do) acquires a
-        # quoted `- Id:` and silently takes over another plan's node.
-        if ps in overlay:
-            st_obj = _meta.read_text(text, record_type="ipd")
-        else:
-            try:
-                st_obj = state_map.get(p.resolve())
-            except OSError:
-                st_obj = None
-            if st_obj is None:
+    scan_cache = _selectors.current_scan_cache() if not overlay else None
+    graph_key = None
+    cached_graph = None
+    if scan_cache is not None:
+        try:
+            graph_key = ("check_engine.dep_graph", str(repo_root.resolve()))
+            cached_graph = scan_cache.get(graph_key)
+        except OSError:
+            graph_key = None
+
+    if cached_graph is not None:
+        (
+            index,
+            state_map,
+            all_plans,
+            own_id,
+            dep_value,
+            plan_path_set,
+            cycles,
+            id_to_path,
+        ) = cached_graph
+    else:
+        index = build_dependency_index(repo_root)
+        disk_plans: List[Tuple[Path, str]] = list(_iter_plan_ipds(repo_root))
+        merged: Dict[str, str] = {str(p): text for p, text in disk_plans}
+        for ov_ps, ov_text in overlay.items():
+            merged[ov_ps] = ov_text
+        all_plans = [(Path(ps), text) for ps, text in merged.items()]
+        state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
+        own_id = {}  # path_str -> declared id6
+        dep_value = {}  # path_str -> raw Item-Dependencies value (or None)
+        plan_path_set = set(merged.keys())
+        for p, text in all_plans:
+            ps = str(p)
+            # IPD `76w6mq`: the owner id6 is read from the plan's METADATA REGION, the same bound every
+            # other identity reader uses, so a plan that QUOTES another plan's metadata block cannot be
+            # entered into the dependency graph under the quoted id6. Measured at the time of the change:
+            # no plan in the corpus changes its graph identity, so this is a fail-safe alignment rather
+            # than a behavior change - which is exactly why it should be made now, before a plan
+            # discussing `Item-Dependencies` (a normal thing for a plan about the graph to do) acquires a
+            # quoted `- Id:` and silently takes over another plan's node.
+            if ps in overlay:
                 st_obj = _meta.read_text(text, record_type="ipd")
-        mid_declared = _meta_declared_id6(st_obj)
-        if mid_declared:
-            own_id[ps] = mid_declared
-        raw_dep = (getattr(st_obj, "fields", None) or {}).get("item_dependencies")
-        dep_value[ps] = str(raw_dep).strip() if raw_dep is not None else None
+            else:
+                try:
+                    st_obj = state_map.get(p) or state_map.get(p.resolve())
+                except OSError:
+                    st_obj = None
+                if st_obj is None:
+                    st_obj = _meta.read_text(text, record_type="ipd")
+            mid_declared = _meta_declared_id6(st_obj)
+            if mid_declared:
+                own_id[ps] = mid_declared
+            raw_dep = (getattr(st_obj, "fields", None) or {}).get("item_dependencies")
+            dep_value[ps] = str(raw_dep).strip() if raw_dep is not None else None
 
-    # Build the IPD->IPD edge graph (by owner id6) from ALL plans for cycle detection.
-    edges_by_plan: Dict[str, List[str]] = {}
-    for ps, oid in own_id.items():
-        raw = dep_value.get(ps)
-        if not raw:
-            continue
-        edges, _ready, err = _S.parse_item_dependencies(raw)
-        if err:
-            continue
-        ipd_targets = [e.id6 for e in edges if e.target_type == "ipd"]
-        if oid not in edges_by_plan:
-            edges_by_plan[oid] = []
-        edges_by_plan[oid].extend(ipd_targets)
+        # Build the IPD->IPD edge graph (by owner id6) from ALL plans for cycle detection.
+        edges_by_plan: Dict[str, List[str]] = {}
+        for ps, oid in own_id.items():
+            raw = dep_value.get(ps)
+            if not raw:
+                continue
+            edges, _ready, err = _S.parse_item_dependencies(raw)
+            if err:
+                continue
+            ipd_targets = [e.id6 for e in edges if e.target_type == "ipd"]
+            if oid not in edges_by_plan:
+                edges_by_plan[oid] = []
+            edges_by_plan[oid].extend(ipd_targets)
 
-    cycles = _S.item_dependency_cycles(edges_by_plan)
-    # Map an owner id6 back to a path for cycle reporting.
-    id_to_path: Dict[str, str] = {oid: ps for ps, oid in own_id.items()}
+        cycles = _S.item_dependency_cycles(edges_by_plan)
+        # Map an owner id6 back to a path for cycle reporting.
+        id_to_path = {oid: ps for ps, oid in own_id.items()}
+        if scan_cache is not None and graph_key is not None:
+            scan_cache[graph_key] = (
+                index,
+                state_map,
+                all_plans,
+                own_id,
+                dep_value,
+                plan_path_set,
+                cycles,
+                id_to_path,
+            )
 
     drift: List[_core.Drift] = []
     blocking = phase in _DEP_BLOCKING_PHASES
@@ -8153,7 +8231,9 @@ def evaluate_ipd_dependencies(
         if plans is not None and not (set(cyc) & target_ids):
             continue
         member_paths = [id_to_path.get(c, c) for c in cyc]
-        loc = sorted(pp for pp in member_paths if pp in plan_text) or [member_paths[0]]
+        loc = sorted(pp for pp in member_paths if pp in plan_path_set) or [
+            member_paths[0]
+        ]
         drift.append(
             _core.Drift(
                 loc[0],
@@ -9955,6 +10035,18 @@ def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
     which no spec shares. Filtering here would add a second place that decides what a subject type
     means, for no additional safety.
     """
+    from agent_workflows import selectors as _selectors
+
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = ("check_engine._review_index", str(Path(repo_root).resolve()))
+            if cache_key in scan_cache:
+                return scan_cache[cache_key]
+        except OSError:
+            cache_key = None
+
     index: Dict[str, List[Path]] = {}
     try:
         from agent_workflows import review_findings as _rf
@@ -9975,6 +10067,8 @@ def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
         if m is None:
             continue
         index.setdefault(m.group(1), []).append(path)
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = index
     return index
 
 

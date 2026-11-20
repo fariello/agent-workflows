@@ -237,6 +237,20 @@ def _cached_states_by_path(repo_root: Path) -> dict[Path, Any]:
     """Query `artifact_meta` for cached states keyed by resolved Path."""
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import project_context as _proj_ctx
+    from agent_workflows import selectors as _selectors
+
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = (
+                "status_set._cached_states_by_path",
+                str(Path(repo_root).resolve()),
+            )
+            if cache_key in scan_cache:
+                return scan_cache[cache_key]
+        except OSError:
+            cache_key = None
 
     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
     records_root = Path(ctx.logical_roots["records"])
@@ -251,15 +265,36 @@ def _cached_states_by_path(repo_root: Path) -> dict[Path, Any]:
         return {}
     with _meta.ephemeral_if_uninitialized():
         res = _meta.query(project_context=ctx)
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
     by_path: dict[Path, Any] = {}
     for st in res.rows:
         if not st.path:
             continue
         try:
-            abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
+            if (
+                st.path.startswith("@repo/")
+                and scan_repo_res is not None
+                and "/../" not in st.path
+                and not st.path.endswith("/..")
+            ):
+                cand = scan_repo_res / st.path[6:]
+                abs_p = cand.resolve() if cand.is_symlink() else cand
+            elif (
+                not st.path.startswith("@repo/")
+                and not st.path.startswith("..")
+                and not st.path.startswith("/")
+                and "/../" not in st.path
+            ):
+                cand = records_root_res / st.path
+                abs_p = cand.resolve() if cand.is_symlink() else cand
+            else:
+                abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
         except Exception:
             continue
         by_path[abs_p] = st
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = by_path
     return by_path
 
 
@@ -269,11 +304,25 @@ def _cached_state_for_path(
     """Resolve `path` through `artifact_meta` (`resolve`/`query`/`read`), or None if uncached."""
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import project_context as _proj_ctx
+    from agent_workflows import selectors as _selectors
 
     try:
         target_res = path.resolve()
     except OSError:
         return None
+    scan_cache = _selectors.current_scan_cache()
+    if scan_cache is not None:
+        by_path = _cached_states_by_path(repo_root)
+        st = by_path.get(target_res)
+        if st is None:
+            return None
+        if load_fields and st.id6:
+            ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+            with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+                with contextlib.suppress(Exception):
+                    return _meta.read(st.id6, project_context=ctx)
+        return st
+
     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
     records_root = Path(ctx.logical_roots["records"])
     scan_repo = _meta._scan_repo_root(ctx, records_root)

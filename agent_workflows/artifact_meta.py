@@ -44,6 +44,7 @@ from agent_workflows import artifact_naming as _naming
 from agent_workflows import attention_contract as _att
 from agent_workflows import ipd_lifecycle as _ipd_life
 from agent_workflows import ipd_schema as _ipd_schema
+from agent_workflows import layout as _layout
 from agent_workflows import leak_sanitizer as _leak
 from agent_workflows import lifecycle_dirs as _life_dirs
 from agent_workflows import plan_readiness as _plan_read
@@ -4025,6 +4026,11 @@ def _detect_file_role(
     return None, None, None
 
 
+_FRESHNESS_EXCLUDED_DIRS: FrozenSet[str] = frozenset(
+    _layout.TRAVERSAL_EXCLUSIONS
+) | frozenset({"comms"})
+
+
 def _is_source_stale(
     fpath: Path, prev_info: Optional[Tuple[int, int, str]], force: bool
 ) -> bool:
@@ -4104,24 +4110,33 @@ def check_freshness(
 
     changed_sources: List[Dict[str, Any]] = []
     current_files_set: Set[str] = set()
-    seen_files: Set[Path] = set()
+    seen_files: Set[str] = set()
+    dirty_dirs: List[Tuple[str, int]] = []
+    need_seen_files = bool(extra_root_dirs)
 
     # Discover directories and files inside records_root
     if records_root.exists():
-        for root, dirs, files in os.walk(records_root):
-            rel_dir = str(Path(root).relative_to(records_root)).replace("\\", "/")
+        records_root_str = str(records_root)
+        for root, dirs, files in os.walk(records_root_str):
+            # Prune non-record trees (spec 4sd62s N4: runs/, comms/, scratch/, etc.)
+            # and research companion data dirs (.data/) before descending.
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d not in _FRESHNESS_EXCLUDED_DIRS
+                and not d.endswith(".data")
+            ]
+            rel_dir = os.path.relpath(root, records_root_str).replace("\\", "/")
             if rel_dir == ".":
                 rel_dir = ""
             st_dir = os.stat(root)
             current_mtime = st_dir.st_mtime_ns
-            prev_mtime = known_dirs.get(rel_dir)
-            if prev_mtime != current_mtime:
-                with conn:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
-                        (rel_dir, current_mtime),
-                    )
+            if known_dirs.get(rel_dir) != current_mtime:
+                dirty_dirs.append((rel_dir, current_mtime))
 
+            is_meta_dir = rel_dir == "meta" or rel_dir.startswith("meta/")
+            rel_prefix = f"{rel_dir}/" if rel_dir else ""
             for fname in files:
                 if (
                     fname.startswith(".")
@@ -4129,18 +4144,17 @@ def check_freshness(
                     or fname == "STATUS.md"
                 ):
                     continue
-                fpath = Path(root) / fname
-                with contextlib.suppress(OSError):
-                    seen_files.add(fpath.resolve())
-                rel_f = str(fpath.relative_to(records_root)).replace("\\", "/")
+                rel_f = f"{rel_prefix}{fname}"
                 current_files_set.add(rel_f)
+                if need_seen_files:
+                    with contextlib.suppress(OSError):
+                        seen_files.add(os.path.realpath(os.path.join(root, fname)))
 
-                role, f_id6, f_type = _detect_file_role(
-                    fname, is_meta=rel_f.startswith("meta/")
-                )
+                role, f_id6, f_type = _detect_file_role(fname, is_meta=is_meta_dir)
                 if not role:
                     continue
 
+                fpath = Path(root, fname)
                 if _is_source_stale(fpath, known_files.get(rel_f), force):
                     changed_sources.append(
                         {
@@ -4158,6 +4172,13 @@ def check_freshness(
 
         for extra_type, extra_dir in extra_root_dirs:
             for root, dirs, files in os.walk(extra_dir):
+                dirs[:] = [
+                    d
+                    for d in dirs
+                    if not d.startswith(".")
+                    and d not in _FRESHNESS_EXCLUDED_DIRS
+                    and not d.endswith(".data")
+                ]
                 root_p = Path(root)
                 try:
                     dir_stored = stored_path(root_p, records_root, scan_repo)
@@ -4165,13 +4186,8 @@ def check_freshness(
                     continue
                 st_dir = os.stat(root)
                 current_mtime = st_dir.st_mtime_ns
-                prev_mtime = known_dirs.get(dir_stored)
-                if prev_mtime != current_mtime:
-                    with conn:
-                        conn.execute(
-                            "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
-                            (dir_stored, current_mtime),
-                        )
+                if known_dirs.get(dir_stored) != current_mtime:
+                    dirty_dirs.append((dir_stored, current_mtime))
 
                 for fname in files:
                     if (
@@ -4183,7 +4199,7 @@ def check_freshness(
                         continue
                     fpath = root_p / fname
                     try:
-                        resolved_f = fpath.resolve()
+                        resolved_f = os.path.realpath(str(fpath))
                     except OSError:
                         continue
                     if resolved_f in seen_files:
@@ -4218,6 +4234,13 @@ def check_freshness(
                             }
                         )
 
+    if dirty_dirs:
+        with conn:
+            conn.executemany(
+                "INSERT OR REPLACE INTO directories (path, mtime_ns) VALUES (?, ?)",
+                dirty_dirs,
+            )
+
     # Detect deleted files
     for old_path in known_files:
         if old_path not in current_files_set:
@@ -4232,47 +4255,49 @@ def check_freshness(
     if changed_sources:
         _load_sources(conn, changed_sources, records_root, repo_root=scan_repo)
 
-    # Recompute resolved references after target inventory change
-    with conn:
-        # 1. dependencies.target_id6: resolve if NULL or if target_raw was a path/set
-        conn.execute(
-            """UPDATE dependencies
-               SET target_id6 = (
-                   SELECT a.id6 FROM artifacts a
-                   WHERE a.path = dependencies.target_raw
-                      OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = dependencies.target_raw)
-               )
-               WHERE target_id6 IS NULL"""
-        )
-        # 2. lineage.parent_id6: resolve if NULL or if parent_raw was a path/citation
-        conn.execute(
-            """UPDATE lineage
-               SET parent_id6 = (
-                   SELECT a.id6 FROM artifacts a
-                   WHERE a.path = lineage.parent_raw
-                      OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = lineage.parent_raw)
-               )
-               WHERE parent_id6 IS NULL"""
-        )
-        # 3. release_gates.release_id6
-        try:
-            rel_outcome = _releases.resolve_release_outcome(records_root.parent, "next")
-            next_release_id: Optional[str] = None
-            if (
-                rel_outcome.status == _releases.SENTINEL_RESOLVED
-                and rel_outcome.candidates
-            ):
-                cand_p = rel_outcome.candidates[0]
-                cand_attr = _naming.parse_attributed(cand_p.name)
-                if cand_attr:
-                    next_release_id = cand_attr.id6
-            if next_release_id:
-                conn.execute(
-                    "UPDATE release_gates SET release_id6 = ? WHERE release_raw = 'next'",
-                    (next_release_id,),
+        # Recompute resolved references after target inventory change
+        with conn:
+            # 1. dependencies.target_id6: resolve if NULL or if target_raw was a path/set
+            conn.execute(
+                """UPDATE dependencies
+                   SET target_id6 = (
+                       SELECT a.id6 FROM artifacts a
+                       WHERE a.path = dependencies.target_raw
+                          OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = dependencies.target_raw)
+                   )
+                   WHERE target_id6 IS NULL"""
+            )
+            # 2. lineage.parent_id6: resolve if NULL or if parent_raw was a path/citation
+            conn.execute(
+                """UPDATE lineage
+                   SET parent_id6 = (
+                       SELECT a.id6 FROM artifacts a
+                       WHERE a.path = lineage.parent_raw
+                          OR EXISTS (SELECT 1 FROM artifact_paths ap WHERE ap.id6 = a.id6 AND ap.path = lineage.parent_raw)
+                   )
+                   WHERE parent_id6 IS NULL"""
+            )
+            # 3. release_gates.release_id6
+            try:
+                rel_outcome = _releases.resolve_release_outcome(
+                    records_root.parent, "next"
                 )
-        except Exception:
-            pass
+                next_release_id: Optional[str] = None
+                if (
+                    rel_outcome.status == _releases.SENTINEL_RESOLVED
+                    and rel_outcome.candidates
+                ):
+                    cand_p = rel_outcome.candidates[0]
+                    cand_attr = _naming.parse_attributed(cand_p.name)
+                    if cand_attr:
+                        next_release_id = cand_attr.id6
+                if next_release_id:
+                    conn.execute(
+                        "UPDATE release_gates SET release_id6 = ? WHERE release_raw = 'next'",
+                        (next_release_id,),
+                    )
+            except Exception:
+                pass
 
 
 # --------------------------------------------------------------------------------------
@@ -4319,6 +4344,13 @@ def scan_once() -> Any:
                 conn.close()
         _SCAN_ONCE_CONNS.reset(token_c)
         _SCAN_ONCE_FRESH.reset(token_f)
+
+
+def drop_scan_freshness() -> None:
+    """Clear the active `scan_once()` freshness set so the next read re-checks disk."""
+    fresh_set = _SCAN_ONCE_FRESH.get()
+    if fresh_set is not None:
+        fresh_set.clear()
 
 
 def _open_for_read(
@@ -4720,7 +4752,12 @@ def resolve(
             conn.close()
 
 
-def query(*, project_context: Any = None, **filters) -> QueryResult:
+def query(
+    *,
+    project_context: Any = None,
+    include_fields: bool = False,
+    **filters,
+) -> QueryResult:
     """Query metadata cache with typed filters. Returns QueryResult."""
     ctx = project_context or _proj_ctx.resolve_project_context()
     records_root = Path(ctx.logical_roots["records"])
@@ -4820,6 +4857,33 @@ def query(*, project_context: Any = None, **filters) -> QueryResult:
                 legacy_raw_set=r[19],
             )
             states.append(st)
+
+        if include_fields and states:
+            by_type: Dict[str, Dict[str, State]] = {}
+            for st in states:
+                if st.type in SUPPORTED_TYPES and st.id6:
+                    by_type.setdefault(st.type, {})[st.id6] = st
+            for t, state_by_id in by_type.items():
+                cur = conn.execute(f'SELECT * FROM "{t}"')
+                col_names = [d[0] for d in cur.description]
+                try:
+                    id_idx = col_names.index("id6")
+                except ValueError:
+                    continue
+                for t_row in cur.fetchall():
+                    st_obj = state_by_id.get(t_row[id_idx])
+                    if st_obj is None:
+                        continue
+                    for idx, col in enumerate(col_names):
+                        if idx == id_idx:
+                            continue
+                        val = t_row[idx]
+                        if isinstance(val, str) and (
+                            val.startswith("{") or val.startswith("[")
+                        ):
+                            with contextlib.suppress(Exception):
+                                val = json.loads(val)
+                        st_obj.fields[col] = val
 
         # Check for invalid records that matched the domain
         incomplete_rows = conn.execute(
