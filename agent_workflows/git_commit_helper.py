@@ -67,6 +67,7 @@ AGENT_RUNNER_ENV = RUNNER_ENV
 AGENT_MODEL_ENV = "AW_AGENT_MODEL"
 COMMITTER_NAME_ENV = "GIT_COMMITTER_NAME"
 COMMITTER_EMAIL_ENV = "GIT_COMMITTER_EMAIL"
+NONINTERACTIVE_ENV = "AW_NONINTERACTIVE"
 
 # Closed set of recognized runner labels for the AW-Runner trailer.
 RUNNER_OC_RUN = "aw oc run"
@@ -679,6 +680,13 @@ def export_agent_child_env(
         child_env[AGENT_MODEL_ENV] = ident.model
     else:
         child_env.pop(AGENT_MODEL_ENV, None)
+
+    # Unattended agent turns must never block on interactive `input()` prompts (such as
+    # `offer_commit`'s `[Y/n]` prompt in `aw ipd set`). Host tools such as Antigravity's
+    # `run_command` allocate a PTY where `isatty()` is True even when the parent driver passed
+    # `stdin=DEVNULL`, so `AW_NONINTERACTIVE=1` is the canonical signal honored by
+    # `term.is_interactive()` above TTY detection.
+    child_env[NONINTERACTIVE_ENV] = "1"
     return child_env
 
 

@@ -682,9 +682,13 @@ def run_agy(
     )
     print(f"  tail -f {log_path}", file=sys.stderr, flush=True)
 
+    child_env = dict(os.environ)
+    child_env["AW_NONINTERACTIVE"] = "1"
     process = subprocess.Popen(
         command,
         cwd=root,
+        env=child_env,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         text=True,
         bufsize=1,

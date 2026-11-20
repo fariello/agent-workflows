@@ -21668,9 +21668,12 @@ def ask_orchestrator_probe(
             )
         else:  # pragma: no cover - the real spawn; every test injects `runner`
             _assert_probe_spawn_is_permitted(argv)
+            probe_env = dict(os.environ)
+            probe_env["AW_NONINTERACTIVE"] = "1"
             completed = subprocess.run(
                 list(argv),
                 cwd=str(repo),
+                env=probe_env,
                 capture_output=True,
                 text=True,
                 timeout=PROBE_ASK_TIMEOUT_SECONDS,
