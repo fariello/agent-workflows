@@ -31,12 +31,14 @@ import platform
 import re
 import secrets
 import shutil
+import signal
 import socket
 import statistics
 import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -77,6 +79,7 @@ __all__ = [
     "collect_runs",
     "pack_traces",
     "ingest_bundles",
+    "parse_older_than",
     "build_parser",
     "main",
 ]
@@ -2487,6 +2490,71 @@ def _count_direct_entries(p: Path) -> tuple[int, int]:
     return dirs_seen, files_seen
 
 
+_OLDER_THAN_RE = re.compile(r"^\s*(\d+)\s*([mhdwy])\s*$", re.I)
+_OLDER_THAN_UNITS: dict[str, int] = {
+    "m": 60,
+    "h": 3600,
+    "d": 86400,
+    "w": 7 * 86400,
+    "y": 365 * 86400,
+}
+
+
+def parse_older_than(spec: str) -> float:
+    """Parse a human age duration like `30m`, `1h`, `10d`, `3w`, or `1y` into seconds."""
+    m = _OLDER_THAN_RE.match(spec or "")
+    if not m:
+        raise ValueError(
+            f"invalid --older-than duration {spec!r}; expected <N><m|h|d|w|y> (e.g. 1h, 10d, 3w, 1y)"
+        )
+    count = int(m.group(1))
+    unit = m.group(2).lower()
+    if count <= 0:
+        raise ValueError(f"--older-than duration must be > 0, got {spec!r}")
+    return float(count * _OLDER_THAN_UNITS[unit])
+
+
+def _dir_size_bytes(path: Path) -> int:
+    total = 0
+    for dirpath, _dirnames, filenames in os.walk(path, followlinks=False):
+        cur = Path(dirpath)
+        for fname in filenames:
+            try:
+                st = (cur / fname).lstat()
+                total += int(st.st_size)
+            except OSError:
+                continue
+    return total
+
+
+def _archive_run_dir_tgz(run_p: Path) -> tuple[Path, int]:
+    """Compress `run_p` to `<run_p.parent>/archive/<run_p.name>.tgz` (gzip -9), verify, and remove `run_p`."""
+    archive_dir = run_p.parent / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    dest = archive_dir / f"{run_p.name}.tgz"
+    fd, tmp_name = tempfile.mkstemp(prefix=".tmp-", suffix=".tgz", dir=str(archive_dir))
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        with tarfile.open(tmp_path, mode="w:gz", compresslevel=9) as tf:
+            tf.add(run_p, arcname=run_p.name, recursive=True)
+        # Verify archive readability before replacing or deleting the source directory.
+        with tarfile.open(tmp_path, mode="r:gz") as check_tf:
+            first_member = check_tf.next()
+            if first_member is None:
+                raise OSError(f"archive produced empty tar stream for {run_p.name}")
+        tgz_bytes = int(tmp_path.stat().st_size)
+        os.replace(tmp_path, dest)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    shutil.rmtree(run_p)
+    return dest, tgz_bytes
+
+
 # --------------------------------------------------------------------------------------
 # Subcommands: collect, pack, ingest
 # --------------------------------------------------------------------------------------
@@ -2501,12 +2569,29 @@ def collect_runs(
     rebuild: bool = False,
     scan_max_depth: int = 7,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
+    delete_runs: bool = False,
+    archive_runs: bool = False,
+    older_than: str | None = None,
+    dry_run: bool = False,
     on_scan: Callable[[str, str, int, int], None] | None = None,
     on_scan_detail: Callable[[str, str, Mapping[str, int]], None] | None = None,
     on_discovered: Callable[[int], None] | None = None,
     on_progress: Callable[[int, int, str, Mapping[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Incrementally extract new/updated runs into `<cache_dir>/runs/*.trace.json.zst`."""
+    if delete_runs and archive_runs:
+        raise ValueError("--delete/-D and --archive/-A are mutually exclusive")
+    if delete_runs and not older_than:
+        raise ValueError(
+            "--delete/-D requires --older-than/-O (e.g. -O 10d) to avoid deleting recent runs"
+        )
+    if older_than and not (delete_runs or archive_runs):
+        raise ValueError("--older-than/-O requires --delete/-D or --archive/-A")
+    cutoff_seconds = parse_older_than(older_than) if older_than else None
+    cleanup_mode: str | None = (
+        "delete" if delete_runs else ("archive" if archive_runs else None)
+    )
+
     cdir = Path(cache_dir).expanduser().resolve()
     cdir.mkdir(parents=True, exist_ok=True)
     salt = load_or_create_salt(cdir)
@@ -2659,6 +2744,19 @@ def collect_runs(
 
     machine_fp = _machine_fingerprint()
     error_details: list[dict[str, Any]] = []
+    cleanup: dict[str, Any] = {
+        "mode": cleanup_mode,
+        "older_than": older_than,
+        "dry_run": dry_run,
+        "deleted": 0,
+        "archived": 0,
+        "skipped_recent": 0,
+        "skipped_unsafe": 0,
+        "errors": 0,
+        "source_bytes": 0,
+        "archive_bytes": 0,
+        "reclaimed_bytes": 0,
+    }
     stats: dict[str, Any] = {
         "discovered": len(discovered),
         "dirs_scanned": total_dirs_scanned,
@@ -2675,73 +2773,131 @@ def collect_runs(
         "attempts_processed": 0,
         "steps_processed": 0,
         "tool_calls_processed": 0,
+        "cleanup": cleanup,
         "error_details": error_details,
     }
 
-    total_runs = len(discovered)
-    for idx, run_p in enumerate(discovered, start=1):
-        run_id = run_p.name
-        if not include_active and _run_is_locked(run_p):
-            stats["skipped_active"] += 1
-            if on_progress is not None:
-                on_progress(idx, total_runs, run_id, stats)
-            continue
-        wm = compute_run_watermark(run_p)
-        source_id = pseudonym(
-            f"{machine_fp}|{run_p.parent.expanduser().resolve()}",
-            salt=salt,
-            domain="src",
-        )
-        key = _entry_key_for(run_id, source_id, entries)
-        prev = entries.get(key)
-        if (
-            not rebuild
-            and isinstance(prev, dict)
-            and prev.get("watermark") == wm
-            and (cdir / "runs" / str(prev.get("file", ""))).is_file()
-        ):
-            _ensure_entry_summary(cdir, prev)
-            stats["cached_hits"] += 1
-            _accumulate_entry_counters(stats, prev)
-            if on_progress is not None:
-                on_progress(idx, total_runs, run_id, stats)
-            continue
+    now_epoch = time.time()
 
-        try:
-            trace = extract_run_trace(run_p, salt=salt, watermark=wm)
-            val_errors = validate_trace(trace)
-            if val_errors:
-                stats["errors"] += 1
-                stats["error_details"].append(
-                    {"run_id": run_id, "errors": val_errors[:5]}
+    def _maybe_cleanup_run(run_p: Path, wm: Mapping[str, int]) -> None:
+        if cleanup_mode is None:
+            return
+        if run_p.is_symlink() or not _is_run_dir(run_p) or _run_is_locked(run_p):
+            cleanup["skipped_unsafe"] += 1
+            return
+        if cutoff_seconds is not None:
+            latest_ns = int(wm.get("latest_mtime_ns") or 0)
+            try:
+                latest_ep = (
+                    (latest_ns / 1e9) if latest_ns > 0 else float(run_p.stat().st_mtime)
                 )
+            except OSError:
+                cleanup["skipped_unsafe"] += 1
+                return
+            if (now_epoch - latest_ep) < cutoff_seconds:
+                cleanup["skipped_recent"] += 1
+                return
+        orig_bytes = _dir_size_bytes(run_p)
+        try:
+            if cleanup_mode == "delete":
+                if not dry_run:
+                    shutil.rmtree(run_p)
+                cleanup["deleted"] += 1
+                cleanup["source_bytes"] += orig_bytes
+                cleanup["reclaimed_bytes"] += orig_bytes
+            elif cleanup_mode == "archive":
+                if dry_run:
+                    cleanup["archived"] += 1
+                    cleanup["source_bytes"] += orig_bytes
+                else:
+                    _dest, tgz_bytes = _archive_run_dir_tgz(run_p)
+                    cleanup["archived"] += 1
+                    cleanup["source_bytes"] += orig_bytes
+                    cleanup["archive_bytes"] += tgz_bytes
+                    cleanup["reclaimed_bytes"] += max(0, orig_bytes - tgz_bytes)
+        except Exception as exc:
+            cleanup["errors"] += 1
+            stats["errors"] += 1
+            stats["error_details"].append(
+                {
+                    "run_id": run_p.name,
+                    "errors": [f"{cleanup_mode} failed: {type(exc).__name__}: {exc}"],
+                }
+            )
+
+    total_runs = len(discovered)
+    index_dirty = False
+    try:
+        for idx, run_p in enumerate(discovered, start=1):
+            run_id = run_p.name
+            if not include_active and _run_is_locked(run_p):
+                stats["skipped_active"] += 1
                 if on_progress is not None:
                     on_progress(idx, total_runs, run_id, stats)
                 continue
-            was_existing = key in entries
-            written_key, _path, cbytes = _write_cached_trace(
-                cdir, index, trace, level=zstd_level
+            wm = compute_run_watermark(run_p)
+            source_id = pseudonym(
+                f"{machine_fp}|{run_p.parent.expanduser().resolve()}",
+                salt=salt,
+                domain="src",
             )
-            stats["compressed_bytes_written"] += cbytes
-            if was_existing:
-                stats["updated"] += 1
-            else:
-                stats["extracted"] += 1
-            _accumulate_entry_counters(stats, entries[written_key])
-        except Exception as exc:
-            stats["errors"] += 1
-            stats["error_details"].append(
-                {"run_id": run_id, "errors": [f"{type(exc).__name__}: {exc}"]}
-            )
-        if on_progress is not None:
-            on_progress(idx, total_runs, run_id, stats)
+            key = _entry_key_for(run_id, source_id, entries)
+            prev = entries.get(key)
+            if (
+                not rebuild
+                and isinstance(prev, dict)
+                and prev.get("watermark") == wm
+                and (cdir / "runs" / str(prev.get("file", ""))).is_file()
+            ):
+                if _ensure_entry_summary(cdir, prev):
+                    index_dirty = True
+                stats["cached_hits"] += 1
+                _accumulate_entry_counters(stats, prev)
+                _maybe_cleanup_run(run_p, wm)
+                if on_progress is not None:
+                    on_progress(idx, total_runs, run_id, stats)
+                continue
 
-    # Backfill any older cache entries not touched during this collect so corpus metrics are complete.
-    for meta in entries.values():
-        if isinstance(meta, dict):
-            _ensure_entry_summary(cdir, meta)
+            try:
+                trace = extract_run_trace(run_p, salt=salt, watermark=wm)
+                val_errors = validate_trace(trace)
+                if val_errors:
+                    stats["errors"] += 1
+                    stats["error_details"].append(
+                        {"run_id": run_id, "errors": val_errors[:5]}
+                    )
+                    if on_progress is not None:
+                        on_progress(idx, total_runs, run_id, stats)
+                    continue
+                was_existing = key in entries
+                written_key, _path, cbytes = _write_cached_trace(
+                    cdir, index, trace, level=zstd_level
+                )
+                index_dirty = True
+                stats["compressed_bytes_written"] += cbytes
+                if was_existing:
+                    stats["updated"] += 1
+                else:
+                    stats["extracted"] += 1
+                _accumulate_entry_counters(stats, entries[written_key])
+                _maybe_cleanup_run(run_p, wm)
+            except Exception as exc:
+                stats["errors"] += 1
+                stats["error_details"].append(
+                    {"run_id": run_id, "errors": [f"{type(exc).__name__}: {exc}"]}
+                )
+            if on_progress is not None:
+                on_progress(idx, total_runs, run_id, stats)
 
-    _save_index(cdir, index)
+        # Backfill any older cache entries not touched during this collect so corpus metrics are complete.
+        for meta in entries.values():
+            if isinstance(meta, dict):
+                if _ensure_entry_summary(cdir, meta):
+                    index_dirty = True
+    finally:
+        if index_dirty or not (cdir / "index.json").is_file():
+            _save_index(cdir, index)
+
     metrics = _compute_corpus_metrics(entries)
     stats["total_cached"] = len(entries)
     stats["total_cache_bytes"] = metrics["compressed_bytes"]
@@ -2973,73 +3129,80 @@ def ingest_bundles(
         "rejections": [],
     }
 
-    for src in sources:
-        p = Path(src).expanduser()
-        if not p.exists():
-            raise ValueError(f"ingest source does not exist: {src}")
-        payloads = _iter_bundle_traces(p)
-        total_p = len(payloads)
-        if on_source is not None:
-            on_source(p.name, total_p)
-        for idx, (member_name, raw) in enumerate(payloads, start=1):
-            try:
-                doc = json.loads(raw.decode("utf-8"))
-            except (UnicodeDecodeError, ValueError) as exc:
-                stats["rejected"] += 1
-                stats["rejections"].append(
-                    {"member": member_name, "errors": [f"invalid JSON: {exc}"]}
-                )
-                if on_progress is not None:
-                    on_progress(idx, total_p, member_name, stats)
-                continue
-            if batch is not None and isinstance(doc, dict):
-                doc["source_batch"] = batch
-            val_errors = validate_trace(doc)
-            if val_errors:
-                stats["rejected"] += 1
-                stats["rejections"].append(
-                    {"member": member_name, "errors": val_errors[:5]}
-                )
-                if on_progress is not None:
-                    on_progress(idx, total_p, member_name, stats)
-                continue
-
-            doc_summary = _summarize_trace_for_index(doc)
-            run_id = str(doc["run"]["run_id"])
-            source_id = str(doc["run"].get("source_id") or "")
-            key = _entry_key_for(run_id, source_id, entries)
-            prev = entries.get(key)
-            incoming_wm = doc["watermark"]
-            if isinstance(prev, Mapping):
-                prev_wm = prev.get("watermark") or {}
-                prev_latest = int(prev_wm.get("latest_mtime_ns", 0))
-                inc_latest = int(incoming_wm.get("latest_mtime_ns", 0))
-                prev_ev = int(prev.get("extractor_version", 0))
-                inc_ev = int(doc.get("extractor_version", 0))
-                if inc_latest < prev_latest or (
-                    inc_latest == prev_latest and inc_ev <= prev_ev
-                ):
-                    stats["skipped_same_or_older"] += 1
-                    _accumulate_entry_counters(stats, doc_summary)
+    index_dirty = False
+    try:
+        for src in sources:
+            p = Path(src).expanduser()
+            if not p.exists():
+                raise ValueError(f"ingest source does not exist: {src}")
+            payloads = _iter_bundle_traces(p)
+            total_p = len(payloads)
+            if on_source is not None:
+                on_source(p.name, total_p)
+            for idx, (member_name, raw) in enumerate(payloads, start=1):
+                try:
+                    doc = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError) as exc:
+                    stats["rejected"] += 1
+                    stats["rejections"].append(
+                        {"member": member_name, "errors": [f"invalid JSON: {exc}"]}
+                    )
                     if on_progress is not None:
-                        on_progress(idx, total_p, run_id, stats)
+                        on_progress(idx, total_p, member_name, stats)
                     continue
-                if not dry_run:
-                    _write_cached_trace(cdir, index, doc, level=zstd_level)
-                stats["upgraded"] += 1
-            else:
-                if not dry_run:
-                    _write_cached_trace(cdir, index, doc, level=zstd_level)
-                stats["added"] += 1
-            _accumulate_entry_counters(stats, doc_summary)
-            if on_progress is not None:
-                on_progress(idx, total_p, run_id, stats)
+                if batch is not None and isinstance(doc, dict):
+                    doc["source_batch"] = batch
+                val_errors = validate_trace(doc)
+                if val_errors:
+                    stats["rejected"] += 1
+                    stats["rejections"].append(
+                        {"member": member_name, "errors": val_errors[:5]}
+                    )
+                    if on_progress is not None:
+                        on_progress(idx, total_p, member_name, stats)
+                    continue
 
-    if not dry_run:
-        for meta in entries.values():
-            if isinstance(meta, dict):
-                _ensure_entry_summary(cdir, meta)
-        _save_index(cdir, index)
+                doc_summary = _summarize_trace_for_index(doc)
+                run_id = str(doc["run"]["run_id"])
+                source_id = str(doc["run"].get("source_id") or "")
+                key = _entry_key_for(run_id, source_id, entries)
+                prev = entries.get(key)
+                incoming_wm = doc["watermark"]
+                if isinstance(prev, Mapping):
+                    prev_wm = prev.get("watermark") or {}
+                    prev_latest = int(prev_wm.get("latest_mtime_ns", 0))
+                    inc_latest = int(incoming_wm.get("latest_mtime_ns", 0))
+                    prev_ev = int(prev.get("extractor_version", 0))
+                    inc_ev = int(doc.get("extractor_version", 0))
+                    if inc_latest < prev_latest or (
+                        inc_latest == prev_latest and inc_ev <= prev_ev
+                    ):
+                        stats["skipped_same_or_older"] += 1
+                        _accumulate_entry_counters(stats, doc_summary)
+                        if on_progress is not None:
+                            on_progress(idx, total_p, run_id, stats)
+                        continue
+                    if not dry_run:
+                        _write_cached_trace(cdir, index, doc, level=zstd_level)
+                        index_dirty = True
+                    stats["upgraded"] += 1
+                else:
+                    if not dry_run:
+                        _write_cached_trace(cdir, index, doc, level=zstd_level)
+                        index_dirty = True
+                    stats["added"] += 1
+                _accumulate_entry_counters(stats, doc_summary)
+                if on_progress is not None:
+                    on_progress(idx, total_p, run_id, stats)
+
+        if not dry_run:
+            for meta in entries.values():
+                if isinstance(meta, dict):
+                    if _ensure_entry_summary(cdir, meta):
+                        index_dirty = True
+    finally:
+        if not dry_run and (index_dirty or not (cdir / "index.json").is_file()):
+            _save_index(cdir, index)
     metrics = _compute_corpus_metrics(entries)
     stats["total_cached"] = len(entries)
     stats["total_cache_bytes"] = metrics["compressed_bytes"]
@@ -3343,6 +3506,17 @@ class _ProfileProgress:
                 parts.append(self.term.colorize(f"{_fmt_int(hits)} cached", "dim"))
             if act:
                 parts.append(self.term.colorize(f"{_fmt_int(act)} active", "yellow"))
+            cleanup = (
+                stats.get("cleanup")
+                if isinstance(stats.get("cleanup"), Mapping)
+                else {}
+            )
+            del_n = int(cleanup.get("deleted", 0))
+            arch_n = int(cleanup.get("archived", 0))
+            if del_n:
+                parts.append(self.term.colorize(f"-{_fmt_int(del_n)} del", "yellow"))
+            if arch_n:
+                parts.append(self.term.colorize(f"{_fmt_int(arch_n)} arch", "cyan"))
             if errs:
                 parts.append(self.term.colorize(f"{_fmt_int(errs)} err", "red", "bold"))
             if agy_n or oc_n:
@@ -3533,9 +3707,10 @@ def build_parser() -> argparse.ArgumentParser:
             "  `zstandard`, `backports.zstd`, or the `zstd` CLI on Python 3.9-3.13.\n"
             "\n"
             "EXIT CODES\n"
-            "  0  Success (all discovered runs cached, packed, or ingested cleanly).\n"
-            "  1  Completed with one or more per-run extraction errors or rejected traces.\n"
-            "  2  Fatal usage, missing path, unsafe archive, or missing zstd backend error.\n"
+            "  0    Success (all discovered runs cached, packed, or ingested cleanly).\n"
+            "  1    Completed with one or more per-run extraction errors or rejected traces.\n"
+            "  2    Fatal usage, missing path, unsafe archive, or missing zstd backend error.\n"
+            "  130  Interrupted (Ctrl-C / SIGINT / SIGTERM); partial cache progress saved.\n"
             "\n"
             "Run `aw-profile <subcommand> --help` for subcommand options and examples."
         ),
@@ -3569,14 +3744,27 @@ def build_parser() -> argparse.ArgumentParser:
             "  Runs holding an active driver.lock are skipped by default so half-written\n"
             "  JSONL files are not snapshotted (pass --include-active to include them).\n"
             "  When a previously cached run is later resumed, its watermark advances and\n"
-            "  the next collect atomically replaces only that run's .trace.json.zst."
+            "  the next collect atomically replaces only that run's .trace.json.zst.\n"
+            "\n"
+            "POST-COLLECT CLEANUP\n"
+            "  Optional cleanup flags act ONLY on runs verified in the cache and NEVER\n"
+            "  touch active/locked or errored runs:\n"
+            "    -A / --archive       Compress each eligible run-* dir into\n"
+            "                         <runs-dir>/archive/<run_id>.tgz (gzip -9), verify\n"
+            "                         the archive, and remove the original run-* dir.\n"
+            "    -D / --delete        Remove each eligible run-* dir after caching.\n"
+            "                         REQUIRES -O / --older-than for safety.\n"
+            "    -O / --older-than    Age cutoff based on the run's latest mtime, e.g.\n"
+            "                         30m, 1h, 10d, 3w, 1y (required with -D; optional\n"
+            "                         with -A). Pass --dry-run to preview first."
         ),
         epilog=(
             "EXAMPLES\n"
             "  aw-profile collect                                   # current repo/dir\n"
             "  aw-profile collect --scan ~/projects --scan ~/.aw/projects\n"
             "  aw-profile collect --runs-dir /mnt/archive/runs --json\n"
-            "  aw-profile collect --scan ~/projects --max-depth 9 --include-active\n"
+            "  aw-profile collect --scan ~/projects -A -O 14d --dry-run\n"
+            "  aw-profile collect --scan ~/projects -D -O 30d       # cache then delete >30d\n"
             "  aw-profile collect --scan ~/projects --rebuild       # force re-extract"
         ),
     )
@@ -3619,6 +3807,31 @@ def build_parser() -> argparse.ArgumentParser:
         "--rebuild",
         action="store_true",
         help="Re-extract all discovered runs even if their watermark matches index.json.",
+    )
+    cleanup_grp = p_collect.add_mutually_exclusive_group()
+    cleanup_grp.add_argument(
+        "-D",
+        "--delete",
+        action="store_true",
+        help="After safely caching, delete eligible run-* dirs (REQUIRES -O/--older-than).",
+    )
+    cleanup_grp.add_argument(
+        "-A",
+        "--archive",
+        action="store_true",
+        help="After safely caching, archive eligible run-* dirs to <runs-dir>/archive/<run_id>.tgz (gzip -9) and remove originals.",
+    )
+    p_collect.add_argument(
+        "-O",
+        "--older-than",
+        default=None,
+        metavar="AGE",
+        help="Only delete/archive runs whose latest mtime is older than AGE (e.g. 30m, 1h, 10d, 3w, 1y; required with -D).",
+    )
+    p_collect.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview --delete/--archive counts and reclaimed bytes without modifying run-* dirs.",
     )
     p_collect.add_argument(
         "--level",
@@ -3911,6 +4124,42 @@ def _render_corpus_and_cache_summary(
         )
     out_term.kv("cache", cache_line)
 
+    cleanup = res.get("cleanup") if isinstance(res.get("cleanup"), Mapping) else {}
+    cmode = cleanup.get("mode")
+    if cmode in ("delete", "archive"):
+        dry_tag = "[dry-run] " if cleanup.get("dry_run") else ""
+        src_b = int(cleanup.get("source_bytes", 0))
+        arch_b = int(cleanup.get("archive_bytes", 0))
+        recl_b = int(cleanup.get("reclaimed_bytes", 0))
+        kept_recent = int(cleanup.get("skipped_recent", 0))
+        kept_unsafe = int(cleanup.get("skipped_unsafe", 0))
+        older_lbl = str(cleanup.get("older_than") or "")
+        if cmode == "delete":
+            del_n = int(cleanup.get("deleted", 0))
+            c_line = (
+                f"{dry_tag}{out_term.colorize(_fmt_int(del_n), 'yellow', 'bold')} deleted "
+                f"({out_term.colorize(_fmt_bytes(recl_b), 'cyan')} reclaimed)"
+            )
+        else:
+            arch_n = int(cleanup.get("archived", 0))
+            if cleanup.get("dry_run"):
+                c_line = (
+                    f"{dry_tag}{out_term.colorize(_fmt_int(arch_n), 'cyan', 'bold')} to archive "
+                    f"({out_term.colorize(_fmt_bytes(src_b), 'cyan')} raw -> <runs>/archive/*.tgz)"
+                )
+            else:
+                c_line = (
+                    f"{out_term.colorize(_fmt_int(arch_n), 'cyan', 'bold')} archived to <runs>/archive/*.tgz "
+                    f"({_fmt_bytes(src_b)} -> {out_term.colorize(_fmt_bytes(arch_b), 'cyan')}, "
+                    f"{out_term.colorize(_fmt_bytes(recl_b), 'green')} reclaimed)"
+                )
+        if kept_recent:
+            age_note = f" newer than {older_lbl}" if older_lbl else ""
+            c_line += f", {out_term.colorize(_fmt_int(kept_recent), 'dim')} kept ({age_note.strip() or 'recent'})"
+        if kept_unsafe:
+            c_line += f", {out_term.colorize(_fmt_int(kept_unsafe), 'yellow')} skipped (locked/unsafe)"
+        out_term.kv("cleanup", c_line)
+
     cdir_str = str(res.get("cache_dir") or fallback_cache_dir)
     runs_dir_str = str(res.get("runs_cache_dir") or (Path(cdir_str) / "runs"))
     idx_str = str(res.get("index_path") or (Path(cdir_str) / "index.json"))
@@ -3938,6 +4187,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         color=err_color,
         use_unicode=_term_mod.should_unicode(sys.stderr),
     )
+    prev_sigterm: Any = None
+    installed_sigterm = False
+    if (
+        hasattr(signal, "SIGTERM")
+        and threading.current_thread() is threading.main_thread()
+    ):
+
+        def _handle_sigterm(_signum: int, _frame: Any) -> None:
+            raise KeyboardInterrupt
+
+        try:
+            prev_sigterm = signal.signal(signal.SIGTERM, _handle_sigterm)
+            installed_sigterm = True
+        except (OSError, ValueError):
+            installed_sigterm = False
+
     started = time.monotonic()
     try:
         if args.command == "collect":
@@ -3951,6 +4216,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 rebuild=args.rebuild,
                 scan_max_depth=args.max_depth,
                 zstd_level=args.level,
+                delete_runs=args.delete,
+                archive_runs=args.archive,
+                older_than=args.older_than,
+                dry_run=args.dry_run,
                 on_scan_detail=prog.on_scan_detail,
                 on_discovered=prog.on_discovered,
                 on_progress=prog.on_collect_progress,
@@ -4086,10 +4355,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         parser.error(f"Unknown command: {args.command}")
         return 2
+    except KeyboardInterrupt:
+        prog.clear_inline()
+        if not is_json:
+            print(
+                f"{err_term.severity_label('warn')} aw-profile: interrupted (partial cache progress saved).",
+                file=sys.stderr,
+            )
+        return 130
+    except BrokenPipeError:
+        return 141
     except (ValueError, OSError, ZstdUnavailableError, tarfile.TarError) as exc:
         prog.clear_inline()
         print(f"{err_term.severity_label('error')} aw-profile: {exc}", file=sys.stderr)
         return 2
+    finally:
+        if installed_sigterm:
+            try:
+                signal.signal(signal.SIGTERM, prev_sigterm)
+            except (OSError, ValueError):
+                pass
 
 
 if __name__ == "__main__":

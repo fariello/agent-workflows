@@ -943,6 +943,212 @@ class AwProfileTests(unittest.TestCase):
         self.assertEqual(metrics["oldest_run"]["run_id"], "run-20261118T080000Z-7001")
         self.assertEqual(metrics["newest_run"]["run_id"], "run-20261120T150000Z-7003")
 
+    def test_delete_archive_older_than_guards_and_execution(self) -> None:
+        import time
+
+        # 1. parse_older_than unit coverage
+        self.assertEqual(aw_profile.parse_older_than("30m"), 1800.0)
+        self.assertEqual(aw_profile.parse_older_than("1h"), 3600.0)
+        self.assertEqual(aw_profile.parse_older_than("10d"), 10 * 86400.0)
+        self.assertEqual(aw_profile.parse_older_than("3w"), 21 * 86400.0)
+        self.assertEqual(aw_profile.parse_older_than("1Y"), 365 * 86400.0)
+        for bad in ("", "0d", "-5d", "10x", "days", "1.5d"):
+            with self.assertRaises(ValueError):
+                aw_profile.parse_older_than(bad)
+
+        def _age_tree(path: Path, age_seconds: float) -> None:
+            target = time.time() - age_seconds
+            for root_d, _dirs, files in os.walk(path):
+                rp = Path(root_d)
+                for fn in files:
+                    os.utime(rp / fn, (target, target))
+                os.utime(rp, (target, target))
+
+        runs_del = self.root / "runs-delete"
+        old_run = _write_oc_run(runs_del, "run-20261001T100000Z-8001")
+        new_run = _write_oc_run(runs_del, "run-20261120T100000Z-8002")
+        locked_old = _write_oc_run(runs_del, "run-20261001T110000Z-8003")
+        _age_tree(old_run, 20 * 86400)
+        _age_tree(locked_old, 20 * 86400)
+        cache_del = self.root / "cache-del"
+
+        # 2. -D without -O MUST refuse for safety and leave all run dirs intact
+        _o, err_req, rc_req = _run_cli(
+            [
+                "collect",
+                "--runs-dir",
+                str(runs_del),
+                "--cache-dir",
+                str(cache_del),
+                "-D",
+            ]
+        )
+        self.assertEqual(rc_req, 2)
+        self.assertIn("--older-than", err_req)
+        self.assertTrue(old_run.is_dir())
+
+        # 3. -O without -D or -A MUST refuse
+        _o, err_alone, rc_alone = _run_cli(
+            [
+                "collect",
+                "--runs-dir",
+                str(runs_del),
+                "--cache-dir",
+                str(cache_del),
+                "-O",
+                "10d",
+            ]
+        )
+        self.assertEqual(rc_alone, 2)
+        self.assertIn("--delete", err_alone)
+
+        # 4. --dry-run with -D -O 10d previews without deleting
+        out_dry, err_dry, rc_dry = _run_cli(
+            [
+                "collect",
+                "--runs-dir",
+                str(runs_del),
+                "--cache-dir",
+                str(cache_del),
+                "-D",
+                "-O",
+                "10d",
+                "--dry-run",
+                "--no-color",
+            ]
+        )
+        self.assertEqual(rc_dry, 0, out_dry + err_dry)
+        self.assertIn("cleanup:", out_dry)
+        self.assertIn("[dry-run]", out_dry)
+        self.assertTrue(old_run.is_dir())
+        self.assertTrue(new_run.is_dir())
+
+        # 5. Live -D -O 10d deletes old run, keeps recent run, NEVER deletes locked old run
+        lock_handle = platform_lock.acquire(locked_old / "driver.lock")
+        try:
+            out_d, err_d, rc_d = _run_cli(
+                [
+                    "collect",
+                    "--runs-dir",
+                    str(runs_del),
+                    "--cache-dir",
+                    str(cache_del),
+                    "-D",
+                    "-O",
+                    "10d",
+                    "--include-active",
+                    "--json",
+                ]
+            )
+            self.assertEqual(rc_d, 0, out_d + err_d)
+            data_d = json.loads(out_d)
+            self.assertEqual(data_d["cleanup"]["deleted"], 1)
+            self.assertEqual(data_d["cleanup"]["skipped_recent"], 1)
+            self.assertEqual(data_d["cleanup"]["skipped_unsafe"], 1)
+            self.assertGreater(data_d["cleanup"]["reclaimed_bytes"], 0)
+            self.assertFalse(old_run.exists())
+            self.assertTrue(new_run.is_dir())
+            self.assertTrue(locked_old.is_dir())
+            # Cached trace for the deleted run MUST exist in the cache!
+            self.assertTrue(
+                (
+                    cache_del / "runs" / "run-20261001T100000Z-8001.trace.json.zst"
+                ).is_file()
+            )
+        finally:
+            lock_handle.release()
+
+        # 6. -A -O 10d archives old runs to <runs>/archive/<run_id>.tgz (gzip -9), keeps recent
+        runs_arch = self.root / "runs-archive"
+        arch_old = _write_agy_run(runs_arch, "run-20261002T100000Z-8101")
+        arch_new = _write_oc_run(runs_arch, "run-20261120T120000Z-8102")
+        _age_tree(arch_old, 15 * 86400)
+        cache_arch = self.root / "cache-arch"
+
+        out_a, err_a, rc_a = _run_cli(
+            [
+                "collect",
+                "--runs-dir",
+                str(runs_arch),
+                "--cache-dir",
+                str(cache_arch),
+                "-A",
+                "-O",
+                "10d",
+                "--no-color",
+            ]
+        )
+        self.assertEqual(rc_a, 0, out_a + err_a)
+        self.assertIn("cleanup:", out_a)
+        self.assertIn("archived", out_a)
+        self.assertFalse(arch_old.exists())
+        self.assertTrue(arch_new.is_dir())
+        tgz_path = runs_arch / "archive" / "run-20261002T100000Z-8101.tgz"
+        self.assertTrue(tgz_path.is_file())
+        with tarfile.open(tgz_path, "r:gz") as tf:
+            names = tf.getnames()
+        self.assertIn("run-20261002T100000Z-8101/state.json", names)
+
+        # 7. -A without -O archives remaining recent run too!
+        out_a2, err_a2, rc_a2 = _run_cli(
+            [
+                "collect",
+                "--runs-dir",
+                str(runs_arch),
+                "--cache-dir",
+                str(cache_arch),
+                "-A",
+                "--json",
+            ]
+        )
+        self.assertEqual(rc_a2, 0, out_a2 + err_a2)
+        self.assertEqual(json.loads(out_a2)["cleanup"]["archived"], 1)
+        self.assertFalse(arch_new.exists())
+        self.assertTrue(
+            (runs_arch / "archive" / "run-20261120T120000Z-8102.tgz").is_file()
+        )
+
+    def test_graceful_interrupt_exits_130_without_traceback_and_saves_partial_cache(
+        self,
+    ) -> None:
+        from unittest import mock
+
+        runs_int = self.root / "runs-interrupt"
+        _write_oc_run(runs_int, "run-20261120T090000Z-9001")
+        _write_oc_run(runs_int, "run-20261120T100000Z-9002")
+        cache_int = self.root / "cache-interrupt"
+
+        real_extract = aw_profile.extract_run_trace
+        calls = {"n": 0}
+
+        def _interrupt_on_second(run_dir: Path | str, **kwargs: Any) -> dict[str, Any]:
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise KeyboardInterrupt
+            return real_extract(run_dir, **kwargs)
+
+        with mock.patch.object(
+            aw_profile, "extract_run_trace", side_effect=_interrupt_on_second
+        ):
+            out_i, err_i, rc_i = _run_cli(
+                [
+                    "collect",
+                    "--runs-dir",
+                    str(runs_int),
+                    "--cache-dir",
+                    str(cache_int),
+                    "--no-color",
+                ]
+            )
+        self.assertEqual(rc_i, 130)
+        self.assertNotIn("Traceback", out_i + err_i)
+        self.assertIn("interrupted", err_i)
+
+        # First run MUST already be saved in index.json so the resume collect hits cache for it!
+        res_resume = aw_profile.collect_runs(runs_dirs=[runs_int], cache_dir=cache_int)
+        self.assertEqual(res_resume["cached_hits"], 1)
+        self.assertEqual(res_resume["extracted"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
