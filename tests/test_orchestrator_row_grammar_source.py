@@ -13,27 +13,19 @@ import re
 
 from agent_workflows import ipd_lint as lint
 from agent_workflows import ipd_schema as S
+from tests.record_builder import RecordBuilder
 
 
 def _make_orchestrator_doc(action_row: str) -> str:
     """Build a minimal valid orchestrator IPD document containing the given action row."""
-    return f"""# IPD: Test orchestrator doc
-
-- Kind: orchestrator
-- Order: 0
-- Set: testset
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | File | What it does | Depends on |
-|---|---|---|---|---|
-| 01 | `c0ch01` | 20261001-testset-01-c0ch01-child.ipd.md | child task | none |
-
-## Detailed Implementation Checklist (TODO)
-
-{action_row}
-  - Depends on: none
-"""
+    return RecordBuilder().plan(
+        title="Test orchestrator doc",
+        plan_role="orchestrator",
+        order=0,
+        set="testset",
+        body=f"## Child IPDs, sequence, and dependencies\n\n| Order | Id | File | What it does | Depends on |\n|---|---|---|---|---|\n| 01 | `c0ch01` | 20261001-testset-01-c0ch01-child.ipd.md | child task | none |\n\n## Detailed Implementation Checklist (TODO)\n\n{action_row}\n  - Depends on: none",
+        text_only=True,
+    )
 
 
 def test_01_all_statuses_and_checkbox_states_conform():

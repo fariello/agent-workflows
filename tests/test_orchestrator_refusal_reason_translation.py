@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import oc_runipd, render_stream, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class TestOrchestratorRefusalReasonTranslation(unittest.TestCase):
@@ -37,34 +38,44 @@ class TestOrchestratorRefusalReasonTranslation(unittest.TestCase):
         pending = repo / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
         if include_orchestrator:
-            orch_content = (
-                f"# IPD: orch\n\n"
-                f"- Id: {orchestrator_id}\n"
-                f"- Set: {setid}\n"
-                f"- Order: 0\n"
-                f"- Kind: orchestrator\n"
-                f"- Status: {orchestrator_status}\n"
-            )
             if table_orders is not None:
-                orch_content += (
-                    f"\n## {runner_shared._CHILD_IPDS_HEADING}\n\n"
-                    f"| Order | Id | Child |\n"
-                    f"|---|---|---|\n"
-                )
-                for order_tok, cid, desc in table_orders:
-                    orch_content += f"| {order_tok} | {cid} | {desc} |\n"
+                table_lines = [
+                    f"## {runner_shared._CHILD_IPDS_HEADING}",
+                    "",
+                    "| Order | Id | Child |",
+                    "|---|---|---|",
+                    *(
+                        f"| {order_tok} | {cid} | {desc} |"
+                        for order_tok, cid, desc in table_orders
+                    ),
+                ]
+                orch_body = "\n".join(table_lines)
+            else:
+                orch_body = ""
+            orch_content = RecordBuilder().plan(
+                title="orch",
+                id6=orchestrator_id,
+                set=setid,
+                order=0,
+                plan_role="orchestrator",
+                status="approved",
+                body=orch_body,
+                raw_fields={"Status": orchestrator_status},
+                text_only=True,
+            )
             (pending / f"20261014-{setid}-00-{orchestrator_id}-orch.ipd.md").write_text(
                 orch_content, encoding="utf-8"
             )
         if children:
             for cid, order_num, st in children:
-                child_content = (
-                    f"# IPD: child\n\n"
-                    f"- Id: {cid}\n"
-                    f"- Set: {setid}\n"
-                    f"- Order: {order_num}\n"
-                    f"- Kind: child\n"
-                    f"- Status: {st}\n"
+                child_content = RecordBuilder().plan(
+                    title="child",
+                    id6=cid,
+                    set=setid,
+                    order=order_num,
+                    plan_role="child",
+                    status=st,
+                    text_only=True,
                 )
                 (
                     pending / f"20261014-{setid}-{order_num:02d}-{cid}-child.ipd.md"

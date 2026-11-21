@@ -93,6 +93,7 @@ from pathlib import Path
 from agent_workflows import runner_shared as rs
 from tests import support
 from tests.support import REPO_ROOT
+from tests.record_builder import RecordBuilder
 
 # ==================================================================================================
 # Synthetic-repo helpers
@@ -105,21 +106,39 @@ def _plan_text(
     set_id: str,
     order: int,
     status: str,
-    kind: str = "child",
+    kind: str | None = "child",
     body: str = "",
 ) -> str:
-    return (
-        "# IPD: synthetic\n"
-        "- Date: 2026-09-06\n"
-        f"- Kind: {kind}\n"
-        "- Concern: synthetic fixture.\n"
-        "- Scope: synthetic fixture.\n"
-        "- Scope-Paths: grandfathered\n"
-        f"- Status: {status}\n"
-        f"- Set: {set_id}\n"
-        f"- Order: {order}\n"
-        f"- Id: {plan_id}\n"
-        "\n" + body
+    from agent_workflows import plans as _plans
+
+    raw_fields: dict[str, object] = {
+        "Concern": "synthetic fixture.",
+        "Scope": "synthetic fixture.",
+    }
+    if status in _plans.RECOGNIZED:
+        eff_status = status
+    else:
+        eff_status = "approved"
+        raw_fields["Status"] = status
+    if kind is None:
+        eff_kind = "child"
+        raw_fields["Kind"] = None
+    else:
+        eff_kind = kind
+    return str(
+        RecordBuilder().plan(
+            title="synthetic",
+            when="2026-09-06",
+            plan_role=eff_kind,
+            scope_paths="grandfathered",
+            status=eff_status,
+            set=set_id,
+            order=order,
+            id6=plan_id,
+            body=body,
+            raw_fields=raw_fields,
+            text_only=True,
+        )
     )
 
 
@@ -1912,52 +1931,53 @@ def _structurally_conforming_plan(
     `IPD-S404` findings on the ordinary finalize path.
     """
 
-    from agent_workflows import ipd_authoring as A
+    from agent_workflows import plans as _plans
 
-    txt = A.build_skeleton(
-        kind=kind,
-        title=f"synthetic {kind}",
-        author="tester",
-        when="2026-09-06",
-        set_name=set_id,
-        order=order,
-        plan_id=plan_id,
-        # planprio lkexaw: decided at first recording, as `aw ipd scaffold` now requires.
-        priority="medium",
-        work_kind="chore",
+    raw_fields: dict[str, object] = {}
+    if status in _plans.RECOGNIZED:
+        eff_status = status
+    else:
+        eff_status = "approved"
+        raw_fields["Status"] = status
+    approval = (
+        "2026-09-06, human: approved"
+        if status in ("approved", "auto-approved")
+        else None
     )
-    out: list[str] = []
-    in_meta = True
-    for ln in txt.splitlines():
-        if ln.startswith("## "):
-            in_meta = False
-        if in_meta and ln.startswith("- Status:"):
-            out.append(f"- Status: {status}")
-            continue
-        if in_meta and ln.startswith("- Scope-Paths:"):
+    readiness = (
+        "go-pending-approval"
+        if status in ("reviewed", "approved", "auto-approved")
+        else None
+    )
+    extra: dict[str, object] = {}
+    if checklist_rows is not None and len(checklist_rows) > 1:
+        extra["highest_e_allocated"] = f"{len(checklist_rows):02d}"
+    text = str(
+        RecordBuilder().plan(
+            plan_role=kind,
+            title=f"synthetic {kind}",
+            author="tester",
+            when="2026-09-06",
+            set=set_id,
+            order=order,
+            id6=plan_id,
+            status=eff_status,
             # `grandfathered` is the reserved sentinel for a plan with no machine path fence, which
             # is what an orchestrator legitimately is: it coordinates, it does not edit.
-            out.append("- Scope-Paths: grandfathered")
-            continue
-        if in_meta and ln.startswith("- Item-Dependencies:"):
-            out.append("- Item-Dependencies: none")
-            continue
-        out.append(ln)
-        if in_meta and ln.startswith("- Author:"):
-            if status in ("approved", "auto-approved"):
-                out.append("- Approval: 2026-09-06, human: approved")
+            scope_paths="grandfathered",
+            item_dependencies="none",
+            # planprio lkexaw: decided at first recording, as `aw ipd scaffold` now requires.
+            priority="medium",
+            work_kind="chore",
+            approval=approval,
             # rdyreq (`fhinri`, IPD-M113): reviewed/ready-to-execute requires `- Readiness:`, and
             # IPD-M107 requires the review verdict in the history that accounts for it.
-            if status in ("reviewed", "approved", "auto-approved"):
-                out.append("- Readiness: go-pending-approval")
-        if ln.strip() == "## Workflow history" and status in (
-            "reviewed",
-            "approved",
-            "auto-approved",
-        ):
-            out.append("")
-            out.append("- 2026-09-06 /plan-review (tester): APPROVE")
-    text = "\n".join(out) + "\n"
+            readiness=readiness,
+            raw_fields=raw_fields or None,
+            text_only=True,
+            **extra,
+        )
+    )
     if child_table:
         text = text.replace(
             "## Child IPDs, sequence, and dependencies\n\n"
@@ -1977,11 +1997,6 @@ def _structurally_conforming_plan(
         text = pattern.sub(
             f"### Task group 1: Child confirmation\n\n{exec_body}\n", text
         )
-        if len(checklist_rows) > 1:
-            text = text.replace(
-                "- Highest E allocated: 01",
-                f"- Highest E allocated: {len(checklist_rows):02d}",
-            )
     if validation_rows is not None:
         valid_body = "\n\n".join(validation_rows)
         import re
@@ -3209,11 +3224,9 @@ class TheRejectedShapeWasNotTaken(unittest.TestCase):
                 set_id="s",
                 order=0,
                 status="approved",
-                kind=kind or "child",
+                kind=kind,
                 body=body,
             )
-            if kind is None:
-                text = text.replace("- Kind: child\n", "")
             diags = L.check_checkpoint(L.parse(text), "pre-transition", "pending")
             messages = sorted(d.message for d in diags)
             results[case] = messages
@@ -3342,8 +3355,15 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
             d = root / ".aw" / "records" / "plans" / "pending"
             d.mkdir(parents=True)
             (d / "20260906-kindset-00-orck01-o.ipd.md").write_text(
-                "# IPD: o\n\n- Id: orck01\n- Kind: orchestrator\n- Set: kindset\n"
-                "- Order: 0\n- Status: approved\n",
+                RecordBuilder().plan(
+                    title="o",
+                    id6="orck01",
+                    plan_role="orchestrator",
+                    set="kindset",
+                    order=0,
+                    status="approved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             found = agy_runipd.discover_plans(root)
@@ -3377,35 +3397,63 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                     (
                         d_pending / "20260906-qbuild-00-orcq01-synthetic.ipd.md"
                     ).write_text(
-                        "# IPD: synthetic\n\n"
-                        "- Date: 2026-09-06\n- Kind: orchestrator\n- Concern: synthetic.\n- Scope: synthetic.\n"
-                        "- Scope-Paths: none\n- Priority: medium\n- Work-Kind: chore\n- Status: approved\n"
-                        "- Set: qbuild\n- Order: 0\n- Highest E allocated: 01\n- Author: synthetic\n- Id: orcq01\n"
-                        "- Approval: 2026-09-06, synthetic\n- Readiness: go-pending-approval\n\n"
-                        "## Workflow history\n\n- 2026-09-06 approved (synthetic): created.\n"
-                        "- 2026-09-06 /plan-review (synthetic): APPROVE\n\n"
-                        "## Goal\n\nSynthetic goal.\n\n"
-                        "## Detailed Implementation Checklist (TODO)\n\n"
-                        "- [ ] E-01 CONFIRM chiq01 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n"
-                        "## Child IPDs, sequence, and dependencies\n\n"
-                        "| Order | Id | Status | Plan | Depends on |\n|---|---|---|---|---|\n"
-                        "| 01 | chiq01 | executed | .aw/records/plans/executed/20260906-qbuild-01-chiq01-synthetic.ipd.md | none |\n\n"
-                        "## Completion criteria (the whole Set is done only when)\n\n- None.\n\n"
-                        "## Cross-IPD validation\n\n- None.\n\n"
-                        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
-                        "## Scope check\n\n- None.\n\n"
-                        "## Required tests / validation\n\n- None.\n\n"
-                        "## Open questions\n\n- None.\n\n"
-                        "## Validation and cross-check (verify before reporting the Set complete)\n\n"
-                        "- [ ] V-01 validates E-01\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending\n\n"
-                        "## Approval and execution gate\n\n- None.\n",
+                        RecordBuilder().plan(
+                            title="synthetic",
+                            when="2026-09-06",
+                            plan_role="orchestrator",
+                            scope_paths="none",
+                            priority="medium",
+                            work_kind="chore",
+                            status="approved",
+                            set="qbuild",
+                            order=0,
+                            highest_e_allocated="01",
+                            author="synthetic",
+                            id6="orcq01",
+                            approval="2026-09-06, synthetic",
+                            readiness="go-pending-approval",
+                            history=[
+                                "- 2026-09-06 approved (synthetic): created.",
+                                "- 2026-09-06 /plan-review (synthetic): APPROVE",
+                            ],
+                            body=(
+                                "## Goal\n\nSynthetic goal.\n\n"
+                                "## Detailed Implementation Checklist (TODO)\n\n"
+                                "- [ ] E-01 CONFIRM chiq01 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n"
+                                "## Child IPDs, sequence, and dependencies\n\n"
+                                "| Order | Id | Status | Plan | Depends on |\n|---|---|---|---|---|\n"
+                                "| 01 | chiq01 | executed | .aw/records/plans/executed/20260906-qbuild-01-chiq01-synthetic.ipd.md | none |\n\n"
+                                "## Completion criteria (the whole Set is done only when)\n\n- None.\n\n"
+                                "## Cross-IPD validation\n\n- None.\n\n"
+                                "## Deferred / out of scope (with reason)\n\n- None.\n\n"
+                                "## Scope check\n\n- None.\n\n"
+                                "## Required tests / validation\n\n- None.\n\n"
+                                "## Open questions\n\n- None.\n\n"
+                                "## Validation and cross-check (verify before reporting the Set complete)\n\n"
+                                "- [ ] V-01 validates E-01\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending\n\n"
+                                "## Approval and execution gate\n\n- None."
+                            ),
+                            raw_fields={
+                                "Concern": "synthetic.",
+                                "Scope": "synthetic.",
+                            },
+                            text_only=True,
+                        ),
                         encoding="utf-8",
                     )
                     d_exec = root / ".aw" / "records" / "plans" / "executed"
                     d_exec.mkdir(parents=True, exist_ok=True)
                     (d_exec / "20260906-qbuild-01-chiq01-synthetic.ipd.md").write_text(
-                        "# IPD: synthetic child\n\n"
-                        "- Date: 2026-09-06\n- Kind: child\n- Id: chiq01\n- Set: qbuild\n- Order: 1\n- Status: executed\n",
+                        RecordBuilder().plan(
+                            title="synthetic child",
+                            when="2026-09-06",
+                            plan_role="child",
+                            id6="chiq01",
+                            set="qbuild",
+                            order=1,
+                            status="executed",
+                            text_only=True,
+                        ),
                         encoding="utf-8",
                     )
                     from agent_workflows import coverage_record
@@ -3460,18 +3508,18 @@ class DispatchRunCase(unittest.TestCase):
     the instrument. It records every call, which is what lets a test assert "no agent turn".
     """
 
-    PLAN = (
-        "# IPD: synthetic {kind}\n\n"
-        "- Date: 2026-09-06\n"
-        "- Kind: {kind}\n"
-        "- Id: {id6}\n"
-        "- Set: {setid}\n"
-        "- Order: {order}\n"
-        "- Status: {status}\n\n"
-        "## Child IPDs, sequence, and dependencies\n\n"
-        "| Order | Id | Child | Depends on |\n"
-        "|---|---|---|---|\n"
-        "{rows}"
+    PLAN = RecordBuilder().plan(
+        title="synthetic {kind}",
+        when="2026-09-06",
+        set="{setid}",
+        body="## Child IPDs, sequence, and dependencies\n\n| Order | Id | Child | Depends on |\n|---|---|---|---|\n{rows}",
+        raw_fields={
+            "Kind": "{kind}",
+            "Id": "{id6}",
+            "Order": "{order}",
+            "Status": "{status}",
+        },
+        text_only=True,
     )
 
     def setUp(self) -> None:
@@ -3643,10 +3691,13 @@ class AnOrchestratorIsRetiredMidRun(DispatchRunCase):
                 def finish_child(it):
                     """The child's turn ALSO lands `Status: executed` on disk, as a real turn does."""
                     it["status"] = "executed"
-                    text = self.child.read_text(encoding="utf-8")
-                    self.child.write_text(
-                        text.replace("- Status: approved", "- Status: executed"),
-                        encoding="utf-8",
+                    self.write_plan(
+                        bucket="pending",
+                        id6="chi100",
+                        order=1,
+                        status="executed",
+                        kind="child",
+                        setid="midrun",
                     )
 
                 from unittest.mock import patch
