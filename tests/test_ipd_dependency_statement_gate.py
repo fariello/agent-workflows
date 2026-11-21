@@ -24,6 +24,7 @@ from agent_workflows import check_engine as ce
 from agent_workflows import engine
 from agent_workflows import ipd_schema as S
 from agent_workflows.hooks import ipd_dependency_statement_gate as HOOK
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -53,30 +54,6 @@ def _mkrepo() -> Path:
     return d
 
 
-def _plan_text(*, id6: str, order: int, item_deps: str, status: str = "draft") -> str:
-    return (
-        f"# IPD: {id6}\n\n- Date: 2026-08-27\n- Kind: child\n- Scope-Paths: x.py\n"
-        f"- Item-Dependencies: {item_deps}\n- Status: {status}\n- Set: demo\n"
-        f"- Order: {order}\n- Id: {id6}\n\n## Workflow history\n- 2026-08-27 draft (t): x\n\n## Goal\ng\n"
-    )
-
-
-def _write_plan(repo: Path, *, id6, order, item_deps, status="draft") -> Path:
-    p = (
-        repo
-        / ".aw"
-        / "records"
-        / "plans"
-        / "pending"
-        / f"20260827-demo-{order:02d}-{id6}-p.ipd.md"
-    )
-    p.write_text(
-        _plan_text(id6=id6, order=order, item_deps=item_deps, status=status),
-        encoding="utf-8",
-    )
-    return p
-
-
 def _stage(repo: Path, *paths: Path):
     rels = [str(p.relative_to(repo)) for p in paths]
     _git(repo, "add", "--", *rels)
@@ -95,36 +72,101 @@ def _commit_all(repo: Path, msg="seed"):
 class HookRefusalTests(unittest.TestCase):
     def setUp(self):
         self.repo = _mkrepo()
+        self.builder = RecordBuilder(self.repo)
 
     def test_refuses_staged_malformed(self):
-        p = _write_plan(
-            self.repo,
-            id6="aaaaaa",
+        p = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:aaaaaa, executed:aaaaaa",
+            status="draft",
+            set="demo",
             order=1,
-            item_deps="executed:aaaaaa, executed:aaaaaa",
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
         )
+        assert isinstance(p, Path)
         _stage(self.repo, p)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual(rc, 1)
         self.assertTrue(any(S.RULE_IPD_DEP_MALFORMED in m for m in msgs), msgs)
 
     def test_refuses_staged_dangling(self):
-        p = _write_plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:zzzzzz")
+        p = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:zzzzzz",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+        )
+        assert isinstance(p, Path)
         _stage(self.repo, p)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual(rc, 1)
         self.assertTrue(any(S.RULE_IPD_DEP_DANGLING in m for m in msgs), msgs)
 
     def test_refuses_staged_cycle(self):
-        a = _write_plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:bbbbbb")
-        b = _write_plan(self.repo, id6="bbbbbb", order=2, item_deps="executed:aaaaaa")
+        a = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:bbbbbb",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+        )
+        b = self.builder.plan(
+            title="bbbbbb",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:aaaaaa",
+            status="draft",
+            set="demo",
+            order=2,
+            id6="bbbbbb",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+        )
+        assert isinstance(a, Path) and isinstance(b, Path)
         _stage(self.repo, a, b)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual(rc, 1)
         self.assertTrue(any(S.RULE_IPD_DEP_CYCLE in m for m in msgs), msgs)
 
     def test_passes_valid_statement(self):
-        p = _write_plan(self.repo, id6="aaaaaa", order=1, item_deps="none")
+        p = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="none",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+        )
+        assert isinstance(p, Path)
         _stage(self.repo, p)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual(rc, 0, msgs)
@@ -144,7 +186,20 @@ class HookRefusalTests(unittest.TestCase):
     def test_commit_scoping_untouched_file_not_blocked(self):
         # A dangling IPD is COMMITTED (pre-existing, untouched by the next commit); then an unrelated
         # file is staged. The hook must NOT block on the pre-existing dangling finding.
-        _write_plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:zzzzzz")
+        self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:zzzzzz",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+        )
         _commit_all(self.repo, "seed with a pre-existing dangling plan")
         (self.repo / "unrelated.txt").write_text("x\n", encoding="utf-8")
         _stage(self.repo, self.repo / "unrelated.txt")
@@ -155,18 +210,42 @@ class HookRefusalTests(unittest.TestCase):
 
     def test_draft_unresolved_is_committable(self):
         # OQ-01: a plain draft carrying `unresolved` is a legitimate stub -> not blocked.
-        p = _write_plan(
-            self.repo, id6="aaaaaa", order=1, item_deps="unresolved", status="draft"
+        p = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="unresolved",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
         )
+        assert isinstance(p, Path)
         _stage(self.repo, p)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual(rc, 0, msgs)
 
     def test_unresolved_blocks_when_advancing(self):
         # OQ-01: `unresolved` blocks when the staged plan is advancing to a blocking phase.
-        p = _write_plan(
-            self.repo, id6="aaaaaa", order=1, item_deps="unresolved", status="approved"
+        p = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="unresolved",
+            status="approved",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
         )
+        assert isinstance(p, Path)
         _stage(self.repo, p)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual(rc, 1)
@@ -175,7 +254,21 @@ class HookRefusalTests(unittest.TestCase):
     def test_rule_ids_match_aw_check(self):
         # Delegation to the one shared evaluator: the hook's rule IDs equal what the evaluator (aw
         # check) reports for the same dangling fixture.
-        p = _write_plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:zzzzzz")
+        p = self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:zzzzzz",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+        )
+        assert isinstance(p, Path)
         _stage(self.repo, p)
         _rc, hook_msgs = HOOK.check(self.repo)
         hook_rules = {m.split(": ")[1] for m in hook_msgs}
@@ -193,23 +286,53 @@ class HookRefusalTests(unittest.TestCase):
         self.assertIn(S.RULE_IPD_DEP_DANGLING, check_rules)
 
     def test_a_cycle_finding_on_an_unstaged_plan_does_not_block(self):
-        _write_plan(
-            self.repo,
-            id6="aaaaaa",
+        self.builder.plan(
+            title="aaaaaa",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:bbbbbb",
+            status="draft",
+            set="demo",
             order=1,
-            item_deps="executed:bbbbbb",
+            id6="aaaaaa",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
         )
-        p2 = _write_plan(
-            self.repo,
-            id6="bbbbbb",
+        p2 = self.builder.plan(
+            title="bbbbbb",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="none",
+            status="draft",
+            set="demo",
             order=2,
-            item_deps="none",
+            id6="bbbbbb",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
         )
+        assert isinstance(p2, Path)
         _commit_all(self.repo, "seed")
-        p2.write_text(
-            _plan_text(id6="bbbbbb", order=2, item_deps="executed:aaaaaa"),
-            encoding="utf-8",
+        updated = self.builder.plan(
+            title="bbbbbb",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="executed:aaaaaa",
+            status="draft",
+            set="demo",
+            order=2,
+            id6="bbbbbb",
+            slug="p",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+            text_only=True,
         )
+        assert isinstance(updated, str)
+        p2.write_text(updated, encoding="utf-8")
         _stage(self.repo, p2)
         rc, msgs = HOOK.check(self.repo)
         self.assertEqual((rc, msgs), (0, []))

@@ -56,6 +56,7 @@ import pytest
 from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lint
 from agent_workflows import ipd_schema as S
+from tests.record_builder import RecordBuilder
 
 
 def _mkrepo() -> Path:
@@ -88,16 +89,24 @@ def _plan(
     setid: str = "demo",
 ) -> Path:
     pend = repo / ".aw" / "records" / "plans" / "pending"
-    dep_line = f"- Item-Dependencies: {item_deps}\n" if item_deps is not None else ""
     p = pend / f"{date.replace('-', '')}-{setid}-{order:02d}-{id6}-p.ipd.md"
-    p.write_text(
-        f"# IPD: {id6}\n\n"
-        f"- Date: {date}\n- Kind: child\n- Scope-Paths: x.py\n"
-        f"{dep_line}"
-        f"- Status: draft\n- Set: {setid}\n- Order: {order}\n- Id: {id6}\n\n"
-        f"## Workflow history\n- {date} draft (t): x\n\n## Goal\ng\n",
-        encoding="utf-8",
+    text = RecordBuilder().plan(
+        title=id6,
+        when=date,
+        plan_role="child",
+        scope_paths="x.py",
+        item_dependencies=item_deps if item_deps is not None else "none",
+        status="draft",
+        set=setid,
+        order=order,
+        id6=id6,
+        history=[f"- {date} draft (t): x"],
+        body="## Goal\ng",
+        raw_fields={"Item-Dependencies": None} if item_deps is None else None,
+        text_only=True,
     )
+    assert isinstance(text, str)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
@@ -106,7 +115,9 @@ def _spec(repo: Path, *, id6: str, status: str = "draft") -> Path:
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"20260101-1200-01-{id6}-s.spec.md"
     p.write_text(
-        f"# Spec {id6}\n\n- Id: {id6}\n- Status: {status}\n\n## Summary\ns\n",
+        RecordBuilder().spec(
+            id6=id6, status=status, body="## Summary\ns", text_only=True
+        ),
         encoding="utf-8",
     )
     return p
@@ -589,12 +600,22 @@ class PhasedLintTests(unittest.TestCase):
     BLOCKING_PHASES = ("review-finalize", "pre-execution", "pre-transition")
 
     def _doc(self, item_deps: str | None):
-        dep = f"- Item-Dependencies: {item_deps}\n" if item_deps is not None else ""
-        text = (
-            "# IPD: x\n\n- Date: 2026-08-27\n- Kind: child\n- Scope-Paths: x.py\n"
-            f"{dep}- Status: draft\n- Set: demo\n- Order: 1\n- Id: aaaaaa\n\n"
-            "## Workflow history\n- 2026-08-27 draft (t): x\n\n## Goal\ng\n"
+        text = RecordBuilder().plan(
+            title="x",
+            when="2026-08-27",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies=item_deps if item_deps is not None else "none",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="aaaaaa",
+            history=["- 2026-08-27 draft (t): x"],
+            body="## Goal\ng",
+            raw_fields={"Item-Dependencies": None} if item_deps is None else None,
+            text_only=True,
         )
+        assert isinstance(text, str)
         return ipd_lint.parse(text)
 
     #: (case, the statement or None to omit the field, {phase: (blocking codes, advisory codes)}
@@ -958,12 +979,21 @@ def _plan_from_spec(repo: Path, *, id6: str, order: int, from_spec: str) -> Path
     date = "2026-08-30"
     p = pend / f"{date.replace('-', '')}-demo-{order:02d}-{id6}-p.ipd.md"
     p.write_text(
-        f"# IPD: {id6}\n\n"
-        f"- Date: {date}\n- Kind: child\n- Scope-Paths: x.py\n"
-        f"- Item-Dependencies: none\n"
-        f"- From-Spec: {from_spec}\n"
-        f"- Status: draft\n- Set: demo\n- Order: {order}\n- Id: {id6}\n\n"
-        f"## Workflow history\n- {date} draft (t): x\n\n## Goal\ng\n",
+        RecordBuilder().plan(
+            title=id6,
+            when=date,
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies="none",
+            from_spec=from_spec,
+            status="draft",
+            set="demo",
+            order=order,
+            id6=id6,
+            history=[f"- {date} draft (t): x"],
+            body="## Goal\ng",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -1173,8 +1203,13 @@ class FromSpecDanglingRuleTests(unittest.TestCase):
                     d = repo / ".aw" / "records" / "specs"
                     d.mkdir(parents=True, exist_ok=True)
                     (d / f"20260101-1200-02-{id6}-s.spec.md").write_text(
-                        f"# Spec {id6}\n\n- Id: {id6}\n- Status: draft\n"
-                        f"- From-Spec: {from_spec}\n\n## Summary\ns\n",
+                        RecordBuilder().spec(
+                            id6=id6,
+                            status="draft",
+                            from_spec=from_spec,
+                            body="## Summary\ns",
+                            text_only=True,
+                        ),
                         encoding="utf-8",
                     )
             drift = ce.check_from_spec_dangling(repo)

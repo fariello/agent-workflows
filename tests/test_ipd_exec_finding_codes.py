@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agent_workflows import ipd_lint, run_evidence, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 def _locate_spec() -> Path:
@@ -141,35 +142,25 @@ class IpdExecFindingCodesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             # (b) Drive claimed predicates on synthetic plans
             # Plan 1: all-pending plan
-            p1_text = (
-                "# IPD: test all pending\n"
-                "- Date: 2026-09-30\n"
-                "- Kind: child\n"
-                "- Concern: test\n"
-                "- Scope: test\n"
-                "- Scope-Paths: test.py\n"
-                "- Item-Dependencies: none\n"
-                "- Status: approved\n"
-                "- Readiness: go-pending-approval\n"
-                "- Work-Kind: chore\n"
-                "- Priority: low\n"
-                "- From-Backlog: test\n"
-                "- Set: test\n"
-                "- Order: 1\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: sy0001\n"
-                "- Approval: 2026-09-30\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [ ] E-01 step\n"
-                "  - Depends on: none\n"
-                "  - Expected outcome: done\n"
-                "  - Execution state: pending\n\n"
-                "## Validation and cross-check (verify before reporting done)\n"
-                "- [ ] V-01 validates E-01\n"
-                "  - Required evidence: none\n"
-                "  - Observed evidence:\n"
-                "  - Result: pending\n"
+            p1_text = RecordBuilder().plan(
+                title="test all pending",
+                when="2026-09-30",
+                plan_role="child",
+                scope_paths="test.py",
+                item_dependencies="none",
+                status="approved",
+                readiness="go-pending-approval",
+                work_kind="chore",
+                priority="low",
+                from_backlog="test",
+                set="test",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="sy0001",
+                approval="2026-09-30",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 step\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n- [ ] V-01 validates E-01\n  - Required evidence: none\n  - Observed evidence:\n  - Result: pending",
+                text_only=True,
             )
             f1 = Path(td) / "all_pending.ipd.md"
             f1.write_text(p1_text, encoding="utf-8")
@@ -184,35 +175,25 @@ class IpdExecFindingCodesTests(unittest.TestCase):
             )
 
             # Plan 2: performed/pass with unticked checkboxes
-            p2_text = (
-                "# IPD: test unticked\n"
-                "- Date: 2026-09-30\n"
-                "- Kind: child\n"
-                "- Concern: test\n"
-                "- Scope: test\n"
-                "- Scope-Paths: test.py\n"
-                "- Item-Dependencies: none\n"
-                "- Status: approved\n"
-                "- Readiness: go-pending-approval\n"
-                "- Work-Kind: chore\n"
-                "- Priority: low\n"
-                "- From-Backlog: test\n"
-                "- Set: test\n"
-                "- Order: 1\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: sy0002\n"
-                "- Approval: 2026-09-30\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [ ] E-01 step\n"
-                "  - Depends on: none\n"
-                "  - Expected outcome: done\n"
-                "  - Execution state: performed\n\n"
-                "## Validation and cross-check (verify before reporting done)\n"
-                "- [ ] V-01 validates E-01\n"
-                "  - Required evidence: none\n"
-                "  - Observed evidence: some evidence\n"
-                "  - Result: pass\n"
+            p2_text = RecordBuilder().plan(
+                title="test unticked",
+                when="2026-09-30",
+                plan_role="child",
+                scope_paths="test.py",
+                item_dependencies="none",
+                status="approved",
+                readiness="go-pending-approval",
+                work_kind="chore",
+                priority="low",
+                from_backlog="test",
+                set="test",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="sy0002",
+                approval="2026-09-30",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 step\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: performed\n\n## Validation and cross-check (verify before reporting done)\n- [ ] V-01 validates E-01\n  - Required evidence: none\n  - Observed evidence: some evidence\n  - Result: pass",
+                text_only=True,
             )
             f2 = Path(td) / "unticked.ipd.md"
             f2.write_text(p2_text, encoding="utf-8")
@@ -224,35 +205,25 @@ class IpdExecFindingCodesTests(unittest.TestCase):
             # (c) PIN THE COVERAGE HOLE THAT DECIDED E-02:
             # A plan whose checkboxes are all ticked, performed, pass, and Observed evidence
             # is literal gibberish with no receipt, artifact or command emits ZERO IPD-S40x diagnostics.
-            p3_text = (
-                "# IPD: test gibberish evidence\n"
-                "- Date: 2026-09-30\n"
-                "- Kind: child\n"
-                "- Concern: test\n"
-                "- Scope: test\n"
-                "- Scope-Paths: test.py\n"
-                "- Item-Dependencies: none\n"
-                "- Status: approved\n"
-                "- Readiness: go-pending-approval\n"
-                "- Work-Kind: chore\n"
-                "- Priority: low\n"
-                "- From-Backlog: test\n"
-                "- Set: test\n"
-                "- Order: 1\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: sy0003\n"
-                "- Approval: 2026-09-30\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [x] E-01 step\n"
-                "  - Depends on: none\n"
-                "  - Expected outcome: done\n"
-                "  - Execution state: performed\n\n"
-                "## Validation and cross-check (verify before reporting done)\n"
-                "- [x] V-01 validates E-01\n"
-                "  - Required evidence: none\n"
-                "  - Observed evidence: qqq gibberish, no receipt, no artifact, no command\n"
-                "  - Result: pass\n"
+            p3_text = RecordBuilder().plan(
+                title="test gibberish evidence",
+                when="2026-09-30",
+                plan_role="child",
+                scope_paths="test.py",
+                item_dependencies="none",
+                status="approved",
+                readiness="go-pending-approval",
+                work_kind="chore",
+                priority="low",
+                from_backlog="test",
+                set="test",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="sy0003",
+                approval="2026-09-30",
+                body="## Detailed Implementation Checklist (TODO)\n- [x] E-01 step\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: performed\n\n## Validation and cross-check (verify before reporting done)\n- [x] V-01 validates E-01\n  - Required evidence: none\n  - Observed evidence: qqq gibberish, no receipt, no artifact, no command\n  - Result: pass",
+                text_only=True,
             )
             f3 = Path(td) / "gibberish.ipd.md"
             f3.write_text(p3_text, encoding="utf-8")
