@@ -6,7 +6,7 @@
 - Scope: Chunk 1 of 11 of `nbfg7w` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `nbfg7w`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_attempt_model_identity.py, tests/test_attended_session.py, tests/test_clean_target_zero_delta_e2e.py, tests/test_commit_default_message.py, tests/test_commit_scope_reason.py, tests/test_fixfirst_end_to_end.py, tests/test_fix_it_global_caps.py, tests/test_fix_it_notice.py, .aw/records/plans/pending/20261109-metastore-192-i29bd5-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,13 +16,13 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: i29bd5
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-21 executed (antigravity/gemini): Salvage and finalize verified i29bd5 on current main [Scope reconciliation - in-scope-unmodified tests/test_clean_target_zero_delta_e2e.py: 0 codemod rewrites and 0 hand refusals; in-scope-unmodified tests/test_commit_scope_reason.py: 0 codemod rewrites and 0 hand refusals] [Scope attribution - 2 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: agent_workflows/runner_shared.py, tests/test_runner_fullauto_and_sweep_fixes.py]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
