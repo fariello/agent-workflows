@@ -52,20 +52,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Child plan completion
 
-- [ ] E-01 CONFIRM mnsbzt REACHED executed
+- [x] E-01 CONFIRM mnsbzt REACHED executed
   - Depends on: none
   - Expected outcome: Child plan `mnsbzt` (Order 01) has landed in `.aw/records/plans/executed/`, fixing companion Git detection, removing `<companion>/.aw/records/` decoy creation, adding target `aw commit` and `.aw/.gitignore` containment, and updating companion `AGENTS.md` / `assess.md` guidance.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM pbdtss REACHED executed
+- [x] E-02 CONFIRM pbdtss REACHED executed
   - Depends on: E-01
   - Expected outcome: Child plan `pbdtss` (Order 02) has landed in `.aw/records/plans/executed/`, enabling linked-worktree companion context inheritance and durability detection, eliminating false `doctor` missing-path findings, adding stray target `.aw/records` warnings, and fixing `check.ipd-uncarried-obligation` carrier and evidence resolution in companion mode.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CONFIRM v8tqje REACHED executed
+- [x] E-03 CONFIRM v8tqje REACHED executed
   - Depends on: E-02
   - Expected outcome: Child plan `v8tqje` (Order 03) has landed in `.aw/records/plans/executed/`, preserving R1 prompt purity, routing lane record edits to `<companion>/records/`, enforcing the fail-closed target-repo `.aw/records/**` merge guard, and passing whole-Set verification.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -107,20 +107,20 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Confirmed `.aw/records/plans/executed/20261121-companion-bugs-01-mnsbzt-*.ipd.md` exists with `- Status: executed` and all `V-*` items passed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Confirmed `.aw/records/plans/executed/20261121-companion-bugs-01-mnsbzt-companion-storage-layout-git-detection-target-containment-an.ipd.md` exists on disk (`32758` bytes) with `- Status: executed`, all execution items (`E-01`..`E-05`) marked `[x]` / `performed`, and all validation items (`V-01`..`V-05`) marked `[x]` with `- Result: pass` and recorded test, `make typecheck`, `aw sanitize --agent`, and `aw suite` evidence. Re-verified `tests/test_companion_containment_and_storage.py` at `HEAD` `5942566bc` (`24 passed in 6.78s` across the three companion test modules).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Confirmed `.aw/records/plans/executed/20261121-companion-bugs-02-pbdtss-*.ipd.md` exists with `- Status: executed` and all `V-*` items passed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Confirmed `.aw/records/plans/executed/20261121-companion-bugs-02-pbdtss-unified-companion-records-resolution-across-doctor-check-eng.ipd.md` exists on disk (`36427` bytes) with `- Status: executed`, all execution items (`E-01`..`E-04`) marked `[x]` / `performed`, and all validation items (`V-01`..`V-04`) marked `[x]` with `- Result: pass` and recorded test, `make typecheck`, `aw sanitize --agent`, and `aw suite` evidence. Re-verified `tests/test_companion_doctor_and_carriers.py` at `HEAD` `5942566bc` (`24 passed in 6.78s` across the three companion test modules).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Confirmed `.aw/records/plans/executed/20261121-companion-bugs-03-v8tqje-*.ipd.md` exists with `- Status: executed` and all `V-*` items (including whole-Set tests `V-05`) passed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Confirmed `.aw/records/plans/executed/20261121-companion-bugs-03-v8tqje-companion-safe-runner-prompts-record-routing-and-public-targ.ipd.md` exists on disk (`29626` bytes) with `- Status: executed`, all execution items (`E-01`..`E-05`) marked `[x]` / `performed`, and all validation items (`V-01`..`V-05`) marked `[x]` with `- Result: pass`, including `V-05` whole-Set pytest (`189 passed in 13.87s`), `aw suite` (`2661 passed, 11 warnings in 107.54s`), `make typecheck` (`Success: no issues found in 228 source files`), and `aw sanitize --agent` (`findings: 0`). Re-verified `tests/test_companion_runner_integration.py` at `HEAD` `5942566bc` (`24 passed in 6.78s` across the three companion test modules).
+  - Result: pass
 
 ## Approval and execution gate
 
