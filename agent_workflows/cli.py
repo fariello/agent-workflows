@@ -552,7 +552,10 @@ _DESCRIPTIONS = {
         "implemented), plus what its silence does and does not prove. Exit 0 always on a resolvable "
         "id6, including the common 'nothing yet' answer."
     ),
-    "check": "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract; exit 0 clean, 1 findings, 2 cannot-run.",
+    "check": (
+        "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract, "
+        "or run `aw check meta` to check metadata mirrors and drift; exit 0 clean, 1 findings, 2 cannot-run."
+    ),
     "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment), or across all types when omitted.",
     "search": "Search the artifacts of a given TYPE for matching content (regex-enabled), or across all types when omitted. Groups matches by file with color highlighting.",
     "index": (
@@ -720,6 +723,11 @@ _DESCRIPTIONS = {
         "stem, or unique fragment) and either --summary <text> (non-empty single line up to 300 "
         "characters) or --clear. Refuses zero matches, multiple matches at the winning "
         "precedence tier, and unsafe or leak-flagged text with exit 2."
+    ),
+    "meta": (
+        "Inspect and repair artifact metadata logs and in-file mirrors. Subcommands: "
+        "`aw meta repair <id6> [--apply] [--confirm]` previews and applies mirror, move, "
+        "journal, and confirmed diverged-tail repairs."
     ),
     "check-local-leaks": (
         "Detect (and, with --fix, rewrite) identifying info that must not appear in a public "
@@ -5194,7 +5202,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 nargs="?",
                 default=None,
                 help=(
-                    "Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all' (default: all)."
+                    "Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases), 'all' (default: all), or 'meta' (metadata mirrors and drift)."
                     if _verb == "check"
                     else "Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all' (optional)."
                 ),
@@ -7988,6 +7996,45 @@ EXAMPLES
         "--dir",
         default=None,
         help="Repo root to search for the record (default: current directory).",
+    )
+
+    p_meta = sub.add_parser(
+        "meta",
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Inspect and repair artifact metadata logs and in-file mirrors.",
+    )
+    meta_sub = p_meta.add_subparsers(dest="meta_command")
+    p_meta_repair = meta_sub.add_parser(
+        "repair",
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Preview or apply mirror, move, journal, and confirmed diverged-tail repairs for an artifact.",
+        epilog="""
+EXAMPLES
+  aw meta repair ab12cd                   # preview repairs (writes nothing)
+  aw meta repair ab12cd --apply           # apply mirror, move, or journal repair
+  aw meta repair ab12cd --apply --confirm # confirm and resequence a diverged tail
+""",
+    )
+    p_meta_repair.add_argument(
+        "id6",
+        help="Stable 6-character artifact id6 to inspect or repair.",
+    )
+    p_meta_repair.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply mirror, move, or journal repairs (default is preview only).",
+    )
+    p_meta_repair.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Confirm resequencing a diverged event-log tail (requires --apply).",
+    )
+    p_meta_repair.add_argument(
+        "--dir",
+        default=None,
+        help="Repo root (default: current directory).",
     )
 
     p_archive = sub.add_parser(
@@ -17538,6 +17585,39 @@ def _run_search(
     return 0
 
 
+def _run_meta_repair(
+    args: argparse.Namespace,
+    term: Term,
+    context: Optional[Any] = None,
+) -> int:
+    """metastore `a5ijjx` E-02: preview or apply `aw meta repair <id6> [--apply] [--confirm]`."""
+    from agent_workflows import meta_cli
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import select_output
+
+    ctx = context or select_output(args)
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    res = meta_cli.meta_repair(
+        repo_root,
+        getattr(args, "id6", ""),
+        apply=bool(getattr(args, "apply", False)),
+        confirm=bool(getattr(args, "confirm", False)),
+    )
+    if ctx.is_agent or ctx.is_json:
+        return get_renderer(ctx).emit(res, ctx)
+    rendered = meta_cli.render_meta_repair_human(res)
+    if res.exit_code == 2 and not (
+        res.data.get("field_changes") or res.data.get("tail_notes")
+    ):
+        ctx.stderr.write(rendered)
+        ctx.stderr.flush()
+    else:
+        ctx.stdout.write(rendered)
+        ctx.stdout.flush()
+    return res.exit_code
+
+
 def _run_check(
     args: argparse.Namespace,
     term: Term,
@@ -17611,6 +17691,26 @@ def _run_check(
             return get_renderer(ctx).emit(res, ctx)
         term.status("fail", "--limit must be a positive integer.")
         return 2
+
+    if raw_type == "meta":
+        from agent_workflows import meta_cli
+
+        res = meta_cli.check_meta(repo_root)
+        if ctx.is_agent:
+            text = meta_cli.render_check_meta_agent(res, ctx)
+            try:
+                ctx.stdout.write(text)
+                ctx.stdout.flush()
+            except (BrokenPipeError, OSError):
+                pass
+            return res.exit_code
+        if ctx.is_json:
+            return get_renderer(ctx).emit(res, ctx)
+        rendered = meta_cli.render_check_meta_human(res)
+        stream = ctx.stderr if res.exit_code == 2 else ctx.stdout
+        stream.write(rendered)
+        stream.flush()
+        return res.exit_code
 
     if getattr(args, "source_citations", False):
         from agent_workflows import agent_schema as _schema
@@ -21913,6 +22013,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _adopt.run_adopt(args)
     if args.command == "describe":
         return _run_describe(args, term, context=context)
+    if args.command == "meta":
+        meta_cmd = getattr(args, "meta_command", None)
+        if meta_cmd == "repair":
+            return _run_meta_repair(args, term, context=context)
+        return _show_family_help(parser, "meta", "aw meta repair --help", term, context)
     if args.command == "archive":
         return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):
