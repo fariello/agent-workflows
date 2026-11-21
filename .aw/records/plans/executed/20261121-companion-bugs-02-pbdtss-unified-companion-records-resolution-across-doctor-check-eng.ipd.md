@@ -5,8 +5,9 @@
 - Concern: companion-records-resolution
 - Scope: `agent_workflows/project_context.py`, `agent_workflows/doctor.py`, `agent_workflows/check_engine.py`, `agent_workflows/artifact_core.py`, `tests/test_companion_doctor_and_carriers.py`
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/doctor.py, agent_workflows/check_engine.py, agent_workflows/artifact_core.py, tests/test_companion_doctor_and_carriers.py, .aw/records/plans/pending/20261121-companion-bugs-02-pbdtss-unified-companion-records-resolution-across-doctor-check-eng.ipd.md
+- Scope-Exceeded: tests/test_check_engine.py (Update superseded companion carrier fixture test_companion_backend_fixture_generic_remedy_non_raising to place pending plan under companion records and expect logical .aw/records/... Carrier-Evidence ...)
 - Item-Dependencies: executed:mnsbzt
-- Status: auto-approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Short-Description: Inherit companion context and durability in linked worktrees, resolve doctor doc references and stray target records warnings, and unify companion carrier and evidence resolution
@@ -24,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: pbdtss verified (set companion-bugs, attempt 2). [Scope reconciliation - out-of-scope tests/test_check_engine.py: Update superseded companion carrier fixture test_companion_backend_fixture_generic_remedy_non_raising to place pending plan under companion records and expect logical .aw/records/... Carrier-Evidence remedy per pbdtss E-03(b)-(c)]
 - 2026-11-21 auto-approved (aw agy run --full-auto): auto-approved by --full-auto: review readiness cleared (not human approval)
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261121-companion-bugs-02-pbdtss-unified-companion-records-resolution-across-doctor-check-eng.review.md
