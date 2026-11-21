@@ -6,7 +6,9 @@
 - Scope: Update `tests/test_fixfirst_end_to_end.py` (`lane_containment` import and `TestFixFirstEndToEnd._run_proposal_continuation`) to generate 6-character `[0-9a-z]{6}` fixture `id6` identifiers for both `oc` and `agy`, write isolated-turn outcome JSON files to `lane_containment.project_worker_paths(...).lane_outcome` (with an isolated lane commit on `idA`), assert `.aw/records/backlog/open` on `main`, and verify two-way branch non-containment between `main` and `aw/lane/<idA>`. EXCLUDES modifying production runner code (`agent_workflows/runner_shared.py`, `agent_workflows/lane_containment.py`, `agent_workflows/ipd_schema.py`), modifying other tests in `tests/test_fixfirst_end_to_end.py`, or modifying `tests/slow_allowlist.txt`.
 - Scope-Paths: tests/test_fixfirst_end_to_end.py, .aw/records/plans/pending/20261119-lflu5y-01-k1qi85-fix-test-proposal-continuation-agy-and-test-proposal-continu.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
+- Review-Depth: standard
 - Short-Description: Fix fixture id6 length, isolated lane outcome paths, and post-cutover repo assertions in _run_proposal_continuation
 - Work-Kind: bug
 - Priority: medium
@@ -22,6 +24,8 @@
 
 ## Workflow history
 
+- 2026-11-21 reviewed (aw set): REJECT - NEEDS REPLAN; PR-001..PR-003 REPLAN, PR-004 FIXED
+- 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): REJECT - NEEDS REPLAN; PR-001, PR-002, PR-003, PR-004
 - 2026-11-19 to-review (aw set): ready for review: authored for backlog lflu5y
 - 2026-11-19 draft (Gemini 4 Hydrogen): created.
 
@@ -145,4 +149,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan fixes one cohesive test-fixture defect in `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd._run_proposal_continuation` affecting `test_proposal_continuation_oc` and `test_proposal_continuation_agy`. Execution may begin once a human sets `- Status: approved` (or via an authorized automated gate). Upon completion, verify every `V-*` item with pasted tool output, commit only the scoped file through `aw commit k1qi85 -- tests/test_fixfirst_end_to_end.py`, and finalize the plan lifecycle to `executed/`.
+- **Preconditions**: Do not execute in current form (`- Readiness: no-go`, `REJECT - NEEDS REPLAN`; see `.aw/records/reviews/20261121-lflu5y-01-k1qi85-fix-test-proposal-continuation-agy-and-test-proposal-continu.review.md`). Execute any replacement plan only after human approval (`- Status: approved`) and with all blocking open questions resolved.
+- **Scope fence**: Intended edits are declared in `- Scope-Paths:`. Do not stop over a scope variance; if execution requires editing an undeclared path or leaving a declared path unmodified, complete the work and supply `--scope-reason` per out-of-scope path or `--scope-ack` per unmodified path at finalization.
+- **Honesty rule**: You MUST paste the actual runner output for every test, lint, and verification claim in `Observed evidence:`. Never claim a check passed without running it.
+- **Shared-checkout safety and commit**: Never revert, stage, commit, discard, reformat, or clean up another party's uncommitted changes or untracked files. Verify staged paths and commit only files modified for this plan through `aw commit k1qi85 -- <paths>` (never `git add -A`, `git commit -a`, or `--no-verify`, and never push without explicit human direction).
+- **Lifecycle transition**: When dispatched by `aw oc run` or `aw agy run`, leave terminal finalization to the runner; when executed directly by hand, run `aw ipd finalize k1qi85` after all `E-*` items are `performed` and all `V-*` items are `pass` (never hand-roll `git mv` to `executed/`).
