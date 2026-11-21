@@ -9,6 +9,7 @@ from pathlib import Path
 
 from agent_workflows import coverage_record
 from agent_workflows import runner_shared as rs
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -23,166 +24,46 @@ def _commit_all(root: Path, message: str) -> None:
     subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
 
 
-ORCHESTRATOR_FIXTURE_TEXT = """# IPD: Conforming orchestrator fixture
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixconf
-- Order: 0
-- Highest E allocated: 02
-- Author: fixture
-- Id: fix001
-- Approval: 2026-09-24, fixture
-
-## Workflow history
-
-- 2026-09-24 approved (fixture): created.
-
-## Goal
-
-Fixture orchestrator.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 CONFIRM chd001 REACHED executed
-  - Depends on: none
-  - Expected outcome: chd001 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-- [ ] E-02 CONFIRM chd002 REACHED executed
-  - Depends: E-01
-  - Expected outcome: chd002 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixconf-01-chd001.ipd.md | none |
-| 02 | chd002 | pending | .aw/records/plans/pending/20260924-fixconf-02-chd002.ipd.md | 01 |
-
-## Completion criteria (the whole Set is done only when)
-
-- None.
-
-## Cross-IPD validation
-
-- None.
-
-## Deferred / out of scope (with reason)
-
-- None.
-
-## Scope check
-
-- None.
-
-## Required tests / validation
-
-- None.
-
-## Open questions
-
-- None.
-
-## Validation and cross-check (verify before reporting the Set complete)
-
-- [ ] V-01 validates E-01
-  - Required evidence: check baseline.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-
-- None.
-"""
+ORCHESTRATOR_FIXTURE_TEXT = RecordBuilder().plan(
+    title="Conforming orchestrator fixture",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixconf",
+    order=0,
+    highest_e_allocated="02",
+    author="fixture",
+    id6="fix001",
+    approval="2026-09-24, fixture",
+    history=["- 2026-09-24 approved (fixture): created."],
+    open_questions="- None.",
+    body="## Goal\n\nFixture orchestrator.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: chd001 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n- [ ] E-02 CONFIRM chd002 REACHED executed\n  - Depends: E-01\n  - Expected outcome: chd002 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- |\n| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixconf-01-chd001.ipd.md | none |\n| 02 | chd002 | pending | .aw/records/plans/pending/20260924-fixconf-02-chd002.ipd.md | 01 |\n\n## Completion criteria (the whole Set is done only when)\n\n- None.\n\n## Cross-IPD validation\n\n- None.\n\n## Deferred / out of scope (with reason)\n\n- None.\n\n## Scope check\n\n- None.\n\n## Required tests / validation\n\n- None.\n\n## Validation and cross-check (verify before reporting the Set complete)\n\n- [ ] V-01 validates E-01\n  - Required evidence: check baseline.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n\n- None.",
+    text_only=True,
+)
 
 
-NAMED_CHILD_ORCH_TEXT = """# IPD: Named child credit fixture
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixcred
-- Order: 0
-- Highest E allocated: 02
-- Author: fixture
-- Id: cred01
-- Approval: 2026-09-24, fixture
-
-## Workflow history
-
-- 2026-09-24 approved (fixture): created.
-
-## Goal
-
-Fixture orchestrator with named child credit.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 CONFIRM chd001 REACHED executed
-  - Depends on: none
-  - Expected outcome: chd001 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-- [ ] E-02 CONFIRM chd002 REACHED executed
-  - Depends: E-01
-  - Expected outcome: chd002 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixcred-01-chd001.ipd.md | none |
-| 02 | chd002 | pending | .aw/records/plans/pending/20260924-fixcred-02-chd002.ipd.md | 01 |
-
-## Completion criteria (the whole Set is done only when)
-
-- None.
-
-## Cross-IPD validation
-
-- None.
-
-## Deferred / out of scope (with reason)
-
-- None.
-
-## Scope check
-
-- None.
-
-## Required tests / validation
-
-THE SET IS ONLY DEMONSTRATED COMPLETE BY A FINAL CROSS-CHILD MEASUREMENT, which Order 02 carries as the last child.
-
-## Open questions
-
-- None.
-
-## Validation and cross-check (verify before reporting the Set complete)
-
-- [ ] V-01 validates E-01
-  - Required evidence: check baseline.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-
-- None.
-"""
+NAMED_CHILD_ORCH_TEXT = RecordBuilder().plan(
+    title="Named child credit fixture",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixcred",
+    order=0,
+    highest_e_allocated="02",
+    author="fixture",
+    id6="cred01",
+    approval="2026-09-24, fixture",
+    history=["- 2026-09-24 approved (fixture): created."],
+    open_questions="- None.",
+    body="## Goal\n\nFixture orchestrator with named child credit.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: chd001 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n- [ ] E-02 CONFIRM chd002 REACHED executed\n  - Depends: E-01\n  - Expected outcome: chd002 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- |\n| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixcred-01-chd001.ipd.md | none |\n| 02 | chd002 | pending | .aw/records/plans/pending/20260924-fixcred-02-chd002.ipd.md | 01 |\n\n## Completion criteria (the whole Set is done only when)\n\n- None.\n\n## Cross-IPD validation\n\n- None.\n\n## Deferred / out of scope (with reason)\n\n- None.\n\n## Scope check\n\n- None.\n\n## Required tests / validation\n\nTHE SET IS ONLY DEMONSTRATED COMPLETE BY A FINAL CROSS-CHILD MEASUREMENT, which Order 02 carries as the last child.\n\n## Validation and cross-check (verify before reporting the Set complete)\n\n- [ ] V-01 validates E-01\n  - Required evidence: check baseline.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n\n- None.",
+    text_only=True,
+)
 
 
 class TestClassifyProbeReplyTable(unittest.TestCase):
