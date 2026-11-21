@@ -1,5 +1,6 @@
 - Id: dswbr8
-- Status: open
+- Status: graduated
+- Graduated-To: dswbr8
 - Set: dswbr8
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw backlog): graduated by run run-20261121T210815Z-1170144: epsj2v
 - 2026-11-21 created (aw backlog): attention.py legacy .agents/ fallback flags .agents/workflows as uninventoried-tree
 
 ## Observed behavior
