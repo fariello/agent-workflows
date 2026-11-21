@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_audit as _audit
+from tests.record_builder import RecordBuilder
 
 
 class TestArtifactAuditCacheEviction(unittest.TestCase):
@@ -38,7 +39,11 @@ class TestArtifactAuditCacheEviction(unittest.TestCase):
                 pending = root / ".aw" / "records" / "plans" / "pending"
                 pending.mkdir(parents=True)
                 plan = pending / f"20261001-set{i}-01-id{i:04d}-plan-{i}.ipd.md"
-                plan.write_text(f"# Plan {i}\n- Id: id{i:04d}\n- Status: draft\n")
+                plan.write_text(
+                    RecordBuilder().plan(
+                        id6=f"id{i:04d}", status="draft", text_only=True
+                    )
+                )
                 _audit.build_index(root)
 
             self.assertEqual(len(_audit._INDEX_CACHE), cap)
@@ -58,7 +63,9 @@ class TestArtifactAuditCacheEviction(unittest.TestCase):
             pending = hot_root / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             hot_plan = pending / "20261001-hot-01-hot001-hot-plan.ipd.md"
-            hot_plan.write_text("# Hot Plan\n- Id: hot001\n- Status: draft\n")
+            hot_plan.write_text(
+                RecordBuilder().plan(id6="hot001", status="draft", text_only=True)
+            )
 
             initial_hot_index = _audit.build_index(hot_root)
 
@@ -70,7 +77,9 @@ class TestArtifactAuditCacheEviction(unittest.TestCase):
                 f_pending.mkdir(parents=True)
                 f_plan = f_pending / f"20261001-fresh{i}-01-fr{i:04d}-plan.ipd.md"
                 f_plan.write_text(
-                    f"# Fresh Plan {i}\n- Id: fr{i:04d}\n- Status: draft\n"
+                    RecordBuilder().plan(
+                        id6=f"fr{i:04d}", status="draft", text_only=True
+                    )
                 )
                 _audit.build_index(fresh_root)
 
@@ -88,7 +97,9 @@ class TestArtifactAuditCacheEviction(unittest.TestCase):
             pending = root / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             plan = pending / "20261001-set1-01-aaaaaa-plan.ipd.md"
-            plan.write_text("# Plan A\n- Id: aaaaaa\n- Status: draft\n")
+            plan.write_text(
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True)
+            )
 
             traversal_count = 0
             orig_iter = _audit._sel._iter_paths
@@ -118,13 +129,17 @@ class TestArtifactAuditCacheEviction(unittest.TestCase):
             pending = root / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             plan_a = pending / "20261001-set1-01-aaaaaa-plan.ipd.md"
-            plan_a.write_text("# Plan A\n- Id: aaaaaa\n- Status: draft\n")
+            plan_a.write_text(
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True)
+            )
 
             idx1 = _audit.build_index(root)
             self.assertIn(plan_a, idx1.paths)
 
             plan_b = pending / "20261001-set1-02-bbbbbb-plan.ipd.md"
-            plan_b.write_text("# Plan B\n- Id: bbbbbb\n- Status: draft\n")
+            plan_b.write_text(
+                RecordBuilder().plan(id6="bbbbbb", status="draft", text_only=True)
+            )
 
             idx2 = _audit.build_index(root)
             self.assertIsNot(idx1, idx2)

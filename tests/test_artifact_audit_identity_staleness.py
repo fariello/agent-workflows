@@ -19,6 +19,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_audit as _audit
 from agent_workflows import selectors as _sel
+from tests.record_builder import RecordBuilder
 
 
 class TestArtifactAuditIdentityStaleness(unittest.TestCase):
@@ -40,7 +41,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
             # Filename id6 (xxxxxx) deliberately differs from declared id6 (aaaaaa)
             art_x = pending_dir / "20261001-set1-01-xxxxxx-plan-x.ipd.md"
             art_x.write_text(
-                "# Plan X\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             # Prime the cache
@@ -49,7 +51,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             # In-place rewrite of X's declared id
             art_x.write_text(
-                "# Plan X\n- Id: cccccc\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="cccccc", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             cached_ans = _audit.find_artifact(root, "aaaaaa")
@@ -70,12 +73,14 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             art_x = pending_dir / "20261001-set1-01-xxxxxx-plan-x.ipd.md"
             art_x.write_text(
-                "# Plan X\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             art_y = pending_dir / "20261001-set1-02-yyyyyy-plan-y.ipd.md"
             art_y.write_text(
-                "# Plan Y\n- Id: bbbbbb\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="bbbbbb", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             # Prime the cache
@@ -84,10 +89,12 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             # In-place rewrites: X -> cccccc, Y -> aaaaaa (no files added, removed or renamed)
             art_x.write_text(
-                "# Plan X\n- Id: cccccc\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="cccccc", status="draft", text_only=True),
+                encoding="utf-8",
             )
             art_y.write_text(
-                "# Plan Y\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             cached_ans = _audit.find_artifact(root, "aaaaaa")
@@ -108,12 +115,14 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             art_x = pending_dir / "20261001-set1-01-xxxxxx-plan-x.ipd.md"
             art_x.write_text(
-                "# Plan X\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             art_y = pending_dir / "20261001-set1-02-yyyyyy-plan-y.ipd.md"
             art_y.write_text(
-                "# Plan Y\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             # Prime the cache: genuine collision
@@ -123,7 +132,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             # Fix collision in place: rewrite Y to bbbbbb
             art_y.write_text(
-                "# Plan Y\n- Id: bbbbbb\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="bbbbbb", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             cached_ans = _audit.find_artifact(root, "aaaaaa")
@@ -145,7 +155,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             art_x = pending_dir / "20261001-set1-01-xxxxxx-plan-x.ipd.md"
             art_x.write_text(
-                "# Plan X\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             orig_iter = _sel._iter_paths
@@ -183,7 +194,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             art_x = pending_dir / "20261001-set1-01-xxxxxx-plan-x.ipd.md"
             art_x.write_text(
-                "# Plan X\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             # Prime the cache
@@ -217,7 +229,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             art_x = pending_dir / "20261001-set1-01-xxxxxx-plan-x.ipd.md"
             art_x.write_text(
-                "# Plan X\n- Id: aaaaaa\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             caller_idx = _audit.build_index(root)
@@ -226,7 +239,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             # Rewrite X in place
             art_x.write_text(
-                "# Plan X\n- Id: cccccc\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().plan(id6="cccccc", status="draft", text_only=True),
+                encoding="utf-8",
             )
 
             orig_iter = _sel._iter_paths

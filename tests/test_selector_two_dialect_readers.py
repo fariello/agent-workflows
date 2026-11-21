@@ -90,28 +90,6 @@ class SelectorTwoDialectReadersBase(unittest.TestCase):
         target.write_text("\n".join(lines), encoding="utf-8")
         return target
 
-    def make_bullet_plan(
-        self,
-        rel_path: str,
-        *,
-        id: str = "pln001",
-        status: str = "draft",
-        set: str = "testset",
-        body: str = "## Workflow history\n- 2026-09-28 draft (tester): created\n",
-    ) -> Path:
-        """Create a bullet-front-matter plan record in the temporary repository."""
-        target = self.repo_root / ".aw" / "records" / "plans" / rel_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        content = (
-            f"# Plan Title\n\n"
-            f"- Id: {id}\n"
-            f"- Status: {status}\n"
-            f"- Set: {set}\n\n"
-            f"{body}"
-        )
-        target.write_text(content, encoding="utf-8")
-        return target
-
 
 class BoundedReaderMetadataRegionTests(SelectorTwoDialectReadersBase):
     """Pin the metadata-region bound on _read_id, _read_status, and _read_setid (E-03)."""

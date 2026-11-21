@@ -42,6 +42,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_adopt as adopt
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 # The leak fixture, assembled FROM FRAGMENTS so this test file does not itself contain a plain copy
@@ -144,7 +145,7 @@ class BodyDeclaredId6IsNeverAdoptedTests(_AdoptRepo):
         plans = self.tmp / ".aw" / "records" / "plans" / "pending"
         plans.mkdir(parents=True, exist_ok=True)
         (plans / "20260901-someset-01-abc123-a-real-plan.ipd.md").write_text(
-            "# IPD\n\n- Id: abc123\n", encoding="utf-8"
+            RecordBuilder().plan(id6="abc123", text_only=True), encoding="utf-8"
         )
         src = self._drop(
             "quoting-research-report.md",
@@ -199,7 +200,7 @@ class RepositoryWideCollisionSetTests(_AdoptRepo):
         plans = self.tmp / ".aw" / "records" / "plans" / "pending"
         plans.mkdir(parents=True, exist_ok=True)
         (plans / "20260908-someset-01-zzz111-a-plan.ipd.md").write_text(
-            "# IPD\n\n- Id: zzz111\n", encoding="utf-8"
+            RecordBuilder().plan(id6="zzz111", text_only=True), encoding="utf-8"
         )
         ids = adopt.repository_id6s(self.tmp)
         self.assertIn(
@@ -210,9 +211,21 @@ class RepositoryWideCollisionSetTests(_AdoptRepo):
         (
             self.research / "20260908-topic-01-yyy222-a-report.research-report.md"
         ).write_text(
-            "---\nid: yyy222\ncreated: 20260908\nset: topic\norder: 01\n"
-            "topic: []\nmodel: \nkind: research-report\nstatus: todo\n"
-            "outcome: none-yet\nsummary: x\nconsumed-by: []\n---\n\n# X\n",
+            RecordBuilder().research(
+                id6="yyy222",
+                when="2026-09-08",
+                set="topic",
+                order=1,
+                topic=[],
+                model="",
+                research_kind="research-report",
+                status="todo",
+                outcome="none-yet",
+                summary="x",
+                consumed_by=[],
+                body="\n# X\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         ids = adopt.repository_id6s(self.tmp)
@@ -387,10 +400,21 @@ class AlreadyAdoptedWarningTests(_AdoptRepo):
             / "20260901-metastore-01-xn6f6u-metastore.gemini31prohigh.research-report.md"
         )
         p.write_text(
-            "---\nid: xn6f6u\ncreated: 20260901\nset: metastore\norder: 01\n"
-            "topic: []\nmodel: gemini31prohigh\nkind: research-report\nstatus: reference\n"
-            "outcome: informational\nsummary: seeded\nconsumed-by: []\n---\n\n"
-            + self.BODY,
+            RecordBuilder().research(
+                id6="xn6f6u",
+                when="2026-09-01",
+                set="metastore",
+                order=1,
+                topic=[],
+                model="gemini31prohigh",
+                research_kind="research-report",
+                status="reference",
+                outcome="informational",
+                summary="seeded",
+                consumed_by=[],
+                body="\n" + self.BODY,
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return p
@@ -639,9 +663,21 @@ class ConformanceOfTheAdoptedArtifactTests(_AdoptRepo):
 
         taken = "20260901-topic-01-tkntkn-taken.research-report.md"
         (self.research / taken).write_text(
-            "---\nid: tkntkn\ncreated: 20260901\nset: topic\norder: 01\ntopic: []\n"
-            "model: \nkind: research-report\nstatus: todo\noutcome: none-yet\n"
-            "summary: x\nconsumed-by: []\n---\n\n# Taken\n",
+            RecordBuilder().research(
+                id6="tkntkn",
+                when="2026-09-01",
+                set="topic",
+                order=1,
+                topic=[],
+                model="",
+                research_kind="research-report",
+                status="todo",
+                outcome="none-yet",
+                summary="x",
+                consumed_by=[],
+                body="\n# Taken\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         # Neither collision rule can see that id6 (the weakness this test documents).

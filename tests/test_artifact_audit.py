@@ -9,6 +9,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_audit as _audit
 from agent_workflows import runner_shared, runner_shutdown
+from tests.record_builder import RecordBuilder
 
 
 class TestAllowedLifecyclePairs(unittest.TestCase):
@@ -99,7 +100,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
     def test_backlog_plan_success_unchanged(self) -> None:
         self._write_file(
             ".aw/records/backlog/graduated/20260928-testset-01-bk0001-sample.backlog.md",
-            "- Id: bk0001\n- Status: graduated\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="graduated",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -118,7 +126,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
     def test_backlog_done_success_unchanged(self) -> None:
         self._write_file(
             ".aw/records/backlog/done/20260928-testset-01-bk0002-sample.backlog.md",
-            "- Id: bk0002\n- Status: done\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="done",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -134,7 +149,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
     def test_spec_plan_success_unchanged(self) -> None:
         self._write_file(
             ".aw/records/specs/implementing/20260928-testset-01-sp0001-sample.spec.md",
-            "- Id: sp0001\n- Status: implementing\n",
+            RecordBuilder().spec(
+                id6="sp0001",
+                status="implementing",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -150,7 +172,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
     def test_matching_unstarted_typed_steps(self) -> None:
         self._write_file(
             ".aw/records/backlog/open/20260928-testset-01-bk0003-sample.backlog.md",
-            "- Id: bk0003\n- Status: open\n",
+            RecordBuilder().backlog(
+                id6="bk0003",
+                status="open",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -168,7 +197,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # A file in graduated/ declaring done is cross-paired and rejected
         self._write_file(
             ".aw/records/backlog/graduated/20260928-testset-01-bk0004-sample.backlog.md",
-            "- Id: bk0004\n- Status: done\n",
+            RecordBuilder().backlog(
+                id6="bk0004",
+                status="done",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -187,7 +223,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # Queue declares artifact_type="ipd", but disk file is a backlog file
         self._write_file(
             ".aw/records/backlog/open/20260928-testset-01-bk0005-sample.backlog.md",
-            "- Id: bk0005\n- Status: open\n",
+            RecordBuilder().backlog(
+                id6="bk0005",
+                status="open",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -207,7 +250,9 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # IPD plan archived under monthly shard executed/202608/
         self._write_file(
             ".aw/records/plans/executed/202608/20260820-testset-01-pl0001-sample.ipd.md",
-            "# IPD: sample\n\n- Id: pl0001\n- Status: executed\n",
+            RecordBuilder().plan(
+                title="sample", id6="pl0001", status="executed", text_only=True
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -227,7 +272,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # Backlog item was dispatched under plan, executed, but is still in open/ reading open
         self._write_file(
             ".aw/records/backlog/open/20260928-testset-01-bk0006-sample.backlog.md",
-            "- Id: bk0006\n- Status: open\n",
+            RecordBuilder().backlog(
+                id6="bk0006",
+                status="open",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -250,7 +302,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # Spec dispatched under plan, executed, but is still in approved/ reading approved
         self._write_file(
             ".aw/records/specs/approved/20260928-testset-01-sp0002-sample.spec.md",
-            "- Id: sp0002\n- Status: approved\n",
+            RecordBuilder().spec(
+                id6="sp0002",
+                status="approved",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -269,7 +328,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # Backlog item was queued in run, but later graduated with transition commit
         self._write_file(
             ".aw/records/backlog/graduated/20260928-testset-01-bk0007-sample.backlog.md",
-            "- Id: bk0007\n- Status: graduated\n",
+            RecordBuilder().backlog(
+                id6="bk0007",
+                status="graduated",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         fake_idx = _audit.FinalizeEvidenceIndex(
             available=True,
@@ -297,7 +363,14 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # Backlog item was queued, now graduated, but no evidence commit found
         self._write_file(
             ".aw/records/backlog/graduated/20260928-testset-01-bk0008-sample.backlog.md",
-            "- Id: bk0008\n- Status: graduated\n",
+            RecordBuilder().backlog(
+                id6="bk0008",
+                status="graduated",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         fake_idx = _audit.FinalizeEvidenceIndex(
             available=True,
@@ -326,7 +399,9 @@ class TestArtifactAuditEngine(unittest.TestCase):
     def test_ipd_retired_with_banner_is_retired(self) -> None:
         self._write_file(
             ".aw/records/plans/superseded/20260928-testset-01-pl0002-sample.ipd.md",
-            "# IPD: sample\n\n> **RETIRED**\n\n- Id: pl0002\n- Status: superseded\n",
+            RecordBuilder().plan(
+                title="sample", id6="pl0002", status="superseded", text_only=True
+            ),
         )
         audit = _audit.audit_artifact(
             self.root,
@@ -345,21 +420,42 @@ class TestArtifactAuditEngine(unittest.TestCase):
         # Tracked only doctor audit returns None for valid terminal plan
         valid_p = self._write_file(
             ".aw/records/plans/executed/20260928-testset-01-pl0003-sample.ipd.md",
-            "- Id: pl0003\n- Status: executed\n",
+            RecordBuilder().plan(
+                id6="pl0003",
+                status="executed",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         self.assertIsNone(_audit.audit_tracked_artifact(self.root, valid_p))
 
         # Returns None for pending plan
         pending_p = self._write_file(
             ".aw/records/plans/pending/20260928-testset-01-pl0004-sample.ipd.md",
-            "- Id: pl0004\n- Status: approved\n",
+            RecordBuilder().plan(
+                id6="pl0004",
+                status="approved",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         self.assertIsNone(_audit.audit_tracked_artifact(self.root, pending_p))
 
         # Returns finding for terminal plan in executed/ declaring superseded
         drift_p = self._write_file(
             ".aw/records/plans/executed/20260928-testset-01-pl0005-sample.ipd.md",
-            "- Id: pl0005\n- Status: superseded\n",
+            RecordBuilder().plan(
+                id6="pl0005",
+                status="superseded",
+                set="testset",
+                order=1,
+                when="2026-09-28",
+                text_only=True,
+            ),
         )
         finding = _audit.audit_tracked_artifact(self.root, drift_p)
         self.assertIsNotNone(finding)
@@ -388,11 +484,15 @@ class TestArtifactAuditEngine(unittest.TestCase):
         )
         self._write_file(
             ".aw/records/plans/pending/20260930-testset-01-pl0010-unmoved.ipd.md",
-            "# IPD: unmoved sample\n\n- Id: pl0010\n- Status: approved\n",
+            RecordBuilder().plan(
+                title="unmoved sample", id6="pl0010", status="approved", text_only=True
+            ),
         )
         self._write_file(
             ".aw/records/plans/executed/20260930-testset-01-pl0011-moved.ipd.md",
-            "# IPD: moved sample\n\n- Id: pl0011\n- Status: executed\n",
+            RecordBuilder().plan(
+                title="moved sample", id6="pl0011", status="executed", text_only=True
+            ),
         )
 
         for st in catch_all_statuses:
@@ -431,7 +531,15 @@ class TestArtifactAuditEngine(unittest.TestCase):
             stem = f"20260930-testset-01-pre{pre_st}-sample"
             self._write_file(
                 f".aw/records/plans/pending/{stem}.ipd.md",
-                f"# IPD: {pre_st}\n\n- Id: pre{pre_st[:3]}\n- Status: {pre_st}\n",
+                RecordBuilder().plan(
+                    title=pre_st,
+                    id6="pre001",
+                    when="2026-09-30",
+                    set="testset",
+                    order=1,
+                    raw_fields={"Id": f"pre{pre_st[:3]}", "Status": pre_st},
+                    text_only=True,
+                ),
             )
             audit = _audit.audit_artifact(
                 self.root,
@@ -454,11 +562,15 @@ class TestArtifactAuditEngine(unittest.TestCase):
         """
         self._write_file(
             ".aw/records/plans/pending/20260930-testset-01-ts0001-unmoved.ipd.md",
-            "# IPD: unmoved\n\n- Id: ts0001\n- Status: approved\n",
+            RecordBuilder().plan(
+                title="unmoved", id6="ts0001", status="approved", text_only=True
+            ),
         )
         self._write_file(
             ".aw/records/plans/executed/20260930-testset-01-ts0002-moved.ipd.md",
-            "# IPD: moved\n\n- Id: ts0002\n- Status: executed\n",
+            RecordBuilder().plan(
+                title="moved", id6="ts0002", status="executed", text_only=True
+            ),
         )
 
         swept = set()
@@ -570,10 +682,21 @@ class TestArtifactAuditEngine(unittest.TestCase):
         for disp in dispositions:
             for ds in declared_statuses:
                 stem = f"20261001-testset-01-{disp}-{ds}"
-                banner = "> **RETIRED**\n\n" if disp in _audit._RETIREMENT_DIRS else ""
+                banner = (
+                    "> **RETIRED**\n\n" if disp in _audit._RETIREMENT_DIRS else None
+                )
                 self._write_file(
                     f".aw/records/plans/{disp}/{stem}.ipd.md",
-                    f"# IPD: {stem}\n\n{banner}- Id: {disp[:3]}{ds[:3]}\n- Status: {ds}\n",
+                    RecordBuilder().plan(
+                        title=stem,
+                        id6="mat001",
+                        when="2026-10-01",
+                        set="testset",
+                        order=1,
+                        body=banner,
+                        raw_fields={"Id": f"{disp[:3]}{ds[:3]}", "Status": ds},
+                        text_only=True,
+                    ),
                 )
         evidence = _audit.build_finalize_evidence_index(self.root)
         artifact_index = _audit.build_index(self.root)
