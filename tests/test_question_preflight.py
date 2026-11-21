@@ -56,6 +56,7 @@ from agent_workflows import (
     question_inbox,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 
 def _create_test_repo(root: Path) -> Path:
@@ -123,23 +124,19 @@ def _create_plan_with_oqs(
 
     oq_section = "## Open questions\n\n" + "\n\n".join(oq_blocks) if oq_blocks else ""
 
-    content = f"""# IPD: Test Plan {id6}
-
-- Kind: child
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Id: {id6}
-- Priority: medium
-- Work-Kind: feature
-- Scope-Paths: README.md
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Perform task
-- [ ] V-01 Verify task
-
-{oq_section}
-"""
+    content = RecordBuilder().plan(
+        title=f"Test Plan {id6}",
+        plan_role="child",
+        status=status,
+        set=setid,
+        order=order,
+        id6=id6,
+        priority="medium",
+        work_kind="feature",
+        scope_paths="README.md",
+        body=f"## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Perform task\n- [ ] V-01 Verify task\n\n{oq_section}",
+        text_only=True,
+    )
     plan_path.write_text(content, encoding="utf-8")
     if commit:
         subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)

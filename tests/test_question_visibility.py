@@ -24,6 +24,7 @@ from unittest import mock
 from agent_workflows import attention as att
 from agent_workflows import render_stream, runner_shared, term
 from tests.support import REPO_ROOT, init_repo
+from tests.record_builder import RecordBuilder
 
 _HOLDER_CODE = """
 import sys
@@ -389,20 +390,19 @@ class TestAttentionQuestionVisibility(unittest.TestCase):
         self.plan_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"
         self.plan_dir.mkdir(parents=True, exist_ok=True)
         self.plan_file = self.plan_dir / "20261017-qchan-01-y1vjzp-test.ipd.md"
-        self.initial_plan_content = (
-            "# IPD: test plan\n\n"
-            "- Date: 2026-10-17\n"
-            "- Kind: child\n"
-            "- Concern: Test plan\n"
-            "- Scope: Test\n"
-            "- Status: approved\n"
-            "- Readiness: go-pending-approval\n"
-            "- Work-Kind: feature\n"
-            "- Priority: medium\n"
-            "- Set: qchan\n"
-            "- Order: 1\n"
-            "- Id: y1vjzp\n\n"
-            "## Body\nTest\n"
+        self.initial_plan_content = RecordBuilder().plan(
+            title="test plan",
+            when="2026-10-17",
+            plan_role="child",
+            status="approved",
+            readiness="go-pending-approval",
+            work_kind="feature",
+            priority="medium",
+            set="qchan",
+            order=1,
+            id6="y1vjzp",
+            body="## Body\nTest",
+            text_only=True,
         )
         self.plan_file.write_text(self.initial_plan_content, encoding="utf-8")
 

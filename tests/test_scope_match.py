@@ -16,6 +16,7 @@ from agent_workflows import ipd_lifecycle
 from agent_workflows import work_cmd
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -225,10 +226,11 @@ class WorkCmdRefusalRemedyTests(unittest.TestCase):
 
     def test_out_of_scope_refusal_contains_remedy_hint(self) -> None:
         """The refusal message must name --no-plan and Scope-Paths as remedies."""
-        plan_content = (
-            "# IPD: Test\n"
-            "- Scope-Paths: agent_workflows/ipd_lifecycle.py\n"
-            "- Status: approved\n"
+        plan_content = RecordBuilder().plan(
+            title="Test",
+            scope_paths="agent_workflows/ipd_lifecycle.py",
+            status="approved",
+            text_only=True,
         )
         fake_plan_path = Path("/dummy/repo/.aw/records/plans/pending/test.ipd.md")
         with patch.object(Path, "read_text", return_value=plan_content), patch.object(
@@ -264,40 +266,23 @@ class WorkCmdRefusalRemedyTests(unittest.TestCase):
           (b) out-of-scope path merely STAGED, with only in-scope paths named, is refused
               with exit 1 and HEAD unchanged.
         """
-        plan_text = (
-            "# IPD: Demo work plan\n\n"
-            "- Date: 2026-08-28\n"
-            "- Kind: child\n"
-            "- Concern: A real concern statement for review.\n"
-            "- Scope: A real scope statement.\n"
-            "- Scope-Paths: src/in_scope.py\n"
-            "- Item-Dependencies: none\n"
-            "- Status: approved\n"
-            "- Priority: medium\n"
-            "- Work-Kind: chore\n"
-            "- Set: demo\n"
-            "- Order: 1\n"
-            "- Highest E allocated: 01\n"
-            "- Author: tester\n"
-            "- Id: dem001\n\n"
-            "## Workflow history\n"
-            "- 2026-08-28 approved (aw set): approved\n\n"
-            "## Goal\n"
-            "A real goal statement.\n\n"
-            "## Detailed Implementation Checklist (TODO)\n\n"
-            "### Task group 1: work\n"
-            "- [ ] E-01 Do a real observable thing.\n"
-            "  - Depends on: none\n"
-            "  - Expected outcome: a real observable result.\n"
-            "  - Execution state: pending\n\n"
-            "## Validation and cross-check (verify before reporting done)\n"
-            "- [ ] V-01 validates E-01\n"
-            "  - Required evidence: a real falsifiable evidence statement.\n"
-            "  - Observed evidence:\n"
-            "  - Result: pending\n\n"
-            "## Approval and execution gate\n"
-            "- Size assessment: standard\n"
-            "- Cohesion rationale: not required\n"
+        plan_text = RecordBuilder().plan(
+            title="Demo work plan",
+            when="2026-08-28",
+            plan_role="child",
+            scope_paths="src/in_scope.py",
+            item_dependencies="none",
+            status="approved",
+            priority="medium",
+            work_kind="chore",
+            set="demo",
+            order=1,
+            highest_e_allocated="01",
+            author="tester",
+            id6="dem001",
+            history=["- 2026-08-28 approved (aw set): approved"],
+            body="## Goal\nA real goal statement.\n\n## Detailed Implementation Checklist (TODO)\n\n### Task group 1: work\n- [ ] E-01 Do a real observable thing.\n  - Depends on: none\n  - Expected outcome: a real observable result.\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n- [ ] V-01 validates E-01\n  - Required evidence: a real falsifiable evidence statement.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n- Size assessment: standard\n- Cohesion rationale: not required",
+            text_only=True,
         )
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
