@@ -6,7 +6,7 @@
 - Scope: Part 1 of the round-3 split of `653ndz` (2026-11-09, research `nj8zdp` guidance): `653ndz` E-01 (detector and dry run), E-02 (rewriter) and E-03 (equivalence proof) carried verbatim with their ids, plus the finishing item E-07. EXCLUDES: the tool's test module (`j2xjtt`, `n0li9v`); the pilot, census and README (`653ndz`); converting any test module; production code under `agent_workflows/`.
 - Scope-Paths: tools/fixture_codemod.py, .aw/records/plans/pending/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.ipd.md
 - Item-Dependencies: executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y3uowx
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: y3uowx verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
