@@ -34,7 +34,8 @@ from agent_workflows import (
     run_selection_policy as rsp,
 )
 from tests import support
-from tests.test_oc_runipd import _CONFORMING_PLAN, _init_repo_with_conforming_plan
+from tests.record_builder import RecordBuilder
+from tests.test_oc_runipd import _init_repo_with_conforming_plan
 
 
 class TestHostCapGateExecuteRequirement(unittest.TestCase):
@@ -361,18 +362,36 @@ class TestHostCapGateExecuteRequirement(unittest.TestCase):
             repo = Path(td) / "repo"
             plan_refused = _init_repo_with_conforming_plan(repo, "ref001")
 
-            pending = repo / ".aw" / "records" / "plans" / "pending"
-            plan_dep = pending / "20261009-demo-02-dep001-dependent.ipd.md"
-            plan_dep.write_text(
-                _CONFORMING_PLAN.format(id6="dep001").replace(
-                    "- Item-Dependencies: none", "- Item-Dependencies: executed:ref001"
-                ),
-                encoding="utf-8",
+            builder = RecordBuilder(repo)
+            plan_dep = Path(
+                builder.plan(
+                    id6="dep001",
+                    title="Dependent",
+                    when="2026-10-09",
+                    set="demo",
+                    order=2,
+                    status="approved",
+                    scope_paths="README.md",
+                    item_dependencies="executed:ref001",
+                    approval="2026-10-09, human: approved",
+                    readiness="go-pending-approval",
+                    slug="dependent",
+                )
             )
-            plan_ind = pending / "20261009-demo-03-ind001-independent.ipd.md"
-            plan_ind.write_text(
-                _CONFORMING_PLAN.format(id6="ind001"),
-                encoding="utf-8",
+            plan_ind = Path(
+                builder.plan(
+                    id6="ind001",
+                    title="Independent",
+                    when="2026-10-09",
+                    set="demo",
+                    order=3,
+                    status="approved",
+                    scope_paths="README.md",
+                    item_dependencies="none",
+                    approval="2026-10-09, human: approved",
+                    readiness="go-pending-approval",
+                    slug="independent",
+                )
             )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "add plans"], cwd=repo, check=True)

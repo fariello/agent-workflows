@@ -9,14 +9,15 @@ E-08 / V-08: The three predicate-boundary cases (a, b, c) and review-consumer re
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests import support
+from tests.record_builder import RecordBuilder
 
 BOTH_HOSTS = (
     ("oc", oc_runipd, "run_opencode"),
@@ -64,157 +65,72 @@ def _write_plan(
     approval: str | None = None,
     raw_content: str | None = None,
 ) -> Path:
-    pending = repo / ".aw" / "records" / "plans" / "pending"
-    plan_path = pending / f"20260927-{setid}-{order:02d}-{id6}-plan.ipd.md"
     if raw_content is not None:
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        plan_path = pending / f"20260927-{setid}-{order:02d}-{id6}-plan.ipd.md"
         plan_path.write_text(raw_content, encoding="utf-8")
         return plan_path
 
-    deps_line = (
-        f"- Item-Dependencies: {', '.join(dependencies)}\n" if dependencies else ""
-    )
     # rdyreq (`fhinri`, IPD-M113): a reviewed/ready-to-execute plan must carry `- Readiness:`, so a
     # gated status defaults to the review output, attested by a /plan-review history line (IPD-M107).
     gated = status in ("reviewed", "approved", "auto-approved")
-    if readiness is None and gated:
-        readiness = "go-pending-approval"
-    readiness_line = f"- Readiness: {readiness}\n" if readiness else ""
-    review_line = "- 2026-09-27 /plan-review (tester): APPROVE\n" if gated else ""
+    eff_readiness = (
+        "go-pending-approval" if (readiness is None and gated) else readiness
+    )
     if approval is None:
-        approval_line = "- Approval: 2026-09-27, test\n" if status == "approved" else ""
+        eff_approval: str | None = "2026-09-27, test" if status == "approved" else None
     else:
-        approval_line = f"- Approval: {approval}\n" if approval else ""
+        eff_approval = approval or None
 
-    text = f"""# IPD: Plan {id6}
+    history = [
+        f"- 2026-09-27 {status} (tester): {status if status != 'reviewed' else 'APPROVE'}"
+    ]
+    if gated:
+        history.append("- 2026-09-27 /plan-review (tester): APPROVE")
 
-- Date: 2026-09-27
-- Kind: child
-- Concern: test
-- Scope: test
-- Scope-Paths: README.md, src/demo.txt
-- Status: {status}
-{readiness_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: tester
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-{deps_line}{approval_line}
-## Workflow history
-- 2026-09-27 {status} (tester): {status if status != "reviewed" else "APPROVE"}
-{review_line}
-## Goal
-Goal for {id6}.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Step 1
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-None.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-None.
-
-## Required tests / validation
-None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: done
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
-    plan_path.write_text(text, encoding="utf-8")
-    return plan_path
-
-
-def _write_spec(
-    repo: Path,
-    id6: str,
-    *,
-    status: str = "implementing",
-    malformed: bool = False,
-) -> Path:
-    target_dir = repo / ".aw" / "records" / "specs" / status
-    target_dir.mkdir(parents=True, exist_ok=True)
-    spec_path = target_dir / f"20260927-{id6}-01-{id6}-spec.spec.md"
-    if malformed:
-        text = f"""# SPEC: Malformed spec {id6}
-
-- Date: 2026-09-27
-- Status: {status}
-- Id: {id6}
-"""
-    else:
-        text = f"""# SPEC: Spec {id6}
-
-- Date: 2026-09-27
-- Status: {status}
-- Title: Spec {id6}
-- Slug: spec-{id6}
-- Id: {id6}
-
-## Workflow history
-- 2026-09-27 {status} (tester): set status
-
-## 1. Overview
-Overview of spec {id6}.
-"""
-    spec_path.write_text(text, encoding="utf-8")
-    return spec_path
-
-
-def _write_backlog(
-    repo: Path,
-    id6: str,
-    *,
-    status: str = "open",
-    malformed: bool = False,
-) -> Path:
-    target_dir = repo / ".aw" / "records" / "backlog" / status
-    target_dir.mkdir(parents=True, exist_ok=True)
-    item_path = target_dir / f"20260927-demo-01-{id6}-item.backlog.md"
-    if malformed:
-        text = f"""- Id: {id6}
-- Status: {status}
-"""
-    else:
-        text = f"""- Id: {id6}
-- Status: {status}
-- Set: demo
-- Priority: medium
-- Work-Kind: feature
-- Summary: Summary for {id6}
-
-## Workflow history
-- 2026-09-27 {status} (tester): created
-"""
-    item_path.write_text(text, encoding="utf-8")
-    return item_path
+    return Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            title=f"Plan {id6}",
+            when="2026-09-27",
+            set=setid,
+            order=order,
+            slug="plan",
+            status=status,
+            scope_paths="README.md, src/demo.txt",
+            item_dependencies=", ".join(dependencies) if dependencies else "none",
+            priority="medium",
+            work_kind="feature",
+            readiness=eff_readiness,
+            approval=eff_approval,
+            history=history,
+            body=(
+                f"## Goal\nGoal for {id6}.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "### Task group 1: work\n"
+                "- [ ] E-01 Step 1\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\nNone.\n\n"
+                "## Findings\nNone.\n\n"
+                "## Proposed changes (ordered, validatable)\nNone.\n\n"
+                "## Deferred / out of scope (with reason)\nNone.\n\n"
+                "## Scope check\nNone.\n\n"
+                "## Required tests / validation\nNone.\n\n"
+                "## Spec / documentation sync\nNone.\n\n"
+                "## Open questions\nNone.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: done\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required"
+            ),
+        )
+    )
 
 
 def _assert_no_durable_state(
@@ -259,7 +175,15 @@ class TestRefusalClassCases(unittest.TestCase):
             with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
                 val_plan = _write_plan(repo, "val001", status="approved")
-                _write_spec(repo, "spc001", status="implementing")
+                RecordBuilder(repo).spec(
+                    id6="spc001",
+                    title="Spec spc001",
+                    when="2026-09-27",
+                    status="implementing",
+                    slug="spec",
+                    history=["- 2026-09-27 implementing (tester): set status"],
+                    body="## 1. Overview\nOverview of spec spc001.",
+                )
                 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                 subprocess.run(
                     ["git", "commit", "-qm", "add artifacts"], cwd=repo, check=True
@@ -298,7 +222,13 @@ class TestRefusalClassCases(unittest.TestCase):
             with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
                 val_plan = _write_plan(repo, "val001", status="approved")
-                bad_content = "# IPD: Bad plan\n\n- Date: 2026-09-27\n- Status: approved\n- Id: bad001\n"
+                bad_content = RecordBuilder().plan(
+                    title="Bad plan",
+                    when="2026-09-27",
+                    status="approved",
+                    id6="bad001",
+                    text_only=True,
+                )
                 _write_plan(repo, "bad001", raw_content=bad_content)
                 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                 subprocess.run(
@@ -327,7 +257,14 @@ class TestRefusalClassCases(unittest.TestCase):
             with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
                 val_plan = _write_plan(repo, "val001", status="approved")
-                _write_spec(repo, "badspc", status="draft", malformed=True)
+                RecordBuilder(repo).spec(
+                    id6="badspc",
+                    title="Malformed spec badspc",
+                    when="2026-09-27",
+                    status="draft",
+                    slug="spec",
+                    history=[],
+                )
                 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                 subprocess.run(
                     ["git", "commit", "-qm", "add artifacts"], cwd=repo, check=True
@@ -364,7 +301,14 @@ class TestRefusalClassCases(unittest.TestCase):
             with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
                 val_plan = _write_plan(repo, "val001", status="approved")
-                _write_backlog(repo, "badbkg", status="open", malformed=True)
+                RecordBuilder(repo).backlog(
+                    id6="badbkg",
+                    status="open",
+                    when="2026-09-27",
+                    set="demo",
+                    slug="item",
+                    raw_fields={"priority": None},
+                )
                 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                 subprocess.run(
                     ["git", "commit", "-qm", "add artifacts"], cwd=repo, check=True
@@ -770,7 +714,15 @@ class TestPredicateBoundaryCases(unittest.TestCase):
         for label, module, _ in BOTH_HOSTS:
             with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
-                _write_spec(repo, "spc001", status="to-review")
+                RecordBuilder(repo).spec(
+                    id6="spc001",
+                    title="Spec spc001",
+                    when="2026-09-27",
+                    status="to-review",
+                    slug="spec",
+                    history=["- 2026-09-27 to-review (tester): set status"],
+                    body="## 1. Overview\nOverview of spec spc001.",
+                )
                 _write_plan(
                     repo,
                     "efg456",
@@ -795,7 +747,15 @@ class TestPredicateBoundaryCases(unittest.TestCase):
         for label, module, _ in BOTH_HOSTS:
             with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
-                _write_spec(repo, "spc001", status="to-review")
+                RecordBuilder(repo).spec(
+                    id6="spc001",
+                    title="Spec spc001",
+                    when="2026-09-27",
+                    status="to-review",
+                    slug="spec",
+                    history=["- 2026-09-27 to-review (tester): set status"],
+                    body="## 1. Overview\nOverview of spec spc001.",
+                )
                 _write_plan(
                     repo,
                     "efg456",

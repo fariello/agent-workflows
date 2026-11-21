@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import lane_containment, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class PriorAttemptProjectionTests(unittest.TestCase):
@@ -82,7 +83,10 @@ class PriorAttemptProjectionTests(unittest.TestCase):
             run_dir = repo / "run"
             run_dir.mkdir()
             plan_path = repo / "plan.ipd.md"
-            plan_path.write_text("# IPD: test\n\n- Id: slqvmx\n", encoding="utf-8")
+            plan_path.write_text(
+                RecordBuilder().plan(title="test", id6="slqvmx", text_only=True),
+                encoding="utf-8",
+            )
 
             item = {
                 "position": 1,

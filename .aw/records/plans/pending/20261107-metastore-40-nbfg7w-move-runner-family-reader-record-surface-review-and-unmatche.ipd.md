@@ -142,6 +142,7 @@ flowchart TD
   - Carrier: i29bd5
 - Moved to v1t2ai (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G5b (items E-01; F-41 names each module).
   - Carrier: v1t2ai
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-193-v1t2ai-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Moved to hp6ydi (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G5b (items E-01; F-41 names each module).
   - Carrier: hp6ydi
 - Moved to lf0fe4 (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subsets G5b, G6a (items E-01, E-02; F-41 names each module).

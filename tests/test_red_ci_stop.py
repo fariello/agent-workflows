@@ -11,81 +11,14 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from agent_workflows import agy_runipd, checkup, config, oc_runipd, runner_shared
-
-
-PLAN_TEMPLATE = """# IPD: Test plan {id6}
-
-- Date: 2026-10-12
-- Kind: child
-- Concern: test concern.
-- Scope: test scope.
-- Scope-Paths: src/x.py
-- Item-Dependencies: none
-- Status: to-review
-- Work-Kind: bug
-- Priority: high
-- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Id: {id6}
-
-## Workflow history
-- 2026-10-12 to-review (test): ready for review
-
-## Goal
-Test goal.
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Do test
-  - Depends on: none
-  - Expected outcome: done.
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-- None.
-
-## Findings
-| ID | Finding | Evidence |
-|----|---------|----------|
-| F-01 | Test | Evidence |
-
-## Proposed changes (ordered, validatable)
-1. Do E-01.
-
-## Deferred / out of scope (with reason)
-- None.
-
-## Scope check
-- Over-scope: none.
-- Under-scope: none.
-
-## Required tests / validation
-- None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: test output.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
+from tests.record_builder import RecordBuilder
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -132,19 +65,6 @@ def _spawn_count(spawn_log: Path) -> int:
     )
 
 
-def _write_plan(
-    repo: Path, *, id6: str = "tst001", setid: str = "other", order: int = 1
-) -> Path:
-    pending = repo / ".aw" / "records" / "plans" / "pending"
-    pending.mkdir(parents=True, exist_ok=True)
-    plan_path = pending / f"20261012-{setid}-{order:02d}-{id6}-test.ipd.md"
-    plan_path.write_text(
-        PLAN_TEMPLATE.format(id6=id6, setid=setid, order=order),
-        encoding="utf-8",
-    )
-    return plan_path
-
-
 def _setup_repo(
     tmp_path: Path,
     *,
@@ -182,8 +102,52 @@ def _setup_repo(
     )
 
     plan_specs = plans or [("tst001", "other", 1)]
+    builder = RecordBuilder(repo)
     for id6, setid, order in plan_specs:
-        _write_plan(repo, id6=id6, setid=setid, order=order)
+        builder.plan(
+            id6=id6,
+            title=f"Test plan {id6}",
+            when="2026-10-12",
+            plan_role="child",
+            scope_paths="src/x.py",
+            item_dependencies="none",
+            status="to-review",
+            work_kind="bug",
+            priority="high",
+            set=setid,
+            order=order,
+            slug="test",
+            author="test",
+            history=["- 2026-10-12 to-review (test): ready for review"],
+            raw_fields={"Concern": "test concern.", "Scope": "test scope."},
+            body=(
+                "## Goal\nTest goal.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 Do test\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done.\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n- None.\n\n"
+                "## Findings\n"
+                "| ID | Finding | Evidence |\n"
+                "|----|---------|----------|\n"
+                "| F-01 | Test | Evidence |\n\n"
+                "## Proposed changes (ordered, validatable)\n1. Do E-01.\n\n"
+                "## Deferred / out of scope (with reason)\n- None.\n\n"
+                "## Scope check\n- Over-scope: none.\n- Under-scope: none.\n\n"
+                "## Required tests / validation\n- None.\n\n"
+                "## Spec / documentation sync\nNone.\n\n"
+                "## Open questions\nNone.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: test output.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required"
+            ),
+        )
 
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "initial commit")

@@ -18,7 +18,7 @@ import pytest
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from agent_workflows.runner_shared import turn_attempted_nothing
-
+from tests.record_builder import RecordBuilder
 
 DRIVERS = pytest.mark.parametrize(
     "driver", [oc_runipd, agy_runipd], ids=["oc_runipd", "agy_runipd"]
@@ -192,7 +192,10 @@ class TestReconstructShapeAComposed:
 
         def finalize_on_disk(id6: str) -> None:
             (executed_dir / f"20260919-reaskscore-01-{id6}-stub.ipd.md").write_text(
-                f"# IPD: stub\n\n- Id: {id6}\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="stub", id6=id6, status="executed", text_only=True
+                ),
+                encoding="utf-8",
             )
 
         executed_items: list[str] = []
@@ -370,7 +373,10 @@ class TestReconstructShapeBAndCollisionExclusivity:
 
         def finalize_on_disk(id6: str) -> None:
             (executed_dir / f"20260919-reaskscore-01-{id6}-stub.ipd.md").write_text(
-                f"# IPD: stub\n\n- Id: {id6}\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="stub", id6=id6, status="executed", text_only=True
+                ),
+                encoding="utf-8",
             )
 
         head = subprocess.run(
@@ -482,7 +488,10 @@ class TestReconstructShapeBAndCollisionExclusivity:
 
         def finalize_on_disk(id6: str) -> None:
             (executed_dir / f"20260919-reaskscore-01-{id6}-stub.ipd.md").write_text(
-                f"# IPD: stub\n\n- Id: {id6}\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="stub", id6=id6, status="executed", text_only=True
+                ),
+                encoding="utf-8",
             )
 
         head = subprocess.run(

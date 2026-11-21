@@ -6,7 +6,7 @@
 - Scope: Chunk 2 of 11 of `nbfg7w` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `nbfg7w`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_freeze_time_refusal.py, tests/test_host_capability_wiring.py, tests/test_hostcapgate_execute_requirement.py, tests/test_isolation_per_action.py, tests/test_prior_attempt_projection.py, tests/test_reaskscore_composed.py, tests/test_red_ci_stop.py, tests/test_runfresh_end_to_end.py, .aw/records/plans/pending/20261109-metastore-193-v1t2ai-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: v1t2ai
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: v1t2ai verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, batch rules, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `nbfg7w` E-01, batch subset G5b; round-3 split 2026-11-09) Batch G5b, 4 of its 25 modules (the other runner-family tests (`test_integrat*`, `test_isolation*`, `test_freeze*`, `test_typed_queue*`, `test_attempt*`, `test_attended*`, `test_turn*`, `test_verifier*`, `test_runwire*`, `test_runfresh*`, `test_red_ci*`, `test_silent*`, `test_prior*`, `test_reask*`, `test_hostcap*`, `test_host*`, `test_fixfirst*`, `test_fix_it*`, `test_clean_target*`, `test_commit*`, `test_work_*`, `test_ipdrunner*`, `test_stdin*`)): `tests/test_freeze_time_refusal.py`, `tests/test_host_capability_wiring.py`, `tests/test_hostcapgate_execute_requirement.py`, `tests/test_isolation_per_action.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_freeze_time_refusal` 31, `test_host_capability_wiring` 1, `test_hostcapgate_execute_requirement` 1, `test_isolation_per_action` 3. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G5b-v1t2ai-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_freeze_time_refusal.py`: `_write_plan`, `_write_spec`, `_write_backlog`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `nbfg7w` E-01, batch subset G5b; round-3 split 2026-11-09) Batch G5b, 4 of its 25 modules (the other runner-family tests (`test_integrat*`, `test_isolation*`, `test_freeze*`, `test_typed_queue*`, `test_attempt*`, `test_attended*`, `test_turn*`, `test_verifier*`, `test_runwire*`, `test_runfresh*`, `test_red_ci*`, `test_silent*`, `test_prior*`, `test_reask*`, `test_hostcap*`, `test_host*`, `test_fixfirst*`, `test_fix_it*`, `test_clean_target*`, `test_commit*`, `test_work_*`, `test_ipdrunner*`, `test_stdin*`)): `tests/test_freeze_time_refusal.py`, `tests/test_host_capability_wiring.py`, `tests/test_hostcapgate_execute_requirement.py`, `tests/test_isolation_per_action.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_freeze_time_refusal` 31, `test_host_capability_wiring` 1, `test_hostcapgate_execute_requirement` 1, `test_isolation_per_action` 3. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G5b-v1t2ai-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_freeze_time_refusal.py`: `_write_plan`, `_write_spec`, `_write_backlog`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G5b-v1t2ai-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `nbfg7w` E-01, batch subset G5b; round-3 split 2026-11-09) Batch G5b, 4 of its 25 modules (the other runner-family tests (`test_integrat*`, `test_isolation*`, `test_freeze*`, `test_typed_queue*`, `test_attempt*`, `test_attended*`, `test_turn*`, `test_verifier*`, `test_runwire*`, `test_runfresh*`, `test_red_ci*`, `test_silent*`, `test_prior*`, `test_reask*`, `test_hostcap*`, `test_host*`, `test_fixfirst*`, `test_fix_it*`, `test_clean_target*`, `test_commit*`, `test_work_*`, `test_ipdrunner*`, `test_stdin*`)): `tests/test_prior_attempt_projection.py`, `tests/test_reaskscore_composed.py`, `tests/test_red_ci_stop.py`, `tests/test_runfresh_end_to_end.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_prior_attempt_projection` 1, `test_reaskscore_composed` 3, `test_red_ci_stop` 11, `test_runfresh_end_to_end` 39. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5b-v1t2ai-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_red_ci_stop.py`: `_write_plan`); a surviving helper is listed with its reason.
+- [x] E-02 (carried from `nbfg7w` E-01, batch subset G5b; round-3 split 2026-11-09) Batch G5b, 4 of its 25 modules (the other runner-family tests (`test_integrat*`, `test_isolation*`, `test_freeze*`, `test_typed_queue*`, `test_attempt*`, `test_attended*`, `test_turn*`, `test_verifier*`, `test_runwire*`, `test_runfresh*`, `test_red_ci*`, `test_silent*`, `test_prior*`, `test_reask*`, `test_hostcap*`, `test_host*`, `test_fixfirst*`, `test_fix_it*`, `test_clean_target*`, `test_commit*`, `test_work_*`, `test_ipdrunner*`, `test_stdin*`)): `tests/test_prior_attempt_projection.py`, `tests/test_reaskscore_composed.py`, `tests/test_red_ci_stop.py`, `tests/test_runfresh_end_to_end.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_prior_attempt_projection` 1, `test_reaskscore_composed` 3, `test_red_ci_stop` 11, `test_runfresh_end_to_end` 39. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5b-v1t2ai-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_red_ci_stop.py`: `_write_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G5b-v1t2ai-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5b-v1t2ai-1-files.txt .aw/state/59aiyh/G5b-v1t2ai-2-files.txt)`) into `.aw/state/59aiyh/v1t2ai-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit v1t2ai -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5b-v1t2ai-1-files.txt .aw/state/59aiyh/G5b-v1t2ai-2-files.txt)`) into `.aw/state/59aiyh/v1t2ai-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit v1t2ai -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -154,20 +154,100 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G5b-v1t2ai-1-files.txt` and the empty `diff .aw/state/59aiyh/G5b-v1t2ai-1-before.txt .aw/state/59aiyh/G5b-v1t2ai-1-after.txt`; then, for each of `tests/test_freeze_time_refusal.py`, `tests/test_host_capability_wiring.py`, `tests/test_hostcapgate_execute_requirement.py`, `tests/test_isolation_per_action.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5b-v1t2ai-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G5b-v1t2ai-1-files.txt`:
+      - `tests/test_freeze_time_refusal.py`
+      - `tests/test_host_capability_wiring.py`
+      - `tests/test_hostcapgate_execute_requirement.py`
+      - `tests/test_isolation_per_action.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G5b-v1t2ai-1-before.txt .aw/state/59aiyh/G5b-v1t2ai-1-after.txt`): empty output, exit code 0 (52 `PASSED` outcomes; `slow` node id count: 0 via `python3 -m pytest -o addopts="" -m "slow" --collect-only -q`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_freeze_time_refusal.py`:
+        - F-01 `rg -c`: before 31, after 1. Remaining matches (1): line 74 (`# rdyreq (\`fhinri\`, IPD-M113): a reviewed/ready-to-execute plan must carry \`- Readiness:\`, so a`, `body prose` comment).
+        - Codemod JSON row: `sites=10`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=8` (`dynamic-construction=5`, `unsupported-shape=1`, `not-equivalent=2`, `hand=8`, `legacy-kept=0`), `before_hash=0774552912900f86d346cf861fdc0529f5659d5f239aea0e1872c1b94a8bab0c`, `after_hash=0774552912900f86d346cf861fdc0529f5659d5f239aea0e1872c1b94a8bab0c`, `equivalent=true`, `pytest_runs=6`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 10 | 4 | 0 | 5 | 1 | 0 | 0 | 0 | 0 | 0 | 6 | 0`.
+      - `tests/test_host_capability_wiring.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=3cae3e2209fdc869bf8d5e15e2cee1527fdfae843520df3d15eadd886599a1ff`, `after_hash=3cae3e2209fdc869bf8d5e15e2cee1527fdfae843520df3d15eadd886599a1ff`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_hostcapgate_execute_requirement.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=2`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=2` (`unsupported-shape=2`, `hand=2`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | 0`.
+      - `tests/test_isolation_per_action.py`:
+        - F-01 `rg -c`: before 3, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=3`, `rewrites=3` (`standard=3`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=3bc97cafe49400de2cde7318d91b9328cc0ebba90ffb0cce769135e585139a7a`, `after_hash=3bc97cafe49400de2cde7318d91b9328cc0ebba90ffb0cce769135e585139a7a`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 10 (8 static + 2 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_freeze_time_refusal.py` pre-edit line 74 (`dynamic-construction`, `deps_line` in `_write_plan`).
+      2. `tests/test_freeze_time_refusal.py` pre-edit line 81 (`dynamic-construction`, `readiness_line` in `_write_plan`).
+      3. `tests/test_freeze_time_refusal.py` pre-edit line 84 (`dynamic-construction`, `approval_line` approved branch in `_write_plan`).
+      4. `tests/test_freeze_time_refusal.py` pre-edit line 86 (`dynamic-construction`, `approval_line` override branch in `_write_plan`).
+      5. `tests/test_freeze_time_refusal.py` pre-edit lines 88-150 (`dynamic-construction`, plan template in `_write_plan`; sites 1-5 replaced by `RecordBuilder(repo).plan(...)`).
+      6. `tests/test_freeze_time_refusal.py` pre-edit lines 166-171 (`not-equivalent`, malformed spec in `_write_spec`; replaced at call site by `RecordBuilder(repo).spec(..., history=[])` so `attention.history-missing` fires).
+      7. `tests/test_freeze_time_refusal.py` pre-edit lines 173-186 (`unsupported-shape`, valid spec with `- Slug:` in `_write_spec`; replaced at call sites by `RecordBuilder(repo).spec(..., slug="spec", ...)`).
+      8. `tests/test_freeze_time_refusal.py` pre-edit lines 202-204 (`not-equivalent`, malformed backlog in `_write_backlog`; replaced at call site by `RecordBuilder(repo).backlog(..., raw_fields={"priority": None})`, `invalid-input` escape so `backlog.priority-invalid` fires).
+      9. `tests/test_hostcapgate_execute_requirement.py` pre-edit line 368 cols 20-47 (`unsupported-shape`, `"- Item-Dependencies: none"` in `test_refused_item_cascades_dependents_and_independent_items_continue`).
+      10. `tests/test_hostcapgate_execute_requirement.py` pre-edit line 368 cols 49-87 (`unsupported-shape`, `"- Item-Dependencies: executed:ref001"` in `test_refused_item_cascades_dependents_and_independent_items_continue`; sites 9-10 replaced by `RecordBuilder(repo).plan(...)` for `dep001` and `ind001`).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (3): `tests/test_freeze_time_refusal.py`: `def _write_plan` (line 55), `def _write_spec` (line 155), `def _write_backlog` (line 191).
+      - After (1): `tests/test_freeze_time_refusal.py`: `def _write_plan` (line 56).
+      - Deleted helpers (2): `tests/test_freeze_time_refusal.py`: `_write_spec`, `_write_backlog` (no external callers; all internal calls replaced directly with `RecordBuilder(repo)`).
+      - Surviving E-09 helpers (1): `tests/test_freeze_time_refusal.py`: `_write_plan` — retained as a thin `RecordBuilder(repo).plan(...)` wrapper with zero legacy template strings because two out-of-scope test modules import it directly (`tests/test_attended_session.py` and `tests/test_run_proposal_channel.py`; both verified passing: `20 passed in 3.39s`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G5b-v1t2ai-2-files.txt` and the empty `diff .aw/state/59aiyh/G5b-v1t2ai-2-before.txt .aw/state/59aiyh/G5b-v1t2ai-2-after.txt`; then, for each of `tests/test_prior_attempt_projection.py`, `tests/test_reaskscore_composed.py`, `tests/test_red_ci_stop.py`, `tests/test_runfresh_end_to_end.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5b-v1t2ai-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G5b-v1t2ai-2-files.txt`:
+      - `tests/test_prior_attempt_projection.py`
+      - `tests/test_reaskscore_composed.py`
+      - `tests/test_red_ci_stop.py`
+      - `tests/test_runfresh_end_to_end.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G5b-v1t2ai-2-before.txt .aw/state/59aiyh/G5b-v1t2ai-2-after.txt`): empty output, exit code 0 (33 `PASSED` outcomes; `slow` node id count: 6 via `python3 -m pytest -o addopts="" -m "slow" --collect-only -q`, all 6 tests in `tests/test_runfresh_end_to_end.py`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_prior_attempt_projection.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=3352752736bab61d10bd6ecffc08f1cde392315f19f2b76f02215a66fb9685a3`, `after_hash=3352752736bab61d10bd6ecffc08f1cde392315f19f2b76f02215a66fb9685a3`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_reaskscore_composed.py`:
+        - F-01 `rg -c`: before 3, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=3`, `rewrites=3` (`standard=3`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=9c796173f945f13561161d8b3e1dbe7187dcfbb7e25b02043a85f74fb42ad097`, `after_hash=9c796173f945f13561161d8b3e1dbe7187dcfbb7e25b02043a85f74fb42ad097`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_red_ci_stop.py`:
+        - F-01 `rg -c`: before 11, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=1` (`not-equivalent=1`, `hand=1`, `legacy-kept=0`), `before_hash=562b6a14854948e173dd502a3ea68abd5dfb3e949cdfc8ba68b8d64005f33cd7`, `after_hash=562b6a14854948e173dd502a3ea68abd5dfb3e949cdfc8ba68b8d64005f33cd7`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_runfresh_end_to_end.py`:
+        - F-01 `rg -c`: before 39, after 9. Remaining matches (9): lines 156, 157, 160, 167, 168, 170, 171 (7 lines inside `_FAKE_HOST_SCRIPT` embedded fake-agent subprocess script, `body prose`, codemod `legacy-kept`), line 644 (`# 3. Orchestrator file under executed/ with - Status: executed`, `body prose` comment), line 656 (`self.assertIn("- Status: executed", orch_executed_text)`, `setter-byte assertion`, codemod `legacy-kept`).
+        - Codemod JSON row: `sites=9`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=9` (`unsupported-shape=4`, `not-equivalent=2`, `setter-byte assertion=1`, `body prose=2`, `hand=6`, `legacy-kept=3`), `before_hash=acbe6d8eb4a71d788dcb86beb4f843f0e8b8f09ef4f51e60f4a0b654a22b0705`, `after_hash=acbe6d8eb4a71d788dcb86beb4f843f0e8b8f09ef4f51e60f4a0b654a22b0705`, `equivalent=true`, `pytest_runs=4`.
+        - `653ndz` F-30 row: `G5b | v1t2ai | 9 | 2 | 2 | 0 | 4 | 0 | 0 | 0 | 1 | 2 | 4 | 3`.
+    - Hand count: 7 (4 static + 3 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_red_ci_stop.py` pre-edit lines 23-88 (`not-equivalent`, `PLAN_TEMPLATE`; deleted along with `_write_plan` and replaced by `RecordBuilder(repo).plan(...)` inside `_setup_repo`).
+      2. `tests/test_runfresh_end_to_end.py` pre-edit lines 35-106 (`not-equivalent`, `_ORCHESTRATOR_TEMPLATE`; deleted and replaced by `RecordBuilder(fixture).plan(...)` in `make_runfresh_fixture`).
+      3. `tests/test_runfresh_end_to_end.py` pre-edit lines 108-176 (`not-equivalent`, `_CHILD_TEMPLATE`; deleted and replaced by `RecordBuilder(fixture).plan(...)` in `make_runfresh_fixture`).
+      4. `tests/test_runfresh_end_to_end.py` pre-edit line 444 cols 16-38 (`unsupported-shape`, `"- Status: approved\n"` in `test_e01_pre_run_linter_drift`).
+      5. `tests/test_runfresh_end_to_end.py` pre-edit line 444 cols 40-84 (`unsupported-shape`, `f"- Status: executed\n- {_PROBE_FIELD}: x\n"` in `test_e01_pre_run_linter_drift`).
+      6. `tests/test_runfresh_end_to_end.py` pre-edit line 448 (`unsupported-shape`, `"## Workflow history\n"` in `test_e01_pre_run_linter_drift`).
+      7. `tests/test_runfresh_end_to_end.py` pre-edit line 449 (`unsupported-shape`, `"## Workflow history\n- 2026-10-06 executed (tester): executed\n"` in `test_e01_pre_run_linter_drift`; sites 4-7 replaced by `RecordBuilder(fixture_root).plan(..., disposition="executed", status="executed", approval=None, raw_fields={..., _PROBE_FIELD: "x"})`).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (1): `tests/test_red_ci_stop.py`: `def _write_plan` (line 135).
+      - After (0): none.
+      - Deleted helpers (1): `tests/test_red_ci_stop.py`: `_write_plan` (sole caller `_setup_repo` now calls `RecordBuilder(repo).plan(...)` directly).
+      - Surviving E-09 helpers (0): none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G5b-v1t2ai-1`, `G5b-v1t2ai-2` against `.aw/state/59aiyh/v1t2ai-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit v1t2ai` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G5b-v1t2ai-1-before.txt .aw/state/59aiyh/G5b-v1t2ai-2-before.txt) .aw/state/59aiyh/v1t2ai-union-after.txt`): empty output, exit code 0 (85 `PASSED` outcomes across all 8 modules).
+    - Post-edit codemod dry-run over all 8 modules (`python3 tools/fixture_codemod.py --dry-run --format json`): `sites=2`, `rewrites=0`, `hand=0`, `legacy-kept=2` (both in `tests/test_runfresh_end_to_end.py`: `_FAKE_HOST_SCRIPT` `body prose` and line 656 `setter-byte assertion`).
+    - Core gate (`aw suite`, running bare core `python3 -m pytest` with bounded xdist workers): `2661 passed, 11 warnings in 103.25s (0:01:43)`, exit code 0 (0 failures; `CORE TIER BUDGET EXCEEDED` warning only because host 1-minute load average was 7.85 on 12 CPUs and `AW_CORE_BUDGET_ENFORCE=0`; none of `v1t2ai`'s 8 modules appeared in the top-10 slowest or slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6869,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit v1t2ai` (8 modified test Scope-Paths): `aw commit: committed 8 path(s): 961d0d76250ebb1e45077480461ad17306323bd6` (`tests/test_freeze_time_refusal.py`, `tests/test_host_capability_wiring.py`, `tests/test_hostcapgate_execute_requirement.py`, `tests/test_isolation_per_action.py`, `tests/test_prior_attempt_projection.py`, `tests/test_reaskscore_composed.py`, `tests/test_red_ci_stop.py`, `tests/test_runfresh_end_to_end.py`). Followed by the plan-evidence commit via `aw commit v1t2ai -- .aw/records/plans/pending/20261109-metastore-193-v1t2ai-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 
