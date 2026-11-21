@@ -1,5 +1,6 @@
 - Id: 2biutm
-- Status: open
+- Status: graduated
+- Graduated-To: 2biutm
 - Set: 2biutm
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw backlog): graduated by run run-20261121T210815Z-1170144: 0hdqbw
 - 2026-11-21 created (aw backlog): layout_inventory routes legacy workflow-artifacts/ into .aw/records/ instead of .aw/workflow-artifacts/
 
 ## Observed behavior
