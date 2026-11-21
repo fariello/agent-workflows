@@ -400,7 +400,11 @@ class TestArtifactAuditEngine(unittest.TestCase):
         self._write_file(
             ".aw/records/plans/superseded/20260928-testset-01-pl0002-sample.ipd.md",
             RecordBuilder().plan(
-                title="sample", id6="pl0002", status="superseded", text_only=True
+                title="sample",
+                id6="pl0002",
+                status="superseded",
+                body="> **RETIRED**\n\n",
+                text_only=True,
             ),
         )
         audit = _audit.audit_artifact(
