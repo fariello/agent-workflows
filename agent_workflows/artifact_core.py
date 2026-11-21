@@ -748,9 +748,91 @@ def _is_repository_untracked_backend(repo_root_str: str) -> bool:
     return identity.get("records_backend") == RecordsBackend.REPOSITORY_UNTRACKED.value
 
 
+_MISSING_STAT: Tuple[int, int, int] = (-1, -1, -1)
+
+
+def _stat_token(path: Path) -> Tuple[int, int, int]:
+    """Return ``(st_mtime_ns, st_size, st_ino)`` for a regular file, or ``(-1, -1, -1)``."""
+    try:
+        st = path.stat()
+    except OSError:
+        return _MISSING_STAT
+    if not stat.S_ISREG(st.st_mode):
+        return _MISSING_STAT
+    return (st.st_mtime_ns, st.st_size, st.st_ino)
+
+
+def _find_git_root(path: Path) -> Path:
+    """Walk ``(path, *path.parents)`` for the first directory containing ``.git``, else ``path``."""
+    for candidate in (path, *path.parents):
+        try:
+            if (candidate / ".git").exists():
+                return candidate
+        except OSError:
+            continue
+    return path
+
+
+def _resolve_git_metadata_dirs(git_root: Path) -> Tuple[Path, Path]:
+    """Resolve ``(git_dir, common_dir)`` for a standard ``.git/`` dir or worktree pointer file."""
+    dot_git = git_root / ".git"
+    try:
+        if dot_git.is_dir():
+            return dot_git, dot_git
+        if not dot_git.is_file():
+            return dot_git, dot_git
+        text = dot_git.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return dot_git, dot_git
+
+    git_dir: Optional[Path] = None
+    for line in text.splitlines():
+        if line.startswith("gitdir:"):
+            target = line[len("gitdir:") :].strip()
+            if target:
+                try:
+                    target_path = Path(target)
+                    git_dir = (
+                        target_path
+                        if target_path.is_absolute()
+                        else (git_root / target_path)
+                    ).resolve()
+                except (OSError, ValueError):
+                    return dot_git, dot_git
+            break
+
+    if git_dir is None:
+        return dot_git, dot_git
+
+    common_dir = git_dir
+    commondir_file = git_dir / "commondir"
+    try:
+        if commondir_file.is_file():
+            for line in commondir_file.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines():
+                common_target = line.strip()
+                if common_target:
+                    common_path = Path(common_target)
+                    common_dir = (
+                        common_path
+                        if common_path.is_absolute()
+                        else (git_dir / common_path)
+                    ).resolve()
+                    break
+    except (OSError, ValueError):
+        common_dir = git_dir
+
+    return git_dir, common_dir
+
+
 @functools.lru_cache(maxsize=128)
 def _cached_ignored_dirs(
-    resolved_root_str: str, gi_mtime: float, ex_mtime: float
+    resolved_root_str: str,
+    gi_stat: Tuple[int, int, int],
+    aw_gi_stat: Tuple[int, int, int],
+    ex_stat: Tuple[int, int, int],
+    index_stat: Tuple[int, int, int],
 ) -> frozenset[str]:
     ignored: set[str] = set(DEFAULT_IGNORED_DIR_NAMES)
     try:
@@ -787,11 +869,17 @@ def get_ignored_dirs(repo_root: Path) -> set[str]:
     repo_root = Path(repo_root)
     resolved_root_str = _resolved_root_str(str(repo_root))
     p = Path(resolved_root_str)
-    gi = p / ".gitignore"
-    gi_mtime = gi.stat().st_mtime if gi.is_file() else -1.0
-    ex = p / ".git" / "info" / "exclude"
-    ex_mtime = ex.stat().st_mtime if ex.is_file() else -1.0
-    return set(_cached_ignored_dirs(resolved_root_str, gi_mtime, ex_mtime))
+    git_root = _find_git_root(p)
+    git_dir, common_dir = _resolve_git_metadata_dirs(git_root)
+    gi_stat = _stat_token(git_root / ".gitignore")
+    aw_gi_stat = _stat_token(git_root / ".aw" / ".gitignore")
+    ex_stat = _stat_token(common_dir / "info" / "exclude")
+    index_stat = _stat_token(git_dir / "index")
+    return set(
+        _cached_ignored_dirs(
+            resolved_root_str, gi_stat, aw_gi_stat, ex_stat, index_stat
+        )
+    )
 
 
 def _resolved_root(root: Path) -> Path:
