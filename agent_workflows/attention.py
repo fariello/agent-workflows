@@ -1611,9 +1611,30 @@ def _spec_record(
         from agent_workflows import artifact_meta as _meta
 
         state = _meta.read_text(text, record_type="spec")
-    drift = specs_mod.validate_spec(path, text)
+    is_log_backed = False
+    if project_context is not None:
+        if getattr(state, "id6", None) and not getattr(state, "id_derived", False):
+            from agent_workflows import artifact_meta as _meta
+
+            records_root = Path(project_context.logical_roots["records"])
+            is_log_backed = _meta._storage_format(records_root, state) == "log"
+    else:
+        is_log_backed = bool(
+            getattr(state, "created_at", None) or getattr(state, "updated_at", None)
+        )
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    if is_log_backed:
+        drift = specs_mod.validate_spec_state(path, state, has_history=bool(lha))
+    else:
+        drift = specs_mod.validate_spec(path, text)
     raw_status = (
-        state.legacy_raw_status if state.legacy_raw_status is not None else state.status
+        state.status
+        if is_log_backed
+        else (
+            state.legacy_raw_status
+            if state.legacy_raw_status is not None
+            else state.status
+        )
     )
     status = (
         str(raw_status).strip()
@@ -1621,7 +1642,10 @@ def _spec_record(
         else None
     )
     if status is None or status not in A.SPEC_STATUSES:
-        return None, drift  # violations already recorded by validate_spec
+        return (
+            None,
+            drift,
+        )  # violations already recorded by validate_spec / validate_spec_state
     kind = state.fields.get("gate_kind") or None
     ref = state.fields.get("gate_ref") or None
     summary = state.fields.get("gate_summary") or None
@@ -1630,7 +1654,6 @@ def _spec_record(
         gate = {"kind": kind, "ref": ref}
         if summary:
             gate["summary"] = summary
-    lha = _last_history_at_for_state(state, project_context=project_context)
     br_val = state.fields.get("blocks_release")
     br = str(br_val).strip() if br_val not in (None, "") else None
     pr_val = state.fields.get("priority")

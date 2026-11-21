@@ -729,3 +729,419 @@ def test_item_dependencies_preserved_for_backlog_and_spec(tmp_path: Path) -> Non
     assert bkl1.item_dependencies == ()
     assert bkl2.item_dependencies == ("exists:backlog:bkl001",)
     assert spc1.item_dependencies == ("exists:backlog:bkl002",)
+
+
+def _write_log(meta_dir: Path, id6: str, events: list[dict[str, object]]) -> None:
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    (meta_dir / f"{id6}.jsonl").write_text(
+        "".join(
+            json.dumps(ev, sort_keys=True, separators=(",", ":")) + "\n"
+            for ev in events
+        ),
+        encoding="utf-8",
+    )
+
+
+def _run_attention_json(repo: Path) -> tuple[int, dict[str, object]]:
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
+        rc = cli.main(["attention", "--dir", str(repo), "--all", "--format", "json"])
+    raw = stdout_buf.getvalue()
+    assert raw.strip(), f"expected JSON stdout, stderr={stderr_buf.getvalue()!r}"
+    return rc, json.loads(raw)
+
+
+def test_v2_log_backed_specs_valid_migrated_and_fresh(tmp_path: Path) -> None:
+    """Migrated approved, freshly created, and valid deferred v2 specs validate cleanly."""
+    repo = _init_repo(tmp_path)
+    specs_dir = repo / ".aw" / "records" / "specs"
+    meta_dir = repo / ".aw" / "records" / "meta"
+    specs_dir.mkdir(parents=True)
+
+    # 1. Migrated approved spec: stripped Markdown mirror + seq 0 checkpoint + op: legacy history
+    approved_rel = (
+        ".aw/records/specs/20261010-v2sp01-01-v2sp01-migrated-approved.spec.md"
+    )
+    (repo / approved_rel).write_text(
+        "---\nid: v2sp01\ntype: spec\n---\n\n"
+        "# Spec: Migrated Approved Spec\n\n"
+        "## Summary\n\nMigrated v2 specification.\n",
+        encoding="utf-8",
+    )
+    _write_log(
+        meta_dir,
+        "v2sp01",
+        [
+            {
+                "v": 1,
+                "seq": 0,
+                "append": 0,
+                "at": "2026-11-20T00:00:00Z",
+                "actor": {"tool": "aw migrate metadata"},
+                "op": "checkpoint",
+                "path": "specs/20261010-v2sp01-01-v2sp01-migrated-approved.spec.md",
+                "fields": {
+                    "type": "spec",
+                    "status": "approved",
+                    "priority": "high",
+                    "work_kind": "feature",
+                    "last_history_day": "2026-10-14",
+                },
+            },
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 0,
+                "at": "2026-11-20T00:00:00Z",
+                "actor": {"tool": "aw migrate metadata"},
+                "op": "legacy",
+                "source": "history",
+                "position": 0,
+                "ordering_confidence": "unknown",
+                "observed_day": "2026-10-14",
+                "line": "- 2026-10-14 approved (human): approved spec",
+            },
+        ],
+    )
+
+    # 2. Freshly created v2 spec: seq 1 op: create with no last_history_day field
+    fresh_rel = ".aw/records/specs/20261018-v2sp02-01-v2sp02-fresh-create.spec.md"
+    (repo / fresh_rel).write_text(
+        "---\nid: v2sp02\ntype: spec\n---\n\n# Spec: Fresh Created Spec\n",
+        encoding="utf-8",
+    )
+    _write_log(
+        meta_dir,
+        "v2sp02",
+        [
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-10-18T12:34:56Z",
+                "actor": {"tool": "aw"},
+                "op": "create",
+                "path": "specs/20261018-v2sp02-01-v2sp02-fresh-create.spec.md",
+                "fields": {
+                    "type": "spec",
+                    "status": "draft",
+                    "priority": "medium",
+                    "work_kind": "chore",
+                },
+            }
+        ],
+    )
+
+    # 3. Migrated deferred spec with valid gate_kind, gate_ref, and safe gate_summary
+    deferred_rel = ".aw/records/specs/20261015-v2sp03-01-v2sp03-deferred-valid.spec.md"
+    (repo / deferred_rel).write_text(
+        "---\nid: v2sp03\ntype: spec\n---\n\n# Spec: Deferred Valid Spec\n",
+        encoding="utf-8",
+    )
+    _write_log(
+        meta_dir,
+        "v2sp03",
+        [
+            {
+                "v": 1,
+                "seq": 0,
+                "append": 0,
+                "at": "2026-11-20T00:00:00Z",
+                "actor": {"tool": "aw migrate metadata"},
+                "op": "checkpoint",
+                "path": "specs/20261015-v2sp03-01-v2sp03-deferred-valid.spec.md",
+                "fields": {
+                    "type": "spec",
+                    "status": "deferred",
+                    "gate_kind": "decision",
+                    "gate_ref": "D42",
+                    "gate_summary": "Waiting on D42 decision",
+                    "last_history_day": "2026-10-15",
+                },
+            }
+        ],
+    )
+
+    items, drift = att.scan(repo)
+    assert drift == []
+
+    approved_item = _item_by_path(items, approved_rel)
+    assert approved_item.id == "v2sp01"
+    assert approved_item.native_status == "approved"
+    assert approved_item.last_history_at == "2026-10-14"
+    assert approved_item.priority == "high"
+
+    fresh_item = _item_by_path(items, fresh_rel)
+    assert fresh_item.id == "v2sp02"
+    assert fresh_item.native_status == "draft"
+    assert fresh_item.last_history_at == "2026-10-18"
+    assert fresh_item.priority == "medium"
+
+    deferred_item = _item_by_path(items, deferred_rel)
+    assert deferred_item.id == "v2sp03"
+    assert deferred_item.native_status == "deferred"
+    assert deferred_item.last_history_at == "2026-10-15"
+    assert deferred_item.gate == {
+        "kind": "decision",
+        "ref": "D42",
+        "summary": "Waiting on D42 decision",
+    }
+
+    rc, payload = _run_attention_json(repo)
+    assert rc == 0
+    assert payload["valid"] is True
+    assert payload["violations"] == []
+    by_id = {it["id"]: it for it in payload["items"]}  # type: ignore[index]
+    assert by_id["v2sp01"]["native_status"] == "approved"
+    assert by_id["v2sp01"]["last_history_at"] == "2026-10-14"
+    assert by_id["v2sp02"]["native_status"] == "draft"
+    assert by_id["v2sp02"]["last_history_at"] == "2026-10-18"
+    assert by_id["v2sp03"]["native_status"] == "deferred"
+    assert by_id["v2sp03"]["gate"] == {
+        "kind": "decision",
+        "ref": "D42",
+        "summary": "Waiting on D42 decision",
+    }
+
+
+def test_v2_log_backed_specs_gate_history_status_and_vocab_violations(
+    tmp_path: Path,
+) -> None:
+    """Log-backed specs enforce gate rules, history presence, status enum, and vocabularies."""
+    repo = _init_repo(tmp_path)
+    specs_dir = repo / ".aw" / "records" / "specs"
+    meta_dir = repo / ".aw" / "records" / "meta"
+    specs_dir.mkdir(parents=True)
+
+    cases: list[tuple[str, str, dict[str, object]]] = [
+        (
+            "v2g001",
+            "deferred-missing-gate",
+            {
+                "type": "spec",
+                "status": "deferred",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g002",
+            "deferred-bad-kind",
+            {
+                "type": "spec",
+                "status": "deferred",
+                "gate_kind": "bogus",
+                "gate_ref": "D1",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g003",
+            "deferred-bad-ref",
+            {
+                "type": "spec",
+                "status": "deferred",
+                "gate_kind": "date",
+                "gate_ref": "not-a-date",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g004",
+            "deferred-unsafe-ctrl",
+            {
+                "type": "spec",
+                "status": "deferred",
+                "gate_kind": "decision",
+                "gate_ref": "D10",
+                "gate_summary": "unsafe\x07summary",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g005",
+            "deferred-unsafe-len",
+            {
+                "type": "spec",
+                "status": "deferred",
+                "gate_kind": "decision",
+                "gate_ref": "D11",
+                "gate_summary": "x" * (A.MAX_DESCRIPTIVE_LEN + 1),
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g006",
+            "non-deferred-with-gate",
+            {
+                "type": "spec",
+                "status": "approved",
+                "gate_kind": "decision",
+                "gate_ref": "D12",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g007",
+            "checkpoint-only-no-history",
+            {
+                "type": "spec",
+                "status": "approved",
+            },
+        ),
+        (
+            "v2g008",
+            "unknown-status",
+            {
+                "type": "spec",
+                "status": "mythical",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+        (
+            "v2g009",
+            "invalid-priority-work-kind",
+            {
+                "type": "spec",
+                "status": "draft",
+                "priority": "urgent",
+                "work_kind": "epic",
+                "last_history_day": "2026-10-10",
+            },
+        ),
+    ]
+
+    rels: dict[str, str] = {}
+    for idx, (id6, slug, fields) in enumerate(cases, start=1):
+        rel = f".aw/records/specs/20261010-v2gate-{idx:02d}-{id6}-{slug}.spec.md"
+        rels[id6] = rel
+        (repo / rel).write_text(
+            f"---\nid: {id6}\ntype: spec\n---\n\n# Spec: {slug}\n",
+            encoding="utf-8",
+        )
+        _write_log(
+            meta_dir,
+            id6,
+            [
+                {
+                    "v": 1,
+                    "seq": 0,
+                    "append": 0,
+                    "at": "2026-11-20T00:00:00Z",
+                    "actor": {"tool": "aw migrate metadata"},
+                    "op": "checkpoint",
+                    "path": rel.removeprefix(".aw/records/"),
+                    "fields": fields,
+                }
+            ],
+        )
+
+    items, drift = att.scan(repo)
+    by_loc: dict[str, set[str]] = {}
+    for d in drift:
+        by_loc.setdefault(d.location, set()).add(d.rule)
+
+    assert by_loc[rels["v2g001"]] == {"attention.gate-missing"}
+    assert by_loc[rels["v2g002"]] == {"attention.gate-malformed"}
+    assert by_loc[rels["v2g003"]] == {"attention.gate-malformed"}
+    assert by_loc[rels["v2g004"]] == {"attention.unsafe-field"}
+    assert by_loc[rels["v2g005"]] == {"attention.unsafe-field"}
+    assert by_loc[rels["v2g006"]] == {"attention.gate-forbidden"}
+    # Checkpoint-only with no history: recognized as log-backed (no missing-status), flags history-missing
+    assert by_loc[rels["v2g007"]] == {"attention.history-missing"}
+    assert _item_by_path(items, rels["v2g007"]).native_status == "approved"
+    # Unknown status: emits unknown-status and degrades item
+    assert by_loc[rels["v2g008"]] == {"attention.unknown-status"}
+    assert _item_by_path(items, rels["v2g008"]).native_status == "-"
+    # Invalid priority and work_kind
+    assert by_loc[rels["v2g009"]] == {"spec.priority-invalid", "spec.work-kind-invalid"}
+
+    rc, payload = _run_attention_json(repo)
+    assert rc == 1
+    assert payload["valid"] is False
+    v_pairs = {(v["location"], v["rule"]) for v in payload["violations"]}  # type: ignore[index]
+    assert (rels["v2g001"], "attention.gate-missing") in v_pairs
+    assert (rels["v2g002"], "attention.gate-malformed") in v_pairs
+    assert (rels["v2g003"], "attention.gate-malformed") in v_pairs
+    assert (rels["v2g004"], "attention.unsafe-field") in v_pairs
+    assert (rels["v2g005"], "attention.unsafe-field") in v_pairs
+    assert (rels["v2g006"], "attention.gate-forbidden") in v_pairs
+    assert (rels["v2g007"], "attention.history-missing") in v_pairs
+    assert (rels["v2g007"], "attention.missing-status") not in v_pairs
+    assert (rels["v2g008"], "attention.unknown-status") in v_pairs
+    assert (rels["v2g009"], "spec.priority-invalid") in v_pairs
+    assert (rels["v2g009"], "spec.work-kind-invalid") in v_pairs
+
+
+def test_legacy_spec_with_history_still_uses_validate_spec(tmp_path: Path) -> None:
+    """Legacy Markdown specs with workflow history (`last_seq > 0`) stay on `specs.validate_spec`."""
+    repo = _init_repo(tmp_path)
+    specs_dir = repo / ".aw" / "records" / "specs"
+    specs_dir.mkdir(parents=True)
+
+    dup_rel = ".aw/records/specs/20261012-leg001-01-leg001-dup-bullet.spec.md"
+    (repo / dup_rel).write_text(
+        "# Spec: Legacy Duplicate Bullet\n\n"
+        "- Id: leg001\n"
+        "- Status: approved\n"
+        "- Priority: high\n"
+        "- Priority: low\n\n"
+        "## Workflow history\n"
+        "- 2026-10-12 approved (human): approved\n"
+        "- 2026-10-10 draft (tester): created\n",
+        encoding="utf-8",
+    )
+
+    items, drift = att.scan(repo)
+    leg_item = _item_by_path(items, dup_rel)
+    assert leg_item.native_status == "approved"
+    assert leg_item.last_history_at == "2026-10-12"
+    assert {(d.location, d.rule) for d in drift} == {
+        (dup_rel, "spec.metadata-bullet-repeated")
+    }
+
+
+def test_validate_spec_state_defensive_fields_and_no_context_fallback() -> None:
+    """Direct checks for defensive scope/summary checks, missing status, and no-context fallback."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import specs as specs_mod
+
+    rel = ".aw/records/specs/20261010-def001-01-def001-direct.spec.md"
+    st = _meta.State(
+        id6="def001",
+        type="spec",
+        status=None,
+        created_at="2026-10-10T00:00:00Z",
+        fields={
+            "gate_summary": "\n",
+            "scope": "bad\x00scope",
+            "summary": "bad\nsummary",
+        },
+    )
+    drift = specs_mod.validate_spec_state(Path(rel), st, has_history=False)
+    rules = [d.rule for d in drift]
+    assert "attention.missing-status" in rules
+    assert "attention.gate-forbidden" in rules
+    assert rules.count("attention.unsafe-field") == 2
+    assert "attention.history-missing" in rules
+
+    # Direct _spec_record call without project_context uses created_at/updated_at fallback
+    ok_state = _meta.State(
+        id6="def002",
+        type="spec",
+        status="approved",
+        created_at="2026-10-10T00:00:00Z",
+        last_history_day="2026-10-10",
+        fields={"priority": "high"},
+    )
+    item, rec_drift = att._spec_record(
+        rel,
+        Path(rel),
+        "---\nid: def002\ntype: spec\n---\n\n# Spec: Direct\n",
+        state=ok_state,
+        project_context=None,
+    )
+    assert rec_drift == []
+    assert item is not None
+    assert item.native_status == "approved"
+    assert item.last_history_at == "2026-10-10"

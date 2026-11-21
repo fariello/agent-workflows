@@ -40,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: State-aware v2 specification validation
 
-- [ ] E-01 Add a pure state-aware specification validator `agent_workflows/specs.py::validate_spec_state(path: Path, state: Any, *, has_history: bool) -> List[core.Drift]` (adding `Any` to the `typing` import in `agent_workflows/specs.py`). It must enforce the same specification contract rules and control flow as `agent_workflows/specs.py::validate_spec` using `agent_workflows/artifact_meta.py::State` fields and `agent_workflows/specs.py::drift_location(path)` rather than raw Markdown bullets:
+- [x] E-01 Add a pure state-aware specification validator `agent_workflows/specs.py::validate_spec_state(path: Path, state: Any, *, has_history: bool) -> List[core.Drift]` (adding `Any` to the `typing` import in `agent_workflows/specs.py`). It must enforce the same specification contract rules and control flow as `agent_workflows/specs.py::validate_spec` using `agent_workflows/artifact_meta.py::State` fields and `agent_workflows/specs.py::drift_location(path)` rather than raw Markdown bullets:
   1. Status normalization and membership: read `raw_status = getattr(state, "status", None)`. Emit `attention.missing-status` when `raw_status is None` or `not str(raw_status).strip()`. Otherwise normalize `status = str(raw_status).strip()`, and emit `attention.unknown-status` when `len(status.split()) != 1` or `status not in agent_workflows/attention_contract.py::SPEC_STATUSES`.
   2. Deferred gate rules: read `fields = getattr(state, "fields", None) or {}` and extract `gate_kind`, `gate_ref`, and `gate_summary`, treating `None` and `""` as absent without stripping newlines or control characters from non-empty strings before validation. When `status == "deferred"`, emit `attention.gate-missing` if `gate_kind is None or gate_ref is None`, `attention.gate-malformed` if `gate_kind not in agent_workflows/attention_contract.py::GATE_KINDS` or `not agent_workflows/attention_contract.py::validate_gate_ref(gate_kind, gate_ref)`, and `attention.unsafe-field` if `gate_summary is not None and not agent_workflows/attention_contract.py::is_safe_descriptive(gate_summary)`. When `status != "deferred"` (including missing or unknown status, matching `agent_workflows/specs.py::validate_spec`) and any gate field is present, emit `attention.gate-forbidden`.
   3. Descriptive safety: validate `fields.get("scope")` via `agent_workflows/attention_contract.py::is_safe_prose_descriptive` and `fields.get("summary")` via `agent_workflows/attention_contract.py::is_safe_descriptive` defensively when present and non-`None`, emitting `attention.unsafe-field` on failure. Note that `agent_workflows/artifact_meta.py::REGISTRY["spec"]` does not store `scope` or `summary` (since `agent_workflows/migrations/m0001_convert.py` moves `- Scope:` and `- Summary:` bullets into Markdown body sections), whereas `gate_summary` is stored in `REGISTRY["spec"]`.
@@ -49,17 +49,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Keep `agent_workflows/specs.py::validate_spec(path, text)` intact for legacy Markdown specifications and direct callers.
   - Depends on: none
   - Expected outcome: `agent_workflows/specs.py::validate_spec_state` validates v2 specification state with identical rule IDs and locations (`agent_workflows/specs.py::drift_location(path)`) without parsing stripped Markdown bullets, and `make typecheck` passes cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Update `agent_workflows/attention.py::_spec_record` to detect log-backed specification state using the canonical storage-format check and route log-backed records to `agent_workflows/specs.py::validate_spec_state`:
+- [x] E-02 Update `agent_workflows/attention.py::_spec_record` to detect log-backed specification state using the canonical storage-format check and route log-backed records to `agent_workflows/specs.py::validate_spec_state`:
   1. Detect log-backed state explicitly: when `project_context is not None`, `getattr(state, "id6", None)` is non-empty, and `not getattr(state, "id_derived", False)`, resolve `records_root = Path(project_context.logical_roots["records"])` and check `agent_workflows/artifact_meta.py::_storage_format(records_root, state) == "log"` (equivalently `(records_root / "meta" / f"{state.id6}.jsonl").is_file()`). Only when `project_context is None` (direct unit-test calls without a project context), fall back to `bool(getattr(state, "created_at", None) or getattr(state, "updated_at", None))`. Do not use `state.last_seq > 0` (legacy specs populate `last_seq = len(history_lines)` while checkpoint-only logs have `last_seq == 0`), `state.last_history_day` (present on legacy specs), or `state.legacy_raw_status is None` (SQLite stores `state.status` in `legacy_raw_status` for log-backed rows).
   2. Compute `lha = _last_history_at_for_state(state, project_context=project_context)` once before validation. When the specification is log-backed, call `specs_mod.validate_spec_state(path, state, has_history=bool(lha))` instead of `specs_mod.validate_spec(path, text)`. Do not treat a non-empty `artifact_meta.history(...)` list alone as `has_history=True`, because a checkpoint-only migrated log with zero workflow history still returns `[checkpoint_event]`.
   3. Keep the legacy path calling `specs_mod.validate_spec(path, text)` unchanged when the specification is not log-backed.
   - Depends on: E-01
   - Expected outcome: `agent_workflows/attention.py::_spec_record` validates log-backed v2 specifications (including checkpoint-only migrated logs with `created_at=None` and `updated_at=None`) from `agent_workflows/artifact_meta.py::State` and `_last_history_at_for_state`, returning zero false `attention.missing-status`, `attention.history-missing`, or `attention.gate-missing` violations while preserving exact legacy Markdown validation behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add behavioral tests in `tests/test_readers_attention.py` that construct v2 log-backed specifications (via real `meta/<id6>.jsonl` event logs and v2 `---` mirror files stripped of `- Status:` and `## Workflow history`, or real `agent_workflows/migrations/m0001_convert.py::convert_records` output) and run `agent_workflows/attention.py::scan` and `aw attention --all --format json` to verify:
+- [x] E-03 Add behavioral tests in `tests/test_readers_attention.py` that construct v2 log-backed specifications (via real `meta/<id6>.jsonl` event logs and v2 `---` mirror files stripped of `- Status:` and `## Workflow history`, or real `agent_workflows/migrations/m0001_convert.py::convert_records` output) and run `agent_workflows/attention.py::scan` and `aw attention --all --format json` to verify:
   1. A migrated `approved` specification (with `seq: 0` checkpoint `last_history_day` and `op: "legacy"` history events) returns `valid: true`, `native_status: "approved"`, `last_history_at`, and zero violations.
   2. A freshly created v2 specification (`seq: 1`, `op: "create"`, no `last_history_day` checkpoint field) returns `valid: true`, expected `native_status`, `last_history_at` derived from the `create` event timestamp, and zero violations.
   3. A migrated `deferred` specification with valid `gate_kind`/`gate_ref` returns zero violations; a migrated `deferred` specification missing `gate_kind`/`gate_ref` reports `attention.gate-missing`; a migrated `deferred` specification with malformed `gate_kind`/`gate_ref` reports `attention.gate-malformed`; a migrated `deferred` specification with control characters or over-length `gate_summary` reports `attention.unsafe-field`; and a non-deferred log-backed specification carrying gate fields reports `attention.gate-forbidden`.
@@ -69,7 +69,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Keep all added tests purely behavioral with zero `inspect`, `ast`, or production source-code regex checks. Run `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Depends on: E-02
   - Expected outcome: All targeted tests, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` pass with zero regressions and zero source-code inspection tests.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -139,20 +139,26 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff agent_workflows/specs.py` summary showing `validate_spec_state` (and the `Any` typing import) covers status normalization/enum, deferred gate rules (`gate-missing`, `gate-malformed`, `gate-forbidden`, `unsafe-field`), defensive descriptive safety (`scope`, `summary`), history presence (`has_history`), and optional `priority`/`work_kind` vocabularies while preserving `validate_spec`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff --stat agent_workflows/specs.py` reports `agent_workflows/specs.py | 159 ++++++++++++++++++++++++++++++++++++++++++-`. Added `Any` to `from typing import Any, Dict, List, Optional, Tuple` and added `validate_spec_state(path: Path, state: Any, *, has_history: bool) -> List[core.Drift]` using `drift_location(path)`. Enforces `attention.missing-status` and `attention.unknown-status` (`A.SPEC_STATUSES`, single-token check), deferred gate rules (`attention.gate-missing`, `attention.gate-malformed` via `A.GATE_KINDS`/`A.validate_gate_ref`, `attention.unsafe-field` via `A.is_safe_descriptive` without stripping non-empty strings, `attention.gate-forbidden` on non-deferred/missing/unknown status), defensive `scope` (`A.is_safe_prose_descriptive`) and `summary` (`A.is_safe_descriptive`), `attention.history-missing` when `not has_history`, and optional `spec.priority-invalid` (`backlog.PRIORITIES`) / `spec.work-kind-invalid` (`backlog.KINDS`). Existing `validate_spec(path, text)` is untouched.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff agent_workflows/attention.py` summary showing canonical log-backed detection via `artifact_meta._storage_format` (with `created_at`/`updated_at` fallback when `project_context is None`), single `lha = _last_history_at_for_state(...)` computation passed as `has_history=bool(lha)` into `specs_mod.validate_spec_state`, and confirmation that legacy Markdown specs still call `specs_mod.validate_spec`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff --stat agent_workflows/attention.py` reports `agent_workflows/attention.py | 28 ++++++--`. In `_spec_record`: when `project_context is not None` and `getattr(state, "id6", None)` is non-empty and `not getattr(state, "id_derived", False)`, resolves `records_root = Path(project_context.logical_roots["records"])` and sets `is_log_backed = _meta._storage_format(records_root, state) == "log"`; when `project_context is None`, falls back to `bool(getattr(state, "created_at", None) or getattr(state, "updated_at", None))`. Computes `lha = _last_history_at_for_state(state, project_context=project_context)` once before validation, routes log-backed specs to `specs_mod.validate_spec_state(path, state, has_history=bool(lha))`, keeps legacy Markdown specs on `specs_mod.validate_spec(path, text)`, and reuses `lha` in the returned `Item`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py` (showing passing tests for migrated approved, fresh `op: "create"`, deferred valid/missing/malformed/unsafe gate, non-deferred gate forbidden, checkpoint-only missing history, unknown status, invalid `priority`/`work_kind`, and legacy Markdown spec parity), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`, plus confirmation that no added test uses `inspect`, `ast`, or source-code regex checks.
   - Observed evidence:
-  - Result: pending
+    - Targeted pytest (`python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py`): `tests/test_readers_attention.py::test_v2_log_backed_specs_valid_migrated_and_fresh PASSED`, `tests/test_readers_attention.py::test_v2_log_backed_specs_gate_history_status_and_vocab_violations PASSED`, `tests/test_readers_attention.py::test_legacy_spec_with_history_still_uses_validate_spec PASSED`, `tests/test_readers_attention.py::test_validate_spec_state_defensive_fields_and_no_context_fallback PASSED`, `tests/test_readers_attention.py::test_specs_tree_attention_pin PASSED`; summary: `111 passed in 30.49s`.
+    - `aw suite`: `2640 passed, 11 warnings in 97.54s (0:01:37)`.
+    - `make typecheck`: `python3 -m mypy agent_workflows` -> `Success: no issues found in 228 source files`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6845,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Behavioral-only check: `grep -nE "\b(inspect|ast|re\.|read_text)\b" tests/test_readers_attention.py` returned 0 matches (no `inspect`, `ast`, or source-code regex checks).
+    - `aw ipd lint --phase pre-transition --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["plans-lint"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
