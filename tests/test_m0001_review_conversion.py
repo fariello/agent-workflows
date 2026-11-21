@@ -9,15 +9,19 @@ preservation of review Round/Findings/Decisions and excluded trees/templates.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
+import json
+import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pytest
 
-from agent_workflows import artifact_meta, review_findings
-from agent_workflows.migrations import m0001_convert
+from agent_workflows import artifact_meta, cli, review_findings
+from agent_workflows.migrations import chain, m0001_convert, m0001_verify
 
 pytestmark = pytest.mark.core
 
@@ -66,6 +70,31 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         for line in path.read_text(encoding="utf-8").splitlines(keepends=True)
         if line.strip()
     ]
+
+
+def _run_cli(argv: List[str]) -> Tuple[int, str, str]:
+    out = io.StringIO()
+    err = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            rc = cli.main(argv)
+        except SystemExit as exc:
+            rc = int(exc.code) if isinstance(exc.code, int) else 1
+    return rc, out.getvalue(), err.getvalue()
+
+
+def _parse_agent_jsonl(raw: str) -> List[Dict[str, Any]]:
+    return [json.loads(line) for line in raw.splitlines() if line.strip()]
+
+
+def _find_research_statuses(repo: Path) -> Dict[str, str]:
+    rc, out, err = _run_cli(["find", "research", "--agent", "--dir", str(repo)])
+    assert rc == 0, f"aw find research failed: {err}\n{out}"
+    statuses: Dict[str, str] = {}
+    for rec in _parse_agent_jsonl(out):
+        if rec.get("kind") == "item" and rec.get("id6"):
+            statuses[str(rec["id6"])] = str(rec.get("status") or "")
+    return statuses
 
 
 # --------------------------------------------------------------------------------------
@@ -312,6 +341,11 @@ def test_fields_research_yaml_and_nonleading_prompt_preserved(
         encoding="utf-8",
     )
 
+    pre_rec = tmp_path / "pre_fields_res_records"
+    shutil.copytree(rec, pre_rec)
+    pre_find_statuses = _find_research_statuses(repo)
+    assert pre_find_statuses["rs5001"] == "active"
+
     summary = m0001_convert.convert_records(
         repo,
         records_root=rec,
@@ -358,14 +392,59 @@ def test_fields_research_yaml_and_nonleading_prompt_preserved(
     st2, _, _, _ = artifact_meta.replay(
         "rs5002", "research", ev2, records_root=rec, migration_import=True
     )
-    assert st2.status == "draft"
+    assert st2.status is None
+    assert "status" not in st2.fields
     assert st2.fields["ace"] == "agy"
     assert st2.fields["model"] == "opus55"
     assert st2.fields["research_kind"] == "research-prompt"
     assert st2.fields["consumed_by"] == []
     body2 = r_prompt.read_text(encoding="utf-8")
+    assert body2.splitlines()[:3] == ["---", "id: rs5002", "---"]
+    assert body2.splitlines()[3].startswith("<!-- aw-managed:")
+    assert "status:" not in "\n".join(body2.splitlines()[:4])
+    assert artifact_meta.parse_artifact_mirror(body2, allow_statusless=True) == {
+        "id": "rs5002",
+        "status": None,
+    }
     assert "<!-- aw-prompt: Kind: research | Status: pending" in body2
     assert "## Summary\n\nResearch prompt summary.\n" in body2
+
+    rt = m0001_verify.verify_round_trip(
+        repo,
+        pre_conversion_records_root=pre_rec,
+        converted_records_root=rec,
+    )
+    assert rt["passed"] is True, rt["errors"]
+    assert rt["errors"] == []
+
+    assert chain.repo_has_legacy_records(repo, records_root=rec) is False
+
+    _rc_meta, out_meta, _err_meta = _run_cli(
+        ["check", "meta", "--agent", "--dir", str(repo)]
+    )
+    meta_items = [r for r in _parse_agent_jsonl(out_meta) if r.get("kind") == "item"]
+    mirror_drift_rules = {
+        it.get("rule")
+        for it in meta_items
+        if it.get("rule") in ("meta.status-mirror-drift", "meta.id-mirror-drift")
+    }
+    assert mirror_drift_rules == set(), meta_items
+
+    rc_att, out_att, err_att = _run_cli(
+        ["attention", "--all", "--format", "json", "--dir", str(repo)]
+    )
+    assert rc_att == 0, f"aw attention failed: {err_att}\n{out_att}"
+    att_doc = json.loads(out_att)
+    unknown_status_violations = [
+        v
+        for v in att_doc.get("violations", [])
+        if v.get("code") == "attention.unknown-status"
+    ]
+    assert unknown_status_violations == []
+    assert att_doc.get("valid") is True
+
+    post_find_statuses = _find_research_statuses(repo)
+    assert post_find_statuses == pre_find_statuses
 
 
 def test_fields_walkthrough_and_free_prose_status(
@@ -1043,3 +1122,347 @@ def test_excluded_comms_data_readmes_and_templates_byte_identical(
         rel = p.relative_to(repo).as_posix()
         assert hashlib.sha256(p.read_bytes()).hexdigest() == before[rel], rel
         assert p.read_bytes() == orig_bytes, rel
+
+
+# --------------------------------------------------------------------------------------
+# IPD s4utmv: status-less research records, id-only mirrors, bidirectional drift & strictness
+# --------------------------------------------------------------------------------------
+
+
+def test_research_prompt_roundtrip_check_meta_attention_and_find_parity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify two-axis research-prompt keeps id-only mirror, clean check meta/attention, and find '-' parity."""
+    repo = _init_repo(tmp_path, monkeypatch, name="prompt_parity")
+    rec = repo / ".aw" / "records"
+    (rec / "research").mkdir(parents=True)
+
+    r_prompt = (
+        rec / "research" / "20261018-actorenv-00-rs5004-actor-prompt.research-prompt.md"
+    )
+    r_prompt.write_text(
+        "---\n"
+        "id: rs5004\n"
+        "created: 20261018\n"
+        "set: actorenv\n"
+        "order: 00\n"
+        "topic: [actor]\n"
+        "kind: research-prompt\n"
+        "outcome: none-yet\n"
+        "summary: Standard two-axis research prompt.\n"
+        "consumed-by: []\n"
+        "---\n\n# Research Prompt\n\nPrompt body.\n",
+        encoding="utf-8",
+    )
+    r_active = rec / "research" / "20261018-actorenv-01-rs5005-findings.findings.md"
+    r_active.write_text(
+        "---\n"
+        "id: rs5005\n"
+        "created: 20261018\n"
+        "set: actorenv\n"
+        "order: 01\n"
+        "topic: [actor]\n"
+        "kind: findings\n"
+        "status: active\n"
+        "outcome: informational\n"
+        "summary: Companion active findings.\n"
+        "consumed-by: []\n"
+        "---\n\n# Findings\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    pre_rec = tmp_path / "pre_prompt_parity_records"
+    shutil.copytree(rec, pre_rec)
+    pre_find = _find_research_statuses(repo)
+    assert pre_find == {"rs5004": "-", "rs5005": "active"}
+
+    summary = m0001_convert.convert_records(
+        repo,
+        records_root=rec,
+        repo_root=repo,
+        record_types=("research",),
+        include_reviews=False,
+    )
+    assert summary["by_type"]["research"] == 2
+
+    ev_p = _read_jsonl(rec / "meta" / "rs5004.jsonl")
+    st_p, _, _, _ = artifact_meta.replay(
+        "rs5004", "research", ev_p, records_root=rec, migration_import=True
+    )
+    assert st_p.status is None
+    assert "status" not in st_p.fields
+    migrated_p = r_prompt.read_text(encoding="utf-8")
+    assert migrated_p.splitlines()[:3] == ["---", "id: rs5004", "---"]
+    assert migrated_p.splitlines()[3].startswith("<!-- aw-managed:")
+    assert "status:" not in "\n".join(migrated_p.splitlines()[:4])
+
+    rt = m0001_verify.verify_round_trip(
+        repo,
+        pre_conversion_records_root=pre_rec,
+        converted_records_root=rec,
+    )
+    assert rt["passed"] is True, rt["errors"]
+    assert rt["errors"] == []
+
+    assert chain.repo_has_legacy_records(repo, records_root=rec) is False
+
+    rc_meta, out_meta, err_meta = _run_cli(
+        ["check", "meta", "--agent", "--dir", str(repo)]
+    )
+    assert rc_meta == 0, f"aw check meta failed: {err_meta}\n{out_meta}"
+    meta_records = _parse_agent_jsonl(out_meta)
+    assert meta_records[-1]["outcome"] == "clean"
+    assert meta_records[-1]["total"] == 0
+
+    rc_att, out_att, err_att = _run_cli(
+        ["attention", "--all", "--format", "json", "--dir", str(repo)]
+    )
+    assert rc_att == 0, f"aw attention failed: {err_att}\n{out_att}"
+    att_doc = json.loads(out_att)
+    assert att_doc.get("valid") is True
+    assert [
+        v
+        for v in att_doc.get("violations", [])
+        if v.get("code") == "attention.unknown-status"
+    ] == []
+
+    post_find = _find_research_statuses(repo)
+    assert post_find == pre_find
+    assert post_find["rs5004"] == "-"
+    assert post_find["rs5005"] == "active"
+
+
+def test_statusless_legacy_research_note_id_only_mirror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify legacy status-less research note migrates with id-only mirror and status=None."""
+    repo = _init_repo(tmp_path, monkeypatch, name="statusless_note")
+    rec = repo / ".aw" / "records"
+    (rec / "research").mkdir(parents=True)
+
+    note_path = rec / "research" / "20260708-demo-01-rs5003-survey-notes.notes.md"
+    note_path.write_text(
+        "# Survey Notes\n\nUnstructured legacy research note with no front matter.\n",
+        encoding="utf-8",
+    )
+
+    pre_rec = tmp_path / "pre_statusless_note_records"
+    shutil.copytree(rec, pre_rec)
+
+    summary = m0001_convert.convert_records(
+        repo,
+        records_root=rec,
+        repo_root=repo,
+        record_types=("research",),
+        include_reviews=False,
+    )
+    assert summary["by_type"]["research"] == 1
+
+    ev = _read_jsonl(rec / "meta" / "rs5003.jsonl")
+    st, _, _, _ = artifact_meta.replay(
+        "rs5003", "research", ev, records_root=rec, migration_import=True
+    )
+    assert st.status is None
+    assert st.legacy_raw_status is None
+    assert "status" not in st.fields
+
+    migrated = note_path.read_text(encoding="utf-8")
+    assert migrated.splitlines()[:3] == ["---", "id: rs5003", "---"]
+    assert migrated.splitlines()[3].startswith("<!-- aw-managed:")
+    assert artifact_meta.parse_artifact_mirror(migrated, allow_statusless=True) == {
+        "id": "rs5003",
+        "status": None,
+    }
+    assert "# Survey Notes" in migrated
+
+    rt = m0001_verify.verify_round_trip(
+        repo,
+        pre_conversion_records_root=pre_rec,
+        converted_records_root=rec,
+    )
+    assert rt["passed"] is True, rt["errors"]
+    assert rt["errors"] == []
+
+    assert chain.repo_has_legacy_records(repo, records_root=rec) is False
+
+    rc_meta, out_meta, err_meta = _run_cli(
+        ["check", "meta", "--agent", "--dir", str(repo)]
+    )
+    assert rc_meta == 0, f"aw check meta failed: {err_meta}\n{out_meta}"
+    assert _parse_agent_jsonl(out_meta)[-1]["total"] == 0
+
+    _rc_att, out_att, err_att = _run_cli(
+        ["attention", "--all", "--format", "json", "--dir", str(repo)]
+    )
+    assert out_att.strip(), f"aw attention emitted no JSON: {err_att}"
+    att_doc = json.loads(out_att)
+    codes = [v.get("code") for v in att_doc.get("violations", [])]
+    assert "attention.unknown-status" not in codes
+
+
+def test_research_status_mirror_drift_bidirectional_and_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify bidirectional meta.status-mirror-drift on research and canonical repair."""
+    repo = _init_repo(tmp_path, monkeypatch, name="research_drift_repair")
+    rec = repo / ".aw" / "records"
+    (rec / "research").mkdir(parents=True)
+
+    r_active = rec / "research" / "20261120-demo-01-rs6001-findings.findings.md"
+    r_active.write_text(
+        "---\n"
+        "id: rs6001\n"
+        "created: 20261120\n"
+        "set: demo\n"
+        "order: 01\n"
+        "topic: [drift]\n"
+        "kind: findings\n"
+        "status: active\n"
+        "outcome: informational\n"
+        "summary: Active research findings.\n"
+        "consumed-by: []\n"
+        "---\n\n# Active Findings\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    r_prompt = rec / "research" / "20261120-demo-02-rs6002-prompt.research-prompt.md"
+    r_prompt.write_text(
+        "---\n"
+        "id: rs6002\n"
+        "created: 20261120\n"
+        "set: demo\n"
+        "order: 02\n"
+        "topic: [drift]\n"
+        "kind: research-prompt\n"
+        "outcome: none-yet\n"
+        "summary: Status-less research prompt.\n"
+        "consumed-by: []\n"
+        "---\n\n# Research Prompt\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    m0001_convert.convert_records(
+        repo,
+        records_root=rec,
+        repo_root=repo,
+        record_types=("research",),
+        include_reviews=False,
+    )
+
+    # Clean baseline after migration.
+    rc0, out0, err0 = _run_cli(["check", "meta", "--agent", "--dir", str(repo)])
+    assert rc0 == 0, f"Baseline check meta failed: {err0}\n{out0}"
+
+    # Direction 1: status-bearing research record drops its `status:` mirror line.
+    active_txt = r_active.read_text(encoding="utf-8")
+    assert "status: active\n" in active_txt
+    r_active.write_text(active_txt.replace("status: active\n", "", 1), encoding="utf-8")
+
+    rc1, out1, _err1 = _run_cli(["check", "meta", "--agent", "--dir", str(repo)])
+    assert rc1 == 1
+    items1 = [r for r in _parse_agent_jsonl(out1) if r.get("kind") == "item"]
+    assert any(
+        it.get("rule") == "meta.status-mirror-drift"
+        and "rs6001" in str(it.get("location"))
+        for it in items1
+    ), items1
+
+    rc_rep1, out_rep1, err_rep1 = _run_cli(
+        ["meta", "repair", "rs6001", "--apply", "--dir", str(repo)]
+    )
+    assert rc_rep1 == 0, f"meta repair rs6001 failed: {err_rep1}\n{out_rep1}"
+    repaired_active = r_active.read_text(encoding="utf-8")
+    assert repaired_active.splitlines()[:4] == [
+        "---",
+        "id: rs6001",
+        "status: active",
+        "---",
+    ]
+
+    # Direction 2: status-less research record gains a spurious `status: draft` mirror line.
+    prompt_txt = r_prompt.read_text(encoding="utf-8")
+    assert prompt_txt.splitlines()[:3] == ["---", "id: rs6002", "---"]
+    r_prompt.write_text(
+        prompt_txt.replace("id: rs6002\n---", "id: rs6002\nstatus: draft\n---", 1),
+        encoding="utf-8",
+    )
+
+    rc2, out2, _err2 = _run_cli(["check", "meta", "--agent", "--dir", str(repo)])
+    assert rc2 == 1
+    items2 = [r for r in _parse_agent_jsonl(out2) if r.get("kind") == "item"]
+    assert any(
+        it.get("rule") == "meta.status-mirror-drift"
+        and "rs6002" in str(it.get("location"))
+        for it in items2
+    ), items2
+
+    rc_rep2, out_rep2, err_rep2 = _run_cli(
+        ["meta", "repair", "rs6002", "--apply", "--dir", str(repo)]
+    )
+    assert rc_rep2 == 0, f"meta repair rs6002 failed: {err_rep2}\n{out_rep2}"
+    repaired_prompt = r_prompt.read_text(encoding="utf-8")
+    assert repaired_prompt.splitlines()[:3] == ["---", "id: rs6002", "---"]
+    assert repaired_prompt.splitlines()[3].startswith("<!-- aw-managed:")
+    assert "status:" not in "\n".join(repaired_prompt.splitlines()[:4])
+
+    rc_final, out_final, err_final = _run_cli(
+        ["check", "meta", "--agent", "--dir", str(repo)]
+    )
+    assert rc_final == 0, f"Post-repair check meta failed: {err_final}\n{out_final}"
+
+
+def test_non_research_id_only_mirror_still_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify non-research 1-key mirrors remain rejected by parse_artifact_mirror and chain."""
+    one_key_text = (
+        "---\n"
+        "id: pl9001\n"
+        "---\n"
+        "<!-- aw-managed: metadata lives in .aw/records/meta/pl9001.jsonl -->\n"
+        "# Plan\n"
+    )
+    with pytest.raises(ValueError, match="expected exactly 2 front-matter keys"):
+        artifact_meta.parse_artifact_mirror(one_key_text)
+
+    assert artifact_meta.parse_artifact_mirror(one_key_text, allow_statusless=True) == {
+        "id": "pl9001",
+        "status": None,
+    }
+    with pytest.raises(ValueError, match="expected 1 or 2 front-matter keys"):
+        artifact_meta.parse_artifact_mirror("---\n---\n", allow_statusless=True)
+    with pytest.raises(ValueError, match="expected 1 or 2 front-matter keys"):
+        artifact_meta.parse_artifact_mirror(
+            "---\nid: pl9001\nstatus: draft\nextra: bad\n---\n",
+            allow_statusless=True,
+        )
+    with pytest.raises(ValueError, match="line 1 must be 'id: <id6>'"):
+        artifact_meta.parse_artifact_mirror(
+            "---\nstatus: draft\n---\n",
+            allow_statusless=True,
+        )
+
+    # Plan with 1-key id-only mirror must still be detected as legacy by repo_has_legacy_records.
+    repo_plan = _init_repo(tmp_path, monkeypatch, name="strict_plan")
+    rec_plan = repo_plan / ".aw" / "records"
+    (rec_plan / "plans" / "pending").mkdir(parents=True)
+    (
+        rec_plan / "plans" / "pending" / "20261121-demo-01-pl9001-strict-plan.ipd.md"
+    ).write_text(one_key_text, encoding="utf-8")
+    assert chain.repo_has_legacy_records(repo_plan, records_root=rec_plan) is True
+
+    # Spec with 1-key id-only mirror must still be detected as legacy by repo_has_legacy_records.
+    repo_spec = _init_repo(tmp_path, monkeypatch, name="strict_spec")
+    rec_spec = repo_spec / ".aw" / "records"
+    (rec_spec / "specs" / "draft").mkdir(parents=True)
+    (
+        rec_spec / "specs" / "draft" / "20261121-demo-01-sp9002-strict-spec.spec.md"
+    ).write_text(
+        "---\n"
+        "id: sp9002\n"
+        "---\n"
+        "<!-- aw-managed: metadata lives in .aw/records/meta/sp9002.jsonl -->\n"
+        "# Spec\n",
+        encoding="utf-8",
+    )
+    assert chain.repo_has_legacy_records(repo_spec, records_root=rec_spec) is True

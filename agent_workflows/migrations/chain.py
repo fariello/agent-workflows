@@ -196,12 +196,20 @@ def write_metadata_schema(
     return proj_path
 
 
-def _is_v2_mirror_text(text: str, filename: str) -> bool:
+def _is_v2_mirror_text(
+    text: str, filename: str, *, rel_path: Optional[str] = None
+) -> bool:
     """Return True if ``text`` matches one of the v2 mirror formats."""
     from agent_workflows import artifact_meta
 
+    allow_statusless = (
+        rel_path is not None and rel_path.startswith("research/")
+    ) or filename.endswith(".research-prompt.md")
+
     parsers: List[Callable[[str], Any]] = [
-        artifact_meta.parse_artifact_mirror,
+        lambda t: artifact_meta.parse_artifact_mirror(
+            t, allow_statusless=allow_statusless
+        ),
         artifact_meta.parse_review_mirror,
         artifact_meta.parse_staged_prompt_mirror,
     ]
@@ -287,7 +295,8 @@ def repo_has_legacy_records(
                 text = (cur_path / fname).read_text(encoding="utf-8", errors="replace")
                 if _WORKFLOW_HISTORY_RE.search(text):
                     return True
-                if not _is_v2_mirror_text(text, fname):
+                rel_path = (cur_path / fname).relative_to(root_dir).as_posix()
+                if not _is_v2_mirror_text(text, fname, rel_path=rel_path):
                     return True
 
     return False

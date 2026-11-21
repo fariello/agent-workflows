@@ -127,7 +127,11 @@ def _collect_converted_records(
                 id6 = None
         else:
             try:
-                id6 = str(artifact_meta.parse_artifact_mirror(text)["id"])
+                id6 = str(
+                    artifact_meta.parse_artifact_mirror(
+                        text, allow_statusless=(art_type == "research")
+                    )["id"]
+                )
             except ValueError:
                 id6 = None
         if id6 is None:
@@ -660,8 +664,8 @@ def _legacy_field_pairs_for_record(
             toks = status_raw.strip().split()
             if toks:
                 status = toks[0].lower()
-        if not status:
-            status = "draft" if art_type == "research" else rec_path.parent.name
+        if not status and art_type != "research":
+            status = rec_path.parent.name
 
     hist_span = m0001_convert._find_history_section_span(text.splitlines(keepends=True))
     hist_entries = hist_span[2] if hist_span is not None else []
@@ -807,7 +811,9 @@ def verify_round_trip(
             elif art_type in ("walkthrough", "roadmap"):
                 mirror = artifact_meta.parse_walkthrough_mirror(rewritten_text)
             else:
-                mirror = artifact_meta.parse_artifact_mirror(rewritten_text)
+                mirror = artifact_meta.parse_artifact_mirror(
+                    rewritten_text, allow_statusless=(art_type == "research")
+                )
                 if mirror.get("status") != state.status:
                     errors.append(
                         f"Mirror status mismatch for {rel_path}: {mirror.get('status')!r} != {state.status!r}"

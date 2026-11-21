@@ -1874,7 +1874,9 @@ def render_in_file_mirror(
         f"<!-- aw-managed: metadata lives in .aw/records/meta/{id6}.jsonl; "
         f"use `aw show {id6}`; agents read .aw/AGENT_QUICKSTART.md -->\n"
     )
-    if artifact_type in ("walkthrough", "roadmap"):
+    if artifact_type in ("walkthrough", "roadmap") or (
+        artifact_type == "research" and not (status or "").strip()
+    ):
         return f"---\nid: {id6}\n---\n{banner}"
     eff_status = (status or "draft").strip()
     return f"---\nid: {id6}\nstatus: {eff_status}\n---\n{banner}"
@@ -1933,10 +1935,15 @@ def apply_in_file_mirror(
     return prefix + body
 
 
-def parse_artifact_mirror(text: str) -> Dict[str, Any]:
-    """Parse standard artifact front matter (id and status).
+def parse_artifact_mirror(
+    text: str, *, allow_statusless: bool = False
+) -> Dict[str, Any]:
+    """Parse standard artifact front matter (id and status, or id-only when opted in).
 
-    Strict line grammar: exactly two keys 'id' and 'status' in that order.
+    Strict line grammar: by default, requires exactly two keys 'id' and 'status' in that
+    order. When ``allow_statusless=True`` (used for research records), accepts either a
+    1-key 'id' mirror (returning ``status: None``) or the standard 2-key 'id' and
+    'status' mirror.
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -1950,7 +1957,12 @@ def parse_artifact_mirror(text: str) -> Dict[str, Any]:
         raise ValueError("unclosed '---' front matter")
 
     fmlines = lines[1:closing_idx]
-    if len(fmlines) != 2:
+    if allow_statusless:
+        if len(fmlines) not in (1, 2):
+            raise ValueError(
+                f"mirror parse error: expected 1 or 2 front-matter keys, got {len(fmlines)}"
+            )
+    elif len(fmlines) != 2:
         raise ValueError(
             f"mirror parse error: expected exactly 2 front-matter keys, got {len(fmlines)}"
         )
@@ -1962,6 +1974,9 @@ def parse_artifact_mirror(text: str) -> Dict[str, Any]:
         )
     id_val = m1.group(1)
     validate_id6(id_val)
+
+    if len(fmlines) == 1:
+        return {"id": id_val, "status": None}
 
     m2 = re.match(r"^status:\s*(\S+)$", fmlines[1].strip())
     if not m2:
