@@ -764,6 +764,90 @@ class AwProfileTests(unittest.TestCase):
                 )
                 prof_file.unlink()
 
+    def test_human_progress_narration_color_and_json_silence(self) -> None:
+        import re
+
+        runs_dir = self.root / "runs-ux"
+        _write_oc_run(runs_dir, "run-20261120T100000Z-7001")
+        _write_agy_run(runs_dir, "run-20261120T110000Z-7002")
+        cache_dir = self.root / "cache-ux"
+        ansi_re = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+        # 1. Human mode with --color emits ANSI color and progress cues on stderr
+        out_c, err_c, rc_c = _run_cli(
+            [
+                "collect",
+                "--scan",
+                str(runs_dir),
+                "--cache-dir",
+                str(cache_dir),
+                "--color",
+            ]
+        )
+        self.assertEqual(rc_c, 0, out_c + err_c)
+        self.assertIsNotNone(ansi_re.search(out_c))
+        self.assertIn("Scanning", err_c)
+        self.assertIn("Processing", err_c)
+        self.assertIn("aw-profile collect", out_c)
+
+        # 2. Human mode with --no-color emits readable narration with zero ANSI escapes
+        out_nc, err_nc, rc_nc = _run_cli(
+            [
+                "collect",
+                "--scan",
+                str(runs_dir),
+                "--cache-dir",
+                str(cache_dir),
+                "--no-color",
+            ]
+        )
+        self.assertEqual(rc_nc, 0, out_nc + err_nc)
+        self.assertIsNone(ansi_re.search(out_nc))
+        self.assertIsNone(ansi_re.search(err_nc))
+        self.assertIn("2 cached", out_nc)
+
+        # 3. TTY stderr renders inline progress bar smoothly
+        class _FakeTTY(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        tty_out = _FakeTTY()
+        tty_err = _FakeTTY()
+        with (
+            contextlib.redirect_stdout(tty_out),
+            contextlib.redirect_stderr(tty_err),
+        ):
+            rc_t = aw_profile.main(
+                [
+                    "collect",
+                    "--scan",
+                    str(runs_dir),
+                    "--cache-dir",
+                    str(cache_dir),
+                    "--rebuild",
+                    "--color",
+                ]
+            )
+        self.assertEqual(rc_t, 0)
+        self.assertIn("100%", tty_err.getvalue())
+        self.assertIn("\r\033[2K", tty_err.getvalue())
+
+        # 4. --json mode stays completely silent on stderr and ANSI-free on stdout
+        out_j, err_j, rc_j = _run_cli(
+            [
+                "collect",
+                "--scan",
+                str(runs_dir),
+                "--cache-dir",
+                str(cache_dir),
+                "--json",
+            ]
+        )
+        self.assertEqual(rc_j, 0, out_j + err_j)
+        self.assertEqual(err_j, "")
+        self.assertIsNone(ansi_re.search(out_j))
+        self.assertEqual(json.loads(out_j)["cached_hits"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

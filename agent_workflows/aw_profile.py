@@ -35,11 +35,13 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from agent_workflows import platform_lock
+from agent_workflows import term as _term_mod
 from agent_workflows.run_analytics import (
     STARTUP_TIMING_METRIC_KEYS,
     extract_startup_timings,
@@ -488,7 +490,12 @@ def discover_runs_from_runs_dir(directory: Path | str) -> list[Path]:
     return found
 
 
-def scan_runs_dirs(root: Path | str, *, max_depth: int = 7) -> list[Path]:
+def scan_runs_dirs(
+    root: Path | str,
+    *,
+    max_depth: int = 7,
+    on_step: Callable[[int, int], None] | None = None,
+) -> list[Path]:
     """Recursively discover verified `aw` run directories under ``root``.
 
     Follows a symlink passed directly as ``root`` (such as a symlinked workspace root),
@@ -504,17 +511,23 @@ def scan_runs_dirs(root: Path | str, *, max_depth: int = 7) -> list[Path]:
     if _is_in_analytics(root_real):
         return []
     if _is_run_dir(root_real):
+        if on_step is not None:
+            on_step(1, 1)
         return [root_real]
 
     found: list[Path] = []
     seen: set[Path] = set()
     root_depth = len(root_real.parts)
+    dirs_walked = 0
 
     for dirpath, dirnames, _filenames in os.walk(root_real, followlinks=False):
+        dirs_walked += 1
         cur = Path(dirpath)
         depth = len(cur.parts) - root_depth
         if depth >= max_depth:
             dirnames[:] = []
+            if on_step is not None and dirs_walked % 25 == 0:
+                on_step(dirs_walked, len(found))
             continue
         kept: list[str] = []
         for name in sorted(dirnames):
@@ -530,6 +543,10 @@ def scan_runs_dirs(root: Path | str, *, max_depth: int = 7) -> list[Path]:
                 continue
             kept.append(name)
         dirnames[:] = kept
+        if on_step is not None and (dirs_walked % 25 == 0 or len(found) > 0):
+            on_step(dirs_walked, len(found))
+    if on_step is not None:
+        on_step(dirs_walked, len(found))
     return found
 
 
@@ -2172,6 +2189,9 @@ def collect_runs(
     rebuild: bool = False,
     scan_max_depth: int = 7,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
+    on_scan: Callable[[str, str, int, int], None] | None = None,
+    on_discovered: Callable[[int], None] | None = None,
+    on_progress: Callable[[int, int, str, Mapping[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Incrementally extract new/updated runs into `<cache_dir>/runs/*.trace.json.zst`."""
     cdir = Path(cache_dir).expanduser().resolve()
@@ -2187,28 +2207,56 @@ def collect_runs(
         p = Path(rdir).expanduser()
         if not p.exists() or not p.is_dir():
             raise ValueError(f"--runs-dir is not an existing directory: {rdir}")
+        if on_scan is not None:
+            on_scan("runs-dir", str(rdir), 0, len(discovered))
+        added_here = 0
         for run_p in discover_runs_from_runs_dir(p):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
                 discovered.append(run_p)
+                added_here += 1
+        if on_scan is not None:
+            on_scan("runs-dir-done", str(rdir), 1, added_here)
 
     for sdir in scan_dirs:
         p = Path(sdir).expanduser()
         if not p.exists() or not p.is_dir():
             raise ValueError(f"--scan path is not an existing directory: {sdir}")
-        for run_p in scan_runs_dirs(p, max_depth=scan_max_depth):
+        if on_scan is not None:
+            on_scan("scan", str(sdir), 0, 0)
+
+        def _scan_cb(
+            dirs_walked: int, found_so_far: int, _label: str = str(sdir)
+        ) -> None:
+            if on_scan is not None:
+                on_scan("scan", _label, dirs_walked, found_so_far)
+
+        added_here = 0
+        for run_p in scan_runs_dirs(p, max_depth=scan_max_depth, on_step=_scan_cb):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
                 discovered.append(run_p)
+                added_here += 1
+        if on_scan is not None:
+            on_scan("scan-done", str(sdir), 0, added_here)
 
     if not runs_dirs and not scan_dirs:
+        if on_scan is not None:
+            on_scan("runs-dir", ".", 0, 0)
+        added_here = 0
         for run_p in discover_runs_from_runs_dir(Path.cwd()):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
                 discovered.append(run_p)
+                added_here += 1
+        if on_scan is not None:
+            on_scan("runs-dir-done", ".", 1, added_here)
+
+    if on_discovered is not None:
+        on_discovered(len(discovered))
 
     machine_fp = _machine_fingerprint()
     error_details: list[dict[str, Any]] = []
@@ -2223,9 +2271,13 @@ def collect_runs(
         "error_details": error_details,
     }
 
-    for run_p in discovered:
+    total_runs = len(discovered)
+    for idx, run_p in enumerate(discovered, start=1):
+        run_id = run_p.name
         if not include_active and _run_is_locked(run_p):
             stats["skipped_active"] += 1
+            if on_progress is not None:
+                on_progress(idx, total_runs, run_id, stats)
             continue
         wm = compute_run_watermark(run_p)
         source_id = pseudonym(
@@ -2233,7 +2285,6 @@ def collect_runs(
             salt=salt,
             domain="src",
         )
-        run_id = run_p.name
         key = _entry_key_for(run_id, source_id, entries)
         prev = entries.get(key)
         if (
@@ -2243,6 +2294,8 @@ def collect_runs(
             and (cdir / "runs" / str(prev.get("file", ""))).is_file()
         ):
             stats["cached_hits"] += 1
+            if on_progress is not None:
+                on_progress(idx, total_runs, run_id, stats)
             continue
 
         try:
@@ -2253,6 +2306,8 @@ def collect_runs(
                 stats["error_details"].append(
                     {"run_id": run_id, "errors": val_errors[:5]}
                 )
+                if on_progress is not None:
+                    on_progress(idx, total_runs, run_id, stats)
                 continue
             was_existing = key in entries
             _k, _path, cbytes = _write_cached_trace(
@@ -2268,6 +2323,8 @@ def collect_runs(
             stats["error_details"].append(
                 {"run_id": run_id, "errors": [f"{type(exc).__name__}: {exc}"]}
             )
+        if on_progress is not None:
+            on_progress(idx, total_runs, run_id, stats)
 
     _save_index(cdir, index)
     stats["total_cached"] = len(entries)
@@ -2294,6 +2351,7 @@ def pack_traces(
     until: str | None = None,
     inspect_count: int = 0,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
+    on_progress: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Package cached traces into a single `.tar.zst` bundle, or return sample traces for `--inspect`."""
     cdir = Path(cache_dir).expanduser().resolve()
@@ -2333,8 +2391,9 @@ def pack_traces(
     manifest_entries: list[dict[str, Any]] = []
     uncompressed_total = 0
 
+    total_sel = len(selected)
     with tarfile.open(fileobj=tar_buf, mode="w") as tf:
-        for key, fpath in selected:
+        for idx, (key, fpath) in enumerate(selected, start=1):
             raw_json = zstd_decompress(fpath.read_bytes())
             doc = json.loads(raw_json.decode("utf-8"))
             val_errors = validate_trace(doc)
@@ -2358,6 +2417,8 @@ def pack_traces(
                     "bytes": len(raw_json),
                 }
             )
+            if on_progress is not None:
+                on_progress(idx, total_sel, str(doc["run"]["run_id"]))
         manifest_bytes = (
             json.dumps(
                 {
@@ -2463,6 +2524,8 @@ def ingest_bundles(
     batch: str | None = None,
     dry_run: bool = False,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
+    on_source: Callable[[str, int], None] | None = None,
+    on_progress: Callable[[int, int, str, Mapping[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Validate and merge external `.tar.zst` bundles or `.trace.json.zst` files into the cache."""
     if batch is not None and not _BATCH_LABEL_RE.match(batch):
@@ -2489,7 +2552,10 @@ def ingest_bundles(
         if not p.exists():
             raise ValueError(f"ingest source does not exist: {src}")
         payloads = _iter_bundle_traces(p)
-        for member_name, raw in payloads:
+        total_p = len(payloads)
+        if on_source is not None:
+            on_source(p.name, total_p)
+        for idx, (member_name, raw) in enumerate(payloads, start=1):
             try:
                 doc = json.loads(raw.decode("utf-8"))
             except (UnicodeDecodeError, ValueError) as exc:
@@ -2497,6 +2563,8 @@ def ingest_bundles(
                 stats["rejections"].append(
                     {"member": member_name, "errors": [f"invalid JSON: {exc}"]}
                 )
+                if on_progress is not None:
+                    on_progress(idx, total_p, member_name, stats)
                 continue
             if batch is not None and isinstance(doc, dict):
                 doc["source_batch"] = batch
@@ -2506,6 +2574,8 @@ def ingest_bundles(
                 stats["rejections"].append(
                     {"member": member_name, "errors": val_errors[:5]}
                 )
+                if on_progress is not None:
+                    on_progress(idx, total_p, member_name, stats)
                 continue
 
             run_id = str(doc["run"]["run_id"])
@@ -2523,6 +2593,8 @@ def ingest_bundles(
                     inc_latest == prev_latest and inc_ev <= prev_ev
                 ):
                     stats["skipped_same_or_older"] += 1
+                    if on_progress is not None:
+                        on_progress(idx, total_p, run_id, stats)
                     continue
                 if not dry_run:
                     _write_cached_trace(cdir, index, doc, level=zstd_level)
@@ -2531,6 +2603,8 @@ def ingest_bundles(
                 if not dry_run:
                     _write_cached_trace(cdir, index, doc, level=zstd_level)
                 stats["added"] += 1
+            if on_progress is not None:
+                on_progress(idx, total_p, run_id, stats)
 
     if not dry_run:
         _save_index(cdir, index)
@@ -2541,6 +2615,228 @@ def ingest_bundles(
 # --------------------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------------------
+
+
+def _add_color_flags(subparser: argparse.ArgumentParser) -> None:
+    grp = subparser.add_mutually_exclusive_group()
+    grp.add_argument(
+        "--color",
+        action="store_true",
+        default=False,
+        help="Force ANSI color output even when stderr/stdout is piped.",
+    )
+    grp.add_argument(
+        "--no-color",
+        action="store_true",
+        default=False,
+        help="Disable ANSI color output.",
+    )
+
+
+def _fmt_bytes(num_bytes: int) -> str:
+    val = float(max(0, num_bytes))
+    for unit in ("B", "KB", "MB", "GB"):
+        if val < 1024.0 or unit == "GB":
+            return f"{val:.1f} {unit}" if unit != "B" else f"{int(val)} B"
+        val /= 1024.0
+    return f"{val:.1f} GB"
+
+
+def _fmt_elapsed(seconds: float) -> str:
+    if seconds < 1.0:
+        return f"{seconds * 1000.0:.0f}ms"
+    if seconds < 60.0:
+        return f"{seconds:.1f}s"
+    mins, rem = divmod(int(round(seconds)), 60)
+    return f"{mins}m {rem:02d}s"
+
+
+class _ProfileProgress:
+    """Responsive Term-styled stderr progress narration (TTY in-place bar, piped step cues)."""
+
+    def __init__(self, *, enabled: bool, color: bool, use_unicode: bool) -> None:
+        self.enabled = enabled
+        self.stream = sys.stderr
+        self.term = _term_mod.Term(stream=self.stream, color=color, unicode=use_unicode)
+        self.is_tty = bool(
+            getattr(self.stream, "isatty", None) and self.stream.isatty()
+        )
+        self._last_draw = 0.0
+        self._has_inline = False
+        self._started = time.monotonic()
+
+    def _bar(self, idx: int, total: int, width: int = 16) -> str:
+        if total <= 0:
+            return ""
+        frac = min(1.0, max(0.0, idx / total))
+        filled = int(round(frac * width))
+        fill_ch = "█" if self.term.unicode else "#"
+        empty_ch = "░" if self.term.unicode else "-"
+        inner = self.term.colorize(fill_ch * filled, "cyan") + self.term.colorize(
+            empty_ch * (width - filled), "dim"
+        )
+        pct = f"{int(round(frac * 100)):3d}%"
+        return f"[{inner}] {self.term.colorize(pct, 'bold')}"
+
+    def inline(self, text: str, *, force: bool = False) -> None:
+        if not self.enabled or not self.is_tty:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_draw) < 0.08:
+            return
+        self._last_draw = now
+        label = self.term.severity_label("info")
+        self.stream.write(f"\r\033[2K{label} {text}")
+        self.stream.flush()
+        self._has_inline = True
+
+    def clear_inline(self) -> None:
+        if self._has_inline and self.is_tty:
+            self.stream.write("\r\033[2K")
+            self.stream.flush()
+            self._has_inline = False
+
+    def step(self, message: str) -> None:
+        if not self.enabled:
+            return
+        self.clear_inline()
+        self.term.step_cue(message, stream=self.stream)
+
+    def on_scan(self, phase: str, label: str, dirs_walked: int, count: int) -> None:
+        if not self.enabled:
+            return
+        styled_label = self.term.colorize(label, "cyan")
+        if phase == "scan":
+            if dirs_walked == 0:
+                if self.is_tty:
+                    self.inline(f"Scanning {styled_label}...", force=True)
+                else:
+                    self.step(f"Scanning {styled_label}...")
+            else:
+                runs_s = (
+                    self.term.colorize(str(count), "green", "bold") if count else "0"
+                )
+                self.inline(
+                    f"Scanning {styled_label}... {self.term.colorize(f'{dirs_walked} dirs', 'dim')} · {runs_s} run(s) found"
+                )
+        elif phase == "scan-done":
+            runs_s = self.term.colorize(str(count), "green", "bold") if count else "0"
+            self.step(f"Scanned {styled_label}: {runs_s} run(s) discovered.")
+        elif phase == "runs-dir":
+            if self.is_tty:
+                self.inline(f"Checking {styled_label}...", force=True)
+        elif phase == "runs-dir-done":
+            runs_s = self.term.colorize(str(count), "green", "bold") if count else "0"
+            self.step(f"Checked {styled_label}: {runs_s} run(s) discovered.")
+
+    def on_discovered(self, total: int) -> None:
+        if not self.enabled:
+            return
+        if total == 0:
+            self.step("No verified aw run directories discovered.")
+        else:
+            self.step(f"Processing {self.term.colorize(str(total), 'bold')} run(s)...")
+
+    def on_collect_progress(
+        self, idx: int, total: int, run_id: str, stats: Mapping[str, Any]
+    ) -> None:
+        if not self.enabled or total <= 0:
+            return
+        force = idx == total
+        if self.is_tty:
+            bar = self._bar(idx, total)
+            ext = int(stats.get("extracted", 0))
+            upd = int(stats.get("updated", 0))
+            hits = int(stats.get("cached_hits", 0))
+            act = int(stats.get("skipped_active", 0))
+            errs = int(stats.get("errors", 0))
+            zbytes = int(stats.get("compressed_bytes_written", 0))
+            parts = [f"{bar} {idx}/{total}"]
+            if ext:
+                parts.append(self.term.colorize(f"+{ext} new", "green"))
+            if upd:
+                parts.append(self.term.colorize(f"~{upd} updated", "cyan"))
+            if hits:
+                parts.append(self.term.colorize(f"{hits} cached", "dim"))
+            if act:
+                parts.append(self.term.colorize(f"{act} active", "yellow"))
+            if errs:
+                parts.append(self.term.colorize(f"{errs} err", "red", "bold"))
+            if zbytes:
+                parts.append(self.term.colorize(_fmt_bytes(zbytes), "cyan"))
+            parts.append(
+                self.term.colorize(
+                    _fmt_elapsed(time.monotonic() - self._started), "dim"
+                )
+            )
+            parts.append(self.term.colorize(run_id[:32], "dim"))
+            self.inline("  ".join(parts), force=force)
+            if force:
+                self.stream.write("\n")
+                self.stream.flush()
+                self._has_inline = False
+        elif idx % 50 == 0 or force:
+            self.step(
+                f"Collected {idx}/{total} (new={stats.get('extracted', 0)}, "
+                f"updated={stats.get('updated', 0)}, cached={stats.get('cached_hits', 0)})"
+            )
+
+    def on_pack_progress(self, idx: int, total: int, run_id: str) -> None:
+        if not self.enabled or total <= 0:
+            return
+        force = idx == total
+        if self.is_tty:
+            bar = self._bar(idx, total)
+            self.inline(
+                f"Packing {bar} {idx}/{total}  {self.term.colorize(run_id[:32], 'dim')}",
+                force=force,
+            )
+            if force:
+                self.stream.write("\n")
+                self.stream.flush()
+                self._has_inline = False
+        elif idx % 50 == 0 or force:
+            self.step(f"Packed {idx}/{total} trace(s)...")
+
+    def on_ingest_source(self, source_name: str, total: int) -> None:
+        if not self.enabled:
+            return
+        self.step(
+            f"Ingesting {self.term.colorize(source_name, 'cyan')} "
+            f"({self.term.colorize(str(total), 'bold')} trace(s))..."
+        )
+
+    def on_ingest_progress(
+        self, idx: int, total: int, label: str, stats: Mapping[str, Any]
+    ) -> None:
+        if not self.enabled or total <= 0:
+            return
+        force = idx == total
+        if self.is_tty:
+            bar = self._bar(idx, total)
+            parts = [
+                f"{bar} {idx}/{total}",
+                self.term.colorize(f"+{stats.get('added', 0)} added", "green"),
+                self.term.colorize(f"~{stats.get('upgraded', 0)} upgraded", "cyan"),
+                self.term.colorize(
+                    f"{stats.get('skipped_same_or_older', 0)} skipped", "dim"
+                ),
+            ]
+            if stats.get("rejected", 0):
+                parts.append(
+                    self.term.colorize(f"{stats['rejected']} rejected", "red", "bold")
+                )
+            parts.append(self.term.colorize(label[:30], "dim"))
+            self.inline("  ".join(parts), force=force)
+            if force:
+                self.stream.write("\n")
+                self.stream.flush()
+                self._has_inline = False
+        elif idx % 50 == 0 or force:
+            self.step(
+                f"Ingested {idx}/{total} (added={stats.get('added', 0)}, "
+                f"upgraded={stats.get('upgraded', 0)}, rejected={stats.get('rejected', 0)})"
+            )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2705,6 +3001,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Zstandard compression level (default: 6).",
     )
     p_collect.add_argument("--json", action="store_true", help="Emit JSON summary.")
+    _add_color_flags(p_collect)
 
     p_pack = sub.add_parser(
         "pack",
@@ -2771,6 +3068,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Zstandard compression level (default: 6).",
     )
     p_pack.add_argument("--json", action="store_true", help="Emit JSON summary.")
+    _add_color_flags(p_pack)
 
     p_ingest = sub.add_parser(
         "ingest",
@@ -2831,13 +3129,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Zstandard compression level (default: 6).",
     )
     p_ingest.add_argument("--json", action="store_true", help="Emit JSON summary.")
+    _add_color_flags(p_ingest)
 
     return parser
 
 
+def _resolve_color_choice(args: argparse.Namespace, stream: Any) -> bool:
+    if getattr(args, "no_color", False) or getattr(args, "json", False):
+        return False
+    if getattr(args, "color", False):
+        return True
+    return _term_mod.should_color(stream)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _term_mod.ensure_encodable_stdio()
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    is_json = bool(getattr(args, "json", False))
+    out_color = _resolve_color_choice(args, sys.stdout)
+    err_color = _resolve_color_choice(args, sys.stderr)
+    out_term = _term_mod.Term(
+        stream=sys.stdout, color=out_color, unicode=_term_mod.should_unicode(sys.stdout)
+    )
+    err_term = _term_mod.Term(
+        stream=sys.stderr, color=err_color, unicode=_term_mod.should_unicode(sys.stderr)
+    )
+    prog = _ProfileProgress(
+        enabled=not is_json and not bool(getattr(args, "inspect", 0)),
+        color=err_color,
+        use_unicode=_term_mod.should_unicode(sys.stderr),
+    )
+    started = time.monotonic()
     try:
         if args.command == "collect":
             if args.max_depth < 1:
@@ -2850,19 +3173,59 @@ def main(argv: Sequence[str] | None = None) -> int:
                 rebuild=args.rebuild,
                 scan_max_depth=args.max_depth,
                 zstd_level=args.level,
+                on_scan=prog.on_scan,
+                on_discovered=prog.on_discovered,
+                on_progress=prog.on_collect_progress,
             )
-            if args.json:
+            prog.clear_inline()
+            if is_json:
                 print(json.dumps(res, indent=2, sort_keys=True))
             else:
-                print(
-                    f"aw-profile collect: discovered={res['discovered']} "
-                    f"extracted={res['extracted']} updated={res['updated']} "
-                    f"cached_hits={res['cached_hits']} skipped_active={res['skipped_active']} "
-                    f"errors={res['errors']} total_cached={res['total_cached']}"
+                elapsed = _fmt_elapsed(time.monotonic() - started)
+                status_kind = "warn" if res["errors"] > 0 else "ok"
+                headline = (
+                    f"{res['discovered']} discovered, "
+                    f"{out_term.colorize(str(res['extracted']), 'green', 'bold')} new, "
+                    f"{out_term.colorize(str(res['updated']), 'cyan', 'bold')} updated, "
+                    f"{out_term.colorize(str(res['cached_hits']), 'dim')} cached"
                 )
+                if res["skipped_active"]:
+                    headline += f", {out_term.colorize(str(res['skipped_active']), 'yellow', 'bold')} active skipped"
+                if res["errors"]:
+                    headline += f", {out_term.colorize(str(res['errors']), 'red', 'bold')} error(s)"
+                out_term.outcome(
+                    status_kind, f"aw-profile collect ({elapsed}): {headline}"
+                )
+                zwritten = int(res.get("compressed_bytes_written", 0))
+                out_term.kv(
+                    "cache",
+                    f"{out_term.colorize(str(res['total_cached']), 'bold')} trace(s) in "
+                    f"{out_term.colorize(str(args.cache_dir), 'cyan')}"
+                    + (
+                        f" ({out_term.colorize(_fmt_bytes(zwritten), 'cyan')} written)"
+                        if zwritten
+                        else ""
+                    ),
+                )
+                for detail in list(res.get("error_details") or [])[:5]:
+                    rid = detail.get("run_id", "?")
+                    errs = "; ".join(str(e) for e in (detail.get("errors") or []))
+                    print(
+                        f"{err_term.severity_label('error')} {rid}: {errs}",
+                        file=sys.stderr,
+                    )
+                if res["total_cached"] > 0:
+                    out_term.next_action(
+                        "aw-profile pack --out traces.tar.zst",
+                        "bundle cached traces for transfer or sharing",
+                    )
             return 1 if res["errors"] > 0 else 0
 
         if args.command == "pack":
+            if not args.inspect and not is_json:
+                prog.step(
+                    f"Preparing traces from {err_term.colorize(str(args.cache_dir), 'cyan')}..."
+                )
             res = pack_traces(
                 cache_dir=args.cache_dir,
                 out_path=args.out,
@@ -2870,23 +3233,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 until=args.until,
                 inspect_count=args.inspect,
                 zstd_level=args.level,
+                on_progress=prog.on_pack_progress,
             )
+            prog.clear_inline()
             if res["mode"] == "inspect":
                 print(json.dumps(res["samples"], indent=2, sort_keys=True))
                 return 0
-            if args.json:
+            if is_json:
                 print(json.dumps(res, indent=2, sort_keys=True))
             else:
+                elapsed = _fmt_elapsed(time.monotonic() - started)
                 ratio = (
                     res["uncompressed_bytes"] / res["compressed_bytes"]
                     if res["compressed_bytes"] > 0
                     else 0.0
                 )
-                print(
-                    f"aw-profile pack: traces={res['traces_packed']} "
-                    f"raw={res['uncompressed_bytes']}B compressed={res['compressed_bytes']}B "
-                    f"({ratio:.1f}x) -> {res['out']}"
+                out_term.outcome(
+                    "ok",
+                    f"aw-profile pack ({elapsed}): "
+                    f"{out_term.colorize(str(res['traces_packed']), 'green', 'bold')} trace(s) -> "
+                    f"{out_term.colorize(_fmt_bytes(res['compressed_bytes']), 'cyan', 'bold')} "
+                    f"({ratio:.1f}x from {_fmt_bytes(res['uncompressed_bytes'])})",
                 )
+                out_term.kv("bundle", out_term.colorize(str(res["out"]), "cyan"))
             return 0
 
         if args.command == "ingest":
@@ -2896,22 +3265,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                 batch=args.batch,
                 dry_run=args.dry_run,
                 zstd_level=args.level,
+                on_source=prog.on_ingest_source,
+                on_progress=prog.on_ingest_progress,
             )
-            if args.json:
+            prog.clear_inline()
+            if is_json:
                 print(json.dumps(res, indent=2, sort_keys=True))
             else:
+                elapsed = _fmt_elapsed(time.monotonic() - started)
                 prefix = "[dry-run] " if res["dry_run"] else ""
-                print(
-                    f"{prefix}aw-profile ingest: added={res['added']} "
-                    f"upgraded={res['upgraded']} skipped={res['skipped_same_or_older']} "
-                    f"rejected={res['rejected']} total_cached={res['total_cached']}"
+                status_kind = "warn" if res["rejected"] > 0 else "ok"
+                headline = (
+                    f"{out_term.colorize(str(res['added']), 'green', 'bold')} added, "
+                    f"{out_term.colorize(str(res['upgraded']), 'cyan', 'bold')} upgraded, "
+                    f"{out_term.colorize(str(res['skipped_same_or_older']), 'dim')} skipped"
                 )
+                if res["rejected"]:
+                    headline += f", {out_term.colorize(str(res['rejected']), 'red', 'bold')} rejected"
+                out_term.outcome(
+                    status_kind,
+                    f"{prefix}aw-profile ingest ({elapsed}): {headline}",
+                )
+                out_term.kv(
+                    "cache",
+                    f"{out_term.colorize(str(res['total_cached']), 'bold')} trace(s) in "
+                    f"{out_term.colorize(str(args.cache_dir), 'cyan')}",
+                )
+                for rej in list(res.get("rejections") or [])[:5]:
+                    member = rej.get("member", "?")
+                    errs = "; ".join(str(e) for e in (rej.get("errors") or []))
+                    print(
+                        f"{err_term.severity_label('warn')} rejected {member}: {errs}",
+                        file=sys.stderr,
+                    )
             return 1 if res["rejected"] > 0 else 0
 
         parser.error(f"Unknown command: {args.command}")
         return 2
     except (ValueError, OSError, ZstdUnavailableError, tarfile.TarError) as exc:
-        print(f"aw-profile: error: {exc}", file=sys.stderr)
+        prog.clear_inline()
+        print(f"{err_term.severity_label('error')} aw-profile: {exc}", file=sys.stderr)
         return 2
 
 
