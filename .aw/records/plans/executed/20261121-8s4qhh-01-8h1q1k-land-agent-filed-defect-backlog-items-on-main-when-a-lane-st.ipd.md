@@ -6,7 +6,7 @@
 - Scope: Update `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` and its call site in `agent_workflows/runner_shared.py::execute_item` (passing both `lane_branch=wt_handle.branch` and `lane_base_commit=wt_handle.base_commit` when `wt_handle is not None`, with clean no-op recovery when absent) to detect newly added regular-file open backlog items directly under `.aw/records/backlog/open/` or legacy `.agents/backlog/open/` on `lane_base_commit..lane_branch`, validate each item against `agent_workflows/backlog.py::validate_item`, filename-to-id6 agreement, `agent_workflows/artifact_core.py::global_id6s` and batch id6 non-collision, `agent_workflows/config.py::validate_setid_length_for_authoring`, and release-gate conformance (`agent_workflows/config.py::release_gate_work_kinds`, `agent_workflows/releases.py::resolve_release`, and typed `Release-Exempt-*` matching `agent_workflows/check_engine.py::check_live_bug_gate` and `check.blocks-release-dangling`), and commit and land valid files alongside the proposal record inside the same coordinator worktree and repository integration lock (after resolving `new_record_rel`/`record_id6`, handling `PROPOSAL_KIND_NEEDS_ATTENDED` already-marked plans, and falling back to committing `[new_record_rel]` alone if a commit hook rejects the combined commit) while leaving all non-backlog lane edits exclusively on the lane branch. Append backward-compatible defaulted fields `recovered_backlog_paths` and `skipped_backlog_reasons` to `agent_workflows/runner_shared.py::ProposalFilingResult` and propagate them to `item["proposal_record"]`, `attempt["proposal_record"]`, and `events.jsonl` (`agent-proposal-filed` / `agent-proposal-refused`). Add behavioral tests in `tests/test_run_proposal_channel.py` across both `oc` and `agy` hosts plus direct unit coverage for happy-path recovery, fail-closed rejections (malformed, ungated bug vs. valid exemption, dangling release, id6 collision, symlink/nested path, modified existing backlog, attempt-scoped branch), commit-hook fallback, and `needs-attended` already-marked plans. EXCLUDES: proposal summary truncation (`68ympf` / `l7d19a`) and non-proposal lane preservation paths.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_run_proposal_channel.py, .aw/records/plans/pending/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Recover and validate newly added open defect backlog files from preserved fail-gate proposal lanes and land them onto main with the proposal record.
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 8h1q1k verified (set 8s4qhh, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 8s4qhh
