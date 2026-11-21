@@ -19,6 +19,7 @@ from agent_workflows import research_index as I
 from tests import support
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -261,7 +262,12 @@ class CheckDriftTests(unittest.TestCase):
         # A file with frontmatter missing 'id'.
         bad = self.rroot / "20260701-alpha-01-zzzzzz-bad.notes.md"
         bad.write_text(
-            "---\ncreated: 20260701\nkind: notes\nstatus: intake\n---\n",
+            RecordBuilder().research(
+                when="2026-07-01",
+                research_kind="notes",
+                raw_fields={"id": None, "status": "intake"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         drift = I.check_drift(self.root, self.rroot)
@@ -356,14 +362,6 @@ class StaleStateDriftTests(unittest.TestCase):
             I.build_index_md(entries), encoding="utf-8"
         )
 
-    def _write_plan(self, disposition, id6_cite, plan_id="pln001"):
-        d = self.root / ".aw" / "records" / "plans" / disposition
-        d.mkdir(parents=True, exist_ok=True)
-        (d / f"20260801-set-01-{plan_id}-x.ipd.md").write_text(
-            f"# Plan\n\n- Id: {plan_id}\n\nUses research RSCH-{id6_cite} for context.\n",
-            encoding="utf-8",
-        )
-
     def test_trigger_a_run_set_flags_intake_and_clean_after_promote(self):
         # A RUN (synthesized) prompt-set with an intake report member -> stale-state-to-promote.
         _write(
@@ -432,14 +430,33 @@ class StaleStateDriftTests(unittest.TestCase):
             kind="notes",
         )
         self._regen()
-        self._write_plan("pending", "solo11", plan_id="pln001")
+        RecordBuilder(self.root).plan(
+            id6="pln001",
+            title="Plan",
+            when="2026-08-01",
+            set="set",
+            order=1,
+            slug="x",
+            disposition="pending",
+            body="Uses research RSCH-solo11 for context.",
+        )
         drift = I.check_drift(self.root, self.rroot)
         self.assertFalse(
             any(d.rule == I.STALE_STATE_RULE for d in drift),
             "a pending-only citer must NOT flag the intake doc",
         )
         # Now cited by an EXECUTED plan -> flagged.
-        self._write_plan("executed", "solo11", plan_id="pln002")
+        RecordBuilder(self.root).plan(
+            id6="pln002",
+            title="Plan",
+            when="2026-08-01",
+            set="set",
+            order=1,
+            slug="x",
+            status="executed",
+            disposition="executed",
+            body="Uses research RSCH-solo11 for context.",
+        )
         drift2 = I.check_drift(self.root, self.rroot)
         self.assertTrue(
             any(d.rule == I.STALE_STATE_RULE and "solo" in d.location for d in drift2),
@@ -461,14 +478,33 @@ class StaleStateDriftTests(unittest.TestCase):
         sp = self.root / ".aw" / "records" / "specs"
         sp.mkdir(parents=True, exist_ok=True)
         (sp / "20260801-01-spc001-x.spec.md").write_text(
-            "# Spec\n\n- Status: implemented\n\ncites RSCH-solo11 here\n",
+            RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-08-01",
+                order=1,
+                slug="x",
+                status="implemented",
+                body="cites RSCH-solo11 here",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         cited = I.cited_by_executed_ids(self.root, self.rroot)
         self.assertIn("solo11", cited)
         # a draft spec citer does NOT count
         (sp / "20260801-02-spc002-y.spec.md").write_text(
-            "# Spec\n\n- Status: draft\n\ncites RSCH-nofind here\n", encoding="utf-8"
+            RecordBuilder().spec(
+                id6="spc002",
+                title="Spec",
+                when="2026-08-01",
+                order=2,
+                slug="y",
+                status="draft",
+                body="cites RSCH-nofind here",
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         cited2 = I.cited_by_executed_ids(self.root, self.rroot)
         self.assertNotIn("nofind", cited2)
@@ -521,13 +557,6 @@ class ConsumedByValidationTests(unittest.TestCase):
             I.build_index_md(entries), encoding="utf-8"
         )
 
-    def _write_plan_with_id(self, plan_id):
-        d = self.root / ".aw" / "records" / "plans" / "executed"
-        d.mkdir(parents=True, exist_ok=True)
-        (d / f"20260801-set-01-{plan_id}-x.ipd.md").write_text(
-            f"# Plan\n\n- Id: {plan_id}\n\nbody\n", encoding="utf-8"
-        )
-
     def test_dangling_consumed_by_flagged(self):
         p = _write(
             self.root,
@@ -559,7 +588,17 @@ class ConsumedByValidationTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self._write_plan_with_id("pln001")
+        RecordBuilder(self.root).plan(
+            id6="pln001",
+            title="Plan",
+            when="2026-08-01",
+            set="set",
+            order=1,
+            slug="x",
+            status="executed",
+            disposition="executed",
+            body="body",
+        )
         self._regen()
         drift2 = I.check_drift(self.root, self.rroot)
         self.assertFalse(any(d.rule == I.DANGLING_CONSUMED_RULE for d in drift2))
@@ -584,7 +623,17 @@ class ConsumedByValidationTests(unittest.TestCase):
         drift = I.check_drift(self.root, self.rroot)
         self.assertTrue(any(d.rule == I.ADOPTED_NO_CONSUMER_RULE for d in drift))
         # give it a resolving consumer -> clears.
-        self._write_plan_with_id("pln002")
+        RecordBuilder(self.root).plan(
+            id6="pln002",
+            title="Plan",
+            when="2026-08-01",
+            set="set",
+            order=1,
+            slug="x",
+            status="executed",
+            disposition="executed",
+            body="body",
+        )
         p.write_text(
             p.read_text(encoding="utf-8").replace(
                 "consumed-by: []", "consumed-by: [pln002]"
@@ -597,15 +646,28 @@ class ConsumedByValidationTests(unittest.TestCase):
 
     def test_resolvable_consumer_ids_spans_trees(self):
         # plan, spec, backlog ids all resolve.
-        self._write_plan_with_id("pln003")
+        RecordBuilder(self.root).plan(
+            id6="pln003",
+            title="Plan",
+            when="2026-08-01",
+            set="set",
+            order=1,
+            slug="x",
+            status="executed",
+            disposition="executed",
+            body="body",
+        )
         sp = self.root / ".aw" / "records" / "specs"
         sp.mkdir(parents=True, exist_ok=True)
         (sp / "20260801-01-spc003-x.spec.md").write_text(
-            "# Spec\n\n- Id: spc003\n", encoding="utf-8"
+            RecordBuilder().spec(id6="spc003", text_only=True), encoding="utf-8"
         )
         bk = self.root / ".aw" / "records" / "backlog" / "open"
         bk.mkdir(parents=True, exist_ok=True)
-        (bk / "item.md").write_text("- Id: bkl003\n- Status: open\n", encoding="utf-8")
+        (bk / "item.md").write_text(
+            RecordBuilder().backlog(id6="bkl003", status="open", text_only=True),
+            encoding="utf-8",
+        )
         ids = I.resolvable_consumer_ids(self.root)
         self.assertTrue({"pln003", "spc003", "bkl003"}.issubset(ids))
 

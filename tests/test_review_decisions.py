@@ -28,37 +28,19 @@ from types import SimpleNamespace
 import pytest
 
 from agent_workflows import check_engine, review_findings as rf, reviews
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
 ANSI_RE = re.compile(r"\x1b\[")
 
-
-def _plan_text(
-    *,
-    id6: str = "abc123",
-    blocking_question: bool = False,
-) -> str:
-    """A minimal pending-lane IPD carrying an `- Id:`, optionally with a blocking open question."""
-    oq = ""
-    if blocking_question:
-        oq = (
-            "\n## Open questions\n\n"
-            "### OQ-01: is the irreversible choice acceptable?\n\n"
-            "- Blocking: yes\n"
-            "- Status: open\n"
-            "- Owner: maintainer\n"
-            "- Resolution or deferral rationale: pending a maintainer decision\n"
-        )
-    return (
-        "# IPD: fixture plan\n\n"
-        "- Date: 2026-08-30\n"
-        "- Kind: child\n"
-        f"- Id: {id6}\n"
-        "- Status: to-review\n"
-        "- Set: fixture\n"
-        "- Order: 1\n" + oq
-    )
+_BLOCKING_OQ = (
+    "### OQ-01: is the irreversible choice acceptable?\n\n"
+    "- Blocking: yes\n"
+    "- Status: open\n"
+    "- Owner: maintainer\n"
+    "- Resolution or deferral rationale: pending a maintainer decision\n"
+)
 
 
 def _decision(
@@ -105,62 +87,7 @@ class _Repo:
         self.reviews = root / ".aw" / "records" / "reviews"
         self.plans.mkdir(parents=True, exist_ok=True)
         self.reviews.mkdir(parents=True, exist_ok=True)
-
-    def write_plan(
-        self, *, id6: str = "abc123", blocking_question: bool = False
-    ) -> Path:
-        p = self.plans / f"20260830-fixture-01-{id6}-a-fixture-plan.ipd.md"
-        p.write_text(
-            _plan_text(id6=id6, blocking_question=blocking_question), encoding="utf-8"
-        )
-        return p
-
-    def write_review(
-        self,
-        *,
-        id6: str = "abc123",
-        rounds=None,
-        decisions=None,
-        findings=None,
-    ) -> Path:
-        if rounds is None:
-            rounds = [
-                rf.Round(
-                    number=1,
-                    findings=tuple(findings or (_finding(),)),
-                    decisions=tuple(decisions or ()),
-                )
-            ]
-        dest = self.reviews / f"20260830-fixture-01-{id6}-a-fixture-plan.review.md"
-        return rf.write_review(
-            dest,
-            subject_id=id6,
-            subject_type="ipd",
-            reviewed_at="2026-08-30",
-            reviewer="opencode test",
-            verdict="APPROVE",
-            rounds=rounds,
-        )
-
-    def write_malformed_review(self, *, id6: str = "abc123") -> Path:
-        dest = self.reviews / f"20260830-fixture-01-{id6}-a-fixture-plan.review.md"
-        dest.write_text(
-            "# Review findings: ipd {0}\n\n"
-            "- Subject-Id: {0}\n"
-            "- Subject-Type: ipd\n"
-            "- Reviewed-At: 2026-08-30\n"
-            "- Reviewer: opencode test\n"
-            "- Verdict: APPROVE\n\n"
-            "## Round 1\n\n"
-            "### Findings\n\n"
-            "| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |\n"
-            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
-            "| F-1 | HGIH | in-scope | rubric | a.py:1 | x | low | open | y |\n".format(
-                id6
-            ),
-            encoding="utf-8",
-        )
-        return dest
+        self.builder = RecordBuilder(root)
 
 
 class ReversibleClassificationTests(unittest.TestCase):
@@ -198,8 +125,25 @@ class DecisionRoundTripTests(unittest.TestCase):
     def test_decision_row_round_trips(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(decisions=[_decision()])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[rf.Round(1, (_finding(),), (_decision(),))],
+            )
 
             rows, diags = reviews.collect_decisions(repo.root)
             self.assertEqual(
@@ -223,12 +167,27 @@ class DecisionRoundTripTests(unittest.TestCase):
         """The audit reports ALL rounds; the check reads only the current one. Both on purpose."""
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
                 rounds=[
                     rf.Round(1, (_finding(),), (_decision(did="D-1"),)),
                     rf.Round(2, (_finding(),), (_decision(did="D-2"),)),
-                ]
+                ],
             )
 
             all_rounds, _ = reviews.collect_decisions(repo.root)
@@ -262,8 +221,25 @@ class ReviewsDecisionsVerbTests(unittest.TestCase):
     def test_prints_a_recorded_decision_and_exits_zero(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(decisions=[_decision()])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[rf.Round(1, (_finding(),), (_decision(),))],
+            )
 
             rc, out = self._run(repo.root)
             self.assertEqual(rc, 0)
@@ -276,16 +252,41 @@ class ReviewsDecisionsVerbTests(unittest.TestCase):
     def test_irreversible_filter(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(
-                decisions=[
-                    _decision(
-                        did="D-1", reversible="yes", question="the undoable question"
-                    ),
-                    _decision(
-                        did="D-2", reversible="no", question="the permanent question"
-                    ),
-                ]
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(
+                        1,
+                        (_finding(),),
+                        (
+                            _decision(
+                                did="D-1",
+                                reversible="yes",
+                                question="the undoable question",
+                            ),
+                            _decision(
+                                did="D-2",
+                                reversible="no",
+                                question="the permanent question",
+                            ),
+                        ),
+                    )
+                ],
             )
 
             rc, out = self._run(repo.root)
@@ -304,8 +305,27 @@ class ReviewsDecisionsVerbTests(unittest.TestCase):
     def test_unknown_reversible_is_not_in_the_irreversible_filter_but_is_counted(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(decisions=[_decision(did="D-9", reversible="")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-9", reversible=""),))
+                ],
+            )
 
             rc, out = self._run(repo.root)
             self.assertEqual(rc, 0)
@@ -319,12 +339,33 @@ class ReviewsDecisionsVerbTests(unittest.TestCase):
     def test_agent_mode_is_ansi_free_and_parses_as_json(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(
-                decisions=[
-                    _decision(did="D-1", reversible="yes"),
-                    _decision(did="D-2", reversible="no"),
-                ]
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(
+                        1,
+                        (_finding(),),
+                        (
+                            _decision(did="D-1", reversible="yes"),
+                            _decision(did="D-2", reversible="no"),
+                        ),
+                    )
+                ],
             )
 
             rc, out = self._run(repo.root, agent=True)
@@ -362,10 +403,44 @@ class ReviewsDecisionsVerbTests(unittest.TestCase):
     def test_selector_resolves_through_the_shared_resolver(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(id6="abc123")
-            repo.write_review(id6="abc123", decisions=[_decision(did="D-1")])
-            repo.write_plan(id6="def456")
-            repo.write_review(id6="def456", decisions=[_decision(did="D-7")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[rf.Round(1, (_finding(),), (_decision(did="D-1"),))],
+            )
+            repo.builder.plan(
+                id6="def456",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "def456",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[rf.Round(1, (_finding(),), (_decision(did="D-7"),))],
+            )
 
             rc, out = self._run(repo.root, selector="abc123")
             self.assertEqual(rc, 0)
@@ -375,8 +450,25 @@ class ReviewsDecisionsVerbTests(unittest.TestCase):
     def test_unmatched_selector_is_refused_with_exit_two(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan()
-            repo.write_review(decisions=[_decision()])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[rf.Round(1, (_finding(),), (_decision(),))],
+            )
 
             rc, out = self._run(repo.root, selector="zzzzzz")
             self.assertEqual(rc, 2)
@@ -391,8 +483,27 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
     def test_fires_on_unescalated_irreversible_decision(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(decisions=[_decision(did="D-2", reversible="no")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-2", reversible="no"),))
+                ],
+            )
 
             drift = self._sweep(repo)
             self.assertEqual(
@@ -407,23 +518,64 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
         """The other half of the guard: an ESCALATED irreversible decision must not fire."""
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=True)
-            repo.write_review(decisions=[_decision(did="D-2", reversible="no")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                open_questions=_BLOCKING_OQ,
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-2", reversible="no"),))
+                ],
+            )
 
             self.assertEqual(self._sweep(repo), [])
 
     def test_quiet_when_maintainer_was_told(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(
-                decisions=[
-                    _decision(
-                        did="D-3",
-                        reversible="no",
-                        basis="selectors.py:347; maintainer told 2026-08-30",
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(
+                        1,
+                        (_finding(),),
+                        (
+                            _decision(
+                                did="D-3",
+                                reversible="no",
+                                basis="selectors.py:347; maintainer told 2026-08-30",
+                            ),
+                        ),
                     )
-                ]
+                ],
             )
 
             self.assertEqual(self._sweep(repo), [])
@@ -431,16 +583,56 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
     def test_quiet_on_reversible_decision(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(decisions=[_decision(did="D-1", reversible="yes")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(
+                        1, (_finding(),), (_decision(did="D-1", reversible="yes"),)
+                    )
+                ],
+            )
 
             self.assertEqual(self._sweep(repo), [])
 
     def test_reports_a_decision_with_no_reversible_judgement(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(decisions=[_decision(did="D-4", reversible="")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-4", reversible=""),))
+                ],
+            )
 
             drift = self._sweep(repo)
             self.assertEqual(len(drift), 1)
@@ -450,15 +642,46 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
         """MANDATORY: no `.review.md` must produce NOTHING, or the whole corpus would be reported."""
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
             # No review written at all.
             self.assertEqual(self._sweep(repo), [])
 
     def test_malformed_artifact_is_reported_and_does_not_raise(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_malformed_review()
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            review_path = repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[rf.Round(1, (_finding(severity="low", decision="open"),), ())],
+            )
+            review_path.write_text(
+                review_path.read_text(encoding="utf-8").replace(
+                    "| low |", "| HGIH |", 1
+                ),
+                encoding="utf-8",
+            )
 
             drift = self._sweep(repo)
             self.assertTrue(drift, "a malformed review must be reported, not skipped")
@@ -471,8 +694,23 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
         """A round-1 irreversible decision superseded by round 2 no longer fires."""
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
                 rounds=[
                     rf.Round(
                         1, (_finding(),), (_decision(did="D-1", reversible="no"),)
@@ -480,7 +718,7 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
                     rf.Round(
                         2, (_finding(),), (_decision(did="D-2", reversible="yes"),)
                     ),
-                ]
+                ],
             )
 
             self.assertEqual(self._sweep(repo), [])
@@ -488,12 +726,28 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
     def test_terminal_lane_plans_are_grandfathered(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            executed = repo.root / ".aw" / "records" / "plans" / "executed"
-            executed.mkdir(parents=True, exist_ok=True)
-            (executed / "20260830-fixture-01-abc123-a-fixture-plan.ipd.md").write_text(
-                _plan_text(id6="abc123"), encoding="utf-8"
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                disposition="executed",
             )
-            repo.write_review(decisions=[_decision(did="D-2", reversible="no")])
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-2", reversible="no"),))
+                ],
+            )
 
             self.assertEqual(
                 self._sweep(repo),
@@ -510,8 +764,27 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
     def test_the_finding_carries_the_registered_warning_severity(self):
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(decisions=[_decision(did="D-2", reversible="no")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-2", reversible="no"),))
+                ],
+            )
 
             drift = self._sweep(repo)
             self.assertEqual(len(drift), 1)
@@ -533,8 +806,27 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
 
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(decisions=[_decision(did="D-2", reversible="no")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-2", reversible="no"),))
+                ],
+            )
 
             drift = self._sweep(repo)
             self.assertEqual(
@@ -547,8 +839,27 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
         """The plans-type content path is shared, so one wiring serves both entry points."""
         with TemporaryDirectory() as td:
             repo = _Repo(Path(td))
-            repo.write_plan(blocking_question=False)
-            repo.write_review(decisions=[_decision(did="D-2", reversible="no")])
+            repo.builder.plan(
+                id6="abc123",
+                title="fixture plan",
+                when="2026-08-30",
+                status="to-review",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+            )
+            repo.builder.review(
+                "abc123",
+                when="2026-08-30",
+                set="fixture",
+                order=1,
+                slug="a-fixture-plan",
+                reviewer="opencode test",
+                verdict="APPROVE",
+                rounds=[
+                    rf.Round(1, (_finding(),), (_decision(did="D-2", reversible="no"),))
+                ],
+            )
 
             for target in (["plans"], ["all"]):
                 drift = check_engine.check_types(repo.root, target)

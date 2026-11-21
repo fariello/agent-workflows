@@ -67,6 +67,7 @@ from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lint
 from agent_workflows import ipd_schema as S
 from agent_workflows import review_findings as rf
+from tests.record_builder import RecordBuilder
 
 RULE = "check.review-finding-unescalated"
 
@@ -121,25 +122,22 @@ def _plan(
     open_questions: str = "",
     status: str = "approved",
 ) -> Path:
-    p = (
-        repo
-        / ".aw"
-        / "records"
-        / "plans"
-        / lane
-        / f"20260829-demo-01-{id6}-gate-fixture.ipd.md"
+    return RecordBuilder(repo).plan(
+        title=f"gate fixture {id6}",
+        when="2026-08-29",
+        plan_role="child",
+        scope_paths="x.py",
+        item_dependencies="none",
+        status=status,
+        set="demo",
+        order=1,
+        id6=id6,
+        slug="gate-fixture",
+        disposition=lane,
+        history=["- 2026-08-29 draft (t): created."],
+        body="## Goal\ng",
+        open_questions=open_questions or None,
     )
-    body = (
-        f"# IPD: gate fixture {id6}\n\n"
-        f"- Date: 2026-08-29\n- Kind: child\n- Scope-Paths: x.py\n"
-        f"- Item-Dependencies: none\n- Status: {status}\n- Set: demo\n- Order: 1\n"
-        f"- Id: {id6}\n\n"
-        f"## Workflow history\n- 2026-08-29 draft (t): created.\n\n## Goal\ng\n"
-    )
-    if open_questions:
-        body += f"\n## Open questions\n\n{open_questions}"
-    p.write_text(body, encoding="utf-8")
-    return p
 
 
 def _finding(
@@ -161,11 +159,29 @@ def _finding(
 def _review(repo: Path, *, id6: str = "aaa111", rounds=None) -> Path:
     if rounds is None:
         rounds = [rf.Round(1, (_finding(),), ())]
-    return rf.write_review(
-        repo / ".aw" / "records" / "reviews" / f"20260829-demo-01-{id6}-gate.review.md",
-        subject_id=id6,
-        subject_type="ipd",
-        reviewed_at="2026-08-29",
+    has_invalid_severity = any(
+        f.severity not in rf.SEVERITIES for rnd in rounds for f in rnd.findings
+    )
+    if has_invalid_severity:
+        return rf.write_review(
+            repo
+            / ".aw"
+            / "records"
+            / "reviews"
+            / f"20260829-demo-01-{id6}-gate.review.md",
+            subject_id=id6,
+            subject_type="ipd",
+            reviewed_at="2026-08-29",
+            reviewer="test",
+            verdict="REVIEWED - OPEN QUESTIONS",
+            rounds=rounds,
+        )
+    return RecordBuilder(repo).review(
+        id6,
+        when="2026-08-29",
+        set="demo",
+        order=1,
+        slug="gate",
         reviewer="test",
         verdict="REVIEWED - OPEN QUESTIONS",
         rounds=rounds,
@@ -231,11 +247,18 @@ class _Case(NamedTuple):
     recovery_needles: tuple[str, ...] = ()
 
 
-#: A review artifact that EXISTS but carries no rounds at all: the writer cannot produce this shape,
-#: so it is hand-written. Used by the "present but malformed" rows.
+#: A review artifact that EXISTS but carries no rounds at all: built with empty rounds and a
+#: trailing non-round line. Used by the "present but malformed" rows.
 _MALFORMED_BODY = (
-    "# review\n\n- Subject-Id: aaa111\n- Subject-Type: ipd\n- Reviewed-At: 2026-08-29\n"
-    "- Reviewer: test\n- Verdict: v\n\nthis file has no rounds at all\n"
+    RecordBuilder().review(
+        "aaa111",
+        when="2026-08-29",
+        reviewer="test",
+        verdict="v",
+        rounds=(),
+        text_only=True,
+    )
+    + "\nthis file has no rounds at all\n"
 )
 
 

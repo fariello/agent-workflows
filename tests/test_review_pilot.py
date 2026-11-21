@@ -22,6 +22,7 @@ import tempfile
 import unittest
 
 from tests import support
+from tests.record_builder import RecordBuilder
 import tools.review_pilot as review_pilot
 
 
@@ -300,14 +301,26 @@ class ReviewPilotTests(unittest.TestCase):
 
     def test_f_redaction_replaces_agent_model_host_runid(self) -> None:
         """(f) the E-06 redaction replaces every agent/model string in a sample after-plan and review record."""
-        sample_text = (
-            "- Reviewer: opencode uri/its_direct/pt3-claude-opus-5.5-1m-us\n"
-            "## Workflow history\n"
-            "- 2026-10-25 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE\n"
-            "- 2026-10-25 review progress (antigravity gemini-3.8-flash-high): Round 1\n"
-            "Model: openai/gpt-6.1-sol\n"
-            "Run ID: run-20261025T230000Z-1234567\n"
+        sample_review = RecordBuilder().review(
+            "pil001",
+            when="2026-10-25",
+            reviewer="opencode uri/its_direct/pt3-claude-opus-5.5-1m-us",
+            verdict="APPROVE",
+            text_only=True,
         )
+        sample_plan = RecordBuilder().plan(
+            id6="pil001",
+            title="Pilot sample",
+            when="2026-10-25",
+            status="reviewed",
+            history=[
+                "- 2026-10-25 reviewed (opencode uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE",
+                "- 2026-10-25 review progress (antigravity gemini-3.8-flash-high): Round 1",
+            ],
+            body="Model: openai/gpt-6.1-sol\nRun ID: run-20261025T230000Z-1234567\n",
+            text_only=True,
+        )
+        sample_text = f"{sample_review}\n{sample_plan}"
         redacted = review_pilot.redact_text(sample_text)
         self.assertNotIn("pt3-claude-opus", redacted)
         self.assertNotIn("gpt-6.1-sol", redacted)
