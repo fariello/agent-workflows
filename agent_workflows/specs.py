@@ -19,7 +19,7 @@ import datetime as _dt
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
@@ -517,6 +517,163 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                     f"work kind not in {sorted(_backlog.KINDS)}: {work_kind!r}",
                 )
             )
+
+    return drift
+
+
+def validate_spec_state(
+    path: Path, state: Any, *, has_history: bool
+) -> List[core.Drift]:
+    """Return every spec-contract violation for one log-backed spec from `artifact_meta.State`.
+
+    Pure validator for metadata-v2 specifications whose authoritative status, gates, optional
+    vocabularies, and workflow history live in `meta/<id6>.jsonl` rather than Markdown front-matter
+    bullets. Emits the same rule IDs and repo-relative POSIX locations (`drift_location(path)`) as
+    `validate_spec`.
+    """
+
+    loc = drift_location(path)
+    drift: List[core.Drift] = []
+
+    raw_status = getattr(state, "status", None)
+    status: Optional[str] = None
+    if raw_status is None or not str(raw_status).strip():
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.missing-status",
+                "missing status in artifact metadata",
+            )
+        )
+    else:
+        status = str(raw_status).strip()
+        if len(status.split()) != 1 or status not in A.SPEC_STATUSES:
+            drift.append(
+                core.Drift(
+                    loc,
+                    "attention.unknown-status",
+                    f"status {status!r} not in the spec enum",
+                )
+            )
+
+    fields = getattr(state, "fields", None) or {}
+
+    def _present_field(key: str) -> Optional[str]:
+        raw = fields.get(key)
+        if raw is None:
+            return None
+        val = raw if isinstance(raw, str) else str(raw)
+        return None if val == "" else val
+
+    kind = _present_field("gate_kind")
+    ref = _present_field("gate_ref")
+    summary = _present_field("gate_summary")
+    has_gate = kind is not None or ref is not None or summary is not None
+    if status == "deferred":
+        if kind is None or ref is None:
+            drift.append(
+                core.Drift(
+                    loc,
+                    "attention.gate-missing",
+                    "deferred spec lacks Gate-Kind/Gate-Ref",
+                )
+            )
+        else:
+            if kind not in A.GATE_KINDS:
+                drift.append(
+                    core.Drift(
+                        loc,
+                        "attention.gate-malformed",
+                        f"unknown Gate-Kind {kind!r}",
+                    )
+                )
+            elif not A.validate_gate_ref(kind, ref):
+                drift.append(
+                    core.Drift(
+                        loc,
+                        "attention.gate-malformed",
+                        f"invalid Gate-Ref for {kind}: {ref!r}",
+                    )
+                )
+        if summary is not None and not A.is_safe_descriptive(summary):
+            drift.append(
+                core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    "Gate-Summary is over-length or has control chars/newlines",
+                )
+            )
+    elif has_gate:
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.gate-forbidden",
+                "gate fields present on a non-deferred spec",
+            )
+        )
+
+    raw_scope = fields.get("scope")
+    if raw_scope is not None:
+        scope = raw_scope if isinstance(raw_scope, str) else str(raw_scope)
+        if not A.is_safe_prose_descriptive(scope):
+            drift.append(
+                core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    "Scope is over-length or has control chars/newlines",
+                )
+            )
+
+    raw_summary = fields.get("summary")
+    if raw_summary is not None:
+        spec_summary = raw_summary if isinstance(raw_summary, str) else str(raw_summary)
+        if not A.is_safe_descriptive(spec_summary):
+            drift.append(
+                core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    "Summary is over-length or has control chars/newlines",
+                )
+            )
+
+    if not has_history:
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.history-missing",
+                "no conformant workflow history record",
+            )
+        )
+
+    raw_priority = fields.get("priority")
+    if raw_priority is not None:
+        priority = str(raw_priority).strip()
+        if priority:
+            from agent_workflows import backlog as _backlog
+
+            if priority not in _backlog.PRIORITIES:
+                drift.append(
+                    core.Drift(
+                        loc,
+                        "spec.priority-invalid",
+                        f"priority not in {sorted(_backlog.PRIORITIES)}: {priority!r}",
+                    )
+                )
+
+    raw_work_kind = fields.get("work_kind")
+    if raw_work_kind is not None:
+        work_kind = str(raw_work_kind).strip()
+        if work_kind:
+            from agent_workflows import backlog as _backlog
+
+            if work_kind not in _backlog.KINDS:
+                drift.append(
+                    core.Drift(
+                        loc,
+                        "spec.work-kind-invalid",
+                        f"work kind not in {sorted(_backlog.KINDS)}: {work_kind!r}",
+                    )
+                )
 
     return drift
 
