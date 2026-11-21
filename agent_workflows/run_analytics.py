@@ -46,7 +46,8 @@ Stdlib only.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import math
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -71,6 +72,7 @@ __all__ = [
     "INGEST_SCHEMA_VERSION",
     "PRODUCER_METRIC_KEYS",
     "PRODUCER_EVENT_KEYS",
+    "STARTUP_TIMING_METRIC_KEYS",
     "RunFacts",
     "build_run_facts",
     "build_cache_facts",
@@ -78,7 +80,20 @@ __all__ = [
     "ingest_corpus",
     "conservation_survey",
     "update_analytics_cache",
+    "extract_startup_timings",
+    "summarize_startup_timings",
 ]
+
+
+#: Startup latency metric keys recorded on the RUN grain when present (omitted on legacy runs).
+STARTUP_TIMING_METRIC_KEYS: tuple[str, ...] = (
+    "startup_to_first_output_seconds",
+    "startup_to_first_question_seconds",
+    "startup_to_first_execution_seconds",
+    "first_output_to_first_question_seconds",
+    "first_question_to_first_execution_seconds",
+    "first_output_to_first_execution_seconds",
+)
 
 
 #: The ingestion layer's own version, bumped when the :class:`RunFacts` SHAPE changes.
@@ -108,6 +123,9 @@ PRODUCER_METRIC_KEYS: tuple[str, ...] = (
     "driver_generation",
     "ended_at",
     "event_count",
+    "first_output_to_first_execution_seconds",
+    "first_output_to_first_question_seconds",
+    "first_question_to_first_execution_seconds",
     "host_kind",
     "model",
     "observed_activity_seconds",
@@ -116,6 +134,9 @@ PRODUCER_METRIC_KEYS: tuple[str, ...] = (
     "quality_flags",
     "run_id",
     "started_at",
+    "startup_to_first_execution_seconds",
+    "startup_to_first_output_seconds",
+    "startup_to_first_question_seconds",
     "status",
     "token_total",
     "tokens",
@@ -625,12 +646,19 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
     # bytes with M fields and never what those fields said.
     parse_errors = 0
     event_count = 0
+    startup_event_record: Mapping[str, Any] | None = None
     events_path = base / sources.ARTIFACT_NAMES["events"]
     for lineno, parsed in sources.iter_event_lines(events_path):
         if parsed is None:
             parse_errors += 1
             continue
         event_count += 1
+        if parsed.get("event") == "run-startup-timings":
+            if startup_event_record is None or (
+                startup_event_record.get("invocation_kind") == "resume"
+                and parsed.get("invocation_kind") != "resume"
+            ):
+                startup_event_record = parsed
         facts.append(
             Fact(
                 grain=Grain.EVENT,
@@ -662,6 +690,14 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
     created = _epoch(state.get("created_at"))
     updated = _epoch(state.get("updated_at"))
     run_time = schema.account_intervals(all_spans, wall_start=created, wall_end=updated)
+    startup_values, startup_source = _extract_startup_timing_values(
+        state, startup_event_record
+    )
+    if startup_values:
+        run_time = replace(
+            run_time,
+            **{k: measured(v, startup_source) for k, v in startup_values.items()},
+        )
     run_usage = (
         schema.merge_usage(per_item_usage)
         if per_item_usage
@@ -775,6 +811,27 @@ def _metric_payload(fact: Fact, *, event_count: int | None = None) -> dict[str, 
         ("observed_activity_seconds", fact.time.observed_activity_seconds),
         ("overlap_seconds", fact.time.overlap_seconds),
         ("unattributed_seconds", fact.time.unattributed_seconds),
+        ("startup_to_first_output_seconds", fact.time.startup_to_first_output_seconds),
+        (
+            "startup_to_first_question_seconds",
+            fact.time.startup_to_first_question_seconds,
+        ),
+        (
+            "startup_to_first_execution_seconds",
+            fact.time.startup_to_first_execution_seconds,
+        ),
+        (
+            "first_output_to_first_question_seconds",
+            fact.time.first_output_to_first_question_seconds,
+        ),
+        (
+            "first_question_to_first_execution_seconds",
+            fact.time.first_question_to_first_execution_seconds,
+        ),
+        (
+            "first_output_to_first_execution_seconds",
+            fact.time.first_output_to_first_execution_seconds,
+        ),
     ):
         if value.is_present:
             payload[key] = value.as_number()
@@ -991,3 +1048,148 @@ def update_analytics_cache(
     from agent_workflows import run_analytics_cache as cache
 
     return cache.update_cache(run_dirs, build_facts=build_cache_facts, repo=repo)
+
+
+def _finite_nonneg_float(raw: Any) -> float | None:
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    val = float(raw)
+    if not math.isfinite(val) or val < 0.0:
+        return None
+    return val
+
+
+def _extract_startup_timing_values(
+    state: Mapping[str, Any] | None,
+    event_record: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, float], str]:
+    """Extract numeric startup-timing seconds from ``state['startup_timings']`` or an event."""
+    raw_map: Mapping[str, Any] | None = None
+    source = "state"
+    if isinstance(state, Mapping) and isinstance(state.get("startup_timings"), Mapping):
+        raw_map = state["startup_timings"]
+        source = "state"
+    elif isinstance(event_record, Mapping):
+        raw_map = event_record
+        source = "events"
+    if raw_map is None:
+        return {}, source
+
+    extracted: dict[str, float] = {}
+    for key in STARTUP_TIMING_METRIC_KEYS:
+        val = _finite_nonneg_float(raw_map.get(key))
+        if val is not None:
+            extracted[key] = round(val, 6)
+
+    # Derive any missing stage-to-stage deltas from cumulative fields when present.
+    out_s = extracted.get("startup_to_first_output_seconds")
+    q_s = extracted.get("startup_to_first_question_seconds")
+    exec_s = extracted.get("startup_to_first_execution_seconds")
+    if (
+        "first_output_to_first_question_seconds" not in extracted
+        and out_s is not None
+        and q_s is not None
+    ):
+        extracted["first_output_to_first_question_seconds"] = round(
+            max(0.0, q_s - out_s), 6
+        )
+    if (
+        "first_question_to_first_execution_seconds" not in extracted
+        and q_s is not None
+        and exec_s is not None
+    ):
+        extracted["first_question_to_first_execution_seconds"] = round(
+            max(0.0, exec_s - q_s), 6
+        )
+    if (
+        "first_output_to_first_execution_seconds" not in extracted
+        and out_s is not None
+        and exec_s is not None
+    ):
+        extracted["first_output_to_first_execution_seconds"] = round(
+            max(0.0, exec_s - out_s), 6
+        )
+    return extracted, source
+
+
+def extract_startup_timings(
+    state: Mapping[str, Any] | None,
+    events_path: Path | str | None = None,
+) -> dict[str, float]:
+    """Extract startup timing measurements for one run from state and optional ``events.jsonl``."""
+    values, _source = _extract_startup_timing_values(state, None)
+    if values:
+        return values
+    if events_path is None:
+        return {}
+    ev_path = Path(events_path)
+    if not ev_path.is_file():
+        return {}
+    chosen: Mapping[str, Any] | None = None
+    for _lineno, parsed in sources.iter_event_lines(ev_path):
+        if parsed is None or parsed.get("event") != "run-startup-timings":
+            continue
+        if chosen is None or (
+            chosen.get("invocation_kind") == "resume"
+            and parsed.get("invocation_kind") != "resume"
+        ):
+            chosen = parsed
+    values, _source = _extract_startup_timing_values(None, chosen)
+    return values
+
+
+def _percentile(sorted_vals: Sequence[float], pct: float) -> float:
+    n = len(sorted_vals)
+    if n == 1:
+        return sorted_vals[0]
+    rank = (pct / 100.0) * (n - 1)
+    lo = int(math.floor(rank))
+    hi = int(math.ceil(rank))
+    if lo == hi:
+        return sorted_vals[lo]
+    frac = rank - lo
+    return sorted_vals[lo] + frac * (sorted_vals[hi] - sorted_vals[lo])
+
+
+def summarize_startup_timings(
+    records: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Aggregate startup latency statistics across analyzed runs.
+
+    Accepts either cache entry dicts (carrying ``metric_facts``) or flat metric/timing mappings.
+    Only runs that actually recorded a given stage participate in that stage's statistics.
+    """
+    buckets: dict[str, list[float]] = {k: [] for k in STARTUP_TIMING_METRIC_KEYS}
+    runs_with_any = 0
+    for rec in records:
+        if not isinstance(rec, Mapping):
+            continue
+        facts = rec.get("metric_facts")
+        src = facts if isinstance(facts, Mapping) else rec
+        has_any = False
+        for key in STARTUP_TIMING_METRIC_KEYS:
+            val = _finite_nonneg_float(src.get(key))
+            if val is not None:
+                buckets[key].append(val)
+                has_any = True
+        if has_any:
+            runs_with_any += 1
+
+    metrics_out: dict[str, dict[str, Any]] = {}
+    for key in STARTUP_TIMING_METRIC_KEYS:
+        vals = sorted(buckets[key])
+        if not vals:
+            continue
+        metrics_out[key] = {
+            "count": len(vals),
+            "min": round(vals[0], 3),
+            "median": round(_percentile(vals, 50.0), 3),
+            "p90": round(_percentile(vals, 90.0), 3),
+            "max": round(vals[-1], 3),
+        }
+
+    return {
+        "runs_analyzed": len(records),
+        "runs_with_startup_timings": runs_with_any,
+        "metrics": metrics_out,
+    }

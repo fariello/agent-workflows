@@ -1399,9 +1399,12 @@ def collect_rows(
     ids: dict[str, tuple[str, str]] = {}
     rows: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
+    startup_records: list[dict[str, float]] = []
     live: set[str] = set()
     runs_without_state = 0
     total = len(run_dirs)
+    from agent_workflows import run_analytics as _run_analytics
+
     for index, run_dir in enumerate(run_dirs, 1):
         if progress:
             progress(index, total)
@@ -1413,6 +1416,9 @@ def collect_rows(
         except (OSError, ValueError):
             state = {}
             runs_without_state += 1
+        startup_records.append(
+            _run_analytics.extract_startup_timings(state, run_dir / "events.jsonl")
+        )
         sessions_dir = run_dir / "sessions"
         session_files = (
             sorted(sessions_dir.glob("*.jsonl")) if sessions_dir.is_dir() else []
@@ -1668,13 +1674,15 @@ def collect_rows(
             if ts
             else ""
         )
-    info = {
+    startup_summary = _run_analytics.summarize_startup_timings(startup_records)
+    info: dict[str, Any] = {
         "runs": total,
         "runs_without_state": runs_without_state,
         "sessions": len(live),
         "cache_hits": cache.hits,
         "cache_misses": cache.misses,
         "items": items,
+        "startup_timings": startup_summary,
     }
     return rows, info
 

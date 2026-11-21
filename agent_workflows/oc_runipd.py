@@ -4444,6 +4444,12 @@ def run_queue(
         # `finalize-refused`, and leaving the second reconsiderable would retry a structural refusal
         # every iteration and SPIN. Hence three outcomes; `runner_shared` carries the full contract.
         if runnable.get("action") == "orchestrate":
+            runner_shared.record_startup_first_execution(
+                run_dir,
+                state,
+                save_state=save_state,
+                append_jsonl_fn=append_jsonl,
+            )
             repo = Path(state["repo"])
             dispatch_orchestrator_item(
                 repo,
@@ -4488,6 +4494,12 @@ def run_queue(
         # DURING this turn is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")
         previous_id6 = runnable["id6"]
+        runner_shared.record_startup_first_execution(
+            run_dir,
+            state,
+            save_state=save_state,
+            append_jsonl_fn=append_jsonl,
+        )
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
         except ToolIdentityError as exc:
@@ -5665,8 +5677,7 @@ def extract_profile_clause(argv: list[str]) -> tuple[list[str], str | None]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    script_start_mono = runner_shared.resolve_invocation_start_mono()
-    invocation_start_wall = time.time()
+    script_start_mono, invocation_start_wall = runner_shared.resolve_invocation_start()
     if argv is None:
         argv = sys.argv[1:]
     from agent_workflows import term as _term_stdio
@@ -5800,47 +5811,73 @@ def main(argv: list[str] | None = None) -> int:
             # performs no lifecycle transition on the plan it audits.
             return handle_audit_command(args)
         if args.command == "start":
-            if runner_shared.is_agent_mode(args):
-                import contextlib as _contextlib
+            with runner_shared.track_startup_timings(
+                invocation_kind="start",
+                start_mono=script_start_mono,
+                start_wall=invocation_start_wall,
+            ):
+                try:
+                    if runner_shared.is_agent_mode(args):
+                        import contextlib as _contextlib
 
-                with _contextlib.redirect_stdout(sys.stderr):
+                        with _contextlib.redirect_stdout(sys.stderr):
+                            run_dir = initialize_run(args)
+                        if args.prepare_only:
+                            runner_shared.flush_startup_timings(
+                                run_dir,
+                                load_state=load_state,
+                                save_state=save_state,
+                                append_jsonl_fn=append_jsonl,
+                            )
+                            runner_shared.emit_agent_run_start_record(
+                                run_dir, cmd="oc run", exit_code=0
+                            )
+                            return 0
+                        with _contextlib.redirect_stdout(sys.stderr):
+                            install_stop_triggers(run_dir)
+                            with locked_run(run_dir):
+                                rc = run_queue(
+                                    run_dir,
+                                    retry_incomplete=False,
+                                    invocation_start_mono=script_start_mono,
+                                )
+                        runner_shared.flush_startup_timings(
+                            run_dir,
+                            load_state=load_state,
+                            save_state=save_state,
+                            append_jsonl_fn=append_jsonl,
+                        )
+                        runner_shared.emit_agent_run_start_record(
+                            run_dir, cmd="oc run", exit_code=rc
+                        )
+                        return rc
                     run_dir = initialize_run(args)
-                if args.prepare_only:
-                    runner_shared.emit_agent_run_start_record(
-                        run_dir, cmd="oc run", exit_code=0
-                    )
-                    return 0
-                with _contextlib.redirect_stdout(sys.stderr):
+                    print(f"Run ID: {run_dir.name}")
+                    print(f"State directory: {run_dir}")
+                    if args.prepare_only:
+                        print_status(run_dir)
+                        # runprofile-03 (`3cm15q`) E-03: `--prepare-only` exists so an operator can inspect
+                        # what a run WILL do before it launches, so the model/variant it will launch with
+                        # belongs here more than anywhere else.
+                        print_launch_identity(run_dir)
+                        report_red_ci_warning(run_dir)
+                        return 0
+                    # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
                     install_stop_triggers(run_dir)
                     with locked_run(run_dir):
-                        rc = run_queue(
+                        return run_queue(
                             run_dir,
                             retry_incomplete=False,
                             invocation_start_mono=script_start_mono,
                         )
-                runner_shared.emit_agent_run_start_record(
-                    run_dir, cmd="oc run", exit_code=rc
-                )
-                return rc
-            run_dir = initialize_run(args)
-            print(f"Run ID: {run_dir.name}")
-            print(f"State directory: {run_dir}")
-            if args.prepare_only:
-                print_status(run_dir)
-                # runprofile-03 (`3cm15q`) E-03: `--prepare-only` exists so an operator can inspect
-                # what a run WILL do before it launches, so the model/variant it will launch with
-                # belongs here more than anywhere else.
-                print_launch_identity(run_dir)
-                report_red_ci_warning(run_dir)
-                return 0
-            # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
-            install_stop_triggers(run_dir)
-            with locked_run(run_dir):
-                return run_queue(
-                    run_dir,
-                    retry_incomplete=False,
-                    invocation_start_mono=script_start_mono,
-                )
+                finally:
+                    with contextlib.suppress(Exception):
+                        runner_shared.flush_startup_timings(
+                            run_dir,
+                            load_state=load_state,
+                            save_state=save_state,
+                            append_jsonl_fn=append_jsonl,
+                        )
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
         # streamfmt (mm6wuz) E-05: `None` on `resume` when the flag was omitted (see
@@ -5889,75 +5926,93 @@ def main(argv: list[str] | None = None) -> int:
                     "profile name here would mean re-reading runner-profiles.json. Resume "
                     "without it to use the frozen value, or start a NEW run."
                 )
-            # Apply the policy flags the operator actually PASSED; leave the omitted ones frozen. This
-            # SUBSUMES the hand-written `--full-auto` block that was here: the shared helper applies
-            # the same `None`-means-absent rule to all eight, so `--full-auto`'s shipped resume
-            # behavior (it OVERWRITES the frozen option, it does not refuse) is preserved EXACTLY.
-            state = load_state(run_dir)
-            if runner_shared.reset_driver_restart_loop_state_on_manual_resume(state):
-                save_state(run_dir, state)
-            if runner_shared.apply_run_policy_flags_on_resume(state, args):
-                save_state(run_dir, state)
-            if getattr(args, "validate", None) is not None:
-                state = load_state(run_dir)
-                state.setdefault("options", {})["validate"] = args.validate
-                state["options"]["no_audit"] = not args.validate
-                save_state(run_dir, state)
-            if getattr(args, "max_items_per_session", None) is not None:
-                state = load_state(run_dir)
-                state.setdefault("options", {})["max_items_per_session"] = (
-                    args.max_items_per_session
-                )
-                save_state(run_dir, state)
-            if getattr(args, "stall_timeout", None) is not None:
-                state = load_state(run_dir)
-                state.setdefault("options", {})["stall_timeout"] = args.stall_timeout
-                save_state(run_dir, state)
-            # runprofile-03 (`3cm15q`) E-04: an EXPLICIT `--variant` on resume still overrides, which
-            # is the shipped behavior of plan `429f30` and is preserved deliberately (DECISION
-            # 18-3cm15q-D1). What must NEVER happen is resume RE-RESOLVING the profile: nothing here
-            # calls `runner_profiles.load()`, so editing, deleting, or repointing the profile after run
-            # creation cannot alter this run. The frozen `options.launch_profile` snapshot is left
-            # untouched on purpose, so it keeps recording what CREATED the run; an operator override
-            # is visible as a divergence between it and the live `options.variant`.
-            if getattr(args, "variant", None) is not None:
-                state = load_state(run_dir)
-                state.setdefault("options", {})["variant"] = args.variant
-                save_state(run_dir, state)
-            if getattr(args, "session", None):
-                state = load_state(run_dir)
-                state["session_id"] = args.session
-                state.setdefault("options", {})["session"] = args.session
-                for s in state.get("set_sessions", {}):
-                    state["set_sessions"][s] = args.session
-                save_state(run_dir, state)
-            # runstop 71vjbn: a resumed run is just as interruptible as a fresh one.
-            install_stop_triggers(run_dir)
-            with locked_run(run_dir):
-                resume_state = load_state(run_dir)
-                reconcile_ids = getattr(args, "reconcile_ids", None) or []
-                if reconcile_ids:
-                    reconcile_rc = runner_shared.apply_operator_reconciliation(
-                        run_dir,
-                        resume_state,
-                        reconcile_ids=reconcile_ids,
-                        save_state=save_state,
-                        git_status_fn=git_status,
-                    )
-                    if reconcile_rc != 0:
-                        return reconcile_rc
-                runner_shared.clear_stale_stop_request_on_manual_resume(
-                    run_dir,
-                    state=resume_state,
-                    invocation_started_at=invocation_start_wall,
-                )
-                return run_queue(
-                    run_dir,
-                    retry_incomplete=args.retry_incomplete,
-                    output_mode=output_mode,
-                    verbosity=verbosity,
-                    invocation_start_mono=script_start_mono,
-                )
+            with runner_shared.track_startup_timings(
+                invocation_kind="resume",
+                start_mono=script_start_mono,
+                start_wall=invocation_start_wall,
+            ):
+                try:
+                    # Apply the policy flags the operator actually PASSED; leave the omitted ones frozen. This
+                    # SUBSUMES the hand-written `--full-auto` block that was here: the shared helper applies
+                    # the same `None`-means-absent rule to all eight, so `--full-auto`'s shipped resume
+                    # behavior (it OVERWRITES the frozen option, it does not refuse) is preserved EXACTLY.
+                    state = load_state(run_dir)
+                    if runner_shared.reset_driver_restart_loop_state_on_manual_resume(
+                        state
+                    ):
+                        save_state(run_dir, state)
+                    if runner_shared.apply_run_policy_flags_on_resume(state, args):
+                        save_state(run_dir, state)
+                    if getattr(args, "validate", None) is not None:
+                        state = load_state(run_dir)
+                        state.setdefault("options", {})["validate"] = args.validate
+                        state["options"]["no_audit"] = not args.validate
+                        save_state(run_dir, state)
+                    if getattr(args, "max_items_per_session", None) is not None:
+                        state = load_state(run_dir)
+                        state.setdefault("options", {})["max_items_per_session"] = (
+                            args.max_items_per_session
+                        )
+                        save_state(run_dir, state)
+                    if getattr(args, "stall_timeout", None) is not None:
+                        state = load_state(run_dir)
+                        state.setdefault("options", {})["stall_timeout"] = (
+                            args.stall_timeout
+                        )
+                        save_state(run_dir, state)
+                    # runprofile-03 (`3cm15q`) E-04: an EXPLICIT `--variant` on resume still overrides, which
+                    # is the shipped behavior of plan `429f30` and is preserved deliberately (DECISION
+                    # 18-3cm15q-D1). What must NEVER happen is resume RE-RESOLVING the profile: nothing here
+                    # calls `runner_profiles.load()`, so editing, deleting, or repointing the profile after run
+                    # creation cannot alter this run. The frozen `options.launch_profile` snapshot is left
+                    # untouched on purpose, so it keeps recording what CREATED the run; an operator override
+                    # is visible as a divergence between it and the live `options.variant`.
+                    if getattr(args, "variant", None) is not None:
+                        state = load_state(run_dir)
+                        state.setdefault("options", {})["variant"] = args.variant
+                        save_state(run_dir, state)
+                    if getattr(args, "session", None):
+                        state = load_state(run_dir)
+                        state["session_id"] = args.session
+                        state.setdefault("options", {})["session"] = args.session
+                        for s in state.get("set_sessions", {}):
+                            state["set_sessions"][s] = args.session
+                        save_state(run_dir, state)
+                    # runstop 71vjbn: a resumed run is just as interruptible as a fresh one.
+                    install_stop_triggers(run_dir)
+                    with locked_run(run_dir):
+                        resume_state = load_state(run_dir)
+                        reconcile_ids = getattr(args, "reconcile_ids", None) or []
+                        if reconcile_ids:
+                            reconcile_rc = runner_shared.apply_operator_reconciliation(
+                                run_dir,
+                                resume_state,
+                                reconcile_ids=reconcile_ids,
+                                save_state=save_state,
+                                git_status_fn=git_status,
+                            )
+                            if reconcile_rc != 0:
+                                return reconcile_rc
+                        runner_shared.clear_stale_stop_request_on_manual_resume(
+                            run_dir,
+                            state=resume_state,
+                            invocation_started_at=invocation_start_wall,
+                        )
+                        return run_queue(
+                            run_dir,
+                            retry_incomplete=args.retry_incomplete,
+                            output_mode=output_mode,
+                            verbosity=verbosity,
+                            invocation_start_mono=script_start_mono,
+                        )
+                finally:
+                    with contextlib.suppress(Exception):
+                        runner_shared.flush_startup_timings(
+                            run_dir,
+                            load_state=load_state,
+                            save_state=save_state,
+                            append_jsonl_fn=append_jsonl,
+                        )
         raise DriverError(f"Unsupported command: {args.command}")
     except KeyboardInterrupt as exc:
         msg = str(exc)

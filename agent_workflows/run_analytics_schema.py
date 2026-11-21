@@ -417,6 +417,24 @@ class TimeAccounting:
     )
     overlap_seconds: Value = field(default_factory=lambda: missing("no-activity"))
     unattributed_seconds: Value = field(default_factory=lambda: missing("no-activity"))
+    startup_to_first_output_seconds: Value = field(
+        default_factory=lambda: missing("not-recorded")
+    )
+    startup_to_first_question_seconds: Value = field(
+        default_factory=lambda: missing("not-recorded")
+    )
+    startup_to_first_execution_seconds: Value = field(
+        default_factory=lambda: missing("not-recorded")
+    )
+    first_output_to_first_question_seconds: Value = field(
+        default_factory=lambda: missing("not-recorded")
+    )
+    first_question_to_first_execution_seconds: Value = field(
+        default_factory=lambda: missing("not-recorded")
+    )
+    first_output_to_first_execution_seconds: Value = field(
+        default_factory=lambda: missing("not-recorded")
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -424,6 +442,12 @@ class TimeAccounting:
             "observed_activity_seconds": self.observed_activity_seconds.to_dict(),
             "overlap_seconds": self.overlap_seconds.to_dict(),
             "unattributed_seconds": self.unattributed_seconds.to_dict(),
+            "startup_to_first_output_seconds": self.startup_to_first_output_seconds.to_dict(),
+            "startup_to_first_question_seconds": self.startup_to_first_question_seconds.to_dict(),
+            "startup_to_first_execution_seconds": self.startup_to_first_execution_seconds.to_dict(),
+            "first_output_to_first_question_seconds": self.first_output_to_first_question_seconds.to_dict(),
+            "first_question_to_first_execution_seconds": self.first_question_to_first_execution_seconds.to_dict(),
+            "first_output_to_first_execution_seconds": self.first_output_to_first_execution_seconds.to_dict(),
         }
 
 

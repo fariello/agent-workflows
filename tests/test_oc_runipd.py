@@ -5100,6 +5100,7 @@ class HostReviewAliasExpansionTests(unittest.TestCase):
                 "runbook",
                 "manifest_sha256",
                 "runbook_sha256",
+                "startup_timings",
             ):
                 alias.pop(volatile, None)
                 canon.pop(volatile, None)

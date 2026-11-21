@@ -126,6 +126,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import contextvars
 from dataclasses import dataclass
 import datetime as dt
 import functools
@@ -2975,6 +2976,7 @@ def lane_reclaim_prompt(
             lane["lane_id"], lane["branch"]
         )
         options = {"d": "discard", "k": "keep"}
+    mark_active_startup_first_question()
     print(question, end="", file=sys.stderr, flush=True)
     import select
 
@@ -19798,6 +19800,7 @@ def prompt_for_gate_phrase(
             return None
         if not (getattr(target, "isatty", None) and target.isatty()):
             return None
+    mark_active_startup_first_question()
     print(question, end="", file=stream_err, flush=True)
     try:
         ready, _w, _x = select.select([stream_in], [], [], timeout)
@@ -20027,6 +20030,7 @@ def prompt_for_free_text(
     else:
         prompt_str = str(question)
 
+    mark_active_startup_first_question()
     print(prompt_str, end="", file=stream_err, flush=True)
 
     deadline = time.monotonic() + float(timeout)
@@ -38312,6 +38316,9 @@ def initialize_run_core(
             "loaded_code": [loaded_code_rec],
         },
     }
+    _active_startup = active_startup_tracker()
+    if _active_startup is not None and _active_startup.invocation_kind == "start":
+        state["startup_timings"] = _active_startup.snapshot()
     atomic_write_json(run_dir / "state.json", state)
     for p_ev in preflight_events:
         append_jsonl(run_dir / "events.jsonl", p_ev)
@@ -40001,23 +40008,370 @@ def restart_on_new_code_if_needed(
     return "restart"
 
 
-def resolve_invocation_start_mono(env: Mapping[str, str] | None = None) -> float:
-    """Return monotonic timestamp representing when this runner command started.
+STARTUP_TIMINGS_EVENT: str = "run-startup-timings"
 
-    Preserves elapsed time across ``restart_on_new_code_if_needed`` reloads via
-    ``AW_INVOCATION_START_WALL`` when present, otherwise starts from now.
+_ACTIVE_STARTUP_TRACKER: contextvars.ContextVar[StartupLatencyTracker | None] = (
+    contextvars.ContextVar("aw_active_startup_tracker", default=None)
+)
+
+
+def _utc_iso_from_epoch(epoch_seconds: float) -> str:
+    return (
+        dt.datetime.fromtimestamp(epoch_seconds, tz=dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+    )
+
+
+def resolve_invocation_start(
+    env: Mapping[str, str] | None = None,
+) -> tuple[float, float]:
+    """Return ``(monotonic, wall_epoch)`` representing when this runner command started.
+
+    Resolution order:
+    1. ``AW_INVOCATION_START_WALL`` from ``env`` (preserves elapsed time across
+       ``restart_on_new_code_if_needed`` reloads).
+    2. Entry timestamp captured by ``agent_workflows.cli.main`` when invoked through
+       the CLI (only when ``env`` is ``None`` and ``cli`` is already imported).
+    3. Current ``(time.monotonic(), time.time())``.
     """
     source = os.environ if env is None else env
     raw = source.get("AW_INVOCATION_START_WALL")
     now_mono = time.monotonic()
+    now_wall = time.time()
     if raw:
         try:
             wall_start = float(raw)
-            elapsed = max(0.0, time.time() - wall_start)
-            return now_mono - elapsed
+            elapsed = max(0.0, now_wall - wall_start)
+            return (now_mono - elapsed, wall_start)
         except (TypeError, ValueError):
             pass
-    return now_mono
+    if env is None:
+        cli_mod = sys.modules.get("agent_workflows.cli")
+        getter = (
+            getattr(cli_mod, "get_invocation_start", None)
+            if cli_mod is not None
+            else None
+        )
+        if callable(getter):
+            cli_start = getter()
+            if (
+                isinstance(cli_start, tuple)
+                and len(cli_start) == 2
+                and isinstance(cli_start[0], (int, float))
+                and isinstance(cli_start[1], (int, float))
+            ):
+                return (float(cli_start[0]), float(cli_start[1]))
+    return (now_mono, now_wall)
+
+
+def resolve_invocation_start_mono(env: Mapping[str, str] | None = None) -> float:
+    """Return monotonic timestamp representing when this runner command started.
+
+    Preserves elapsed time across ``restart_on_new_code_if_needed`` reloads via
+    ``AW_INVOCATION_START_WALL`` when present, otherwise starts from CLI entry or now.
+    """
+    return resolve_invocation_start(env=env)[0]
+
+
+class _FirstOutputStreamProxy:
+    """Thin self-unwrapping proxy that records the runner's first non-empty output write."""
+
+    def __init__(
+        self,
+        wrapped: Any,
+        tracker: StartupLatencyTracker,
+        attr_name: str,
+    ) -> None:
+        self._wrapped = wrapped
+        self._tracker = tracker
+        self._attr_name = attr_name
+
+    def _note_output(self) -> None:
+        if not self._tracker.mark_first_output():
+            if getattr(sys, self._attr_name, None) is self:
+                setattr(sys, self._attr_name, self._wrapped)
+
+    def write(self, s: Any) -> int:
+        if s:
+            self._note_output()
+        return self._wrapped.write(s)
+
+    def writelines(self, lines: Iterable[Any]) -> None:
+        items = list(lines)
+        if any(items):
+            self._note_output()
+        self._wrapped.writelines(items)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._wrapped, name)
+
+
+class StartupLatencyTracker:
+    """Tracks startup latency from script start -> first output -> first question -> first execution."""
+
+    def __init__(
+        self,
+        *,
+        invocation_kind: str = "start",
+        start_mono: float,
+        start_wall: float,
+    ) -> None:
+        self.invocation_kind = invocation_kind
+        self.start_mono = float(start_mono)
+        self.start_wall = float(start_wall)
+        self._first_output_mono: float | None = None
+        self._first_output_wall: float | None = None
+        self._first_question_mono: float | None = None
+        self._first_question_wall: float | None = None
+        self._first_execution_mono: float | None = None
+        self._first_execution_wall: float | None = None
+        self.flushed: bool = False
+        self._lock = threading.Lock()
+        self._unwrap_cb: Callable[[], None] | None = None
+
+    def mark_first_output(
+        self,
+        *,
+        now_mono: float | None = None,
+        now_wall: float | None = None,
+    ) -> bool:
+        unwrap: Callable[[], None] | None = None
+        with self._lock:
+            if self._first_output_mono is not None:
+                return False
+            m = time.monotonic() if now_mono is None else float(now_mono)
+            w = time.time() if now_wall is None else float(now_wall)
+            self._first_output_mono = max(m, self.start_mono)
+            self._first_output_wall = w
+            unwrap = self._unwrap_cb
+            self._unwrap_cb = None
+        if unwrap is not None:
+            unwrap()
+        return True
+
+    def mark_first_question(
+        self,
+        *,
+        now_mono: float | None = None,
+        now_wall: float | None = None,
+    ) -> bool:
+        unwrap: Callable[[], None] | None = None
+        with self._lock:
+            if (
+                self._first_question_mono is not None
+                or self._first_execution_mono is not None
+            ):
+                return False
+            m = time.monotonic() if now_mono is None else float(now_mono)
+            w = time.time() if now_wall is None else float(now_wall)
+            m = max(m, self.start_mono)
+            if self._first_output_mono is None:
+                self._first_output_mono = m
+                self._first_output_wall = w
+                unwrap = self._unwrap_cb
+                self._unwrap_cb = None
+            else:
+                m = max(m, self._first_output_mono)
+            self._first_question_mono = m
+            self._first_question_wall = w
+        if unwrap is not None:
+            unwrap()
+        return True
+
+    def mark_first_execution(
+        self,
+        *,
+        now_mono: float | None = None,
+        now_wall: float | None = None,
+    ) -> bool:
+        with self._lock:
+            if self._first_execution_mono is not None:
+                return False
+            m = time.monotonic() if now_mono is None else float(now_mono)
+            w = time.time() if now_wall is None else float(now_wall)
+            floor_mono = self.start_mono
+            if self._first_output_mono is not None:
+                floor_mono = max(floor_mono, self._first_output_mono)
+            if self._first_question_mono is not None:
+                floor_mono = max(floor_mono, self._first_question_mono)
+            self._first_execution_mono = max(m, floor_mono)
+            self._first_execution_wall = w
+            return True
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            out: dict[str, Any] = {
+                "invocation_kind": self.invocation_kind,
+                "script_start_at": _utc_iso_from_epoch(self.start_wall),
+            }
+            if (
+                self._first_output_mono is not None
+                and self._first_output_wall is not None
+            ):
+                out["first_output_at"] = _utc_iso_from_epoch(self._first_output_wall)
+                out["startup_to_first_output_seconds"] = round(
+                    max(0.0, self._first_output_mono - self.start_mono), 6
+                )
+            if (
+                self._first_question_mono is not None
+                and self._first_question_wall is not None
+            ):
+                out["first_question_at"] = _utc_iso_from_epoch(
+                    self._first_question_wall
+                )
+                out["startup_to_first_question_seconds"] = round(
+                    max(0.0, self._first_question_mono - self.start_mono), 6
+                )
+                if self._first_output_mono is not None:
+                    out["first_output_to_first_question_seconds"] = round(
+                        max(0.0, self._first_question_mono - self._first_output_mono), 6
+                    )
+            if (
+                self._first_execution_mono is not None
+                and self._first_execution_wall is not None
+            ):
+                out["first_execution_start_at"] = _utc_iso_from_epoch(
+                    self._first_execution_wall
+                )
+                out["startup_to_first_execution_seconds"] = round(
+                    max(0.0, self._first_execution_mono - self.start_mono), 6
+                )
+                if self._first_output_mono is not None:
+                    out["first_output_to_first_execution_seconds"] = round(
+                        max(0.0, self._first_execution_mono - self._first_output_mono),
+                        6,
+                    )
+                if self._first_question_mono is not None:
+                    out["first_question_to_first_execution_seconds"] = round(
+                        max(
+                            0.0, self._first_execution_mono - self._first_question_mono
+                        ),
+                        6,
+                    )
+            return out
+
+
+def active_startup_tracker() -> StartupLatencyTracker | None:
+    """Return the active :class:`StartupLatencyTracker` for this invocation, if any."""
+    return _ACTIVE_STARTUP_TRACKER.get()
+
+
+def mark_active_startup_first_question() -> bool:
+    """Record the first interactive startup question on the active tracker, if any."""
+    tracker = _ACTIVE_STARTUP_TRACKER.get()
+    if tracker is None:
+        return False
+    return tracker.mark_first_question()
+
+
+@contextlib.contextmanager
+def track_startup_timings(
+    *,
+    invocation_kind: str = "start",
+    start_mono: float | None = None,
+    start_wall: float | None = None,
+) -> Iterator[StartupLatencyTracker]:
+    """Install a scoped :class:`StartupLatencyTracker` and self-unwrapping stdio proxies."""
+    resolved_mono, resolved_wall = resolve_invocation_start()
+    tracker = StartupLatencyTracker(
+        invocation_kind=invocation_kind,
+        start_mono=resolved_mono if start_mono is None else start_mono,
+        start_wall=resolved_wall if start_wall is None else start_wall,
+    )
+    orig_stdout = sys.stdout
+    orig_stderr = sys.stderr
+    stdout_proxy = (
+        _FirstOutputStreamProxy(orig_stdout, tracker, "stdout")
+        if orig_stdout is not None
+        else None
+    )
+    stderr_proxy = (
+        _FirstOutputStreamProxy(orig_stderr, tracker, "stderr")
+        if orig_stderr is not None
+        else None
+    )
+
+    def _unwrap() -> None:
+        if stdout_proxy is not None and sys.stdout is stdout_proxy:
+            sys.stdout = orig_stdout
+        if stderr_proxy is not None and sys.stderr is stderr_proxy:
+            sys.stderr = orig_stderr
+
+    tracker._unwrap_cb = _unwrap
+    if stdout_proxy is not None:
+        sys.stdout = stdout_proxy  # type: ignore[assignment]
+    if stderr_proxy is not None:
+        sys.stderr = stderr_proxy  # type: ignore[assignment]
+
+    token = _ACTIVE_STARTUP_TRACKER.set(tracker)
+    try:
+        yield tracker
+    finally:
+        _unwrap()
+        _ACTIVE_STARTUP_TRACKER.reset(token)
+
+
+def _apply_startup_snapshot_to_state(
+    state: dict[str, Any], snap: Mapping[str, Any]
+) -> None:
+    if snap.get("invocation_kind") == "resume":
+        resumes = state.setdefault("resume_startup_timings", [])
+        if isinstance(resumes, list):
+            resumes.append(dict(snap))
+    else:
+        state["startup_timings"] = dict(snap)
+
+
+def record_startup_first_execution(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    save_state: Callable[[Path, dict[str, Any]], Any],
+    append_jsonl_fn: Callable[[Path, dict[str, Any]], Any] | None = None,
+) -> bool:
+    """Record first execution start on the active tracker and persist timings to state + events."""
+    tracker = _ACTIVE_STARTUP_TRACKER.get()
+    if tracker is None:
+        return False
+    if not tracker.mark_first_execution():
+        return False
+    snap = tracker.snapshot()
+    _apply_startup_snapshot_to_state(state, snap)
+    save_state(run_dir, state)
+    writer = append_jsonl if append_jsonl_fn is None else append_jsonl_fn
+    writer(
+        run_dir / "events.jsonl",
+        {"at": utc_now(), "event": STARTUP_TIMINGS_EVENT, **snap},
+    )
+    tracker.flushed = True
+    return True
+
+
+def flush_startup_timings(
+    run_dir: Path | None,
+    *,
+    load_state: Callable[[Path], dict[str, Any]],
+    save_state: Callable[[Path, dict[str, Any]], Any],
+    append_jsonl_fn: Callable[[Path, dict[str, Any]], Any] | None = None,
+) -> bool:
+    """Persist partial startup timings when a run exits without starting item execution."""
+    tracker = _ACTIVE_STARTUP_TRACKER.get()
+    if tracker is None or tracker.flushed or run_dir is None:
+        return False
+    if not (run_dir / "state.json").is_file():
+        return False
+    snap = tracker.snapshot()
+    state = load_state(run_dir)
+    _apply_startup_snapshot_to_state(state, snap)
+    save_state(run_dir, state)
+    writer = append_jsonl if append_jsonl_fn is None else append_jsonl_fn
+    writer(
+        run_dir / "events.jsonl",
+        {"at": utc_now(), "event": STARTUP_TIMINGS_EVENT, **snap},
+    )
+    tracker.flushed = True
+    return True
 
 
 def terminate_process(

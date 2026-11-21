@@ -54,7 +54,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from agent_workflows import run_analytics_query as query_mod
 from agent_workflows.project_context import resolve_verb_repo_root
@@ -236,7 +236,22 @@ def _emit_query_agent(result: query_mod.QueryResult, args: argparse.Namespace) -
     rows: list[dict[str, Any]] = [dict(r) for r in result.rows]
     if not rows:
         # A scalar view still travels as one item, so `data` is never lost to the compact envelope.
-        rows = [{"payload": dict(result.payload)}]
+        # Keep the `schema` view inside the per-record byte budget by streaming `attempt_grain` as
+        # a second item record when present; `--json` and `run_query("schema")` stay a single dict.
+        if (
+            result.view == "schema"
+            and isinstance(result.payload, Mapping)
+            and "attempt_grain" in result.payload
+        ):
+            base_payload = {
+                k: v for k, v in result.payload.items() if k != "attempt_grain"
+            }
+            rows = [
+                {"payload": base_payload},
+                {"payload": {"attempt_grain": result.payload["attempt_grain"]}},
+            ]
+        else:
+            rows = [{"payload": dict(result.payload)}]
     else:
         # The scalar context (metric, grouping, versions) belongs with the rows, not in a record the
         # caller has to correlate, so it leads the stream as its own item.
@@ -664,6 +679,59 @@ def _bundle_documents(
     return docs
 
 
+def _startup_timings_for_analyzed_runs(
+    run_dirs: Sequence[Path],
+    *,
+    repo: Path,
+) -> dict[str, Any]:
+    """Summarize startup latency across ``run_dirs`` from cached facts (falling back to run files)."""
+    from agent_workflows import run_analytics
+
+    by_run_id: dict[str, dict[str, Any]] = {}
+    for entry in query_mod._cache_entries(repo):
+        rid = str(entry.get("run_id") or "")
+        if rid:
+            by_run_id[rid] = entry
+
+    records: list[Mapping[str, Any]] = []
+    for run_dir in run_dirs:
+        run_path = Path(run_dir)
+        cached = by_run_id.get(run_path.name)
+        if cached is not None:
+            records.append(cached)
+            continue
+        state: Mapping[str, Any] | None = None
+        state_path = run_path / "state.json"
+        if state_path.is_file():
+            try:
+                loaded = json.loads(state_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, Mapping):
+                    state = loaded
+            except (OSError, ValueError):
+                state = None
+        records.append(
+            run_analytics.extract_startup_timings(state, run_path / "events.jsonl")
+        )
+    return run_analytics.summarize_startup_timings(records)
+
+
+def _format_startup_evidence(summary: Mapping[str, Any]) -> str:
+    metrics = summary.get("metrics") or {}
+    parts: list[str] = []
+    for key, label in (
+        ("startup_to_first_output_seconds", "out"),
+        ("startup_to_first_question_seconds", "q"),
+        ("startup_to_first_execution_seconds", "exec"),
+    ):
+        stat = metrics.get(key)
+        if isinstance(stat, Mapping) and stat.get("median") is not None:
+            parts.append(f"{label}={float(stat['median']):.2f}s")
+    n = int(summary.get("runs_with_startup_timings") or 0)
+    if not parts:
+        return f"n={n}"
+    return f"{' '.join(parts)} (n={n})"
+
+
 def _publish_snapshot(
     repo: Path,
     label: str,
@@ -672,6 +740,7 @@ def _publish_snapshot(
     *,
     window: dict[str, Any] | None = None,
     scoped: bool = False,
+    startup_timings: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Publish an IMMUTABLE snapshot of this sweep. Returns ``(published, refusal_message)``.
 
@@ -693,7 +762,10 @@ def _publish_snapshot(
         window=window,
         scoped=scoped,
     )
-    analysis = json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
+    analysis_payload = report.to_dict()
+    if startup_timings is not None:
+        analysis_payload["startup_timings"] = dict(startup_timings)
+    analysis = json.dumps(analysis_payload, indent=2, sort_keys=True) + "\n"
     try:
         published = report_mod.publish_snapshot(
             label,
@@ -844,6 +916,10 @@ def run_analyze(args: argparse.Namespace) -> int:
         if undated_excluded:
             summary += f" ({undated_excluded} undated run(s) excluded)"
 
+    startup_summary = _startup_timings_for_analyzed_runs(run_dirs, repo=repo)
+    analysis_payload = report.to_dict()
+    analysis_payload["startup_timings"] = startup_summary
+
     if is_human:
         term.step_cue("Publishing report bundle...", stream=ctx.stderr)
 
@@ -870,7 +946,7 @@ def run_analyze(args: argparse.Namespace) -> int:
                     window=window,
                     scoped=scoped,
                 ),
-                "analysis.json": json.dumps(report.to_dict(), indent=2, sort_keys=True)
+                "analysis.json": json.dumps(analysis_payload, indent=2, sort_keys=True)
                 + "\n",
             },
             generated_label="latest",
@@ -903,6 +979,7 @@ def run_analyze(args: argparse.Namespace) -> int:
             run_dirs,
             window=window,
             scoped=scoped,
+            startup_timings=startup_summary,
         )
         if refusal:
             return _emit(
@@ -920,7 +997,11 @@ def run_analyze(args: argparse.Namespace) -> int:
     analysis_file = latest_html.parent / "analysis.json"
     analysis_rel = _repo_rel(analysis_file, repo) if analysis_file.exists() else None
 
-    data: dict[str, Any] = {"totals": dict(totals), "findings": skipped}
+    data: dict[str, Any] = {
+        "totals": dict(totals),
+        "findings": skipped,
+        "startup_timings": startup_summary,
+    }
     if window:
         data["window"] = dict(
             window, runs=len(run_dirs), undated_excluded=undated_excluded
@@ -943,6 +1024,14 @@ def run_analyze(args: argparse.Namespace) -> int:
         Evidence("cache_hits", totals.get("hit", 0), "measured"),
         Evidence("skipped", skipped, "measured" if skipped else "verified"),
     ]
+    if startup_summary.get("runs_with_startup_timings", 0) > 0:
+        evidence.append(
+            Evidence(
+                "startup_median_s",
+                _format_startup_evidence(startup_summary),
+                "measured",
+            )
+        )
     if report_published and report_rel:
         evidence.append(Evidence("report", report_rel, "verified"))
     if report_published and analysis_rel:

@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import (
@@ -22011,6 +22012,16 @@ def _redirect_stdout_to_devnull() -> None:
         pass
 
 
+_INVOCATION_START: contextvars.ContextVar[Optional[Tuple[float, float]]] = (
+    contextvars.ContextVar("aw_cli_invocation_start", default=None)
+)
+
+
+def get_invocation_start() -> Optional[Tuple[float, float]]:
+    """Return ``(monotonic, wall_epoch)`` recorded at entry to :func:`main`, if active."""
+    return _INVOCATION_START.get()
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry point. Catches CTRL-C / EOF at any prompt and exits cleanly (D-CLI-UX).
 
@@ -22043,6 +22054,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     early, because a verb that inspects the override needs it already set.
     """
 
+    _entry_start = (time.monotonic(), time.time())
+
     # wj5b53: when invoked as a console script / __main__ (argv is None) in a checkout
     # whose package differs from the installed one, re-exec with that checkout's package.
     # In-process callers pass an explicit argv and must never be replaced by execve.
@@ -22057,6 +22070,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _entry_interactive_override = _term_mod.get_interactive_override()
     _entry_last_output_mode = get_last_output_mode()
     _entry_last_command = get_last_command()
+    _entry_start_token = _INVOCATION_START.set(_entry_start)
     try:
         rc = _dispatch(argv)
         _maybe_notify_stale_completion(rc)
@@ -22103,6 +22117,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _term_mod.set_interactive_override(_entry_interactive_override)
         set_last_output_mode(_entry_last_output_mode)
         set_last_command(_entry_last_command)
+        _INVOCATION_START.reset(_entry_start_token)
 
 
 if __name__ == "__main__":

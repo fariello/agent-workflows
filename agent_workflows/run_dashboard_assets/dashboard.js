@@ -927,6 +927,37 @@
     const p4 = panel('Stage summary');
     p4.appendChild(matrix(CUR, 'stage', 30, { total: true }));
     MAIN.appendChild(p4);
+    const st = DATA.info && DATA.info.startup_timings;
+    if (st && st.runs_with_startup_timings > 0 && st.metrics) {
+      const p5 = panel(
+        'Runner startup latency',
+        'Elapsed time across ' + esc(String(st.runs_with_startup_timings)) + ' of ' + esc(String(st.runs_analyzed || 0)) + ' analyzed run(s) with recorded startup timings.'
+      );
+      const stages = [
+        ['startup_to_first_output_seconds', 'Script start -> first output'],
+        ['first_output_to_first_question_seconds', 'First output -> first question'],
+        ['first_question_to_first_execution_seconds', 'First question -> first execution'],
+        ['startup_to_first_question_seconds', 'Script start -> first question'],
+        ['first_output_to_first_execution_seconds', 'First output -> first execution'],
+        ['startup_to_first_execution_seconds', 'Script start -> first execution'],
+      ];
+      const t = h('table', { class: 't' });
+      let html = '<thead><tr><th>Transition</th><th class="num">Runs</th><th class="num">Min</th><th class="num">Median</th><th class="num">p90</th><th class="num">Max</th></tr></thead><tbody>';
+      stages.forEach((pair) => {
+        const m = st.metrics[pair[0]];
+        if (!m) return;
+        html += '<tr><td>' + esc(pair[1]) + '</td>' +
+          '<td class="num">' + esc(String(m.count)) + '</td>' +
+          '<td class="num">' + esc(fmt(m.min, 'sec')) + '</td>' +
+          '<td class="num">' + esc(fmt(m.median, 'sec')) + '</td>' +
+          '<td class="num">' + esc(fmt(m.p90, 'sec')) + '</td>' +
+          '<td class="num">' + esc(fmt(m.max, 'sec')) + '</td></tr>';
+      });
+      html += '</tbody>';
+      t.innerHTML = html;
+      p5.appendChild(t);
+      MAIN.appendChild(p5);
+    }
   };
 
   // ---------------------------------------------------------------- tokens and cost

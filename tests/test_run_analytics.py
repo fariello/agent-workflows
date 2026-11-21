@@ -738,6 +738,21 @@ class AdvertisedMetricProductionTests(unittest.TestCase):
                     attempts=[_attempt(tokens={"input": 10, "output": 5, "total": 15})]
                 )
             ],
+            state_extra={
+                "startup_timings": {
+                    "invocation_kind": "start",
+                    "script_start_at": "2026-09-08T10:00:00+00:00",
+                    "first_output_at": "2026-09-08T10:00:01+00:00",
+                    "startup_to_first_output_seconds": 1.0,
+                    "first_question_at": "2026-09-08T10:00:03+00:00",
+                    "startup_to_first_question_seconds": 3.0,
+                    "first_output_to_first_question_seconds": 2.0,
+                    "first_execution_start_at": "2026-09-08T10:00:10+00:00",
+                    "startup_to_first_execution_seconds": 10.0,
+                    "first_output_to_first_execution_seconds": 9.0,
+                    "first_question_to_first_execution_seconds": 7.0,
+                }
+            },
         )
         payload = self._run_payload(run)
         satisfied = set(payload) | ({"tokens"} if "token_total" in payload else set())
@@ -1365,7 +1380,22 @@ class ProducerVocabularyTests(unittest.TestCase):
                 )
             ],
             events=['{"at":"2026-09-08T10:00:00Z","event":"run-created"}'],
-            state_extra={"options": {"model": "test/model"}},
+            state_extra={
+                "options": {"model": "test/model"},
+                "startup_timings": {
+                    "invocation_kind": "start",
+                    "script_start_at": "2026-09-08T10:00:00+00:00",
+                    "first_output_at": "2026-09-08T10:00:01+00:00",
+                    "startup_to_first_output_seconds": 1.0,
+                    "first_question_at": "2026-09-08T10:00:03+00:00",
+                    "startup_to_first_question_seconds": 3.0,
+                    "first_output_to_first_question_seconds": 2.0,
+                    "first_execution_start_at": "2026-09-08T10:00:10+00:00",
+                    "startup_to_first_execution_seconds": 10.0,
+                    "first_output_to_first_execution_seconds": 9.0,
+                    "first_question_to_first_execution_seconds": 7.0,
+                },
+            },
         )
 
         metric_facts, event_facts, _flags, _warns = ingest.build_cache_facts(run)
@@ -1409,7 +1439,22 @@ class ProducerVocabularyTests(unittest.TestCase):
                 )
             ],
             events=['{"at":"2026-09-08T10:00:00Z","event":"run-created"}'],
-            state_extra={"options": {"model": "test/model"}},
+            state_extra={
+                "options": {"model": "test/model"},
+                "startup_timings": {
+                    "invocation_kind": "start",
+                    "script_start_at": "2026-09-08T10:00:00+00:00",
+                    "first_output_at": "2026-09-08T10:00:01+00:00",
+                    "startup_to_first_output_seconds": 1.0,
+                    "first_question_at": "2026-09-08T10:00:03+00:00",
+                    "startup_to_first_question_seconds": 3.0,
+                    "first_output_to_first_question_seconds": 2.0,
+                    "first_execution_start_at": "2026-09-08T10:00:10+00:00",
+                    "startup_to_first_execution_seconds": 10.0,
+                    "first_output_to_first_execution_seconds": 9.0,
+                    "first_question_to_first_execution_seconds": 7.0,
+                },
+            },
         )
 
         salt = privacy.load_or_create_salt(cache.cache_root(self.repo))

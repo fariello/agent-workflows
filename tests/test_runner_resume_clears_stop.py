@@ -653,7 +653,12 @@ class ResumeCLIClearsStaleStopTests(unittest.TestCase):
                 self.assertEqual(rc_self, 0)
                 self.assertEqual(seen_levels[-1], runner_stop.LEVEL_AFTER_CALL)
                 self.assertTrue(stop_path.is_file())
-                self.assertEqual(_read_events(run_dir), [])
+                stop_cleared_self = [
+                    e
+                    for e in _read_events(run_dir)
+                    if e.get("event") == runner_stop.STOP_REQUEST_CLEARED_EVENT
+                ]
+                self.assertEqual(stop_cleared_self, [])
 
                 # 2. Manual resume (no AW_DRIVER_RESTART) clears stale stop-request.json,
                 #    prints notice, records ledger event, and lets run_queue see no stop.
@@ -682,7 +687,11 @@ class ResumeCLIClearsStaleStopTests(unittest.TestCase):
                     "cleared prior stop request: level 1 (after-call)",
                     stderr_buf.getvalue(),
                 )
-                events = _read_events(run_dir)
+                events = [
+                    e
+                    for e in _read_events(run_dir)
+                    if e.get("event") == runner_stop.STOP_REQUEST_CLEARED_EVENT
+                ]
                 self.assertEqual(len(events), 1)
                 self.assertEqual(
                     events[0]["event"], runner_stop.STOP_REQUEST_CLEARED_EVENT

@@ -116,6 +116,12 @@ ALLOWED_METRIC_KEYS: frozenset[str] = frozenset(
         "observed_activity_seconds",
         "unattributed_seconds",
         "overlap_seconds",
+        "startup_to_first_output_seconds",
+        "startup_to_first_question_seconds",
+        "startup_to_first_execution_seconds",
+        "first_output_to_first_question_seconds",
+        "first_question_to_first_execution_seconds",
+        "first_output_to_first_execution_seconds",
         # --- token components: an OPEN map lives under `tokens`, see _project_number_map ---
         "tokens",
         "token_total",

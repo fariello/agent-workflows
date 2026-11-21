@@ -181,6 +181,12 @@ AGGREGATE_METRICS: tuple[str, ...] = (
     "wall_seconds",
     "observed_activity_seconds",
     "event_count",
+    "startup_to_first_output_seconds",
+    "startup_to_first_question_seconds",
+    "startup_to_first_execution_seconds",
+    "first_output_to_first_question_seconds",
+    "first_question_to_first_execution_seconds",
+    "first_output_to_first_execution_seconds",
 )
 
 #: Statistics an aggregation may request. `median` is the DEFAULT rather than `mean`, because the
