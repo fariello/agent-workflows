@@ -1,5 +1,5 @@
 - Id: mzw0kk
-- Status: graduated
+- Status: done
 - Graduated-To: mzw0kk
 - Set: metastore
 - Work-Kind: followup
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Completed by executed plan 60mazt (commit 592445def)
 - 2026-11-18 graduated (aw set): Graduated to follow-up plan 60mazt (set mzw0kk)
 - 2026-11-18 created (aw backlog): Resolve circular dependency between g5hpbb AC-42(4)-(5) aw find/attention checks and Order 08 reader moves
 
