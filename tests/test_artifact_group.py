@@ -13,7 +13,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from agent_workflows import cli
+from agent_workflows import artifact_meta, cli
+from tests.record_builder import RecordBuilder
 
 
 class TestArtifactGroup(unittest.TestCase):
@@ -65,7 +66,14 @@ class TestArtifactGroup(unittest.TestCase):
     def test_group_backlog_preview_and_apply(self):
         bkl = self.backlog_dir / "20260823-oldset-01-bk1234-task.backlog.md"
         bkl.write_text(
-            "# Backlog: Task\n\n- Id: bk1234\n- Set: oldset\n- Order: 1\n- Status: open\n",
+            RecordBuilder().backlog(
+                id6="bk1234",
+                set="oldset",
+                order=1,
+                status="open",
+                summary="Task",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -108,7 +116,14 @@ class TestArtifactGroup(unittest.TestCase):
     def test_group_backlog_metadata_only(self):
         bkl = self.backlog_dir / "20260823-oldset-01-bk1234-task.backlog.md"
         bkl.write_text(
-            "# Backlog: Task\n\n- Id: bk1234\n- Set: oldset\n- Order: 1\n- Status: open\n",
+            RecordBuilder().backlog(
+                id6="bk1234",
+                set="oldset",
+                order=1,
+                status="open",
+                summary="Task",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
@@ -125,7 +140,9 @@ class TestArtifactGroup(unittest.TestCase):
     def test_group_specs_injects_set(self):
         spec = self.specs_dir / "20260823-1430-01-spec.spec.md"
         spec.write_text(
-            "# Spec: Feature\n\n- Date: 2026-08-23\n- Status: draft\n",
+            RecordBuilder().spec(
+                title="Feature", when="2026-08-23", status="draft", text_only=True
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
@@ -140,7 +157,10 @@ class TestArtifactGroup(unittest.TestCase):
 
     def test_group_walkthroughs_injects_set(self):
         wt = self.walkthroughs_dir / "20260823-migration-walkthrough.md"
-        wt.write_text("# Walkthrough\n\n- Date: 2026-08-23\n", encoding="utf-8")
+        wt.write_text(
+            RecordBuilder().walkthrough(when="2026-08-23", text_only=True),
+            encoding="utf-8",
+        )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
         subprocess.run(["git", "commit", "-qm", "init"], cwd=self.tmp_dir, check=True)
 
@@ -154,7 +174,13 @@ class TestArtifactGroup(unittest.TestCase):
     def test_group_prompts_with_order(self):
         pr = self.prompts_dir / "20260823-oldset-01-pr1234-prompt.prompt.md"
         pr.write_text(
-            "# Prompt\n\n- Id: pr1234\n- Set: oldset\n- Order: 1\n", encoding="utf-8"
+            RecordBuilder().prompt(
+                id6="pr1234",
+                set="oldset",
+                order=1,
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
         subprocess.run(["git", "commit", "-qm", "init"], cwd=self.tmp_dir, check=True)
@@ -176,9 +202,11 @@ class TestArtifactGroup(unittest.TestCase):
         self.assertFalse(pr.exists())
         new_pr = self.prompts_dir / "20260823-newpr-05-pr1234-prompt.prompt.md"
         self.assertTrue(new_pr.exists())
-        content = new_pr.read_text(encoding="utf-8")
-        self.assertIn("- Set: newpr", content)
-        self.assertIn("- Order: 5", content)
+        state = artifact_meta.read(
+            "pr1234", project_context=artifact_meta.legacy_context(self.tmp_dir)
+        )
+        self.assertEqual(state.fields["set"], "newpr")
+        self.assertEqual(state.fields["order"], 5)
 
     def test_group_roadmaps_injects_set(self):
         rm = self.roadmaps_dir / "20260823-roadmap.roadmap.md"
@@ -196,7 +224,14 @@ class TestArtifactGroup(unittest.TestCase):
     def test_group_releases(self):
         rel = self.releases_dir / "20260823-oldrel-01-re1234-rel-2-0.release.md"
         rel.write_text(
-            "# Release: 2.0.0\n\n- Id: re1234\n- Version: 2.0.0\n- Status: planned\n- Set: oldrel\n- Order: 01\n",
+            RecordBuilder().release(
+                version="2.0.0",
+                id6="re1234",
+                status="planned",
+                set="oldrel",
+                order=1,
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         ref_doc = self.plans_dir / "20260823-planset-01-pl1234-ref.ipd.md"
@@ -247,7 +282,9 @@ class TestArtifactGroup(unittest.TestCase):
         # 4. Inject - Set: into a release without existing Set
         rel_no_set = self.releases_dir / "20260823-re5678-release-2-1.release.md"
         rel_no_set.write_text(
-            "# Release: 2.1.0\n\n- Id: re5678\n- Version: 2.1.0\n- Status: planned\n",
+            RecordBuilder().release(
+                version="2.1.0", id6="re5678", status="planned", text_only=True
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)

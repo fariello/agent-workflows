@@ -23,6 +23,7 @@ from agent_workflows import artifact_types, cli, command_surface as cs, config, 
 from agent_workflows import research_contract as R
 
 
+from tests.record_builder import RecordBuilder
 from tests.repo_template import copy_template_repo
 
 GROUP_TYPES = sorted(
@@ -169,41 +170,6 @@ def test_group_setid_warn_not_refused_at_max(temp_git_repo: Path):
     )
 
 
-def _seed_research_record(
-    repo_dir: Path,
-    date_str: str,
-    set_id: str,
-    order: str,
-    id6: str,
-    slug: str,
-    kind: str = "notes",
-    fm_order: str | None = None,
-) -> Path:
-    rdir = repo_dir / ".aw" / "records" / "research"
-    rdir.mkdir(parents=True, exist_ok=True)
-    filename = f"{date_str}-{set_id}-{order}-{id6}-{slug}.{kind}.md"
-    path = rdir / filename
-    actual_fm_order = fm_order if fm_order is not None else order
-    path.write_text(
-        f"---\n"
-        f"id: {id6}\n"
-        f"created: {date_str}\n"
-        f"set: {set_id}\n"
-        f"order: {actual_fm_order}\n"
-        f"topic: []\n"
-        f"model:\n"
-        f"kind: {kind}\n"
-        f"status: active\n"
-        f"outcome: informational\n"
-        f"summary: Test record {id6}.\n"
-        f"consumed-by: []\n"
-        f"---\n"
-        f"# Test record {id6}\n",
-        encoding="utf-8",
-    )
-    return path
-
-
 def _run_group_research(
     selectors: list[str],
     setid: str,
@@ -250,11 +216,29 @@ def _run_research_setassign(
 
 def test_group_research_bare_multi_preserves_order(temp_git_repo: Path):
     """E-01/V-01: Bare regroup over two records at Orders 03 and 07 preserves each Order."""
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="aaaaaa",
+        when="2026-09-01",
+        set="oldset",
+        order=3,
+        slug="first-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record aaaaaa.",
+        body="# Test record aaaaaa\n",
     )
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "07", "bbbbbb", "second-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="bbbbbb",
+        when="2026-09-01",
+        set="oldset",
+        order=7,
+        slug="second-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record bbbbbb.",
+        body="# Test record bbbbbb\n",
     )
 
     rc, out, err = _run_group_research(
@@ -273,8 +257,17 @@ def test_group_research_bare_multi_preserves_order(temp_git_repo: Path):
 
 def test_group_research_bare_single_preserves_order(temp_git_repo: Path):
     """E-01/V-01: Bare regroup over a single record at Order 03 preserves its Order."""
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="aaaaaa",
+        when="2026-09-01",
+        set="oldset",
+        order=3,
+        slug="first-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record aaaaaa.",
+        body="# Test record aaaaaa\n",
     )
 
     rc, out, err = _run_group_research(["aaaaaa"], "ns", temp_git_repo, apply=True)
@@ -290,11 +283,29 @@ def test_group_research_bare_single_preserves_order(temp_git_repo: Path):
 
 def test_group_research_explicit_renumber(temp_git_repo: Path):
     """E-04/V-04 guard (a): Explicit --order 1 sequentially renumbers from 01."""
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="aaaaaa",
+        when="2026-09-01",
+        set="oldset",
+        order=3,
+        slug="first-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record aaaaaa.",
+        body="# Test record aaaaaa\n",
     )
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "07", "bbbbbb", "second-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="bbbbbb",
+        when="2026-09-01",
+        set="oldset",
+        order=7,
+        slug="second-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record bbbbbb.",
+        body="# Test record bbbbbb\n",
     )
 
     rc, out, err = _run_group_research(
@@ -313,8 +324,17 @@ def test_group_research_explicit_renumber(temp_git_repo: Path):
 
 def test_group_research_explicit_order_zero(temp_git_repo: Path):
     """E-04/V-04 guard (b): Explicit --order 0 correctly targets 00."""
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="aaaaaa",
+        when="2026-09-01",
+        set="oldset",
+        order=3,
+        slug="first-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record aaaaaa.",
+        body="# Test record aaaaaa\n",
     )
 
     rc, out, err = _run_group_research(
@@ -332,8 +352,18 @@ def test_group_research_explicit_order_zero(temp_git_repo: Path):
 
 def test_group_research_tier_disagreement_follows_filename(temp_git_repo: Path):
     """E-04/V-04 guard (c): Tier disagreement resolves from filename (00), not frontmatter (03)."""
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "00", "aaaaaa", "first-doc", fm_order="03"
+    RecordBuilder(temp_git_repo).research(
+        id6="aaaaaa",
+        when="2026-09-01",
+        set="oldset",
+        order=0,
+        slug="first-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record aaaaaa.",
+        body="# Test record aaaaaa\n",
+        raw_fields={"order": "03"},
     )
 
     rc, out, err = _run_group_research(["aaaaaa"], "ns", temp_git_repo, apply=True)
@@ -349,8 +379,17 @@ def test_group_research_tier_disagreement_follows_filename(temp_git_repo: Path):
 
 def test_research_setassign_spelling_preserves_order(temp_git_repo: Path):
     """E-04/V-04 guard (d): aw research set-assign spelling also preserves Order when bare."""
-    _seed_research_record(
-        temp_git_repo, "20260901", "oldset", "03", "aaaaaa", "first-doc"
+    RecordBuilder(temp_git_repo).research(
+        id6="aaaaaa",
+        when="2026-09-01",
+        set="oldset",
+        order=3,
+        slug="first-doc",
+        kind="notes",
+        status="active",
+        topic=[],
+        summary="Test record aaaaaa.",
+        body="# Test record aaaaaa\n",
     )
 
     rc, out, err = _run_research_setassign(["aaaaaa"], "ns", temp_git_repo, apply=True)
@@ -379,25 +418,24 @@ def _seed_plan_record(
     pdir = repo_dir / ".aw" / "records" / "plans" / disposition
     pdir.mkdir(parents=True, exist_ok=True)
     path = pdir / filename
-    lines = [
-        f"# IPD: Test plan {id6}",
-        "",
-        f"- Id: {id6}",
-    ]
-    if kind is not None:
-        lines.append(f"- Kind: {kind}")
-    lines.extend(
-        [
-            f"- Set: {set_line}",
-            f"- Order: {order}",
-        ]
+    raw_fields: dict[str, str | None] = {
+        "Set": set_line,
+        "Date": date_line,
+    }
+    if kind is None:
+        raw_fields["Kind"] = None
+    text = RecordBuilder().plan(
+        id6=id6,
+        title=f"Test plan {id6}",
+        kind=kind or "child",
+        set="oldset",
+        order=order,
+        item_dependencies=item_dependencies or "none",
+        body="## Goal\n\nTest goal.\n",
+        raw_fields=raw_fields,
+        text_only=True,
     )
-    if item_dependencies is not None:
-        lines.append(f"- Item-Dependencies: {item_dependencies}")
-    if date_line is not None:
-        lines.append(f"- Date: {date_line}")
-    lines.extend(["", "## Goal", "", "Test goal.", ""])
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text(text, encoding="utf-8")
     return path
 
 

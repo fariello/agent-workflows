@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 class TestArtifactRename(unittest.TestCase):
@@ -67,7 +68,14 @@ class TestArtifactRename(unittest.TestCase):
     def test_rename_backlog_preview_and_apply(self):
         bkl = self.backlog_dir / "20260823-bklset-01-bk1234-old-task.backlog.md"
         bkl.write_text(
-            "# Backlog: Old Task\n\n- Id: bk1234\n- Set: bklset\n- Order: 1\n- Status: open\n",
+            RecordBuilder().backlog(
+                id6="bk1234",
+                set="bklset",
+                order=1,
+                status="open",
+                summary="Old Task",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -109,7 +117,9 @@ class TestArtifactRename(unittest.TestCase):
     def test_rename_specs_legacy_timestamp(self):
         spec = self.specs_dir / "20260823-1430-01-old-spec.spec.md"
         spec.write_text(
-            "# Spec: Old Spec\n\n- Date: 2026-08-23\n- Status: draft\n",
+            RecordBuilder().spec(
+                title="Old Spec", when="2026-08-23", status="draft", text_only=True
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
@@ -153,7 +163,10 @@ class TestArtifactRename(unittest.TestCase):
 
     def test_rename_prompts(self):
         pr = self.prompts_dir / "20260823-prmset-01-pr1234-old-prompt.prompt.md"
-        pr.write_text("# Prompt\n- Id: pr1234\n- Set: prmset\n", encoding="utf-8")
+        pr.write_text(
+            RecordBuilder().prompt(id6="pr1234", set="prmset", text_only=True),
+            encoding="utf-8",
+        )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
         subprocess.run(["git", "commit", "-qm", "init"], cwd=self.tmp_dir, check=True)
 
@@ -190,7 +203,9 @@ class TestArtifactRename(unittest.TestCase):
     def test_rename_releases(self):
         rel = self.releases_dir / "20260823-rel123-01-rel123-v1-0-0.release.md"
         rel.write_text(
-            "# Release\n- Id: rel123\n- Version: 1.0.0\n- Status: planned\n",
+            RecordBuilder().release(
+                id6="rel123", version="1.0.0", status="planned", text_only=True
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)

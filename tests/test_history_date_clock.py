@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.record_builder import RecordBuilder
 
 TIMEZONES = ["Pacific/Kiritimati", "Pacific/Honolulu"]
 
@@ -88,8 +89,16 @@ class HistoryDateClockTests(unittest.TestCase):
                     / f"20261001-bk1-{zone.replace('/', '_')}.backlog.md"
                 )
                 f1.write_text(
-                    "- Id: bk0001\n- Status: open\n- Set: bk1\n- Priority: high\n- Work-Kind: bug\n- Summary: bug 1\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6="bk0001",
+                        status="open",
+                        set="bk1",
+                        priority="high",
+                        work_kind="bug",
+                        summary="bug 1",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res1 = subprocess.run(
@@ -134,8 +143,16 @@ class HistoryDateClockTests(unittest.TestCase):
                     / f"20261001-bk2-{zone.replace('/', '_')}.backlog.md"
                 )
                 f2.write_text(
-                    "- Id: bk0002\n- Status: open\n- Set: bk2\n- Priority: high\n- Work-Kind: bug\n- Summary: bug 2\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6="bk0002",
+                        status="open",
+                        set="bk2",
+                        priority="high",
+                        work_kind="bug",
+                        summary="bug 2",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res2 = subprocess.run(
@@ -250,8 +267,16 @@ class HistoryDateClockTests(unittest.TestCase):
                     / f"20261001-sp1-{zone.replace('/', '_')}.spec.md"
                 )
                 spec_path.write_text(
-                    "# Spec: Test Spec\n\n- Date: 2026-10-01\n- Status: draft\n- Id: sp0001\n- Author: test\n- Scope: test\n\n"
-                    "## Workflow history\n- 2026-10-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="Test Spec",
+                        when="2026-10-01",
+                        status="draft",
+                        id6="sp0001",
+                        author="test",
+                        summary="test",
+                        history=["- 2026-10-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = subprocess.run(
