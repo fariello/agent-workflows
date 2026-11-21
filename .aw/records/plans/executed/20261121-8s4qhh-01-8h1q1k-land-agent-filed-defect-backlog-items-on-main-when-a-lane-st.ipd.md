@@ -120,6 +120,7 @@ flowchart TD
 
 - Fixing mid-word 24-character summary truncation in `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`: owned by sibling plan `l7d19a` (from backlog `68ympf`).
   - Carrier: l7d19a
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.ipd.md
 - Recovering defect backlog files from non-proposal preserved lanes (for example `partial`, `merge-conflict`, or non-proposal `fail-gate` lanes whose `defect_report` reports findings): intentionally excluded from this plan because non-proposal lanes do not write a coordinator commit onto `main` and remain preserved for resume/merge rather than creating dangling proposal references on `main`.
   - Carrier-Declined: non-proposal preserved lanes have no coordinator main-commit path and are resumed/merged via lane preservation rather than publishing a proposal record with dangling IDs on main; file a separate backlog item only if stranding is observed outside proposal lanes.
 

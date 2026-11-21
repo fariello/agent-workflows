@@ -1882,3 +1882,280 @@ def test_collect_lane_added_open_backlogs_bounds_legacy_and_noop(
     skipped_map = dict(skipped)
     assert huge_rel in skipped_map
     assert skipped_map[huge_rel].startswith("blob-too-large:")
+
+
+class TestProposalSummaryTruncation(unittest.TestCase):
+    """l7d19a E-02: Unit tests for word-boundary proposal summary and slug truncation helpers."""
+
+    def test_summary_short_string_unchanged(self) -> None:
+        self.assertEqual(
+            runner_shared._truncate_proposal_summary("Fix parser edge case"),
+            "Fix parser edge case",
+        )
+
+    def test_summary_normalizes_newlines_and_tabs(self) -> None:
+        raw = "  Fix\tproposal\n\r\nsummary   whitespace\t\n"
+        self.assertEqual(
+            runner_shared._truncate_proposal_summary(raw),
+            "Fix proposal summary whitespace",
+        )
+
+    def test_summary_truncates_multi_word_on_word_boundary(self) -> None:
+        text = (
+            "Create and execute a scoped follow-up plan for coordinator "
+            "truncation across all proposal paths"
+        )
+        # 'scoped' straddles char 24; 'truncation' straddles char 60.
+        result = runner_shared._truncate_proposal_summary(text, max_chars=60)
+        self.assertEqual(
+            result,
+            "Create and execute a scoped follow-up plan for coordinator",
+        )
+        self.assertLessEqual(len(result), 60)
+
+    def test_summary_preserves_word_ending_exactly_at_max_chars(self) -> None:
+        # 'Create and execute a scoped follow-up plan to unify proposal' is exactly 60 chars.
+        exact_prefix = "Create and execute a scoped follow-up plan to unify proposal"
+        self.assertEqual(len(exact_prefix), 60)
+        text = f"{exact_prefix} summaries cleanly"
+        self.assertEqual(
+            runner_shared._truncate_proposal_summary(text, max_chars=60),
+            exact_prefix,
+        )
+
+    def test_summary_single_unbroken_token_over_max_chars(self) -> None:
+        token = "superlongunbrokentoken" * 5
+        result = runner_shared._truncate_proposal_summary(token, max_chars=60)
+        self.assertEqual(result, token[:60])
+        self.assertEqual(len(result), 60)
+
+    def test_summary_strips_trailing_punctuation_at_cut(self) -> None:
+        text = (
+            "Refactor the parser, validator, and formatter: "
+            "ensure full coverage of every proposal branch"
+        )
+        result = runner_shared._truncate_proposal_summary(text, max_chars=50)
+        self.assertEqual(result, "Refactor the parser, validator, and formatter")
+
+    def test_summary_all_punctuation_prefix_fallback_is_non_empty(self) -> None:
+        text = "...... " + ("word " * 20)
+        result = runner_shared._truncate_proposal_summary(text, max_chars=10)
+        self.assertEqual(result, "......")
+        self.assertTrue(len(result) > 0)
+
+        single_punct_token = "---...:::???" * 10
+        result_single = runner_shared._truncate_proposal_summary(
+            single_punct_token, max_chars=15
+        )
+        self.assertEqual(result_single, single_punct_token[:15])
+
+    def test_slug_short_string_unchanged(self) -> None:
+        self.assertEqual(
+            runner_shared._truncate_proposal_slug("Proposal from 60mazt: fix tool"),
+            "proposal-from-60mazt-fix-tool",
+        )
+
+    def test_slug_truncates_multi_word_on_hyphen_boundary(self) -> None:
+        summary = (
+            "Proposal from trc001: Create and execute a scoped "
+            "follow-up plan for coordinator"
+        )
+        slug = runner_shared._truncate_proposal_slug(summary, max_chars=50)
+        self.assertEqual(slug, "proposal-from-trc001-create-and-execute-a-scoped")
+        self.assertLessEqual(len(slug), 50)
+        self.assertFalse(slug.endswith("-"))
+
+    def test_slug_preserves_token_ending_exactly_at_max_chars(self) -> None:
+        exact_slug = "proposal-from-60mazt-create-and-execute-a-detailed"
+        self.assertEqual(len(exact_slug), 50)
+        result = runner_shared._truncate_proposal_slug(
+            f"{exact_slug}-followup-plan", max_chars=50
+        )
+        self.assertEqual(result, exact_slug)
+
+    def test_slug_single_unbroken_token_over_max_chars(self) -> None:
+        token = "abcdefghijklmnopqrstuvwxyz" * 3
+        slug = runner_shared._truncate_proposal_slug(token, max_chars=50)
+        self.assertEqual(slug, token[:50])
+
+    def test_slug_empty_or_punctuation_defaults_to_proposal(self) -> None:
+        self.assertEqual(runner_shared._truncate_proposal_slug(""), "proposal")
+        self.assertEqual(
+            runner_shared._truncate_proposal_slug("... --- !!!"), "proposal"
+        )
+
+
+def test_coordinator_material_proposal_truncates_summary_and_slug_on_word_boundaries(
+    tmp_path: Path,
+) -> None:
+    """l7d19a E-02: Live material proposal keeps complete words in - Summary: and backlog slug."""
+    from agent_workflows import artifact_naming, backlog
+
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "trc001", priority="low", work_kind="bug")
+    run_dir = repo / ".aw" / "records" / "runs" / "run-trunc-mat"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    # 'scoped' straddles char 24; 'truncation' straddles char 60; 'follow' straddles slug char 50.
+    long_change = (
+        "Create and execute a scoped follow-up plan for coordinator "
+        "truncation across all proposal paths"
+    )
+    proposal = {
+        "kind": "tool-defect",
+        "blocked_by": "summary truncated mid-word",
+        "why": "needs complete words in summary and filename slug",
+        "proposed_change": long_change,
+        "paths": ["agent_workflows/runner_shared.py"],
+        "size": "material",
+    }
+    item = {"id6": "trc001", "configured_file": str(plan_file)}
+    state = {"repo": str(repo), "run_id": "run-trunc-mat"}
+
+    with coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            proposal=proposal,
+        )
+
+    assert res.filed is True
+    bl_files = list(
+        (repo / ".aw" / "records" / "backlog" / "open").glob("*.backlog.md")
+    )
+    assert len(bl_files) == 1
+    bl_file = bl_files[0]
+    bl_text = bl_file.read_text(encoding="utf-8")
+
+    expected_summary = (
+        "Proposal from trc001: Create and execute a scoped "
+        "follow-up plan for coordinator"
+    )
+    parsed_item = backlog.parse_item(bl_text)
+    assert parsed_item.summary == expected_summary
+    assert "Create and execute a sco\n" not in bl_text
+
+    parsed_name = artifact_naming.parse_clustered(bl_file.name)
+    assert parsed_name is not None
+    slug = parsed_name.group("slug")
+    assert len(slug) <= 50
+    assert slug == "proposal-from-trc001-create-and-execute-a-scoped"
+    assert backlog.validate_item(bl_file, bl_text) == []
+
+
+def test_coordinator_small_proposal_truncates_title_on_word_boundary(
+    tmp_path: Path,
+) -> None:
+    """l7d19a E-02: Live small proposal produces complete-word # IPD: title and valid draft IPD."""
+    from agent_workflows import artifact_naming, ipd_lint
+
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "trc002", priority="low", work_kind="bug")
+    run_dir = repo / ".aw" / "records" / "runs" / "run-trunc-small"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    long_change = (
+        "Create and execute a scoped follow-up plan for coordinator "
+        "truncation across all proposal paths"
+    )
+    proposal = {
+        "kind": "gate-change",
+        "blocked_by": "title truncated mid-word",
+        "why": "needs complete words in scaffolded draft title",
+        "proposed_change": long_change,
+        "paths": ["agent_workflows/runner_shared.py"],
+        "size": "small",
+    }
+    item = {"id6": "trc002", "configured_file": str(plan_file)}
+    state = {"repo": str(repo), "run_id": "run-trunc-small"}
+
+    with coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            proposal=proposal,
+        )
+
+    assert res.filed is True
+    plans_dir = repo / ".aw" / "records" / "plans" / "pending"
+    matching = list(plans_dir.glob("*-prop-trc002-01-*.ipd.md"))
+    assert len(matching) == 1
+    created_plan = matching[0]
+    plan_text = created_plan.read_text(encoding="utf-8")
+
+    expected_title = (
+        "# IPD: Proposal from trc002: Create and execute a scoped "
+        "follow-up plan for coordinator"
+    )
+    assert plan_text.splitlines()[0] == expected_title
+
+    parsed_name = artifact_naming.parse_clustered(created_plan.name)
+    assert parsed_name is not None
+    lint_result = ipd_lint.lint_file(created_plan, checkpoint="author")
+    assert lint_result.passing, lint_result.diagnostics
+    assert lint_result.diagnostics == []
+
+
+@pytest.mark.parametrize("size", ["material", "small"])
+def test_coordinator_fallback_record_truncates_on_word_boundary(
+    tmp_path: Path, size: str
+) -> None:
+    """l7d19a E-02: Fallback record uses word-boundary truncation when integration lock is held."""
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "lck002")
+    run_dir = repo / ".aw" / "records" / "runs" / f"run-locked-{size}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    long_change = (
+        "Create and execute a scoped\tfollow-up plan for coordinator\n"
+        "truncation across all proposal paths"
+    )
+    proposal = {
+        "kind": "tool-defect",
+        "blocked_by": "lock error",
+        "why": "lock timeout word-boundary test",
+        "proposed_change": long_change,
+        "paths": ["agent_workflows/runner_shared.py"],
+        "size": size,
+    }
+    item = {"id6": "lck002", "configured_file": str(plan_file)}
+    state = {"repo": str(repo), "run_id": f"run-locked-{size}"}
+
+    @contextlib.contextmanager
+    def fake_lock(*a: Any, **k: Any):
+        yield runner_shared.IntegrationLockOutcome(
+            acquired=False,
+            handle=None,
+            waited_seconds=5.0,
+            holder="peer-agent",
+            detail="the repository integration lock is held; waited 5s and gave up",
+        )
+
+    with mock.patch(
+        "agent_workflows.runner_shared.integration_lock", side_effect=fake_lock
+    ), coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            proposal=proposal,
+            timeout=0.01,
+        )
+
+    assert res.filed is False
+    expected_tail = (
+        "Proposal from lck002: Create and execute a scoped "
+        "follow-up plan for coordinator"
+    )
+    if size == "small":
+        saved = list((run_dir / "proposals").glob("*proposal.ipd.md"))
+        assert len(saved) == 1
+        text = saved[0].read_text(encoding="utf-8")
+        assert text.splitlines()[0] == f"# IPD: {expected_tail}"
+    else:
+        saved = list((run_dir / "proposals").glob("*proposal.backlog.md"))
+        assert len(saved) == 1
+        text = saved[0].read_text(encoding="utf-8")
+        assert f"- Summary: {expected_tail}" in text

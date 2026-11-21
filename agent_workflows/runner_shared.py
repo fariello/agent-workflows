@@ -51947,6 +51947,46 @@ def mark_plan_attended(text: str, *, why: str = "") -> str:
     )
 
 
+_PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
+
+
+def _truncate_proposal_summary(text: str, max_chars: int = 60) -> str:
+    """Collapse whitespace and truncate ``text`` to ``max_chars`` on a word boundary.
+
+    A word ending exactly at ``max_chars`` is kept. Falls back to a hard slice only
+    for a single unbroken token longer than ``max_chars``. Trailing punctuation and
+    spaces are stripped, falling back to the unstripped cut if stripping empties it.
+    """
+    s = re.sub(r"\s+", " ", text).strip()
+    if len(s) <= max_chars:
+        return s
+    window = s[: max_chars + 1]
+    cut_at = window.rfind(" ")
+    raw_cut = s[:cut_at] if cut_at > 0 else s[:max_chars]
+    stripped = raw_cut.rstrip(_PROPOSAL_SUMMARY_STRIP_CHARS)
+    return stripped or raw_cut
+
+
+def _truncate_proposal_slug(text: str, max_chars: int = 50) -> str:
+    """Convert ``text`` to a kebab slug and truncate to ``max_chars`` on a hyphen boundary.
+
+    A token ending exactly at ``max_chars`` is kept. Falls back to a hard slice only
+    for a single unbroken token longer than ``max_chars``, and returns ``"proposal"``
+    when no slug characters remain.
+    """
+    from agent_workflows import artifact_core as _core
+
+    k = _core.kebab(text or "")
+    if not k:
+        return "proposal"
+    if len(k) <= max_chars:
+        return k
+    window = k[: max_chars + 1]
+    cut_at = window.rfind("-")
+    slug = k[:cut_at].strip("-") if cut_at > 0 else k[:max_chars].strip("-")
+    return slug or "proposal"
+
+
 def perform_coordinator_proposal_file(
     run_dir: Path,
     state: Mapping[str, Any],
@@ -52074,7 +52114,7 @@ def perform_coordinator_proposal_file(
         ext = "ipd.md" if size == "small" else "backlog.md"
         pos = item.get("position", 1)
         fallback_file = proposals_dir / f"{pos:02d}-{item_id6}-proposal.{ext}"
-        clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]
+        clean_summary = _truncate_proposal_summary(proposed_change, max_chars=60)
         if size == "small":
             setid = f"prop-{item_id6}"
             base_content = (
@@ -52269,7 +52309,9 @@ def perform_coordinator_proposal_file(
                 record_id6: str = ""
                 new_record_rel: str = ""
                 needs_attended_unchanged = False
-                clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:24]
+                clean_summary = _truncate_proposal_summary(
+                    proposed_change, max_chars=60
+                )
 
                 if kind == PROPOSAL_KIND_NEEDS_ATTENDED:
                     # Mark the PROPOSING plan rather than filing a new record (see
@@ -52385,11 +52427,14 @@ def perform_coordinator_proposal_file(
 
                 else:
                     summary = f"Proposal from {item_id6}: {clean_summary}"
+                    slug = _truncate_proposal_slug(summary, max_chars=50)
                     backlog_args = [
                         "backlog",
                         "new",
                         "--summary",
                         summary,
+                        "--slug",
+                        slug,
                         "--priority",
                         item_priority,
                         "--work-kind",

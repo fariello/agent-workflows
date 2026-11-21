@@ -6,7 +6,7 @@
 - Scope: Add a word-boundary truncation helper `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str` and a word-boundary slug helper `_truncate_proposal_slug(text: str, max_chars: int = 50) -> str` in `agent_workflows/runner_shared.py`, and use them in both the live filing path and `_write_fallback_record` inside `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` (passing `--slug` to `aw backlog new` for `size="material"` so both `- Summary:` and the `.backlog.md` filename slug end on complete words without hitting `agent_workflows/backlog.py::run_new`'s 50-character `kebab_slug` hard slice, while `size="small"` produces a complete-word `# IPD:` title via `aw ipd scaffold` whose derived filename slug remains bounded by `agent_workflows/artifact_core.py::kebab_slug`). Add behavioral and helper unit tests in `tests/test_run_proposal_channel.py` covering `size="material"`, `size="small"`, `_write_fallback_record` (held lock), and edge cases (words straddling character 24 and character 60, word ending exactly at `max_chars`, single unbroken token over `max_chars`, trailing punctuation, and embedded newlines/tabs). EXCLUDES: lane defect backlog recovery (`8s4qhh` / `8h1q1k`) and changing `agent_workflows/artifact_core.py::kebab_slug` globally.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_run_proposal_channel.py, .aw/records/plans/pending/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Use a word-boundary truncation helper with a 60-character budget in perform_coordinator_proposal_file so proposal summaries and slugs never split words mid-token.
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: l7d19a verified (set 68ympf, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 68ympf
@@ -39,15 +40,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Word-boundary proposal summary truncation
 
-- [ ] E-01 Add two small helpers in `agent_workflows/runner_shared.py`:
+- [x] E-01 Add two small helpers in `agent_workflows/runner_shared.py`:
   1. `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str`: normalize whitespace (`re.sub(r"\s+", " ", text).strip()`), return `s` unchanged when `len(s) <= max_chars`; otherwise check `s[: max_chars + 1]` for the last space so a word ending *exactly* at `max_chars` (`s[max_chars] == " "`) is preserved rather than dropped, falling back to `s[:max_chars]` only for a single unbroken token longer than `max_chars`; strip trailing punctuation and spaces (`" .,;:!?-_/([{'\""`), falling back to the unstripped cut (never returning `""` for non-empty `s`) if stripping empties the string.
   2. `_truncate_proposal_slug(text: str, max_chars: int = 50) -> str`: convert `text` with `agent_workflows/artifact_core.py::kebab`, return unchanged when `len(k) <= max_chars`, otherwise check `k[: max_chars + 1]` for the last `"-"` boundary (preserving a token ending exactly at `max_chars` and falling back to `k[:max_chars].strip("-")` only for a single unbroken token longer than `max_chars`), and default to `"proposal"` if empty.
   3. Wire `_truncate_proposal_summary(proposed_change, max_chars=60)` into both `_write_fallback_record` and the live coordinator path inside `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`, and pass `["--slug", _truncate_proposal_slug(summary, max_chars=50)]` to `aw backlog new` in the `size="material"` branch so `agent_workflows/backlog.py::run_new`'s 50-character `kebab_slug` hard slice never splits a word in the backlog filename slug.
   - Depends on: none
   - Expected outcome: Both live and fallback proposal filing paths produce clean, complete-word summaries/titles up to 60 characters, and `size="material"` backlog filenames carry complete-word slugs up to 50 characters within repository naming rules.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add behavioral and helper unit tests in `tests/test_run_proposal_channel.py` (strictly behavioral, zero source-code inspection via `inspect`/`ast`/regex/`read_text` per `GUIDING_PRINCIPLES` P16):
+- [x] E-02 Add behavioral and helper unit tests in `tests/test_run_proposal_channel.py` (strictly behavioral, zero source-code inspection via `inspect`/`ast`/regex/`read_text` per `GUIDING_PRINCIPLES` P16):
   1. Unit tests for `_truncate_proposal_summary` and `_truncate_proposal_slug` covering: short strings unchanged, multi-word strings longer than 60/50 chars, a word ending *exactly* at `max_chars` (not dropped), a single unbroken token longer than `max_chars`, embedded newlines/tabs, trailing punctuation at the cut, and all-punctuation prefix fallback (non-empty).
   2. Live coordinator tests driving `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` with a multi-word `proposed_change` longer than 60 characters (containing a word straddling character 24 and another straddling character 60):
      - For `size="material"`: assert `- Summary:` ends on a complete word (no mid-word cut like `sco`), the `.backlog.md` filename slug (`<= 50` chars) ends on a complete word and passes `agent_workflows/artifact_naming.py::parse_clustered`, and `agent_workflows/backlog.py::validate_item` returns zero drift.
@@ -56,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Depends on: E-01
   - Expected outcome: All proposal-channel tests, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -123,15 +124,24 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff agent_workflows/runner_shared.py` summary showing `_truncate_proposal_summary` (with exact-boundary preservation and non-empty punctuation-strip fallback) used in both `_write_fallback_record` and the live coordinator path inside `perform_coordinator_proposal_file`, plus `_truncate_proposal_slug` passed via `--slug` to `aw backlog new`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py`:
+    - Added `_PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""`, `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str` (collapses whitespace via `re.sub(r"\s+", " ", text).strip()`, returns `s` if `len(s) <= max_chars`, checks `s[: max_chars + 1].rfind(" ")` to preserve words ending at `max_chars` with `s[:max_chars]` single-token fallback, and returns `raw_cut.rstrip(_PROPOSAL_SUMMARY_STRIP_CHARS) or raw_cut`), and `_truncate_proposal_slug(text: str, max_chars: int = 50) -> str` (converts via `artifact_core.kebab`, checks `k[: max_chars + 1].rfind("-")`, falls back to `k[:max_chars].strip("-")` or `"proposal"`).
+    - In `_write_fallback_record`: replaced `re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]` with `clean_summary = _truncate_proposal_summary(proposed_change, max_chars=60)`.
+    - In live coordinator path of `perform_coordinator_proposal_file`: replaced `re.sub(r"[\r\n]+", " ", proposed_change).strip()[:24]` with `clean_summary = _truncate_proposal_summary(proposed_change, max_chars=60)`.
+    - In the `size="material"` branch: added `slug = _truncate_proposal_slug(summary, max_chars=50)` and passed `"--slug", slug` in `backlog_args` to `aw backlog new`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py` (showing helper unit tests and live/fallback behavioral tests passing with zero source-code inspection), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`: `42 passed in 12.11s` (including all 12 unit tests in `TestProposalSummaryTruncation`, `test_coordinator_material_proposal_truncates_summary_and_slug_on_word_boundaries`, `test_coordinator_small_proposal_truncates_title_on_word_boundary`, and `test_coordinator_fallback_record_truncates_on_word_boundary[material|small]`, zero source-code inspection).
+    - `aw suite`: `2653 passed, 11 warnings in 89.74s (0:01:29)` (exit 0).
+    - `make typecheck`: `python3 -m mypy agent_workflows` -> `Success: no issues found in 228 source files` (exit 0).
+    - `aw ipd lint --phase pre-transition --agent .aw/records/plans/pending/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.ipd.md`: `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["plans-lint"],"next":null}`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6855,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
