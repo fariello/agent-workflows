@@ -54,6 +54,7 @@ from agent_workflows import (
     runner_shutdown,
 )
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.support import coordinator_role
 
 
@@ -108,74 +109,25 @@ def _create_plan_file(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / f"20261017-{setid}-{order:02d}-{id6}-plan.ipd.md"
 
-    dep_line = (
-        f"- Item-Dependencies: {', '.join(dependencies)}\n"
-        if dependencies
-        else "- Item-Dependencies: none\n"
+    dep_str = ", ".join(dependencies) if dependencies else "none"
+    content = str(
+        RecordBuilder().plan(
+            title=f"Test Plan {id6}",
+            when="2026-10-17",
+            plan_role="child",
+            scope_paths="README.md",
+            status=status,
+            set=setid,
+            order=order,
+            author="test",
+            priority=priority,
+            work_kind=work_kind,
+            id6=id6,
+            item_dependencies=dep_str,
+            history=[f"- 2026-10-17 {status} (test): created."],
+            text_only=True,
+        )
     )
-    content = f"""# IPD: Test Plan {id6}
-
-- Date: 2026-10-17
-- Kind: child
-- Concern: Test concern for plan {id6}.
-- Scope: Test scope for plan {id6}.
-- Scope-Paths: README.md
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: {priority}
-- Work-Kind: {work_kind}
-- Id: {id6}
-{dep_line}
-## Workflow history
-- 2026-10-17 {status} (test): created.
-
-## Goal
-Test goal for plan {id6}.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Perform task
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-1. E-01 do work.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-None.
-
-## Required tests / validation
-None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
     plan_path.write_text(content, encoding="utf-8")
     if commit:
         subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
