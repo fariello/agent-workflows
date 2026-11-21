@@ -45,6 +45,7 @@ import pytest
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream, runner_shared
 from tests.support import coordinator_role
+from tests.record_builder import RecordBuilder
 
 
 def _create_test_repo(root: Path) -> Path:
@@ -73,7 +74,14 @@ def _create_test_repo(root: Path) -> Path:
         / "releases"
         / "20261009-rel001-01-rel001-v1.release.md"
     ).write_text(
-        "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n- Set: rel001 (1.0.0)\n- Order: 01\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            set="rel001 (1.0.0)",
+            order=1,
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (repo / ".aw" / "records" / "plans" / "pending" / ".gitkeep").write_text(
@@ -101,34 +109,36 @@ def _create_plan_file(
     work_kind: str = "bug",
     blocks_release: str | None = None,
     dependencies: list[str] | None = None,
+    attended: str | None = None,
 ) -> Path:
     """Create a conforming plan file under .aw/records/plans/pending/."""
-    plans_dir = repo / ".aw" / "records" / "plans" / "pending"
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    plan_path = plans_dir / f"20261009-{setid}-{order:02d}-{id6}-plan.ipd.md"
-
-    content = f"""# IPD: Test Plan {id6}
-
-- Kind: child
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Id: {id6}
-- Priority: {priority}
-- Work-Kind: {work_kind}
-"""
+    extra: dict[str, Any] = {}
     if blocks_release:
-        content += f"- Blocks-Release: {blocks_release}\n"
-    if dependencies:
-        dep_str = ", ".join(dependencies)
-        content += f"- Item-Dependencies: {dep_str}\n"
-    content += """- Scope-Paths: README.md
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Do work
-- [ ] V-01 Verify work
-"""
-    plan_path.write_text(content, encoding="utf-8")
+        extra["blocks_release"] = blocks_release
+    if attended:
+        extra["attended"] = attended
+    plan_path = Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            title=f"Test Plan {id6}",
+            plan_role="child",
+            status=status,
+            set=setid,
+            order=order,
+            when="2026-10-09",
+            slug="plan",
+            priority=priority,
+            work_kind=work_kind,
+            scope_paths="README.md",
+            item_dependencies=", ".join(dependencies) if dependencies else "none",
+            body=(
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 Do work\n"
+                "- [ ] V-01 Verify work\n"
+            ),
+            **extra,
+        )
+    )
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", f"add plan {id6}"], cwd=repo, check=True)
     return plan_path
@@ -1038,11 +1048,7 @@ def test_needs_attended_proposal_marks_plan_and_files_no_stub(
 def test_attended_plan_is_held_at_queue_build(tmp_path: Path) -> None:
     """An `Attended: required` plan is frozen not-run with needs_input and spends no turn."""
     repo = _create_test_repo(tmp_path)
-    plan_file = _create_plan_file(repo, "att002")
-    text = plan_file.read_text(encoding="utf-8").replace(
-        "- Scope-Paths: README.md\n", "- Scope-Paths: README.md\n- Attended: required\n"
-    )
-    plan_file.write_text(text, encoding="utf-8")
+    plan_file = _create_plan_file(repo, "att002", attended="required")
 
     entry: dict[str, Any] = {"id6": "att002", "action": "execute", "status": "queued"}
     assert runner_shared.hold_attended_plan(entry, plan_file) is True
@@ -1069,12 +1075,50 @@ def test_attended_plan_not_dispatched_at_queue_freeze(
     from tests.test_freeze_time_refusal import _init_repo, _write_plan
 
     repo = _init_repo(tmp_path)
-    att = _write_plan(repo, "att004", order=1)
-    att.write_text(
-        att.read_text(encoding="utf-8").replace(
-            "- Id: att004\n", "- Id: att004\n- Attended: required\n"
+    RecordBuilder(repo).plan(
+        id6="att004",
+        title="Plan att004",
+        when="2026-09-27",
+        set="demo",
+        order=1,
+        slug="plan",
+        status="approved",
+        scope_paths="README.md, src/demo.txt",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="feature",
+        readiness="go-pending-approval",
+        approval="2026-09-27, test",
+        attended="required",
+        history=[
+            "- 2026-09-27 approved (tester): approved",
+            "- 2026-09-27 /plan-review (tester): APPROVE",
+        ],
+        body=(
+            "## Goal\nGoal for att004.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n"
+            "### Task group 1: work\n"
+            "- [ ] E-01 Step 1\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\nNone.\n\n"
+            "## Findings\nNone.\n\n"
+            "## Proposed changes (ordered, validatable)\nNone.\n\n"
+            "## Deferred / out of scope (with reason)\nNone.\n\n"
+            "## Scope check\nNone.\n\n"
+            "## Required tests / validation\nNone.\n\n"
+            "## Spec / documentation sync\nNone.\n\n"
+            "## Open questions\nNone.\n\n"
+            "## Validation and cross-check (verify before reporting done)\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: done\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required"
         ),
-        encoding="utf-8",
     )
     _write_plan(repo, "pln005", order=2)
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -1209,31 +1253,28 @@ def _valid_open_backlog_text(
     body: str = "## Problem\n\nObserved defect during lane execution.\n",
 ) -> str:
     """Build a conformant open backlog document for behavioral recovery tests."""
-    lines = [
-        f"- Id: {id6}",
-        "- Status: open",
-        f"- Set: {setid or id6}",
-        f"- Work-Kind: {work_kind}",
-        f"- Priority: {priority}",
-        f"- Summary: {summary}",
-    ]
+    extra: dict[str, Any] = {}
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
+        extra["blocks_release"] = blocks_release
     if release_exempt_kind is not None:
-        lines.append(f"- Release-Exempt-Kind: {release_exempt_kind}")
+        extra["release_exempt_kind"] = release_exempt_kind
     if release_exempt_ref is not None:
-        lines.append(f"- Release-Exempt-Ref: {release_exempt_ref}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- 2026-11-21 created (aw backlog): {summary}",
-            "",
-            body.rstrip(),
-            "",
-        ]
+        extra["release_exempt_ref"] = release_exempt_ref
+    return str(
+        RecordBuilder().backlog(
+            id6=id6,
+            set=setid or id6,
+            work_kind=work_kind,
+            priority=priority,
+            summary=summary,
+            status="open",
+            when="2026-11-21",
+            history=[f"- 2026-11-21 created (aw backlog): {summary}"],
+            body=body,
+            text_only=True,
+            **extra,
+        )
     )
-    return "\n".join(lines)
 
 
 def _commit_on_lane_branch(
@@ -1529,7 +1570,17 @@ def test_proposal_lane_recovery_fail_closed_validation_and_attempt_branch(
         )
         # 2. Malformed open backlog (missing Summary and Workflow history)
         (wt / malformed_rel).write_text(
-            "- Id: bad001\n- Status: open\n- Set: bad001\n- Work-Kind: bug\n- Priority: high\n",
+            str(
+                RecordBuilder().backlog(
+                    id6="bad001",
+                    set="bad001",
+                    work_kind="bug",
+                    priority="high",
+                    status="open",
+                    raw_fields={"Summary": None},
+                    text_only=True,
+                )
+            ),
             encoding="utf-8",
         )
         # 3. Ungated bug when planned release exists (no Blocks-Release, no Release-Exempt)
@@ -1784,17 +1835,8 @@ def test_needs_attended_already_marked_still_recovers_lane_defect_backlog(
 ) -> None:
     """E-02 / E-03: Already-marked `Attended: required` plan still commits and lands recovered lane defect backlogs."""
     repo = _create_test_repo(tmp_path)
-    plan_file = _create_plan_file(repo, "att099", priority="medium", work_kind="bug")
-    plan_file.write_text(
-        plan_file.read_text(encoding="utf-8").replace(
-            "- Scope-Paths: README.md\n",
-            "- Scope-Paths: README.md\n- Attended: required\n",
-        ),
-        encoding="utf-8",
-    )
-    subprocess.run(["git", "add", str(plan_file)], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "commit", "-qm", "mark att099 already attended"], cwd=repo, check=True
+    plan_file = _create_plan_file(
+        repo, "att099", priority="medium", work_kind="bug", attended="required"
     )
 
     run_dir = repo / ".aw" / "records" / "runs" / "run-att-recover"

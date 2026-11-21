@@ -145,6 +145,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-206-1cgrgp-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Moved to z8hu7r (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subsets G5a, G7a (items E-02, E-03; F-41 names each module).
   - Carrier: z8hu7r
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-207-z8hu7r-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Moved to tsonlq (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G7a (items E-03; F-41 names each module).
   - Carrier: tsonlq
 - Moved to erulw3 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G7a (items E-03; F-41 names each module).

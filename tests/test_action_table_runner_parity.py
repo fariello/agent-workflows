@@ -19,11 +19,13 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    coverage_record,
     oc_runipd,
     run_selection_policy,
     runner_shared,
     runner_stop,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -37,68 +39,16 @@ def _make_test_repo(path: Path) -> Path:
     return path
 
 
-def _write_plan(
-    repo: Path,
-    *,
-    id6: str,
-    setid: str,
-    order: int,
-    status: str,
-    kind: str | None = None,
-    incomplete: bool = False,
-    dependencies: list[str] | None = None,
-) -> Path:
-    bucket = "pending"
-    if status in ("executed", "superseded", "not-executed", "reusable"):
-        bucket = status
-    dir_path = repo / ".aw" / "records" / "plans" / bucket
-    dir_path.mkdir(parents=True, exist_ok=True)
-    if kind == "orchestrator":
-        order = 0
-    file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-test.ipd.md"
-
+def _parity_plan_body(kind: str | None, setid: str) -> str:
+    """Return the markdown body sections for a parity-test plan."""
     lines = [
-        f"# IPD: Test {id6}",
+        "## Goal",
         "",
-        "- Date: 2026-09-27",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        f"- Order: {order}",
-        f"- Status: {status}",
+        "A synthetic plan for parity tests.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "",
     ]
-    if kind:
-        lines.append(f"- Kind: {kind}")
-    lines.append("- Concern: Test concern for parity tests.")
-    lines.append("- Scope: Parity test scope.")
-    lines.append("- Scope-Paths: none")
-    lines.append("- Priority: medium")
-    if incomplete:
-        lines.append("- Work-Kind: unresolved")
-    else:
-        lines.append("- Work-Kind: feature")
-    lines.append("- Author: test")
-    lines.append("- Highest E allocated: 01")
-    if status == "approved":
-        lines.append("- Approval: 2026-09-27, test approved")
-    if status in ("reviewed", "approved", "auto-approved"):
-        lines.append("- Readiness: go-pending-approval")
-    if dependencies:
-        lines.append(f"- Item-Dependencies: {', '.join(dependencies)}")
-    else:
-        lines.append("- Item-Dependencies: none")
-    lines.append("")
-    lines.append("## Workflow history")
-    lines.append("")
-    lines.append(f"- 2026-09-27 {status} (test): created.")
-    if status in ("reviewed", "approved", "auto-approved"):
-        lines.append("- 2026-09-27 /plan-review (test): APPROVE")
-    lines.append("")
-    lines.append("## Goal")
-    lines.append("")
-    lines.append("A synthetic plan for parity tests.")
-    lines.append("")
-    lines.append("## Detailed Implementation Checklist (TODO)")
-    lines.append("")
     if kind == "orchestrator":
         c_ord = 9 if setid == "parset" else 1
         c_id = f"p{c_ord:03d}cc" if setid == "parset" else "chld01"
@@ -192,15 +142,62 @@ def _write_plan(
             "## Approval and execution gate",
             "",
             "- None.",
-            "",
         ]
     )
-    file_path.write_text("\n".join(lines), encoding="utf-8")
-    if kind == "orchestrator":
-        from agent_workflows import coverage_record
+    return "\n".join(lines)
 
-        coverage_record.write(file_path, "pass", model="fixture", tool="test")
-    return file_path
+
+def _parity_plan_kwargs(
+    *,
+    id6: str,
+    setid: str,
+    order: int,
+    status: str,
+    kind: str | None = None,
+    incomplete: bool = False,
+    dependencies: list[str] | None = None,
+) -> dict[str, object]:
+    """Assemble RecordBuilder.plan keyword arguments for parity fixtures."""
+    disposition = (
+        status
+        if status in ("executed", "superseded", "not-executed", "reusable")
+        else "pending"
+    )
+    eff_order = 0 if kind == "orchestrator" else order
+    history = [f"- 2026-09-27 {status} (test): created."]
+    if status in ("reviewed", "approved", "auto-approved"):
+        history.append("- 2026-09-27 /plan-review (test): APPROVE")
+    raw_fields: dict[str, object] = {
+        "Concern": "Test concern for parity tests.",
+        "Scope": "Parity test scope.",
+    }
+    if incomplete:
+        raw_fields["Work-Kind"] = "unresolved"
+    return {
+        "id6": id6,
+        "title": f"Test {id6}",
+        "when": "2026-09-27",
+        "set": setid,
+        "order": eff_order,
+        "slug": "test",
+        "status": status,
+        "plan_role": kind or "child",
+        "disposition": disposition,
+        "scope_paths": "none",
+        "priority": "medium",
+        "work_kind": "feature",
+        "author": "test",
+        "approval": "2026-09-27, test approved" if status == "approved" else None,
+        "readiness": (
+            "go-pending-approval"
+            if status in ("reviewed", "approved", "auto-approved")
+            else None
+        ),
+        "item_dependencies": ", ".join(dependencies) if dependencies else "none",
+        "history": history,
+        "body": _parity_plan_body(kind, setid),
+        "raw_fields": raw_fields,
+    }
 
 
 _run_counter = 0
@@ -251,13 +248,14 @@ class TestActionTableRunnerParity(unittest.TestCase):
             with self.subTest(host=label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_plan(
-                        repo,
-                        id6="exe001",
-                        setid="s1",
-                        order=1,
-                        status="executed",
-                        kind="child",
+                    RecordBuilder(repo).plan(
+                        **_parity_plan_kwargs(
+                            id6="exe001",
+                            setid="s1",
+                            order=1,
+                            status="executed",
+                            kind="child",
+                        )
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -298,15 +296,22 @@ class TestActionTableRunnerParity(unittest.TestCase):
                             else ("c" if k == "child" else "n")
                         )
                         id6 = f"p{order:03d}{k_sfx}{suffix}"[:6]
-                        _write_plan(
-                            repo,
-                            id6=id6,
-                            setid="parset",
-                            order=order,
-                            status=st,
-                            kind=k,
-                            incomplete=not complete,
+                        plan_path = Path(
+                            RecordBuilder(repo).plan(
+                                **_parity_plan_kwargs(
+                                    id6=id6,
+                                    setid="parset",
+                                    order=order,
+                                    status=st,
+                                    kind=k,
+                                    incomplete=not complete,
+                                )
+                            )
                         )
+                        if k == "orchestrator":
+                            coverage_record.write(
+                                plan_path, "pass", model="fixture", tool="test"
+                            )
                         plan_meta[id6] = (st, k, complete)
 
                 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -378,14 +383,15 @@ class TestActionTableRunnerParity(unittest.TestCase):
         # 2. Complete draft swept
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_plan(
-                repo,
-                id6="dcom01",
-                setid="swp",
-                order=1,
-                status="draft",
-                kind="child",
-                incomplete=False,
+            RecordBuilder(repo).plan(
+                **_parity_plan_kwargs(
+                    id6="dcom01",
+                    setid="swp",
+                    order=1,
+                    status="draft",
+                    kind="child",
+                    incomplete=False,
+                )
             )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
@@ -409,14 +415,15 @@ class TestActionTableRunnerParity(unittest.TestCase):
         # 4. Incomplete draft swept
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_plan(
-                repo,
-                id6="dinc01",
-                setid="swp",
-                order=1,
-                status="draft",
-                kind="child",
-                incomplete=True,
+            RecordBuilder(repo).plan(
+                **_parity_plan_kwargs(
+                    id6="dinc01",
+                    setid="swp",
+                    order=1,
+                    status="draft",
+                    kind="child",
+                    incomplete=True,
+                )
             )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
@@ -501,23 +508,25 @@ class TestConsumerCases(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
                     # An incomplete draft queued with action: skip, status: not-run
-                    _write_plan(
-                        repo,
-                        id6="skp001",
-                        setid="s1",
-                        order=1,
-                        status="draft",
-                        kind="child",
-                        incomplete=True,
+                    RecordBuilder(repo).plan(
+                        **_parity_plan_kwargs(
+                            id6="skp001",
+                            setid="s1",
+                            order=1,
+                            status="draft",
+                            kind="child",
+                            incomplete=True,
+                        )
                     )
                     # A failed execute plan
-                    _write_plan(
-                        repo,
-                        id6="fld001",
-                        setid="s1",
-                        order=2,
-                        status="approved",
-                        kind="child",
+                    RecordBuilder(repo).plan(
+                        **_parity_plan_kwargs(
+                            id6="fld001",
+                            setid="s1",
+                            order=2,
+                            status="approved",
+                            kind="child",
+                        )
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -578,23 +587,25 @@ class TestConsumerCases(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_plan(
-                repo,
-                id6="drf001",
-                setid="s1",
-                order=1,
-                status="draft",
-                kind="child",
-                incomplete=True,
+            RecordBuilder(repo).plan(
+                **_parity_plan_kwargs(
+                    id6="drf001",
+                    setid="s1",
+                    order=1,
+                    status="draft",
+                    kind="child",
+                    incomplete=True,
+                )
             )
-            _write_plan(
-                repo,
-                id6="com001",
-                setid="s1",
-                order=2,
-                status="draft",
-                kind="child",
-                incomplete=False,
+            RecordBuilder(repo).plan(
+                **_parity_plan_kwargs(
+                    id6="com001",
+                    setid="s1",
+                    order=2,
+                    status="draft",
+                    kind="child",
+                    incomplete=False,
+                )
             )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
@@ -621,21 +632,28 @@ class TestConsumerCases(unittest.TestCase):
             with self.subTest(host=label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_plan(
-                        repo,
-                        id6="revo01",
-                        setid="s1",
-                        order=0,
-                        status="reviewed",
-                        kind="orchestrator",
+                    orch_path = Path(
+                        RecordBuilder(repo).plan(
+                            **_parity_plan_kwargs(
+                                id6="revo01",
+                                setid="s1",
+                                order=0,
+                                status="reviewed",
+                                kind="orchestrator",
+                            )
+                        )
                     )
-                    _write_plan(
-                        repo,
-                        id6="chd001",
-                        setid="s1",
-                        order=1,
-                        status="approved",
-                        kind="child",
+                    coverage_record.write(
+                        orch_path, "pass", model="fixture", tool="test"
+                    )
+                    RecordBuilder(repo).plan(
+                        **_parity_plan_kwargs(
+                            id6="chd001",
+                            setid="s1",
+                            order=1,
+                            status="approved",
+                            kind="child",
+                        )
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(

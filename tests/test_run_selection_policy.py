@@ -37,6 +37,7 @@ import pytest
 
 from agent_workflows import run_selection_policy as pol
 from agent_workflows import selectors as sel
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -93,15 +94,28 @@ def repo(tmp_path: Path) -> Path:
     recs = tmp_path / ".aw" / "records"
     _write(
         recs / "plans" / "pending" / "20260101-mixdemo-01-aaa111-demo.ipd.md",
-        "# IPD: demo\n\n- Id: aaa111\n- Set: mixdemo\n- Status: approved\n",
+        RecordBuilder().plan(
+            title="demo", id6="aaa111", set="mixdemo", status="approved", text_only=True
+        ),
     )
     _write(
         recs / "specs" / "20260101-bbb222-01-bbb222-demo.spec.md",
-        "# Spec: demo\n\n- Id: bbb222\n- Set: mixdemo\n- Status: approved\n",
+        str(
+            RecordBuilder().spec(
+                title="demo",
+                id6="bbb222",
+                set="mixdemo",
+                status="approved",
+                raw_fields={"Set": "mixdemo"},
+                text_only=True,
+            )
+        ),
     )
     _write(
         recs / "backlog" / "20260101-ccc333-01-ccc333-demo.backlog.md",
-        "# Backlog: demo\n\n- Id: ccc333\n- Set: mixdemo\n- Status: open\n",
+        RecordBuilder().backlog(
+            id6="ccc333", set="mixdemo", status="open", text_only=True
+        ),
     )
     return tmp_path
 
@@ -270,7 +284,13 @@ def test_every_selection_classifies_to_the_types_and_actions_it_should(repo: Pat
             / "plans"
             / "pending"
             / "20260101-mixdemo-03-eee555-rev.ipd.md",
-            "# IPD: rev\n\n- Id: eee555\n- Set: mixdemo\n- Status: reviewed\n",
+            RecordBuilder().plan(
+                title="rev",
+                id6="eee555",
+                set="mixdemo",
+                status="reviewed",
+                text_only=True,
+            ),
         ),
     }
     wrong = []
@@ -391,7 +411,9 @@ def test_unique_kind_collision_is_reported_using_the_shipped_policy(repo: Path):
         / "plans"
         / "pending"
         / "20260101-mixdemo-02-aaa111-dupe.ipd.md",
-        "# IPD: dupe\n\n- Id: aaa111\n- Set: mixdemo\n- Status: approved\n",
+        RecordBuilder().plan(
+            title="dupe", id6="aaa111", set="mixdemo", status="approved", text_only=True
+        ),
     )
     c, errors = pol.resolve_selection(repo, "aaa111", spec_types=("ipd",))
     assert errors and "collision" in errors[0]
@@ -740,56 +762,53 @@ def test_gate_is_pure_and_leaves_no_module_state():
 
 _HOSTS = ("oc", "agy")
 
-#: A COMPLETE plan body (no anchored scaffold placeholder), parameterized by id6 and status. Complete
-#: on purpose: spec 2.5a splits a draft on authoring completeness, and this property is about what the
-#: table routes, so the completeness variable is held at "complete" here and varied in its own test.
-_COMPLETE_PLAN = """\
-# IPD: sweep property fixture
 
-- Date: 2026-09-05
-- Kind: child
-- Concern: a real concern sentence, so no anchored placeholder remains.
-- Scope: a real scope sentence.
-- Scope-Paths: src/
-- Item-Dependencies: none
-- Status: {status}
-- Set: s1
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Id: {id6}
+def _complete_plan(id6: str, status: str, order: int) -> str:
+    """Build a COMPLETE plan body (no anchored scaffold placeholder) via RecordBuilder.
 
-## Workflow history
-
-- 2026-09-05 draft (test): created.
-
-## Goal
-
-A real goal sentence for the fixture.
-
-## Detailed Implementation Checklist (TODO)
-
-### Task group 1: fixture
-
-- [ ] E-01 Do one observable thing.
-  - Depends on: none
-  - Expected outcome: the observable thing happened.
-  - Execution state: pending
-
-## Validation and cross-check (verify before reporting done)
-
-- [ ] V-01 validates E-01
-  - Required evidence: the observable thing, pasted.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-
-- Size assessment: small
-- Cohesion rationale: one concern.
-
-Real gate prose: commit path-scoped, never push.
-"""
+    Complete on purpose: spec 2.5a splits a draft on authoring completeness, and this property is
+    about what the table routes, so the completeness variable is held at "complete" here and
+    varied in its own test.
+    """
+    return str(
+        RecordBuilder().plan(
+            title="sweep property fixture",
+            when="2026-09-05",
+            plan_role="child",
+            scope_paths="src/",
+            item_dependencies="none",
+            status=status,
+            set="s1",
+            order=order,
+            author="test",
+            id6=id6,
+            history=["- 2026-09-05 draft (test): created."],
+            raw_fields={
+                "Concern": "a real concern sentence, so no anchored placeholder remains.",
+                "Scope": "a real scope sentence.",
+            },
+            body=(
+                "## Goal\n\n"
+                "A real goal sentence for the fixture.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "### Task group 1: fixture\n\n"
+                "- [ ] E-01 Do one observable thing.\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: the observable thing happened.\n"
+                "  - Execution state: pending\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: the observable thing, pasted.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: small\n"
+                "- Cohesion rationale: one concern.\n\n"
+                "Real gate prose: commit path-scoped, never push."
+            ),
+            text_only=True,
+        )
+    )
 
 
 def _host_module(host: str):
@@ -831,7 +850,7 @@ def test_sweep_membership_equals_dispatch_routing_for_every_status(
         rel = ".aw/records/plans/{0}/20260101-s1-{1:02d}-{2}-x.ipd.md".format(
             bucket, n, id6
         )
-        _write(tmp_path / rel, _COMPLETE_PLAN.format(id6=id6, status=status, order=n))
+        _write(tmp_path / rel, _complete_plan(id6=id6, status=status, order=n))
         plans_by_id[id6] = {
             "set": "s1",
             "file": rel,
@@ -890,7 +909,7 @@ def test_a_complete_draft_is_swept_and_an_incomplete_one_is_not(
     assert ipd_authoring.authoring_placeholders_resolved(stub_text) is False
     assert (
         ipd_authoring.authoring_placeholders_resolved(
-            _COMPLETE_PLAN.format(id6="dr0001", status="draft", order=1)
+            _complete_plan(id6="dr0001", status="draft", order=1)
         )
         is True
     )
@@ -899,7 +918,7 @@ def test_a_complete_draft_is_swept_and_an_incomplete_one_is_not(
     stub_rel = ".aw/records/plans/pending/20260101-s1-02-dr0002-stub.ipd.md"
     _write(
         tmp_path / complete_rel,
-        _COMPLETE_PLAN.format(id6="dr0001", status="draft", order=1),
+        _complete_plan(id6="dr0001", status="draft", order=1),
     )
     _write(tmp_path / stub_rel, stub_text)
     plans_by_id = {
@@ -2148,7 +2167,19 @@ def test_edge_satisfied_refusal_does_not_assert_queue_absence(tmp_path: Path):
     pending = tmp_path / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True)
     target_plan = pending / "20260929-8mohre-01-5o1jye-target.ipd.md"
-    target_plan.write_text("---\n- Id: 5o1jye\n- Status: to-review\n---\n# Target\n")
+    target_plan.write_text(
+        str(
+            RecordBuilder().plan(
+                id6="5o1jye",
+                set="8mohre",
+                order=1,
+                when="2026-09-29",
+                status="to-review",
+                title="Target",
+                text_only=True,
+            )
+        )
+    )
 
     edge = runner_shared.parse_dependency_token("executed:5o1jye")
     assert edge is not None
@@ -2197,7 +2228,17 @@ def test_edge_satisfied_allows_reviewed_or_approved_target_for_review_action(
 
     for status in ("reviewed", "approved"):
         target_plan.write_text(
-            f"---\n- Id: 5o1jye\n- Status: {status}\n---\n# Target\n"
+            str(
+                RecordBuilder().plan(
+                    id6="5o1jye",
+                    set="8mohre",
+                    order=1,
+                    when="2026-09-29",
+                    status=status,
+                    title="Target",
+                    text_only=True,
+                )
+            )
         )
         ok, reason = runner_shared.edge_satisfied(edge, review_item, state, by_id)
         assert ok is True
