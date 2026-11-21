@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -26,154 +25,73 @@ from typing import Any
 
 import pytest
 
+from tests.record_builder import RecordBuilder
 from tests.support import REPO_ROOT, make_fake_executable
 
 pytestmark = pytest.mark.slow
 
 _PROBE_FIELD = "Runfresh-Probe"
 
-_ORCHESTRATOR_TEMPLATE = """# IPD: Test Orchestrator {orch_id6}
 
-- Date: 2026-10-06
-- Kind: orchestrator
-- Id: {orch_id6}
-- Set: {setid}
-- Order: 0
-- Status: approved
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
-- Readiness: go
-- Priority: high
-- Work-Kind: bug
-- Author: test
-- Highest E allocated: 01
-- Concern: Test orchestrator concern.
-- Scope: Test orchestrator scope.
-- Scope-Paths: tests/test_runfresh_end_to_end.py
-- Item-Dependencies: none
+def _orchestrator_body(setid: str, child_id6: str) -> str:
+    return (
+        "## Goal\nTest orchestrator goal.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "Execution-state rule: mark performed only after doing it.\n"
+        "### Task group 1: orchestrate\n"
+        f"- [ ] E-01 CONFIRM {child_id6} REACHED executed\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Child IPDs, sequence, and dependencies\n\n"
+        "| Order | Id | Status | Plan | Depends on |\n"
+        "|---|---|---|---|---|\n"
+        f"| 01 | {child_id6} | pending | .aw/records/plans/pending/20261006-{setid}-01-{child_id6}-child.ipd.md | none |\n\n"
+        "## Completion criteria (the whole Set is done only when)\n"
+        f"- {child_id6} reached executed\n\n"
+        "## Cross-IPD validation\n- None.\n\n"
+        "## Deferred / out of scope (with reason)\n- None.\n\n"
+        "## Scope check\n- None.\n\n"
+        "## Required tests / validation\n- None.\n\n"
+        "## Spec / documentation sync\n- None.\n\n"
+        "## Open questions\n- None.\n\n"
+        "## Validation and cross-check (verify before reporting the Set complete)\n"
+        "Validation-state rule: inspect evidence.\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n- None."
+    )
 
-## Workflow history
-- 2026-10-06 approved (test): status set to approved
-- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE
-- 2026-10-06 created (test): created
 
-## Goal
-Test orchestrator goal.
+def _child_body(child_id6: str) -> str:
+    return (
+        f"## Goal\nTest child {child_id6} goal.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "Execution-state rule: mark performed only after doing it.\n"
+        "### Task group 1: work\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n- None.\n\n"
+        "## Findings\n- None.\n\n"
+        "## Proposed changes (ordered, validatable)\n1. E-01 do work.\n\n"
+        "## Deferred / out of scope (with reason)\n- None.\n\n"
+        "## Scope check\n- None.\n\n"
+        "## Required tests / validation\n- None.\n\n"
+        "## Spec / documentation sync\n- None.\n\n"
+        "## Open questions\n- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n"
+        "Validation-state rule: inspect evidence.\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n- None."
+    )
 
-## Detailed Implementation Checklist (TODO)
-Execution-state rule: mark performed only after doing it.
-### Task group 1: orchestrate
-- [ ] E-01 CONFIRM {child_id6} REACHED executed
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-|---|---|---|---|---|
-| 01 | {child_id6} | pending | .aw/records/plans/pending/20261006-{setid}-01-{child_id6}-child.ipd.md | none |
-
-## Completion criteria (the whole Set is done only when)
-- {child_id6} reached executed
-
-## Cross-IPD validation
-- None.
-
-## Deferred / out of scope (with reason)
-- None.
-
-## Scope check
-- None.
-
-## Required tests / validation
-- None.
-
-## Spec / documentation sync
-- None.
-
-## Open questions
-- None.
-
-## Validation and cross-check (verify before reporting the Set complete)
-Validation-state rule: inspect evidence.
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- None.
-"""
-
-_CHILD_TEMPLATE = """# IPD: Test Child Plan {child_id6}
-
-- Date: 2026-10-06
-- Kind: child
-- Concern: Test child {child_id6} concern.
-- Scope: Test child {child_id6} scope.
-- Scope-Paths: agent_workflows/ipd_schema.py
-- Status: approved
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
-- Readiness: go
-- Set: {setid}
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Priority: high
-- Work-Kind: bug
-- Id: {child_id6}
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-06 approved (test): status set to approved
-- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE
-- 2026-10-06 created (test): created
-
-## Goal
-Test child {child_id6} goal.
-
-## Detailed Implementation Checklist (TODO)
-Execution-state rule: mark performed only after doing it.
-### Task group 1: work
-- [ ] E-01 Work item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-- None.
-
-## Findings
-- None.
-
-## Proposed changes (ordered, validatable)
-1. E-01 do work.
-
-## Deferred / out of scope (with reason)
-- None.
-
-## Scope check
-- None.
-
-## Required tests / validation
-- None.
-
-## Spec / documentation sync
-- None.
-
-## Open questions
-- None.
-
-## Validation and cross-check (verify before reporting done)
-Validation-state rule: inspect evidence.
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- None.
-"""
 
 _FAKE_HOST_SCRIPT = r"""#!/usr/bin/env python3
 import json
@@ -354,23 +272,67 @@ def make_runfresh_fixture(
         parents=True, exist_ok=True
     )
 
-    orch_path = pending_dir / f"20261006-{setid}-00-{orch_id6}-orchestrator.ipd.md"
-    orch_path.write_text(
-        _ORCHESTRATOR_TEMPLATE.format(
-            setid=setid,
-            orch_id6=orch_id6,
-            child_id6=child_id6,
-        ),
-        encoding="utf-8",
+    builder = RecordBuilder(fixture)
+    orch_path = Path(
+        builder.plan(
+            id6=orch_id6,
+            title=f"Test Orchestrator {orch_id6}",
+            when="2026-10-06",
+            plan_role="orchestrator",
+            set=setid,
+            order=0,
+            slug="orchestrator",
+            status="approved",
+            approval="2026-10-06, recorded via aw ipd set: status set to approved",
+            readiness="go",
+            priority="high",
+            work_kind="bug",
+            author="test",
+            highest_e_allocated="01",
+            scope_paths="tests/test_runfresh_end_to_end.py",
+            item_dependencies="none",
+            history=[
+                "- 2026-10-06 approved (test): status set to approved",
+                "- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE",
+                "- 2026-10-06 created (test): created",
+            ],
+            raw_fields={
+                "Concern": "Test orchestrator concern.",
+                "Scope": "Test orchestrator scope.",
+            },
+            body=_orchestrator_body(setid, child_id6),
+        )
     )
 
-    child_path = pending_dir / f"20261006-{setid}-01-{child_id6}-child.ipd.md"
-    child_path.write_text(
-        _CHILD_TEMPLATE.format(
-            setid=setid,
-            child_id6=child_id6,
-        ),
-        encoding="utf-8",
+    child_path = Path(
+        builder.plan(
+            id6=child_id6,
+            title=f"Test Child Plan {child_id6}",
+            when="2026-10-06",
+            plan_role="child",
+            set=setid,
+            order=1,
+            slug="child",
+            status="approved",
+            approval="2026-10-06, recorded via aw ipd set: status set to approved",
+            readiness="go",
+            priority="high",
+            work_kind="bug",
+            author="test",
+            highest_e_allocated="01",
+            scope_paths="agent_workflows/ipd_schema.py",
+            item_dependencies="none",
+            history=[
+                "- 2026-10-06 approved (test): status set to approved",
+                "- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE",
+                "- 2026-10-06 created (test): created",
+            ],
+            raw_fields={
+                "Concern": f"Test child {child_id6} concern.",
+                "Scope": f"Test child {child_id6} scope.",
+            },
+            body=_child_body(child_id6),
+        )
     )
 
     env = dict(os.environ)
@@ -437,18 +399,39 @@ class RunfreshEndToEndTests(unittest.TestCase):
             )
 
             # Make a scratch copy of the orchestrator under executed/ with Runfresh-Probe added
-            executed_dir = fixture_root / ".aw" / "records" / "plans" / "executed"
-            scratch_orch = executed_dir / orch_path.name
-            orch_text = orch_path.read_text(encoding="utf-8")
-            orch_text = orch_text.replace(
-                "- Status: approved\n", f"- Status: executed\n- {_PROBE_FIELD}: x\n"
+            scratch_orch = Path(
+                RecordBuilder(fixture_root).plan(
+                    id6="orc001",
+                    title="Test Orchestrator orc001",
+                    when="2026-10-06",
+                    plan_role="orchestrator",
+                    set="rfset1",
+                    order=0,
+                    slug="orchestrator",
+                    disposition="executed",
+                    status="executed",
+                    approval=None,
+                    readiness="go",
+                    priority="high",
+                    work_kind="bug",
+                    author="test",
+                    highest_e_allocated="01",
+                    scope_paths="tests/test_runfresh_end_to_end.py",
+                    item_dependencies="none",
+                    history=[
+                        "- 2026-10-06 executed (tester): executed",
+                        "- 2026-10-06 approved (test): status set to approved",
+                        "- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE",
+                        "- 2026-10-06 created (test): created",
+                    ],
+                    raw_fields={
+                        "Concern": "Test orchestrator concern.",
+                        "Scope": "Test orchestrator scope.",
+                        _PROBE_FIELD: "x",
+                    },
+                    body=_orchestrator_body("rfset1", "chd001"),
+                )
             )
-            orch_text = re.sub(r"(?m)^- Approval:.*\n?", "", orch_text)
-            orch_text = orch_text.replace(
-                "## Workflow history\n",
-                "## Workflow history\n- 2026-10-06 executed (tester): executed\n",
-            )
-            scratch_orch.write_text(orch_text, encoding="utf-8")
 
             env = _clean_driver_env(fixture_root)
 

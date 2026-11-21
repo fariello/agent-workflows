@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import config, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class PolicyIsolationTests(unittest.TestCase):
@@ -348,7 +349,13 @@ class NonIsolatedReviewOutputCommitTests(unittest.TestCase):
         plan_dir.mkdir(parents=True)
         plan_file = plan_dir / f"20260925-testset-01-{id6}-test-plan.ipd.md"
         plan_file.write_text(
-            f"# IPD: Test Plan\n\n- Id: {id6}\n- Status: to-review\n- Set: testset\n",
+            RecordBuilder().plan(
+                title="Test Plan",
+                id6=id6,
+                status="to-review",
+                set="testset",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         reviews_dir = repo / ".aw" / "records" / "reviews"
@@ -369,7 +376,13 @@ class NonIsolatedReviewOutputCommitTests(unittest.TestCase):
 
             # Simulate review turn modifying plan and writing review record, leaving them uncommitted
             plan_file.write_text(
-                f"# IPD: Test Plan\n\n- Id: {id6}\n- Status: reviewed\n- Set: testset\n",
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6=id6,
+                    status="reviewed",
+                    set="testset",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             reviews_dir = repo / ".aw" / "records" / "reviews"
@@ -420,7 +433,13 @@ class NonIsolatedReviewOutputCommitTests(unittest.TestCase):
 
             # Simulate review turn modifying plan and writing review record, leaving them uncommitted
             plan_file.write_text(
-                f"# IPD: Test Plan\n\n- Id: {id6}\n- Status: reviewed\n- Set: testset\n",
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6=id6,
+                    status="reviewed",
+                    set="testset",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             reviews_dir = repo / ".aw" / "records" / "reviews"

@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
 import pytest
 
 from agent_workflows import host_sandbox_profile as hsp
-from agent_workflows import render_stream
+from agent_workflows import render_stream, runner_shared
 from agent_workflows import run_selection_policy as rsp
-from agent_workflows import runner_shared
+from tests.record_builder import RecordBuilder
 from tests.test_host_capability_extension import synthetic_gated_action
 
 
@@ -56,7 +57,11 @@ def test_execute_item_core_refuses_when_host_capability_unavailable_and_starts_n
     plan_dir.mkdir(parents=True)
     plan_file = plan_dir / "20260928-test01-01-tst001-test-item.ipd.md"
     plan_file.write_text(
-        "# IPD: Test item\n\n- Scope-Paths: agent_workflows/runner_shared.py\n",
+        RecordBuilder().plan(
+            title="Test item",
+            scope_paths="agent_workflows/runner_shared.py",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
