@@ -14,6 +14,7 @@ from unittest.mock import patch
 from agent_workflows import cli
 from agent_workflows import research_cmd as C
 from agent_workflows import research_contract as R
+from tests.record_builder import RecordBuilder
 
 
 class CliFindResearchStatusTests(unittest.TestCase):
@@ -129,7 +130,13 @@ class CliFindExitMatrixTests(unittest.TestCase):
         plans_dir.mkdir(parents=True, exist_ok=True)
         plan_file = plans_dir / "20260929-testplan-01-pln001-sample.ipd.md"
         plan_file.write_text(
-            "# IPD: Sample\n\n- Id: pln001\n- Status: approved\n- Set: testplan\n",
+            RecordBuilder().plan(
+                title="Sample",
+                id6="pln001",
+                status="approved",
+                set="testplan",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.empty_repo = self.repo_root / "empty_repo"
@@ -232,13 +239,21 @@ class CliFindVocabularyAndMatchFactsTests(unittest.TestCase):
         plans_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"
         plans_dir.mkdir(parents=True, exist_ok=True)
         (plans_dir / "20260929-testplan-01-pln001-sample.ipd.md").write_text(
-            "# IPD: Sample\n\n- Id: pln001\n- Status: approved\n- Set: testplan\n",
+            RecordBuilder().plan(
+                title="Sample",
+                id6="pln001",
+                status="approved",
+                set="testplan",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         bkl_dir = self.repo_root / ".aw" / "records" / "backlog" / "open"
         bkl_dir.mkdir(parents=True, exist_ok=True)
         (bkl_dir / "20260929-setbkl-01-bkl001-item.backlog.md").write_text(
-            "- Id: bkl001\n- Status: open\n- Set: setbkl\n",
+            RecordBuilder().backlog(
+                id6="bkl001", status="open", set="setbkl", text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -305,7 +320,13 @@ class CliFindRefusalSurfacesTests(unittest.TestCase):
         plans_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"
         plans_dir.mkdir(parents=True, exist_ok=True)
         (plans_dir / "20260929-testplan-01-pln001-sample.ipd.md").write_text(
-            "# IPD: Sample\n\n- Id: pln001\n- Status: approved\n- Set: testplan\n",
+            RecordBuilder().plan(
+                title="Sample",
+                id6="pln001",
+                status="approved",
+                set="testplan",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

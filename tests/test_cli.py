@@ -23,6 +23,7 @@ from unittest import mock
 
 from tests.support import init_repo
 from agent_workflows import cli, config as CFG
+from tests.record_builder import RecordBuilder
 
 # Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
 # `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
@@ -455,7 +456,9 @@ class PlanNamesVerbTests(CliTestBase):
         repo = init_repo(self.base / "pn")
         pending = repo / ".agents" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
-        (pending / plan_name).write_text("# IPD\n\n- Status: draft\n", encoding="utf-8")
+        (pending / plan_name).write_text(
+            RecordBuilder().plan(status="draft", text_only=True), encoding="utf-8"
+        )
         return repo
 
     def test_check_reports_nonconforming(self):

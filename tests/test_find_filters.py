@@ -32,6 +32,7 @@ from unittest.mock import patch
 from agent_workflows import cli
 from agent_workflows import research_cmd as C
 from agent_workflows import research_contract as R
+from tests.record_builder import RecordBuilder
 
 
 class TestFindFilters(unittest.TestCase):
@@ -47,17 +48,35 @@ class TestFindFilters(unittest.TestCase):
 
         self.spec_1 = specs_to_review / "20260927-setalpha-01-spc001-one.spec.md"
         self.spec_1.write_text(
-            "# Spec: One\n\n- Id: spc001\n- Status: to-review\n- Set: setalpha\n",
+            RecordBuilder().spec(
+                title="One",
+                id6="spc001",
+                status="to-review",
+                set="setalpha",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.spec_2 = specs_to_review / "20260927-setbeta-01-spc002-two.spec.md"
         self.spec_2.write_text(
-            "# Spec: Two\n\n- Id: spc002\n- Status: to-review\n- Set: setbeta\n",
+            RecordBuilder().spec(
+                title="Two",
+                id6="spc002",
+                status="to-review",
+                set="setbeta",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.spec_3 = specs_approved / "20260927-setalpha-01-spc003-three.spec.md"
         self.spec_3.write_text(
-            "# Spec: Three\n\n- Id: spc003\n- Status: approved\n- Set: setalpha\n",
+            RecordBuilder().spec(
+                title="Three",
+                id6="spc003",
+                status="approved",
+                set="setalpha",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -69,12 +88,28 @@ class TestFindFilters(unittest.TestCase):
 
         self.bkl_1 = bkl_open / "20260927-setgamma-01-bkl001-item-one.backlog.md"
         self.bkl_1.write_text(
-            "- Id: bkl001\n- Status: open\n- Set: setgamma\n- Work-Kind: bug\n- Priority: high\n\n## Summary\nOpen item\n",
+            RecordBuilder().backlog(
+                id6="bkl001",
+                status="open",
+                set="setgamma",
+                work_kind="bug",
+                priority="high",
+                body="## Summary\nOpen item",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.bkl_2 = bkl_done / "20260927-setdelta-01-bkl002-item-two.backlog.md"
         self.bkl_2.write_text(
-            "- Id: bkl002\n- Status: done\n- Set: setdelta\n- Work-Kind: bug\n- Priority: low\n\n## Summary\nDone item\n",
+            RecordBuilder().backlog(
+                id6="bkl002",
+                status="done",
+                set="setdelta",
+                work_kind="bug",
+                priority="low",
+                body="## Summary\nDone item",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -83,7 +118,13 @@ class TestFindFilters(unittest.TestCase):
         releases_dir.mkdir(parents=True, exist_ok=True)
         self.release_1 = releases_dir / "20260927-setrel-01-rel001-release.release.md"
         self.release_1.write_text(
-            "# Release: 1.0.0\n\n- Id: rel001\n- Status: planned\n- Set: setrel\n",
+            RecordBuilder().release(
+                version="1.0.0",
+                id6="rel001",
+                status="planned",
+                set="setrel",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -92,12 +133,24 @@ class TestFindFilters(unittest.TestCase):
         plans_dir.mkdir(parents=True, exist_ok=True)
         self.plan_1 = plans_dir / "20260927-setplan-01-pln001-plan-one.ipd.md"
         self.plan_1.write_text(
-            "# IPD: Plan One\n\n- Id: pln001\n- Status: approved\n- Set: setplan\n",
+            RecordBuilder().plan(
+                title="Plan One",
+                id6="pln001",
+                status="approved",
+                set="setplan",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.plan_2 = plans_dir / "20260927-setplan-02-pln002-plan-two.ipd.md"
         self.plan_2.write_text(
-            "# IPD: Plan Two\n\n- Id: pln002\n- Status: draft\n- Set: setplan\n",
+            RecordBuilder().plan(
+                title="Plan Two",
+                id6="pln002",
+                status="draft",
+                set="setplan",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

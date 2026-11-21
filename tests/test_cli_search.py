@@ -15,6 +15,7 @@ from pathlib import Path
 from agent_workflows import cli
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -44,12 +45,14 @@ class SearchOptionsTests(unittest.TestCase):
 
         # 1. Plan approved with unique metadata keyword ALPHA_SECRET and body keyword BETA_BODY
         (self.plans_dir / "20260901-testplan-01-pln001-sample-plan.ipd.md").write_text(
-            "# IPD: Sample Plan Title ALPHA_SECRET\n\n"
-            "- Id: pln001\n"
-            "- Status: approved\n"
-            "- Set: testplan\n\n"
-            "## Context\n\n"
-            "This is body text containing BETA_BODY.\n",
+            RecordBuilder().plan(
+                title="Sample Plan Title ALPHA_SECRET",
+                id6="pln001",
+                status="approved",
+                set="testplan",
+                body="## Context\n\nThis is body text containing BETA_BODY.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -57,52 +60,62 @@ class SearchOptionsTests(unittest.TestCase):
         (
             self.plans_exec_dir / "20260901-testplan-02-pln002-executed-plan.ipd.md"
         ).write_text(
-            "# IPD: Executed Plan Title ALPHA_SECRET\n\n"
-            "- Id: pln002\n"
-            "- Status: executed\n"
-            "- Set: testplan\n\n"
-            "## Context\n\n"
-            "Executed plan body text with BETA_BODY.\n",
+            RecordBuilder().plan(
+                title="Executed Plan Title ALPHA_SECRET",
+                id6="pln002",
+                status="executed",
+                set="testplan",
+                body="## Context\n\nExecuted plan body text with BETA_BODY.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         # 3. Spec to-review
         (self.specs_dir / "20260901-spc001-01-spc001-sample-spec.spec.md").write_text(
-            "# Spec: Sample Spec Title ALPHA_SECRET\n\n"
-            "- Id: spc001\n"
-            "- Status: to-review\n\n"
-            "## Requirements\n\n"
-            "Requirements body containing BETA_BODY.\n",
+            RecordBuilder().spec(
+                title="Sample Spec Title ALPHA_SECRET",
+                id6="spc001",
+                status="to-review",
+                body="## Requirements\n\nRequirements body containing BETA_BODY.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         # 4. Spec draft
         (self.specs_dir / "20260901-spc002-01-spc002-draft-spec.spec.md").write_text(
-            "# Spec: Draft Spec Title ALPHA_SECRET\n\n"
-            "- Id: spc002\n"
-            "- Status: draft\n\n"
-            "## Requirements\n\n"
-            "Draft requirements body containing BETA_BODY.\n",
+            RecordBuilder().spec(
+                title="Draft Spec Title ALPHA_SECRET",
+                id6="spc002",
+                status="draft",
+                body="## Requirements\n\nDraft requirements body containing BETA_BODY.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         # 5. Backlog open
         (self.backlog_dir / "20260901-bkl001-01-bkl001-sample-backlog.md").write_text(
-            "# Backlog: Sample Backlog Title ALPHA_SECRET\n\n"
-            "- Id: bkl001\n"
-            "- Status: open\n\n"
-            "## Details\n\n"
-            "Backlog body text containing BETA_BODY.\n",
+            RecordBuilder().backlog(
+                id6="bkl001",
+                status="open",
+                summary="Sample Backlog Title ALPHA_SECRET",
+                body="## Details\n\nBacklog body text containing BETA_BODY.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         # 6. Backlog done
         (self.backlog_dir / "20260901-bkl002-01-bkl002-done-backlog.md").write_text(
-            "# Backlog: Done Backlog Title ALPHA_SECRET\n\n"
-            "- Id: bkl002\n"
-            "- Status: done\n\n"
-            "## Details\n\n"
-            "Done body text containing BETA_BODY.\n",
+            RecordBuilder().backlog(
+                id6="bkl002",
+                status="done",
+                summary="Done Backlog Title ALPHA_SECRET",
+                body="## Details\n\nDone body text containing BETA_BODY.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -110,24 +123,25 @@ class SearchOptionsTests(unittest.TestCase):
         (
             self.research_dir / "20260901-res001-00-res001-sample-survey.survey.md"
         ).write_text(
-            "---\n"
-            "id: res001\n"
-            "status: reference\n"
-            "summary: Research summary with ALPHA_SECRET\n"
-            "---\n"
-            "# Research Survey\n\n"
-            "## Findings\n\n"
-            "Research body text containing BETA_BODY.\n",
+            RecordBuilder().research(
+                id6="res001",
+                status="reference",
+                summary="Research summary with ALPHA_SECRET",
+                body="# Research Survey\n\n## Findings\n\nResearch body text containing BETA_BODY.\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         # 8. Prompt
         (self.prompts_dir / "20260901-prm001-01-prm001-sample-prompt.md").write_text(
-            "# Prompt: Sample Prompt ALPHA_SECRET\n\n"
-            "- Id: prm001\n"
-            "- Status: reviewed\n\n"
-            "## Prompt\n\n"
-            "Prompt body containing BETA_BODY.\n",
+            RecordBuilder().prompt(
+                id6="prm001",
+                short_description="Sample Prompt ALPHA_SECRET",
+                body="# Prompt: Sample Prompt ALPHA_SECRET\n\n## Prompt\n\nPrompt body containing BETA_BODY.\n",
+                raw_fields={"Status": "reviewed"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

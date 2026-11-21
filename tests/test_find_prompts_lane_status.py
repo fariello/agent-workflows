@@ -9,6 +9,7 @@ import pytest
 
 from agent_workflows import cli
 from agent_workflows.term import Term
+from tests.record_builder import RecordBuilder
 
 
 def _make_args(
@@ -42,9 +43,19 @@ def tmp_repo(tmp_path: Path) -> Path:
         lane_dir.mkdir(parents=True, exist_ok=True)
         id6 = f"pr{lane[:4]}"
         prompt_file = lane_dir / f"20260927-{id6}-01-{id6}-{lane}-prompt.prompt.md"
+        prompt_kwargs: dict[str, object] = {
+            "prompt_kind": "research",
+            "status": lane,
+            "when": "2026-09-27",
+            "body": f"# {lane.title()} Prompt\n\nPrompt in {lane} lane.\n",
+            "text_only": True,
+        }
+        if id6 == "prnot-":
+            prompt_kwargs["raw_fields"] = {"Id": id6, "Set": None}
+        else:
+            prompt_kwargs["id6"] = id6
         prompt_file.write_text(
-            f"<!-- aw-prompt: Kind: research | Id: {id6} | Status: {lane} | Created: 2026-09-27 -->\n"
-            f"# {lane.title()} Prompt\n\nPrompt in {lane} lane.\n",
+            RecordBuilder().prompt(**prompt_kwargs),
             encoding="utf-8",
         )
 
@@ -53,18 +64,28 @@ def tmp_repo(tmp_path: Path) -> Path:
         prompts_dir / "pending" / "20260927-prmdiv-01-prmdiv-divergent-status.prompt.md"
     )
     div_p.write_text(
-        "<!-- aw-prompt: Kind: research | Id: prmdiv | Status: pending | Created: 2026-09-27 -->\n"
-        "# Divergent Prompt\n\n"
-        "- Status: superseded\n\n"
-        "Prompt body text with explicit diverging bullet.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="prmdiv",
+            status="pending",
+            when="2026-09-27",
+            body="# Divergent Prompt\n\n- Status: superseded\n\nPrompt body text with explicit diverging bullet.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # Prompt in no lane directory (directly under .aw/records/prompts/)
     no_lane_p = prompts_dir / "20260927-prmnol-01-prmnol-no-lane-prompt.prompt.md"
     no_lane_p.write_text(
-        "<!-- aw-prompt: Kind: research | Id: prmnol | Status: pending | Created: 2026-09-27 -->\n"
-        "# No Lane Prompt\n\nPrompt sitting directly in prompts root.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="prmnol",
+            status="pending",
+            when="2026-09-27",
+            body="# No Lane Prompt\n\nPrompt sitting directly in prompts root.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -289,16 +310,28 @@ def test_prompt_id6_resolution_paths_and_filters(tmp_path: Path) -> None:
     # (a) comment Id AND matching filename slot
     pa = prompts_dir / "20260927-pr0001-01-pr0001-matching-slot.prompt.md"
     pa.write_text(
-        "<!-- aw-prompt: Kind: research | Id: pr0001 | Status: executed | Created: 2026-09-27 -->\n"
-        "# Matching Prompt\n\nPrompt with matching comment and slot.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="pr0001",
+            status="executed",
+            when="2026-09-27",
+            body="# Matching Prompt\n\nPrompt with matching comment and slot.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # (b) comment Id and legacy YYYYMMDD-HHMM-NN-<slug> filename (no id6 slot)
     pb = prompts_dir / "20260810-1958-01-legacy-format.prompt.md"
     pb.write_text(
-        "<!-- aw-prompt: Kind: research | Id: pr0002 | Status: executed | Created: 2026-08-10 -->\n"
-        "# Legacy Prompt\n\nLegacy name without id6 slot.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="pr0002",
+            status="executed",
+            when="2026-08-10",
+            body="# Legacy Prompt\n\nLegacy name without id6 slot.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -312,12 +345,15 @@ def test_prompt_id6_resolution_paths_and_filters(tmp_path: Path) -> None:
     # (d) comment Id and Set, body quotes - Id: and - Set: bullets above first ## heading
     pd = prompts_dir / "20260927-pr0004-01-pr0004-quoted-bullets.prompt.md"
     pd.write_text(
-        "<!-- aw-prompt: Kind: research | Id: pr0004 | Status: executed | Set: set004 | Created: 2026-09-27 -->\n"
-        "# Quoted Bullets Prompt\n\n"
-        "- Id: bogus1\n"
-        "- Set: bogus2\n\n"
-        "## Real Section\n\n"
-        "Body content after heading.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="pr0004",
+            status="executed",
+            set="set004",
+            when="2026-09-27",
+            body="# Quoted Bullets Prompt\n\n- Id: bogus1\n- Set: bogus2\n\n## Real Section\n\nBody content after heading.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

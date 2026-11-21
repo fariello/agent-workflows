@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from agent_workflows import agent_schema, cli, command_surface
 from tests import conformance_matrix
+from tests.record_builder import RecordBuilder
 
 
 class CliShowCommandTests(unittest.TestCase):
@@ -29,13 +30,14 @@ class CliShowCommandTests(unittest.TestCase):
         plans_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"
         plans_dir.mkdir(parents=True, exist_ok=True)
         self.p1_path = plans_dir / "20261014-showtest-01-p99001-sample-plan.ipd.md"
-        self.p1_content = (
-            "# IPD: Sample Plan\n\n"
-            "- Id: p99001\n"
-            "- Status: to-review\n"
-            "- Set: showtest\n"
-            "- Order: 1\n\n"
-            "Plan details.\n"
+        self.p1_content = RecordBuilder().plan(
+            title="Sample Plan",
+            id6="p99001",
+            status="to-review",
+            set="showtest",
+            order=1,
+            body="Plan details.\n",
+            text_only=True,
         )
         self.p1_path.write_text(self.p1_content, encoding="utf-8")
 
@@ -45,11 +47,13 @@ class CliShowCommandTests(unittest.TestCase):
         self.b1_path = (
             backlog_dir / "20261014-showtest-01-b99001-sample-item.backlog.md"
         )
-        self.b1_content = (
-            "# Backlog: Sample Item\n\n"
-            "- Id: b99001\n"
-            "- Status: open\n\n"
-            "Item details.\n"
+        self.b1_content = RecordBuilder().backlog(
+            id6="b99001",
+            status="open",
+            set="showtest",
+            summary="Sample Item",
+            body="Item details.\n",
+            text_only=True,
         )
         self.b1_path.write_text(self.b1_content, encoding="utf-8")
 
@@ -61,7 +65,13 @@ class CliShowCommandTests(unittest.TestCase):
             releases_dir
             / f"20261014-{self.rel_id6}-01-{self.rel_id6}-v1-0-0.release.md"
         )
-        self.rel_content = f"# Release: 1.0.0\n\n- Id: {self.rel_id6}\n- Status: released\n\nRelease body.\n"
+        self.rel_content = RecordBuilder().release(
+            id6=self.rel_id6,
+            version="1.0.0",
+            status="shipped",
+            body="# Release: 1.0.0\n\nRelease body.\n",
+            text_only=True,
+        )
         self.rel_path.write_text(self.rel_content, encoding="utf-8")
 
     def tearDown(self) -> None:
@@ -277,9 +287,19 @@ class CliShowCommandTests(unittest.TestCase):
     def test_history_flag_prints_one_row_per_history_line(self) -> None:
         """metastore `1ajqaa` E-03: `--history` renders the record's metadata history."""
         self.p1_path.write_text(
-            self.p1_content + "\n## Workflow history\n"
-            "- 2026-11-02 to-review (aw set): ready\n"
-            "- 2026-11-01 draft (author): created\n",
+            RecordBuilder().plan(
+                title="Sample Plan",
+                id6="p99001",
+                status="to-review",
+                set="showtest",
+                order=1,
+                body="Plan details.\n",
+                history=[
+                    "- 2026-11-02 to-review (aw set): ready",
+                    "- 2026-11-01 draft (author): created",
+                ],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rc, out, _ = self._invoke(["p99001", "--history"])

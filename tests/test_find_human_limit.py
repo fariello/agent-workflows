@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 EXPECTED_PLANS_PATHS = (
     ".aw/records/plans/pending/20260927-setalpha-01-pln001-plan-one.ipd.md\n"
@@ -43,17 +44,35 @@ class TestFindHumanLimit(unittest.TestCase):
 
         self.plan_1 = plans_pending / "20260927-setalpha-01-pln001-plan-one.ipd.md"
         self.plan_1.write_text(
-            "# IPD: Plan One\n\n- Id: pln001\n- Status: approved\n- Set: setalpha\n",
+            RecordBuilder().plan(
+                title="Plan One",
+                id6="pln001",
+                status="approved",
+                set="setalpha",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.plan_2 = plans_pending / "20260927-setalpha-02-pln002-plan-two.ipd.md"
         self.plan_2.write_text(
-            "# IPD: Plan Two\n\n- Id: pln002\n- Status: draft\n- Set: setalpha\n",
+            RecordBuilder().plan(
+                title="Plan Two",
+                id6="pln002",
+                status="draft",
+                set="setalpha",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.plan_3 = plans_executed / "20260927-setbeta-01-pln003-plan-three.ipd.md"
         self.plan_3.write_text(
-            "# IPD: Plan Three\n\n- Id: pln003\n- Status: executed\n- Set: setbeta\n",
+            RecordBuilder().plan(
+                title="Plan Three",
+                id6="pln003",
+                status="executed",
+                set="setbeta",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -62,7 +81,13 @@ class TestFindHumanLimit(unittest.TestCase):
         specs_to_review.mkdir(parents=True, exist_ok=True)
         self.spec_1 = specs_to_review / "20260927-setalpha-01-spc001-spec-one.spec.md"
         self.spec_1.write_text(
-            "# Spec: Spec One\n\n- Id: spc001\n- Status: to-review\n- Set: setalpha\n",
+            RecordBuilder().spec(
+                title="Spec One",
+                id6="spc001",
+                status="to-review",
+                set="setalpha",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -71,7 +96,15 @@ class TestFindHumanLimit(unittest.TestCase):
         bkl_open.mkdir(parents=True, exist_ok=True)
         self.bkl_1 = bkl_open / "20260927-setbeta-01-bkl001-item-one.backlog.md"
         self.bkl_1.write_text(
-            "- Id: bkl001\n- Status: open\n- Set: setbeta\n- Work-Kind: bug\n- Priority: high\n\n## Summary\nBacklog One\n",
+            RecordBuilder().backlog(
+                id6="bkl001",
+                status="open",
+                set="setbeta",
+                work_kind="bug",
+                priority="high",
+                body="## Summary\nBacklog One",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -80,12 +113,26 @@ class TestFindHumanLimit(unittest.TestCase):
             specs_to_review / "20260927-setalpha-01-col001-coll-spec.spec.md"
         )
         self.coll_spec.write_text(
-            "# Spec: Coll Spec\n\n- Id: col001\n- Status: to-review\n- Set: setalpha\n",
+            RecordBuilder().spec(
+                title="Coll Spec",
+                id6="col001",
+                status="to-review",
+                set="setalpha",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.coll_bkl = bkl_open / "20260927-setalpha-01-col001-coll-bkl.backlog.md"
         self.coll_bkl.write_text(
-            "- Id: col001\n- Status: open\n- Set: setalpha\n- Work-Kind: bug\n- Priority: low\n\n## Summary\nColl Backlog\n",
+            RecordBuilder().backlog(
+                id6="col001",
+                status="open",
+                set="setalpha",
+                work_kind="bug",
+                priority="low",
+                body="## Summary\nColl Backlog",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -285,12 +332,18 @@ class TestFindHumanLimit(unittest.TestCase):
         (
             p_dir / "20260927-setalpha-04-pln004-special-{x}-has space-one.ipd.md"
         ).write_text(
-            "- Id: pln004\n- Status: draft\n- Set: setalpha\n", encoding="utf-8"
+            RecordBuilder().plan(
+                id6="pln004", status="draft", set="setalpha", text_only=True
+            ),
+            encoding="utf-8",
         )
         (
             p_dir / "20260927-setalpha-05-pln005-special-{x}-has space-two.ipd.md"
         ).write_text(
-            "- Id: pln005\n- Status: draft\n- Set: setalpha\n", encoding="utf-8"
+            RecordBuilder().plan(
+                id6="pln005", status="draft", set="setalpha", text_only=True
+            ),
+            encoding="utf-8",
         )
 
         rc, out, err = self.run_find(
