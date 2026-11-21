@@ -108,6 +108,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md
 - Moving `aw find`, `selectors`, `status_set`, and `attention` onto `artifact_meta`: prerequisite owned by `ffceq0` (`cdglt1`, `r81uvz`, `dqutt8`).
   - Carrier: ffceq0
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md
 - Optimizing `agent_workflows/migrations/m0001_renames.py::build_rename_map`, `agent_workflows/artifact_refs.py::plan_reference_rewrites_with_warnings`, and `agent_workflows/migrations/m0001_metadata_v2.py::_execute_planned_operations`: prerequisite tracked in graduated backlog `e49gzt` (child plan `n2bfd4`).
   - Carrier: e49gzt
 
