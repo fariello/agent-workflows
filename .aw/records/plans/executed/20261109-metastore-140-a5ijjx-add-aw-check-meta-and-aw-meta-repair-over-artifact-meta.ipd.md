@@ -6,7 +6,7 @@
 - Scope: Add the two CLI leaves `aw check meta` and `aw meta repair` in `agent_workflows/meta_cli.py`, register them in `cli`, `command_surface` and `tests/conformance_matrix.py`, and test each in its own core module (`ffceq0` E-10 and E-11 carried unchanged). EXCLUDES: every reader move (the other `ffceq0` parts), the cache-parity and offline tests, the residual audit, `docs/cli-output-contract.md` and `CHANGELOG.md` (all kept in `ffceq0`).
 - Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_check_meta.py, tests/test_meta_repair_cli.py, .aw/records/plans/pending/20261109-metastore-140-a5ijjx-add-aw-check-meta-and-aw-meta-repair-over-artifact-meta.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:dqutt8, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: a5ijjx
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: a5ijjx verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 
