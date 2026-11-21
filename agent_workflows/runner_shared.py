@@ -1033,15 +1033,18 @@ def backlog_item_paths_for_commit(
     THE COMMITTED-TREE SCOPED INTEGRITY QUERY (E-02).
     A backlog id6 must exist in exactly ONE status directory in the commit the runner just made.
     Unlike :func:`backlog_item_paths_for_id`, which inspects the working tree, this function
-    queries the committed object tree for ``commit_sha`` via `git ls-tree` and parses each
-    matching blob with `backlog.parse_item`.
+    queries the committed object tree for ``commit_sha`` via `git ls-tree` and resolves each
+    candidate's declared id through `artifact_meta.resolve_id_at` (spec 4sd62s 4.4).
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
+    from agent_workflows import check_engine as _ce
 
+    repo_path = Path(repo)
     runner = git_runner or _run_git
     try:
         rc, out, _err = runner(
-            Path(repo), ["ls-tree", "-r", "--name-only", str(commit_sha)]
+            repo_path, ["ls-tree", "-r", "--name-only", str(commit_sha)]
         )
     except Exception:
         return []
@@ -1055,27 +1058,32 @@ def backlog_item_paths_for_commit(
     )
 
     hits: list[str] = []
-    for line in out.splitlines():
-        path_str = line.strip()
-        if (
-            not path_str
-            or not path_str.endswith(".md")
-            or path_str.endswith("/README.md")
-            or path_str == "README.md"
-        ):
-            continue
-        if not any(path_str.startswith(pfx) for pfx in valid_prefixes):
-            continue
-        show_rc, blob_text, _show_err = runner(
-            Path(repo), ["show", f"{commit_sha}:{path_str}"]
-        )
-        if show_rc != 0:
-            continue
-        try:
-            if _backlog.parse_item(blob_text).id == item_id6:
-                hits.append(path_str)
-        except Exception:
-            continue
+    ctx_cache: dict[bool, Any] = {}
+    with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
+        for line in out.splitlines():
+            path_str = line.strip()
+            if (
+                not path_str
+                or not path_str.endswith(".md")
+                or path_str.endswith("/README.md")
+                or path_str == "README.md"
+            ):
+                continue
+            if not any(path_str.startswith(pfx) for pfx in valid_prefixes):
+                continue
+            try:
+                is_legacy_dir = path_str.startswith(".agents/")
+                ctx = ctx_cache.get(is_legacy_dir)
+                if ctx is None:
+                    ctx = _ce._git_read_at_context(repo_path, rel_path=path_str)
+                    ctx_cache[is_legacy_dir] = ctx
+                declared_id = _meta.resolve_id_at(
+                    path_str, str(commit_sha), project_context=ctx
+                )
+                if declared_id == item_id6:
+                    hits.append(path_str)
+            except Exception:
+                continue
     return sorted(hits)
 
 
@@ -5122,6 +5130,9 @@ def classify_records_only_front_matter_conflict(
     target_path: str | None = None,
     incoming_path: str | None = None,
     allow_list: frozenset[str] | None = None,
+    base_state: Any = None,
+    target_state: Any = None,
+    incoming_state: Any = None,
 ) -> RecordsOnlyConflictVerdict:
     """Is ONE conflicting path the measured records-only front-matter shape? Three-valued, PURE.
 
@@ -5255,9 +5266,27 @@ def classify_records_only_front_matter_conflict(
 
     # 6. THE TARGET REALLY TRANSITIONED. Without this the conflict is an ordinary stale edit, and this
     # carve-out is scoped to the LIFECYCLE RACE it measured.
-    base_status = (base_keys.get("Status") or [None])[0]
-    target_status = (target_keys.get("Status") or [None])[0]
-    incoming_status = (incoming_keys.get("Status") or [None])[0]
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
+    b_state = (
+        base_state
+        if base_state is not None
+        else _meta.read_text(base_text, record_type="ipd")
+    )
+    t_state = (
+        target_state
+        if target_state is not None
+        else _meta.read_text(target_text, record_type="ipd")
+    )
+    i_state = (
+        incoming_state
+        if incoming_state is not None
+        else _meta.read_text(incoming_text, record_type="ipd")
+    )
+    base_status = _ce._plan_status_from_state(b_state)
+    target_status = _ce._plan_status_from_state(t_state)
+    incoming_status = _ce._plan_status_from_state(i_state)
     status_changed = base_status != target_status
     bucket_changed = tpath != ipath
     if not (status_changed or bucket_changed):
@@ -5481,15 +5510,42 @@ def rederive_front_matter(
 INTEGRATION_REDERIVED = "merge-rederived"
 
 
+def _read_record_state_at_rev(
+    repo: Path,
+    rev: str,
+    rel_path: str,
+    *,
+    ctx: Any = None,
+) -> Any:
+    """Read an ``artifact_meta.State`` for ``rel_path`` at commit/tree/stage ``rev`` via ``read_at``."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
+    use_ctx = ctx or _ce._git_read_at_context(repo, rel_path=rel_path)
+    declared_id = _meta.resolve_id_at(rel_path, rev, project_context=use_ctx)
+    if declared_id:
+        res = _meta.read_at(
+            declared_id, rev, project_context=use_ctx, path_hint=rel_path
+        )
+        if res.kind == "ok" and res.state is not None:
+            return res.state
+    fallback = _meta.read_path_at(rel_path, rev, project_context=use_ctx)
+    if fallback.kind == "ok" and fallback.state is not None:
+        return fallback.state
+    return None
+
+
 def read_merge_stage(repo: Path, stage: int, path: str) -> str | None:
-    """One conflicted path's content at merge ``stage`` (1=base, 2=ours/target, 3=theirs/incoming).
+    """One conflicted path's raw text at merge ``stage`` (1=base, 2=ours/target, 3=theirs/incoming).
 
     Returns None when the stage does not exist, which is a REAL and common case rather than an error: a
     modify/delete conflict has no stage 2 or 3, and the classifier treats an absent stage as UNKNOWN
     rather than as an empty file.
 
     Read via `git cat-file -p :<stage>:<path>` while the merge is in progress, so it MUST be called
-    before `git merge --abort` for the same reason :func:`conflicted_paths` must be.
+    before `git merge --abort` for the same reason :func:`conflicted_paths` must be. This helper
+    returns raw full-file text for body diffs and three-way merges (N3); record metadata at a merge
+    stage is read through `artifact_meta.read_at(id6, f":{stage}:")` (spec 4sd62s 4.4).
     """
     rc, out, _err = _run_git(repo, ["cat-file", "-p", f":{stage}:{path}"])
     return out if rc == 0 else None
@@ -5501,7 +5557,8 @@ def classify_conflict_set_for_rederivation(
     """Classify every conflicted path of an in-progress merge, reading its stages from the index.
 
     THE THIN IO SHELL over the pure classifier, kept separate so every decision rule stays unit-testable
-    with no live repository. Its only job is to supply the three stage texts and the two sides' paths.
+    with no live repository. Its only job is to supply the three stage texts, the `artifact_meta.read_at`
+    metadata states for record files, and the two sides' paths.
 
     THE INCOMING PATH IS RESOLVED THROUGH RENAME DETECTION, and that matters because in this shape the
     file MOVED: main renamed `pending/x` -> `executed/x` while the lane edited `pending/x`, so stage 1
@@ -5511,6 +5568,9 @@ def classify_conflict_set_for_rederivation(
 
     MUST be called while the merge is in progress (see :func:`read_merge_stage`).
     """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
     incoming_by_name: dict[str, str] = {}
     rc, out, _err = _run_git(
         repo, ["diff", "--name-only", "-z", f"{base_commit}..{branch}"]
@@ -5522,33 +5582,64 @@ def classify_conflict_set_for_rederivation(
                 incoming_by_name.setdefault(p.rsplit("/", 1)[-1], p)
 
     verdicts: list[RecordsOnlyConflictVerdict] = []
-    for path in paths:
-        incoming_path = incoming_by_name.get(path.rsplit("/", 1)[-1], path)
-        base_text = read_merge_stage(repo, 1, path)
-        if base_text is None:
-            # The lane's own pre-rename path is where the base content lives when main renamed the file
-            # and git did not record a stage 1 at the conflict path.
-            rc_b, out_b, _e = _run_git(
-                repo, ["cat-file", "-p", f"{base_commit}:{incoming_path}"]
+    with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
+        for path in paths:
+            incoming_path = incoming_by_name.get(path.rsplit("/", 1)[-1], path)
+            base_rev = ":1:"
+            base_path_for_rev = path
+            base_text = read_merge_stage(repo, 1, path)
+            if base_text is None:
+                # The lane's own pre-rename path is where the base content lives when main renamed the file
+                # and git did not record a stage 1 at the conflict path.
+                rc_b, out_b, _e = _run_git(
+                    repo, ["cat-file", "-p", f"{base_commit}:{incoming_path}"]
+                )
+                base_text = out_b if rc_b == 0 else None
+                base_rev = base_commit
+                base_path_for_rev = incoming_path
+            target_text = read_merge_stage(repo, 2, path)
+            incoming_rev = ":3:"
+            incoming_path_for_rev = path
+            incoming_text = read_merge_stage(repo, 3, path)
+            if incoming_text is None:
+                rc_i, out_i, _e = _run_git(
+                    repo, ["cat-file", "-p", f"{branch}:{incoming_path}"]
+                )
+                incoming_text = out_i if rc_i == 0 else None
+                incoming_rev = branch
+                incoming_path_for_rev = incoming_path
+
+            base_state = None
+            target_state = None
+            incoming_state = None
+            if path.startswith(RECORDS_TREE_PREFIX) and any(
+                path.endswith(s) for s in REDERIVABLE_RECORD_SUFFIXES
+            ):
+                ctx = _ce._git_read_at_context(repo, rel_path=path)
+                if base_text is not None:
+                    base_state = _read_record_state_at_rev(
+                        repo, base_rev, base_path_for_rev, ctx=ctx
+                    )
+                if target_text is not None:
+                    target_state = _read_record_state_at_rev(repo, ":2:", path, ctx=ctx)
+                if incoming_text is not None:
+                    incoming_state = _read_record_state_at_rev(
+                        repo, incoming_rev, incoming_path_for_rev, ctx=ctx
+                    )
+
+            verdicts.append(
+                classify_records_only_front_matter_conflict(
+                    path=path,
+                    base_text=base_text,
+                    target_text=target_text,
+                    incoming_text=incoming_text,
+                    target_path=path,
+                    incoming_path=incoming_path,
+                    base_state=base_state,
+                    target_state=target_state,
+                    incoming_state=incoming_state,
+                )
             )
-            base_text = out_b if rc_b == 0 else None
-        target_text = read_merge_stage(repo, 2, path)
-        incoming_text = read_merge_stage(repo, 3, path)
-        if incoming_text is None:
-            rc_i, out_i, _e = _run_git(
-                repo, ["cat-file", "-p", f"{branch}:{incoming_path}"]
-            )
-            incoming_text = out_i if rc_i == 0 else None
-        verdicts.append(
-            classify_records_only_front_matter_conflict(
-                path=path,
-                base_text=base_text,
-                target_text=target_text,
-                incoming_text=incoming_text,
-                target_path=path,
-                incoming_path=incoming_path,
-            )
-        )
     return verdicts
 
 
@@ -8201,9 +8292,71 @@ def check_review_lane_artifacts(
     )
     branch = getattr(handle, "branch", None)
 
+    from agent_workflows import artifact_meta as _meta
+
     for p_str in changed_files:
         norm_p = p_str.replace("\\", "/").removeprefix("./")
         if not norm_p.startswith(".aw/records/"):
+            continue
+
+        # 2. Backlog items (.backlog.md or .item.md): metadata-only check via artifact_meta
+        if norm_p.endswith(".backlog.md") or norm_p.endswith(".item.md"):
+            b_state = None
+            exists = False
+            if wt_path and (wt_path / norm_p).is_file():
+                try:
+                    b_text = (wt_path / norm_p).read_text(encoding="utf-8")
+                    b_state = _meta.read_text(b_text, record_type="backlog")
+                    exists = True
+                except Exception:
+                    exists = False
+            elif branch:
+                from agent_workflows import check_engine
+
+                with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
+                    ctx = check_engine._git_read_at_context(repo, rel_path=norm_p)
+                    _decl, _st, exists = _meta.resolve_mirror_at(
+                        norm_p, branch, project_context=ctx
+                    )
+                    if exists:
+                        b_state = _read_record_state_at_rev(
+                            repo, branch, norm_p, ctx=ctx
+                        )
+            if not exists:
+                continue
+            b_status = (b_state.status if b_state is not None else None) or ""
+            if "/graduated/" in norm_p or b_status.strip().lower() == "graduated":
+                from agent_workflows import check_engine
+
+                try:
+                    eval_root = wt_path if wt_path else repo
+                    item_id6 = (
+                        b_state.id6
+                        if (
+                            b_state is not None
+                            and b_state.id6
+                            and not getattr(b_state, "id_derived", False)
+                        )
+                        else None
+                    ) or Path(norm_p).stem[:6]
+                    res = check_engine.evaluate_handoff_ready(
+                        eval_root, "backlog", item_id6
+                    )
+                    if not res.ready:
+                        details = "; ".join(f.detail for f in res.findings)
+                        return (
+                            False,
+                            f"backlog item '{norm_p}' handoff is not ready: {details}",
+                        )
+                except Exception:
+                    pass
+            continue
+
+        # Body-prose checks for pending plans and specs (N3)
+        if not (
+            (norm_p.endswith(".ipd.md") and "/pending/" in norm_p)
+            or norm_p.endswith(".spec.md")
+        ):
             continue
 
         content: str | None = None
@@ -8265,28 +8418,6 @@ def check_review_lane_artifacts(
                                 False,
                                 f"plan '{norm_p}' has uncarried obligation ({drift.rule}): {drift.detail}",
                             )
-                except Exception:
-                    pass
-
-        # 2. Backlog items (.backlog.md or .item.md)
-        elif norm_p.endswith(".backlog.md") or norm_p.endswith(".item.md"):
-            if "/graduated/" in norm_p or "- Status: graduated" in content:
-                from agent_workflows import check_engine
-
-                try:
-                    eval_root = wt_path if wt_path else repo
-                    item_id6 = (
-                        check_engine._read_item_id(content) or Path(norm_p).stem[:6]
-                    )
-                    res = check_engine.evaluate_handoff_ready(
-                        eval_root, "backlog", item_id6
-                    )
-                    if not res.ready:
-                        details = "; ".join(f.detail for f in res.findings)
-                        return (
-                            False,
-                            f"backlog item '{norm_p}' handoff is not ready: {details}",
-                        )
                 except Exception:
                     pass
 
@@ -8547,31 +8678,44 @@ def integrate_lane_branch(
                             introduced_conflicts[ident] = p_locs
 
                 if introduced_conflicts:
+                    from agent_workflows import artifact_meta as _meta
+
                     conflict_details = []
-                    for ident, locs in sorted(
-                        introduced_conflicts.items(), key=lambda x: x[0].value
-                    ):
-                        loc_descriptions = []
-                        for loc in locs:
-                            status = loc.status
-                            if not status:
-                                rc_blob, blob_txt, _ = _run_git(
-                                    repo, ["cat-file", "-p", f"{tree}:{loc.path}"]
-                                )
-                                if rc_blob == 0 and blob_txt:
-                                    status = (
-                                        check_engine._metadata_status(blob_txt) or ""
+                    with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
+                        for ident, locs in sorted(
+                            introduced_conflicts.items(), key=lambda x: x[0].value
+                        ):
+                            loc_descriptions = []
+                            for loc in locs:
+                                status = loc.status
+                                if not status:
+                                    loc_state = _read_record_state_at_rev(
+                                        repo, tree, loc.path
                                     )
-                            status_str = (
-                                f"- Status: {status}" if status else "- Status: unknown"
+                                    if loc_state is not None:
+                                        status = (
+                                            check_engine._plan_status_from_state(
+                                                loc_state
+                                            )
+                                            if loc.path.endswith(".ipd.md")
+                                            else (
+                                                loc_state.status
+                                                or loc_state.legacy_raw_status
+                                                or ""
+                                            )
+                                        ) or ""
+                                status_str = (
+                                    f"- Status: {status}"
+                                    if status
+                                    else "- Status: unknown"
+                                )
+                                loc_descriptions.append(
+                                    f"'{loc.path}' (bucket: '{loc.bucket}', {status_str})"
+                                )
+                            conflict_details.append(
+                                f"artifact identity '{ident.value}' ({ident.kind}) present at multiple lifecycle "
+                                f"locations: {', '.join(loc_descriptions)}"
                             )
-                            loc_descriptions.append(
-                                f"'{loc.path}' (bucket: '{loc.bucket}', {status_str})"
-                            )
-                        conflict_details.append(
-                            f"artifact identity '{ident.value}' ({ident.kind}) present at multiple lifecycle "
-                            f"locations: {', '.join(loc_descriptions)}"
-                        )
 
                     reason_text = (
                         "integration refused: merge would leave artifact identity at more than one "

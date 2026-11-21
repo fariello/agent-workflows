@@ -1531,14 +1531,27 @@ def _prepare_status_change(
             default_message = f"status unchanged ({norm_status})"
         if rec.record_type == "plans":
             try:
+                from agent_workflows import artifact_meta as _meta
                 from agent_workflows import check_engine as _ce
 
                 try:
                     rel = rec.path.resolve().relative_to(repo_root.resolve()).as_posix()
                 except ValueError:
                     rel = str(rec.path)
-                head_text = _ce._blob_text(repo_root, "HEAD", rel)
-                head_status = _ce._status_meta(head_text)
+                ctx = _ce._git_read_at_context(repo_root, rel_path=rel)
+                head_state = None
+                with _meta.ephemeral_if_uninitialized():
+                    if rec.id6 and _core.ID6_RE.fullmatch(rec.id6):
+                        res = _meta.read_at(
+                            rec.id6, "HEAD", project_context=ctx, path_hint=rel
+                        )
+                        if res.kind == "ok" and res.state is not None:
+                            head_state = res.state
+                    if head_state is None:
+                        fallback = _meta.read_path_at(rel, "HEAD", project_context=ctx)
+                        if fallback.kind == "ok" and fallback.state is not None:
+                            head_state = fallback.state
+                head_status = _ce._plan_status_from_state(head_state)
                 if head_status is not None:
                     norm_head = (
                         normalize_target_status(head_status, "plans").strip().lower()

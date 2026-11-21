@@ -5288,12 +5288,25 @@ def _norm_git_rel_path(path: str) -> str:
     return norm.lstrip("/")
 
 
+def _index_stage_of(rev: str) -> Optional[str]:
+    """Return index stage digit ('0'..'3') for ':<stage>:' revisions, else None."""
+    if (
+        len(rev) == 3
+        and rev[0] == ":"
+        and rev[2] == ":"
+        and rev[1] in ("0", "1", "2", "3")
+    ):
+        return rev[1]
+    return None
+
+
 def _git_blob_sha(repo_dir: Path, rev: str, repo_rel_path: str) -> Optional[str]:
-    """Return the git blob SHA for ``repo_rel_path`` at commit ``rev`` or index ``:0:``."""
+    """Return the git blob SHA for ``repo_rel_path`` at commit/tree ``rev`` or index stage ``:<stage>:``."""
     norm = _norm_git_rel_path(repo_rel_path)
     if not norm:
         return None
-    if rev == ":0:":
+    stage = _index_stage_of(rev)
+    if stage is not None:
         res = subprocess.run(
             ["git", "ls-files", "-s", "--", norm],
             cwd=repo_dir,
@@ -5309,7 +5322,7 @@ def _git_blob_sha(repo_dir: Path, rev: str, repo_rel_path: str) -> Optional[str]
             if not sep or path_part.strip() != norm:
                 continue
             cols = meta_part.split()
-            if len(cols) >= 3 and cols[2] == "0":
+            if len(cols) >= 3 and cols[2] == stage:
                 return cols[1]
         return None
 
@@ -5370,9 +5383,9 @@ def resolve_mirror_at(
     if repo_dir is None:
         return None, None, False
 
-    if rev != ":0:":
+    if _index_stage_of(rev) is None:
         chk = subprocess.run(
-            ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
+            ["git", "rev-parse", "--verify", f"{rev}^{{tree}}"],
             cwd=repo_dir,
             capture_output=True,
             text=True,
@@ -5510,10 +5523,10 @@ def read_path_at(
             kind="unversioned", error="unversioned placement: no git repository found"
         )
 
-    is_index = rev == ":0:"
-    if not is_index:
+    stage = _index_stage_of(rev)
+    if stage is None:
         res = subprocess.run(
-            ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
+            ["git", "rev-parse", "--verify", f"{rev}^{{tree}}"],
             cwd=repo_dir,
             capture_output=True,
             text=True,
@@ -5566,13 +5579,14 @@ def read_at(
             kind="unversioned", error="unversioned placement: no git repository found"
         )
 
-    is_index = rev == ":0:"
+    stage = _index_stage_of(rev)
+    is_index = stage is not None
     conn, should_close = _open_for_read(records_root, state_root)
     try:
-        # Verify commit revision exists (staged index `:0:` is valid even with unborn HEAD)
+        # Verify tree-ish revision exists (index stages `:0:`..`:3:` are valid even with unborn HEAD)
         if not is_index:
             res = subprocess.run(
-                ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
+                ["git", "rev-parse", "--verify", f"{rev}^{{tree}}"],
                 cwd=repo_dir,
                 capture_output=True,
                 text=True,
@@ -5657,6 +5671,46 @@ def read_at(
             )
             if hit is not None:
                 return hit
+
+        if stage in ("1", "2", "3"):
+            ls_cmd = ["git", "ls-files", "-u"]
+            if rel_repo and rel_repo != ".":
+                ls_cmd += ["--", rel_repo]
+            ls_unmerged = subprocess.run(
+                ls_cmd,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if ls_unmerged.returncode == 0 and ls_unmerged.stdout.strip():
+                seen_cands = set(candidates)
+                for line in ls_unmerged.stdout.splitlines():
+                    meta_part, sep, path_part = line.partition("\t")
+                    if not sep:
+                        continue
+                    cols = meta_part.split()
+                    if len(cols) < 3 or cols[2] != stage:
+                        continue
+                    md_file_path = path_part.strip()
+                    if not md_file_path or md_file_path in seen_cands:
+                        continue
+                    seen_cands.add(md_file_path)
+                    hit = _load_legacy_at_blob(
+                        conn,
+                        repo_dir,
+                        records_root,
+                        rel_repo,
+                        rev,
+                        md_file_path,
+                        require_id6=id6,
+                    )
+                    if hit is not None:
+                        return hit
+            return ReadAtResult(
+                kind="absent", error=f"record {id6} not found in revision {rev}"
+            )
 
         # `-e` is required: the pattern starts with `-`, so without it git reads it as an option and
         # exits 129, which made every phase-B record read `absent`.

@@ -1355,9 +1355,6 @@ _READINESS_LINE_SUB_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*.*$")
 # ------------------------------------------------------------------------------------------------
 
 
-_STATUS_RE = re.compile(r"(?m)^-[ \t]*Status:[ \t]*([a-z-]+)", re.IGNORECASE)
-
-
 @dataclasses.dataclass(frozen=True)
 class ReviewStaleness:
     reasons: Tuple[str, ...]
@@ -1472,6 +1469,9 @@ def review_staleness_index(
     Never raises: any git error or non-git environment yields an empty dict.
     """
     try:
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import check_engine as _ce
+
         repo_root_path = Path(repo_root).resolve()
         results: Dict[str, ReviewStaleness] = {}
         candidate_map: Dict[str, Tuple[Path, str, Tuple[Path, str, int]]] = {}
@@ -1500,8 +1500,8 @@ def review_staleness_index(
                 text = abs_path.read_text(encoding="utf-8")
             except OSError:
                 continue
-            m = _STATUS_RE.search(text)
-            status = m.group(1).strip().lower() if m else None
+            cur_state = _meta.read_text(text, record_type="ipd")
+            status = _ce._plan_status_from_state(cur_state)
             if status in ("reviewed", "approved", "auto-approved"):
                 candidate_map[rel_posix] = (abs_path, text, cache_key)
             else:
@@ -1553,6 +1553,9 @@ def review_staleness_index(
         if not candidate_reviewed_commits:
             return results
 
+        # Current plan status was read through `artifact_meta.read_text` above (spec 4sd62s 4.4 /
+        # D-3); the batched `git cat-file --batch` below reads body prose only for open-question
+        # blocks and `frozen_region_digest` (N3), never record metadata at the review commit.
         batch_input_str = "".join(
             f"{sha}:{rel}\n" for rel, sha in candidate_reviewed_commits.items()
         )

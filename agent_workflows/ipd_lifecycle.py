@@ -3149,14 +3149,6 @@ RECEIPT_SOURCE_BEGIN = "begin-receipt"
 RECEIPT_SOURCE_LEGACY = "git-derived-legacy"
 RECEIPT_SOURCE_WITHOUT = "without-receipt"
 
-# The approval reading ACCEPTS AN IN-PLACE ANNOTATION (legacyfin `9en4fy` E-02): the old plan format
-# wrote `- Status: approved (2026-09-25; executing)`, and a version reading that WAS the approved
-# version. A word boundary after `approved` that is followed by end-of-line or an opening annotation
-# (` (`, ` -`, ` ;`, ` ,`) keeps `approved-ish` or `approvedx` out.
-_STATUS_APPROVED_RE = re.compile(
-    r"(?mi)^- Status:\s*(auto-)?approved(?:\s*$|\s*[(;,]|\s+-\s)"
-)
-
 
 class DerivedBaseline(NamedTuple):
     """The commit a receiptless finalize measures from, and the plan as it stood there."""
@@ -3238,12 +3230,19 @@ def derive_baseline(
             if status in ("A", "M") and len(parts) == 2 and parts[1] == current:
                 touching.append((sha, current))
                 break
-    for sha, path_at in reversed(
-        touching
-    ):  # oldest-first: the FIRST approved version wins
-        text = _show(sha, path_at)
-        if text is not None and _STATUS_APPROVED_RE.search(text):
-            return DerivedBaseline(sha, _date(sha), text, path_at)
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
+    with _meta.ephemeral_if_uninitialized():
+        for sha, path_at in reversed(
+            touching
+        ):  # oldest-first: the FIRST approved version wins
+            st, _hist, _decl_id = _ce._read_plan_state_at(repo_root, sha, path_at)
+            st_status = _ce._plan_status_from_state(st)
+            if st_status in ("approved", "auto-approved"):
+                text = _show(sha, path_at)
+                if text is not None:
+                    return DerivedBaseline(sha, _date(sha), text, path_at)
     return None
 
 
