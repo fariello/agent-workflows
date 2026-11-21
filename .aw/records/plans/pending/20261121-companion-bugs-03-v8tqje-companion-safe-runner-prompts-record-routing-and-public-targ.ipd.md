@@ -115,6 +115,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261121-companion-bugs-01-mnsbzt-companion-storage-layout-git-detection-target-containment-an.ipd.md
 - Linked-worktree `project_context` inheritance, `doctor.py` companion reference resolution, and `check_engine.py` carrier resolution are owned by prerequisite child plan `pbdtss` (Order 02).
   - Carrier: pbdtss
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-companion-bugs-02-pbdtss-unified-companion-records-resolution-across-doctor-check-eng.ipd.md
 
 ## Scope check
 

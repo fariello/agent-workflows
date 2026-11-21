@@ -2213,7 +2213,7 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
             self.assertIn(expected_line, drifts[0].recovery)
 
     def test_companion_backend_fixture_generic_remedy_non_raising(self):
-        """E-07: companion backend fixture with owner outside repo_root keeps generic remedy and does not raise."""
+        """E-07 (updated by pbdtss E-03): companion backend fixture does not raise and emits logical .aw/records/... remedy."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td) / "repo"
             repo.mkdir()
@@ -2229,13 +2229,14 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            comp_plans = Path(f"{repo.resolve()}.aw") / "records" / "plans" / "executed"
+            comp_records = Path(f"{repo.resolve()}.aw") / "records"
+            comp_plans = comp_records / "plans" / "executed"
             comp_plans.mkdir(parents=True)
             (comp_plans / "20260101-plans-01-pl0001-sample.ipd.md").write_text(
                 RecordBuilder().plan(id6="pl0001", status="executed", text_only=True),
                 encoding="utf-8",
             )
-            pend_dir = repo / ".aw" / "records" / "plans" / "pending"
+            pend_dir = comp_records / "plans" / "pending"
             pend_dir.mkdir(parents=True)
             plan_path = pend_dir / "20260926-sample-01-pl9999-sample.ipd.md"
             plan_path.write_text(
@@ -2264,7 +2265,11 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
                 "carrier pl0001 finished (executed)",
                 finished_drifts[0].detail,
             )
-            self.assertNotIn("- Carrier-Evidence: ", finished_drifts[0].detail)
+            self.assertIn(
+                "- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md",
+                finished_drifts[0].detail,
+            )
+            self.assertNotIn(str(comp_records), finished_drifts[0].detail)
 
     def test_case_7_mixed_finished_and_uncarried_carrier_rows_split_into_two_drifts(
         self,

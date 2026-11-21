@@ -24,7 +24,7 @@ import importlib.util
 import os
 import re as _re
 from collections.abc import Iterable, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import (
     Any,
     Callable,
@@ -1101,6 +1101,11 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "doctor.dangling-doc-reference": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # companion-bugs Order 02 (pbdtss E-02): warning when a companion-mode target repository
+    # contains a stray target-local .aw/records directory, file, or symlink.
+    "doctor.companion-stray-target-records": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1241,7 +1246,10 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
             seen.add(key)
             out.append(p)
 
-    from agent_workflows.project_context import project_records_dir
+    from agent_workflows.project_context import (
+        has_stored_records_placement,
+        project_records_dir,
+    )
 
     records_dir = project_records_dir(repo_root)
 
@@ -1260,7 +1268,8 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
             pass
     # Literal fallback (bare repo, or types the resolver rejects).
     _add(records_dir / record_type)
-    _add(repo_root / ".aw" / "records" / record_type)
+    if not has_stored_records_placement(repo_root):
+        _add(repo_root / ".aw" / "records" / record_type)
     _add(repo_root / ".agents" / record_type)
     return out
 
@@ -5602,13 +5611,82 @@ def _from_backlog_value(text: str) -> Optional[str]:
 _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
+def _resolve_evidence_candidate(
+    repo_root: Path, evidence: str
+) -> Optional[Tuple[Path, Tuple[str, ...]]]:
+    """Resolve an evidence path with containment enforcement, supporting external records roots.
+
+    When ``evidence`` (normalized POSIX without leading ``./``) targets ``.aw/records`` or
+    ``.aw/records/<rest>`` and ``project_context.project_records_dir(repo_root)`` resolves
+    outside ``repo_root``, resolves ``<rest>`` inside ``records_root`` with strict containment
+    (rejecting ``..`` segments and symlink escapes) and returns logical parts
+    ``(".aw", "records", *sub_rel.parts)``. Otherwise resolves inside ``repo_root`` with
+    strict containment. Returns ``None`` on any containment or resolution failure.
+    """
+    if not evidence:
+        return None
+    norm = evidence.replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    if not norm:
+        return None
+
+    try:
+        repo_resolved = Path(repo_root).resolve()
+    except OSError:
+        return None
+
+    is_records_logical = norm in (".aw/records", ".aw/records/") or norm.startswith(
+        ".aw/records/"
+    )
+    if is_records_logical:
+        try:
+            from agent_workflows.project_context import project_records_dir
+
+            records_root: Optional[Path] = project_records_dir(repo_root).resolve()
+        except Exception:
+            records_root = None
+
+        if records_root is not None:
+            is_external = False
+            try:
+                records_root.relative_to(repo_resolved)
+            except ValueError:
+                is_external = True
+
+            if is_external:
+                rest = (
+                    norm[len(".aw/records/") :]
+                    if norm.startswith(".aw/records/")
+                    else ""
+                )
+                if ".." in PurePosixPath(rest).parts:
+                    return None
+                try:
+                    candidate = (
+                        (records_root / rest).resolve() if rest else records_root
+                    )
+                    sub_rel = candidate.relative_to(records_root)
+                except (ValueError, OSError):
+                    return None
+                return candidate, (".aw", "records") + sub_rel.parts
+
+    try:
+        candidate = (repo_resolved / evidence).resolve()
+        rel = candidate.relative_to(repo_resolved)
+    except (ValueError, OSError):
+        return None
+    return candidate, rel.parts
+
+
 def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
     """Shared evidence resolver (bklggrad orb9zb E-03): checks safety, containment,
     existence, and records-tree location only for an evidence citation.
     `evaluate_blocking_close` and `evaluate_carrier_obligation` enforce the executed-plan
     and implemented-spec rules (and the carrier predicate defers to `- Carrier:` when
     one is present), while specs._evidence_resolvable adds its own stricter executed-IPD rule.
-    Path-traversal-safe: the resolved path must stay inside the repo.
+    Path-traversal-safe: the resolved path must stay inside the repo (or external records root
+    for logical `.aw/records/...` citations in companion/home backends).
 
     NOTE: this is intentionally MORE permissive than the specs predicate (any in-tree records
     artifact, not only executed IPDs). specs' `implementing -> implemented` keeps its own stricter
@@ -5618,15 +5696,16 @@ def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
 
     if not evidence or not _A.is_safe_descriptive(evidence):
         return False
-    repo_root = Path(repo_root).resolve()
-    candidate = (repo_root / evidence).resolve()
-    # containment: candidate must be inside the repo root (no ../ escape)
-    try:
-        candidate.relative_to(repo_root)
-    except ValueError:
+    resolved = _resolve_evidence_candidate(repo_root, evidence)
+    if resolved is None:
         return False
+    candidate, logical_parts = resolved
     if not candidate.exists():
         return False
+    if (len(logical_parts) >= 3 and logical_parts[:2] == (".aw", "records")) or (
+        len(logical_parts) >= 2 and logical_parts[0] == ".agents"
+    ):
+        return True
     norm = str(candidate).replace("\\", "/")
     # must live under a records/artifact tree (not, e.g., a source file or an arbitrary dotfile).
     # Accept the post-migration `.aw/records/` tree and the legacy `.agents/` records tree (plans,
@@ -5637,18 +5716,16 @@ def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
 def _evidence_plan_unshipped(repo_root: Path, evidence: str) -> bool:
     """Return True iff candidate evidence resolves inside a plans tree and is NOT an executed plan.
 
-    Computed relative to the resolved repo root:
+    Computed relative to the resolved repo root (or logical `.aw/records` for external records):
       - .aw/records/plans/<disposition>/... (prefix len 3)
       - .agents/plans/<disposition>/... (prefix len 2)
     A file whose disposition is 'executed' has shipped (including sharded archives);
     any other disposition or a non-file (e.g. plans directory itself) is unshipped.
     """
-    repo_root = Path(repo_root).resolve()
-    candidate = (repo_root / evidence).resolve()
-    try:
-        rel = candidate.relative_to(repo_root).parts
-    except ValueError:
+    resolved = _resolve_evidence_candidate(repo_root, evidence)
+    if resolved is None:
         return False
+    candidate, rel = resolved
 
     prefix_len: Optional[int] = None
     if len(rel) >= 3 and rel[:3] == (".aw", "records", "plans"):
@@ -5674,18 +5751,16 @@ def _evidence_plan_unshipped(repo_root: Path, evidence: str) -> bool:
 def _evidence_spec_unshipped(repo_root: Path, evidence: str) -> bool:
     """Return True iff candidate evidence resolves inside a specs tree and is NOT an implemented spec.
 
-    Computed relative to the resolved repo root:
+    Computed relative to the resolved repo root (or logical `.aw/records` for external records):
       - .aw/records/specs/<status>/... (prefix len 3)
       - .agents/docs/specs/... (prefix len 3)
       - .agents/specs/... (prefix len 2)
     A spec must carry `- Status: implemented` and (in a status-bucketed tree) live under `implemented/`.
     """
-    repo_root = Path(repo_root).resolve()
-    candidate = (repo_root / evidence).resolve()
-    try:
-        rel = candidate.relative_to(repo_root).parts
-    except ValueError:
+    resolved = _resolve_evidence_candidate(repo_root, evidence)
+    if resolved is None:
         return False
+    candidate, rel = resolved
 
     prefix_len: Optional[int] = None
     if len(rel) >= 3 and rel[:3] == (".aw", "records", "specs"):
@@ -11014,6 +11089,13 @@ def _resolve_carrier(
     statuses = ", ".join(sorted({(o[1] or "?").strip().lower() for o in owners}))
     finished_relpaths: List[str] = []
     if repo_root is not None:
+        rec_root_resolved: Optional[Path] = None
+        try:
+            from agent_workflows.project_context import project_records_dir
+
+            rec_root_resolved = project_records_dir(repo_root).resolve()
+        except Exception:
+            rec_root_resolved = None
         for o in owners:
             rec_type = o[0]
             st = (o[1] or "").strip().lower()
@@ -11025,6 +11107,11 @@ def _resolve_carrier(
                     rel = os.path.relpath(path, repo_root).replace("\\", "/")
                     if not (rel == ".." or rel.startswith("../") or os.path.isabs(rel)):
                         finished_relpaths.append(rel)
+                    elif rec_root_resolved is not None:
+                        sub = Path(path).resolve().relative_to(rec_root_resolved)
+                        finished_relpaths.append(
+                            (Path(".aw") / "records" / sub).as_posix()
+                        )
                 except Exception:
                     pass
 
