@@ -148,6 +148,7 @@ flowchart TD
   - Carrier: 872zd9
 - Moved to zl2pki (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G2b (items E-04; F-41 names each module).
   - Carrier: zl2pki
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-181-zl2pki-move-backlog-release-gate-and-check-test-data-chunk-7-of-7-o.ipd.md
 - Batch subset G3a (the setter, scaffold and authoring tests, carried from `59aiyh` E-05): Moved to 1upea0 (restructuring 2026-11-08 per maintainer decision "Codemod first, then small runs"; at most 4 batch items per plan).
   - Carrier: 1upea0
 - The fixture codemod and its census (F-30, F-31).
