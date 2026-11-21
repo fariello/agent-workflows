@@ -1,5 +1,6 @@
 - Id: diobl2
-- Status: open
+- Status: graduated
+- Graduated-To: diobl2
 - Set: diobl2
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw backlog): graduated by run run-20261121T164611Z-3890369: behm9r
 - 2026-11-21 created (aw backlog): full-auto hardcodes item action to execute instead of orchestrate for reviewed orchestrator IPDs
 
 ## Problem
