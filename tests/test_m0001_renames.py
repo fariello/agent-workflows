@@ -9,12 +9,14 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import unittest.mock
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import pytest
 
 from agent_workflows import (
+    artifact_core,
     artifact_naming,
     layout_migration,
 )
@@ -296,6 +298,69 @@ def test_build_rename_map_refusals_and_unmapped_duplicates(
     with pytest.raises(m0001_renames.RenameRefusalError) as exc_f:
         m0001_renames.build_rename_map(repo_f)
     assert "20260802-1200-01-weird.bogus.md" in str(exc_f.value)
+
+
+def test_build_rename_map_seeds_global_id6s_once_and_reuses_journal_with_zero_scans(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seeds global_id6s once across four uncached mints, tracks collisions in memory, and skips scanning on journal reuse."""
+    repo = _init_repo(tmp_path, monkeypatch, name="single_global_scan")
+    rec = repo / ".aw" / "records"
+    specs_dir = rec / "specs" / "implemented"
+    research_dir = rec / "research"
+    specs_dir.mkdir(parents=True)
+    research_dir.mkdir(parents=True)
+
+    for idx, slug in enumerate(("alpha", "beta", "gamma", "delta"), start=1):
+        (specs_dir / f"2026080{idx}-1200-01-{slug}.spec.md").write_text(
+            f"# Spec {slug}\n\n- Status: implemented\n", encoding="utf-8"
+        )
+
+    # A clustered research document quoting `- Id: qut111` in its body so only
+    # global_id6s (unbounded body scan) observes `qut111`.
+    (research_dir / "20260805-demo-01-rs0001-quoting.reference-research.md").write_text(
+        "# Research\n\n- Id: rs0001\n- Status: reviewed\n\n"
+        "```markdown\n- Id: qut111\n```\n",
+        encoding="utf-8",
+    )
+
+    seen_pools: List[frozenset[str]] = []
+    orig_generate = artifact_core.generate_id6
+
+    def _recording_generate(existing, _rng=None):
+        seen_pools.append(frozenset(existing))
+        return orig_generate(existing, _rng)
+
+    journal: Dict[str, object] = {}
+    with (
+        unittest.mock.patch.object(
+            artifact_core, "global_id6s", wraps=artifact_core.global_id6s
+        ) as mock_global,
+        unittest.mock.patch.object(
+            artifact_core, "generate_id6", wraps=_recording_generate
+        ) as mock_gen,
+    ):
+        map1 = m0001_renames.build_rename_map(repo, journal=journal)
+
+        assert mock_global.call_count == 1
+        assert mock_gen.call_count == 4
+        assert len(map1.entries) == 4
+        minted_ids = [entry.id6 for entry in map1.entries]
+        assert len(set(minted_ids)) == 4
+        assert len(seen_pools) == 4
+        for idx, (pool_snap, minted_id) in enumerate(zip(seen_pools, minted_ids)):
+            assert "qut111" in pool_snap
+            assert set(minted_ids[:idx]).issubset(pool_snap)
+            assert minted_id not in pool_snap
+
+        # Second call reusing journal["minted_ids"] performs zero global_id6s scans
+        # and zero generate_id6 calls, returning the identical RenameMap.
+        mock_global.reset_mock()
+        mock_gen.reset_mock()
+        map2 = m0001_renames.build_rename_map(repo, journal=journal)
+        assert mock_global.call_count == 0
+        assert mock_gen.call_count == 0
+        assert map2 == map1
 
 
 # --------------------------------------------------------------------------------------

@@ -16,10 +16,13 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from agent_workflows import cli
+import pytest
+
+from agent_workflows import artifact_refs, cli
 
 
 class _RepoTestCase(unittest.TestCase):
@@ -819,3 +822,250 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
         self.assertIn("live begin receipt present", skip_dict[p_with_receipt])
         self.assertIn("live begin receipt present", skip_dict[p_corrupt_receipt])
         self.assertIn("missing - Id:", skip_dict[p_no_id])
+
+
+@pytest.mark.core
+class TestArtifactRefsPrefilterAndParity(unittest.TestCase):
+    """Fast behavioral parity and prefilter tests for artifact_refs.plan_reference_rewrites_with_warnings."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="aw_test_refs_prefilter_"))
+        self.addCleanup(lambda: shutil.rmtree(self.tmp, ignore_errors=True))
+        self.specs = self.tmp / ".aw" / "records" / "specs"
+        self.plans = self.tmp / ".aw" / "records" / "plans" / "pending"
+        self.reviews = self.tmp / ".aw" / "records" / "reviews"
+        self.prompts = self.tmp / ".aw" / "records" / "prompts"
+        for d in (self.specs, self.plans, self.reviews, self.prompts):
+            d.mkdir(parents=True, exist_ok=True)
+
+    def test_parity_across_citation_forms_warnings_fences_and_permalinks(self):
+        # Unique legacy spec
+        old_leg_spec = "20260701-1200-01-alpha.spec.md"
+        new_leg_spec = "20260701-aa1111-01-aa1111-alpha.spec.md"
+        (self.specs / old_leg_spec).write_text("# Spec\n", encoding="utf-8")
+
+        # Shared legacy prefix (2 artifacts share 20260702-1200-01)
+        old_shared_leg = "20260702-1200-01-shared-a.spec.md"
+        new_shared_leg = "20260702-bb2222-01-bb2222-shared-a.spec.md"
+        (self.specs / old_shared_leg).write_text("# Shared A\n", encoding="utf-8")
+        (self.prompts / "20260702-1200-01-shared-b.prompt.md").write_text(
+            "# Shared B\n", encoding="utf-8"
+        )
+
+        # Unique facetless stem plan
+        old_uniq_plan = "20260703-demo-01-pl0001-unique-plan.ipd.md"
+        new_uniq_plan = "20260703-demo-01-pl0001-renamed-plan.ipd.md"
+        (self.plans / old_uniq_plan).write_text("# Plan\n", encoding="utf-8")
+
+        # Shared facetless stem plan + sibling review
+        old_shared_plan = "20260704-demo-01-pl0002-shared-plan.ipd.md"
+        new_shared_plan = "20260704-demo-01-pl0002-renamed-shared.ipd.md"
+        (self.plans / old_shared_plan).write_text("# Shared Plan\n", encoding="utf-8")
+        (self.reviews / "20260704-demo-01-pl0002-shared-plan.review.md").write_text(
+            "# Sibling Review\n", encoding="utf-8"
+        )
+
+        fence_block = (
+            "```sh\n"
+            f"echo {old_leg_spec} 20260701-1200-01 20260703-demo-01-pl0001-unique-plan\n"
+            "```"
+        )
+        permalink_line = f"[Pinned](https://example.invalid/o/r/blob/0123456789abcdef/.aw/records/specs/{old_leg_spec})"
+        citer_all = self.plans / "20260705-demo-01-ct0001-citer-all.ipd.md"
+        citer_all.write_text(
+            f"Full: {old_leg_spec}\n"
+            f"Whole: 20260701-1200-01-alpha.spec\n"
+            f"Legacy short: `20260701-1200-01`\n"
+            f"Shared legacy short: `20260702-1200-01`\n"
+            f"Unique facetless: 20260703-demo-01-pl0001-unique-plan\n"
+            f"Shared facetless: 20260704-demo-01-pl0002-shared-plan\n"
+            f"{fence_block}\n"
+            f"{permalink_line}\n",
+            encoding="utf-8",
+        )
+
+        citer_masked_only = self.plans / "20260705-demo-02-ct0002-masked-only.ipd.md"
+        masked_only_orig = f"{fence_block}\n{permalink_line}\n"
+        citer_masked_only.write_text(masked_only_orig, encoding="utf-8")
+
+        citer_clean = self.plans / "20260705-demo-03-ct0003-clean.ipd.md"
+        citer_clean.write_text("# Clean plan with zero citations\n", encoding="utf-8")
+
+        name_map = {
+            old_leg_spec: new_leg_spec,
+            old_shared_leg: new_shared_leg,
+            old_uniq_plan: new_uniq_plan,
+            old_shared_plan: new_shared_plan,
+        }
+        edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+            self.tmp, name_map
+        )
+
+        expected_edits = [
+            artifact_refs.RefEdit(
+                citer_all, artifact_refs.FULL_NAME, old_leg_spec, new_leg_spec, 1
+            ),
+            artifact_refs.RefEdit(
+                citer_all,
+                artifact_refs.BARE_STEM,
+                "20260701-1200-01-alpha.spec",
+                "20260701-aa1111-01-aa1111-alpha.spec",
+                2,
+            ),
+            artifact_refs.RefEdit(
+                citer_all,
+                artifact_refs.BARE_STEM,
+                "20260701-1200-01",
+                "20260701-aa1111-01",
+                1,
+            ),
+            artifact_refs.RefEdit(
+                citer_all,
+                artifact_refs.FACETLESS_STEM,
+                "20260703-demo-01-pl0001-unique-plan",
+                "20260703-demo-01-pl0001-renamed-plan",
+                1,
+            ),
+        ]
+        self.assertEqual(edits, expected_edits)
+        self.assertEqual(
+            warnings,
+            [
+                "--- WARNING: legacy prefix '20260702-1200-01' is shared by 2 artifacts; "
+                "short-handle citations of it were NOT rewritten ---",
+                "--- WARNING: stem '20260704-demo-01-pl0002-shared-plan' is shared by 1 other artifact(s); "
+                "facet-less citations of it were NOT rewritten ---",
+            ],
+        )
+
+        artifact_refs.apply_reference_rewrites(edits)
+        updated = citer_all.read_text(encoding="utf-8")
+        self.assertIn(f"Full: {new_leg_spec}", updated)
+        self.assertIn("Whole: 20260701-aa1111-01-aa1111-alpha.spec", updated)
+        self.assertIn("Legacy short: `20260701-aa1111-01`", updated)
+        self.assertIn("Shared legacy short: `20260702-1200-01`", updated)
+        self.assertIn("Unique facetless: 20260703-demo-01-pl0001-renamed-plan", updated)
+        self.assertIn("Shared facetless: 20260704-demo-01-pl0002-shared-plan", updated)
+        self.assertIn(fence_block, updated)
+        self.assertIn(permalink_line, updated)
+        self.assertEqual(
+            citer_masked_only.read_text(encoding="utf-8"), masked_only_orig
+        )
+
+    def test_stem_regexes_compile_once_and_non_matching_files_bypass_masking(self):
+        old_leg = "20260710-1200-01-one.spec.md"
+        new_leg = "20260710-aa1111-01-aa1111-one.spec.md"
+        old_leg2 = "20260711-1200-01-two.spec.md"
+        new_leg2 = "20260711-bb2222-01-bb2222-two.spec.md"
+        (self.specs / old_leg).write_text("# One\n", encoding="utf-8")
+        (self.specs / old_leg2).write_text("# Two\n", encoding="utf-8")
+
+        # One citing file, one fenced-only file, one wildcard-probe file, three small clean files,
+        # and one large synthetic file without citations.
+        (self.plans / "20260712-demo-01-ct0001-citer.ipd.md").write_text(
+            f"Cites {old_leg} and 20260710-1200-01-one\n", encoding="utf-8"
+        )
+        (self.plans / "20260712-demo-02-ct0002-fenced.ipd.md").write_text(
+            f"```sh\n{old_leg2}\n```\n", encoding="utf-8"
+        )
+        # If `_compile_prefilter` forgot `re.escape`, dots in `note.v1.md` would match `noteXv1Xmd`.
+        (self.plans / "20260712-demo-03-ct0003-dotprobe.ipd.md").write_text(
+            "Prose mentioning noteXv1Xmd only.\n", encoding="utf-8"
+        )
+        for idx in range(4, 7):
+            (self.plans / f"20260712-demo-0{idx}-ct000{idx}-clean.ipd.md").write_text(
+                f"Unrelated document {idx}\n", encoding="utf-8"
+            )
+        (self.plans / "20260712-demo-07-ct0007-large-clean.ipd.md").write_text(
+            "Unrelated prose line without any artifact citation.\n" * 4000,
+            encoding="utf-8",
+        )
+
+        name_map = {
+            old_leg: new_leg,
+            old_leg2: new_leg2,
+            "note.v1.md": "note.v2.md",
+        }
+        with (
+            unittest.mock.patch.object(
+                artifact_refs,
+                "_boundaried",
+                wraps=artifact_refs._boundaried,
+            ) as mock_bound,
+            unittest.mock.patch.object(
+                artifact_refs,
+                "_facetless_boundaried",
+                wraps=artifact_refs._facetless_boundaried,
+            ) as mock_facet,
+            unittest.mock.patch.object(
+                artifact_refs,
+                "_mask_fenced_code",
+                wraps=artifact_refs._mask_fenced_code,
+            ) as mock_mask,
+            unittest.mock.patch.object(
+                artifact_refs,
+                "_index_records_stems",
+                wraps=artifact_refs._index_records_stems,
+            ) as mock_index,
+        ):
+            edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+                self.tmp, name_map
+            )
+
+        self.assertEqual(warnings, [])
+        # full-name (.spec.md) + whole-stem (.spec) + facetless-stem (-one) in citer
+        self.assertEqual(
+            [(e.kind, e.old, e.hits) for e in edits],
+            [
+                (artifact_refs.FULL_NAME, old_leg, 1),
+                (artifact_refs.BARE_STEM, "20260710-1200-01-one.spec", 1),
+                (artifact_refs.FACETLESS_STEM, "20260710-1200-01-one", 1),
+            ],
+        )
+        # One single-pass records walk despite two legacy+facetless entries.
+        self.assertEqual(mock_index.call_count, 1)
+        # Compiled once per distinct stem: 3 whole stems + 2 legacy prefixes = 5; 2 facetless stems = 2.
+        self.assertEqual(mock_bound.call_count, 5)
+        self.assertEqual(mock_facet.call_count, 2)
+        # Only the 2 files with a raw prefilter hit (citer + fenced) called _mask_fenced_code;
+        # the 3 clean files, the large synthetic file, the dot-probe file, and the 2 spec files bypassed it.
+        self.assertEqual(mock_mask.call_count, 2)
+
+    def test_lazy_index_and_empty_map_skip_walks_and_masking(self):
+        (self.plans / "20260712-demo-01-ct0001-plain.ipd.md").write_text(
+            "See plain-notes.md here.\n", encoding="utf-8"
+        )
+        with (
+            unittest.mock.patch.object(
+                artifact_refs,
+                "_index_records_stems",
+                wraps=artifact_refs._index_records_stems,
+            ) as mock_index,
+            unittest.mock.patch.object(
+                artifact_refs,
+                "_mask_fenced_code",
+                wraps=artifact_refs._mask_fenced_code,
+            ) as mock_mask,
+        ):
+            edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+                self.tmp, {"plain-notes.md": "plain-notes-v2.md"}
+            )
+            self.assertEqual(warnings, [])
+            self.assertEqual(
+                [(e.kind, e.old, e.hits) for e in edits],
+                [
+                    (artifact_refs.FULL_NAME, "plain-notes.md", 1),
+                    (artifact_refs.BARE_STEM, "plain-notes", 1),
+                ],
+            )
+            self.assertEqual(mock_index.call_count, 0)
+            self.assertEqual(mock_mask.call_count, 1)
+
+            mock_mask.reset_mock()
+            no_edits, no_warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+                self.tmp, {"plain-notes.md": "plain-notes.md"}
+            )
+            self.assertEqual(no_edits, [])
+            self.assertEqual(no_warnings, [])
+            self.assertEqual(mock_index.call_count, 0)
+            self.assertEqual(mock_mask.call_count, 0)

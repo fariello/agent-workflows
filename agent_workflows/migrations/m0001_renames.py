@@ -447,8 +447,10 @@ def build_rename_map(
     Scans every discovered candidate record under
     ``project_context.project_records_dir(repo)`` (excluding comms, ``.data/``,
     READMEs, templates, and unclassifiable files). Reuses minted ``id6`` values
-    stored in ``journal['minted_ids']``, or mints repository-unique ``id6``
-    values via ``artifact_core.mint_id6`` and records them in ``journal`` before
+    stored in ``journal['minted_ids']``, or lazily seeds the repository-wide
+    collision pool once from ``artifact_core.global_id6s`` and generates
+    repository-unique ``id6`` values in memory via
+    ``artifact_core.generate_id6``, recording them in ``journal`` before
     returning (when ``journal=None``, mints in memory and writes nothing).
     """
     repo_path = Path(repo)
@@ -519,6 +521,7 @@ def build_rename_map(
     mapped_id_owners: Dict[str, List[str]] = {}
 
     all_known_ids: Set[str] = set(other_ids_by_id.keys()) | set(journal_minted.values())
+    global_pool: Optional[Set[str]] = None
 
     for path, rel_path in rename_targets:
         m_leg = artifact_naming._LEGACY_TIMESTAMP_RE.match(path.name)
@@ -562,9 +565,15 @@ def build_rename_map(
                 id6 = reused
                 minted = True
             else:
-                pool = all_known_ids | minted_in_pass
-                id6 = artifact_core.mint_id6(repo_path, existing=pool)
+                if global_pool is None:
+                    global_pool = (
+                        artifact_core.global_id6s(repo_path)
+                        | all_known_ids
+                        | minted_in_pass
+                    )
+                id6 = artifact_core.generate_id6(global_pool)
                 minted = True
+                global_pool.add(id6)
                 minted_in_pass.add(id6)
                 all_known_ids.add(id6)
                 new_journal_entries[rel_path] = id6
