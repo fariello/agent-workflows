@@ -27,6 +27,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests.support import init_repo
+from tests.record_builder import RecordBuilder
 
 _HOLDER_CODE = """
 import sys
@@ -282,7 +283,8 @@ class RunnerPeerDependencyTests(unittest.TestCase):
             / "20260101-s-01-prereq-plan.ipd.md"
         )
         plan_pending.write_text(
-            "# Plan prereq\n- Id: prereq\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(id6="prereq", status="approved", text_only=True),
+            encoding="utf-8",
         )
 
         with _HolderProcess(peer_run_dir / "driver.lock"):
@@ -522,7 +524,12 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                     / "20260101-s-01-dep001-plan.ipd.md"
                 )
                 dep_plan.write_text(
-                    "# Plan dep001\n- Id: dep001\n- Status: approved\n- Item-Dependencies: executed:prereq\n",
+                    RecordBuilder().plan(
+                        id6="dep001",
+                        status="approved",
+                        item_dependencies="executed:prereq",
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 
@@ -613,7 +620,9 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                     / "20260101-s-01-prereq-plan.ipd.md"
                 )
                 prereq_plan.write_text(
-                    "# Plan prereq\n- Id: prereq\n- Status: approved\n",
+                    RecordBuilder().plan(
+                        id6="prereq", status="approved", text_only=True
+                    ),
                     encoding="utf-8",
                 )
 
@@ -626,7 +635,12 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                     / "20260101-s-02-dep001-plan.ipd.md"
                 )
                 dep_plan.write_text(
-                    "# Plan dep001\n- Id: dep001\n- Status: approved\n- Item-Dependencies: executed:prereq\n",
+                    RecordBuilder().plan(
+                        id6="dep001",
+                        status="approved",
+                        item_dependencies="executed:prereq",
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 
@@ -735,11 +749,17 @@ class RunnerPeerDependencyTests(unittest.TestCase):
         )
         pending = repo / ".aw" / "records" / "plans" / "pending"
         (pending / "20260101-s-01-prereq-plan.ipd.md").write_text(
-            "# Plan prereq\n- Id: prereq\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(id6="prereq", status="approved", text_only=True),
+            encoding="utf-8",
         )
         dep = pending / "20260101-s-02-dep001-plan.ipd.md"
         dep.write_text(
-            "# Plan dep001\n- Id: dep001\n- Status: approved\n- Item-Dependencies: executed:prereq\n",
+            RecordBuilder().plan(
+                id6="dep001",
+                status="approved",
+                item_dependencies="executed:prereq",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         state = {

@@ -22,8 +22,8 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 from agent_workflows import agy_runipd, oc_runipd, runner_stop
+from tests.record_builder import RecordBuilder
 from tests.support import init_repo
-from tests.test_oc_runipd import _CONFORMING_PLAN
 
 
 def _init_repo_with_pending_plan(repo: Path, setid: str, id6: str) -> Path:
@@ -31,13 +31,20 @@ def _init_repo_with_pending_plan(repo: Path, setid: str, id6: str) -> Path:
     (repo / ".gitignore").write_text(
         ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
     )
-    pending = repo / ".aw" / "records" / "plans" / "pending"
-    pending.mkdir(parents=True)
-    plan_path = pending / f"20260828-{setid}-01-{id6}-demo.ipd.md"
-    plan_text = _CONFORMING_PLAN.format(id6=id6).replace(
-        "- Set: demo", f"- Set: {setid}"
+    plan_path = RecordBuilder(repo).plan(
+        id6=id6,
+        set_name=setid,
+        order=1,
+        when="2026-08-28",
+        slug="demo",
+        title="Demo self-finalize",
+        status="approved",
+        scope_paths="src/",
+        author="test",
+        readiness="go-pending-approval",
+        approval="2026-08-28, recorded via aw ipd set: status set to approved",
     )
-    plan_path.write_text(plan_text, encoding="utf-8")
+    assert isinstance(plan_path, Path)
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-qm", "initial"], cwd=repo, check=True, capture_output=True

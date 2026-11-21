@@ -8,6 +8,7 @@ Specified by revgate Order 03 (7nkcgp) and plan k81fqx.
 from pathlib import Path
 
 from agent_workflows import review_findings, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(tmp_path: Path) -> Path:
@@ -16,45 +17,12 @@ def _setup_repo(tmp_path: Path) -> Path:
     exec_dir.mkdir(parents=True, exist_ok=True)
     plan_file = exec_dir / "20261013-test-01-dep001-dep.ipd.md"
     plan_file.write_text(
-        "# IPD: dep\n\n- Id: dep001\n- Status: executed\n",
+        RecordBuilder().plan(
+            title="dep", id6="dep001", status="executed", text_only=True
+        ),
         encoding="utf-8",
     )
     return tmp_path
-
-
-def _write_review(
-    repo: Path,
-    *,
-    finding_id: str = "PR-001",
-    severity: str = "high",
-    decision: str = "open",
-    resolution: str = "",
-) -> Path:
-    """Write a `.review.md` record for `dep001` with a single finding in Round 1."""
-    rev_path = (
-        repo / ".aw" / "records" / "reviews" / "20261013-0001-01-dep001-test.review.md"
-    )
-    finding = review_findings.Finding(
-        id=finding_id,
-        severity=severity,
-        scope="in-scope",
-        area="behavior",
-        evidence="repro evidence",
-        finding="finding description",
-        remediation_risk="low",
-        decision=decision,
-        resolution=resolution,
-    )
-    rnd = review_findings.Round(number=1, findings=(finding,), decisions=())
-    return review_findings.write_review(
-        rev_path,
-        subject_id="dep001",
-        subject_type="ipd",
-        reviewed_at="2026-10-13",
-        reviewer="test/agent",
-        verdict="needs-revision" if decision != "fixed" else "approved",
-        rounds=(rnd,),
-    )
 
 
 def test_case_a_out_of_queue_execute_blocked_by_high_open_finding(
@@ -62,7 +30,32 @@ def test_case_a_out_of_queue_execute_blocked_by_high_open_finding(
 ) -> None:
     """(a) OUT-OF-QUEUE execute item with executed:dep001 and HIGH OPEN finding is blocked."""
     repo = _setup_repo(tmp_path)
-    _write_review(repo, severity="high", decision="open")
+    RecordBuilder(repo).review(
+        "dep001",
+        when="2026-10-13",
+        set_name="0001",
+        slug="test",
+        reviewer="test/agent",
+        verdict="needs-revision",
+        rounds=[
+            {
+                "number": 1,
+                "findings": [
+                    {
+                        "id": "PR-001",
+                        "severity": "high",
+                        "scope": "in-scope",
+                        "area": "behavior",
+                        "evidence": "repro evidence",
+                        "finding": "finding description",
+                        "remediation_risk": "low",
+                        "decision": "open",
+                        "resolution": "",
+                    }
+                ],
+            }
+        ],
+    )
 
     # Fixture sanity: subject_gating_blocks must be non-empty to prevent vacuous pass
     blocks = review_findings.subject_gating_blocks(repo, "dep001")
@@ -89,7 +82,32 @@ def test_case_a_out_of_queue_execute_blocked_by_high_open_finding(
 def test_case_b_bare_id6_blocked_characterization(tmp_path: Path) -> None:
     """(b) Characterization: bare id6 dep001 was already blocked pre-fix and remains blocked."""
     repo = _setup_repo(tmp_path)
-    _write_review(repo, severity="high", decision="open")
+    RecordBuilder(repo).review(
+        "dep001",
+        when="2026-10-13",
+        set_name="0001",
+        slug="test",
+        reviewer="test/agent",
+        verdict="needs-revision",
+        rounds=[
+            {
+                "number": 1,
+                "findings": [
+                    {
+                        "id": "PR-001",
+                        "severity": "high",
+                        "scope": "in-scope",
+                        "area": "behavior",
+                        "evidence": "repro evidence",
+                        "finding": "finding description",
+                        "remediation_risk": "low",
+                        "decision": "open",
+                        "resolution": "",
+                    }
+                ],
+            }
+        ],
+    )
 
     # Fixture sanity
     blocks = review_findings.subject_gating_blocks(repo, "dep001")
@@ -116,7 +134,32 @@ def test_case_b_bare_id6_blocked_characterization(tmp_path: Path) -> None:
 def test_case_c_in_queue_execute_blocked_by_high_open_finding(tmp_path: Path) -> None:
     """(c) IN-QUEUE execute dependency with run status executed is blocked identically."""
     repo = _setup_repo(tmp_path)
-    _write_review(repo, severity="high", decision="open")
+    RecordBuilder(repo).review(
+        "dep001",
+        when="2026-10-13",
+        set_name="0001",
+        slug="test",
+        reviewer="test/agent",
+        verdict="needs-revision",
+        rounds=[
+            {
+                "number": 1,
+                "findings": [
+                    {
+                        "id": "PR-001",
+                        "severity": "high",
+                        "scope": "in-scope",
+                        "area": "behavior",
+                        "evidence": "repro evidence",
+                        "finding": "finding description",
+                        "remediation_risk": "low",
+                        "decision": "open",
+                        "resolution": "",
+                    }
+                ],
+            }
+        ],
+    )
 
     # Fixture sanity
     blocks = review_findings.subject_gating_blocks(repo, "dep001")
@@ -151,8 +194,31 @@ def test_case_c_in_queue_execute_blocked_by_high_open_finding(tmp_path: Path) ->
 def test_case_d_execute_satisfied_when_finding_fixed(tmp_path: Path) -> None:
     """(d) Execute dependency is satisfied when the finding is decided FIXED."""
     repo = _setup_repo(tmp_path)
-    _write_review(
-        repo, severity="high", decision="fixed", resolution="addressed in commit"
+    RecordBuilder(repo).review(
+        "dep001",
+        when="2026-10-13",
+        set_name="0001",
+        slug="test",
+        reviewer="test/agent",
+        verdict="approved",
+        rounds=[
+            {
+                "number": 1,
+                "findings": [
+                    {
+                        "id": "PR-001",
+                        "severity": "high",
+                        "scope": "in-scope",
+                        "area": "behavior",
+                        "evidence": "repro evidence",
+                        "finding": "finding description",
+                        "remediation_risk": "low",
+                        "decision": "fixed",
+                        "resolution": "addressed in commit",
+                    }
+                ],
+            }
+        ],
     )
 
     blocks = review_findings.subject_gating_blocks(repo, "dep001")
@@ -177,7 +243,32 @@ def test_case_d_execute_satisfied_when_finding_fixed(tmp_path: Path) -> None:
 def test_case_e_review_action_admitted_despite_open_finding(tmp_path: Path) -> None:
     """(e) Review-action item is satisfied despite open finding (review items not gated)."""
     repo = _setup_repo(tmp_path)
-    _write_review(repo, severity="high", decision="open")
+    RecordBuilder(repo).review(
+        "dep001",
+        when="2026-10-13",
+        set_name="0001",
+        slug="test",
+        reviewer="test/agent",
+        verdict="needs-revision",
+        rounds=[
+            {
+                "number": 1,
+                "findings": [
+                    {
+                        "id": "PR-001",
+                        "severity": "high",
+                        "scope": "in-scope",
+                        "area": "behavior",
+                        "evidence": "repro evidence",
+                        "finding": "finding description",
+                        "remediation_risk": "low",
+                        "decision": "open",
+                        "resolution": "",
+                    }
+                ],
+            }
+        ],
+    )
 
     # Fixture sanity: ensure dep001 is gating for execute items
     blocks = review_findings.subject_gating_blocks(repo, "dep001")
@@ -202,7 +293,32 @@ def test_case_e_review_action_admitted_despite_open_finding(tmp_path: Path) -> N
 def test_case_f_low_finding_satisfied_under_default_threshold(tmp_path: Path) -> None:
     """(f) Low finding is not gating under default high threshold, so item is satisfied."""
     repo = _setup_repo(tmp_path)
-    _write_review(repo, severity="low", decision="open")
+    RecordBuilder(repo).review(
+        "dep001",
+        when="2026-10-13",
+        set_name="0001",
+        slug="test",
+        reviewer="test/agent",
+        verdict="needs-revision",
+        rounds=[
+            {
+                "number": 1,
+                "findings": [
+                    {
+                        "id": "PR-001",
+                        "severity": "low",
+                        "scope": "in-scope",
+                        "area": "behavior",
+                        "evidence": "repro evidence",
+                        "finding": "finding description",
+                        "remediation_risk": "low",
+                        "decision": "open",
+                        "resolution": "",
+                    }
+                ],
+            }
+        ],
+    )
 
     blocks = review_findings.subject_gating_blocks(repo, "dep001")
     assert (

@@ -18,6 +18,7 @@ from unittest import mock
 
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 from tests.test_attempt_model_identity import _setup_test_repo
 
 Verdict = namedtuple("Verdict", ["earned", "signal", "detail"])
@@ -257,9 +258,17 @@ def test_fallback_set_plan_approved_forwards_host_equivalent_arguments() -> None
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             repo_root, plan_file = _setup_test_repo(root)
-            plan_text = plan_file.read_text(encoding="utf-8")
-            plan_text = plan_text.replace("- Status: pending", "- Status: to-review")
-            plan_file.write_text(plan_text, encoding="utf-8")
+            plan_file.write_text(
+                RecordBuilder().plan(
+                    title="Test",
+                    id6="tst001",
+                    set="test",
+                    status="to-review",
+                    scope_paths="file.txt",
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
 
             run_dir = repo_root / ".aw/runs/run-test"
             run_dir.mkdir(parents=True, exist_ok=True)
@@ -280,13 +289,21 @@ def test_fallback_set_plan_approved_forwards_host_equivalent_arguments() -> None
                     ),
                     encoding="utf-8",
                 )
-                t = plan_file.read_text(encoding="utf-8")
-                t = t.replace(
-                    "- Status: to-review",
-                    "- Status: reviewed\n- Readiness: go-pending-approval",
+                plan_file.write_text(
+                    RecordBuilder().plan(
+                        title="Test",
+                        id6="tst001",
+                        set="test",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        scope_paths="file.txt",
+                        history=[
+                            "- 2026-10-12 reviewed (/plan-review): APPROVE WITH REVISIONS APPLIED"
+                        ],
+                        text_only=True,
+                    ),
+                    encoding="utf-8",
                 )
-                t += "\n## Workflow history\n- 2026-10-12 reviewed (/plan-review): APPROVE WITH REVISIONS APPLIED\n"
-                plan_file.write_text(t, encoding="utf-8")
                 return 0, "session-123", log_path, ["mock_agent"]
 
             empty_module = types.ModuleType("descriptor_only")
@@ -341,9 +358,17 @@ def test_fallback_integrate_review_lane_branch_forwards_host_equivalent_argument
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             repo_root, plan_file = _setup_test_repo(root)
-            plan_text = plan_file.read_text(encoding="utf-8")
-            plan_text = plan_text.replace("- Status: pending", "- Status: to-review")
-            plan_file.write_text(plan_text, encoding="utf-8")
+            plan_file.write_text(
+                RecordBuilder().plan(
+                    title="Test",
+                    id6="tst001",
+                    set="test",
+                    status="to-review",
+                    scope_paths="file.txt",
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
 
             run_dir = repo_root / ".aw/runs/run-test"
             run_dir.mkdir(parents=True, exist_ok=True)
@@ -364,13 +389,21 @@ def test_fallback_integrate_review_lane_branch_forwards_host_equivalent_argument
                     ),
                     encoding="utf-8",
                 )
-                t = plan_file.read_text(encoding="utf-8")
-                t = t.replace(
-                    "- Status: to-review",
-                    "- Status: reviewed\n- Readiness: go-pending-approval",
+                plan_file.write_text(
+                    RecordBuilder().plan(
+                        title="Test",
+                        id6="tst001",
+                        set="test",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        scope_paths="file.txt",
+                        history=[
+                            "- 2026-10-12 reviewed (/plan-review): APPROVE WITH REVISIONS APPLIED"
+                        ],
+                        text_only=True,
+                    ),
+                    encoding="utf-8",
                 )
-                t += "\n## Workflow history\n- 2026-10-12 reviewed (/plan-review): APPROVE WITH REVISIONS APPLIED\n"
-                plan_file.write_text(t, encoding="utf-8")
                 return 0, "session-123", log_path, ["mock_agent"]
 
             empty_module = types.ModuleType("descriptor_only")
@@ -478,9 +511,17 @@ def test_host_preference_preserved_for_shipped_hosts() -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             repo_root, plan_file = _setup_test_repo(root)
-            plan_text = plan_file.read_text(encoding="utf-8")
-            plan_text = plan_text.replace("- Status: pending", "- Status: to-review")
-            plan_file.write_text(plan_text, encoding="utf-8")
+            plan_file.write_text(
+                RecordBuilder().plan(
+                    title="Test",
+                    id6="tst001",
+                    set="test",
+                    status="to-review",
+                    scope_paths="file.txt",
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
 
             run_dir = repo_root / ".aw/runs/run-test"
             run_dir.mkdir(parents=True, exist_ok=True)
@@ -501,13 +542,21 @@ def test_host_preference_preserved_for_shipped_hosts() -> None:
                     ),
                     encoding="utf-8",
                 )
-                t = plan_file.read_text(encoding="utf-8")
-                t = t.replace(
-                    "- Status: to-review",
-                    "- Status: reviewed\n- Readiness: go-pending-approval",
+                plan_file.write_text(
+                    RecordBuilder().plan(
+                        title="Test",
+                        id6="tst001",
+                        set="test",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        scope_paths="file.txt",
+                        history=[
+                            "- 2026-10-12 reviewed (/plan-review): APPROVE WITH REVISIONS APPLIED"
+                        ],
+                        text_only=True,
+                    ),
+                    encoding="utf-8",
                 )
-                t += "\n## Workflow history\n- 2026-10-12 reviewed (/plan-review): APPROVE WITH REVISIONS APPLIED\n"
-                plan_file.write_text(t, encoding="utf-8")
                 return 0, "session-123", log_path, ["mock_agent"]
 
             host_irlb_calls: list[str] = []
