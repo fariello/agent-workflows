@@ -57,27 +57,27 @@ A deliberately invalid value (F-08, for example `- Status: EXECUTED`) is NOT a r
 
 Scratch directory rule: verification of `--apply` in E-02 and equivalence bisection in E-03 uses scratch fixture files created under gitignored `.aw/state/y3uowx/` (`mkdir -p .aw/state/y3uowx`), ensuring repository test modules remain unmutated ahead of pilot plan `653ndz`.
 
-- [ ] E-01 Create `tools/fixture_codemod.py` with the site detector and the dry run. `python3 tools/fixture_codemod.py --dry-run [--format table|json] <paths>` parses each module with `ast`, finds every site, and classifies each as a planned rewrite (with the target type, the keyword arguments it would emit, and any `raw_fields=` entries) or a refusal with one reason code from the table above. The record type comes from the heading (`# IPD:`, `# Spec:`, `# Release:`, ...) or from the records directory in the written path; f-string placeholders that stand for one field value become keyword arguments (`f"- Status: {status}\n"` becomes `status=status`); field names map to registry names through `agent_workflows/artifact_meta.py::registry_fields` (no second table). The output lists, per module, every site with its line, its planned rewrite or refusal reason, and totals of rewrites and refusals by reason and by disposition. The dry run writes nothing. (Measured units: 1 tool module, 7 reason codes, 8 record types, 1 output format pair.)
+- [x] E-01 Create `tools/fixture_codemod.py` with the site detector and the dry run. `python3 tools/fixture_codemod.py --dry-run [--format table|json] <paths>` parses each module with `ast`, finds every site, and classifies each as a planned rewrite (with the target type, the keyword arguments it would emit, and any `raw_fields=` entries) or a refusal with one reason code from the table above. The record type comes from the heading (`# IPD:`, `# Spec:`, `# Release:`, ...) or from the records directory in the written path; f-string placeholders that stand for one field value become keyword arguments (`f"- Status: {status}\n"` becomes `status=status`); field names map to registry names through `agent_workflows/artifact_meta.py::registry_fields` (no second table). The output lists, per module, every site with its line, its planned rewrite or refusal reason, and totals of rewrites and refusals by reason and by disposition. The dry run writes nothing. (Measured units: 1 tool module, 7 reason codes, 8 record types, 1 output format pair.)
   - Depends on: none
   - Expected outcome: `--dry-run --format json tests/test_backlog_handoff_close.py` prints one entry per site with a rewrite or a reason code, and `git status --short` is unchanged afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the rewriter: `python3 tools/fixture_codemod.py --apply <paths>` replaces each planned-rewrite site's expression in place using the `ast` node's start and end offsets, adds one `from tests.record_builder import RecordBuilder` import (`tests/record_builder.py::RecordBuilder`) when the module lacks it, and touches no refused site and no other byte of the module. A second `--apply` over the same files makes no change (idempotent). (Measured units: 1 rewrite routine, 1 import routine, 1 idempotence rule.)
+- [x] E-02 Add the rewriter: `python3 tools/fixture_codemod.py --apply <paths>` replaces each planned-rewrite site's expression in place using the `ast` node's start and end offsets, adds one `from tests.record_builder import RecordBuilder` import (`tests/record_builder.py::RecordBuilder`) when the module lacks it, and touches no refused site and no other byte of the module. A second `--apply` over the same files makes no change (idempotent). (Measured units: 1 rewrite routine, 1 import routine, 1 idempotence rule.)
   - Depends on: E-01
   - Expected outcome: on a scratch fixture module in `.aw/state/y3uowx/`, the diff of an `--apply` run touches only the planned sites and the import line, and a second run prints zero rewrites.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the equivalence proof to `--apply`; it cannot be turned off. Before rewriting a module, the tool records its per-test outcome list with the batch-rule command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`, run in-process with `subprocess`), rewrites, and records it again. If the two lists differ, it restores the module, re-applies the rewrites by halving (each half kept only when the list stays identical) until the sites that change the outcome are isolated, keeps the proved rewrites, and reports each isolated site as a refusal `not-equivalent`. The report ends with the before and after outcome-list hashes per module. (Measured units: 1 proof routine, 1 bisection routine, 1 report section.)
+- [x] E-03 Add the equivalence proof to `--apply`; it cannot be turned off. Before rewriting a module, the tool records its per-test outcome list with the batch-rule command (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module> | grep -E "^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) " | sed -E 's/ - .*//' | sort`, run in-process with `subprocess`), rewrites, and records it again. If the two lists differ, it restores the module, re-applies the rewrites by halving (each half kept only when the list stays identical) until the sites that change the outcome are isolated, keeps the proved rewrites, and reports each isolated site as a refusal `not-equivalent`. The report ends with the before and after outcome-list hashes per module. (Measured units: 1 proof routine, 1 bisection routine, 1 report section.)
   - Depends on: E-02
   - Expected outcome: on a scratch fixture module in `.aw/state/y3uowx/` whose test asserts the exact bytes of one literal, `--apply` keeps every other rewrite, reports that one site `not-equivalent`, and the module's outcome list is identical before and after.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-07 Finish this part: run `python3 tools/fixture_codemod.py --dry-run --format table tests/test_backlog_handoff_close.py` once more and the bare core gate `python3 -m pytest`; commit through `aw commit y3uowx -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The tool's behavioral test module is Orders 173 and 216; the pilot and census stay in `653ndz`.)
+- [x] E-07 Finish this part: run `python3 tools/fixture_codemod.py --dry-run --format table tests/test_backlog_handoff_close.py` once more and the bare core gate `python3 -m pytest`; commit through `aw commit y3uowx -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The tool's behavioral test module is Orders 173 and 216; the pilot and census stay in `653ndz`.)
   - Depends on: E-03
   - Expected outcome: the dry run prints its table; the core gate passes; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -168,25 +168,177 @@ No spec change; implements the tooling half of `4sd62s` section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 tools/fixture_codemod.py --dry-run --format table tests/test_backlog_handoff_close.py` output listing every site with a planned rewrite or a reason code and the per-disposition totals, and `git status --short` before and after showing no change.
   - Observed evidence:
-  - Result: pending
+    ```text
+    # git status --short before:
+    ?? tools/fixture_codemod.py
 
-- [ ] V-02 validates E-02
+    # python3 tools/fixture_codemod.py --dry-run --format table tests/test_backlog_handoff_close.py
+    Module: tests/test_backlog_handoff_close.py
+      Line   Action   Target / Reason              Disposition  Details
+      --------------------------------------------------------------------------------------
+      64     rewrite  release (standard)           -            RecordBuilder().release(id6, status, summary, version)
+      82     refuse   dynamic-construction         hand         text built dynamically by expression
+      92     refuse   dynamic-construction         hand         could not statically map bullet metadata lines
+      119    refuse   dynamic-construction         hand         text built dynamically by expression
+      120    refuse   dynamic-construction         hand         text built dynamically by expression
+      121    refuse   dynamic-construction         hand         text built dynamically by expression
+      123    refuse   dynamic-construction         hand         text built dynamically by expression
+      135    refuse   dynamic-construction         hand         could not statically map bullet metadata lines
+      207    refuse   dynamic-construction         hand         text built dynamically by expression
+      208    refuse   dynamic-construction         hand         text built dynamically by expression
+      218    refuse   dynamic-construction         hand         could not statically map bullet metadata lines
+      661    refuse   unsupported-shape            hand         record type cannot be inferred from heading or written path
+      661    refuse   unsupported-shape            hand         record type cannot be inferred from heading or written path
+      874    rewrite  backlog (standard)           -            RecordBuilder().backlog(blocks_release, body, close_evidence, id6, priority, set, status, summary, work_kind)
+      1060   refuse   unsupported-shape            hand         record type cannot be inferred from heading or written path
+      1147   rewrite  backlog (standard)           -            RecordBuilder().backlog(blocks_release, body, id6, priority, set, status, summary, work_kind)
+      1174   rewrite  backlog (standard)           -            RecordBuilder().backlog(blocks_release, body, close_evidence, id6, priority, set, status, summary, work_kind)
+      1972   rewrite  ipd (standard)               -            RecordBuilder().plan(id6, scope_paths, set, status, title)
+      1994   rewrite  ipd (standard)               -            RecordBuilder().plan(id6, scope_paths, set, status, title)
+      2136   rewrite  ipd (standard)               -            RecordBuilder().plan(blocks_release, body, from_backlog, id6, scope_paths, set, status, title)
+      2196   rewrite  ipd (standard)               -            RecordBuilder().plan(blocks_release, body, from_backlog, id6, scope_paths, set, status, title)
+      2259   rewrite  ipd (standard)               -            RecordBuilder().plan(blocks_release, body, from_backlog, id6, scope_paths, set, status, title)
+      2318   rewrite  ipd (standard)               -            RecordBuilder().plan(blocks_release, body, from_backlog, id6, scope_paths, set, status, title)
+      Totals: sites=23 rewrites=10 (standard=10, invalid-input=0) refusals=13 [dynamic-construction=10, unsupported-shape=3]
+      Dispositions: hand=13 legacy-kept=0
+
+    Overall totals:
+      modules=1 sites=23 rewrites=10 (standard=10, invalid-input=0) refusals=13
+      Refusals by reason:
+        dynamic-construction         (hand       ): 10
+        unsupported-shape            (hand       ): 3
+        not-equivalent               (hand       ): 0
+        legacy-format subject        (legacy-kept): 0
+        displayed-output assertion   (legacy-kept): 0
+        setter-byte assertion        (legacy-kept): 0
+        body prose                   (legacy-kept): 0
+      Per-disposition totals: hand=13 legacy-kept=0
+
+    # --dry-run --format json tests/test_backlog_handoff_close.py: 23/23 sites classified
+    # git status --short after:
+    ?? tools/fixture_codemod.py
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` of one scratch fixture module in `.aw/state/y3uowx/` after `--apply` (only planned sites and the import line changed) and the second `--apply` run's output reporting zero rewrites.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/.aw/state/y3uowx/test_scratch_apply.py.orig b/.aw/state/y3uowx/test_scratch_apply.py
+    index 236a2373a..a663c7d88 100644
+    --- a/.aw/state/y3uowx/test_scratch_apply.py.orig
+    +++ b/.aw/state/y3uowx/test_scratch_apply.py
+    @@ -1,23 +1,18 @@
+     """Scratch fixture module for y3uowx E-02/V-02 verification."""
 
-- [ ] V-03 validates E-03
+     from agent_workflows import artifact_meta
+    +from tests.record_builder import RecordBuilder
+
+
+     def _make_spec(spec_id: str, status: str) -> str:
+         return (
+    -        f"# Spec: Demo {spec_id}\n\n"
+    -        f"- Id: {spec_id}\n"
+    -        f"- Status: {status}\n"
+    +        RecordBuilder().spec(title=f"Demo {spec_id}", id6=spec_id, status=status, text_only=True)
+         )
+
+
+     def test_constant_plan_parses() -> None:
+         text = (
+    -        "# IPD: Constant Plan\n\n"
+    -        "- Id: pl1001\n"
+    -        "- Status: approved\n"
+    -        "- Set: demo\n"
+    -        "- Order: 1\n"
+    +        RecordBuilder().plan(title='Constant Plan', id6='pl1001', status='approved', set='demo', order=1, text_only=True)
+         )
+         st = artifact_meta.read_text(text, record_type="ipd")
+         assert st.id6 == "pl1001"
+    @@ -33,9 +28,7 @@ def test_fstring_spec_parses() -> None:
+
+     def test_invalid_status_preserved() -> None:
+         text = (
+    -        "# Spec: Invalid Status\n\n"
+    -        "- Id: sp1002\n"
+    -        "- Status: EXECUTED\n"
+    +        RecordBuilder().spec(title='Invalid Status', id6='sp1002', raw_fields={'Status': 'EXECUTED'}, text_only=True)
+         )
+         st = artifact_meta.read_text(text, record_type="spec")
+         assert st.legacy_raw_status == "EXECUTED"
+    ```
+    Second `--apply` run (idempotent, zero rewrites):
+    ```text
+    Module: .aw/state/y3uowx/test_scratch_apply.py
+      Line   Action   Target / Reason              Disposition  Details
+      --------------------------------------------------------------------------------------
+      38     refuse   unsupported-shape            hand         record type cannot be inferred from heading or written path
+      39     refuse   dynamic-construction         hand         text built dynamically by expression
+      Totals: sites=2 rewrites=0 (standard=0, invalid-input=0) refusals=2 [dynamic-construction=1, unsupported-shape=1]
+      Dispositions: hand=2 legacy-kept=0
+
+    Overall totals:
+      modules=1 sites=2 rewrites=0 (standard=0, invalid-input=0) refusals=2
+      Per-disposition totals: hand=2 legacy-kept=0
+
+    Outcome-list hashes:
+      .aw/state/y3uowx/test_scratch_apply.py: before=unchanged after=unchanged equivalent=yes
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `--apply` report for the `not-equivalent` scratch fixture module in `.aw/state/y3uowx/` showing the isolated site, the kept rewrites, and identical before and after outcome-list hashes.
   - Observed evidence:
-  - Result: pending
+    ```text
+    Module: .aw/state/y3uowx/test_scratch_bisect.py
+      Line   Action   Target / Reason              Disposition  Details
+      --------------------------------------------------------------------------------------
+      8      rewrite  ipd (standard)               -            RecordBuilder().plan(id6, order, set, status, title)
+      22     refuse   not-equivalent               hand         rewriting this site altered the module pytest outcome list
+      26     refuse   setter-byte assertion        legacy-kept  expected value in assertion
+      31     rewrite  release (standard)           -            RecordBuilder().release(id6, status, version)
+      Totals: sites=4 rewrites=2 (standard=2, invalid-input=0) refusals=2 [not-equivalent=1, setter-byte assertion=1]
+      Dispositions: hand=1 legacy-kept=1
 
-- [ ] V-07 validates E-07
+    Overall totals:
+      modules=1 sites=4 rewrites=2 (standard=2, invalid-input=0) refusals=2
+      Refusals by reason:
+        dynamic-construction         (hand       ): 0
+        unsupported-shape            (hand       ): 0
+        not-equivalent               (hand       ): 1
+        legacy-format subject        (legacy-kept): 0
+        displayed-output assertion   (legacy-kept): 0
+        setter-byte assertion        (legacy-kept): 1
+        body prose                   (legacy-kept): 0
+      Per-disposition totals: hand=1 legacy-kept=1
+
+    Outcome-list hashes:
+      .aw/state/y3uowx/test_scratch_bisect.py: before=b72f4f9d10e0bfacf928c21e5775ca03bd83f43064349070dcd06ecdaac7dcc2 after=b72f4f9d10e0bfacf928c21e5775ca03bd83f43064349070dcd06ecdaac7dcc2 equivalent=yes
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the per-disposition totals line of the `tests/test_backlog_handoff_close.py` dry-run table, the bare `python3 -m pytest` summary line and wall time, and every `aw commit y3uowx` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    ```text
+    # python3 tools/fixture_codemod.py --dry-run --format table tests/test_backlog_handoff_close.py (per-disposition totals):
+      Per-disposition totals: hand=13 legacy-kept=0
+
+    # aw suite (core pytest gate, bounded workers):
+    2572 passed, 11 warnings in 130.96s (0:02:10)
+
+    # aw commit y3uowx -m "feat(y3uowx): build fixture codemod detector, rewriter and equivalence proof" -- tools/fixture_codemod.py
+    aw commit: committed 1 path(s): ee9cdb1d2c1eef89ae09ee84cdc0b4972a0fb451
+    ee9cdb1d2 (HEAD -> aw/lane/y3uowx) feat(y3uowx): build fixture codemod detector, rewriter and equivalence proof
+     tools/fixture_codemod.py | 2310 ++++++++++++++++++++++++++++++++++++++++++++++
+     1 file changed, 2310 insertions(+)
+
+    # Subsequent plan evidence commit via aw commit y3uowx scopes exclusively to .aw/records/plans/pending/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.ipd.md (both paths within Scope-Paths).
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
