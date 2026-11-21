@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `nbfg7w` E-03, batch subset G6b; round-3 split 2026-11-09) Batch G6b, 4 of its 25 modules (the history, artifact, group, record and reference tests (`test_history*`, `test_artifact*`, `test_group*`, `test_record*`, `test_reference*`)): `tests/test_artifact_group.py`, `tests/test_artifact_refs_rewrite.py`, `tests/test_artifact_rename.py`, `tests/test_group_verb_policy.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_artifact_group` 21, `test_artifact_refs_rewrite` 23, `test_artifact_rename` 5, `test_group_verb_policy` 39. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G6b-j5mwpk-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_group_verb_policy.py`: `_seed_research_record`, `_seed_plan_record`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `nbfg7w` E-03, batch subset G6b; round-3 split 2026-11-09) Batch G6b, 4 of its 25 modules (the history, artifact, group, record and reference tests (`test_history*`, `test_artifact*`, `test_group*`, `test_record*`, `test_reference*`)): `tests/test_artifact_group.py`, `tests/test_artifact_refs_rewrite.py`, `tests/test_artifact_rename.py`, `tests/test_group_verb_policy.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_artifact_group` 21, `test_artifact_refs_rewrite` 23, `test_artifact_rename` 5, `test_group_verb_policy` 39. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G6b-j5mwpk-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_group_verb_policy.py`: `_seed_research_record`, `_seed_plan_record`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G6b-j5mwpk-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `nbfg7w` E-03, batch subset G6b; round-3 split 2026-11-09) Batch G6b, 4 of its 25 modules (the history, artifact, group, record and reference tests (`test_history*`, `test_artifact*`, `test_group*`, `test_record*`, `test_reference*`)): `tests/test_history_block_bounding.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_parity.py`, `tests/test_history_date_clock.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_history_block_bounding` 47, `test_history_consumers_shared_reader` 30, `test_history_date_clock_parity` 29, `test_history_date_clock` 6. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6b-j5mwpk-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `nbfg7w` E-03, batch subset G6b; round-3 split 2026-11-09) Batch G6b, 4 of its 25 modules (the history, artifact, group, record and reference tests (`test_history*`, `test_artifact*`, `test_group*`, `test_record*`, `test_reference*`)): `tests/test_history_block_bounding.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_parity.py`, `tests/test_history_date_clock.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_history_block_bounding` 47, `test_history_consumers_shared_reader` 30, `test_history_date_clock_parity` 29, `test_history_date_clock` 6. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6b-j5mwpk-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G6b-j5mwpk-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G6b-j5mwpk-1-files.txt .aw/state/59aiyh/G6b-j5mwpk-2-files.txt)`) into `.aw/state/59aiyh/j5mwpk-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit j5mwpk -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G6b-j5mwpk-1-files.txt .aw/state/59aiyh/G6b-j5mwpk-2-files.txt)`) into `.aw/state/59aiyh/j5mwpk-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit j5mwpk -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -154,20 +154,120 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G6b-j5mwpk-1-files.txt` and the empty `diff .aw/state/59aiyh/G6b-j5mwpk-1-before.txt .aw/state/59aiyh/G6b-j5mwpk-1-after.txt`; then, for each of `tests/test_artifact_group.py`, `tests/test_artifact_refs_rewrite.py`, `tests/test_artifact_rename.py`, `tests/test_group_verb_policy.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6b-j5mwpk-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G6b-j5mwpk-1-files.txt`:
+      - `tests/test_artifact_group.py`
+      - `tests/test_artifact_refs_rewrite.py`
+      - `tests/test_artifact_rename.py`
+      - `tests/test_group_verb_policy.py`
+    - Partition check at current HEAD: zero unnamed extra G6b modules found.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G6b-j5mwpk-1-before.txt .aw/state/59aiyh/G6b-j5mwpk-1-after.txt`): empty output, exit code 0 (84 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_artifact_group.py`:
+        - F-01 `rg -c`: before 21, after 12. Remaining matches (12):
+          - `setter-byte assertion` (10): lines 107 (`- Set: newgrp`), 108 (`- Id: bk1234`), 137 (`- Set: newgrp`), 156 (`- Set: specgrp`), 172 (`- Set: wtgrp`), 222 (`- Set: rdgrp`), 263 (`- Set: newrel`), 264 (`- Id: re1234`), 279 (`- Set: relnext`), 300 (`- Set: relinj`).
+          - `body prose` (1): line 282 (`# 4. Inject - Set: into a release without existing Set`, comment).
+          - `legacy-format subject` (1): line 213 (`rm.write_text("# Roadmap\n\n- Date: 2026-08-23\n", encoding="utf-8")`; `roadmap` is outside `RecordBuilder`'s 8 governed record types).
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-1-codemod.json`): `sites=20`, `rewrites=4` (`standard=4`, `invalid-input=0`), `refusals=16` (`unsupported-shape=3`, `not-equivalent=1`, `setter-byte assertion=12`, `hand=4`, `legacy-kept=12`), `before_hash=b8621d9867bd71e99c92f6c2fd57b81a84cdb1239f95f14d0e60a26e4b34c920`, `after_hash=b8621d9867bd71e99c92f6c2fd57b81a84cdb1239f95f14d0e60a26e4b34c920`, `equivalent=true`, `pytest_runs=6`, `changed=true`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 20 | 5 | 0 | 0 | 3 | 0 | 0 | 0 | 12 | 0 | 3 | 12`.
+      - `tests/test_artifact_refs_rewrite.py`:
+        - F-01 `rg -c`: before 23, after 2. Remaining matches (2):
+          - `setter-byte assertion` (2): line 797 (`self.assertIn(f"- Scope-Paths: {new_p}, other.py", updated)`), line 922 (`self.assertIn("missing - Id:", skip_dict[p_no_id])`). (Codemod-rewritten site pre-edit line 523 uses `raw_fields={'Status': 'draft'}` and hand-converted site pre-edit line 813 uses `raw_fields={"Id": None}`, both `invalid-input`.)
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-1-codemod.json`): `sites=24`, `rewrites=17` (`standard=16`, `invalid-input=1`), `refusals=7` (`dynamic-construction=1`, `unsupported-shape=2`, `not-equivalent=2`, `setter-byte assertion=2`, `hand=5`, `legacy-kept=2`), `before_hash=51645b1725da27776e7e50e1266c0617625bbc3927cd76dda4337968282e1376`, `after_hash=51645b1725da27776e7e50e1266c0617625bbc3927cd76dda4337968282e1376`, `equivalent=true`, `pytest_runs=18`, `changed=true`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 24 | 19 | 1 | 1 | 2 | 0 | 0 | 0 | 2 | 0 | 3 | 2`.
+      - `tests/test_artifact_rename.py`:
+        - F-01 `rg -c`: before 5, after 1. Remaining matches (1):
+          - `setter-byte assertion` (1): line 109 (`self.assertIn("- Id: bk1234", new_bkl.read_text(encoding="utf-8"))`).
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-1-codemod.json`): `sites=5`, `rewrites=3` (`standard=3`, `invalid-input=0`), `refusals=2` (`unsupported-shape=1`, `setter-byte assertion=1`, `hand=1`, `legacy-kept=1`), `before_hash=eb912c6a7603428f7f1d37096327166598228d1f35f3b4309949fe0c1314414c`, `after_hash=eb912c6a7603428f7f1d37096327166598228d1f35f3b4309949fe0c1314414c`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 5 | 3 | 0 | 0 | 1 | 0 | 0 | 0 | 1 | 0 | 1 | 1`.
+      - `tests/test_group_verb_policy.py`:
+        - F-01 `rg -c`: before 39, after 33. Remaining matches (33):
+          - `body prose` (6): lines 9, 501, 522, 543, 752, 1100 (module and test docstrings referencing `- Date:` and `- Kind:`).
+          - `setter-byte assertion` (27): lines 746, 747, 748, 770, 771, 772, 819, 820, 821, 857, 858, 876, 877, 976, 1010, 1118, 1119, 1120, 1148, 1149, 1167, 1168, 1169, 1192, 1193, 1331, 1367 (`assert "- Set: ..."` / `"- Order: ..."` / `"- Kind: ..."` assertions). (`_seed_plan_record` uses `raw_fields={"Set": set_line, "Date": date_line, ...}` for intentionally absent/malformed `Date`, absent `Kind`, and parenthetical `Set` values, `invalid-input`; `test_group_research_tier_disagreement_follows_filename` uses `raw_fields={"order": "03"}`, `invalid-input`.)
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-1-codemod.json`): `sites=34`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=34` (`unsupported-shape=6`, `not-equivalent=1`, `setter-byte assertion=27`, `hand=7`, `legacy-kept=27`), `before_hash=1e5b959abd656a284688f35326e2ea24464888e8f44bc1b26f54b8add204f347`, `after_hash=1e5b959abd656a284688f35326e2ea24464888e8f44bc1b26f54b8add204f347`, `equivalent=true`, `pytest_runs=2`, `changed=false`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 34 | 1 | 0 | 0 | 6 | 0 | 0 | 0 | 27 | 0 | 6 | 27`.
+    - Hand count: 17 reported by codemod (13 static + 4 apply-time `not-equivalent`; <= 25; 16 hand-converted to `RecordBuilder`, 1 roadmap literal kept as `legacy-format subject`):
+      1. `tests/test_artifact_group.py` pre-edit line 68 (`unsupported-shape`): backlog `bk1234` -> `RecordBuilder().backlog(...)`.
+      2. `tests/test_artifact_group.py` pre-edit line 111 (`unsupported-shape`): backlog `bk1234` -> `RecordBuilder().backlog(...)`.
+      3. `tests/test_artifact_group.py` pre-edit line 157 (`not-equivalent`): prompt `pr1234` -> `RecordBuilder().prompt(...)` with its two raw-byte metadata stand-in assertions moved to `artifact_meta.read("pr1234", ...)` per batch rule step 5.
+      4. `tests/test_artifact_group.py` pre-edit line 185 (`unsupported-shape`): roadmap fixture kept literal (`legacy-format subject`; `roadmap` is not one of `RecordBuilder`'s 8 record types).
+      5. `tests/test_artifact_refs_rewrite.py` pre-edit line 156 (`unsupported-shape`): prompt `20260701-1200-01-other.prompt.md` -> `RecordBuilder().prompt(...)`.
+      6. `tests/test_artifact_refs_rewrite.py` pre-edit line 236 (`not-equivalent`): plan `p11111` -> `RecordBuilder().plan(when="2026-07-01", id6="p11111", set="p11111", order=0, kind="orchestrator", status="draft", text_only=True)`.
+      7. `tests/test_artifact_refs_rewrite.py` pre-edit line 463 (`unsupported-shape`): prompt `fix-bar.prompt.md` -> `RecordBuilder().prompt(...)`.
+      8. `tests/test_artifact_refs_rewrite.py` pre-edit lines 702-708 (`dynamic-construction`): plan `pl0001` with prose and fenced citation -> `RecordBuilder().plan(..., body=...)`.
+      9. `tests/test_artifact_refs_rewrite.py` pre-edit line 813 (`not-equivalent`): missing-Id plan `p_no_id` -> `RecordBuilder().plan(scope_paths="foo.py", raw_fields={"Id": None}, text_only=True)` (`invalid-input`).
+      10. `tests/test_artifact_rename.py` pre-edit line 70 (`unsupported-shape`): backlog `bk1234` -> `RecordBuilder().backlog(...)`.
+      11. `tests/test_group_verb_policy.py` pre-edit lines 188-201 (`not-equivalent`): `_seed_research_record` YAML fixture replaced across all 8 callers with direct `RecordBuilder(temp_git_repo).research(...)` calls (with `raw_fields={"order": "03"}` for the tier-disagreement test) and helper deleted.
+      12-17. `tests/test_group_verb_policy.py` pre-edit lines 385, 388, 391, 392, 396, 398 (`unsupported-shape`, 6 sites inside `_seed_plan_record`): replaced with a single `RecordBuilder().plan(..., raw_fields=...)` call.
+    - E-09 helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `tests/test_group_verb_policy.py:172:def _seed_research_record(`, `tests/test_group_verb_policy.py:367:def _seed_plan_record(`.
+      - After: `tests/test_group_verb_policy.py:406:def _seed_plan_record(`.
+      - Deleted helpers (1): `tests/test_group_verb_policy.py::_seed_research_record` (all 8 callers replaced directly with `RecordBuilder(temp_git_repo).research(...)`; zero callers remaining).
+      - Surviving helpers (1): `tests/test_group_verb_policy.py::_seed_plan_record` (26 active callers in `tests/test_group_verb_policy.py` seeding custom clustered/legacy filenames and intentionally absent/malformed `Date`/`Kind`/`Set` fields; now delegates record construction to `RecordBuilder().plan(..., raw_fields=...)` with zero raw legacy strings).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G6b-j5mwpk-2-files.txt` and the empty `diff .aw/state/59aiyh/G6b-j5mwpk-2-before.txt .aw/state/59aiyh/G6b-j5mwpk-2-after.txt`; then, for each of `tests/test_history_block_bounding.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_parity.py`, `tests/test_history_date_clock.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6b-j5mwpk-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G6b-j5mwpk-2-files.txt`:
+      - `tests/test_history_block_bounding.py`
+      - `tests/test_history_consumers_shared_reader.py`
+      - `tests/test_history_date_clock_parity.py`
+      - `tests/test_history_date_clock.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G6b-j5mwpk-2-before.txt .aw/state/59aiyh/G6b-j5mwpk-2-after.txt`): empty output, exit code 0 (26 lines: 25 `PASSED` outcomes plus 1 stdout line `SKIPPED SPELLINGS: ...` emitted identically before and after).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_history_block_bounding.py`:
+        - F-01 `rg -c`: before 47, after 47 (unchanged per E-02). Remaining matches (47):
+          - `body prose` (1): line 1 (module docstring referencing `## Workflow history`).
+          - `legacy-format subject` (46): lines 57-59, 82-84, 100, 120, 149, 175-179, 181-183, 224-228, 230-232, 269-273, 275, 319-323, 325, 364, 370, 376, 382, 389, 416-419 (literal legacy `## Workflow history` bounding inputs kept per E-02).
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-2-codemod.json`): `sites=15`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=15` (`legacy-format subject=15`, `hand=0`, `legacy-kept=15`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 15 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0 | 0 | 0 | 15`.
+      - `tests/test_history_consumers_shared_reader.py`:
+        - F-01 `rg -c`: before 30, after 0. Remaining matches: none. (Sites pre-edit lines 28-38 and 56-66 use `raw_fields={"Readiness": "go-pending-approval"}`, `invalid-input`.)
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-2-codemod.json`): `sites=6`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=6` (`dynamic-construction=4`, `unsupported-shape=1`, `not-equivalent=1`, `hand=6`, `legacy-kept=0`), `before_hash=d02d94307a212a6c91777a205c0d79f6b93dd0b336152fb80a02299fd580578d`, `after_hash=d02d94307a212a6c91777a205c0d79f6b93dd0b336152fb80a02299fd580578d`, `equivalent=true`, `pytest_runs=2`, `changed=false`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 6 | 1 | 0 | 4 | 1 | 0 | 0 | 0 | 0 | 0 | 5 | 0`.
+      - `tests/test_history_date_clock_parity.py`:
+        - F-01 `rg -c`: before 29, after 0. Remaining matches: none. (Sites pre-edit lines 546-561 and 603 use `raw_fields` for synthetic 5-character IDs `pl{z_idx}01` / `pr{z_idx}01` and non-TODO plan fields, `invalid-input`.)
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-2-codemod.json`): `sites=14`, `rewrites=5` (`standard=5`, `invalid-input=0`), `refusals=9` (`unsupported-shape=7`, `not-equivalent=2`, `hand=9`, `legacy-kept=0`), `before_hash=1cdf27174cb5a4f7c34996cd4176e14e9be028a4d40ad163bd624c502679f27b`, `after_hash=1cdf27174cb5a4f7c34996cd4176e14e9be028a4d40ad163bd624c502679f27b`, `equivalent=true`, `pytest_runs=8`, `changed=true`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 14 | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 | 7 | 0`.
+      - `tests/test_history_date_clock.py`:
+        - F-01 `rg -c`: before 6, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G6b-j5mwpk-2-codemod.json`): `sites=3`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=1` (`unsupported-shape=1`, `hand=1`, `legacy-kept=0`), `before_hash=75f63484292ebbe4c4519cdd50d713956579a5003f19974f4331fedca475106c`, `after_hash=75f63484292ebbe4c4519cdd50d713956579a5003f19974f4331fedca475106c`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G6b | j5mwpk | 3 | 2 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0`.
+    - Hand count: 16 reported by codemod (13 static + 3 apply-time `not-equivalent`; <= 25; all 16 hand-converted to `RecordBuilder`):
+      1. `tests/test_history_consumers_shared_reader.py` pre-edit lines 28-38 (`dynamic-construction`): plan `tst001` -> `RecordBuilder().plan(..., raw_fields={"Readiness": "go-pending-approval"}, history=[...], body=...)`.
+      2. `tests/test_history_consumers_shared_reader.py` pre-edit lines 56-66 (`dynamic-construction`): plan `tst002` -> `RecordBuilder().plan(..., raw_fields={"Readiness": "go-pending-approval"}, history=[...], body=...)`.
+      3. `tests/test_history_consumers_shared_reader.py` pre-edit lines 85-92 (`not-equivalent`): backlog `tst003` with indented history line -> `RecordBuilder().backlog(..., history=[], body="    - 2026-10-12 created: indented line", text_only=True)`.
+      4. `tests/test_history_consumers_shared_reader.py` pre-edit lines 108-117 (`unsupported-shape`): backlog `tst004` with prose-bounded history -> `RecordBuilder().backlog(..., history=[], body=...)`.
+      5. `tests/test_history_consumers_shared_reader.py` pre-edit lines 120-126 (`dynamic-construction`): spec `tst005` with prose-bounded history -> `RecordBuilder().spec(..., body="", history=[], text_only=True)` plus trailing prose-bounded lines.
+      6. `tests/test_history_consumers_shared_reader.py` pre-edit lines 142-152 (`dynamic-construction`): plan `tst006` with wrapped continuation record -> `RecordBuilder().plan(..., history=[f"{first_record}\n    indented continuation line", ...], body=...)`.
+      7. `tests/test_history_date_clock_parity.py` pre-edit lines 371-372 (`unsupported-shape`): spec `spf{z_idx}01` -> `RecordBuilder().spec(...)`.
+      8. `tests/test_history_date_clock_parity.py` pre-edit lines 417-418 (`unsupported-shape`): spec `spp{z_idx}01` -> `RecordBuilder().spec(...)`.
+      9. `tests/test_history_date_clock_parity.py` pre-edit lines 463-464 (`unsupported-shape`): spec `spn{z_idx}01` -> `RecordBuilder().spec(...)`.
+      10. `tests/test_history_date_clock_parity.py` pre-edit lines 501-502 (`unsupported-shape`): spec `spb{z_idx}01` -> `RecordBuilder().spec(...)`.
+      11. `tests/test_history_date_clock_parity.py` pre-edit lines 546-561 (`not-equivalent`): plan `pl{z_idx}01` -> `RecordBuilder().plan(..., raw_fields={"Id": f"pl{z_idx}01", "Concern": "c", "Scope": "s", "Highest E allocated": "01"}, body=...)` (`invalid-input`).
+      12. `tests/test_history_date_clock_parity.py` pre-edit line 603 (`not-equivalent`): prompt `pr{z_idx}01` -> `RecordBuilder().prompt(id6=f"pr0{z_idx}01", status="pending", raw_fields={"Id": f"pr{z_idx}01"}, text_only=True)` (`invalid-input`).
+      13. `tests/test_history_date_clock_parity.py` pre-edit lines 745-746 (`unsupported-shape`): spec `ags{z_idx}01` -> `RecordBuilder().spec(...)`.
+      14. `tests/test_history_date_clock_parity.py` pre-edit lines 759-760 (`unsupported-shape`): spec `ags{z_idx}02` -> `RecordBuilder().spec(...)`.
+      15. `tests/test_history_date_clock_parity.py` pre-edit lines 773-774 (`unsupported-shape`): spec `ags{z_idx}03` -> `RecordBuilder().spec(...)`.
+      16. `tests/test_history_date_clock.py` pre-edit lines 253-254 (`unsupported-shape`): spec `sp0001` -> `RecordBuilder().spec(...)`.
+    - E-09 helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)`.
+      - After: `(none)`.
+      - Deleted helpers (0): none. Surviving helpers (0): none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G6b-j5mwpk-1`, `G6b-j5mwpk-2` against `.aw/state/59aiyh/j5mwpk-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit j5mwpk` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G6b-j5mwpk-1-before.txt .aw/state/59aiyh/G6b-j5mwpk-2-before.txt) .aw/state/59aiyh/j5mwpk-union-after.txt`): empty output, exit code 0 (110 lines = 84 + 26 across all 8 modules).
+    - Post-edit codemod dry-run over all 8 modules (`python3 tools/fixture_codemod.py --dry-run --format json`): 3 modules at `sites=0` (`test_history_consumers_shared_reader`, `test_history_date_clock_parity`, `test_history_date_clock`); 4 modules with only `legacy-kept` refusals (`test_artifact_refs_rewrite` 2, `test_artifact_rename` 1, `test_group_verb_policy` 27, `test_history_block_bounding` 15); `test_artifact_group` with 10 `setter-byte assertion` (`legacy-kept`) and 1 `roadmap` literal (`legacy-format subject`, outside `RecordBuilder`'s 8 record types).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2661 passed, 11 warnings in 122.23s (0:02:02)`, exit code 0 (0 failures; none of `j5mwpk`'s 8 modules appeared in the top-10 slowest or unlisted slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6879,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit j5mwpk` (7 modified test Scope-Paths; `tests/test_history_block_bounding.py` intentionally unmodified per E-02 because all 15 of its sites are `legacy-format subject` `legacy-kept`): `aw commit: committed 7 path(s): 7e7287267d6ce00898ec99deb5e668659e7d001b` (`tests/test_artifact_group.py`, `tests/test_artifact_refs_rewrite.py`, `tests/test_artifact_rename.py`, `tests/test_group_verb_policy.py`, `tests/test_history_consumers_shared_reader.py`, `tests/test_history_date_clock_parity.py`, `tests/test_history_date_clock.py`), followed by the plan-evidence commit via `aw commit j5mwpk -- .aw/records/plans/pending/20261109-metastore-199-j5mwpk-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md`. Every committed path is in Scope-Paths; never pushed.
+  - Result: pass
 
 ## Approval and execution gate
 
