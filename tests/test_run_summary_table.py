@@ -26,6 +26,7 @@ from agent_workflows.runner_shared import (
     landed_verdict,
 )
 from agent_workflows.term import Term, strip_ansi
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -176,19 +177,29 @@ class RunSummaryTableRenderingTests(TestCase):
         # Create physical plan files
         (
             self.plans_dir / "executed" / "20260920-test-01-yeh7gc-item.ipd.md"
-        ).write_text("- Id: yeh7gc\n- Status: executed\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().plan(id6="yeh7gc", status="executed", text_only=True),
+            encoding="utf-8",
+        )
         (
             self.plans_dir
             / "executed"
             / "202608"
             / "20260810-test-02-arch01-item.ipd.md"
-        ).write_text("- Id: arch01\n- Status: executed\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().plan(id6="arch01", status="executed", text_only=True),
+            encoding="utf-8",
+        )
         (self.plans_dir / "pending" / "20260920-test-03-strnd1-item.ipd.md").write_text(
-            "- Id: strnd1\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(id6="strnd1", status="approved", text_only=True),
+            encoding="utf-8",
         )
         (
             self.plans_dir / "superseded" / "20260901-test-04-nmlx47-item.ipd.md"
-        ).write_text("- Id: nmlx47\n- Status: superseded\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().plan(id6="nmlx47", status="superseded", text_only=True),
+            encoding="utf-8",
+        )
 
     def tearDown(self):
         self.temp_dir.cleanup()
