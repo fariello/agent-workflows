@@ -90,13 +90,19 @@ _WORKER_SCRIPT = textwrap.dedent("""
             "enter_wall": enter_wall,
             "exit_wall": exit_wall,
         }
-        for _ in range(50):
+        from agent_workflows import platform_lock
+        log_lock = log_file.with_name(f"{log_file.name}.lock")
+        lock_deadline = time.monotonic() + 10.0
+        while True:
             try:
-                with log_file.open("a", encoding="utf-8") as f:
-                    f.write(json.dumps(record) + "\\n")
+                with platform_lock.held(log_lock):
+                    with log_file.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(record) + "\\n")
                 break
-            except OSError:
-                time.sleep(0.05)
+            except (platform_lock.LockBusy, OSError):
+                if time.monotonic() >= lock_deadline:
+                    raise
+                time.sleep(0.02)
 """)
 
 _HB_SECS = 5.0 if sys.platform == "win32" else 4.0
