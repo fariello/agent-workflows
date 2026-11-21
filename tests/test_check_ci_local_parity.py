@@ -31,6 +31,7 @@ from typing import Iterator
 import pytest
 
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 @contextlib.contextmanager
@@ -95,7 +96,9 @@ def _seed_plans(repo: Path) -> str:
     p = repo / ".aw" / "records" / "plans" / "pending"
     p.mkdir(parents=True, exist_ok=True)
     (p / "badname.ipd.md").write_text(
-        "# IPD: bad\n- Id: bad001\n- Status: draft\n\n## Goal\ng\n",
+        RecordBuilder().plan(
+            title="bad", id6="bad001", status="draft", body="## Goal\ng", text_only=True
+        ),
         encoding="utf-8",
     )
     return "check.name-nonconformant"
@@ -105,7 +108,9 @@ def _seed_releases(repo: Path) -> str:
     p = repo / ".aw" / "records" / "releases"
     p.mkdir(parents=True, exist_ok=True)
     (p / "bad.release.md").write_text(
-        "# Release: bad\n- Id: bad\n",
+        RecordBuilder().release(
+            version="bad", raw_fields={"Id": "bad"}, text_only=True
+        ),
         encoding="utf-8",
     )
     return "check.name-nonconformant"
@@ -115,7 +120,7 @@ def _seed_backlog(repo: Path) -> str:
     p = repo / ".aw" / "records" / "backlog" / "open"
     p.mkdir(parents=True, exist_ok=True)
     (p / "bad.backlog.md").write_text(
-        "# Backlog: bad\n- Id: bad\n",
+        RecordBuilder().backlog(raw_fields={"Id": "bad"}, text_only=True),
         encoding="utf-8",
     )
     return "check.name-nonconformant"
@@ -125,16 +130,17 @@ def _seed_release_gates(repo: Path) -> str:
     p = repo / ".aw" / "records" / "backlog" / "open"
     p.mkdir(parents=True, exist_ok=True)
     (p / "20261014-zprobe-01-zprobe-probe-item.backlog.md").write_text(
-        "# Backlog: probe item\n"
-        "- Id: zprobe\n"
-        "- Status: open\n"
-        "- Set: zprobe\n"
-        "- Priority: low\n"
-        "- Work-Kind: chore\n"
-        "- Summary: probe item\n"
-        "- Blocks-Release: zzzzzz\n\n"
-        "## Workflow history\n"
-        "- 2026-10-14 open\n",
+        RecordBuilder().backlog(
+            id6="zprobe",
+            status="open",
+            set="zprobe",
+            priority="low",
+            work_kind="chore",
+            summary="probe item",
+            blocks_release="zzzzzz",
+            history=["- 2026-10-14 open"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return "check.blocks-release-dangling"

@@ -20,6 +20,7 @@ import unittest
 
 from agent_workflows import attention_contract as A
 from agent_workflows import check_engine
+from tests.record_builder import RecordBuilder
 
 
 class DecisionRefResolutionTests(unittest.TestCase):
@@ -95,17 +96,20 @@ class DecisionRefResolutionTests(unittest.TestCase):
             item_dir = root / ".aw" / "records" / "backlog" / "blocked"
             item_dir.mkdir(parents=True)
             (item_dir / "20261001-test01-01-aaaaaa-item.backlog.md").write_text(
-                "- Id: aaaaaa\n"
-                "- Status: blocked\n"
-                "- Set: test01\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: test item\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D999\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created (test): created\n\n"
-                "Prose\n",
+                RecordBuilder().backlog(
+                    id6="aaaaaa",
+                    status="blocked",
+                    set="test01",
+                    priority="low",
+                    work_kind="chore",
+                    summary="test item",
+                    gate_kind="decision",
+                    gate_ref="D999",
+                    when="2026-10-01",
+                    history=["- 2026-10-01 created (test): created"],
+                    body="Prose",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             drift = check_engine.check_decision_ref_dangling(root)
@@ -125,17 +129,20 @@ class DecisionRefResolutionTests(unittest.TestCase):
             item_dir = root / ".aw" / "records" / "backlog" / "blocked"
             item_dir.mkdir(parents=True)
             (item_dir / "20261001-test01-01-aaaaaa-item.backlog.md").write_text(
-                "- Id: aaaaaa\n"
-                "- Status: blocked\n"
-                "- Set: test01\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: test item\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D10\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created (test): created\n\n"
-                "Prose\n",
+                RecordBuilder().backlog(
+                    id6="aaaaaa",
+                    status="blocked",
+                    set="test01",
+                    priority="low",
+                    work_kind="chore",
+                    summary="test item",
+                    gate_kind="decision",
+                    gate_ref="D10",
+                    when="2026-10-01",
+                    history=["- 2026-10-01 created (test): created"],
+                    body="Prose",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             drift = check_engine.check_decision_ref_dangling(root)
@@ -153,17 +160,20 @@ class DecisionRefResolutionTests(unittest.TestCase):
             item_dir = root / ".aw" / "records" / "backlog" / "blocked"
             item_dir.mkdir(parents=True)
             (item_dir / "20261001-test01-01-aaaaaa-item.backlog.md").write_text(
-                "- Id: aaaaaa\n"
-                "- Status: blocked\n"
-                "- Set: test01\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: test item\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D10-garbage\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created (test): created\n\n"
-                "Prose\n",
+                RecordBuilder().backlog(
+                    id6="aaaaaa",
+                    status="blocked",
+                    set="test01",
+                    priority="low",
+                    work_kind="chore",
+                    summary="test item",
+                    gate_kind="decision",
+                    when="2026-10-01",
+                    history=["- 2026-10-01 created (test): created"],
+                    body="Prose",
+                    raw_fields={"Gate-Ref": "D10-garbage"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             drift = check_engine.check_decision_ref_dangling(root)
@@ -183,17 +193,20 @@ class DecisionRefResolutionTests(unittest.TestCase):
             item_dir = root / ".aw" / "records" / "backlog" / "blocked"
             item_dir.mkdir(parents=True)
             (item_dir / "20261001-test01-01-aaaaaa-item.backlog.md").write_text(
-                "- Id: aaaaaa\n"
-                "- Status: blocked\n"
-                "- Set: test01\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: test item\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D999\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created (test): created\n\n"
-                "Prose\n",
+                RecordBuilder().backlog(
+                    id6="aaaaaa",
+                    status="blocked",
+                    set="test01",
+                    priority="low",
+                    work_kind="chore",
+                    summary="test item",
+                    gate_kind="decision",
+                    gate_ref="D999",
+                    when="2026-10-01",
+                    history=["- 2026-10-01 created (test): created"],
+                    body="Prose",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             drift = check_engine.check_decision_ref_dangling(root)
@@ -211,17 +224,20 @@ class DecisionRefResolutionTests(unittest.TestCase):
             item_dir = root / ".aw" / "records" / "backlog" / "blocked"
             item_dir.mkdir(parents=True)
             (item_dir / "20261001-test01-01-aaaaaa-item.backlog.md").write_text(
-                "- Id: aaaaaa\n"
-                "- Status: blocked\n"
-                "- Set: test01\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: test item\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D999\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created (test): created\n\n"
-                "Prose\n",
+                RecordBuilder().backlog(
+                    id6="aaaaaa",
+                    status="blocked",
+                    set="test01",
+                    priority="low",
+                    work_kind="chore",
+                    summary="test item",
+                    gate_kind="decision",
+                    gate_ref="D999",
+                    when="2026-10-01",
+                    history=["- 2026-10-01 created (test): created"],
+                    body="Prose",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             drift = check_engine.check_decision_ref_dangling(root)
@@ -243,14 +259,17 @@ class DecisionRefResolutionTests(unittest.TestCase):
             spec_dir = root / ".aw" / "records" / "specs" / "approved"
             spec_dir.mkdir(parents=True)
             (spec_dir / "20261001-test01-01-bbbbbb-spec.spec.md").write_text(
-                "# Spec: Test\n\n"
-                "- Id: bbbbbb\n"
-                "- Status: approved\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D999\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 approved (test): approved\n\n"
-                "Prose\n",
+                RecordBuilder().spec(
+                    id6="bbbbbb",
+                    title="Test",
+                    status="approved",
+                    gate_kind="decision",
+                    gate_ref="D999",
+                    when="2026-10-01",
+                    history=["- 2026-10-01 approved (test): approved"],
+                    body="Prose",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             drift = check_engine.check_decision_ref_dangling(root)

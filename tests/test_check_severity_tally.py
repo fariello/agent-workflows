@@ -14,6 +14,7 @@ import unittest
 
 from tests.conformance_matrix import run_cli_inproc
 from tests.support import init_repo
+from tests.record_builder import RecordBuilder
 
 
 def run_cli(*args: str, cwd: Path | None = None):
@@ -32,12 +33,14 @@ class CheckSeverityTallyTests(unittest.TestCase):
         specs_dir.mkdir(parents=True, exist_ok=True)
         fn_spec = "20261001-abcdefghijklmno-01-a1b2c3-test.spec.md"
         (specs_dir / fn_spec).write_text(
-            "# Spec: Test\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Id: a1b2c3\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 draft: created\n",
+            RecordBuilder().spec(
+                title="Test",
+                when="2026-10-01",
+                status="draft",
+                id6="a1b2c3",
+                history=["- 2026-10-01 draft: created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -46,11 +49,15 @@ class CheckSeverityTallyTests(unittest.TestCase):
         plans_dir.mkdir(parents=True, exist_ok=True)
         fn_plan = "20261001-testset-01-p1p2p3-test.ipd.md"
         (plans_dir / fn_plan).write_text(
-            "# IPD: Test Plan\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Set: testset\n"
-            "- Id: p1p2p3\n",
+            RecordBuilder().plan(
+                title="Test Plan",
+                when="2026-10-01",
+                status="draft",
+                set="testset",
+                id6="p1p2p3",
+                body="",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

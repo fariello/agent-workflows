@@ -25,6 +25,7 @@ from agent_workflows import cli
 from agent_workflows import doctor as _doctor
 from agent_workflows.term import Term
 from tests.test_check_engine_release_gate import _create_minimal_repo
+from tests.record_builder import RecordBuilder
 
 
 class TestCheckRecoveryFidelity(unittest.TestCase):
@@ -43,12 +44,15 @@ class TestCheckRecoveryFidelity(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live ungated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live ungated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -99,12 +103,15 @@ class TestCheckRecoveryFidelity(unittest.TestCase):
                 / "badly-named-file.backlog.md"
             )
             bad_file.write_text(
-                "- Id: bad001\n"
-                "- Status: open\n"
-                "- Set: bad001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Bad file name\n",
+                RecordBuilder().backlog(
+                    id6="bad001",
+                    status="open",
+                    set="bad001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Bad file name",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -165,12 +172,15 @@ class TestCheckRecoveryFidelity(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live ungated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live ungated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from agent_workflows import config
 from agent_workflows import production_checks as pc
+from tests.record_builder import RecordBuilder
 
 
 class TestSpecRequirementIdParser(unittest.TestCase):
@@ -301,26 +302,18 @@ class TestSpecPlanTraceVerifier(unittest.TestCase):
         e_section = "\n\n".join(e_lines) if e_lines else "- [ ] E-01 placeholder"
         v_section = "\n\n".join(v_lines) if v_lines else "- [ ] V-01 placeholder"
 
-        content = f"""# IPD: Test Plan {plan_id6}
-
-- Date: 2026-10-01
-- Kind: {kind}
-- Scope-Paths: README.md
-- Status: to-review
-- From-Spec: {spec_id6}
-- Set: set01
-- Id: {plan_id6}
-
-## Goal
-Goal for {plan_id6}
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1
-{e_section}
-
-## Validation and cross-check (verify before reporting done)
-{v_section}
-"""
+        content = RecordBuilder().plan(
+            title=f"Test Plan {plan_id6}",
+            when="2026-10-01",
+            plan_role=kind,
+            scope_paths="README.md",
+            status="to-review",
+            from_spec=spec_id6,
+            set="set01",
+            id6=plan_id6,
+            body=f"## Goal\nGoal for {plan_id6}\n\n## Detailed Implementation Checklist (TODO)\n### Task group 1\n{e_section}\n\n## Validation and cross-check (verify before reporting done)\n{v_section}",
+            text_only=True,
+        )
         plan_path.write_text(content, encoding="utf-8")
         return plan_path
 
@@ -328,17 +321,19 @@ Goal for {plan_id6}
         """Case (i): Produced plan cites every mandatory requirement and acceptance criterion -> PASS."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spc001
-- Status: approved
-
-- R-1 First requirement.
-- R-2 Second requirement.
-
-## Acceptance Criteria
-- AC-1 First acceptance criterion.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 First requirement.\n"
+                    "- R-2 Second requirement.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 First acceptance criterion."
+                ),
+                text_only=True,
+            )
             self._create_spec(repo, "spc001", spec_content)
             plan = self._create_plan(
                 repo,
@@ -362,17 +357,19 @@ Goal for {plan_id6}
         """Case (ii): Produced plan omits one mandatory requirement -> FAILS with SPEC-PLAN-TRACE."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spc001
-- Status: approved
-
-- R-1 First requirement.
-- R-2 Second requirement.
-
-## Acceptance Criteria
-- AC-1 First acceptance criterion.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 First requirement.\n"
+                    "- R-2 Second requirement.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 First acceptance criterion."
+                ),
+                text_only=True,
+            )
             self._create_spec(repo, "spc001", spec_content)
             plan = self._create_plan(
                 repo,
@@ -403,17 +400,19 @@ Goal for {plan_id6}
         """Produced plan omits one acceptance criterion -> FAILS with SPEC-PLAN-TRACE."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spc001
-- Status: approved
-
-- R-1 First requirement.
-
-## Acceptance Criteria
-- AC-1 First acceptance criterion.
-- AC-2 Second acceptance criterion.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 First requirement.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 First acceptance criterion.\n"
+                    "- AC-2 Second acceptance criterion."
+                ),
+                text_only=True,
+            )
             self._create_spec(repo, "spc001", spec_content)
             plan = self._create_plan(
                 repo,
@@ -436,14 +435,14 @@ Goal for {plan_id6}
         """Case (iii): Grandfathered spec predating cutover PASSES even with uncovered ids."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-09-15
-- Id: spcold
-- Status: approved
-
-- R-1 Requirement.
-- AC-1 Criterion.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spcold",
+                title="Spec",
+                when="2026-09-15",
+                status="approved",
+                body="- R-1 Requirement.\n- AC-1 Criterion.",
+                text_only=True,
+            )
             # Dated 20260915 < 20261001 cutover
             self._create_spec(repo, "spcold", spec_content, filename_date="20260915")
             plan = self._create_plan(
@@ -465,13 +464,15 @@ Goal for {plan_id6}
         """Post-cutover spec declaring no traceable IDs PASSES vacuously."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcnoid
-- Status: approved
-
-Prose description with no requirement IDs.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="sp0001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body="Prose description with no requirement IDs.",
+                raw_fields={"Id": "spcnoid"},
+                text_only=True,
+            )
             self._create_spec(repo, "spcnoid", spec_content)
             plan = self._create_plan(
                 repo,
@@ -490,13 +491,15 @@ Prose description with no requirement IDs.
         """Spec declaring requirements but no acceptance section cannot fail acceptance half."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcnoac
-- Status: approved
-
-- R-1 Requirement one.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="sp0001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body="- R-1 Requirement one.",
+                raw_fields={"Id": "spcnoac"},
+                text_only=True,
+            )
             self._create_spec(repo, "spcnoac", spec_content)
             plan = self._create_plan(
                 repo,
@@ -514,19 +517,21 @@ Prose description with no requirement IDs.
         """[Optional] and [Deferred] requirements are excluded from coverage (AC-9)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcopt
-- Status: approved
-
-- R-1 Mandatory requirement.
-- R-2 `[Optional]` Optional requirement.
-- R-3 [Deferred] Staged requirement.
-
-## Acceptance Criteria
-- AC-1 Mandatory acceptance.
-- AC-2 [Deferred] Staged acceptance.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spcopt",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 Mandatory requirement.\n"
+                    "- R-2 `[Optional]` Optional requirement.\n"
+                    "- R-3 [Deferred] Staged requirement.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 Mandatory acceptance.\n"
+                    "- AC-2 [Deferred] Staged acceptance."
+                ),
+                text_only=True,
+            )
             self._create_spec(repo, "spcopt", spec_content)
             plan = self._create_plan(
                 repo,
@@ -551,16 +556,18 @@ Prose description with no requirement IDs.
         """Case (vii): Plan cites an id not declared by the producing spec -> fails (3rd conjunct)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spc001
-- Status: approved
-
-- R-1 First requirement.
-
-## Acceptance Criteria
-- AC-1 First acceptance criterion.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 First requirement.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 First acceptance criterion."
+                ),
+                text_only=True,
+            )
             self._create_spec(repo, "spc001", spec_content)
             plan = self._create_plan(
                 repo,
@@ -583,16 +590,18 @@ Prose description with no requirement IDs.
         """Plan citing another spec or unqualified tokens does NOT trigger unknown reference."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spc001
-- Status: approved
-
-- R-1 First requirement.
-
-## Acceptance Criteria
-- AC-1 First acceptance criterion.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 First requirement.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 First acceptance criterion."
+                ),
+                text_only=True,
+            )
             self._create_spec(repo, "spc001", spec_content)
             plan = self._create_plan(
                 repo,
@@ -614,13 +623,14 @@ Prose description with no requirement IDs.
         """Unqualified token naming a real requirement does not cover it (Section 6.2b)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spc001
-- Status: approved
-
-- R-1 First requirement.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spc001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body="- R-1 First requirement.",
+                text_only=True,
+            )
             self._create_spec(repo, "spc001", spec_content)
             plan = self._create_plan(
                 repo,
@@ -641,16 +651,19 @@ Prose description with no requirement IDs.
         """Orchestrator plan in the set with child-tracking rows does not cause failure."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcorch
-- Status: approved
-
-- R-1 Requirement one.
-
-## Acceptance Criteria
-- AC-1 Acceptance one.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="sp0001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 Requirement one.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 Acceptance one."
+                ),
+                raw_fields={"Id": "spcorch"},
+                text_only=True,
+            )
             self._create_spec(repo, "spcorch", spec_content)
             # Orchestrator plan
             orch_plan = self._create_plan(
@@ -678,17 +691,20 @@ Prose description with no requirement IDs.
         """Coverage pooled across multiple plans: plan 1 covers R-1, plan 2 covers R-2 (AC-4)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcpool
-- Status: approved
-
-- R-1 Requirement one.
-- R-2 Requirement two.
-
-## Acceptance Criteria
-- AC-1 Acceptance one.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="sp0001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body=(
+                    "- R-1 Requirement one.\n"
+                    "- R-2 Requirement two.\n\n"
+                    "## Acceptance Criteria\n"
+                    "- AC-1 Acceptance one."
+                ),
+                raw_fields={"Id": "spcpool"},
+                text_only=True,
+            )
             self._create_spec(repo, "spcpool", spec_content)
             plan1 = self._create_plan(
                 repo,
@@ -713,14 +729,15 @@ Prose description with no requirement IDs.
         """A previously executed linked plan in executed/ contributes coverage (AC-4)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcexec
-- Status: approved
-
-- R-1 Requirement one.
-- R-2 Requirement two.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="sp0001",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body="- R-1 Requirement one.\n- R-2 Requirement two.",
+                raw_fields={"Id": "spcexec"},
+                text_only=True,
+            )
             self._create_spec(repo, "spcexec", spec_content)
             # Create an executed linked plan covering R-1
             self._create_plan(
@@ -749,14 +766,14 @@ Prose description with no requirement IDs.
         """A superseded linked plan does NOT contribute coverage (AC-4)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcsup
-- Status: approved
-
-- R-1 Requirement one.
-- R-2 Requirement two.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spcsup",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body="- R-1 Requirement one.\n- R-2 Requirement two.",
+                text_only=True,
+            )
             self._create_spec(repo, "spcsup", spec_content)
             # Superseded plan covering R-1
             self._create_plan(
@@ -786,45 +803,32 @@ Prose description with no requirement IDs.
         """A citation in Expected outcome sub-field counts as covering the requirement (PR-002)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            spec_content = """# Spec
-- Date: 2026-10-01
-- Id: spcsub
-- Status: approved
-
-- R-1 Requirement one.
-"""
+            spec_content = RecordBuilder().spec(
+                id6="spcsub",
+                title="Spec",
+                when="2026-10-01",
+                status="approved",
+                body="- R-1 Requirement one.",
+                text_only=True,
+            )
             self._create_spec(repo, "spcsub", spec_content)
             plans_dir = repo / ".aw" / "records" / "plans" / "pending"
             plans_dir.mkdir(parents=True, exist_ok=True)
             plan_path = plans_dir / "20261001-set-01-psub01-test.ipd.md"
             # Place citation in Expected outcome sub-field, not in the first line
             plan_path.write_text(
-                """# IPD: Test Plan psub01
-
-- Date: 2026-10-01
-- Kind: child
-- Scope-Paths: README.md
-- Status: to-review
-- From-Spec: spcsub
-- Set: set01
-- Id: psub01
-
-## Goal
-Goal
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1
-- [ ] E-01 Perform implementation
-  - Depends on: none
-  - Expected outcome: Satisfies `spcsub` R-1 completely
-  - Execution state: pending
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 Validate
-  - Required evidence: check
-  - Observed evidence:
-  - Result: pending
-""",
+                RecordBuilder().plan(
+                    title="Test Plan psub01",
+                    when="2026-10-01",
+                    plan_role="child",
+                    scope_paths="README.md",
+                    status="to-review",
+                    from_spec="spcsub",
+                    set="set01",
+                    id6="psub01",
+                    body="## Goal\nGoal\n\n## Detailed Implementation Checklist (TODO)\n### Task group 1\n- [ ] E-01 Perform implementation\n  - Depends on: none\n  - Expected outcome: Satisfies `spcsub` R-1 completely\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n- [ ] V-01 Validate\n  - Required evidence: check\n  - Observed evidence:\n  - Result: pending",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = pc.spec_plan_trace(
@@ -856,7 +860,7 @@ class TestSpecDeferredImplementedGate(unittest.TestCase):
         exec_dir.mkdir(parents=True, exist_ok=True)
         self.evidence_path = exec_dir / "20261001-reqids-02-rtvdak-test.ipd.md"
         self.evidence_path.write_text(
-            "# Executed IPD rtvdak\n- Status: executed\n", encoding="utf-8"
+            RecordBuilder().plan(status="executed", text_only=True), encoding="utf-8"
         )
 
         # Create an implementing spec declaring R-1, R-3 [Deferred], AC-1, and AC-2 [Deferred]
@@ -865,26 +869,23 @@ class TestSpecDeferredImplementedGate(unittest.TestCase):
         self.spec_path = (
             self.spec_dir / "20261001-tst001-01-tst001-deferred-gate.spec.md"
         )
-        self.spec_content = """# SPEC: Deferred Gate Test
-
-- Date: 2026-10-01
-- Status: implementing
-- Title: Deferred Gate Test
-- Slug: deferred-gate
-- Id: tst001
-- Graduated-To: reqids
-
-## Workflow history
-- 2026-10-01 implementing (tester): stage planned
-
-## 1. Requirements
-- R-1 Mandatory requirement one.
-- R-3 [Deferred] Deferred requirement three.
-
-## 2. Acceptance Criteria
-- AC-1 Mandatory acceptance one.
-- AC-2 [Deferred] Deferred acceptance two.
-"""
+        self.spec_content = RecordBuilder().spec(
+            id6="tst001",
+            title="Deferred Gate Test",
+            when="2026-10-01",
+            status="implementing",
+            history=["- 2026-10-01 implementing (tester): stage planned"],
+            body=(
+                "## 1. Requirements\n"
+                "- R-1 Mandatory requirement one.\n"
+                "- R-3 [Deferred] Deferred requirement three.\n\n"
+                "## 2. Acceptance Criteria\n"
+                "- AC-1 Mandatory acceptance one.\n"
+                "- AC-2 [Deferred] Deferred acceptance two."
+            ),
+            raw_fields={"Slug": "deferred-gate", "Graduated-To": "reqids"},
+            text_only=True,
+        )
         self.spec_path.write_text(self.spec_content, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.repo, check=True)
         subprocess.run(

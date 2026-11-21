@@ -24,6 +24,7 @@ from agent_workflows.agent_schema import (
     _HOME_PATH_RE,
     validate_agent_record,
 )
+from tests.record_builder import RecordBuilder
 
 
 class CheckFindingPathRelativityTests(unittest.TestCase):
@@ -70,35 +71,55 @@ class CheckFindingPathRelativityTests(unittest.TestCase):
             os.makedirs(pending, exist_ok=True)
             os.makedirs(executed, exist_ok=True)
 
-            plan_text = (
-                "# IPD: Placement Test\n"
-                "- Date: 2026-10-01\n"
-                "- Kind: primary\n"
-                "- Scope: IN: test. OUT: none.\n"
-                "- Scope-Paths: none\n"
-                "- Item-Dependencies: none\n"
-                "- Readiness: ready\n"
-                "- Status: pending\n"
-                "- Work-Kind: feature\n"
-                "- Priority: low\n"
-                "- From-Backlog: none\n"
-                "- Blocks-Release: none\n"
-                "- Set: testset\n"
-                "- Order: 1\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: pln001\n"
-                "- Approval: none\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [ ] E-01 Item\n"
-                "  - Execution state: pending\n"
+            plan_text = RecordBuilder().plan(
+                title="Placement Test",
+                when="2026-10-01",
+                scope_paths="none",
+                item_dependencies="none",
+                work_kind="feature",
+                priority="low",
+                from_backlog="none",
+                blocks_release="none",
+                set="testset",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="pln001",
+                approval="none",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Item\n  - Execution state: pending",
+                raw_fields={
+                    "Kind": "primary",
+                    "Readiness": "ready",
+                    "Status": "pending",
+                },
+                text_only=True,
             )
             p1 = os.path.join(pending, "20261001-testset-01-pln001-test.ipd.md")
             p2 = os.path.join(executed, "20261001-testset-01-pln001-test.ipd.md")
+            executed_plan_text = RecordBuilder().plan(
+                title="Placement Test",
+                when="2026-10-01",
+                scope_paths="none",
+                item_dependencies="none",
+                status="executed",
+                work_kind="feature",
+                priority="low",
+                from_backlog="none",
+                blocks_release="none",
+                set="testset",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="pln001",
+                approval="none",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Item\n  - Execution state: pending",
+                raw_fields={"Kind": "primary", "Readiness": "ready"},
+                text_only=True,
+            )
             with open(p1, "w", encoding="utf-8") as f:
                 f.write(plan_text)
             with open(p2, "w", encoding="utf-8") as f:
-                f.write(plan_text.replace("- Status: pending", "- Status: executed"))
+                f.write(executed_plan_text)
 
             # --agent surface: must exit 1 (not crash), emit 1 valid record, no ValueError on stderr
             proc_agent = subprocess.run(
@@ -210,14 +231,14 @@ class CheckFindingPathRelativityTests(unittest.TestCase):
             os.makedirs(executed, exist_ok=True)
 
             # Site 1: pending plan failing lint (missing Scope, etc.)
-            broken_pending = (
-                "# IPD: Broken Pending\n"
-                "- Date: 2026-10-01\n"
-                "- Kind: primary\n"
-                "- Status: pending\n"
-                "- Set: setaaa (First Descriptive)\n"
-                "- Order: 1\n"
-                "- Id: pln001\n"
+            broken_pending = RecordBuilder().plan(
+                title="Broken Pending",
+                when="2026-10-01",
+                set="setaaa (First Descriptive)",
+                order=1,
+                id6="pln001",
+                raw_fields={"Kind": "primary", "Status": "pending"},
+                text_only=True,
             )
             with open(
                 os.path.join(pending, "20261001-setaaa-01-pln001-broken.ipd.md"),
@@ -227,28 +248,25 @@ class CheckFindingPathRelativityTests(unittest.TestCase):
                 f.write(broken_pending)
 
             # Site 2: terminal plan whose date >= cutover date but status disagrees with path
-            mismatched_executed = (
-                "# IPD: Executed Status Mismatch\n"
-                "- Date: 2026-10-01\n"
-                "- Kind: primary\n"
-                "- Scope: IN: test. OUT: none.\n"
-                "- Scope-Paths: none\n"
-                "- Item-Dependencies: none\n"
-                "- Readiness: ready\n"
-                "- Status: approved\n"
-                "- Work-Kind: feature\n"
-                "- Priority: low\n"
-                "- From-Backlog: none\n"
-                "- Blocks-Release: none\n"
-                "- Set: setaaa (First Descriptive)\n"
-                "- Order: 2\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: pln002\n"
-                "- Approval: none\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [ ] E-01 Item\n"
-                "  - Execution state: pending\n"
+            mismatched_executed = RecordBuilder().plan(
+                title="Executed Status Mismatch",
+                when="2026-10-01",
+                scope_paths="none",
+                item_dependencies="none",
+                status="approved",
+                work_kind="feature",
+                priority="low",
+                from_backlog="none",
+                blocks_release="none",
+                set="setaaa (First Descriptive)",
+                order=2,
+                highest_e_allocated="01",
+                author="test",
+                id6="pln002",
+                approval="none",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Item\n  - Execution state: pending",
+                raw_fields={"Kind": "primary", "Readiness": "ready"},
+                text_only=True,
             )
             with open(
                 os.path.join(executed, "20261001-setaaa-02-pln002-two.ipd.md"),
@@ -292,51 +310,51 @@ class CheckFindingPathRelativityTests(unittest.TestCase):
             pending = os.path.join(fixture_dir, ".aw/records/plans/pending")
             os.makedirs(pending, exist_ok=True)
 
-            plan1 = (
-                "# IPD: Plan One\n"
-                "- Date: 2026-10-01\n"
-                "- Kind: primary\n"
-                "- Scope: IN: test. OUT: none.\n"
-                "- Scope-Paths: none\n"
-                "- Item-Dependencies: none\n"
-                "- Readiness: ready\n"
-                "- Status: pending\n"
-                "- Work-Kind: feature\n"
-                "- Priority: low\n"
-                "- From-Backlog: none\n"
-                "- Blocks-Release: none\n"
-                "- Set: setaaa (First Descriptive)\n"
-                "- Order: 1\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: dup001\n"
-                "- Approval: none\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [ ] E-01 Item\n"
-                "  - Execution state: pending\n"
+            plan1 = RecordBuilder().plan(
+                title="Plan One",
+                when="2026-10-01",
+                scope_paths="none",
+                item_dependencies="none",
+                work_kind="feature",
+                priority="low",
+                from_backlog="none",
+                blocks_release="none",
+                set="setaaa (First Descriptive)",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="dup001",
+                approval="none",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Item\n  - Execution state: pending",
+                raw_fields={
+                    "Kind": "primary",
+                    "Readiness": "ready",
+                    "Status": "pending",
+                },
+                text_only=True,
             )
-            plan2 = (
-                "# IPD: Plan Two\n"
-                "- Date: 2026-10-01\n"
-                "- Kind: primary\n"
-                "- Scope: IN: test. OUT: none.\n"
-                "- Scope-Paths: none\n"
-                "- Item-Dependencies: none\n"
-                "- Readiness: ready\n"
-                "- Status: pending\n"
-                "- Work-Kind: feature\n"
-                "- Priority: low\n"
-                "- From-Backlog: none\n"
-                "- Blocks-Release: none\n"
-                "- Set: setaaa (Second Descriptive)\n"
-                "- Order: 2\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Id: dup001\n"
-                "- Approval: none\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "- [ ] E-01 Item\n"
-                "  - Execution state: pending\n"
+            plan2 = RecordBuilder().plan(
+                title="Plan Two",
+                when="2026-10-01",
+                scope_paths="none",
+                item_dependencies="none",
+                work_kind="feature",
+                priority="low",
+                from_backlog="none",
+                blocks_release="none",
+                set="setaaa (Second Descriptive)",
+                order=2,
+                highest_e_allocated="01",
+                author="test",
+                id6="dup001",
+                approval="none",
+                body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Item\n  - Execution state: pending",
+                raw_fields={
+                    "Kind": "primary",
+                    "Readiness": "ready",
+                    "Status": "pending",
+                },
+                text_only=True,
             )
             with open(
                 os.path.join(pending, "20261001-setaaa-01-dup001-one.ipd.md"),
