@@ -94,6 +94,7 @@ flowchart TD
 
 - Landing agent-filed defect backlog items from preserved proposal lanes: owned by sibling plan `8h1q1k` (from backlog `8s4qhh`).
   - Carrier: 8h1q1k
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.ipd.md
 - Changing `agent_workflows/artifact_core.py::kebab_slug` globally to truncate on hyphen/word boundaries (which affects `aw ipd scaffold`, `aw specs new`, `aw prompts`, and migration renames across the repository): out of scope for this coordinator proposal-filing fix.
   - Carrier-Declined: `artifact_core.kebab_slug` is shared across all record types and migrations; changing it globally risks altering filename expectations across unrelated commands and tests, whereas passing `--slug` to `aw backlog new` fixes the observed proposal backlog defect without cross-tree blast radius.
 
