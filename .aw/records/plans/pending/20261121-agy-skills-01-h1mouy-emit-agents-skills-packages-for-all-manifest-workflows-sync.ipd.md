@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/host_adapters.py, agent_workflows/attention.py, tests/test_agy_skill_install.py, tests/test_attention.py, .agents/skills/**, .aw/records/plans/pending/20261121-agy-skills-01-h1mouy-emit-agents-skills-packages-for-all-manifest-workflows-sync.ipd.md
 - Item-Dependencies: none
 - Status: approved
+- Readiness: go-pending-approval
 - Short-Description: Emit skills for every workflow in generate_adapter_bundle, sync .agents/skills in agent-workflows, and add host-neutral setup-repo wording in aw attention
 - Work-Kind: bug
 - Priority: high
@@ -24,6 +25,7 @@
 ## Workflow history
 
 - 2026-11-21 approved (aw set, --by-human): Approved per user directive: file, graduate, review, execute.
+- 2026-11-21 plan-review (antigravity): verdict GO — Readiness: go-pending-approval; verified generate_adapter_bundle, validate_skill_package, attention footer test, and .agents/skills layout compatibility.
 - 2026-11-21 reviewed (aw set): Reviewed: verified generate_adapter_bundle, classify_discovery_policy preservation, attention footer test, and .agents/skills layout compatibility
 - 2026-11-21 to-review (aw set): Review-ready plan for agy-skills
 - 2026-11-21 draft (antigravity): created.
