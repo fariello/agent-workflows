@@ -27,6 +27,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import backlog, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class BacklogSetAdapterTests(unittest.TestCase):
@@ -95,17 +96,17 @@ class BacklogSetAdapterTests(unittest.TestCase):
         plan_dir = repo / ".aw" / "records" / "plans" / "executed"
         plan_dir.mkdir(parents=True, exist_ok=True)
         p = plan_dir / f"20261009-testset-01-{id6}-plan.ipd.md"
-        text = (
-            f"# IPD: Plan {id6}\n\n"
-            f"- Id: {id6}\n"
-            f"- Status: executed\n"
-            f"- Set: testset\n"
-            f"- From-Backlog: {from_backlog}\n"
-            f"- Blocks-Release: {blocks_release}\n"
-            f"- Scope: Fixture scope\n"
-            f"- Scope-Paths: tests/test_backlog_set_adapter.py\n\n"
-            f"## Goal\nDone\n\n"
-            f"## Workflow history\n- 2026-10-09 executed (tester): finished\n"
+        text = RecordBuilder().plan(
+            title=f"Plan {id6}",
+            id6=id6,
+            status="executed",
+            set="testset",
+            from_backlog=from_backlog,
+            blocks_release=blocks_release,
+            scope_paths="tests/test_backlog_set_adapter.py",
+            history=["- 2026-10-09 executed (tester): finished"],
+            body="## Goal\nDone",
+            text_only=True,
         )
         p.write_text(text, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)

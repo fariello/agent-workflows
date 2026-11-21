@@ -23,6 +23,7 @@ from agent_workflows import backlog as B
 from tests import support
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -230,7 +231,15 @@ class BacklogVerbTests(unittest.TestCase):
         d = self.repo / ".agents/backlog/open"
         d.mkdir(parents=True)
         (d / "20260101-s-01-aaaaaa-bad.md").write_text(
-            "- Id: aaaaaa\n- Status: done\n- Set: s\n- Priority: high\n- Kind: bug\n- Summary: mismatched\n",
+            RecordBuilder().backlog(
+                id6="aaaaaa",
+                status="done",
+                set="s",
+                priority="high",
+                work_kind="bug",
+                summary="mismatched",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         out = io.StringIO()
@@ -244,7 +253,15 @@ class BacklogVerbTests(unittest.TestCase):
         d.mkdir(parents=True)
         for name in ("20260101-s-01-dupdup-a.md", "20260101-s-02-dupdup-b.md"):
             (d / name).write_text(
-                "- Id: dupdup\n- Status: open\n- Set: s\n- Priority: low\n- Kind: chore\n- Summary: dup\n",
+                RecordBuilder().backlog(
+                    id6="dupdup",
+                    status="open",
+                    set="s",
+                    priority="low",
+                    work_kind="chore",
+                    summary="dup",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
         out = io.StringIO()
@@ -260,11 +277,27 @@ class BacklogVerbTests(unittest.TestCase):
         d2.mkdir(parents=True)
         name = "20260101-s-01-dupdup-same-name.backlog.md"
         (d1 / name).write_text(
-            "- Id: dupdup\n- Status: done\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: dup item in done\n",
+            RecordBuilder().backlog(
+                id6="dupdup",
+                status="done",
+                set="s",
+                priority="low",
+                work_kind="chore",
+                summary="dup item in done",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (d2 / name).write_text(
-            "- Id: dupdup\n- Status: graduated\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: dup item in graduated\n",
+            RecordBuilder().backlog(
+                id6="dupdup",
+                status="graduated",
+                set="s",
+                priority="low",
+                work_kind="chore",
+                summary="dup item in graduated",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         out = io.StringIO()
@@ -291,11 +324,27 @@ class BacklogVerbTests(unittest.TestCase):
         d2.mkdir(parents=True)
         name = "20260101-s-01-dupdup-same-name.backlog.md"
         (d1 / name).write_text(
-            "- Id: dupdup\n- Status: open\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: legacy open\n",
+            RecordBuilder().backlog(
+                id6="dupdup",
+                status="open",
+                set="s",
+                priority="low",
+                work_kind="chore",
+                summary="legacy open",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (d2 / name).write_text(
-            "- Id: dupdup\n- Status: open\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: canonical open\n",
+            RecordBuilder().backlog(
+                id6="dupdup",
+                status="open",
+                set="s",
+                priority="low",
+                work_kind="chore",
+                summary="canonical open",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         out = io.StringIO()
@@ -325,7 +374,17 @@ class BacklogVerbTests(unittest.TestCase):
         d = self.repo / ".agents/backlog/open"
         d.mkdir(parents=True)
         (d / "20260101-s-01-gategt-g.md").write_text(
-            "- Id: gategt\n- Status: open\n- Set: s\n- Priority: low\n- Kind: chore\n- Summary: g\n- Gate-Kind: artifact\n- Gate-Ref: x.md\n",
+            RecordBuilder().backlog(
+                id6="gategt",
+                status="open",
+                set="s",
+                priority="low",
+                work_kind="chore",
+                summary="g",
+                gate_kind="artifact",
+                gate_ref="x.md",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         out = io.StringIO()
@@ -631,9 +690,16 @@ class BacklogNoteVerbTests(unittest.TestCase):
         d.mkdir(parents=True)
         self.item = d / "20260101-demo-01-nt0001-x.backlog.md"
         self.item.write_text(
-            "- Id: nt0001\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n"
-            "- Set: demo\n- Summary: a summary\n\n"
-            "## Workflow history\n- 2026-01-01 created (aw backlog): a summary\n",
+            RecordBuilder().backlog(
+                id6="nt0001",
+                status="open",
+                priority="medium",
+                work_kind="chore",
+                set="demo",
+                summary="a summary",
+                history=["- 2026-01-01 created (aw backlog): a summary"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -786,10 +852,9 @@ class BacklogDryRunTests(unittest.TestCase):
             / "20260926-rel001-01-rel001-v1.release.md"
         )
         rel_path.write_text(
-            "# Release: v1.0.0\n\n"
-            "- Id: rel001\n"
-            "- Status: planned\n"
-            "- Version: 1.0.0\n",
+            RecordBuilder().release(
+                version="1.0.0", id6="rel001", status="planned", text_only=True
+            ),
             encoding="utf-8",
         )
         item_path = (
@@ -801,15 +866,17 @@ class BacklogDryRunTests(unittest.TestCase):
             / "20260926-demo-01-bk0002-blocked.backlog.md"
         )
         item_path.write_text(
-            "- Id: bk0002\n"
-            "- Status: open\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Blocks-Release: rel001\n"
-            "- Set: demo\n"
-            "- Summary: a release blocker\n\n"
-            "## Workflow history\n"
-            "- 2026-09-26 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                priority="high",
+                work_kind="bug",
+                blocks_release="rel001",
+                set="demo",
+                summary="a release blocker",
+                history=["- 2026-09-26 created (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         before_bytes = item_path.read_bytes()
@@ -847,14 +914,16 @@ class BacklogDryRunTests(unittest.TestCase):
             / "20260926-demo-01-bk0003-pos.backlog.md"
         )
         item_path.write_text(
-            "- Id: bk0003\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: chore\n"
-            "- Set: demo\n"
-            "- Summary: a positional test item\n\n"
-            "## Workflow history\n"
-            "- 2026-09-26 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0003",
+                status="open",
+                priority="medium",
+                work_kind="chore",
+                set="demo",
+                summary="a positional test item",
+                history=["- 2026-09-26 created (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         before_bytes = item_path.read_bytes()
@@ -895,11 +964,13 @@ class BacklogPreservationTests(unittest.TestCase):
             / "20260901-rel001-01-rel001-v1.release.md"
         )
         rel.write_text(
-            "# Release: 1.0.0\n\n"
-            "- Id: rel001\n"
-            "- Status: planned\n"
-            "- Version: 1.0.0\n"
-            "- Summary: test release\n",
+            RecordBuilder().release(
+                version="1.0.0",
+                id6="rel001",
+                status="planned",
+                summary="test release",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -1325,20 +1396,19 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260901-demo-01-bk0003-test.backlog.md"
             )
             p.write_text(
-                "- Id: bk0003\n"
-                "- Status: blocked\n"
-                "- Set: demo\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D1\n"
-                "- Summary: test item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 created (aw backlog): created 1\n\n"
-                "## Body\n\n"
-                "Here is an indented quote:\n\n"
-                "    - 2020-01-01 fake (aw fake): DO_NOT_PROMOTE\n\n"
-                "End of body.\n",
+                RecordBuilder().backlog(
+                    id6="bk0003",
+                    status="blocked",
+                    set="demo",
+                    priority="high",
+                    work_kind="bug",
+                    gate_kind="decision",
+                    gate_ref="D1",
+                    summary="test item",
+                    history=["- 2026-09-01 created (aw backlog): created 1"],
+                    body="## Body\n\nHere is an indented quote:\n\n    - 2020-01-01 fake (aw fake): DO_NOT_PROMOTE\n\nEnd of body.",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1367,17 +1437,16 @@ class BacklogPreservationTests(unittest.TestCase):
             self._setup_repo(r1)
             self._setup_repo(r2)
 
-            item_text = (
-                "- Id: bk0005\n"
-                "- Status: open\n"
-                "- Set: demo\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: item with header prose\n\n"
-                "## What is wrong\n\n"
-                "This is important header prose describing the problem in detail.\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 created (tester): initial\n"
+            item_text = RecordBuilder().backlog(
+                id6="bk0005",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="bug",
+                summary="item with header prose",
+                history=["- 2026-09-26 created (tester): initial"],
+                body="## What is wrong\n\nThis is important header prose describing the problem in detail.",
+                text_only=True,
             )
             p1 = (
                 r1
@@ -1448,16 +1517,15 @@ class BacklogPreservationTests(unittest.TestCase):
         """(b) Item carrying both - Kind: chore and - Work-Kind: bug renders exactly one Work-Kind line."""
         from agent_workflows import backlog, cli
 
-        raw_item = (
-            "- Id: bk0006\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Kind: chore\n"
-            "- Work-Kind: bug\n"
-            "- Summary: item with dual kinds\n\n"
-            "## Workflow history\n"
-            "- 2026-09-26 created (tester): initial\n"
+        raw_item = RecordBuilder().backlog(
+            id6="bk0006",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="bug",
+            summary="item with dual kinds",
+            history=["- 2026-09-26 created (tester): initial"],
+            text_only=True,
         )
         parsed = backlog.parse_item(raw_item)
         direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
@@ -1507,18 +1575,18 @@ class BacklogPreservationTests(unittest.TestCase):
         """(c) Blocked item carrying Gate-Summary transitioned to done drops Gate-Summary."""
         from agent_workflows import backlog, cli
 
-        raw_item = (
-            "- Id: bk0007\n"
-            "- Status: blocked\n"
-            "- Gate-Kind: spec\n"
-            "- Gate-Ref: rel001\n"
-            "- Gate-Summary: waiting on a ruling\n"
-            "- Set: demo\n"
-            "- Priority: medium\n"
-            "- Work-Kind: chore\n"
-            "- Summary: blocked item with gate summary\n\n"
-            "## Workflow history\n"
-            "- 2026-09-26 created (tester): initial\n"
+        raw_item = RecordBuilder().backlog(
+            id6="bk0007",
+            status="blocked",
+            gate_kind="spec",
+            gate_ref="rel001",
+            gate_summary="waiting on a ruling",
+            set="demo",
+            priority="medium",
+            work_kind="chore",
+            summary="blocked item with gate summary",
+            history=["- 2026-09-26 created (tester): initial"],
+            text_only=True,
         )
         parsed = backlog.parse_item(raw_item)
         parsed.status = "done"
@@ -1578,17 +1646,19 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260926-demo-01-bk0008-item.backlog.md"
             )
             p.write_text(
-                "- Id: bk0008\n"
-                "- Status: blocked\n"
-                "- Gate-Kind: spec\n"
-                "- Gate-Ref: rel001\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: demo\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: blocked item with gate\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 created (tester): initial\n",
+                RecordBuilder().backlog(
+                    id6="bk0008",
+                    status="blocked",
+                    gate_kind="spec",
+                    gate_ref="rel001",
+                    blocks_release="rel001",
+                    set="demo",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="blocked item with gate",
+                    history=["- 2026-09-26 created (tester): initial"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             before_bytes = p.read_bytes()
@@ -1610,7 +1680,16 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # 1. kind without ref -> backlog.release-exempt-incomplete
             p.write_text(
-                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: decision\n"
+                RecordBuilder().backlog(
+                    id6="b00001",
+                    status="open",
+                    set="s",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item",
+                    release_exempt_kind="decision",
+                    text_only=True,
+                )
             )
             drift = B.validate_item(p, p.read_text())
             rules = [x.rule for x in drift]
@@ -1618,7 +1697,16 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # 2. ref without kind -> backlog.release-exempt-incomplete
             p.write_text(
-                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Ref: D42\n"
+                RecordBuilder().backlog(
+                    id6="b00001",
+                    status="open",
+                    set="s",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item",
+                    release_exempt_ref="D42",
+                    text_only=True,
+                )
             )
             drift = B.validate_item(p, p.read_text())
             rules = [x.rule for x in drift]
@@ -1626,7 +1714,17 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # 3. kind bogus -> backlog.release-exempt-kind-invalid
             p.write_text(
-                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: bogus\n- Release-Exempt-Ref: D42\n"
+                RecordBuilder().backlog(
+                    id6="b00001",
+                    status="open",
+                    set="s",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item",
+                    release_exempt_kind="bogus",
+                    release_exempt_ref="D42",
+                    text_only=True,
+                )
             )
             drift = B.validate_item(p, p.read_text())
             rules = [x.rule for x in drift]
@@ -1634,7 +1732,17 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # 4. decision + garbage -> backlog.release-exempt-ref-invalid
             p.write_text(
-                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: decision\n- Release-Exempt-Ref: garbage\n"
+                RecordBuilder().backlog(
+                    id6="b00001",
+                    status="open",
+                    set="s",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item",
+                    release_exempt_kind="decision",
+                    release_exempt_ref="garbage",
+                    text_only=True,
+                )
             )
             drift = B.validate_item(p, p.read_text())
             rules = [x.rule for x in drift]
@@ -1642,7 +1750,17 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # 5. valid pair, no gate -> clean (no new findings)
             p.write_text(
-                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Release-Exempt-Kind: decision\n- Release-Exempt-Ref: D42\n"
+                RecordBuilder().backlog(
+                    id6="b00001",
+                    status="open",
+                    set="s",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item",
+                    release_exempt_kind="decision",
+                    release_exempt_ref="D42",
+                    text_only=True,
+                )
             )
             drift = B.validate_item(p, p.read_text())
             exempt_rules = [
@@ -1652,7 +1770,18 @@ class BacklogPreservationTests(unittest.TestCase):
 
             # 6. valid pair PLUS - Blocks-Release: next -> backlog.release-exempt-contradicts-gate
             p.write_text(
-                "- Id: b00001\n- Status: open\n- Set: s\n- Priority: high\n- Work-Kind: bug\n- Summary: Item\n- Blocks-Release: next\n- Release-Exempt-Kind: decision\n- Release-Exempt-Ref: D42\n"
+                RecordBuilder().backlog(
+                    id6="b00001",
+                    status="open",
+                    set="s",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item",
+                    blocks_release="next",
+                    release_exempt_kind="decision",
+                    release_exempt_ref="D42",
+                    text_only=True,
+                )
             )
             drift = B.validate_item(p, p.read_text())
             rules = [x.rule for x in drift]

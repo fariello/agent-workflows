@@ -25,6 +25,7 @@ from agent_workflows import (
     production_checks,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -39,7 +40,9 @@ def _make_test_repo(path: Path) -> Path:
     rel_dir = path / ".aw" / "records" / "releases"
     rel_dir.mkdir(parents=True, exist_ok=True)
     (rel_dir / "20260901-rel001-01-rel001-v1.release.md").write_text(
-        "# RELEASE: v1\n- Id: rel001\n- Status: planned\n- Version: 1.0.0\n",
+        RecordBuilder().release(
+            version="1.0.0", id6="rel001", status="planned", text_only=True
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=path, check=True)
@@ -429,7 +432,12 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
             _write_backlog_item(repo, id6="bkl001", status="open", gate="next")
             rel_dir = repo / ".aw" / "records" / "releases"
             (rel_dir / "20260901-rel002-01-rel002-v2.release.md").write_text(
-                "# RELEASE: v2\n- Id: rel002\n- Status: draft\n- Version: 2.0.0\n",
+                RecordBuilder().release(
+                    version="2.0.0",
+                    id6="rel002",
+                    raw_fields={"Status": "draft"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             p_mis = _write_conforming_plan(
@@ -452,7 +460,8 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
             spc_dir = repo / ".aw" / "records" / "specs" / "approved"
             spc_dir.mkdir(parents=True, exist_ok=True)
             (spc_dir / "20260901-spc001-01-spc001-test.spec.md").write_text(
-                "# SPEC\n- Id: spc001\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().spec(id6="spc001", status="approved", text_only=True),
+                encoding="utf-8",
             )
             p_spc = _write_conforming_plan(
                 repo, id6="pspc01", backlog_id6="bkl002", spec_id6="nosuch"
@@ -1203,7 +1212,10 @@ class TestBacklogProductionE08(unittest.TestCase):
                     spc_dir = repo / ".aw" / "records" / "specs" / "approved"
                     spc_dir.mkdir(parents=True, exist_ok=True)
                     (spc_dir / "20260901-spc001-01-spc001-test.spec.md").write_text(
-                        "# SPEC\n- Id: spc001\n- Status: approved\n", encoding="utf-8"
+                        RecordBuilder().spec(
+                            id6="spc001", status="approved", text_only=True
+                        ),
+                        encoding="utf-8",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1485,7 +1497,10 @@ class TestBacklogProductionE09(unittest.TestCase):
                     spc_dir = repo / ".aw" / "records" / "specs" / "approved"
                     spc_dir.mkdir(parents=True, exist_ok=True)
                     (spc_dir / "20260901-spc001-01-spc001-test.spec.md").write_text(
-                        "# SPEC\n- Id: spc001\n- Status: approved\n", encoding="utf-8"
+                        RecordBuilder().spec(
+                            id6="spc001", status="approved", text_only=True
+                        ),
+                        encoding="utf-8",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
