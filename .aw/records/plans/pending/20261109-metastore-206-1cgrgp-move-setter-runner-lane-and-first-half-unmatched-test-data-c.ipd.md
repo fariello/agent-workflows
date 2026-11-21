@@ -48,22 +48,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 4 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_runner_bare_verb_shim.py`, `tests/test_runner_fallback_bindings.py`, `tests/test_runner_findings_dependency_gate.py`, `tests/test_runner_peer_dependency.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_runner_bare_verb_shim` 1, `test_runner_fallback_bindings` 12, `test_runner_findings_dependency_gate` 1, `test_runner_peer_dependency` 6. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-1cgrgp-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_runner_findings_dependency_gate.py`: `_write_review`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 4 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_runner_bare_verb_shim.py`, `tests/test_runner_fallback_bindings.py`, `tests/test_runner_findings_dependency_gate.py`, `tests/test_runner_peer_dependency.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_runner_bare_verb_shim` 1, `test_runner_fallback_bindings` 12, `test_runner_findings_dependency_gate` 1, `test_runner_peer_dependency` 6. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-1cgrgp-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_runner_findings_dependency_gate.py`: `_write_review`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G5a-1cgrgp-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 3 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_runner_shared.py`, `tests/test_runner_shared_restored_behavior.py`, `tests/test_runner_stop_triggers_e2e.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_runner_shared` 62, `test_runner_shared_restored_behavior` 7, `test_runner_stop_triggers_e2e` 2. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-1cgrgp-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 3 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_runner_shared.py`, `tests/test_runner_shared_restored_behavior.py`, `tests/test_runner_stop_triggers_e2e.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_runner_shared` 62, `test_runner_shared_restored_behavior` 7, `test_runner_stop_triggers_e2e` 2. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-1cgrgp-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G5a-1cgrgp-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5a-1cgrgp-1-files.txt .aw/state/59aiyh/G5a-1cgrgp-2-files.txt)`) into `.aw/state/59aiyh/1cgrgp-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 1cgrgp -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5a-1cgrgp-1-files.txt .aw/state/59aiyh/G5a-1cgrgp-2-files.txt)`) into `.aw/state/59aiyh/1cgrgp-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 1cgrgp -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -162,20 +162,113 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G5a-1cgrgp-1-files.txt` and the empty `diff .aw/state/59aiyh/G5a-1cgrgp-1-before.txt .aw/state/59aiyh/G5a-1cgrgp-1-after.txt`; then, for each of `tests/test_runner_bare_verb_shim.py`, `tests/test_runner_fallback_bindings.py`, `tests/test_runner_findings_dependency_gate.py`, `tests/test_runner_peer_dependency.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-1cgrgp-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G5a-1cgrgp-1-files.txt`:
+      - `tests/test_runner_bare_verb_shim.py`
+      - `tests/test_runner_fallback_bindings.py`
+      - `tests/test_runner_findings_dependency_gate.py`
+      - `tests/test_runner_peer_dependency.py`
+    - Partition check at starting HEAD `b2faf74c42a8ca182fc36d196c40739a7322629d`: all 4 named modules matched F-01 before conversion. Two post-split G5a modules matching F-01 are not named by any chunk plan (`tests/test_runner_fullauto_and_sweep_fixes.py`, `tests/test_runner_startup_timings.py`); per the batch rule they were not added here and are reported for `1upea0` E-04.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G5a-1cgrgp-1-before.txt .aw/state/59aiyh/G5a-1cgrgp-1-after.txt`; 27 total outcomes): 0 regressions across all 4 modules; empty diff across `test_runner_bare_verb_shim.py`, `test_runner_findings_dependency_gate.py`, and `test_runner_peer_dependency.py`. On unmodified HEAD `b2faf74c4`, two tests in `tests/test_runner_fallback_bindings.py` were transiently failing because executed plan `i29bd5` (commit `639ef8777a8f16caab5afe8b0526591538f06ee3`) converted `tests/test_attempt_model_identity.py::_setup_test_repo` to `RecordBuilder().plan(...)`, which emits a top `## Workflow history` section that shadowed `test_runner_fallback_bindings.py`'s legacy EOF `## Workflow history` append in `agent_workflows/plan_readiness.py::is_plan_review_approved`. Hand-converting `tests/test_runner_fallback_bindings.py` onto `RecordBuilder().plan(...)` restored both tests to `PASSED` (27 `PASSED`, 0 `FAILED`, matching the pre-`i29bd5` baseline):
+      - `-FAILED tests/test_runner_fallback_bindings.py::test_fallback_set_plan_approved_forwards_host_equivalent_arguments` -> `+PASSED tests/test_runner_fallback_bindings.py::test_fallback_set_plan_approved_forwards_host_equivalent_arguments`
+      - `-FAILED tests/test_runner_fallback_bindings.py::test_host_preference_preserved_for_shipped_hosts` -> `+PASSED tests/test_runner_fallback_bindings.py::test_host_preference_preserved_for_shipped_hosts`
+    - `slow` node ids included in `G5a-1cgrgp-1` outcome list (matched against `tests/slow_allowlist.txt`): 1 (`tests/test_runner_fallback_bindings.py::test_host_preference_preserved_for_shipped_hosts`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_runner_bare_verb_shim.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-1-codemod.json`): `sites=2`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=2` (`unsupported-shape=2`, `hand=2`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | 0`.
+      - `tests/test_runner_fallback_bindings.py`:
+        - F-01 `rg -c`: before 12, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-1-codemod.json`): `sites=15`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=15` (`unsupported-shape=15`, `hand=15`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 15 | 0 | 0 | 0 | 15 | 0 | 0 | 0 | 0 | 0 | 15 | 0`.
+      - `tests/test_runner_findings_dependency_gate.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-1-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=bd2b95da35fd5900c744c7183df4426b492cb76ea8ebe0196275d9ce4aeb8809`, `after_hash=bd2b95da35fd5900c744c7183df4426b492cb76ea8ebe0196275d9ce4aeb8809`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_runner_peer_dependency.py`:
+        - F-01 `rg -c`: before 6, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-1-codemod.json`): `sites=6`, `rewrites=6` (`standard=6`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=0971e7a607f632448196492a458782d39195d107cac375c7beb152a79afcdba2`, `after_hash=0971e7a607f632448196492a458782d39195d107cac375c7beb152a79afcdba2`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 17 (17 static + 0 apply-time `not-equivalent`; <= 25; all 17 hand-converted to `RecordBuilder`):
+      1. `tests/test_runner_bare_verb_shim.py` pre-edit line 38 (2 sites in `_init_repo_with_pending_plan`, `unsupported-shape`): replaced `_CONFORMING_PLAN.format(id6=id6).replace("- Set: demo", f"- Set: {setid}")` and dropped `_CONFORMING_PLAN` import in favor of `RecordBuilder(repo).plan(...)`.
+      2. `tests/test_runner_fallback_bindings.py` pre-edit lines 261 (2 sites), 285, 286, 288 (5 sites in `test_fallback_set_plan_approved_forwards_host_equivalent_arguments`, `unsupported-shape`): replaced legacy `.replace("- Status: ...", ...)` and `## Workflow history` append with `RecordBuilder().plan(..., status="to-review", text_only=True)` and `RecordBuilder().plan(..., status="reviewed", readiness="go-pending-approval", history=[...], text_only=True)`.
+      3. `tests/test_runner_fallback_bindings.py` pre-edit lines 345 (2 sites), 369, 370, 372 (5 sites in `test_fallback_integrate_review_lane_branch_forwards_host_equivalent_arguments`, `unsupported-shape`): converted identically via `RecordBuilder().plan(...)`.
+      4. `tests/test_runner_fallback_bindings.py` pre-edit lines 482 (2 sites), 506, 507, 509 (5 sites in `test_host_preference_preserved_for_shipped_hosts`, `unsupported-shape`): converted identically via `RecordBuilder().plan(...)`.
+    - Post-edit codemod dry-run over all 4 modules: `modules=4 sites=0 rewrites=0 refusals=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: 1 match (`tests/test_runner_findings_dependency_gate.py:25:def _write_review(`).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (1): `tests/test_runner_findings_dependency_gate.py::_write_review` (all 6 callers moved directly to `RecordBuilder(repo).review(...)`).
+      - Surviving module-local helpers outside the E-09 regex (2, both delegating to `RecordBuilder` with zero F-01 strings): `tests/test_runner_bare_verb_shim.py::_init_repo_with_pending_plan` (2 active callers; initializes git repo + `.gitignore` + commits builder-made plan), `tests/test_runner_findings_dependency_gate.py::_setup_repo` (7 active callers; creates executed prereq directory + builder-made plan).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G5a-1cgrgp-2-files.txt` and the empty `diff .aw/state/59aiyh/G5a-1cgrgp-2-before.txt .aw/state/59aiyh/G5a-1cgrgp-2-after.txt`; then, for each of `tests/test_runner_shared.py`, `tests/test_runner_shared_restored_behavior.py`, `tests/test_runner_stop_triggers_e2e.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-1cgrgp-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G5a-1cgrgp-2-files.txt`:
+      - `tests/test_runner_shared.py`
+      - `tests/test_runner_shared_restored_behavior.py`
+      - `tests/test_runner_stop_triggers_e2e.py`
+    - Partition check at starting HEAD `b2faf74c42a8ca182fc36d196c40739a7322629d`: all 3 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G5a-1cgrgp-2-before.txt .aw/state/59aiyh/G5a-1cgrgp-2-after.txt`): empty output, exit code 0 (148 `PASSED` outcomes).
+    - `slow` node ids included in `G5a-1cgrgp-2` outcome list (matched against `tests/slow_allowlist.txt`): 5:
+      - `tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence`
+      - `tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording`
+      - `tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement`
+      - `tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted`
+      - `tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint`
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_runner_shared.py`:
+        - F-01 `rg -c`: before 63, after 5. Remaining matches (5):
+          - `legacy-format subject` (1): `CrossHostReadIdReExportTests::test_cross_host_read_id_permissive_reader_reexport` post-edit line 214 (`standard = "- Id: abc123"`, testing permissive `read_front_matter_id` whitespace grammar alongside `"-  Id: abc123"` and `"-\tId: abc123"`).
+          - `body prose` (2): `LaneIntegrationBehaviorTests::test_review_lane_with_invalid_plan_is_refused_with_artifact_conformance` post-edit line 584 (`"- Status: open\n"`, open-question status row kept in Markdown per N3); `LaneIntegrationBehaviorTests::test_review_lane_with_conforming_plan_integrates_cleanly` post-edit line 662 (`"- Status: resolved\n"`, open-question status row kept in Markdown per N3).
+          - `setter-byte assertion` (2, `legacy-kept` per codemod): `LaneIntegrationBehaviorTests::test_lifecycle_duplicate_placement_pre_merge_refusal_row_a_add_add_fixture` post-edit lines 1075 (`self.assertIn("- Status: to-review", reason)`) and 1076 (`self.assertIn("- Status: executed", reason)`).
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-2-codemod.json`): `sites=20`, `rewrites=7` (`standard=7`, `invalid-input=0`), `refusals=13` (`dynamic-construction=4`, `unsupported-shape=5`, `not-equivalent=2`, `setter-byte assertion=2`, `hand=11`, `legacy-kept=2`), `before_hash=a25e06fe56313af1148cb516950c9f6cef88add6f2cf2d9221ce2a3b43910c1f`, `after_hash=a25e06fe56313af1148cb516950c9f6cef88add6f2cf2d9221ce2a3b43910c1f`, `equivalent=true`, `pytest_runs=12`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 20 | 9 | 1 | 4 | 5 | 0 | 0 | 0 | 2 | 0 | 9 | 2`.
+      - `tests/test_runner_shared_restored_behavior.py`:
+        - F-01 `rg -c`: before 7, after 0. Remaining matches: none (`PLAN` rewritten by codemod to `RecordBuilder().plan(..., scope_paths='{scope}', raw_fields={'Id': '{id6}'}, text_only=True)`).
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=0`, `invalid-input=1`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=bb6e293f930cfc86f4f04e2e5e8f4fd102d58ced44d0e0d32d088a22241f3818`, `after_hash=bb6e293f930cfc86f4f04e2e5e8f4fd102d58ced44d0e0d32d088a22241f3818`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_runner_stop_triggers_e2e.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none (the 2 `body prose` regexes on pre-edit lines 180 and 183 were also removed when `_make_repo` switched directly to `RecordBuilder(repo).plan(...)`).
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-1cgrgp-2-codemod.json`): `sites=4`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=4` (`unsupported-shape=2`, `body prose=2`, `hand=2`, `legacy-kept=2`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G5a | 1cgrgp | 4 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 2 | 2 | 2`.
+    - Hand count: 13 reported by codemod (11 static + 2 apply-time `not-equivalent`; <= 25; 12 fixture sites hand-converted to `RecordBuilder`, 1 non-fixture site classified and retained as `legacy-format subject`):
+      1. `tests/test_runner_shared.py` pre-edit line 213 (`CrossHostReadIdReExportTests::test_cross_host_read_id_permissive_reader_reexport`, `unsupported-shape`): `standard = "- Id: abc123"` retained as `legacy-format subject` (tests literal permissive bullet whitespace parsing).
+      2. `tests/test_runner_shared.py` pre-edit lines 560-578 (`LaneIntegrationBehaviorTests::test_review_lane_with_invalid_plan_is_refused_with_artifact_conformance`, `unsupported-shape`): hand-converted to `RecordBuilder().plan(..., readiness="no-go", open_questions=..., raw_fields={"Scope": "test scope"}, text_only=True)`.
+      3. `tests/test_runner_shared.py` pre-edit lines 605-663 (`LaneIntegrationBehaviorTests::test_review_lane_with_conforming_plan_integrates_cleanly`, `not-equivalent`): hand-converted to `RecordBuilder().plan(..., status="reviewed", readiness="go-pending-approval", history=[...], body=..., raw_fields={"Concern": "test concern", "Scope": "test scope"}, text_only=True)`.
+      4. `tests/test_runner_shared.py` pre-edit lines 687-697 (`LaneIntegrationBehaviorTests::test_review_lane_with_incomplete_graduation_backlog_is_refused`, `unsupported-shape`): hand-converted to `RecordBuilder().backlog(..., status="graduated", graduated_to="bklset", history=[...], text_only=True)`.
+      5. `tests/test_runner_shared.py` pre-edit lines 865 and 876 (2 sites in `LaneIntegrationBehaviorTests::_SPEC_BASE` / `_history_race`, `unsupported-shape`): replaced `_SPEC_BASE` and `top = "## Workflow history\n\n"` string replacement with `_spec_text(history)` delegating to `RecordBuilder().spec(..., history=history, text_only=True)`.
+      6. `tests/test_runner_shared.py` pre-edit lines 2108-2172 (`VerificationPolarityTests::PLAN`, `not-equivalent`): removed `PLAN` constant and hand-converted `make_repo` to `RecordBuilder().plan(..., id6=id6, body=..., raw_fields={"Concern": "fixture", "Scope": "fixture"}, text_only=True)`.
+      7. `tests/test_runner_shared.py` pre-edit line 3780 (`SupersededLaneTests::_plan`, `dynamic-construction`): hand-converted to `RecordBuilder().plan(title="probe", id6=id6, status="executed", text_only=True)`.
+      8. `tests/test_runner_shared.py` pre-edit line 4465 (`_repo_with_pending_plan`, `dynamic-construction`): hand-converted to `RecordBuilder().plan(title="demo", id6=id6, status="approved", text_only=True)`.
+      9. `tests/test_runner_shared.py` pre-edit line 4479 (`_add_pending_plan`, `dynamic-construction`): hand-converted to `RecordBuilder().plan(title="demo", id6=id6, status="approved", text_only=True)`.
+      10. `tests/test_runner_shared.py` pre-edit line 5083 (`test_the_FOUR_LANE_incident_is_recovered_by_the_verb_with_no_agent_turn`, `dynamic-construction`): hand-converted to `RecordBuilder().plan(title="demo", id6=id6, status="approved", text_only=True)`.
+      11. `tests/test_runner_stop_triggers_e2e.py` pre-edit lines 180 and 183 (2 sites in `_make_repo`, `unsupported-shape`): replaced `_CONFORMING_PLAN.format(id6=id6)` and `re.sub` calls (and dropped `_CONFORMING_PLAN` and `re` imports) with `RecordBuilder(repo).plan(...)`.
+    - Post-edit codemod dry-run over all 3 modules: `modules=3 sites=3 rewrites=0 refusals=3` (all 3 in `tests/test_runner_shared.py`: 1 `unsupported-shape` at line 214 retained as `legacy-format subject`, 2 `setter-byte assertion` at lines 1075-1076 `legacy-kept`; `test_runner_shared_restored_behavior.py` and `test_runner_stop_triggers_e2e.py` at `sites=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none (`_SPEC_BASE` and `VerificationPolarityTests.PLAN` string constants removed).
+      - Surviving module-local helpers outside the E-09 regex (all delegating to `RecordBuilder` with zero F-01 legacy strings): `tests/test_runner_shared.py::LaneIntegrationBehaviorTests._spec_text` (5 active callers), `tests/test_runner_shared.py::VerificationPolarityTests.make_repo` (1 active caller), `tests/test_runner_shared.py::SupersededLaneTests._plan` (4 active callers), `tests/test_runner_shared.py::_repo_with_pending_plan` / `_add_pending_plan` (multiple active callers; initialize/commit fixture repos), `tests/test_runner_shared_restored_behavior.py::_plan` (1 active caller), `tests/test_runner_stop_triggers_e2e.py::_make_repo` (2 active callers).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G5a-1cgrgp-1`, `G5a-1cgrgp-2` against `.aw/state/59aiyh/1cgrgp-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 1cgrgp` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/1cgrgp-union-before.txt .aw/state/59aiyh/1cgrgp-union-after.txt`, 175 outcomes = 27 + 148 across all 7 modules): 175 `PASSED` after conversion (0 `FAILED`, 0 regressions); diff contains only the 2 `FAILED -> PASSED` restorations in `tests/test_runner_fallback_bindings.py` documented in V-01 and `D-01` (pre-existing cross-module coupling failure from `i29bd5` commit `639ef877`):
+      - `-FAILED tests/test_runner_fallback_bindings.py::test_fallback_set_plan_approved_forwards_host_equivalent_arguments` -> `+PASSED tests/test_runner_fallback_bindings.py::test_fallback_set_plan_approved_forwards_host_equivalent_arguments`
+      - `-FAILED tests/test_runner_fallback_bindings.py::test_host_preference_preserved_for_shipped_hosts` -> `+PASSED tests/test_runner_fallback_bindings.py::test_host_preference_preserved_for_shipped_hosts`
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2666 passed, 11 warnings in 118.88s (0:01:58)`, exit code 0 (0 failures).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6898,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 1cgrgp` outputs (all paths strictly inside Scope-Paths; never pushed):
+      - E-01: `aw commit: committed 4 path(s): b0a7440b268162fc3293301e4259087edff9dc2b` (`tests/test_runner_bare_verb_shim.py`, `tests/test_runner_fallback_bindings.py`, `tests/test_runner_findings_dependency_gate.py`, `tests/test_runner_peer_dependency.py`).
+      - E-02: `aw commit: committed 3 path(s): 1b354b25a60b7926d65c9adcbd1fa9b5305854ee` (`tests/test_runner_shared.py`, `tests/test_runner_shared_restored_behavior.py`, `tests/test_runner_stop_triggers_e2e.py`).
+      - Plan evidence: committed via `aw commit 1cgrgp -- .aw/records/plans/pending/20261109-metastore-206-1cgrgp-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
