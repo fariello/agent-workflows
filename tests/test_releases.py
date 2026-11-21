@@ -9,6 +9,7 @@ from pathlib import Path
 from agent_workflows import engine as _engine
 from agent_workflows import releases
 from agent_workflows.record_producers import RecordClass, resolve_record_path
+from tests.record_builder import RecordBuilder
 
 
 class ReleasesClassTests(unittest.TestCase):
@@ -143,13 +144,24 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
         # Two release records: ONE planned (so `next` resolves) and one shipped.
         _write(
             self.rec / "releases" / "20260101-aaaaaa-01-aaaaaa-2-0-0.release.md",
-            "# Release: 2.0.0\n\n- Id: aaaaaa\n- Status: planned\n- Version: 2.0.0\n"
-            "- Summary: the planned one\n\n## Workflow history\n\n- 2026-01-01 created (aw releases): x\n",
+            RecordBuilder().release(
+                version="2.0.0",
+                id6="aaaaaa",
+                status="planned",
+                summary="the planned one",
+                history=["- 2026-01-01 created (aw releases): x"],
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "releases" / "20251201-bbbbbb-01-bbbbbb-1-0-0.release.md",
-            "# Release: 1.0.0\n\n- Id: bbbbbb\n- Status: shipped\n- Version: 1.0.0\n"
-            "- Summary: the shipped one\n",
+            RecordBuilder().release(
+                version="1.0.0",
+                id6="bbbbbb",
+                status="shipped",
+                summary="the shipped one",
+                text_only=True,
+            ),
         )
         # Items that GATE the planned release, across three trees + one that gates nothing.
         _write(
@@ -169,8 +181,15 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
         )
         _write(
             self.rec / "plans" / "pending" / "20260102-g-01-gate03-a-plan.ipd.md",
-            "# IPD: p\n\n- Id: gate03\n- Status: approved\n- Set: g (g)\n"
-            "- Blocks-Release: next\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="p",
+                id6="gate03",
+                status="approved",
+                set="g (g)",
+                blocks_release="next",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
         )
 
     def tearDown(self) -> None:
@@ -307,8 +326,13 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
         p = self.rec / "releases" / "20260103-cccccc-01-cccccc-9-9-9.release.md"
         _write(
             p,
-            "# Release: 9.9.9\n\n- Id: cccccc\n- Status: blocked\n- Version: 9.9.9\n\n"
-            "## Summary\n\nprose summary line one\nline two\n\n## Blockers\n\nignored\n",
+            RecordBuilder().release(
+                version="9.9.9",
+                id6="cccccc",
+                status="blocked",
+                body="# Release: 9.9.9\n\n## Summary\n\nprose summary line one\nline two\n\n## Blockers\n\nignored",
+                text_only=True,
+            ),
         )
         rec = releases.parse_release(p, p.read_text(encoding="utf-8"))
         self.assertEqual(rec.id6, "cccccc")

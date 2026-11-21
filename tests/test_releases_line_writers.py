@@ -32,6 +32,7 @@ from pathlib import Path
 
 from agent_workflows import releases
 from tests.support import run_cli
+from tests.record_builder import RecordBuilder
 
 
 class TestSetBlocksReleaseLine(unittest.TestCase):
@@ -304,14 +305,16 @@ def _setup_test_repo(root: Path, *, with_backlog: bool = True) -> dict[str, Path
         bk_dir.mkdir(parents=True, exist_ok=True)
         bk_path = bk_dir / "20260930-bkl001-01-bkl001-test-bug.backlog.md"
         bk_path.write_text(
-            "- Id: bkl001\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: bug\n"
-            "- Blocks-Release: relaaa\n"
-            "- Summary: Test bug\n\n"
-            "## Workflow history\n"
-            "- 2026-09-30 open (tester): created\n",
+            RecordBuilder().backlog(
+                id6="bkl001",
+                status="open",
+                priority="medium",
+                work_kind="bug",
+                blocks_release="relaaa",
+                summary="Test bug",
+                history=["- 2026-09-30 open (tester): created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         paths["backlog"] = bk_path
@@ -321,13 +324,14 @@ def _setup_test_repo(root: Path, *, with_backlog: bool = True) -> dict[str, Path
     rel_dir.mkdir(parents=True, exist_ok=True)
     rel_path = rel_dir / "20260930-relaaa-01-relaaa-test-rel.release.md"
     rel_path.write_text(
-        "# Release: Test Release\n\n"
-        "- Id: relaaa\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test Release\n\n"
-        "## Workflow history\n"
-        "- 2026-09-30 planned (tester): created\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="relaaa",
+            status="planned",
+            summary="Test Release",
+            history=["- 2026-09-30 planned (tester): created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     paths["release"] = rel_path
@@ -337,21 +341,20 @@ def _setup_test_repo(root: Path, *, with_backlog: bool = True) -> dict[str, Path
     plan_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plan_dir / "20260930-testset-01-pln001-test-plan.ipd.md"
     plan_path.write_text(
-        "# Plan: Test Plan\n\n"
-        "- Date: 2026-09-30\n"
-        "- Kind: child\n"
-        "- Concern: test concern\n"
-        "- Scope: test scope\n"
-        "- Scope-Paths: test.py\n"
-        "- Item-Dependencies: none\n"
-        "- Status: to-review\n"
-        "- Work-Kind: bug\n"
-        "- Priority: medium\n"
-        "- Set: testset\n"
-        "- Order: 1\n"
-        "- Id: pln001\n\n"
-        "## Workflow history\n"
-        "- 2026-09-30 to-review (tester): created\n",
+        RecordBuilder().plan(
+            when="2026-09-30",
+            plan_role="child",
+            scope_paths="test.py",
+            item_dependencies="none",
+            status="to-review",
+            work_kind="bug",
+            priority="medium",
+            set="testset",
+            order=1,
+            id6="pln001",
+            history=["- 2026-09-30 to-review (tester): created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     paths["plan"] = plan_path
@@ -361,12 +364,14 @@ def _setup_test_repo(root: Path, *, with_backlog: bool = True) -> dict[str, Path
     spec_dir.mkdir(parents=True, exist_ok=True)
     spec_path = spec_dir / "20260930-spc001-01-spc001-test-spec.spec.md"
     spec_path.write_text(
-        "# Spec: Test Spec\n\n"
-        "- Date: 2026-09-30\n"
-        "- Status: draft\n"
-        "- Id: spc001\n\n"
-        "## Workflow history\n"
-        "- 2026-09-30 draft (tester): created\n",
+        RecordBuilder().spec(
+            title="Test Spec",
+            when="2026-09-30",
+            status="draft",
+            id6="spc001",
+            history=["- 2026-09-30 draft (tester): created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     paths["spec"] = spec_path

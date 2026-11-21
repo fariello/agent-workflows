@@ -21,6 +21,7 @@ from typing import Callable, List, Optional, Tuple
 
 from agent_workflows import releases, selectors
 from tests.support import run_cli
+from tests.record_builder import RecordBuilder
 
 WriterTuple = Tuple[Callable[[str, Optional[str]], str], str, str, str]
 
@@ -216,16 +217,13 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         by ccc leaves exactly one front-matter Graduated-To line, while a body
         - Graduated-To: aaa, bbb survives.
         """
-        text = (
-            "# Backlog Title\n\n"
-            "- Id: bkl001\n"
-            "- Status: open\n"
-            "- Graduated-To: aaa, bbb\n"
-            "- Set: testset\n\n"
-            "## Description\n"
-            "Body quoting graduation:\n"
-            "- Graduated-To: aaa, bbb\n"
-            "End of description.\n"
+        text = RecordBuilder().backlog(
+            id6="bkl001",
+            status="open",
+            graduated_to="aaa, bbb",
+            set="testset",
+            body="## Description\nBody quoting graduation:\n- Graduated-To: aaa, bbb\nEnd of description.",
+            text_only=True,
         )
         res = releases.set_graduated_to_line(text, "ccc")
         body_orig = text.partition("## Description")[2]
@@ -245,15 +243,11 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         """
         for writer, field, _, new_val in WRITERS:
             with self.subTest(writer=writer.__name__, field=field):
-                yaml_text = (
-                    "---\n"
-                    "id: rsc001\n"
-                    "status: active\n"
-                    "---\n\n"
-                    "# Research Document\n\n"
-                    "Body bullet quote:\n"
-                    f"- {field}: quote_val\n"
-                    "More text.\n"
+                yaml_text = RecordBuilder().research(
+                    id6="rsc001",
+                    status="active",
+                    body=f"\n# Research Document\n\nBody bullet quote:\n- {field}: quote_val\nMore text.\n",
+                    text_only=True,
                 )
                 res = writer(yaml_text, new_val)
                 body_orig = yaml_text.partition("# Research Document")[2]
@@ -291,18 +285,17 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
             bdir.mkdir(parents=True, exist_ok=True)
             item_path = bdir / "20261012-bkl111-01-bkl111-demo.backlog.md"
             item_path.write_text(
-                "- Id: bkl111\n"
-                "- Status: open\n"
-                "- Set: testset\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: Demo item\n\n"
-                "## Description\n"
-                "Quoted configuration line in body:\n"
-                "- Work-Kind: chore\n"
-                "End of description.\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 open (tester): created\n",
+                RecordBuilder().backlog(
+                    id6="bkl111",
+                    status="open",
+                    set="testset",
+                    priority="low",
+                    work_kind="chore",
+                    summary="Demo item",
+                    history=["- 2026-10-12 open (tester): created"],
+                    body="## Description\nQuoted configuration line in body:\n- Work-Kind: chore\nEnd of description.",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(
