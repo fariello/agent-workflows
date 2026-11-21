@@ -104,6 +104,7 @@ flowchart TD
 
 - Migrated v2 specification validation in `attention._spec_record`: owned by sibling plan `zgxig2` (from backlog `0dsjzl`).
   - Carrier: zgxig2
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.ipd.md
 - Returning migrated legacy research notes lacking a kind facet from `aw find`: owned by sibling plan `vvxbbl` (from backlog `7mmhlp`).
   - Carrier: vvxbbl
 - Re-running AC-42 corpus and clone verification in `tests/test_m0001_any_repo.py`: owned by pending plan `60mazt`.
