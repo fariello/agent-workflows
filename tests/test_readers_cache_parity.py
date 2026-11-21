@@ -31,6 +31,7 @@ _ALL_FIND_TYPES = (
     "prompts",
     "releases",
     "walkthroughs",
+    "roadmaps",
 )
 _COMMANDS = ("find", "attention", "check_meta", "check_all", "ipd_lint")
 _CACHE_STATES = ("cold", "warm", "deleted", "corrupt")
@@ -177,6 +178,7 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
         "prompts/pending",
         "releases",
         "walkthroughs",
+        "roadmaps",
     ):
         (recs / sub).mkdir(parents=True, exist_ok=True)
 
@@ -272,6 +274,18 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
         encoding="utf-8",
     )
 
+    (
+        recs / "roadmaps" / "20261101-rmset-01-rmp001-clean-roadmap.roadmap.md"
+    ).write_text(
+        "# Roadmap: Clean Roadmap\n\n"
+        "- Date: 2026-11-01\n"
+        "- Id: rmp001\n"
+        "- Set: rmset\n"
+        "- Order: 01\n\n"
+        "## Summary\n\nRoadmap body.\n",
+        encoding="utf-8",
+    )
+
     return repo, plan_p
 
 
@@ -338,6 +352,48 @@ def _cold_references(
         assert not (ref_repo / ".aw" / "state" / "index.db").exists()
         ref_rc, ref_out = _invoke_surface(ref_repo, ref_plan, cmd)
         assert ref_out.strip() != ""
+        assert (
+            ref_rc != 2
+        ), f"{cmd} cold reference returned cannot-run (rc=2): {ref_out}"
+        if cmd == "find":
+            assert ref_rc == 0
+            for expected_id in (
+                "pln001",
+                "spc001",
+                "bkl001",
+                "res001",
+                "prm001",
+                "rel001",
+                "wlk001",
+                "rmp001",
+            ):
+                assert expected_id in ref_out, f"find missing {expected_id}"
+        elif cmd == "attention":
+            assert ref_rc == 0
+            att = json.loads(ref_out)
+            assert att["valid"] is True
+            att_ids = {it["id"] for it in att["items"]}
+            assert {
+                "pln001",
+                "spc001",
+                "bkl001",
+                "res001",
+                "prm001",
+                "rel001",
+            }.issubset(att_ids)
+        elif cmd == "check_meta":
+            meta_recs = [json.loads(ln) for ln in ref_out.splitlines() if ln.strip()]
+            summary = next(r for r in meta_recs if r.get("kind") == "summary")
+            assert summary["checked"] == 8
+            assert summary["complete"] is True
+        elif cmd == "check_all":
+            chk = json.loads(ref_out)
+            assert chk["verified"] is True
+            assert chk["complete"] is True
+        elif cmd == "ipd_lint":
+            assert ref_rc == 0
+            lint_res = json.loads(ref_out)
+            assert lint_res["outcome"] == "clean"
         refs[cmd] = (ref_rc, ref_out)
     return refs
 
