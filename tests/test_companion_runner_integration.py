@@ -490,6 +490,14 @@ class CompanionPromptPurityTests(unittest.TestCase):
                 self.assertEqual(
                     staged_plan.read_text(encoding="utf-8"), "# modified by agent\n"
                 )
+                # Subsequent retry/recovery staging with overwrite=False preserves lane edits
+                re_resolved = lane_containment.resolve_companion_lane_path(
+                    wt, plan_path, repo=target, overwrite=False
+                )
+                self.assertEqual(re_resolved, staged_plan)
+                self.assertEqual(
+                    staged_plan.read_text(encoding="utf-8"), "# modified by agent\n"
+                )
 
                 # Non-isolated (`lane_root=None`) remains byte-identical (spec 7ckptx R1.3)
                 non_iso_review = runner_shared.build_review_prompt(
@@ -641,6 +649,175 @@ class CompanionPromptPurityTests(unittest.TestCase):
                     / "20261121-cmpset-01-dsp001-dispatch.review.md"
                 ).is_file()
             )
+
+    def test_companion_retry_preserves_staged_edits_and_spec_reconcile_reads_staged_copy(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            target, companion, env = _provision_companion_repos(td_path)
+            records_root = companion / "records"
+            plan_src = (
+                records_root
+                / "plans"
+                / "pending"
+                / "20261121-cmpset-01-rty001-retry.ipd.md"
+            )
+            plan_src.write_text(_plan_text(id6="rty001"), encoding="utf-8")
+            spec_src = (
+                records_root / "specs" / "20261121-spc111-01-spc111-sample.spec.md"
+            )
+            spec_src.write_text(
+                "# Spec: sample\n\n- Id: spc111\n- Status: to-review\n",
+                encoding="utf-8",
+            )
+            run_dir = td_path / "run-20261121T152000Z-8888"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            item: dict[str, Any] = {
+                "position": 1,
+                "id6": "rty001",
+                "setid": "cmpset",
+                "action": "review",
+                "artifact_type": "ipd",
+                "configured_file": ".aw/records/plans/pending/20261121-cmpset-01-rty001-retry.ipd.md",
+                "status": "queued",
+                "attempts": [],
+            }
+            state: dict[str, Any] = {
+                "run_id": run_dir.name,
+                "repo": str(target),
+                "queue": [item],
+                "options": {
+                    "isolate_worktree": True,
+                    "self_finalize": True,
+                    "review_mode": "single",
+                },
+            }
+            seen_on_attempt: dict[int, str] = {}
+
+            def _fake_spawn_retry(
+                _prompt_path: Path,
+                work_dir: Path | None,
+                _tracker: Any,
+                _plan_path: Path,
+                attempt_no: int,
+                _session_id: str | None,
+                _use_continue: bool,
+            ) -> tuple[int, str | None, Path, list[str]]:
+                assert work_dir is not None
+                staged_p = (
+                    Path(work_dir)
+                    / ".aw"
+                    / "records"
+                    / "plans"
+                    / "pending"
+                    / "20261121-cmpset-01-rty001-retry.ipd.md"
+                )
+                seen_on_attempt[attempt_no] = staged_p.read_text(encoding="utf-8")
+                log_p = run_dir / f"rty001-a{attempt_no}.log"
+                if attempt_no == 1:
+                    staged_p.write_text(
+                        _plan_text(
+                            id6="rty001",
+                            status="to-review",
+                            extra_history="- 2026-11-21 partial-attempt-1: preserved",
+                        ),
+                        encoding="utf-8",
+                    )
+                    log_p.write_text("partial\n", encoding="utf-8")
+                    return 1, "sess-rty1", log_p, ["fake-host"]
+                staged_p.write_text(
+                    _plan_text(id6="rty001", status="reviewed"), encoding="utf-8"
+                )
+                rev_p = (
+                    Path(work_dir)
+                    / ".aw"
+                    / "records"
+                    / "reviews"
+                    / "20261121-cmpset-01-rty001-retry.review.md"
+                )
+                rev_p.parent.mkdir(parents=True, exist_ok=True)
+                rev_p.write_text("# Review\n", encoding="utf-8")
+                log_p.write_text("AW-REVIEW: DONE\n", encoding="utf-8")
+                return 0, "sess-rty1", log_p, ["fake-host"]
+
+            with _patched_env(env):
+                runner_shared.execute_item_core(
+                    run_dir,
+                    state,
+                    item,
+                    recovery=False,
+                    host_labels=runner_shared.OC_HOST_LABELS,
+                    spawn_executor=_fake_spawn_retry,
+                    spawn_verifier=_fake_spawn_retry,
+                    raw_launcher=lambda *_a, **_kw: (0, None, run_dir / "raw.log", []),
+                    run_suite_check=lambda _p, _l: None,
+                    process_backlog_close=lambda *_a, **_kw: None,
+                    driver_module=oc_runipd,
+                )
+                item["status"] = "queued"
+                runner_shared.execute_item_core(
+                    run_dir,
+                    state,
+                    item,
+                    recovery=True,
+                    host_labels=runner_shared.OC_HOST_LABELS,
+                    spawn_executor=_fake_spawn_retry,
+                    spawn_verifier=_fake_spawn_retry,
+                    raw_launcher=lambda *_a, **_kw: (0, None, run_dir / "raw.log", []),
+                    run_suite_check=lambda _p, _l: None,
+                    process_backlog_close=lambda *_a, **_kw: None,
+                    driver_module=oc_runipd,
+                )
+                self.assertIn("partial-attempt-1: preserved", seen_on_attempt[2])
+
+                # Companion spec review reconcile reads staged lane spec & staged lane review record
+                from agent_workflows import review_findings
+
+                wt_spec, _ = _add_lane_worktree(target, "spc111", env)
+                staged_spec = lane_containment.stage_companion_lane_artifact(
+                    wt_spec, spec_src, records_root
+                )
+                staged_spec.write_text(
+                    "# Spec: sample\n\n- Id: spc111\n- Status: reviewed\n",
+                    encoding="utf-8",
+                )
+                lane_rev = (
+                    wt_spec
+                    / ".aw"
+                    / "records"
+                    / "reviews"
+                    / "20261121-spc111-01-spc111-sample.review.md"
+                )
+                lane_rev.parent.mkdir(parents=True, exist_ok=True)
+                lane_rev.write_text(
+                    review_findings.render_review(
+                        subject_id="spc111",
+                        subject_type="spec",
+                        reviewed_at="2026-11-21",
+                        reviewer="test",
+                        verdict="APPROVE",
+                        rounds=[
+                            review_findings.Round(
+                                number=1,
+                                findings=(),
+                                decisions=(),
+                            )
+                        ],
+                    ),
+                    encoding="utf-8",
+                )
+                spec_item = {
+                    "position": 2,
+                    "id6": "spc111",
+                    "action": "review",
+                    "artifact_type": "spec",
+                    "configured_file": ".aw/records/specs/20261121-spc111-01-spc111-sample.spec.md",
+                }
+                disp, _ = runner_shared.reconcile_disposition(
+                    target, spec_item, run_dir, exit_code=0, plan_repo=wt_spec
+                )
+                self.assertEqual(disp, "reviewed", spec_item)
 
 
 class CompanionCarrierCheckTests(unittest.TestCase):

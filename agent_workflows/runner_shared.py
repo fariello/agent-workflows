@@ -43360,6 +43360,13 @@ def reconcile_disposition(
             spec_path = None
             try:
                 spec_path = queue_artifact_path(source, item)
+                from agent_workflows import lane_containment as _lc
+
+                staged_spec = _lc.resolve_companion_lane_path(
+                    source, spec_path, repo=repo, overwrite=False
+                )
+                if staged_spec is not None and staged_spec.is_file():
+                    spec_path = staged_spec
                 spec_text = spec_path.read_text(encoding="utf-8")
                 status = _read_status(spec_text)
             except Exception:
@@ -43369,6 +43376,36 @@ def reconcile_disposition(
                 missing_attestation = review_findings.review_attestation_missing(
                     source, id6, "spec"
                 )
+                if (
+                    missing_attestation is not None
+                    and _is_companion_records_context(_resolve_companion_context(repo))
+                    and (source / ".aw" / "records" / "reviews").is_dir()
+                ):
+                    from agent_workflows import artifact_meta as _meta
+
+                    lane_reviews = source / ".aw" / "records" / "reviews"
+                    for rev_p in sorted(lane_reviews.glob("*.review.md")):
+                        doc = review_findings.parse_review_file(rev_p)
+                        if (
+                            (doc.subject_id or "").strip() == id6
+                            and (doc.subject_type or "").strip().lower() == "spec"
+                            and not doc.diagnostics
+                        ):
+                            try:
+                                r_state = _meta.read_text(
+                                    rev_p.read_text(encoding="utf-8"),
+                                    record_type="review",
+                                )
+                                r_kind = (
+                                    (getattr(r_state, "review_kind", None) or "gate")
+                                    .strip()
+                                    .lower()
+                                )
+                            except Exception:
+                                r_kind = "gate"
+                            if r_kind == "gate":
+                                missing_attestation = None
+                                break
                 if status == "reviewed" and missing_attestation is None:
                     return "reviewed", None
                 if status != "reviewed":
@@ -46269,7 +46306,7 @@ def execute_item_core(
         except DriverError:
             lane_plan_path = plan_path
         staged_exec_plan = lane_containment.resolve_companion_lane_path(
-            lane_root, lane_plan_path, repo=repo, overwrite=True
+            lane_root, lane_plan_path, repo=repo, overwrite=False
         )
         if staged_exec_plan is not None:
             lane_plan_path = staged_exec_plan
@@ -46438,7 +46475,10 @@ def execute_item_core(
             lane_plan_path = plan_path
         if work_dir and isolate:
             staged_review_plan = lane_containment.resolve_companion_lane_path(
-                lane_root, lane_plan_path, repo=repo, overwrite=True
+                lane_root,
+                lane_plan_path,
+                repo=repo,
+                overwrite=bool(attempt.get("rereview_demoted_from")),
             )
             if staged_review_plan is not None:
                 lane_plan_path = staged_review_plan
@@ -46487,7 +46527,7 @@ def execute_item_core(
         except DriverError:
             lane_art_path = plan_path
         staged_prod_art = lane_containment.resolve_companion_lane_path(
-            lane_root, lane_art_path, repo=repo, overwrite=True
+            lane_root, lane_art_path, repo=repo, overwrite=False
         )
         if staged_prod_art is not None:
             lane_art_path = staged_prod_art
