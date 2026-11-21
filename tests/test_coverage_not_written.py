@@ -26,6 +26,7 @@ from agent_workflows import orchestrator_readiness as readiness
 from agent_workflows import runner_shared as rs
 from agent_workflows.cli import main
 from tests.test_ipd_lint import _conforming_child
+from tests.record_builder import RecordBuilder
 
 
 def _init_fixture_repo(root: Path) -> None:
@@ -502,14 +503,16 @@ class TestReviewReadinessUnitAndRetirement(unittest.TestCase):
             pending.mkdir(parents=True)
             orch = pending / "20261121-tset-00-orc009-orch.ipd.md"
             orch.write_text(
-                "# IPD: Sibling Dir Test\n\n"
-                "- Id: orc009\n"
-                "- Status: draft\n"
-                "- Set: tset (Test Set)\n"
-                "- Order: 0\n"
-                "- Plan-Role: orchestrator\n\n"
-                "## Workflow history\n"
-                "- 2026-11-21 draft (test): created.\n",
+                RecordBuilder().plan(
+                    title="Sibling Dir Test",
+                    id6="orc009",
+                    status="draft",
+                    set="tset (Test Set)",
+                    order=0,
+                    plan_role="orchestrator",
+                    history=["- 2026-11-21 draft (test): created."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "add", "."], cwd=repo, check=True)

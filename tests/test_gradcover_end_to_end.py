@@ -39,6 +39,7 @@ from agent_workflows import (
     run_viewer,
     runner_shared as rs,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 UNOWNED_LINE = "the full suite passes after both children"
@@ -58,7 +59,9 @@ def _make_test_repo(path: Path) -> Path:
     rel_dir = path / ".aw" / "records" / "releases"
     rel_dir.mkdir(parents=True, exist_ok=True)
     (rel_dir / "20260901-rel001-01-rel001-v1.release.md").write_text(
-        "# RELEASE: v1\n- Id: rel001\n- Status: planned\n- Version: 1.0.0\n",
+        RecordBuilder().release(
+            version="1.0.0", id6="rel001", status="planned", text_only=True
+        ),
         encoding="utf-8",
     )
     (path / ".aw" / "records" / "plans" / "pending").mkdir(parents=True, exist_ok=True)
@@ -83,17 +86,17 @@ def _write_backlog_item(
     bkl_dir = repo / ".aw" / "records" / "backlog" / status
     bkl_dir.mkdir(parents=True, exist_ok=True)
     file_path = bkl_dir / f"20261004-{setid}-01-{id6}-{slug}.backlog.md"
-    content = f"""- Id: {id6}
-- Status: {status}
-- Set: {setid}
-- Blocks-Release: {gate}
-- Priority: {priority}
-- Work-Kind: {work_kind}
-- Summary: {summary}
-
-## Workflow history
-- 2026-10-04 {status} (tester): created item
-"""
+    content = RecordBuilder().backlog(
+        id6=id6,
+        status=status,
+        set=setid,
+        blocks_release=gate,
+        priority=priority,
+        work_kind=work_kind,
+        summary=summary,
+        history=[f"- 2026-10-04 {status} (tester): created item"],
+        text_only=True,
+    )
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
