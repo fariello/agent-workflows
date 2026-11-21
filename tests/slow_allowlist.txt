@@ -634,6 +634,7 @@ tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[idles
 tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[legacy_agents_layout]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
 tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[mixed_layout]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
 tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[no_sidecar]	Full repository migration dry-run, apply, and log replay on git-init corpus fixture
+tests/test_m0001_any_repo.py::test_ac42_this_repository_clone_migration	Full repository migration dry-run, apply, log replay, aw find parity, and aw attention check on disposable git clone of this repository
 tests/test_record_builder.py::RecordBuilderGoldenTests::test_golden_ready_plan_text	64-set golden byte parity sweep via artifact_meta.render_legacy_text
 tests/test_record_builder_slow.py::RecordBuilderVisibilityTests::test_visibility_find_attention_check	Subprocess CLI execution and isolated worktree integration boundary
 tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_g_not_equivalent_site_is_isolated_and_reverted_while_others_stay	Subprocess codemod equivalence bisection running nested pytest invocations
