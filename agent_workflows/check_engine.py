@@ -6396,8 +6396,8 @@ def _lane_carrier_is_executed(
 
     Checked via `git ls-tree -r --name-only <ref>` against the shared object store and never
     trusted. For a plan (.ipd.md), requires a path in the ref whose parts contain 'executed'
-    for that carrier's id6/filename. For a spec (.spec.md), reads the blob text at that ref via
-    `_blob_text` and checks for `- Status: implemented`.
+    for that carrier's id6/filename. For a spec (.spec.md), reads its state at that ref via
+    `artifact_meta.read_at` and checks for status `implemented`.
     """
     p = Path(carrier_path)
     if p.name.endswith(".ipd.md"):
@@ -8339,7 +8339,9 @@ def _evaluate_ipd_dependencies_impl(
         # NEVER flagged for a missing statement, at ANY phase, so the existing corpus is not
         # mass-failed. Only a POST-cutover plan missing the field is a finding (error).
         if raw is None:
-            if not _is_grandfathered_plan(text, cutover_date):
+            if not _is_grandfathered_plan(
+                text, cutover_date, state=overlay_states.get(ps)
+            ):
                 drift.append(
                     _core.Drift(
                         ps,
@@ -8446,12 +8448,17 @@ def _evaluate_ipd_dependencies_impl(
     return drift
 
 
-def _is_grandfathered_plan(text: str, cutover_date: Optional[str]) -> bool:
+def _is_grandfathered_plan(
+    text: str, cutover_date: Optional[str], *, state: Optional[Any] = None
+) -> bool:
     """A plan is grandfathered (missing-statement is advisory, not error) when there is no cutover
     in effect, or the plan's `- Date:` predates the cutover date. Fail-open: unparseable -> True."""
     if cutover_date is None:
         return True
-    pdate = _plan_date(text)
+    if state is not None:
+        pdate = _meta_single_token((getattr(state, "fields", None) or {}).get("date"))
+    else:
+        pdate = _plan_date(text)
     if not pdate:
         return True
     return pdate < cutover_date

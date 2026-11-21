@@ -56,7 +56,6 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
     )
     if rc != 0 or not out.strip():
         return overlay_states, statuses
-    ctx = _ce._git_read_at_context(repo_root)
     with _meta.ephemeral_if_uninitialized():
         for line in out.splitlines():
             parts = line.split("\t")
@@ -68,6 +67,7 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
             new_path = parts[-1].strip()
             if not new_path.endswith(".ipd.md"):
                 continue
+            ctx = _ce._git_read_at_context(repo_root, rel_path=new_path)
             plan_id = _meta.resolve_id_at(new_path, ":0:", project_context=ctx)
             if plan_id:
                 res = _meta.read_at(

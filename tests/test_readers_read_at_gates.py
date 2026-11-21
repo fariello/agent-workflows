@@ -704,3 +704,115 @@ def test_read_at_staged_index_fields_history_and_fenced_preamble(
         assert "approved" in res.history[0]["line"]
         # The fenced quote id must NOT resolve as a real record.
         assert meta.read_at("ffffff", ":0:", project_context=ctx).kind == "absent"
+
+
+def test_read_at_commits_rev_mirrors_and_rev_log_states_cache(tmp_path: Path) -> None:
+    """read_at and resolve_mirror_at commit rev_mirrors and rev_log_states rows across connections."""
+    from agent_workflows import artifact_meta as meta
+
+    _init_repo(tmp_path)
+    records_root = tmp_path / ".aw" / "records"
+    state_root = tmp_path / ".aw" / "state"
+    state_root.mkdir(parents=True, exist_ok=True)
+    ctx = type(
+        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+    )()
+
+    rel_plan = ".aw/records/plans/pending/20261101-demo-01-cm0001-cache.ipd.md"
+    (tmp_path / rel_plan).write_text(
+        _plan_text(id6="cm0001", status="approved"), encoding="utf-8"
+    )
+    meta_dir = records_root / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    (meta_dir / "cm0002.jsonl").write_text(
+        meta.encode_event(
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-11-01T12:00:00Z",
+                "actor": {"tool": "test"},
+                "op": "create",
+                "path": "plans/pending/20261101-demo-02-cm0002-log.ipd.md",
+                "fields": {
+                    "id": "cm0002",
+                    "type": "ipd",
+                    "status": "draft",
+                    "set": "demo",
+                    "order": 2,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "seed cache fixtures")
+
+    r_legacy = meta.read_at("cm0001", "HEAD", project_context=ctx)
+    assert r_legacy.kind == "ok", r_legacy.error
+    r_v2 = meta.read_at("cm0002", "HEAD", project_context=ctx)
+    assert r_v2.kind == "ok", r_v2.error
+
+    conn = meta.open_cache(records_root, state_root)
+    try:
+        mirror_ids = {
+            row[0] for row in conn.execute("SELECT id6 FROM rev_mirrors").fetchall()
+        }
+        log_ids = {
+            row[0] for row in conn.execute("SELECT id6 FROM rev_log_states").fetchall()
+        }
+    finally:
+        conn.close()
+    assert "cm0001" in mirror_ids
+    assert "cm0002" in log_ids
+
+
+def test_evaluate_ipd_dependencies_overlay_states_missing_respects_date_cutover(
+    tmp_path: Path,
+) -> None:
+    """evaluate_ipd_dependencies with overlay_states uses State date for cutover grandfathering."""
+    from agent_workflows import artifact_meta as meta
+
+    _init_repo(tmp_path)
+    post_path = (
+        tmp_path
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20261101-demo-01-ov0001-post.ipd.md"
+    )
+    pre_path = (
+        tmp_path
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20190101-demo-02-ov0002-pre.ipd.md"
+    )
+    post_text = (
+        "# IPD: Post-cutover missing deps\n\n"
+        "- Date: 2026-11-01\n- Kind: child\n- Scope-Paths: x.py\n"
+        "- Status: draft\n- Set: demo\n- Order: 1\n- Id: ov0001\n\n## Goal\ng\n"
+    )
+    pre_text = (
+        "# IPD: Pre-cutover missing deps\n\n"
+        "- Date: 2019-01-01\n- Kind: child\n- Scope-Paths: x.py\n"
+        "- Status: draft\n- Set: demo\n- Order: 2\n- Id: ov0002\n\n## Goal\ng\n"
+    )
+    overlay_states = {
+        str(post_path.resolve()): meta.read_text(post_text, record_type="ipd"),
+        str(pre_path.resolve()): meta.read_text(pre_text, record_type="ipd"),
+    }
+    plans = [(post_path.resolve(), ""), (pre_path.resolve(), "")]
+    drift = check_engine.evaluate_ipd_dependencies(
+        tmp_path,
+        phase="pre-execution",
+        plans=plans,
+        overlay_states=overlay_states,
+    )
+    missing_locs = [
+        d.location for d in drift if d.rule == ipd_schema.RULE_IPD_DEP_MISSING
+    ]
+    assert str(post_path.resolve()) in missing_locs
+    assert str(pre_path.resolve()) not in missing_locs

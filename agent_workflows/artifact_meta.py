@@ -2587,19 +2587,26 @@ def _parse_bullet_metadata_with_loose(
     title: Optional[str] = None
     first_h1_done = False
     in_fence = False
-    fence_marker = ""
+    fence_char = ""
+    fence_len = 0
 
     for line in lines:
         stripped = line.strip()
         if not in_fence:
             if stripped.startswith("```") or stripped.startswith("~~~"):
+                ch = stripped[0]
                 in_fence = True
-                fence_marker = stripped[:3]
+                fence_char = ch
+                fence_len = len(stripped) - len(stripped.lstrip(ch))
                 continue
         else:
-            if stripped.startswith(fence_marker):
+            if (
+                stripped.startswith(fence_char * fence_len)
+                and stripped.lstrip(fence_char) == ""
+            ):
                 in_fence = False
-                fence_marker = ""
+                fence_char = ""
+                fence_len = 0
             continue
 
         if not first_h1_done and stripped.startswith("# "):
@@ -5333,6 +5340,18 @@ def _read_git_blob(repo_dir: Path, blob_sha: str) -> Optional[str]:
     return cat.stdout if cat.returncode == 0 else None
 
 
+def _cache_rev_write(
+    conn: sqlite3.Connection, sql: str, params: Tuple[Any, ...]
+) -> None:
+    """Commit a single revision-cache row, tolerating transient SQLite lock contention."""
+    try:
+        with conn:
+            conn.execute(sql, params)
+    except sqlite3.OperationalError as exc:
+        if not _is_sqlite_lock_error(exc):
+            raise
+
+
 def resolve_mirror_at(
     rel_path: str,
     rev: str,
@@ -5388,7 +5407,8 @@ def resolve_mirror_at(
             if rt.legacy_raw_status and rt.legacy_raw_status.strip()
             else None
         )
-        conn.execute(
+        _cache_rev_write(
+            conn,
             "INSERT OR REPLACE INTO rev_mirrors VALUES (?, ?, ?)",
             (blob_sha, declared or "", mirror_status),
         )
@@ -5443,7 +5463,8 @@ def _load_legacy_at_blob(
         art_row, hist_rows = load_legacy_artifact(
             target_path, records_root, text=blob_text, repo_root=repo_dir
         )
-        conn.execute(
+        _cache_rev_write(
+            conn,
             "INSERT OR REPLACE INTO rev_mirrors VALUES (?, ?, ?)",
             (md_blob_sha, art_row["id6"], art_row["status"]),
         )
@@ -5608,7 +5629,8 @@ def read_at(
                         art_type = cand_type
                 state, _, _, _ = replay(id6, art_type, lines, records_root=records_root)
                 # Cache valid state
-                conn.execute(
+                _cache_rev_write(
+                    conn,
                     "INSERT OR REPLACE INTO rev_log_states VALUES (?, ?, ?, ?, ?)",
                     (
                         log_blob_sha,
