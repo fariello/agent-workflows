@@ -7942,7 +7942,11 @@ def _append_anchored_records_ignore(gi: Path, *, comment: str) -> bool:
     return True
 
 
-def _ensure_aw_gitignore(repo_root: Path) -> bool:
+def _ensure_aw_gitignore(
+    repo_root: Path,
+    *,
+    include_companion_records_ignore: Optional[bool] = None,
+) -> bool:
     """awgitignore Order 01: ensure the single framework-owned `repo/.aw/.gitignore` exists and
     ignores every records untracked/ lane (`records/*/untracked/`). Create it (from the template) if
     absent; append the pattern if a `.aw/.gitignore` exists without it. `.aw/` is framework-owned, so
@@ -7957,7 +7961,11 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
     """
 
     gi = Path(repo_root) / ".aw" / ".gitignore"
-    companion_backend = _resolve_records_backend(repo_root) == "companion"
+    companion_backend = (
+        include_companion_records_ignore
+        if include_companion_records_ignore is not None
+        else (_resolve_records_backend(repo_root) == "companion")
+    )
     if not gi.is_file():
         gi.parent.mkdir(parents=True, exist_ok=True)
         gi.write_text(_AW_GITIGNORE_TEMPLATE, encoding="utf-8")
@@ -8085,6 +8093,32 @@ def ensure_companion_records_ignore(repo_root: Path) -> bool:
         gi, comment=_COMPANION_RECORDS_IGNORE_COMMENT
     )
     return wrote_base or wrote_rec
+
+
+def remove_companion_records_ignore(repo_root: Path) -> bool:
+    """Remove the companion-backend anchored `/records/` rule from `.aw/.gitignore` if present.
+
+    Returns True iff `.aw/.gitignore` was modified. Used when switching a repository out of
+    companion mode back to target-tracked `.aw/records/` (e.g. `placement_switch`).
+    """
+    gi = Path(repo_root) / ".aw" / ".gitignore"
+    if not gi.is_file():
+        return False
+    text = gi.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    new_lines = [
+        ln
+        for ln in lines
+        if not re.match(r"^/records/[ \t]*\r?\n?$", ln)
+        and ln.strip() != _COMPANION_RECORDS_IGNORE_COMMENT
+    ]
+    if new_lines == lines:
+        return False
+    new_text = "".join(new_lines)
+    if new_text and not new_text.endswith("\n"):
+        new_text += "\n"
+    gi.write_text(new_text, encoding="utf-8")
+    return True
 
 
 def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str]:

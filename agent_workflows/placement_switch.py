@@ -1918,6 +1918,16 @@ def _perform_rollback(
                 aw_gi.unlink()
             except OSError:
                 pass
+    elif (
+        journal.get("modified_aw_gitignore")
+        and journal.get("prior_aw_gitignore_bytes") is not None
+    ):
+        aw_gi = repo / ".aw" / ".gitignore"
+        try:
+            aw_gi.write_text(journal["prior_aw_gitignore_bytes"], encoding="utf-8")
+            _run_git_cmd(repo, ["reset", "HEAD", "--", ".aw/.gitignore"], check=False)
+        except OSError:
+            pass
 
     for d_str in sorted(
         journal.get("created_directories", []),
@@ -2033,6 +2043,16 @@ def _perform_records_rollback(
                 aw_gi.unlink()
             except OSError:
                 pass
+    elif (
+        journal.get("modified_aw_gitignore")
+        and journal.get("prior_aw_gitignore_bytes") is not None
+    ):
+        aw_gi = repo / ".aw" / ".gitignore"
+        try:
+            aw_gi.write_text(journal["prior_aw_gitignore_bytes"], encoding="utf-8")
+            _run_git_cmd(repo, ["reset", "HEAD", "--", ".aw/.gitignore"], check=False)
+        except OSError:
+            pass
 
     for d_str in sorted(
         journal.get("created_directories", []),
@@ -2188,11 +2208,40 @@ def _run_transaction(
 
         # Target staging
         if dest_rels_target:
-            created_gi = engine._ensure_aw_gitignore(repo)
-            if created_gi:
+            aw_gi = repo / ".aw" / ".gitignore"
+            gi_existed_before = aw_gi.is_file()
+            if gi_existed_before and "prior_aw_gitignore_bytes" not in journal:
+                journal["prior_aw_gitignore_bytes"] = aw_gi.read_bytes().decode(
+                    "utf-8", errors="replace"
+                )
+            gi_changed = engine._ensure_aw_gitignore(
+                repo, include_companion_records_ignore=False
+            )
+            removed_rec = False
+            if new_policy.records_backend == "repository":
+                removed_rec = engine.remove_companion_records_ignore(repo)
+            if not gi_existed_before and gi_changed:
                 journal["created_aw_gitignore"] = True
+            if gi_changed or removed_rec:
+                journal["modified_aw_gitignore"] = True
+                _write_atomic_json(journal_file, journal)
                 _run_git_cmd(repo, ["add", "--", ".aw/.gitignore"], check=False)
+        elif (
+            plan.companion_action == "detach"
+            and new_policy.records_backend == "repository"
+        ):
+            aw_gi = repo / ".aw" / ".gitignore"
+            if aw_gi.is_file():
+                if "prior_aw_gitignore_bytes" not in journal:
+                    journal["prior_aw_gitignore_bytes"] = aw_gi.read_bytes().decode(
+                        "utf-8", errors="replace"
+                    )
+                if engine.remove_companion_records_ignore(repo):
+                    journal["modified_aw_gitignore"] = True
+                    _write_atomic_json(journal_file, journal)
+                    _run_git_cmd(repo, ["add", "--", ".aw/.gitignore"], check=False)
 
+        if dest_rels_target:
             res_ci = subprocess.run(
                 ["git", "check-ignore", "--stdin", "-n", "-v", "--non-matching"],
                 cwd=str(repo),

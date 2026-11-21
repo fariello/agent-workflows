@@ -8922,6 +8922,8 @@ def _install_one(
     source_root: Path,
     args: argparse.Namespace,
     term: Term,
+    *,
+    skip_commit: bool = False,
 ) -> str:
     """Install into ONE repo through the single shared shell, then summarize and offer to commit.
 
@@ -9043,16 +9045,22 @@ def _install_one(
     # Offer to commit (auto under --yes; prompt otherwise; on decline it prints how to commit, so
     # nothing is left SILENTLY staged). This is the step batch paths previously skipped (the bug).
     if not engine._is_clean_delta_install(repo_root):
-        engine.prompt_and_run_commit(
-            plan=plan,
-            installed=result["installed"],
-            pruned=result["pruned"],
-            agents_status=result["agents_status"],
-            backups_ignore_status=result["backups_ignore_status"],
-            use_git=result["use_git"],
-            artifacts=result.get("artifacts") or [],
-            untracked_ignore_status=result.get("untracked_ignore_status", ""),
-        )
+        if skip_commit:
+            term.status(
+                "info",
+                f"{repo_root}: framework sync changes left staged alongside relocation; review with git status and commit when ready.",
+            )
+        else:
+            engine.prompt_and_run_commit(
+                plan=plan,
+                installed=result["installed"],
+                pruned=result["pruned"],
+                agents_status=result["agents_status"],
+                backups_ignore_status=result["backups_ignore_status"],
+                use_git=result["use_git"],
+                artifacts=result.get("artifacts") or [],
+                untracked_ignore_status=result.get("untracked_ignore_status", ""),
+            )
     else:
         term.status("ok", f"{repo_root}: nothing staged or committed in the target.")
 
@@ -9594,7 +9602,24 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 )
 
         # Shared per-repo shell (install + summary + commit-offer, SystemExit-isolated).
-        if _install_one(repo_root, source_root, args, term) == "failed":
+        # During a full placement switch (--relocate, excluding records-only switches), keep
+        # installer sync updates (e.g. AGENTS.md and .aw/.gitignore) staged alongside the
+        # relocation changes rather than auto-committing under -y.
+        skip_relocate_commit = bool(
+            relocating
+            and switch_plan is not None
+            and switch_plan.direction not in ("records-to-home", "records-to-target")
+        )
+        if (
+            _install_one(
+                repo_root,
+                source_root,
+                args,
+                term,
+                skip_commit=skip_relocate_commit,
+            )
+            == "failed"
+        ):
             returncode = 1
             if relocating:
                 term.line(
