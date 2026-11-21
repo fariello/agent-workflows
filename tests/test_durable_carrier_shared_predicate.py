@@ -25,6 +25,7 @@ from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lint
 from agent_workflows import ipd_schema as S
 from tests import support
+from tests.record_builder import RecordBuilder
 
 RULE = "check.ipd-uncarried-obligation"
 
@@ -65,35 +66,21 @@ def _plan(
         deferred_rows = "- AN UNCARRIED DEFECT: nothing tracks this.\n"
     exec_state = "performed" if performed else "pending"
     valid_state = "pass" if performed else "pending"
-    body = (
-        f"# IPD: durable-carrier subject {id6}\n\n"
-        f"- Date: {date}\n- Kind: child\n- Scope-Paths: x.py\n"
-        f"- Item-Dependencies: none\n- Status: {status}\n- Set: durable\n- Order: 1\n"
-        f"- Highest E allocated: 01\n- Id: {id6}\n\n"
-        f"## Workflow history\n- {date} draft (t): created.\n\n"
-        f"## Goal\n\ng\n\n"
-        f"## Detailed Implementation Checklist (TODO)\n\n"
-        f"### Task group 1: do the thing\n\n"
-        f"- [x] E-01 DO THE THING.\n"
-        f"  - Depends on: none\n"
-        f"  - Expected outcome: the thing is done\n"
-        f"  - Execution state: {exec_state}\n\n"
-        f"## Project conventions discovered (Step 0)\n\n- none\n\n"
-        f"## Findings\n\n| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
-        f"| F-1 | LOW | x | y | z |\n\n"
-        f"## Proposed changes (ordered, validatable)\n\n1. do the thing\n\n"
-        f"## Deferred / out of scope (with reason)\n\n{deferred_rows}\n"
-        f"## Scope check\n\n- Over-scope: none\n- Under-scope: none\n\n"
-        f"## Required tests / validation\n\nthe suite\n\n"
-        f"## Spec / documentation sync\n\nnone\n\n"
-        f"## Open questions\n\n{open_questions}\n"
-        f"## Validation and cross-check (verify before reporting done)\n\n"
-        f"- [x] V-01 validates E-01\n"
-        f"  - Required evidence: paste it\n"
-        f"  - Observed evidence: pasted output here\n"
-        f"  - Result: {valid_state}\n\n"
-        f"## Approval and execution gate\n\n- Size assessment: standard\n"
-        f"- Cohesion rationale: not required\n"
+    body = RecordBuilder().plan(
+        title=f"durable-carrier subject {id6}",
+        when=date,
+        plan_role="child",
+        scope_paths="x.py",
+        item_dependencies="none",
+        status=status,
+        set="durable",
+        order=1,
+        highest_e_allocated="01",
+        id6=id6,
+        history=[f"- {date} draft (t): created."],
+        open_questions=open_questions,
+        body=f"## Goal\n\ng\n\n## Detailed Implementation Checklist (TODO)\n\n### Task group 1: do the thing\n\n- [x] E-01 DO THE THING.\n  - Depends on: none\n  - Expected outcome: the thing is done\n  - Execution state: {exec_state}\n\n## Project conventions discovered (Step 0)\n\n- none\n\n## Findings\n\n| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n| F-1 | LOW | x | y | z |\n\n## Proposed changes (ordered, validatable)\n\n1. do the thing\n\n## Deferred / out of scope (with reason)\n\n{deferred_rows}\n\n## Scope check\n\n- Over-scope: none\n- Under-scope: none\n\n## Required tests / validation\n\nthe suite\n\n## Spec / documentation sync\n\nnone\n\n## Validation and cross-check (verify before reporting done)\n\n- [x] V-01 validates E-01\n  - Required evidence: paste it\n  - Observed evidence: pasted output here\n  - Result: {valid_state}\n\n## Approval and execution gate\n\n- Size assessment: standard\n- Cohesion rationale: not required",
+        text_only=True,
     )
     p.write_text(body, encoding="utf-8")
     return p

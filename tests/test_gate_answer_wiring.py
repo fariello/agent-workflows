@@ -57,6 +57,7 @@ from typing import Any
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream
 from agent_workflows import runner_shared as R
+from tests.record_builder import RecordBuilder
 
 HOSTS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
 
@@ -834,7 +835,9 @@ class TheQuestionCarriesTheEvidenceItNeeds(unittest.TestCase):
             prompt = root / "gate-answer.md"
             prompt.write_text("answer the gate question\n", encoding="utf-8")
             plan = repo / "plan.ipd.md"
-            plan.write_text("- Id: abc123\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(id6="abc123", text_only=True), encoding="utf-8"
+            )
             dummy_exe = root / ("dummy.cmd" if sys.platform == "win32" else "dummy")
             dummy_exe.write_text("")
             dummy_exe.chmod(0o755)

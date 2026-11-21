@@ -15,6 +15,7 @@ from pathlib import Path
 from agent_workflows import check_engine as ce
 from agent_workflows import cli
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 class CarrierReverseLookupTests(unittest.TestCase):
@@ -44,11 +45,12 @@ class CarrierReverseLookupTests(unittest.TestCase):
             / ("executed" if b_status == "executed" else "superseded")
         )
         b_dir.mkdir(parents=True, exist_ok=True)
-        b_text = (
-            f"# IPD: Plan B\n\n"
-            f"- Date: 2026-09-26\n"
-            f"- Id: pl000b\n"
-            f"- Status: {b_status}\n"
+        b_text = RecordBuilder().plan(
+            title="Plan B",
+            when="2026-09-26",
+            id6="pl000b",
+            status=b_status,
+            text_only=True,
         )
         b_path = b_dir / "20260926-sample-01-pl000b-plan-b.ipd.md"
         b_path.write_text(b_text, encoding="utf-8")

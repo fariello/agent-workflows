@@ -7,6 +7,7 @@ from pathlib import Path
 
 from agent_workflows import attention_contract
 from agent_workflows import check_engine as ce
+from tests.record_builder import RecordBuilder
 
 
 class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
@@ -18,14 +19,20 @@ class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
         bk_dir = root / ".aw" / "records" / "backlog" / "done"
         bk_dir.mkdir(parents=True, exist_ok=True)
         (bk_dir / "20260101-backlog-01-bk0001-sample.backlog.md").write_text(
-            "# Backlog\n\n- Id: bk0001\n- Status: done\n- Priority: medium\n- Work-Kind: chore\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="done",
+                priority="medium",
+                work_kind="chore",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         pl_exec_dir = root / ".aw" / "records" / "plans" / "executed"
         pl_exec_dir.mkdir(parents=True, exist_ok=True)
         (pl_exec_dir / "20260101-plans-01-pl0001-sample.ipd.md").write_text(
-            "# IPD\n\n- Id: pl0001\n- Status: executed\n",
+            RecordBuilder().plan(id6="pl0001", status="executed", text_only=True),
             encoding="utf-8",
         )
 
@@ -38,18 +45,13 @@ class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._setup_scratch_repo(td)
             carrier_index = ce._carrier_index(root)
-            plan_text = (
-                "# IPD: Test\n\n"
-                "- Date: 2026-10-01\n"
-                "- Id: pl9001\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Row 1\n"
-                "- Row 2\n"
-                "- Row 3\n"
-                "- Row 4\n"
-                "- Row 5\n"
-                "- Row 6\n"
+            plan_text = RecordBuilder().plan(
+                title="Test",
+                when="2026-10-01",
+                id6="pl9001",
+                body="## Deferred / out of scope (with reason)\n- Row 1\n- Row 2\n- Row 3\n- Row 4\n- Row 5\n- Row 6",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path = (
                 root
@@ -83,16 +85,13 @@ class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._setup_scratch_repo(td)
             carrier_index = ce._carrier_index(root)
-            plan_text = (
-                "# IPD: Test\n\n"
-                "- Date: 2026-10-01\n"
-                "- Id: pl9002\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Row 1\n"
-                "  - Carrier: pl0001\n"
-                "- Row 2\n"
-                "  - Carrier: pl0001\n"
+            plan_text = RecordBuilder().plan(
+                title="Test",
+                when="2026-10-01",
+                id6="pl9002",
+                body="## Deferred / out of scope (with reason)\n- Row 1\n  - Carrier: pl0001\n- Row 2\n  - Carrier: pl0001",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path = (
                 root
@@ -131,19 +130,13 @@ class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._setup_scratch_repo(td)
             carrier_index = ce._carrier_index(root)
-            plan_text = (
-                "# IPD: Test\n\n"
-                "- Date: 2026-10-01\n"
-                "- Id: pl9003\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Row 1\n"
-                "- Row 2\n"
-                "- Row 3\n"
-                "- Row 4\n"
-                "- Row 5\n"
-                "- Row 6\n"
-                "- Row 7\n"
+            plan_text = RecordBuilder().plan(
+                title="Test",
+                when="2026-10-01",
+                id6="pl9003",
+                body="## Deferred / out of scope (with reason)\n- Row 1\n- Row 2\n- Row 3\n- Row 4\n- Row 5\n- Row 6\n- Row 7",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path = (
                 root
@@ -182,14 +175,13 @@ class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._setup_scratch_repo(td)
             carrier_index = ce._carrier_index(root)
-            plan_text = (
-                "# IPD: Test\n\n"
-                "- Date: 2026-10-01\n"
-                "- Id: pl9004\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Row 1\n"
-                "  - Carrier: pl0001\n"
+            plan_text = RecordBuilder().plan(
+                title="Test",
+                when="2026-10-01",
+                id6="pl9004",
+                body="## Deferred / out of scope (with reason)\n- Row 1\n  - Carrier: pl0001",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path = (
                 root
@@ -233,13 +225,16 @@ class CarrierDetailDescriptiveBoundTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._setup_scratch_repo(td)
             carrier_index = ce._carrier_index(root)
-            plan_text = (
-                "# IPD: Test\n\n"
-                "- Date: 2026-10-01\n"
-                "- Id: pl9005\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                + "".join(f"- Row {i}\n" for i in range(1, 10))
+            plan_text = RecordBuilder().plan(
+                title="Test",
+                when="2026-10-01",
+                id6="pl9005",
+                body=(
+                    "## Deferred / out of scope (with reason)\n"
+                    + "".join(f"- Row {i}\n" for i in range(1, 10))
+                ),
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path = (
                 root
