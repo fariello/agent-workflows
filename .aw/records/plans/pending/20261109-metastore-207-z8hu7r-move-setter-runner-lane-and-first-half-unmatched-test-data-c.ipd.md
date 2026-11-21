@@ -47,27 +47,27 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 4 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_run_proposal_channel.py`, `tests/test_runs_answer.py`, `tests/test_run_selection_policy.py`, `tests/test_run_summary_table.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_run_proposal_channel` 29, `test_runs_answer` 7, `test_run_selection_policy` 19, `test_run_summary_table` 4. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-z8hu7r-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-01 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 4 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_run_proposal_channel.py`, `tests/test_runs_answer.py`, `tests/test_run_selection_policy.py`, `tests/test_run_summary_table.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_run_proposal_channel` 29, `test_runs_answer` 7, `test_run_selection_policy` 19, `test_run_summary_table` 4. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-z8hu7r-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G5a-z8hu7r-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 1 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_run_viewer.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_run_viewer` 14. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-z8hu7r-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `1upea0` E-02, batch subset G5a; round-3 split 2026-11-09) Batch G5a, 1 of its 21 modules (the runner, lane and merge tests (`test_oc_*`, `test_agy*`, `test_runner*`, `test_run_*`, `test_runs_*`, `test_lane*`, `test_records_only*`, `test_merge*`)): `tests/test_run_viewer.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_run_viewer` 14. Run the codemod on these modules and apply the batch rule with `<batch>` = `G5a-z8hu7r-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. A test that builds a two-branch merge or a lane worktree commits builder-made records on each branch with real `git`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G5a-z8hu7r-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 2 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_action_table_runner_parity.py`, `tests/test_already_landed_dispatch.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_action_table_runner_parity` 15, `test_already_landed_dispatch` 2. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-z8hu7r-3` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_action_table_runner_parity.py`: `_write_plan`); a surviving helper is listed with its reason.
+- [x] E-03 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 2 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_action_table_runner_parity.py`, `tests/test_already_landed_dispatch.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_action_table_runner_parity` 15, `test_already_landed_dispatch` 2. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-z8hu7r-3` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_action_table_runner_parity.py`: `_write_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7a-z8hu7r-3` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-04 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5a-z8hu7r-1-files.txt .aw/state/59aiyh/G5a-z8hu7r-2-files.txt .aw/state/59aiyh/G7a-z8hu7r-3-files.txt)`) into `.aw/state/59aiyh/z8hu7r-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit z8hu7r -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-04 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G5a-z8hu7r-1-files.txt .aw/state/59aiyh/G5a-z8hu7r-2-files.txt .aw/state/59aiyh/G7a-z8hu7r-3-files.txt)`) into `.aw/state/59aiyh/z8hu7r-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit z8hu7r -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,25 +160,123 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G5a-z8hu7r-1-files.txt` and the empty `diff .aw/state/59aiyh/G5a-z8hu7r-1-before.txt .aw/state/59aiyh/G5a-z8hu7r-1-after.txt`; then, for each of `tests/test_run_proposal_channel.py`, `tests/test_runs_answer.py`, `tests/test_run_selection_policy.py`, `tests/test_run_summary_table.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-z8hu7r-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G5a-z8hu7r-1-files.txt`:
+      - `tests/test_run_proposal_channel.py`
+      - `tests/test_runs_answer.py`
+      - `tests/test_run_selection_policy.py`
+      - `tests/test_run_summary_table.py`
+    - Partition check at starting HEAD `dedbc337c07f420145cf90663fa682c7a65c34c2`: all 4 named modules matched F-01 before conversion. Two post-split G5a modules matching F-01 are not named by any chunk plan (`tests/test_runner_fullauto_and_sweep_fixes.py`, `tests/test_runner_startup_timings.py`); per the batch rule they were not added here and are reported for `1upea0` E-04.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G5a-z8hu7r-1-before.txt .aw/state/59aiyh/G5a-z8hu7r-1-after.txt`): empty output, exit code 0 (166 `PASSED` outcomes).
+    - `slow` node ids included in `G5a-z8hu7r-1` outcome list (matched against `tests/slow_allowlist.txt`): 4:
+      - `tests/test_run_proposal_channel.py::test_material_proposal_creates_backlog_item_on_main[agy]`
+      - `tests/test_run_proposal_channel.py::test_material_proposal_creates_backlog_item_on_main[oc]`
+      - `tests/test_run_proposal_channel.py::test_three_item_continuation_e03[agy]`
+      - `tests/test_run_proposal_channel.py::test_three_item_continuation_e03[oc]`
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_run_proposal_channel.py`:
+        - F-01 `rg -c`: before 40, after 17. Remaining matches (17):
+          - `body prose` (7): module docstring line 23 (`4. Injected front-matter lines (e.g. '- Status: approved') in proposal text are sanitized`); `TestProposalValidator::test_front_matter_sanitization` committed line 346 (`raw = "Line 1\n- Status: approved\n- Readiness: go-pending-approval..."`, untrusted sanitizer input); `test_injection_attempt_neutralized` committed lines 599-601 (`- Status: approved`, `- Readiness: go-pending-approval`, `- Id: fake99` in `injected_why` untrusted proposal payload), line 605 (`blocked_by` payload), and line 607 (`proposed_change` payload).
+          - `setter-byte assertion` (9, `legacy-kept` per codemod): `TestProposalValidator::test_front_matter_sanitization` committed lines 348-351 (`assertNotIn`/`assertIn` on sanitized bullet lines); `test_material_proposal_creates_backlog_item_on_main` committed lines 432-433 (`assert "- Status: open" in bl_content`, `assert "- Priority: high" in bl_content`); `test_small_proposal_creates_draft_plan_on_main` committed lines 516-518 (`assert "- Status: draft" in plan_text`, `assert "- Set: prop-sml001" in plan_text`, `assert "- Blocks-Release: rel-123" in plan_text`).
+          - `displayed-output assertion` (1, `legacy-kept` per codemod): `test_needs_attended_already_marked_still_recovers_lane_defect_backlog` committed line 1889 (`assert "- Id: atd099" in committed`, asserting `git show` stdout).
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-z8hu7r-1-codemod.json`): `sites=33`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=32` (`not-equivalent=1`, `unsupported-shape=18`, `body prose=3`, `setter-byte assertion=9`, `displayed-output assertion=1`, `hand=19`, `legacy-kept=13`), `before_hash=1badc5d7d49d1dab8c46535ec8181182f52740c6b8516aa4d2c24a6154b5872b`, `after_hash=1badc5d7d49d1dab8c46535ec8181182f52740c6b8516aa4d2c24a6154b5872b`, `equivalent=true`, `pytest_runs=4`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | z8hu7r | 22 | 2 | 0 | 0 | 8 | 0 | 0 | 0 | 9 | 3 | 8 | 12` (11 additional sites added on `main` after `284fc40a7` in proposal lane defect recovery tests).
+      - `tests/test_runs_answer.py`:
+        - F-01 `rg -c`: before 7, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-z8hu7r-1-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=c19536229f3fbbce73447fe6869562976f0a56dcddb64f2070595e933e599770`, `after_hash=c19536229f3fbbce73447fe6869562976f0a56dcddb64f2070595e933e599770`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | z8hu7r | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_run_selection_policy.py`:
+        - F-01 `rg -c`: before 19, after 3. Remaining matches (3):
+          - `body prose` (3): `test_every_selection_classifies_to_the_types_and_actions_it_should` committed line 278 and `test_the_untyped_path_itself_is_named_in_untyped` committed line 433 (`"# note\n\n- Id: ddd444\n"` written to `.aw/records/comms/shared/note.md`, an untyped comms note outside the 8 governed record types of `RecordBuilder`); `_NEEDS_REVIEW_CELLS` rationale prose committed line 1112 (`"`- Status:` line CAN disagree..."`).
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-z8hu7r-1-codemod.json`): `sites=11`, `rewrites=4` (`standard=4`, `invalid-input=0`), `refusals=7` (`not-equivalent=2`, `unsupported-shape=4`, `body prose=1`, `hand=6`, `legacy-kept=1`), `before_hash=58525b178e1d5b306098c82bef0c14921c30169b01cfcfc79a2646902c5e86ca`, `after_hash=58525b178e1d5b306098c82bef0c14921c30169b01cfcfc79a2646902c5e86ca`, `equivalent=true`, `pytest_runs=12`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | z8hu7r | 11 | 6 | 1 | 0 | 4 | 0 | 0 | 0 | 0 | 1 | 4 | 1`.
+      - `tests/test_run_summary_table.py`:
+        - F-01 `rg -c`: before 4, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-z8hu7r-1-codemod.json`): `sites=4`, `rewrites=4` (`standard=4`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=5f69ad7239ebac841a948d92b3d769961243a26121c3f4dc1a7ddedb473c1620`, `after_hash=5f69ad7239ebac841a948d92b3d769961243a26121c3f4dc1a7ddedb473c1620`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | z8hu7r | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 25 reported by codemod (22 static + 3 apply-time `not-equivalent`; <= 25; 22 fixture sites hand-converted to `RecordBuilder`, 3 non-fixture sites classified and retained as `body prose`):
+      1. `tests/test_run_proposal_channel.py` pre-edit lines 110-119 (`not-equivalent`), 121, 124, 125-130 (`unsupported-shape`, 4 sites in `_create_plan_file`): replaced inline plan assembly with `RecordBuilder(repo).plan(...)` and added `attended: str | None = None`.
+      2. `tests/test_run_proposal_channel.py` pre-edit lines 588-592 (1 site in `test_injection_attempt_neutralized`, `unsupported-shape`): `injected_why` untrusted proposal payload retained as `body prose`.
+      3. `tests/test_run_proposal_channel.py` pre-edit line 1043 (2 sites in `test_attended_plan_is_held_at_queue_build`, `unsupported-shape`): replaced legacy `.replace("- Scope-Paths: README.md\n", ...)` with `_create_plan_file(repo, "att002", attended="required")`.
+      4. `tests/test_run_proposal_channel.py` pre-edit line 1075 (2 sites in `test_attended_plan_not_dispatched_at_queue_freeze`, `unsupported-shape`): replaced `.replace("- Id: att004\n", ...)` with `RecordBuilder(repo).plan(..., attended="required")`.
+      5. `tests/test_run_proposal_channel.py` pre-edit lines 1213, 1214, 1215, 1216, 1217, 1221, 1229 (7 sites in `_valid_open_backlog_text`, `unsupported-shape`): replaced hand-joined lines with `RecordBuilder().backlog(..., text_only=True)`.
+      6. `tests/test_run_proposal_channel.py` pre-edit line 1532 (1 site in `test_proposal_lane_recovery_fail_closed_validation_and_attempt_branch`, `unsupported-shape`, `invalid-input`): replaced malformed backlog literal with `RecordBuilder().backlog(..., raw_fields={"Summary": None}, text_only=True)`.
+      7. `tests/test_run_proposal_channel.py` pre-edit lines 1790-1791 (2 sites in `test_needs_attended_already_marked_still_recovers_lane_defect_backlog`, `unsupported-shape`): replaced legacy `.replace(...)` with `_create_plan_file(repo, "att099", priority="medium", work_kind="bug", attended="required")`.
+      8. `tests/test_run_selection_policy.py` pre-edit line 100 (1 site in `repo` fixture, `not-equivalent`): replaced spec literal with `RecordBuilder().spec(title="demo", id6="bbb222", set="mixdemo", status="approved", raw_fields={"Set": "mixdemo"}, text_only=True)`.
+      9. `tests/test_run_selection_policy.py` pre-edit lines 264 and 411 (2 sites, `unsupported-shape`): untyped `.aw/records/comms/shared/note.md` (`comms` is outside the 8 governed record types) retained as `body prose`.
+      10. `tests/test_run_selection_policy.py` pre-edit lines 746-792 (1 site `_COMPLETE_PLAN`, `not-equivalent`): replaced constant with `_complete_plan(id6, status, order)` delegating to `RecordBuilder().plan(..., raw_fields={"Concern": ..., "Scope": ...}, body=..., text_only=True)`.
+      11. `tests/test_run_selection_policy.py` pre-edit lines 2151 and 2200 (2 sites in `test_edge_satisfied_refusal_does_not_assert_queue_absence` and `test_edge_satisfied_allows_reviewed_or_approved_target_for_review_action`, `unsupported-shape`): replaced `---`-fenced minimal plan strings with `RecordBuilder().plan(..., text_only=True)`.
+    - Post-edit codemod dry-run over all 4 modules: `test_runs_answer.py` and `test_run_summary_table.py` at `sites=0`; `test_run_proposal_channel.py` at `sites=14` (`1 unsupported-shape` retained as `body prose` + `13 legacy-kept`); `test_run_selection_policy.py` at `sites=3` (`2 unsupported-shape` untyped comms notes retained as `body prose` + `1 legacy-kept`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none (`_COMPLETE_PLAN` string constant replaced with `_complete_plan` function).
+      - Surviving module-local helpers outside the E-09 regex (all delegating to `RecordBuilder` with zero F-01 legacy strings): `tests/test_run_proposal_channel.py::_create_plan_file` (12 active callers; creates and git-commits builder-made plans), `tests/test_run_proposal_channel.py::_valid_open_backlog_text` (11 active callers; wraps `RecordBuilder().backlog(..., text_only=True)`), `tests/test_run_selection_policy.py::_complete_plan` (3 active callers; builds placeholder-free plans via `RecordBuilder().plan(..., text_only=True)`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G5a-z8hu7r-2-files.txt` and the empty `diff .aw/state/59aiyh/G5a-z8hu7r-2-before.txt .aw/state/59aiyh/G5a-z8hu7r-2-after.txt`; then, for each of `tests/test_run_viewer.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G5a-z8hu7r-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); the outcome lists are run with the batch rule's `-m ""`, so `slow` tests are included; paste the count of `slow` node ids in the list; and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G5a-z8hu7r-2-files.txt`:
+      - `tests/test_run_viewer.py`
+    - Partition check at starting HEAD `dedbc337c07f420145cf90663fa682c7a65c34c2`: `tests/test_run_viewer.py` matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G5a-z8hu7r-2-before.txt .aw/state/59aiyh/G5a-z8hu7r-2-after.txt`): empty output, exit code 0 (64 `PASSED` outcomes).
+    - `slow` node ids included in `G5a-z8hu7r-2` outcome list (matched against `tests/slow_allowlist.txt`): 0.
+    - Per-module F-01 count, remaining classifications, codemod row, and `653ndz` F-30 row:
+      - `tests/test_run_viewer.py`:
+        - F-01 `rg -c`: before 14, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G5a-z8hu7r-2-codemod.json`): `sites=14`, `rewrites=13` (`standard=13`, `invalid-input=0`), `refusals=1` (`not-equivalent=1`, `hand=1`, `legacy-kept=0`), `before_hash=ba7f2c05a029aae6a736959d08c9377dbc6383766bc129a3c22e411ea49b9899`, `after_hash=ba7f2c05a029aae6a736959d08c9377dbc6383766bc129a3c22e411ea49b9899`, `equivalent=true`, `pytest_runs=10`, `changed=true`.
+        - `653ndz` F-30 row: `G5a | z8hu7r | 14 | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 1 (0 static + 1 apply-time `not-equivalent`; <= 25; hand-converted to `RecordBuilder`):
+      1. `tests/test_run_viewer.py` pre-edit line 1174 (`not-equivalent`, `invalid-input` for non-IPD statuses `"queued"` and `"running"`): replaced `f"# IPD: a slug\n\n- Id: intr02\n- Status: {fstatus}\n"` with `RecordBuilder().plan(..., status=fstatus if is_plan_status else "draft", raw_fields=None if is_plan_status else {"Status": fstatus}, text_only=True)`.
+    - Post-edit codemod dry-run: `sites=0 rewrites=0 refusals=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `.aw/state/59aiyh/G7a-z8hu7r-3-files.txt` and the empty `diff .aw/state/59aiyh/G7a-z8hu7r-3-before.txt .aw/state/59aiyh/G7a-z8hu7r-3-after.txt`; then, for each of `tests/test_action_table_runner_parity.py`, `tests/test_already_landed_dispatch.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7a-z8hu7r-3-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7a-z8hu7r-3-files.txt`:
+      - `tests/test_action_table_runner_parity.py`
+      - `tests/test_already_landed_dispatch.py`
+    - Partition check at starting HEAD `dedbc337c07f420145cf90663fa682c7a65c34c2`: both named modules matched F-01 before conversion. Nine post-split G7a modules matching F-01 are not named by any chunk plan (`tests/test_aw_repo_survey.py`, `tests/test_companion_containment_and_storage.py`, `tests/test_companion_doctor_and_carriers.py`, `tests/test_companion_runner_integration.py`, `tests/test_ctrlc_worktree_cleanup_ux.py`, `tests/test_fixture_codemod.py`, `tests/test_fixture_codemod_slow.py`, `tests/test_install_migrate_prompt.py`, `tests/test_installer_scaffold_preview_parity.py`); per the batch rule they were not added here and are reported for `1upea0` E-04.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7a-z8hu7r-3-before.txt .aw/state/59aiyh/G7a-z8hu7r-3-after.txt`): empty output, exit code 0 (23 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_action_table_runner_parity.py`:
+        - F-01 `rg -c`: before 15, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-z8hu7r-3-codemod.json`): `sites=15`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=15` (`unsupported-shape=15`, `hand=15`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7a | z8hu7r | 15 | 0 | 0 | 0 | 15 | 0 | 0 | 0 | 0 | 0 | 15 | 0`.
+      - `tests/test_already_landed_dispatch.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-z8hu7r-3-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=52c053d2a0d755232bb6a2fdb2cb32474e69c73cfe8218555f317060c35a2e63`, `after_hash=52c053d2a0d755232bb6a2fdb2cb32474e69c73cfe8218555f317060c35a2e63`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | z8hu7r | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 15 (15 static + 0 apply-time `not-equivalent`; <= 25; all 15 hand-converted to `RecordBuilder`):
+      1. `tests/test_action_table_runner_parity.py` pre-edit lines 63, 64, 65, 66, 67, 70, 73, 74, 76, 78, 82, 84, 86, 88, 90 (15 sites inside `_write_plan`, `unsupported-shape`): deleted `_write_plan` and moved all 10 call sites directly to `RecordBuilder(repo).plan(**_parity_plan_kwargs(...))` (using `raw_fields={"Concern": ..., "Scope": ..., "Work-Kind": "unresolved"}` for incomplete drafts and `coverage_record.write(...)` for orchestrators).
+    - Post-edit codemod dry-run over both modules: `sites=0 rewrites=0 refusals=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: 1 match (`tests/test_action_table_runner_parity.py:40:def _write_plan(`).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (1): `tests/test_action_table_runner_parity.py::_write_plan` (all 10 callers moved directly to `RecordBuilder(repo).plan(...)`).
+      - Surviving pure non-record-building helpers outside the E-09 regex (2, zero F-01 legacy strings): `tests/test_action_table_runner_parity.py::_parity_plan_body` (returns markdown body sections for child/orchestrator parity plans), `tests/test_action_table_runner_parity.py::_parity_plan_kwargs` (assembles keyword argument dict for `RecordBuilder.plan`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G5a-z8hu7r-1`, `G5a-z8hu7r-2`, `G7a-z8hu7r-3` against `.aw/state/59aiyh/z8hu7r-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit z8hu7r` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/z8hu7r-union-before.txt .aw/state/59aiyh/z8hu7r-union-after.txt`): empty output, exit code 0 (253 `PASSED` outcomes = 166 + 64 + 23 across all 7 modules).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2666 passed, 11 warnings in 100.16s (0:01:40)`, exit code 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6898,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit z8hu7r` outputs (all paths strictly inside Scope-Paths; never pushed):
+      - E-01: `aw commit: committed 4 path(s): 923b5d1abc85d678e0671a01e40b4807bb4c5ce2` (`tests/test_run_proposal_channel.py`, `tests/test_runs_answer.py`, `tests/test_run_selection_policy.py`, `tests/test_run_summary_table.py`).
+      - E-02: `aw commit: committed 1 path(s): d40dc35ac9ac514d299207e7438b168133903a86` (`tests/test_run_viewer.py`).
+      - E-03: `aw commit: committed 2 path(s): e820d0b2e87d5c2e3cbc27a0fc3e3a7a522657ef` (`tests/test_action_table_runner_parity.py`, `tests/test_already_landed_dispatch.py`).
+      - Plan evidence: committed via `aw commit z8hu7r -- .aw/records/plans/pending/20261109-metastore-207-z8hu7r-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
