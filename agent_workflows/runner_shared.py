@@ -26089,6 +26089,10 @@ def run_attended_turn(
         file=sys.stderr,
         flush=True,
     )
+    with contextlib.suppress(Exception):
+        from agent_workflows import term as _term_bell
+
+        _term_bell.ring_bell()
     from agent_workflows import render_stream as _rs
 
     _rs.pause_active_statusline()

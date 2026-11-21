@@ -19,8 +19,12 @@ from typing import Any, Protocol, runtime_checkable
 import unicodedata
 import warnings
 
-from agent_workflows import leak_sanitizer, question_inbox, render_stream
+from agent_workflows import leak_sanitizer, question_inbox, render_stream, term
 from agent_workflows.notify import config, registry
+
+#: Tracks open question IDs that have already triggered a terminal bell per run_dir,
+#: so repeated dispatch checkpoints do not re-ring for the same unanswered question.
+_BELL_RUNG_QIDS: dict[str, set[str]] = {}
 
 
 def utc_now() -> str:
@@ -533,6 +537,19 @@ def dispatch_checkpoint(
         for tw in tracked_warnings:
             print(f"WARNING: {tw}", file=sys.stderr)
         state["_notify_tracked_warnings_printed"] = True
+
+    # Terminal bell on newly surfaced open questions (independent of off-machine channels,
+    # so local/Zellij users get a `[!]` badge without configuring Telegram/webhooks).
+    with contextlib.suppress(Exception):
+        open_qs = question_inbox.read_open_questions(run_dir)
+        open_qids = {str(q["question_id"]) for q in open_qs if q.get("question_id")}
+        if open_qids:
+            run_key = str(run_dir)
+            already_rung = _BELL_RUNG_QIDS.setdefault(run_key, set())
+            new_qids = open_qids - already_rung
+            if new_qids:
+                already_rung.update(new_qids)
+                term.ring_bell()
 
     effective = config.effective_channels(repo)
     if not effective:

@@ -67,6 +67,7 @@ _ALLOWED_TOP_KEYS = frozenset(
         "defaults",
         "aw_home",
         "color_depth",
+        "bell",
     }
 )
 _ALLOWED_REPOS_KEYS = frozenset({"search", "installed", "exclude", "ignore"})
@@ -195,6 +196,14 @@ CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
             "NO_COLOR still disables color regardless of this setting."
         ),
         allowed_values=COLOR_DEPTH_VALUES,
+    ),
+    "bell": ConfigKeySpec(
+        key="bell",
+        type_name="bool",
+        description=(
+            "Emit a terminal bell (BEL, 0x07) on attention-worthy runner events "
+            "(default: true). Overridden per invocation by --bell / --no-bell."
+        ),
     ),
 }
 
@@ -664,6 +673,7 @@ def set_config_value(
             "defaults.migrate_layout",
             "defaults.leftovers",
             "color_depth",
+            "bell",
             "aw_home",
         ):
             norm_cfg, _ = unset_config_value(canon_key, cfg, auto_save=auto_save)
@@ -815,6 +825,8 @@ def unset_config_value(
         cfg.pop("aw_home", None)
     elif canon_key == "color_depth":
         cfg.pop("color_depth", None)
+    elif canon_key == "bell":
+        cfg.pop("bell", None)
     else:
         _delete_nested(cfg, canon_key)
 
@@ -993,6 +1005,10 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(depth_val, str) and depth_val.strip().lower() in COLOR_DEPTH_VALUES:
         out["color_depth"] = depth_val.strip().lower()
 
+    bell_val = config.get("bell")
+    if isinstance(bell_val, bool):
+        out["bell"] = bell_val
+
     # config_version is managed by migrate(); keep the current version on write.
     out["config_version"] = CONFIG_VERSION
 
@@ -1028,6 +1044,23 @@ def get_color_depth(cfg: Optional[Dict[str, Any]] = None) -> Optional[str]:
         return None
     token = value.strip().lower()
     return token if token in COLOR_DEPTH_VALUES else None
+
+
+def get_bell(cfg: Optional[Dict[str, Any]] = None) -> Optional[bool]:
+    """Return the user's configured terminal bell preference, or ``None`` when unset/unreadable.
+
+    Fail-open reader parallel to :func:`get_color_depth`. ``term.should_bell`` treats ``None``
+    as enabled (the default) and layers ``--bell`` / ``--no-bell`` above this setting.
+    """
+
+    try:
+        source = load() if cfg is None else cfg
+    except Exception:
+        return None
+    if not isinstance(source, dict):
+        return None
+    value = source.get("bell")
+    return value if isinstance(value, bool) else None
 
 
 def get_aw_home(explicit_flag: Optional[str] = None) -> Tuple[Path, str]:

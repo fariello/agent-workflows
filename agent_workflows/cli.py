@@ -1524,6 +1524,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Force interactive prompting on even when streams are non-interactive.",
     )
 
+    _bell_group = presentation.add_mutually_exclusive_group()
+    _bell_group.add_argument(
+        "--no-bell",
+        action="store_true",
+        help="Disable terminal bell alerts on attention-worthy events.",
+    )
+    _bell_group.add_argument(
+        "--bell",
+        action="store_true",
+        help="Force terminal bell alerts on (overrides config bell=false).",
+    )
+
     # A shared parent so --no-color, --color, --agent, and --json work consistently across all
     # subcommands `aw` itself handles.
     common = _AwArgumentParser(add_help=False, parents=[presentation])
@@ -20643,7 +20655,7 @@ def expand_host_integrate_argv(tail: Sequence[str]) -> list[str]:
 
 
 class _EarlyFlags(NamedTuple):
-    """The presentation and interactivity overrides taken from raw argv, before any parsing."""
+    """The presentation, interactivity, and bell overrides taken from raw argv, before any parsing."""
 
     color_override: Optional[bool]
     saw_color: bool
@@ -20651,6 +20663,9 @@ class _EarlyFlags(NamedTuple):
     interactive_override: Optional[bool]
     saw_interactive: bool
     saw_no_interactive: bool
+    bell_override: Optional[bool] = None
+    saw_bell: bool = False
+    saw_no_bell: bool = False
 
     @property
     def override(self) -> Optional[bool]:
@@ -20669,12 +20684,14 @@ _PRESENTATION_FLAG_COLOR = "--color"
 _PRESENTATION_FLAG_NO_COLOR = "--no-color"
 _INTERACTIVITY_FLAG_INTERACTIVE = "--interactive"
 _INTERACTIVITY_FLAG_NO_INTERACTIVE = "--no-interactive"
+_BELL_FLAG_BELL = "--bell"
+_BELL_FLAG_NO_BELL = "--no-bell"
 
 
 def _consume_early_flags(
     argv_list: Sequence[str],
 ) -> Tuple[List[str], _EarlyFlags]:
-    """Strip `--color`/`--no-color` and `--interactive`/`--no-interactive` from raw argv.
+    """Strip `--color`/`--no-color`, `--interactive`/`--no-interactive`, and `--bell`/`--no-bell` from raw argv.
 
     ttyflags `yaxr4i` E-01 / svqhmp `bmf32u` E-02. Tokens after `--` are left alone,
     `--flag=1` spellings are not recognized, and both-flags-seen is signalled
@@ -20686,6 +20703,8 @@ def _consume_early_flags(
     saw_no_color = False
     saw_interactive = False
     saw_no_interactive = False
+    saw_bell = False
+    saw_no_bell = False
     passthrough = False
     for token in argv_list:
         text = str(token)
@@ -20707,6 +20726,12 @@ def _consume_early_flags(
             continue
         if text == _INTERACTIVITY_FLAG_INTERACTIVE:
             saw_interactive = True
+            continue
+        if text == _BELL_FLAG_NO_BELL:
+            saw_no_bell = True
+            continue
+        if text == _BELL_FLAG_BELL:
+            saw_bell = True
             continue
         kept.append(text)
 
@@ -20734,6 +20759,16 @@ def _consume_early_flags(
     else:
         interactive_override = None
 
+    bell_override: Optional[bool]
+    if saw_no_bell and saw_bell:
+        bell_override = None
+    elif saw_no_bell:
+        bell_override = False
+    elif saw_bell:
+        bell_override = True
+    else:
+        bell_override = None
+
     return kept, _EarlyFlags(
         color_override=color_override,
         saw_color=saw_color,
@@ -20741,6 +20776,9 @@ def _consume_early_flags(
         interactive_override=interactive_override,
         saw_interactive=saw_interactive,
         saw_no_interactive=saw_no_interactive,
+        bell_override=bell_override,
+        saw_bell=saw_bell,
+        saw_no_bell=saw_no_bell,
     )
 
 
@@ -20788,11 +20826,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             file=sys.stderr,
         )
         return 2
+    if _early_flags.saw_bell and _early_flags.saw_no_bell:
+        print(
+            "agent-workflows: error: argument --bell: not allowed with argument --no-bell",
+            file=sys.stderr,
+        )
+        return 2
     # SET UNCONDITIONALLY, including to None, so an invocation that passes no flag RESETS a
     # previous in-process invocation's override instead of inheriting it (the test suite calls
     # `_dispatch` repeatedly in one process).
     _term_mod.set_color_override(_early_flags.color_override)
     _term_mod.set_interactive_override(_early_flags.interactive_override)
+    _term_mod.set_bell_override(_early_flags.bell_override)
     # awocrunner Order 02 (nfo184): `aw oc runipd ...` / `aw opencode runipd ...` forward the tail
     # VERBATIM to the packaged runner's own parser (incl. its `--help` and implicit-`start` shim), so
     # the top-level parser never intercepts the runner's flags (e.g. a leading `--help`). This is the
@@ -22227,6 +22272,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _term_mod.ensure_encodable_stdio()
     _entry_color_override = _term_mod.get_color_override()
     _entry_interactive_override = _term_mod.get_interactive_override()
+    _entry_bell_override = _term_mod.get_bell_override()
     _entry_last_output_mode = get_last_output_mode()
     _entry_last_command = get_last_command()
     _entry_start_token = _INVOCATION_START.set(_entry_start)
@@ -22274,6 +22320,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # invocation returns.
         _term_mod.set_color_override(_entry_color_override)
         _term_mod.set_interactive_override(_entry_interactive_override)
+        _term_mod.set_bell_override(_entry_bell_override)
         set_last_output_mode(_entry_last_output_mode)
         set_last_command(_entry_last_command)
         _INVOCATION_START.reset(_entry_start_token)

@@ -2047,3 +2047,103 @@ def is_interactive(
         return False
 
     return True
+
+
+# ======================================================================================
+# Terminal bell (BEL, 0x07) preference and emission
+# ======================================================================================
+
+#: Process-wide ``--bell`` / ``--no-bell`` override, parallel to ``_COLOR_OVERRIDE`` and
+#: ``_INTERACTIVE_OVERRIDE``. Set unconditionally per ``cli._dispatch`` call and restored in
+#: ``cli.main``'s ``finally`` block so in-process tests never inherit a prior invocation's flag.
+_BELL_OVERRIDE: Optional[bool] = None
+
+
+def set_bell_override(value: Optional[bool]) -> None:
+    """Set the process-wide ``--bell``/``--no-bell`` override (``None`` clears it)."""
+    global _BELL_OVERRIDE
+    _BELL_OVERRIDE = None if value is None else bool(value)
+
+
+def get_bell_override() -> Optional[bool]:
+    """Return the process-wide bell-flag override set by :func:`set_bell_override`."""
+    return _BELL_OVERRIDE
+
+
+def _configured_bell() -> Optional[bool]:
+    """Read the user's ``bell`` preference from ``aw config``, or ``None`` when unset/unreadable."""
+    try:
+        from . import config as _config
+
+        return _config.get_bell()
+    except Exception:
+        return None
+
+
+def _stream_is_tty(stream: Optional[Any]) -> bool:
+    if stream is None:
+        return False
+    isatty_fn = getattr(stream, "isatty", None)
+    if not callable(isatty_fn):
+        return False
+    try:
+        return bool(isatty_fn())
+    except Exception:
+        return False
+
+
+def _bell_target_stream(stream: Optional[TextIO] = None) -> Optional[TextIO]:
+    """Select the output stream for terminal bell emission.
+
+    When ``stream`` is omitted, prefers ``sys.stderr`` if it is a TTY (so piped stdout / JSON /
+    logs stay clean while Zellij and other multiplexers still receive BEL on the shared PTY),
+    falling back to ``sys.stdout``.
+    """
+    if stream is not None:
+        return stream
+    if _stream_is_tty(sys.stderr):
+        return sys.stderr
+    return sys.stdout
+
+
+def should_bell(
+    stream: Optional[TextIO] = None, *, override: Optional[bool] = None
+) -> bool:
+    """Decide whether to emit a standalone ASCII BEL (``\\a`` / 0x07).
+
+    Precedence (highest first):
+    1. ``override`` / ``--no-bell`` / ``--bell`` flag layer: ``False`` disables unconditionally;
+       ``True`` overrides config ``bell=false``.
+    2. User config ``bell`` key (``aw config set bell false|true``); defaults to ``True`` when unset.
+    3. Target stream must be a TTY (so redirected pipes, CI logs, and captured test output never
+       receive stray ``\\a`` bytes).
+    """
+    effective = override if override is not None else _BELL_OVERRIDE
+    if effective is False:
+        return False
+    if effective is None:
+        configured = _configured_bell()
+        if configured is False:
+            return False
+    target = _bell_target_stream(stream)
+    return _stream_is_tty(target)
+
+
+def ring_bell(
+    stream: Optional[TextIO] = None, *, override: Optional[bool] = None
+) -> bool:
+    """Emit a standalone ASCII BEL (``\\a`` / 0x07) when :func:`should_bell` is True.
+
+    Returns ``True`` if the bell byte was written, ``False`` if suppressed or write failed.
+    """
+    if not should_bell(stream, override=override):
+        return False
+    target = _bell_target_stream(stream)
+    if target is None:
+        return False
+    try:
+        target.write("\a")
+        target.flush()
+    except OSError:
+        return False
+    return True

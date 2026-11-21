@@ -4781,6 +4781,10 @@ def run_queue(
         model=run_options.get("model"),
         variant=run_options.get("variant"),
     )
+    with contextlib.suppress(Exception):
+        from agent_workflows import term as _term_bell
+
+        _term_bell.ring_bell()
     # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
     # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
     # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores

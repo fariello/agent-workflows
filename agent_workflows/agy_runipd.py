@@ -4031,6 +4031,10 @@ def run_queue(
         model=run_options.get("model"),
         variant=run_options.get("variant"),
     )
+    with contextlib.suppress(Exception):
+        from agent_workflows import term as _term_bell
+
+        _term_bell.ring_bell()
     # runstop 1qxuke (E-05): the same deliberate-stop exit contract as `oc_runipd` (spec A1/A4 need
     # 0; the plain predicate returns 1 because a stop leaves items `queued`). Statuses are never
     # rewritten to manufacture the 0, and a run item that genuinely failed still exits nonzero.
