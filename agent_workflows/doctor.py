@@ -12,7 +12,7 @@ import sys
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from agent_workflows import artifact_core as core
@@ -474,6 +474,25 @@ def probe_environment(
         except Exception:
             pass
 
+        # companion-bugs Order 02 (pbdtss E-02): warn when a companion-mode target repository
+        # holds a stray target-local .aw/records directory, file, or symlink (live or broken).
+        try:
+            ctx = project_context.resolve_project_context(target_repo=str(repo_root))
+            if ctx.records_backend == "companion":
+                stray_records = repo_root / ".aw" / "records"
+                if stray_records.exists() or stray_records.is_symlink():
+                    res.drift.append(
+                        core.Drift(
+                            ".aw/records",
+                            "doctor.companion-stray-target-records",
+                            "stray target-local .aw/records exists in a companion-mode repository; "
+                            "move any files to `aw path records` and remove target-local .aw/records",
+                            severity="warning",
+                        )
+                    )
+        except Exception:
+            pass
+
         # Setup needed
         res.setup_needed = attention_mod.setup_needed(repo_root)
         if res.setup_needed:
@@ -796,18 +815,57 @@ def _map_aw_to_legacy(tok: str) -> Optional[str]:
     return m.get(tok)
 
 
+def _is_aw_records_reference(tok: str) -> bool:
+    """Return True if ``tok`` references the logical ``.aw/records`` tree."""
+    norm = tok.replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    return norm in (".aw/records", ".aw/records/") or norm.startswith(".aw/records/")
+
+
+def _resolve_records_token(records_root: Path, tok: str) -> Optional[Path]:
+    """Map ``.aw/records`` or ``.aw/records/<rest>`` onto ``records_root`` with strict containment."""
+    norm = tok.replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    if norm in (".aw/records", ".aw/records/"):
+        rest = ""
+    elif norm.startswith(".aw/records/"):
+        rest = norm[len(".aw/records/") :]
+    else:
+        return None
+    if ".." in PurePosixPath(rest).parts:
+        return None
+    try:
+        base_resolved = records_root.resolve()
+        candidate = (base_resolved / rest).resolve() if rest else base_resolved
+        candidate.relative_to(base_resolved)
+        return candidate
+    except (ValueError, OSError):
+        return None
+
+
 def _extract_dangling_references(
     repo_root: Path,
     file_path: Path,
     content: str,
     layout: str,
+    records_root: Optional[Path] = None,
 ) -> List[core.Drift]:
     findings: List[core.Drift] = []
     seen_tokens: Set[str] = set()
     try:
-        rel_loc = str(file_path.relative_to(repo_root))
+        rel_loc = file_path.relative_to(repo_root).as_posix()
     except ValueError:
-        rel_loc = str(file_path)
+        rel_loc = ""
+        if records_root is not None:
+            try:
+                sub = file_path.resolve().relative_to(records_root.resolve())
+                rel_loc = (Path(".aw") / "records" / sub).as_posix()
+            except (ValueError, OSError):
+                rel_loc = ""
+        if not rel_loc:
+            rel_loc = core.repo_relative_posix(file_path, repo_root)
 
     for tok in re.findall(r"`([^`\n]+)`", content):
         if tok in seen_tokens:
@@ -817,7 +875,11 @@ def _extract_dangling_references(
             continue
         if tok in _DANGLING_REF_ALLOWLIST or Path(tok).name in _DANGLING_REF_ALLOWLIST:
             continue
-        exists = (repo_root / tok).exists() or (file_path.parent / tok).exists()
+        if records_root is not None and _is_aw_records_reference(tok):
+            mapped = _resolve_records_token(records_root, tok)
+            exists = mapped is not None and mapped.exists()
+        else:
+            exists = (repo_root / tok).exists() or (file_path.parent / tok).exists()
         if not exists and layout == "legacy":
             leg = _map_aw_to_legacy(tok)
             if leg and (
@@ -847,6 +909,17 @@ def probe_installed_doc_references(repo_root: Path) -> List[core.Drift]:
     layout = engine.resolve_target_layout(repo_root)
     findings: List[core.Drift] = []
 
+    records_root: Optional[Path] = None
+    try:
+        ctx = project_context.resolve_project_context(target_repo=str(repo_root))
+        rec_val = ctx.logical_roots.get("records")
+        if rec_val:
+            records_root = Path(rec_val)
+    except Exception:
+        records_root = None
+    if records_root is None:
+        records_root = project_context.project_records_dir(repo_root)
+
     # 1. AGENTS.md managed block
     agents_path = repo_root / "AGENTS.md"
     if agents_path.is_file():
@@ -864,7 +937,11 @@ def probe_installed_doc_references(repo_root: Path) -> List[core.Drift]:
                     managed_content = "\n".join(s.body for s in parsed.sections)
                 findings.extend(
                     _extract_dangling_references(
-                        repo_root, agents_path, managed_content, layout
+                        repo_root,
+                        agents_path,
+                        managed_content,
+                        layout,
+                        records_root=records_root,
                     )
                 )
         except OSError:
@@ -873,9 +950,7 @@ def probe_installed_doc_references(repo_root: Path) -> List[core.Drift]:
     # 2. Records READMEs
     readme_paths: List[Path] = []
     if layout == "aw":
-        from agent_workflows.project_context import project_records_dir
-
-        records_dir = project_records_dir(repo_root)
+        records_dir = project_context.project_records_dir(repo_root)
         if records_dir.is_dir():
             readme_paths.extend(records_dir.glob("**/README.md"))
         inbox_readme = repo_root / ".aw" / "inbox" / "README.md"
@@ -892,7 +967,13 @@ def probe_installed_doc_references(repo_root: Path) -> List[core.Drift]:
         try:
             content = r_path.read_text(encoding="utf-8")
             findings.extend(
-                _extract_dangling_references(repo_root, r_path, content, layout)
+                _extract_dangling_references(
+                    repo_root,
+                    r_path,
+                    content,
+                    layout,
+                    records_root=records_root,
+                )
             )
         except OSError:
             pass
@@ -1681,6 +1762,20 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             file_path=loc,
         )
 
+    if rule == "doctor.companion-stray-target-records":
+        title = "Stray target-local .aw/records in companion-mode repository"
+        return Remediation(
+            title=title,
+            summary_fix="move any files from .aw/records to `aw path records` and remove target-local .aw/records.",
+            detailed_fix=(
+                "this repository uses the companion records backend, so target-local .aw/records "
+                "must not exist (it risks leaking private records or shadowing companion records). "
+                "Move any needed files to the path printed by 'aw path records' and remove .aw/records."
+            ),
+            command=None,
+            file_path=loc,
+        )
+
     if "dangling-doc-reference" in rule:
         title = f"Installed documentation references missing path '{detail}'"
         return Remediation(
@@ -1910,7 +2005,9 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     env_findings = [
         d
         for d in env.drift
-        if d.rule.startswith("doctor.version-") or d.rule.startswith("doctor.layout-")
+        if d.rule.startswith("doctor.version-")
+        or d.rule.startswith("doctor.layout-")
+        or d.rule == "doctor.companion-stray-target-records"
     ]
     env_count_str = f" ({len(env_findings)} finding(s))" if env_findings else ""
     hdr_env = term.colorize("Environment & Framework", "bold") + (

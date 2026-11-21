@@ -22,7 +22,7 @@ import sys
 import tempfile
 import types
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from agent_workflows.project_schema import (
     DELIVERY_MODES,
@@ -1007,6 +1007,84 @@ def _derive_project_id(target_repo: str | Path) -> str:
     return f"{clean_slug}-{path_hash}"
 
 
+_CONFIG_FILE_NAMES = ("project.json", "local.json", "config.json", "policy.json")
+_COMPANION_ATTACHMENT_RELPATH = os.path.join(
+    ".aw", "state", "durable", "companion_attachment.json"
+)
+
+
+def _linked_worktree_primary(repo: Path) -> Optional[Path]:
+    """Return the primary checkout root when ``repo`` is a linked Git worktree, else None.
+
+    Reuses ``checkout_main_root`` without spawning git (rejecting submodules, bare worktrees,
+    and ``--separate-git-dir`` layouts). Requires ``(repo / ".git").is_file()`` so main
+    checkouts and subdirectories return None.
+    """
+    try:
+        if not (repo / ".git").is_file():
+            return None
+        primary = checkout_main_root(repo)
+        if primary is None:
+            return None
+        if _canonical_path(primary) == _canonical_path(repo):
+            return None
+        return primary
+    except (OSError, RuntimeError):
+        return None
+
+
+def _companion_parent_git_path(
+    records_root: str, records_backend: str
+) -> Optional[str]:
+    """Return bounded ``<companion>/.git`` path for companion ``.../records`` roots, else None."""
+    stripped = records_root.rstrip("/\\")
+    if (
+        records_backend == RecordsBackend.COMPANION.value
+        and os.path.basename(stripped) == "records"
+    ):
+        parent = os.path.dirname(stripped)
+        if parent:
+            return os.path.join(parent, ".git")
+    return None
+
+
+def _read_validated_companion_attachment(
+    repo_abs: str, primary_abs: Optional[str]
+) -> Optional[str]:
+    """Read and validate ``companion_dir`` from local companion attachment metadata.
+
+    Checks ``repo_abs`` first, then ``primary_abs`` when distinct (linked Git worktree).
+    Enforces path-security traversal checks and non-nesting against target/primary repos.
+    """
+    candidates = [os.path.join(repo_abs, _COMPANION_ATTACHMENT_RELPATH)]
+    if primary_abs and primary_abs != repo_abs:
+        candidates.append(os.path.join(primary_abs, _COMPANION_ATTACHMENT_RELPATH))
+    anchors = [repo_abs]
+    if primary_abs and primary_abs != repo_abs:
+        anchors.append(primary_abs)
+    for att_path in candidates:
+        data = _read_json_file(att_path)
+        if not data:
+            continue
+        raw_comp = data.get("companion_dir")
+        if not isinstance(raw_comp, str) or not raw_comp.strip():
+            continue
+        comp_canon = _check_path_security(
+            raw_comp.strip(), "companion_attachment.companion_dir"
+        )
+        for anchor in anchors:
+            if _is_safe_subpath(comp_canon, anchor):
+                raise PathSecurityError(
+                    f"Companion directory ({comp_canon}) in attachment record cannot resolve inside target repo ({anchor})"
+                )
+            if _is_safe_subpath(anchor, comp_canon):
+                raise PathSecurityError(
+                    f"Target repo ({anchor}) cannot resolve inside companion directory ({comp_canon}) from attachment record"
+                )
+        return comp_canon
+    return None
+
+
 def project_config_dir(
     repo_root: str | Path,
     aw_home: Optional[str | Path] = None,
@@ -1018,7 +1096,11 @@ def project_config_dir(
     Rules, in order:
     1. If <repo>/.aw/config/project.json or <repo>/.aw/config/local.json
        (or legacy config.json / policy.json) exists, return <repo>/.aw/config.
-    2. Else compute aw_home (explicit, AW_HOME env, user config aw_home,
+    2. Else if ``repo`` is a linked Git worktree (via ``checkout_main_root``) and
+       <primary>/.aw/config holds any of project.json, local.json, config.json, or
+       policy.json, return <primary>/.aw/config so linked worktrees inherit primary
+       durable configuration.
+    3. Else compute aw_home (explicit, AW_HOME env, user config aw_home,
        or default) and, if <aw_home>/projects/<project_id>/config/project.json
        exists, return that directory.
        When ``repo / ".git"`` exists (a worktree root, main or linked), the home
@@ -1027,18 +1109,20 @@ def project_config_dir(
        home config. For subdirectories (where ``.git`` does not exist directly),
        ``repo`` is retained without climb to prevent subdirectories from claiming
        the root's home config (PR-001).
-    3. Else return <repo>/.aw/config.
+    4. Else return <repo>/.aw/config.
     """
     repo = Path(repo_root)
     target_config = repo / ".aw" / "config"
-    for candidate in (
-        target_config / "project.json",
-        target_config / "local.json",
-        target_config / "config.json",
-        target_config / "policy.json",
-    ):
-        if candidate.exists():
+    for name in _CONFIG_FILE_NAMES:
+        if (target_config / name).exists():
             return target_config
+
+    primary = _linked_worktree_primary(repo)
+    if primary is not None:
+        primary_config = primary / ".aw" / "config"
+        for name in _CONFIG_FILE_NAMES:
+            if (primary_config / name).exists():
+                return primary_config
 
     eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
     anchor = repo
@@ -1115,11 +1199,14 @@ def clean_delta_project_dir(
 
 
 def _config_stat_stamp(
-    cfg: Path, home_cfg_file: Path, user_cfg_file: Path | str
+    cfg: Path,
+    home_cfg_file: Path,
+    user_cfg_file: Path | str,
+    extra_paths: Sequence[Path | str] = (),
 ) -> tuple:
-    """Cheap stat fingerprint for configuration files."""
-    entries = []
-    for name in ("project.json", "local.json", "config.json", "policy.json"):
+    """Cheap stat fingerprint for configuration and attachment files."""
+    entries: List[tuple] = [("cfg_dir", _canonical_path(cfg))]
+    for name in _CONFIG_FILE_NAMES:
         p = cfg / name
         try:
             st = os.stat(p)
@@ -1136,6 +1223,13 @@ def _config_stat_stamp(
         entries.append(("user_config", st.st_mtime_ns, st.st_size, st.st_ino))
     except OSError:
         entries.append(("user_config", None))
+    for ep in extra_paths:
+        ep_str = str(ep)
+        try:
+            st = os.stat(ep_str)
+            entries.append((ep_str, st.st_mtime_ns, st.st_size, st.st_ino))
+        except OSError:
+            entries.append((ep_str, None))
     return tuple(entries)
 
 
@@ -1177,12 +1271,25 @@ def _stored_physical_classes(
         return None
 
     repo_abs = _canonical_path(repo)
-    user_cfg_file = os.path.expanduser("~/.config/agent-workflows/config.json")
-    project_id = _derive_project_id(repo_abs)
+    primary = _linked_worktree_primary(repo)
+    primary_abs = _canonical_path(primary) if primary is not None else None
+    anchor_abs = primary_abs or repo_abs
+    user_cfg_file = str(_config_dir() / "config.json")
+    project_id = _derive_project_id(anchor_abs)
     home_cfg_file = (
         Path(eff_aw_home) / "projects" / project_id / "config" / "project.json"
     )
-    stamp = _config_stat_stamp(cfg, home_cfg_file, user_cfg_file)
+    extra_paths: List[Path | str] = [
+        Path(repo_abs) / _COMPANION_ATTACHMENT_RELPATH,
+    ]
+    if primary_abs is not None:
+        primary_cfg = Path(primary_abs) / ".aw" / "config"
+        for name in _CONFIG_FILE_NAMES:
+            extra_paths.append(primary_cfg / name)
+        extra_paths.append(Path(primary_abs) / _COMPANION_ATTACHMENT_RELPATH)
+    stamp = _config_stat_stamp(
+        cfg, home_cfg_file, user_cfg_file, extra_paths=tuple(extra_paths)
+    )
 
     physical_classes, provenance, delivery_mode_val = (
         _resolve_stored_physical_classes_cached(repo_abs, eff_aw_home, stamp)
@@ -1720,6 +1827,7 @@ def _watched_context_paths(ctx: ProjectContext) -> tuple[str, ...]:
         os.path.join(repo, ".aw", "config", "local.json"),
         os.path.join(repo, ".aw", "config", "config.json"),
         os.path.join(repo, ".aw", "config", "policy.json"),
+        os.path.join(repo, _COMPANION_ATTACHMENT_RELPATH),
         os.path.join(repo, ".aw", "system", "VERSION"),
         os.path.join(repo, ".agents"),
         os.path.join(repo, ".agents", "config.json"),
@@ -1743,9 +1851,28 @@ def _watched_context_paths(ctx: ProjectContext) -> tuple[str, ...]:
                 paths.append(os.path.join(gd, "index"))
         except OSError:
             pass
+    primary = _linked_worktree_primary(Path(repo))
+    if primary is not None:
+        primary_str = _canonical_path(primary)
+        paths.extend(
+            [
+                os.path.join(primary_str, ".aw", "config"),
+                os.path.join(primary_str, ".aw", "config", "project.json"),
+                os.path.join(primary_str, ".aw", "config", "local.json"),
+                os.path.join(primary_str, ".aw", "config", "config.json"),
+                os.path.join(primary_str, ".aw", "config", "policy.json"),
+                os.path.join(primary_str, _COMPANION_ATTACHMENT_RELPATH),
+            ]
+        )
     for p in ctx.logical_roots.values():
         if p:
             paths.append(p)
+    records_root = ctx.logical_roots.get(LogicalRoot.RECORDS.value)
+    if records_root:
+        paths.append(os.path.join(records_root, ".git"))
+        comp_git = _companion_parent_git_path(records_root, ctx.records_backend)
+        if comp_git is not None:
+            paths.append(comp_git)
     if ctx.physical_classes:
         for p in ctx.physical_classes.values():
             if p:
@@ -1880,10 +2007,21 @@ def _resolve_project_context_uncached(
     user_cfg_data = _read_json_file(user_cfg_file) or {}
 
     cfg_dir = project_config_dir(repo_abs, aw_home=aw_home_abs)
+    primary_root = _linked_worktree_primary(Path(repo_abs))
+    primary_abs = _canonical_path(primary_root) if primary_root is not None else None
 
     # Level 2: Machine-local binding per-repo (.aw/config/local.json or user config repo section)
     local_binding_file = str(cfg_dir / "local.json")
-    local_binding_data = _read_json_file(local_binding_file) or {}
+    local_binding_data = _read_json_file(local_binding_file)
+    effective_local_binding_file = local_binding_file
+    if local_binding_data is None and primary_abs is not None:
+        primary_local_file = os.path.join(primary_abs, ".aw", "config", "local.json")
+        if _canonical_path(primary_local_file) != _canonical_path(local_binding_file):
+            primary_local_data = _read_json_file(primary_local_file)
+            if primary_local_data is not None:
+                local_binding_data = primary_local_data
+                effective_local_binding_file = primary_local_file
+    local_binding_data = local_binding_data or {}
 
     # `repos` in the USER config (config_version 2) is the schema mapping of repository
     # settings: exactly the keys search/installed/exclude/ignore. It has ONE meaning, and it is
@@ -1893,17 +2031,24 @@ def _resolve_project_context_uncached(
     user_repos = user_cfg_data.get("repos")
     repo_cfg_in_user: Dict[str, Any] = {}
     if isinstance(user_repos, dict) and not _is_repos_schema_mapping(user_repos):
-        candidate = user_repos.get(repo_abs)
-        if candidate is None:
-            # `repo_abs` is canonical (symlinks resolved), but a user-written key may name
-            # the repo through a symlink (macOS /var -> /private/var) or a Windows 8.3
-            # short path; compare canonical forms so such a binding is not silently lost.
-            for key, value in user_repos.items():
-                if isinstance(key, str) and _canonical_path(key) == repo_abs:
-                    candidate = value
-                    break
-        if isinstance(candidate, dict):
-            repo_cfg_in_user = candidate
+        lookup_targets = (
+            (repo_abs, primary_abs)
+            if primary_abs is not None and primary_abs != repo_abs
+            else (repo_abs,)
+        )
+        for target_key in lookup_targets:
+            candidate = user_repos.get(target_key)
+            if candidate is None:
+                # `target_key` is canonical (symlinks resolved), but a user-written key may name
+                # the repo through a symlink (macOS /var -> /private/var) or a Windows 8.3
+                # short path; compare canonical forms so such a binding is not silently lost.
+                for key, value in user_repos.items():
+                    if isinstance(key, str) and _canonical_path(key) == target_key:
+                        candidate = value
+                        break
+            if isinstance(candidate, dict):
+                repo_cfg_in_user = candidate
+                break
 
     # Merge local_binding_data with repo_cfg_in_user (local_binding_file takes priority for Level 2)
     merged_local_binding = dict(repo_cfg_in_user)
@@ -1932,7 +2077,13 @@ def _resolve_project_context_uncached(
         port, loc = migrate_legacy_config(leg_data)
         project_policy_data = port
         merged_local_binding.update(loc)
-    elif os.path.exists(local_binding_file):
+    elif primary_abs is not None and os.path.exists(
+        os.path.join(primary_abs, ".aw", "config", "project.json")
+    ):
+        project_policy_file = os.path.join(primary_abs, ".aw", "config", "project.json")
+        is_configured = True
+        project_policy_data = _read_json_file(project_policy_file) or {}
+    elif os.path.exists(effective_local_binding_file):
         is_configured = True
 
     if project_policy_data.get("schema_version", 2) > 2:
@@ -2205,10 +2356,12 @@ def _resolve_project_context_uncached(
     ):
         records_root = _canonical_path(os.path.join(repo_abs, ".aw", "records"))
     elif resolved_records_backend == RecordsBackend.COMPANION.value:
+        anchor_abs = primary_abs or repo_abs
         eff_companion_dir = (
             companion_dir
             or merged_local_binding.get("companion_dir")
-            or f"{repo_abs}.aw"
+            or _read_validated_companion_attachment(repo_abs, primary_abs)
+            or f"{anchor_abs}.aw"
         )
         records_root = _canonical_path(os.path.join(eff_companion_dir, "records"))
     else:  # HOME
@@ -2305,7 +2458,11 @@ def _resolve_project_context_uncached(
     elif os.path.exists(os.path.join(records_root, ".git")):
         durability_state = DurabilityState.LOCAL_GIT.value
     else:
-        durability_state = DurabilityState.UNVERSIONED.value
+        comp_git = _companion_parent_git_path(records_root, resolved_records_backend)
+        if comp_git is not None and os.path.exists(comp_git):
+            durability_state = DurabilityState.LOCAL_GIT.value
+        else:
+            durability_state = DurabilityState.UNVERSIONED.value
     provenance_map["durability_state"] = Provenance(
         source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
         detail=f"observable records repository state ({durability_state})",

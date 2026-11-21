@@ -912,6 +912,7 @@ def is_ignored_path(
     path_str = str(path)
     repo_str = str(repo_root)
     rel_posix: Optional[str] = None
+    external_records_path = False
     if path_str == repo_str:
         rel_posix = ""
     elif path_str.startswith(repo_str + os.sep):
@@ -939,6 +940,7 @@ def is_ignored_path(
                     rec_root = project_records_dir(repo_root)
                     sub_rel = path.resolve().relative_to(rec_root.resolve())
                     rel_path = Path(".aw") / "records" / sub_rel
+                    external_records_path = True
                 except (ValueError, OSError):
                     rel_path = Path(path.as_posix())
         rel_parts = rel_path.parts
@@ -961,15 +963,22 @@ def is_ignored_path(
     if not include_untracked and "untracked" in rel_parts:
         return True
 
-    if ignored_dirs is None:
-        ignored_dirs = get_ignored_dirs(repo_root)
-    if not ignored_dirs:
+    effective_ignored_dirs: frozenset[str] | set[str]
+    if external_records_path:
+        # External records roots (companion/home) honor built-in excluded dirs (such as
+        # `.aw/records/runs`) without inheriting target-repo `.aw/.gitignore` rules (e.g. `/records/`).
+        effective_ignored_dirs = DEFAULT_IGNORED_DIR_NAMES
+    elif ignored_dirs is None:
+        effective_ignored_dirs = get_ignored_dirs(repo_root)
+    else:
+        effective_ignored_dirs = ignored_dirs
+    if not effective_ignored_dirs:
         return False
     parts_list = rel.split("/")
     prefix = ""
     for part in parts_list:
         prefix = f"{prefix}/{part}" if prefix else part
-        if prefix in ignored_dirs:
+        if prefix in effective_ignored_dirs:
             if include_untracked and "untracked" in prefix.split("/"):
                 continue
             return True
