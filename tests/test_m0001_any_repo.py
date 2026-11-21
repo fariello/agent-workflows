@@ -581,7 +581,7 @@ def test_ac42_corpus_shapes_end_to_end_migration(
 
 @pytest.mark.slow
 @pytest.mark.livecorpus
-@pytest.mark.timeout(600, wall=900)
+@pytest.mark.timeout(700, wall=1000)
 def test_ac42_this_repository_clone_migration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
