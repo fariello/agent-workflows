@@ -20,6 +20,7 @@ import pytest
 from pathlib import Path
 
 from agent_workflows import artifact_refs as Aref
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -96,7 +97,10 @@ class DeadFilenamePrimitiveTests(unittest.TestCase):
         pend.mkdir(parents=True)
         # An EXISTING plan + an EXISTING research doc (cross-type name that must not be flagged).
         (pend / "20260101-demo-01-aaa111-alive.ipd.md").write_text(
-            "# IPD\n\n- Id: aaa111\n- Set: demo\n\n## Goal\n\nx\n", encoding="utf-8"
+            RecordBuilder().plan(
+                id6="aaa111", set="demo", body="## Goal\n\nx", text_only=True
+            ),
+            encoding="utf-8",
         )
         rdir = self.root / ".aw" / "records" / "research"
         rdir.mkdir(parents=True)

@@ -34,6 +34,7 @@ from agent_workflows.project_schema import (
 from agent_workflows.record_producers import get_git_owner
 from agent_workflows.storage import get_storage_status, validate_storage_boundaries
 from agent_workflows.term import Term
+from tests.record_builder import RecordBuilder
 
 
 class TestRecordsUntrackedBackend(unittest.TestCase):
@@ -363,7 +364,10 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         )
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(
-            "# Plan\n- Status: approved\n- Id: abc123\n- Set: test\n", encoding="utf-8"
+            RecordBuilder().plan(
+                status="approved", id6="abc123", set="test", text_only=True
+            ),
+            encoding="utf-8",
         )
 
         prompt_untracked = (
@@ -581,7 +585,7 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         )
         migrated_plan.parent.mkdir(parents=True, exist_ok=True)
         migrated_plan.write_text(
-            "# Migrated Plan\n- Id: abc123\n- Status: approved\n",
+            RecordBuilder().plan(id6="abc123", status="approved", text_only=True),
             encoding="utf-8",
         )
         subprocess.run(
@@ -691,7 +695,7 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         )
         wt_plan.parent.mkdir(parents=True, exist_ok=True)
         wt_plan.write_text(
-            "# Worktree Plan\n- Id: def456\n- Status: approved\n",
+            RecordBuilder().plan(id6="def456", status="approved", text_only=True),
             encoding="utf-8",
         )
         subprocess.run(

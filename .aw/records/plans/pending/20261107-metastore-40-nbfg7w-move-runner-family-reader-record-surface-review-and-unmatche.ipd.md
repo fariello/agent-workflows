@@ -166,6 +166,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-200-abf6yk-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Moved to qjxcgf (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subsets G6b, G6c (items E-03, E-04; F-41 names each module).
   - Carrier: qjxcgf
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-201-qjxcgf-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Moved to 0punmn (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G6c (items E-04; F-41 names each module).
   - Carrier: 0punmn
 - Batch subset G7a (the unmatched test modules, first half, carried from `59aiyh` E-09): Moved to 1upea0 (restructuring 2026-11-08 per maintainer decision "Codemod first, then small runs"; at most 4 batch items per plan).

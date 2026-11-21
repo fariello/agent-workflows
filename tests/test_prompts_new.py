@@ -38,6 +38,7 @@ from unittest import mock
 
 from agent_workflows import cli
 from agent_workflows import prompts as prompts_mod
+from tests.record_builder import RecordBuilder
 
 #: The uniform clustered prompt name this verb must now emit.
 _CLUSTERED_PROMPT_RE = re.compile(
@@ -374,8 +375,14 @@ class TestSetOrderSequence(_PromptsRepoTestCase):
         executed = self.prompts / "executed"
         executed.mkdir(parents=True, exist_ok=True)
         (executed / "20260830-shared-01-aaa111-already-run.prompt.md").write_text(
-            "<!-- aw-prompt: Kind: research | Id: aaa111 | Set: shared | Status: executed "
-            "| Created: 2026-08-30 -->\n",
+            RecordBuilder().prompt(
+                prompt_kind="research",
+                id6="aaa111",
+                set="shared",
+                status="executed",
+                when="2026-08-30",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rc, out = self._run(
@@ -425,8 +432,13 @@ class TestSetOrderSequence(_PromptsRepoTestCase):
         executed = self.prompts / "executed"
         executed.mkdir(parents=True, exist_ok=True)
         (executed / "20260830-other-01-ccc333-prior.prompt.md").write_text(
-            "<!-- aw-prompt: Kind: research | Id: ccc333 | Status: executed "
-            "| Created: 2026-08-30 -->\n",
+            RecordBuilder().prompt(
+                prompt_kind="research",
+                id6="ccc333",
+                status="executed",
+                when="2026-08-30",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.assertIn("ccc333", prompts_mod._existing_id6s(self.prompts))
