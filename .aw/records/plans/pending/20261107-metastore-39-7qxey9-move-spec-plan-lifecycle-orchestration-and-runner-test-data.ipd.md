@@ -145,6 +145,7 @@ flowchart TD
   - Carrier: qqaqw8
 - Moved to xxiou0 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4a (items E-02; F-41 names each module).
   - Carrier: xxiou0
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-186-xxiou0-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-5.ipd.md
 - Moved to 3k142n (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subsets G4a, G4b (items E-02, E-03; F-41 names each module).
   - Carrier: 3k142n
 - Moved to 2etvye (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4b (items E-03; F-41 names each module).
