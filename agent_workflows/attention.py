@@ -2128,10 +2128,14 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
                 )
             else:
                 bits.append("run {0}".format(rec["run_id"]))
+        if state == rs.LANE_SUPERSEDED:
+            remedy = "Prune worktree + branch." if display else "Prune branch."
+        else:
+            remedy = lane_remedy_hint(str(rec["id6"]) if rec.get("id6") else None)
         detail = "{0}: {1}. {2}".format(
             "; ".join(bits),
             rec.get("why") or "",
-            lane_remedy_hint(str(rec["id6"]) if rec.get("id6") else None),
+            remedy,
         )
         out.append(
             core.Drift(
@@ -3643,11 +3647,14 @@ def render_table(
         run_map = {}
 
     lines: List[str] = []
-    if drift:
+    # Match `render_json`'s `valid` and `core.drift_exit_code`: advisory `info` drift (such as
+    # `attention.lane-superseded`) must NOT mark the human board `VIEW INVALID`.
+    blocking_drift = [d for d in drift if d.severity != "info"]
+    if blocking_drift:
         lines.append(
             "VIEW INVALID: contract violations must be resolved before this board is authoritative."
         )
-        for d in drift:
+        for d in blocking_drift:
             lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
         lines.append("")
 
@@ -3848,11 +3855,14 @@ def render_board(
         legend = colored
 
     lines: List[str] = []
-    if drift:
+    # Match `render_json`'s `valid` and `core.drift_exit_code`: advisory `info` drift (such as
+    # `attention.lane-superseded`) must NOT mark the human board `VIEW INVALID`.
+    blocking_drift = [d for d in drift if d.severity != "info"]
+    if blocking_drift:
         lines.append(
             "VIEW INVALID: contract violations must be resolved before this board is authoritative."
         )
-        for d in drift:
+        for d in blocking_drift:
             lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
         lines.append("")
 
@@ -5345,7 +5355,15 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
         if lane_section:
             if colored:
                 first, _, rest = lane_section.partition("\n")
-                board += term.color256(first.lstrip("# "), 203, bold=True) + "\n" + rest
+                has_at_risk_lanes = any(
+                    d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE) for d in drift
+                )
+                header_color = 203 if has_at_risk_lanes else 214
+                board += (
+                    term.color256(first.lstrip("# "), header_color, bold=True)
+                    + "\n"
+                    + rest
+                )
             else:
                 board += lane_section
 
