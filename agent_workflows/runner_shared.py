@@ -1058,6 +1058,7 @@ def backlog_item_paths_for_commit(
     )
 
     hits: list[str] = []
+    ctx_cache: dict[bool, Any] = {}
     with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
         for line in out.splitlines():
             path_str = line.strip()
@@ -1071,7 +1072,11 @@ def backlog_item_paths_for_commit(
             if not any(path_str.startswith(pfx) for pfx in valid_prefixes):
                 continue
             try:
-                ctx = _ce._git_read_at_context(repo_path, rel_path=path_str)
+                is_legacy_dir = path_str.startswith(".agents/")
+                ctx = ctx_cache.get(is_legacy_dir)
+                if ctx is None:
+                    ctx = _ce._git_read_at_context(repo_path, rel_path=path_str)
+                    ctx_cache[is_legacy_dir] = ctx
                 declared_id = _meta.resolve_id_at(
                     path_str, str(commit_sha), project_context=ctx
                 )
@@ -8326,7 +8331,13 @@ def check_review_lane_artifacts(
                 try:
                     eval_root = wt_path if wt_path else repo
                     item_id6 = (
-                        b_state.id6 if (b_state is not None and b_state.id6) else None
+                        b_state.id6
+                        if (
+                            b_state is not None
+                            and b_state.id6
+                            and not getattr(b_state, "id_derived", False)
+                        )
+                        else None
                     ) or Path(norm_p).stem[:6]
                     res = check_engine.evaluate_handoff_ready(
                         eval_root, "backlog", item_id6

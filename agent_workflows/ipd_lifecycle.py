@@ -3149,14 +3149,6 @@ RECEIPT_SOURCE_BEGIN = "begin-receipt"
 RECEIPT_SOURCE_LEGACY = "git-derived-legacy"
 RECEIPT_SOURCE_WITHOUT = "without-receipt"
 
-# The approval reading ACCEPTS AN IN-PLACE ANNOTATION (legacyfin `9en4fy` E-02): the old plan format
-# wrote `- Status: approved (2026-09-25; executing)`, and a version reading that WAS the approved
-# version. A word boundary after `approved` that is followed by end-of-line or an opening annotation
-# (` (`, ` -`, ` ;`, ` ,`) keeps `approved-ish` or `approvedx` out.
-_STATUS_APPROVED_RE = re.compile(
-    r"(?mi)^- Status:\s*(auto-)?approved(?:\s*$|\s*[(;,]|\s+-\s)"
-)
-
 
 class DerivedBaseline(NamedTuple):
     """The commit a receiptless finalize measures from, and the plan as it stood there."""

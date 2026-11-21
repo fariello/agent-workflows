@@ -85,7 +85,7 @@ Carried from `h58z9n` (measured 2026-11-07 at `ac76110f4`; F-02 from `t4gl15`, 2
 | # | File and symbol | Matched code | Class | Owner / Action |
 |---|---|---|---|---|
 | 1 | `agent_workflows/plan_readiness.py::review_staleness_index` | docstring: `all reviewed blobs in one \`git cat-file --batch\` call.` | not a metadata read | no change (docstring) |
-| 2 | `agent_workflows/plan_readiness.py::review_staleness_index` | `["git", "cat-file", "--batch"]` | metadata reader (status) + body prose (N3) | E-02 (plan status moved to `artifact_meta.read_text` / `read_at(id6, sha)`; batched body read stays for `frozen_region_digest` and open-question body prose, D-3 / N3) |
+| 2 | `agent_workflows/plan_readiness.py::review_staleness_index` | `["git", "cat-file", "--batch"]` | metadata reader (current status) + body prose (N3) | E-02 (current plan status moved from `_STATUS_RE` to `artifact_meta.read_text`; the review commit read uses `git cat-file --batch` for body prose only, covering `frozen_region_digest` and open-question blocks without reading record metadata, D-3 / N3) |
 | 3 | `agent_workflows/ipd_lifecycle.py::checkout_git_common_dir` | `_git(base, ["rev-parse", "--path-format=absolute", "--git-common-dir"])` | not a metadata read | no change (resolves git common dir) |
 | 4 | `agent_workflows/ipd_lifecycle.py::is_main_checkout` | docstring: `git rev-parse --show-toplevel` | not a metadata read | no change (docstring) |
 | 5 | `agent_workflows/ipd_lifecycle.py::is_main_checkout` | `_git(root_path, ["rev-parse", "--show-toplevel"])` | not a metadata read | no change (resolves git toplevel) |
