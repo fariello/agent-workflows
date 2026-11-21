@@ -6,7 +6,7 @@
 - Scope: Add a pure state-aware specification validator `agent_workflows/specs.py::validate_spec_state` and route `agent_workflows/attention.py::_spec_record` through it when a specification is backed by a metadata-v2 event log (`agent_workflows/artifact_meta.py::_storage_format` returning `"log"` for `meta/<id6>.jsonl`, falling back to `state.created_at` or `state.updated_at` only when `project_context` is absent). Validate status enum membership, deferred gate rules (`gate_kind`, `gate_ref`, `gate_summary`), optional descriptive safety (`scope` and `summary` defensively when present in `state.fields`), optional `priority` and `work_kind` vocabularies, and workflow history presence (`has_history=bool(lha)` from `agent_workflows/attention.py::_last_history_at_for_state`) while keeping legacy Markdown specification validation via `agent_workflows/specs.py::validate_spec` unchanged. Add behavioral regression tests in `tests/test_readers_attention.py` covering migrated and newly created v2 specifications (valid approved, freshly created `op: "create"`, deferred with valid/missing/malformed gate and unsafe `gate_summary`, non-deferred with gate, checkpoint-only missing history, unknown status, invalid `priority`/`work_kind`) alongside legacy Markdown specifications. EXCLUDES: status-less research conversion (`fnabjy` / `s4utmv`), `aw migrate metadata` conversion code, non-`attention` direct callers of `agent_workflows/specs.py::validate_spec` (`agent_workflows/specs.py::run_check`, `agent_workflows/check_engine.py::_check_type_contracts`, `agent_workflows/status_set.py`, `agent_workflows/runner_shared.py`), and modifying `tests/test_m0001_any_repo.py` (`60mazt`).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/specs.py, tests/test_readers_attention.py, .aw/records/plans/pending/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Validate log-backed specs from artifact_meta state and history in attention._spec_record instead of parsing stripped Markdown bullets.
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: zgxig2 verified (set 0dsjzl, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 0dsjzl
