@@ -16,6 +16,7 @@ from tests.test_orchestrator_retirement import (
     _table,
     _write_conforming_plan,
 )
+from tests.record_builder import RecordBuilder
 
 
 class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
@@ -38,13 +39,15 @@ class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
             bkl_dir.mkdir(parents=True, exist_ok=True)
             bkl_file = bkl_dir / "20260906-bkl001-01-bkl001-test-item.backlog.md"
             bkl_file.write_text(
-                "- Id: bkl001\n"
-                "- Status: open\n"
-                "- Summary: test item\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n\n"
-                "## Workflow history\n"
-                "- 2026-09-06 created (aw backlog): created\n",
+                RecordBuilder().backlog(
+                    id6="bkl001",
+                    status="open",
+                    summary="test item",
+                    priority="medium",
+                    work_kind="bug",
+                    history=["- 2026-09-06 created (aw backlog): created"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -169,13 +172,15 @@ class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
             bkl_dir.mkdir(parents=True, exist_ok=True)
             bkl_file = bkl_dir / "20260906-bkl002-01-bkl002-test-item.backlog.md"
             bkl_file.write_text(
-                "- Id: bkl002\n"
-                "- Status: open\n"
-                "- Summary: test item 2\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n\n"
-                "## Workflow history\n"
-                "- 2026-09-06 created (aw backlog): created\n",
+                RecordBuilder().backlog(
+                    id6="bkl002",
+                    status="open",
+                    summary="test item 2",
+                    priority="medium",
+                    work_kind="bug",
+                    history=["- 2026-09-06 created (aw backlog): created"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
