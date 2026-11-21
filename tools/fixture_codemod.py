@@ -951,12 +951,9 @@ def _template_to_value_expr(
         return ValueExpr(is_static=False, static_value=None, code=expr_code)
 
     # Mixed literal + placeholder(s): reconstruct a Python f-string expression.
-    pieces: list[str] = []
-    pos = 0
+    # Escape ONLY literal segments; never mutate Python expressions inside {...}.
+    expr_parts: list[str] = []
     for m in matches:
-        lit = seg[pos : m.start()]
-        if lit:
-            pieces.append(_escape_fstring_literal(lit))
         fv = fvs[int(m.group(1))]
         conv = ""
         if fv.conversion == 114:
@@ -969,25 +966,37 @@ def _template_to_value_expr(
         if fv.format_spec is not None:
             spec = ":" + _static_text_of_expr(fv.format_spec)
         expr_src = ast.unparse(fv.value)
-        pieces.append("{" + expr_src + conv + spec + "}")
+        expr_parts.append("{" + expr_src + conv + spec + "}")
+
+    quote = '"'
+    if any('"' in ep for ep in expr_parts) and not any("'" in ep for ep in expr_parts):
+        quote = "'"
+
+    pieces: list[str] = []
+    pos = 0
+    for m, expr_part in zip(matches, expr_parts, strict=True):
+        lit = seg[pos : m.start()]
+        if lit:
+            pieces.append(_escape_fstring_literal(lit, quote=quote))
+        pieces.append(expr_part)
         pos = m.end()
     tail = seg[pos:]
     if tail:
-        pieces.append(_escape_fstring_literal(tail))
+        pieces.append(_escape_fstring_literal(tail, quote=quote))
     inner = "".join(pieces)
-    # Choose quote style cleanly using repr-style escaping on newlines/quotes.
+    return ValueExpr(is_static=False, static_value=None, code=f"f{quote}{inner}{quote}")
+
+
+def _escape_fstring_literal(text: str, *, quote: str = '"') -> str:
     escaped = (
-        inner.replace("\\", "\\\\")
+        text.replace("\\", "\\\\")
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t")
-        .replace('"', '\\"')
+        .replace("{", "{{")
+        .replace("}", "}}")
     )
-    return ValueExpr(is_static=False, static_value=None, code=f'f"{escaped}"')
-
-
-def _escape_fstring_literal(text: str) -> str:
-    return text.replace("{", "{{").replace("}", "}}")
+    return escaped.replace(quote, f"\\{quote}")
 
 
 def _is_body_prose_text(template: str) -> bool:
@@ -1784,11 +1793,19 @@ def _has_record_builder_import(tree: ast.Module) -> bool:
 def _import_insert_line(tree: ast.Module, lines: list[bytes]) -> int:
     """Return 0-based line index after which to insert RecordBuilder import."""
     last_import_end: int | None = None
-    for stmt in tree.body:
+    for idx, stmt in enumerate(tree.body):
         if isinstance(stmt, (ast.Import, ast.ImportFrom)):
             end_ln = getattr(stmt, "end_lineno", stmt.lineno)
             last_import_end = end_ln
-        elif last_import_end is not None:
+        elif (
+            idx == 0
+            and isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        ):
+            # Allow a leading module docstring before top-level imports.
+            continue
+        else:
             break
     if last_import_end is not None:
         return last_import_end
@@ -1879,11 +1896,29 @@ def _pytest_workdir_and_env() -> tuple[Path, dict[str, str]]:
     existing = env.get("PYTHONPATH", "")
     parts = [str(run_root)] + ([existing] if existing else [])
     env["PYTHONPATH"] = os.pathsep.join(parts)
+    # Prevent stale .pyc / pytest assertion-rewrite bytecode hits when bisection
+    # rewrites the same module with identical byte size within one mtime second.
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     return run_root, env
+
+
+def _purge_module_pyc(module_path: Path) -> None:
+    """Remove cached bytecode for module_path so pytest always compiles current source."""
+    pycache = module_path.resolve().parent / "__pycache__"
+    if not pycache.is_dir():
+        return
+    prefix = f"{module_path.stem}."
+    for entry in pycache.iterdir():
+        if entry.name.startswith(prefix) and entry.suffix == ".pyc":
+            try:
+                entry.unlink()
+            except OSError:
+                pass
 
 
 def record_module_outcomes(module_path: Path) -> tuple[list[str], str]:
     """Run the batch-rule pytest command in-process and return (sorted outcomes, sha256)."""
+    _purge_module_pyc(module_path)
     run_root, env = _pytest_workdir_and_env()
     cmd = [
         sys.executable,
