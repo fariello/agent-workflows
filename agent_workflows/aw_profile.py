@@ -19,6 +19,7 @@ Design posture:
 from __future__ import annotations
 
 import argparse
+import atexit
 import datetime as _dt
 import hashlib
 import hmac
@@ -3319,6 +3320,25 @@ def _fmt_elapsed(seconds: float) -> str:
     return _fmt_duration(seconds)
 
 
+_CURSOR_HIDE = "\033[?25l"
+_CURSOR_SHOW = "\033[?25h"
+_HIDDEN_CURSOR_STREAMS: list[Any] = []
+
+
+def _restore_hidden_cursors_atexit() -> None:
+    while _HIDDEN_CURSOR_STREAMS:
+        stream = _HIDDEN_CURSOR_STREAMS.pop()
+        try:
+            if getattr(stream, "isatty", None) and stream.isatty():
+                stream.write(_CURSOR_SHOW)
+                stream.flush()
+        except Exception:
+            pass
+
+
+atexit.register(_restore_hidden_cursors_atexit)
+
+
 class _ProfileProgress:
     """Responsive Term-styled stderr progress narration (TTY in-place bar, piped step cues)."""
 
@@ -3331,7 +3351,40 @@ class _ProfileProgress:
         )
         self._last_draw = 0.0
         self._has_inline = False
+        self._cursor_hidden = False
         self._started = time.monotonic()
+
+    def hide_cursor(self) -> None:
+        if not self.enabled or not self.is_tty or self._cursor_hidden:
+            return
+        try:
+            self.stream.write(_CURSOR_HIDE)
+            self.stream.flush()
+            self._cursor_hidden = True
+            if self.stream not in _HIDDEN_CURSOR_STREAMS:
+                _HIDDEN_CURSOR_STREAMS.append(self.stream)
+        except OSError:
+            pass
+
+    def show_cursor(self) -> None:
+        if not self._cursor_hidden:
+            return
+        self._cursor_hidden = False
+        try:
+            if self.stream in _HIDDEN_CURSOR_STREAMS:
+                _HIDDEN_CURSOR_STREAMS.remove(self.stream)
+        except ValueError:
+            pass
+        if self.is_tty:
+            try:
+                self.stream.write(_CURSOR_SHOW)
+                self.stream.flush()
+            except OSError:
+                pass
+
+    def close(self) -> None:
+        self.clear_inline()
+        self.show_cursor()
 
     def _bar(self, idx: int, total: int, width: int = 12) -> str:
         if total <= 0:
@@ -3360,6 +3413,7 @@ class _ProfileProgress:
         if not force and (now - self._last_draw) < 0.08:
             return
         self._last_draw = now
+        self.hide_cursor()
         label = self.term.severity_label("info")
         rendered = _term_mod.truncate_visible(
             f"{label} {text}", self._terminal_cols(), ellipsis=""
@@ -3376,6 +3430,7 @@ class _ProfileProgress:
         if not force and (now - self._last_draw) < 0.08:
             return
         self._last_draw = now
+        self.hide_cursor()
         label = self.term.severity_label("info")
         max_cols = self._terminal_cols()
         line = label
@@ -4204,6 +4259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             installed_sigterm = False
 
     started = time.monotonic()
+    prog.hide_cursor()
     try:
         if args.command == "collect":
             if args.max_depth < 1:
@@ -4370,6 +4426,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{err_term.severity_label('error')} aw-profile: {exc}", file=sys.stderr)
         return 2
     finally:
+        prog.close()
         if installed_sigterm:
             try:
                 signal.signal(signal.SIGTERM, prev_sigterm)

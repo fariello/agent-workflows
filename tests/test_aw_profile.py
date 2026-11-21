@@ -897,13 +897,23 @@ class AwProfileTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(rc_t, 0)
-        err_plain = ansi_re.sub("", tty_err.getvalue())
+        raw_tty_err = tty_err.getvalue()
+        self.assertIn("\033[?25l", raw_tty_err)
+        self.assertIn("\033[?25h", raw_tty_err)
+        self.assertGreater(
+            raw_tty_err.rfind("\033[?25h"), raw_tty_err.find("\033[?25l")
+        )
+        err_plain = ansi_re.sub("", raw_tty_err)
         self.assertIn("100%", err_plain)
-        self.assertIn("\r\033[2K", tty_err.getvalue())
+        self.assertIn("\r\033[2K", raw_tty_err)
         self.assertIn("agy 1/oc 2", err_plain)
         self.assertIn("items ", err_plain)
         self.assertIn("steps ", err_plain)
         self.assertIn("tools ", err_plain)
+
+        # Non-TTY runs never emit cursor escape sequences
+        self.assertNotIn("\033[?25l", err_nc)
+        self.assertNotIn("\033[?25h", err_nc)
 
         # 4. Localized number formatting inserts thousands separators reliably
         formatted_big = aw_profile._fmt_int(1234567)
@@ -1127,10 +1137,20 @@ class AwProfileTests(unittest.TestCase):
                 raise KeyboardInterrupt
             return real_extract(run_dir, **kwargs)
 
-        with mock.patch.object(
-            aw_profile, "extract_run_trace", side_effect=_interrupt_on_second
+        class _FakeTTY(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        tty_out_i = _FakeTTY()
+        tty_err_i = _FakeTTY()
+        with (
+            mock.patch.object(
+                aw_profile, "extract_run_trace", side_effect=_interrupt_on_second
+            ),
+            contextlib.redirect_stdout(tty_out_i),
+            contextlib.redirect_stderr(tty_err_i),
         ):
-            out_i, err_i, rc_i = _run_cli(
+            rc_i = aw_profile.main(
                 [
                     "collect",
                     "--runs-dir",
@@ -1140,9 +1160,15 @@ class AwProfileTests(unittest.TestCase):
                     "--no-color",
                 ]
             )
+        out_i = tty_out_i.getvalue()
+        err_i = tty_err_i.getvalue()
         self.assertEqual(rc_i, 130)
         self.assertNotIn("Traceback", out_i + err_i)
         self.assertIn("interrupted", err_i)
+        # Cursor hidden during TTY run and guaranteed restored on Ctrl-C
+        self.assertIn("\033[?25l", err_i)
+        self.assertIn("\033[?25h", err_i)
+        self.assertGreater(err_i.rfind("\033[?25h"), err_i.find("\033[?25l"))
 
         # First run MUST already be saved in index.json so the resume collect hits cache for it!
         res_resume = aw_profile.collect_runs(runs_dirs=[runs_int], cache_dir=cache_int)
