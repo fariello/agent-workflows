@@ -563,6 +563,34 @@ class ModelAndFieldValidationTests(unittest.TestCase):
 
         self.assertEqual(RP.validate_model(_INHOUSE_MODEL), _INHOUSE_MODEL)
 
+    def test_agy_accepts_flat_model_names_and_still_rejects_unsafe_tokens(self):
+        """Antigravity (`agy`) accepts flat model IDs while preserving shell-safe character bounds."""
+
+        for good in ("claude-opus-5-5-medium", "gemini-4-neon-high", _INHOUSE_MODEL):
+            with self.subTest(good=good):
+                self.assertEqual(RP.validate_model(good, runner="agy"), good)
+                prof = RP.parse_profile("agy-test", {"runner": "agy", "model": good})
+                self.assertEqual(prof.model, good)
+                resolved = RP.resolve(
+                    RP.ProfileConfig(), runner="agy", model=good, generic=True
+                )
+                self.assertEqual(resolved.runner, "agy")
+                self.assertEqual(resolved.model, good)
+
+        for label, bad in {
+            "empty": "",
+            "leading-slash": "/claude-opus-5-5-medium",
+            "trailing-slash": "claude-opus-5-5-medium/",
+            "double-slash": "vendor//model",
+            "whitespace": "claude opus",
+            "shell-semicolon": "claude;whoami",
+            "shell-dollar": "$MODEL",
+            "backslash": "a\\b",
+        }.items():
+            with self.subTest(bad=label):
+                with self.assertRaises(RP.ProfileSchemaError):
+                    RP.validate_model(bad, runner="agy")
+
     def test_missing_required_fields_fail(self):
         """Kept separate: an assertRaises pair whose assertion is WHICH field the message names."""
 

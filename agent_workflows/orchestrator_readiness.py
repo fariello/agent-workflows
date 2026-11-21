@@ -81,7 +81,8 @@ REMEDY_COVERAGE_FAIL = (
 )
 REMEDY_COVERAGE_COULD_NOT_ASK = "retry with `aw ipd coverage <id6>`"
 REMEDY_COVERAGE_NOT_WRITTEN = (
-    "commit or stash the plan's changes, or re-run with `--no-commit`"
+    "resolve the write error reported above (for dirty-worktree refusals, commit or stash "
+    "the plan's changes or re-run with `--no-commit`), then re-run `aw ipd coverage <id6>`"
 )
 
 REMEDIES: dict[str, str] = {
@@ -808,10 +809,28 @@ def run_coverage(
         resolved = _rp.resolve(
             cfg, runner=resolved_host, model=resolved_model, generic=True
         )
-        if not host_arg and resolved.runner:
+        if resolved.runner:
             resolved_host = resolved.runner
         if not model_arg and resolved.model:
             resolved_model = resolved.model
+    except _rp.RunnerProfileError as exc:
+        err_msg = str(exc)
+        if ctx.is_agent or ctx.is_json:
+            rec = {
+                "schema": _as.SCHEMA_VERSION,
+                "kind": "result",
+                "cmd": "ipd coverage",
+                "exit": 2,
+                "outcome": "cannot-run",
+                "verified": False,
+                "complete": False,
+                "summary": err_msg,
+                "detail": err_msg,
+            }
+            _emit_machine(rec)
+            return 2
+        print(f"error: {err_msg}")
+        return 2
     except (KeyError, ValueError, AttributeError, OSError):
         resolved_host = host_arg or "oc"
 

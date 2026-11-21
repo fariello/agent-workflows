@@ -414,6 +414,13 @@ MODEL_RE = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._+:-]*(?:/[A-Za-z0-9][A-Za-z0-9._+:-]*)+$"
 )
 
+#: Model identifier grammar for hosts whose native model IDs have no `provider/` prefix (e.g.
+#: Antigravity `agy`: `claude-opus-5-5-medium`, `gemini-4-neon-high`). Same narrow shell-safe
+#: character class as :data:`MODEL_RE`, allowing 1+ `/`-separated segments.
+FLAT_MODEL_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._+:-]*(?:/[A-Za-z0-9][A-Za-z0-9._+:-]*)*$"
+)
+
 #: Variant / agent: one bounded token from the same narrow class, no separators.
 FIELD_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,%d}$" % (MAX_FIELD_LEN - 1))
 
@@ -805,14 +812,29 @@ def validate_role_name(name: Any) -> str:
     return name
 
 
-def validate_model(value: Any) -> str:
-    """Validate an EXACT model identifier, or raise :class:`ProfileSchemaError`."""
+def validate_model(value: Any, *, runner: Optional[str] = None) -> str:
+    """Validate an EXACT model identifier, or raise :class:`ProfileSchemaError`.
+
+    OpenCode (`oc`, and the default when `runner` is omitted) requires a `provider/model`
+    identifier with at least two `/`-separated segments. Antigravity (`agy`) uses flat model
+    identifiers without a provider prefix (e.g. `claude-opus-5-5-medium`), validated with the
+    same narrow shell-safe character class (`FLAT_MODEL_RE`).
+    """
 
     if not isinstance(value, str) or not value:
         raise ProfileSchemaError("model is required and must be a non-empty string")
     if len(value) > MAX_MODEL_LEN:
         raise ProfileSchemaError(f"model is longer than {MAX_MODEL_LEN} characters")
-    if not MODEL_RE.match(value):
+    allow_flat = False
+    if runner is not None:
+        allow_flat = canonical_runner(runner) == "agy"
+    if allow_flat:
+        if not FLAT_MODEL_RE.match(value):
+            raise ProfileSchemaError(
+                f"invalid model {value!r}: expected a model identifier "
+                "using letters, digits and . _ + : - (optionally separated by '/')"
+            )
+    elif not MODEL_RE.match(value):
         raise ProfileSchemaError(
             f"invalid model {value!r}: expected an exact 'provider/model' identifier "
             "using letters, digits and . _ + : - separated by '/'"
@@ -912,7 +934,7 @@ def parse_profile(name: str, raw: Any) -> LaunchProfile:
         )
     runner = canonical_runner(raw["runner"])
     spec = RUNNER_REGISTRY[runner]
-    model = validate_model(raw["model"])
+    model = validate_model(raw["model"], runner=runner)
     variant = raw.get("variant")
     if variant is not None:
         variant = _validate_field("variant", variant)
@@ -1632,7 +1654,7 @@ def resolve(
         return None
 
     resolved_model = pick(
-        validate_model(model) if model is not None else None,
+        validate_model(model, runner=resolved_runner) if model is not None else None,
         applied.model if applied is not None else None,
         "model",
     )

@@ -481,3 +481,127 @@ class TestReviewReadinessUnitAndRetirement(unittest.TestCase):
         self.assertIn("retirement re-check refused", decision.detail)
         self.assertIn("simulated write failure", decision.detail)
         self.assertIn(readiness.REMEDY_COVERAGE_NOT_WRITTEN, decision.detail)
+
+    def test_sibling_checkout_dir_name_does_not_refuse_coverage_write(self) -> None:
+        """A sibling directory (e.g. ../uri) must not cause artifact_meta to refuse coverage writes."""
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td).resolve() / "workspace"
+            (ws / "uri").mkdir(parents=True)
+            repo = ws / "poly"
+            repo.mkdir(parents=True)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"], cwd=repo, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=repo,
+                check=True,
+            )
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            orch = pending / "20261121-tset-00-orc009-orch.ipd.md"
+            orch.write_text(
+                "# IPD: Sibling Dir Test\n\n"
+                "- Id: orc009\n"
+                "- Status: draft\n"
+                "- Set: tset (Test Set)\n"
+                "- Order: 0\n"
+                "- Plan-Role: orchestrator\n\n"
+                "## Workflow history\n"
+                "- 2026-11-21 draft (test): created.\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)
+
+            res = coverage_record.write(
+                orch,
+                coverage_record.COVERAGE_PASS,
+                quotes=(),
+                model="uri/its_direct/pt3-claude-opus-5.5-1m-us",
+                tool="aw oc run",
+                commit=False,
+                host="oc",
+                repo=repo,
+            )
+            self.assertTrue(res.written, res.detail)
+            self.assertIn(
+                "uri/its_direct/pt3-claude-opus-5.5-1m-us",
+                orch.read_text(encoding="utf-8"),
+            )
+
+            # Real leaks (e.g. session IDs) are still refused by the writer.
+            bad_res = coverage_record.write(
+                orch,
+                coverage_record.COVERAGE_PASS,
+                quotes=(),
+                model="ses_" + "01234567890123456789",
+                tool="aw oc run",
+                commit=False,
+                host="oc",
+                repo=repo,
+            )
+            self.assertFalse(bad_res.written)
+            self.assertIn("session-id", bad_res.detail)
+
+    def test_run_coverage_accepts_flat_agy_model_and_handles_invalid_model_cleanly(
+        self,
+    ) -> None:
+        """run_coverage accepts flat Antigravity models and returns exit 2 (not traceback) on schema errors."""
+        import argparse
+        import contextlib
+        import io
+
+        from agent_workflows import runner_profiles as _rp
+        from agent_workflows.term import Term
+
+        captured_models: list[str] = []
+
+        def fake_ask(state, excerpt, host="oc", repo=None, runner=None, **kwargs):
+            captured_models.append(state.get("options", {}).get("model", ""))
+            return (rs.PROBE_ANSWER_NO_EXECUTIONS, "claude-opus-5-5-medium")
+
+        args_agy = argparse.Namespace(
+            targets=["orc002"],
+            all=False,
+            host="agy",
+            model="claude-opus-5-5-medium",
+            no_commit=True,
+            json=True,
+            agent=False,
+            human=False,
+        )
+        out_agy = io.StringIO()
+        with (
+            mock.patch.object(Path, "cwd", return_value=self.repo),
+            mock.patch.object(_rp, "load", return_value=_rp.ProfileConfig()),
+            mock.patch.object(rs, "ask_orchestrator_probe", side_effect=fake_ask),
+            contextlib.redirect_stdout(out_agy),
+        ):
+            rc = readiness.run_coverage(args_agy, Term(color=False))
+        self.assertEqual(rc, 0, out_agy.getvalue())
+        self.assertEqual(captured_models, ["claude-opus-5-5-medium"])
+
+        # Invalid OpenCode model without provider/ prefix returns exit 2 cleanly (no traceback).
+        args_bad = argparse.Namespace(
+            targets=["orc002"],
+            all=False,
+            host="oc",
+            model="claude-opus-5-5-medium",
+            no_commit=True,
+            json=True,
+            agent=False,
+            human=False,
+        )
+        out_bad = io.StringIO()
+        with (
+            mock.patch.object(Path, "cwd", return_value=self.repo),
+            mock.patch.object(_rp, "load", return_value=_rp.ProfileConfig()),
+            contextlib.redirect_stdout(out_bad),
+        ):
+            rc_bad = readiness.run_coverage(args_bad, Term(color=False))
+        self.assertEqual(rc_bad, 2)
+        payload = json.loads(out_bad.getvalue())
+        self.assertEqual(payload["outcome"], "cannot-run")
+        self.assertIn("invalid model", payload["detail"])

@@ -951,23 +951,22 @@ _GENERIC_FIXTURE_GIT_TOKENS: FrozenSet[str] = frozenset(
 
 def _writer_ruleset(repo_root: Path) -> "_leak.Ruleset":
     """The leak ruleset the writer scans with: every `fail` rule plus every auto-derived `warn`
-    token EXCEPT, inside a runner lane (`.aw/worktrees/<lane>`), the sibling LANE directory names
-    (2xwb9b D-02) and synthetic test-fixture git identities (e.g. `tests/support.py::init_repo`
-    setting `git user.name = "Test"`).
+    token EXCEPT sibling checkout directory names and synthetic test-fixture git identities
+    (e.g. `tests/support.py::init_repo` setting `git user.name = "Test"`).
 
     Spec 4.2 lists what the writer refuses: session ids, command lines, absolute or home paths, user
-    names and host names. A sibling directory name is none of those; in a runner lane the siblings
-    are the OTHER lanes, which are named by plan id6, so keeping them would refuse every message or
-    `Item-Dependencies` value that cites a plan that happens to have a lane (measured: 39 tracked
-    history lines would be refused for this reason alone)."""
+    names and host names. A sibling directory name is none of those - whether inside `.aw/worktrees/`
+    (where siblings are plan id6 lane dirs, 2xwb9b D-02) or in a normal workspace (where a sibling
+    repo such as `../uri` would otherwise substring-refuse valid model identifiers like
+    `uri/its_direct/...` and ordinary words like `during` or `security`). Sibling names remain
+    advisory-only in `leak_sanitizer.derive_warn_tokens` for `aw check-local-leaks`."""
     ruleset = _leak.build_ruleset(repo_root, include_warn=True)
     try:
-        in_lane = Path(repo_root).resolve().parent.name == "worktrees"
         derived = _leak.derive_warn_tokens(repo_root)
     except Exception:
         return ruleset
     for tok, reason in derived.items():
-        if in_lane and reason == "sibling checkout dir name":
+        if reason == "sibling checkout dir name":
             ruleset.warn.pop(f"derived:{tok}", None)
         elif (
             reason in ("git user.name", "git user.email")
