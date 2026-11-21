@@ -1,0 +1,22 @@
+"""Fixture (a): plain constant metadata block."""
+
+from agent_workflows import artifact_meta
+
+# Preserved comment line for byte-preservation checks.
+UNTOUCHED_MARKER = "keep-me-intact"
+
+
+def test_plain_constant_plan_parses() -> None:
+    text = (
+        "# IPD: Plain Constant Plan\n\n"
+        "- Id: pl1001\n"
+        "- Status: approved\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+    )
+    st = artifact_meta.read_text(text, record_type="ipd")
+    assert st.id6 == "pl1001"
+    assert st.status == "approved"
+    assert st.fields["set"] == "demo"
+    assert st.fields["order"] == "1"
+    assert UNTOUCHED_MARKER == "keep-me-intact"

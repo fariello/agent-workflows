@@ -1,0 +1,44 @@
+"""Fixture (h): rewritten module's own tests pass after codemod."""
+
+from agent_workflows import artifact_meta
+
+
+def _spec_text(spec_id: str, status: str) -> str:
+    return (
+        f"# Spec: Pass Check {spec_id}\n\n"
+        f"- Id: {spec_id}\n"
+        f"- Status: {status}\n"
+    )
+
+
+def test_rewritten_plain_plan() -> None:
+    text = (
+        "# IPD: Pass Check Plan\n\n"
+        "- Id: pl8001\n"
+        "- Status: approved\n"
+        "- Set: demo\n"
+        "- Order: 2\n"
+    )
+    st = artifact_meta.read_text(text, record_type="ipd")
+    assert st.id6 == "pl8001"
+    assert st.status == "approved"
+    assert st.fields["set"] == "demo"
+    assert st.fields["order"] == "2"
+
+
+def test_rewritten_fstring_spec() -> None:
+    text = _spec_text("sp8002", "reviewed")
+    st = artifact_meta.read_text(text, record_type="spec")
+    assert st.id6 == "sp8002"
+    assert st.status == "reviewed"
+
+
+def test_rewritten_invalid_input_spec() -> None:
+    text = (
+        "# Spec: Pass Check Invalid\n\n"
+        "- Id: sp8003\n"
+        "- Status: EXECUTED\n"
+    )
+    st = artifact_meta.read_text(text, record_type="spec")
+    assert st.id6 == "sp8003"
+    assert st.legacy_raw_status == "EXECUTED"

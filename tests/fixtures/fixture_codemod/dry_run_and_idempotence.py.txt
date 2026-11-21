@@ -1,0 +1,17 @@
+"""Fixture (e)/(f): dry-run no-write and second-apply idempotence."""
+
+from agent_workflows import artifact_meta
+
+
+def test_release_fixture_parses() -> None:
+    text = (
+        "# Release: 1.0.0\n\n"
+        "- Id: rl4001\n"
+        "- Status: planned\n"
+        "- Version: 1.0.0\n"
+        "- Summary: Dry-run and idempotence fixture\n"
+    )
+    st = artifact_meta.read_text(text, record_type="release")
+    assert st.id6 == "rl4001"
+    assert st.status == "planned"
+    assert st.fields["version"] == "1.0.0"

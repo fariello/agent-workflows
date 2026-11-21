@@ -1,0 +1,25 @@
+"""Fixture (b): f-string with field placeholders."""
+
+from agent_workflows import artifact_meta
+
+
+def _make_spec(spec_id: str, status: str) -> str:
+    return (
+        f"# Spec: Demo {spec_id}\n\n"
+        f"- Id: {spec_id}\n"
+        f"- Status: {status}\n"
+    )
+
+
+def test_fstring_spec_approved() -> None:
+    text = _make_spec("sp2001", "approved")
+    st = artifact_meta.read_text(text, record_type="spec")
+    assert st.id6 == "sp2001"
+    assert st.status == "approved"
+
+
+def test_fstring_spec_draft() -> None:
+    text = _make_spec("sp2002", "draft")
+    st = artifact_meta.read_text(text, record_type="spec")
+    assert st.id6 == "sp2002"
+    assert st.status == "draft"

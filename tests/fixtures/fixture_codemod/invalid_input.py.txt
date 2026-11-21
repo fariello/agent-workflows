@@ -1,0 +1,14 @@
+"""Fixture (c): deliberately invalid metadata field value."""
+
+from agent_workflows import artifact_meta
+
+
+def test_invalid_status_is_preserved() -> None:
+    text = (
+        "# Spec: Invalid Status\n\n"
+        "- Id: sp3001\n"
+        "- Status: EXECUTED\n"
+    )
+    st = artifact_meta.read_text(text, record_type="spec")
+    assert st.id6 == "sp3001"
+    assert st.legacy_raw_status == "EXECUTED"

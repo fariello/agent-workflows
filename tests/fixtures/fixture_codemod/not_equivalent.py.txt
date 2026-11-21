@@ -1,0 +1,40 @@
+"""Fixture (g): one not-equivalent site isolated while other rewrites stay."""
+
+from agent_workflows import artifact_meta
+
+
+def test_first_plan_rewrites() -> None:
+    text = (
+        "# IPD: First Valid Plan\n\n"
+        "- Id: pl7001\n"
+        "- Status: approved\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+    )
+    st = artifact_meta.read_text(text, record_type="ipd")
+    assert st.id6 == "pl7001"
+    assert st.status == "approved"
+
+
+def test_layout_sensitive_spec_not_equivalent() -> None:
+    text = (
+        "# Spec: Layout Sensitive\n"
+        "- Id: sp7002\n"
+        "- Status: draft\n"
+    )
+    lines = text.splitlines()
+    assert len(lines) == 3
+    assert lines[1].startswith("- Id")
+
+
+def test_third_release_rewrites() -> None:
+    text = (
+        "# Release: 2.0.0\n\n"
+        "- Id: rl7003\n"
+        "- Status: planned\n"
+        "- Version: 2.0.0\n"
+        "- Summary: Kept release rewrite\n"
+    )
+    st = artifact_meta.read_text(text, record_type="release")
+    assert st.id6 == "rl7003"
+    assert st.status == "planned"
