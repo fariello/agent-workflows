@@ -41,6 +41,7 @@ from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
 from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_DOCS, SOURCE_PLANS
 from tests.support import SOURCE_WORKFLOWS as _SWF
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -1659,7 +1660,12 @@ class ExitCodeTests(unittest.TestCase):
         pend = root / ".agents" / "plans" / "pending"
         pend.mkdir(parents=True)
         (pend / "bad.md").write_text(
-            "# IPD: bad\n\n- Kind: child\n\n## Goal\n\nno checklist here\n"
+            RecordBuilder().plan(
+                title="bad",
+                plan_role="child",
+                body="## Goal\n\nno checklist here",
+                text_only=True,
+            )
         )
         self.assertEqual(self._run(all=True, path=str(root)), 1)
 
@@ -3735,7 +3741,12 @@ class AllRootRegressionTests(unittest.TestCase):
             pend.mkdir(parents=True)
             bad_plan = pend / "bad.md"
             bad_plan.write_text(
-                "# IPD: bad\n\n- Kind: child\n\n## Goal\n\nno checklist here\n",
+                RecordBuilder().plan(
+                    title="bad",
+                    plan_role="child",
+                    body="## Goal\n\nno checklist here",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
