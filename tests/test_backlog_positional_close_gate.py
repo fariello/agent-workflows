@@ -20,6 +20,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(root: Path) -> Path:
@@ -35,11 +36,13 @@ def _setup_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -812,7 +815,13 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             )
             plan.parent.mkdir(parents=True, exist_ok=True)
             plan.write_text(
-                "- Id: pl0001\n- Status: executed\n- Blocks-Release: next\n- From-Backlog: bk0001\n",
+                RecordBuilder().plan(
+                    id6="pl0001",
+                    status="executed",
+                    blocks_release="next",
+                    from_backlog="bk0001",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             ev_path = repo / ".aw" / "records" / "reviews" / "20260901-test.review.md"

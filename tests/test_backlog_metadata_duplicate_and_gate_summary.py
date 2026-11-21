@@ -23,6 +23,7 @@ from agent_workflows import backlog
 from agent_workflows import check_engine
 from agent_workflows import cli
 from agent_workflows import doctor
+from tests.record_builder import RecordBuilder
 
 
 def _make_item(
@@ -393,15 +394,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
             # Setting --blocks-release on an item carrying a bare/empty '- Blocks-Release:' line
             # must replace it in place (via artifact_meta / releases.set_blocks_release_line)
             # rather than leaving two '- Blocks-Release:' bullets behind.
-            seed_bare = (
-                "- Id: prod01\n"
-                "- Status: open\n"
-                "- Set: 9rl7cm\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: Test summary\n"
-                "- Blocks-Release:\n\n"
-                "## Workflow history\n- 2026-10-01 created: note\n"
+            seed_bare = RecordBuilder().backlog(
+                id6="prod01",
+                status="open",
+                set="9rl7cm",
+                priority="low",
+                work_kind="chore",
+                summary="Test summary",
+                blocks_release="",
+                history=["- 2026-10-01 created: note"],
+                text_only=True,
             )
             item_path.write_text(seed_bare, encoding="utf-8")
             rc = cli.main(

@@ -15,6 +15,7 @@ import io
 from pathlib import Path
 
 from agent_workflows import backlog, cli
+from tests.record_builder import RecordBuilder
 
 
 def _capture_cli(argv: list[str]) -> tuple[int, str, str]:
@@ -190,15 +191,17 @@ def test_case_f_cli_backlog_check(tmp_path):
     b_file.unlink()
     ok_file = open_dir / "20261012-demo-01-bkl001-conformant.backlog.md"
     ok_file.write_text(
-        "- Id: bkl001\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Conformant item\n\n"
-        "## Workflow history\n\n"
-        "- 2026-10-12 created (aw backlog): initial filing\n\n"
-        "## Detail\n\nProse.\n",
+        RecordBuilder().backlog(
+            id6="bkl001",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="feature",
+            summary="Conformant item",
+            history=["- 2026-10-12 created (aw backlog): initial filing"],
+            body="## Detail\n\nProse.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     code_ok, out_ok, err_ok = _capture_cli(
