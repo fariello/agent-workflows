@@ -1,5 +1,6 @@
 - Id: 735ium
-- Status: open
+- Status: done
+- Close-Evidence: .aw/records/plans/executed/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.ipd.md
 - Set: 735ium
 - Work-Kind: followup
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Resolved by executed defect carriers zgxig2 (0dsjzl), s4utmv (fnabjy), dd48b5 (xl9xrm), vvxbbl (7mmhlp) and executed plan 60mazt (592445def)
 - 2026-11-21 created (aw backlog): Proposal from 60mazt: Create and execute a sco
 
 ## Agent Proposal from 60mazt
@@ -18,7 +20,6 @@
 - Proposing-Item: 60mazt
 - Lane-Branch: aw/lane/60mazt
 - Blocked-By: test_ac42_this_repository_clone_migration failed with 108 new post-migration attention violations (50 attention.missing-status + 50 attention.history-missing on migrated specs; 8 attention.unknown-status research status 'draft' on research-prompt records) and 8 aw find status mismatches ('-' vs 'draft'); legacy_agents_layout, mixed_layout, and no_sidecar failed on the same two production defects.
-- Kind: tool-defect
 - Size: material
 
 ### Why
