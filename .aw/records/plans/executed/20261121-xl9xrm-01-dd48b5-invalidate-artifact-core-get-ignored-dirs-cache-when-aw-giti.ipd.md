@@ -6,7 +6,7 @@
 - Scope: Extend the cache key of `agent_workflows/artifact_core.py::get_ignored_dirs` and `agent_workflows/artifact_core.py::_cached_ignored_dirs` to include `(st_mtime_ns, st_size, st_ino)` tokens for `.gitignore`, `.aw/.gitignore`, the resolved git `index`, and `info/exclude` (walking up to the enclosing `.git` root for subdirectory callers and resolving both normal `.git/` directories and git worktree `.git` pointer files with `commondir`). Add behavioral regression tests in `tests/test_records_untracked_backend.py` exercising both an in-process `.agents/`-to-tracked-`.aw/records/` transition in a standard repository and cache invalidation in a real `git worktree add` checkout without manually clearing `_cached_ignored_dirs`. EXCLUDES: changing gitignore policy or modifying `tests/test_m0001_any_repo.py` (`60mazt`).
 - Scope-Paths: agent_workflows/artifact_core.py, tests/test_records_untracked_backend.py, .aw/records/plans/pending/20261121-xl9xrm-01-dd48b5-invalidate-artifact-core-get-ignored-dirs-cache-when-aw-giti.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Include .aw/.gitignore and .git/index stat tokens in artifact_core._cached_ignored_dirs so in-process layout migration does not hide .aw/records/.
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: dd48b5 verified (set xl9xrm, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-xl9xrm-01-dd48b5-invalidate-artifact-core-get-ignored-dirs-cache-when-aw-giti.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog xl9xrm
