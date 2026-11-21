@@ -149,6 +149,7 @@ flowchart TD
   - Carrier: erulw3
 - The builder, its tests, the baselines and the tracked fixtures.
   - Carrier: 9rgn2w
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
 - The fixture codemod and its census (F-30, F-31).
   - Carrier: 653ndz
 - The remaining subsets, the switch-point proof, the F-06 census and the full-suite comparison.

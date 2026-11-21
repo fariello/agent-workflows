@@ -158,6 +158,7 @@ flowchart TD
   - Carrier: 1bshrb
 - Moved to 9rgn2w (split 2026-11-07 per maintainer step-complexity rule): E-13 (baselines), E-01 (the builder), E-02 (its tests), E-10 (tracked `.md` fixtures).
   - Carrier: 9rgn2w
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
 - Moved to x05v02 (split 2026-11-07 per maintainer step-complexity rule): E-03 (batch G1, as subsets G1a and G1b), E-04 (batch G2, as subsets G2a and G2b), and the setter subset G3a of E-05.
   - Carrier: x05v02
 - Moved to 7qxey9 (split 2026-11-07 per maintainer step-complexity rule): the spec subset G3b of E-05, E-06 (batch G4, as subsets G4a, G4b and G4c), and the runner subset G5a of E-07.
