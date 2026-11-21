@@ -1420,6 +1420,118 @@ def _sgr_dark_fg(depth: str = _T.DEPTH_256) -> str:
     return "\033[38;5;16;1m"
 
 
+def format_capped_pill(
+    text: str,
+    *,
+    bg_code: int = 214,
+    use_unicode: bool = True,
+    color: bool = True,
+    depth: str | None = None,
+) -> tuple[str, str]:
+    """Render a rounded powerline-capped pill badge matching the statusline style.
+
+    Returns ``(styled_pill, plain_pill)`` honoring color depth (256/16/none) and Unicode/ASCII.
+    """
+    tier = _effective_color_depth(color, depth=depth)
+    styled = tier != _T.DEPTH_NONE
+    reset = "\033[0m"
+    if use_unicode:
+        plain = f"\ue0b6 {text} \ue0b4"
+        if styled:
+            fg_col = _sgr256(bg_code, depth=tier)
+            bg_col = _sgr_bg256(bg_code, depth=tier)
+            fg_dark = _sgr_dark_fg(depth=tier)
+            colored = (
+                f"{fg_col}\ue0b6{bg_col}{fg_dark} {text} {reset}{fg_col}\ue0b4{reset}"
+            )
+        else:
+            colored = plain
+    else:
+        plain = f"[{text}]"
+        if styled:
+            fg_col = _sgr256(bg_code, bold=True, depth=tier)
+            colored = f"{fg_col}[{text}]{reset}"
+        else:
+            colored = plain
+    return colored, plain
+
+
+def render_capped_box(
+    title: str,
+    body_lines: Sequence[str],
+    *,
+    inner_width: int = 60,
+    border_color: str = "yellow",
+    pill_bg_code: int = 214,
+    use_unicode: bool = True,
+    color: bool = True,
+    depth: str | None = None,
+) -> str:
+    """Render a rectangular rounded box with a statusline-style capped pill header.
+
+    Every row is padded or truncated using ANSI-aware ``visible_width`` so the left and right
+    borders align cleanly to ``inner_width + 2`` columns in both Unicode and ASCII modes.
+    """
+    pal = Palette(color, use_unicode=use_unicode)
+    if use_unicode:
+        tl, tr = "╭─", "╮"
+        bl, br = "╰", "╯"
+        v = "│"
+        h = "─"
+        pill_overhead = 4  # " " + " "
+    else:
+        tl, tr = "+-", "+"
+        bl, br = "+", "+"
+        v = "|"
+        h = "-"
+        pill_overhead = 2  # "[" + "]"
+
+    # Keep room for leading dash (`╭─`) and at least 1 trailing dash before `╮`.
+    max_title_w = max(8, inner_width - 2 - pill_overhead)
+    clipped_title = (
+        _T.truncate_visible(title, max_title_w, ellipsis="…" if use_unicode else "...")
+        if _T.visible_width(title) > max_title_w
+        else title
+    )
+    pill_colored, pill_plain = format_capped_pill(
+        clipped_title,
+        bg_code=pill_bg_code,
+        use_unicode=use_unicode,
+        color=color,
+        depth=depth,
+    )
+    # Total top width = 2 ("╭─") + vis(pill) + dashes + 1 ("╮") == inner_width + 2
+    dashes = max(0, inner_width - 1 - _T.visible_width(pill_plain))
+    top = (
+        pal(tl, border_color)
+        + pill_colored
+        + pal(h * dashes, border_color)
+        + pal(tr, border_color)
+    )
+
+    rows: list[str] = []
+    for raw_line in body_lines:
+        vis_w = _T.visible_width(raw_line)
+        if vis_w > inner_width:
+            content = _T.truncate_visible(
+                raw_line,
+                max(1, inner_width - 1),
+                ellipsis="…" if use_unicode else "...",
+            )
+            pad = max(0, inner_width - _T.visible_width(content))
+        else:
+            content = raw_line
+            pad = inner_width - vis_w
+        rows.append(pal(v, border_color) + content + (" " * pad) + pal(v, border_color))
+
+    bot = (
+        pal(bl, border_color)
+        + pal(h * inner_width, border_color)
+        + pal(br, border_color)
+    )
+    return "\n".join([top, *rows, bot])
+
+
 def make_badge(
     runner: str,
     model: str,

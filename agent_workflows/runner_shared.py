@@ -2953,14 +2953,447 @@ def lane_records_including_sweep(state: dict[str, Any]) -> list[dict[str, Any]]:
     return lanes
 
 
+_PENDING_RECLAIM_POLICIES: dict[str, tuple[str, str | None]] = {}
+_PENDING_RECLAIM_LOCK = threading.Lock()
+
+
+def set_pending_lane_reclaim_policy(
+    run_dir: Path | str,
+    policy: str,
+    *,
+    interrupted_lane_id: str | None = None,
+) -> None:
+    """Record an operator-selected batch worktree reclaim policy for `run_dir`."""
+    try:
+        key = str(Path(run_dir).expanduser().resolve())
+    except OSError:
+        key = str(run_dir)
+    with _PENDING_RECLAIM_LOCK:
+        _PENDING_RECLAIM_POLICIES[key] = (policy, interrupted_lane_id)
+
+
+def pop_pending_lane_reclaim_policy(
+    run_dir: Path | str,
+) -> tuple[str | None, str | None]:
+    """Consume any pre-selected batch worktree reclaim policy for `run_dir`."""
+    try:
+        key = str(Path(run_dir).expanduser().resolve())
+    except OSError:
+        key = str(run_dir)
+    with _PENDING_RECLAIM_LOCK:
+        entry = _PENDING_RECLAIM_POLICIES.pop(key, None)
+    if entry is None:
+        return (None, None)
+    return entry
+
+
+def _format_lane_age(age_seconds: float) -> str:
+    secs = max(0, int(round(age_seconds)))
+    if secs < 60:
+        return f"{secs}s old"
+    mins, rem_s = divmod(secs, 60)
+    if mins < 60:
+        return f"{mins}m{rem_s:02d}s old" if mins < 10 else f"{mins}m old"
+    hours, rem_m = divmod(mins, 60)
+    if hours < 48:
+        return f"{hours}h{rem_m:02d}m old"
+    days, rem_h = divmod(hours, 24)
+    return f"{days}d{rem_h:02d}h old"
+
+
+def _format_lane_size(num_bytes: int) -> str:
+    val = float(max(0, num_bytes))
+    for unit in ("B", "KB", "MB", "GB"):
+        if val < 1024.0 or unit == "GB":
+            return f"{int(val)} B" if unit == "B" else f"{val:.1f}{unit}"
+        val /= 1024.0
+    return f"{val:.1f}GB"
+
+
+def _worktree_mtime_and_size(wt_path: Path) -> tuple[float | None, int | None]:
+    """Compute latest file mtime and total byte size of a worktree (bounded, skips .git)."""
+    if not wt_path.is_dir():
+        return (None, None)
+    latest: float | None = None
+    total_bytes = 0
+    try:
+        latest = float(wt_path.stat().st_mtime)
+    except OSError:
+        latest = None
+    files_seen = 0
+    max_files = 15000
+    for dirpath, dirnames, filenames in os.walk(wt_path, followlinks=False):
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d
+            not in (".git", "__pycache__", ".pytest_cache", "node_modules", ".venv")
+        ]
+        cur = Path(dirpath)
+        for fname in filenames:
+            files_seen += 1
+            if files_seen > max_files:
+                return (latest, total_bytes)
+            try:
+                st = (cur / fname).lstat()
+                total_bytes += int(st.st_size)
+                mt = float(st.st_mtime)
+                if latest is None or mt > latest:
+                    latest = mt
+            except OSError:
+                continue
+    return (latest, total_bytes)
+
+
+def _short_description_for_lane(
+    repo: Path, state: Mapping[str, Any], lane: Mapping[str, Any]
+) -> str:
+    item = interrupt_lane_item_record(state, lane)
+    if isinstance(item, Mapping):
+        for key in ("short_description", "summary", "title"):
+            raw = str(item.get(key) or "").strip()
+            if raw:
+                return raw
+        cfg = ""
+        for path_key in ("configured_file", "last_plan_path", "path", "plan_path"):
+            val = str(item.get(path_key) or "").strip()
+            if val:
+                cfg = val
+                break
+        candidates: list[Path] = []
+        wt_str = str(lane.get("worktree") or "")
+        if cfg:
+            cfg_p = Path(cfg)
+            if cfg_p.is_absolute():
+                candidates.append(cfg_p)
+            else:
+                if wt_str:
+                    candidates.append(Path(wt_str) / cfg)
+                candidates.append(repo / cfg)
+        id6 = str(lane.get("id6") or item.get("id6") or "").strip()
+        if id6 and not any(c.is_file() for c in candidates):
+            try:
+                resolved_p = resolve_plan_path(repo, cfg, id6)
+                if resolved_p.is_file():
+                    candidates.append(resolved_p)
+            except Exception:
+                pass
+        for cand in candidates:
+            if cand.is_file():
+                try:
+                    text = cand.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                title_fallback = ""
+                for line in text.splitlines()[:40]:
+                    s = line.strip()
+                    if s.startswith("- Short-Description:"):
+                        desc = s.split(":", 1)[1].strip()
+                        if desc:
+                            return desc
+                    elif s.startswith("# IPD:") and not title_fallback:
+                        title_fallback = s.split(":", 1)[1].strip()
+                    elif s.startswith("# ") and not title_fallback:
+                        title_fallback = s[2:].strip()
+                if title_fallback:
+                    return title_fallback
+    return ""
+
+
+def identify_interrupted_lane_id(
+    state: Mapping[str, Any], lanes: Sequence[Mapping[str, Any]]
+) -> str | None:
+    """Identify the lane belonging to the currently running/interrupted item (or newest lane)."""
+    if not lanes:
+        return None
+    lane_by_id = {
+        str(lane.get("lane_id") or ""): lane for lane in lanes if lane.get("lane_id")
+    }
+    lane_by_id6 = {
+        str(lane.get("id6") or ""): lane for lane in lanes if lane.get("id6")
+    }
+
+    best_running: tuple[int, str, int, str] | None = None
+    for q_idx, q in enumerate(state.get("queue") or []):
+        if not isinstance(q, Mapping):
+            continue
+        st = str(q.get("status") or "").strip().lower()
+        if st not in ("running", "interrupted"):
+            continue
+        qid = str(q.get("id6") or "")
+        matched_lane: Mapping[str, Any] | None = lane_by_id6.get(qid)
+        if matched_lane is None:
+            for att in reversed(q.get("attempts") or []):
+                if isinstance(att, Mapping):
+                    lid = str(att.get("lane_id") or "")
+                    if lid in lane_by_id:
+                        matched_lane = lane_by_id[lid]
+                        break
+        if matched_lane is None:
+            continue
+        ts = ""
+        for att in reversed(q.get("attempts") or []):
+            if isinstance(att, Mapping):
+                ts = str(att.get("started_at") or att.get("ended_at") or "")
+                if ts:
+                    break
+        prio = 1 if st == "running" else 0
+        cand = (prio, ts, q_idx, str(matched_lane.get("lane_id") or ""))
+        if best_running is None or cand[:3] >= best_running[:3]:
+            best_running = cand
+    if best_running and best_running[3]:
+        return best_running[3]
+
+    # Fall back to newest modified worktree among candidate lanes.
+    newest: tuple[float, str] | None = None
+    for lane in lanes:
+        lid = str(lane.get("lane_id") or "")
+        if not lid:
+            continue
+        mt = lane.get("last_modified_epoch")
+        if isinstance(mt, (int, float)):
+            if newest is None or float(mt) > newest[0]:
+                newest = (float(mt), lid)
+    if newest is not None:
+        return newest[1]
+    return str(lanes[-1].get("lane_id") or "") or None
+
+
+def enrich_lane_display_info(
+    repo: Path,
+    state: Mapping[str, Any],
+    lane: dict[str, Any],
+    *,
+    interrupted_lane_id: str | None = None,
+    now_epoch: float | None = None,
+) -> dict[str, Any]:
+    """Attach human-scannable metadata (setid, description, age, last modified, size) to `lane`."""
+    item = interrupt_lane_item_record(state, lane)
+    if isinstance(item, Mapping):
+        if not lane.get("setid"):
+            lane["setid"] = str(item.get("setid") or "")
+        if not lane.get("item_status"):
+            lane["item_status"] = str(item.get("status") or "")
+    if not lane.get("short_description"):
+        desc = _short_description_for_lane(repo, state, lane)
+        if desc:
+            lane["short_description"] = desc
+
+    wt_str = str(lane.get("worktree") or "")
+    if wt_str and lane.get("last_modified_epoch") is None:
+        wt_p = Path(wt_str)
+        mt, sz = _worktree_mtime_and_size(wt_p)
+        if mt is not None:
+            lane["last_modified_epoch"] = mt
+            lane["last_modified_str"] = dt.datetime.fromtimestamp(mt).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            now_t = now_epoch if now_epoch is not None else time.time()
+            lane["age_str"] = _format_lane_age(max(0.0, now_t - mt))
+        if sz is not None:
+            lane["size_bytes"] = sz
+            lane["size_str"] = _format_lane_size(sz)
+        try:
+            lane["worktree_rel"] = str(wt_p.resolve().relative_to(repo.resolve()))
+        except (OSError, ValueError):
+            lane["worktree_rel"] = wt_str
+
+    if interrupted_lane_id is not None:
+        lane["is_interrupted_lane"] = (
+            str(lane.get("lane_id") or "") == interrupted_lane_id
+        )
+    return lane
+
+
+def classify_work_holding_lanes(
+    repo: Path,
+    state: dict[str, Any],
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Return enriched lanes that hold unmerged work (newest/interrupted first) and interrupted lane id."""
+    from agent_workflows import worktree_lease
+
+    all_lanes = [
+        describe_lane_with_recovery(repo, rec)
+        for rec in lane_records_including_sweep(state)
+    ]
+    now_t = time.time()
+    work_lanes: list[dict[str, Any]] = []
+    for lane in all_lanes:
+        if lane["state"] == worktree_lease.LANE_ABSENT:
+            continue
+        if lane.get("owned_by_other_live_process"):
+            continue
+        item_for_lane = interrupt_lane_item_record(state, lane)
+        if (
+            item_for_lane is not None
+            and item_for_lane.get("status") == "queued"
+            and item_for_lane.get("recovery_next")
+        ):
+            continue
+        if lane_is_recovered_and_reclaimable(lane):
+            continue
+        if lane.get("holds_work"):
+            enrich_lane_display_info(repo, state, lane, now_epoch=now_t)
+            work_lanes.append(lane)
+
+    interrupted_id = identify_interrupted_lane_id(state, work_lanes)
+    for lane in work_lanes:
+        lane["is_interrupted_lane"] = (
+            interrupted_id is not None
+            and str(lane.get("lane_id") or "") == interrupted_id
+        )
+
+    work_lanes.sort(
+        key=lambda lane: (
+            0 if lane.get("is_interrupted_lane") else 1,
+            -float(lane.get("last_modified_epoch") or 0.0),
+            str(lane.get("lane_id") or ""),
+        )
+    )
+    return work_lanes, interrupted_id
+
+
+def prompt_worktree_batch_action(
+    work_lanes: Sequence[Mapping[str, Any]],
+    *,
+    interrupted_lane_id: str | None = None,
+    allow_resume: bool = True,
+    disabled: bool = False,
+    timeout: float | None = None,
+    stdin: Any = None,
+    stream: Any = None,
+) -> str | None:
+    """Prompt the operator with a capped-pill batch menu when worktrees hold unmerged work.
+
+    Returns one of ``"keep-all"``, ``"discard-interrupted"``, ``"discard-all"``, ``"ask-each"``,
+    ``"cancel-resume"``, or ``None`` if non-interactive / disabled / timed out.
+    """
+    from agent_workflows import render_stream, term
+
+    if timeout is None:
+        timeout = LANE_PROMPT_TIMEOUT
+
+    if disabled or not work_lanes:
+        return None
+    in_stream = stdin if stdin is not None else sys.stdin
+    out_stream = stream if stream is not None else sys.stderr
+    custom_streams = stdin is not None or stream is not None
+    if not custom_streams:
+        if not (getattr(in_stream, "isatty", None) and in_stream.isatty()):
+            return None
+        if not (getattr(out_stream, "isatty", None) and out_stream.isatty()):
+            return None
+
+    is_color = term.should_color(out_stream)
+    use_unicode = term.should_unicode(out_stream)
+    pal = render_stream.Palette(is_color, use_unicode=use_unicode)
+
+    n = len(work_lanes)
+    if n == 1:
+        title = "There is 1 worktree with work in it. Choose an action:"
+    else:
+        title = f"There are {n} worktrees with work in them. Choose an action:"
+
+    int_suffix = f" ({interrupted_lane_id})" if interrupted_lane_id else ""
+    opt2_text = (
+        f"Keep older worktrees, discard the interrupted one only{int_suffix}."
+        if n > 1
+        else f"Discard the interrupted worktree{int_suffix}."
+    )
+    opt5_text = (
+        "Cancel, and resume the work."
+        if allow_resume
+        else "Cancel cleanup (keep all and exit)."
+    )
+    options = [
+        ("1.", "Keep all (good if you want to try and recover them).", "green"),
+        ("2.", opt2_text, "yellow"),
+        ("3.", "Discard all of them.", "red"),
+        ("4.", "Ask me, one at a time.", "cyan"),
+        ("5.", opt5_text, "magenta"),
+    ]
+
+    try:
+        term_cols = shutil.get_terminal_size((100, 24)).columns
+    except OSError:
+        term_cols = 100
+    max_opt_w = max(len(f"  {num} {txt}") for num, txt, _c in options)
+    min_needed = max(max_opt_w + 2, len(title) + 8, 66)
+    inner_w = min(max(min_needed, 66), max(66, min(118, term_cols - 2)))
+
+    body_lines = [
+        "  " + pal(num, "bold cyan") + " " + pal(txt, color)
+        for num, txt, color in options
+    ]
+    box = render_stream.render_capped_box(
+        title,
+        body_lines,
+        inner_width=inner_w,
+        border_color="yellow",
+        pill_bg_code=214,
+        use_unicode=use_unicode,
+        color=is_color,
+    )
+    mark_active_startup_first_question()
+    out_stream.write(
+        "\n" + box + "\n " + pal("Choice [1-5] (default 1): ", "bold cyan")
+    )
+    out_stream.flush()
+
+    choice_map = {
+        "1": "keep-all",
+        "2": "discard-interrupted",
+        "3": "discard-all",
+        "4": "ask-each",
+        "5": "cancel-resume",
+    }
+
+    import select
+
+    use_select = bool(getattr(in_stream, "isatty", None) and in_stream.isatty())
+    while True:
+        if use_select:
+            try:
+                ready, _w, _x = select.select([in_stream], [], [], timeout)
+            except Exception:
+                out_stream.write("\n")
+                out_stream.flush()
+                return None
+            if not ready:
+                out_stream.write(
+                    f"\n  (no answer in {timeout}s; taking the automatic decision: keep all)\n"
+                )
+                out_stream.flush()
+                return "keep-all"
+        try:
+            line = in_stream.readline()
+        except KeyboardInterrupt:
+            out_stream.write("\n  (interrupted; keeping all worktrees)\n")
+            out_stream.flush()
+            return "keep-all"
+        except Exception:
+            return None
+        if not line:
+            return "keep-all"
+        ans = line.strip()
+        if not ans:
+            return "keep-all"
+        if ans in choice_map:
+            return choice_map[ans]
+        out_stream.write(" " + pal("Please enter 1, 2, 3, 4, or 5: ", "bold yellow"))
+        out_stream.flush()
+
+
 def lane_reclaim_prompt(
     lane: dict[str, Any],
     default_action: str,
     *,
     disabled: bool,
     timeout: float,
+    stdin: Any = None,
+    stream: Any = None,
 ) -> str | None:
-    """Offer the operator a choice for ONE lane, but ONLY with a real TTY (E-10).
+    """Offer the operator a rich capped-pill card for ONE lane, but ONLY with a real TTY (E-10).
 
     HARD CONSTRAINTS, because these runs are non-interactive by design and usually unattended: no TTY
     means no prompt and no waiting, ever; an unanswered prompt falls through to the automatic decision
@@ -2968,39 +3401,164 @@ def lane_reclaim_prompt(
     default IS the automatic decision. The content-based decision is the authority; this only
     front-runs it, and it can never be the safety net.
     """
+    from agent_workflows import render_stream, term
+
     if disabled:
         return None
-    if not (getattr(sys.stdin, "isatty", None) and sys.stdin.isatty()):
-        return None
-    if not (getattr(sys.stderr, "isatty", None) and sys.stderr.isatty()):
-        return None
-    if lane["holds_work"]:
-        question = "Lane {0} ({1}) HOLDS WORK. [k]eep+snapshot (default) or [d]iscard? ".format(
-            lane["lane_id"], lane["branch"]
-        )
-        options = {"k": "keep", "d": "discard"}
-    else:
-        question = "Lane {0} ({1}) is empty. [d]iscard (default) or [k]eep? ".format(
-            lane["lane_id"], lane["branch"]
-        )
-        options = {"d": "discard", "k": "keep"}
-    mark_active_startup_first_question()
-    print(question, end="", file=sys.stderr, flush=True)
-    import select
+    in_stream = stdin if stdin is not None else sys.stdin
+    out_stream = stream if stream is not None else sys.stderr
+    custom_streams = stdin is not None or stream is not None
+    if not custom_streams:
+        if not (getattr(in_stream, "isatty", None) and in_stream.isatty()):
+            return None
+        if not (getattr(out_stream, "isatty", None) and out_stream.isatty()):
+            return None
+
+    is_color = term.should_color(out_stream)
+    use_unicode = term.should_unicode(out_stream)
+    pal = render_stream.Palette(is_color, use_unicode=use_unicode)
 
     try:
-        ready, _w, _x = select.select([sys.stdin], [], [], timeout)
-    except Exception:
-        print(file=sys.stderr)
-        return None
-    if not ready:
-        print(
-            f"\n  (no answer in {timeout}s; taking the automatic decision: {default_action})",
-            file=sys.stderr,
+        term_cols = shutil.get_terminal_size((100, 24)).columns
+    except OSError:
+        term_cols = 100
+    # Target 80-120 columns wide on standard terminals; clamp gracefully on narrower panes.
+    if term_cols >= 80:
+        box_total = min(120, max(80, term_cols - 2))
+    else:
+        box_total = max(52, term_cols - 2)
+    inner_w = box_total - 2
+
+    id6 = str(lane.get("id6") or lane.get("lane_id") or "-")
+    setid = str(lane.get("setid") or "-")
+    age_str = str(lane.get("age_str") or "").strip()
+    is_int = bool(lane.get("is_interrupted_lane"))
+
+    header_parts = [f"id6: {id6}", f"Setid: {setid}"]
+    if age_str:
+        header_parts.append(age_str)
+    if is_int:
+        header_parts.append("[INTERRUPTED]")
+    title = "  ".join(header_parts)
+
+    branch = str(lane.get("branch") or lane.get("lane_id") or "")
+    pos_idx = lane.get("prompt_index")
+    pos_tot = lane.get("prompt_total")
+    pos_tag = f"[{pos_idx}/{pos_tot}]" if (pos_idx and pos_tot) else ""
+
+    body_lines: list[str] = []
+    if lane.get("holds_work"):
+        headline_left = (
+            f"  Lane {pal(branch, 'bold cyan')} {pal('HOLDS WORK!', 'bold yellow')}"
         )
-        return None
+        options = {"k": "keep", "d": "discard"}
+        prompt_suffix = "Choice [K/d]: "
+        pill_bg = 214
+        border_col = "yellow"
+    else:
+        headline_left = f"  Lane {pal(branch, 'bold cyan')} is empty."
+        options = {"d": "discard", "k": "keep"}
+        prompt_suffix = "Choice [D/k]: "
+        pill_bg = 67
+        border_col = "cyan"
+
+    if pos_tag:
+        left_w = term.visible_width(headline_left)
+        right_txt = pal(pos_tag, "dim")
+        gap = max(2, inner_w - left_w - len(pos_tag) - 2)
+        body_lines.append(f"{headline_left}{' ' * gap}{right_txt}")
+    else:
+        body_lines.append(headline_left)
+
+    desc = str(lane.get("short_description") or "").strip()
+    if desc:
+        body_lines.append(f"  {pal('Desc:', 'bold')} {desc}")
+
+    last_mod = str(lane.get("last_modified_str") or "").strip()
+    size_str = str(lane.get("size_str") or "").strip()
+    if last_mod or size_str:
+        left_meta = f"  {pal('Last Modified:', 'bold')} {last_mod or 'unknown'}"
+        if size_str:
+            right_meta = f"{pal('Size:', 'bold')} {pal(size_str, 'cyan')}"
+            gap_m = max(
+                4,
+                min(
+                    12,
+                    inner_w
+                    - term.visible_width(left_meta)
+                    - term.visible_width(right_meta)
+                    - 2,
+                ),
+            )
+            body_lines.append(f"{left_meta}{' ' * gap_m}{right_meta}")
+        else:
+            body_lines.append(left_meta)
+
+    extra_bits: list[str] = []
+    commits_ahead = int(lane.get("commits_ahead") or 0)
+    if commits_ahead:
+        extra_bits.append(f"{commits_ahead} commit(s) ahead")
+    if lane.get("dirty"):
+        extra_bits.append("uncommitted changes")
+    item_st = str(lane.get("item_status") or "").strip()
+    if item_st:
+        extra_bits.append(f"status: {item_st}")
+    wt_rel = str(lane.get("worktree_rel") or "").strip()
+    if extra_bits and wt_rel:
+        combined_info = f"  {pal('Info:', 'bold')} " + " | ".join(
+            [*extra_bits, f"path: {wt_rel}"]
+        )
+        if term.visible_width(combined_info) <= inner_w - 2:
+            body_lines.append(combined_info)
+        else:
+            body_lines.append(f"  {pal('Info:', 'bold')} " + " | ".join(extra_bits))
+            body_lines.append(f"  {pal('Path:', 'bold')} {wt_rel}")
+    elif extra_bits:
+        body_lines.append(f"  {pal('Info:', 'bold')} " + " | ".join(extra_bits))
+    elif wt_rel:
+        body_lines.append(f"  {pal('Path:', 'bold')} {wt_rel}")
+
+    if lane.get("holds_work"):
+        body_lines.append(f"  {pal('k', 'bold green')} = Keep and snapshot (default).")
+        body_lines.append(
+            f"  {pal('d', 'bold red')} = Discard (delete worktree; branch kept)."
+        )
+    else:
+        body_lines.append(
+            f"  {pal('d', 'bold yellow')} = Discard (delete empty worktree, default)."
+        )
+        body_lines.append(f"  {pal('k', 'bold green')} = Keep.")
+
+    card = render_stream.render_capped_box(
+        title,
+        body_lines,
+        inner_width=inner_w,
+        border_color=border_col,
+        pill_bg_code=pill_bg,
+        use_unicode=use_unicode,
+        color=is_color,
+    )
+    mark_active_startup_first_question()
+    out_stream.write("\n" + card + "\n " + pal(prompt_suffix, "bold cyan"))
+    out_stream.flush()
+    import select
+
+    use_select = bool(getattr(in_stream, "isatty", None) and in_stream.isatty())
+    if use_select:
+        try:
+            ready, _w, _x = select.select([in_stream], [], [], timeout)
+        except Exception:
+            out_stream.write("\n")
+            out_stream.flush()
+            return None
+        if not ready:
+            out_stream.write(
+                f"\n  (no answer in {timeout}s; taking the automatic decision: {default_action})\n"
+            )
+            out_stream.flush()
+            return None
     try:
-        answer = (sys.stdin.readline() or "").strip().lower()
+        answer = (in_stream.readline() or "").strip().lower()
     except Exception:
         return None
     if not answer:
@@ -3081,6 +3639,81 @@ def reclaim_lanes_on_interrupt(
     if not interactive and disable_prompt is not None:
         disable_prompt()
     pal = Palette(should_color(sys.stderr))
+
+    # Pre-classify work-holding lanes on interrupt so we can:
+    # 1. Enrich each with description, age, last modified, and disk size;
+    # 2. Identify the currently-interrupted lane and put it FIRST (never confusing the oldest
+    #    lane for the interrupted one);
+    # 3. Offer a single 5-option batch menu instead of 11 repetitive single-line prompts (or consume
+    #    the choice already captured by `runner_stop.handle_interactive_interrupt` before teardown).
+    batch_policy, pending_interrupted_id = pop_pending_lane_reclaim_policy(run_dir)
+    interrupted_lane_id: str | None = pending_interrupted_id
+    if mode != "run-end":
+        now_t = time.time()
+        work_candidates: list[dict[str, Any]] = []
+        for candidate in lanes:
+            if candidate["state"] == worktree_lease.LANE_ABSENT:
+                continue
+            if candidate.get("owned_by_other_live_process"):
+                continue
+            item_c = interrupt_lane_item_record(state, candidate)
+            if (
+                item_c is not None
+                and item_c.get("status") == "queued"
+                and item_c.get("recovery_next")
+            ):
+                continue
+            if lane_is_recovered_and_reclaimable(candidate):
+                continue
+            if candidate.get("holds_work"):
+                enrich_lane_display_info(repo, state, candidate, now_epoch=now_t)
+                work_candidates.append(candidate)
+
+        if interrupted_lane_id is None and work_candidates:
+            interrupted_lane_id = identify_interrupted_lane_id(state, work_candidates)
+        for wc in work_candidates:
+            wc["is_interrupted_lane"] = (
+                interrupted_lane_id is not None
+                and str(wc.get("lane_id") or "") == interrupted_lane_id
+            )
+        if work_candidates:
+            work_ids = {id(wc) for wc in work_candidates}
+            work_candidates.sort(
+                key=lambda lane: (
+                    0 if lane.get("is_interrupted_lane") else 1,
+                    -float(lane.get("last_modified_epoch") or 0.0),
+                    str(lane.get("lane_id") or ""),
+                )
+            )
+            tot_wc = len(work_candidates)
+            for pos, wc in enumerate(work_candidates, start=1):
+                wc["prompt_index"] = pos
+                wc["prompt_total"] = tot_wc
+            other_lanes = [lane for lane in lanes if id(lane) not in work_ids]
+            lanes = [*work_candidates, *other_lanes]
+
+            # Offer batch menu directly if not already chosen in handle_interactive_interrupt,
+            # only on a real interactive TTY and when lane_prompt is a real driver prompt (not a
+            # unit-test mock returning a fixed choice).
+            is_builtin_prompt = lane_prompt is not None and getattr(
+                lane_prompt, "__module__", ""
+            ).startswith("agent_workflows.")
+            if (
+                batch_policy is None
+                and interactive
+                and is_builtin_prompt
+                and getattr(sys.stdin, "isatty", None)
+                and sys.stdin.isatty()
+                and getattr(sys.stderr, "isatty", None)
+                and sys.stderr.isatty()
+            ):
+                batch_policy = prompt_worktree_batch_action(
+                    work_candidates,
+                    interrupted_lane_id=interrupted_lane_id,
+                    allow_resume=False,
+                    timeout=LANE_PROMPT_TIMEOUT,
+                )
+
     for lane in lanes:
         if lane["state"] == worktree_lease.LANE_ABSENT:
             continue
@@ -3240,11 +3873,25 @@ def reclaim_lanes_on_interrupt(
                         reason_codes=["holds-unmerged-work"],
                     )
                 continue
-            choice = (
-                lane_prompt(lane, "keep and snapshot")
-                if (interactive and lane_prompt is not None)
-                else None
-            )
+            if batch_policy in ("keep-all", "cancel-resume"):
+                choice = "keep"
+            elif batch_policy == "discard-all":
+                choice = "discard"
+            elif batch_policy == "discard-interrupted":
+                choice = (
+                    "discard"
+                    if (
+                        interrupted_lane_id is not None
+                        and str(lane.get("lane_id") or "") == interrupted_lane_id
+                    )
+                    else "keep"
+                )
+            else:
+                choice = (
+                    lane_prompt(lane, "keep and snapshot")
+                    if (interactive and lane_prompt is not None)
+                    else None
+                )
             snapshot = None
             if lane["dirty"]:
                 try:

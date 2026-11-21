@@ -2062,26 +2062,6 @@ def prompt_interrupt_action(
 
     inner_w = 60
     title = "Stopped on Ctrl-C. Choose an action:"
-    header_label = f" {title} "
-
-    if use_unicode:
-        tl, tr = "╭─", "╮"
-        bl, br = "╰", "╯"
-        v = "│"
-        h = "─"
-    else:
-        tl, tr = "+-", "+"
-        bl, br = "+", "+"
-        v = "|"
-        h = "-"
-
-    dashes = inner_w - len(header_label) - 1
-    top = (
-        pal(tl, "yellow")
-        + pal(header_label, "bold yellow")
-        + pal(h * dashes, "yellow")
-        + pal(tr, "yellow")
-    )
 
     options = [
         ("1.", "Resume?", "green"),
@@ -2090,25 +2070,20 @@ def prompt_interrupt_action(
         ("4.", "Exit, leaving a mess?", "red"),
     ]
 
-    rows = []
-    for num, text, color in options:
-        prefix = f"  {num} "
-        pad = inner_w - len(prefix) - len(text)
-        row = (
-            pal(v, "yellow")
-            + "  "
-            + pal(num, "bold cyan")
-            + " "
-            + pal(text, color)
-            + (" " * pad)
-            + pal(v, "yellow")
-        )
-        rows.append(row)
-
-    bot = pal(bl, "yellow") + pal(h * inner_w, "yellow") + pal(br, "yellow")
-    prompt_box = "\n".join(
-        ["", top, *rows, bot, " " + pal("Choice [1-4]: ", "bold cyan")]
+    body_lines = [
+        "  " + pal(num, "bold cyan") + " " + pal(text, color)
+        for num, text, color in options
+    ]
+    box = render_stream.render_capped_box(
+        title,
+        body_lines,
+        inner_width=inner_w,
+        border_color="yellow",
+        pill_bg_code=214,
+        use_unicode=use_unicode,
+        color=is_color,
     )
+    prompt_box = "\n" + box + "\n " + pal("Choice [1-4]: ", "bold cyan")
     out_stream.write(prompt_box)
     out_stream.flush()
 
@@ -2182,6 +2157,56 @@ def handle_interactive_interrupt(
         resume_live_children(paused_children)
         render_stream.resume_active_statusline()
         return INTERRUPT_ACTION_FINISH_CURRENT
+
+    if action == INTERRUPT_ACTION_CLEANUP and run_dir is not None:
+        # Before killing the paused child process, check whether worktrees hold unmerged work so
+        # the operator can choose a batch policy OR choose option 5 ("Cancel, and resume the work.")
+        # to unpause and keep running with zero lost progress.
+        try:
+            in_stream = stdin if stdin is not None else sys.stdin
+            is_tty_pair = stdin is not None or (
+                getattr(in_stream, "isatty", None)
+                and in_stream.isatty()
+                and getattr(out, "isatty", None)
+                and out.isatty()
+            )
+            state_file = Path(run_dir) / "state.json"
+            if is_tty_pair and state_file.is_file():
+                from agent_workflows import runner_shared
+
+                st_data = json.loads(state_file.read_text(encoding="utf-8"))
+                repo_str = str(st_data.get("repo") or "").strip()
+                if repo_str and Path(repo_str).is_dir():
+                    work_lanes, interrupted_id = (
+                        runner_shared.classify_work_holding_lanes(
+                            Path(repo_str), st_data
+                        )
+                    )
+                    if work_lanes:
+                        batch_choice = runner_shared.prompt_worktree_batch_action(
+                            work_lanes,
+                            interrupted_lane_id=interrupted_id,
+                            allow_resume=True,
+                            stdin=in_stream,
+                            stream=out,
+                        )
+                        if batch_choice == "cancel-resume":
+                            out.write("\nResuming...\n")
+                            out.flush()
+                            if on_action is not None:
+                                with contextlib.suppress(Exception):
+                                    on_action(INTERRUPT_ACTION_RESUME)
+                            resume_live_children(paused_children)
+                            render_stream.resume_active_statusline()
+                            return INTERRUPT_ACTION_RESUME
+                        if batch_choice is not None:
+                            runner_shared.set_pending_lane_reclaim_policy(
+                                run_dir,
+                                batch_choice,
+                                interrupted_lane_id=interrupted_id,
+                            )
+        except Exception:
+            pass
 
     resume_live_children(paused_children)
     render_stream.pause_active_statusline()
