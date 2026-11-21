@@ -22,11 +22,13 @@ from unittest import mock
 from pathlib import Path
 
 from agent_workflows import agy_runipd as agy_driver
+from agent_workflows import artifact_naming
 from agent_workflows import ipd_lifecycle
 from agent_workflows import ipd_lint
 from agent_workflows import oc_runipd as oc_driver
 from agent_workflows import render_stream
 from agent_workflows import runner_shared
+from tests.record_builder import RecordBuilder
 
 
 # The REAL refusal message shape, reproduced end-to-end rather than paraphrased: `aw ipd finalize`
@@ -294,22 +296,18 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             plan = Path(temp) / "plan.ipd.md"
             plan.write_text(
-                "# IPD: x\n\n"
-                "- Id: xbwq8n\n"
-                "- Status: approved\n"
-                "- Set: lanetruth\n"
-                "- Order: 1\n"
-                "- Kind: child\n"
-                "- Scope: x\n"
-                "- Scope-Paths: x\n"
-                "- Item-Dependencies: none\n\n"
-                "## Detailed Implementation Checklist (TODO)\n\n"
-                "- [ ] E-01 do work\n"
-                "  - Execution state: pending\n\n"
-                "## Validation and cross-check (verify before reporting done)\n\n"
-                "- [ ] V-01 validates E-01\n"
-                "  - Observed evidence:\n"
-                "  - Result: pending\n",
+                RecordBuilder().plan(
+                    title="x",
+                    id6="xbwq8n",
+                    status="approved",
+                    set="lanetruth",
+                    order=1,
+                    plan_role="child",
+                    scope_paths="x",
+                    item_dependencies="none",
+                    body="## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 do work\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Observed evidence:\n  - Result: pending",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             result = ipd_lint.lint_file(plan, checkpoint="pre-transition")
@@ -338,54 +336,57 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
     ) -> str:
         e_box = "x" if e_ticked else " "
         v_box = "x" if v_ticked else " "
-        return (
-            "# IPD: Synthetic Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Kind: child\n"
-            "- Concern: test\n"
-            "- Scope: test\n"
-            "- Scope-Paths: test.py\n"
-            "- Item-Dependencies: none\n"
-            "- Status: approved\n"
-            "- Work-Kind: chore\n"
-            "- Priority: low\n"
-            "- Author: test\n"
-            "- Highest E allocated: 01\n"
-            "- Set: test\n"
-            "- Order: 1\n"
-            "- Id: tst001\n"
-            "- Approval: 2026-09-30, approved\n"
-            "- Readiness: go-pending-approval\n\n"
-            "## Workflow history\n"
-            "- 2026-09-30 /plan-review (test): APPROVE\n"
-            "- 2026-09-30: approved\n\n"
-            "## Goal\n"
-            "test\n\n"
-            "## Detailed Implementation Checklist (TODO)\n\n"
-            f"- [{e_box}] E-01 work item\n"
-            f"  - Execution state: {e_state}\n\n"
-            "## Project conventions discovered (Step 0)\n"
-            "none\n\n"
-            "## Findings\n"
-            "none\n\n"
-            "## Proposed changes (ordered, validatable)\n"
-            "none\n\n"
-            "## Deferred / out of scope (with reason)\n"
-            "none\n\n"
-            "## Scope check\n"
-            "none\n\n"
-            "## Required tests / validation\n"
-            "none\n\n"
-            "## Spec / documentation sync\n"
-            "none\n\n"
-            "## Open questions\n"
-            "none\n\n"
-            "## Validation and cross-check (verify before reporting done)\n\n"
-            f"- [{v_box}] V-01 validates E-01\n"
-            f"  - Observed evidence: {v_evidence}\n"
-            f"  - Result: {v_result}\n\n"
-            "## Approval and execution gate\n"
-            "none\n"
+        return RecordBuilder().plan(
+            title="Synthetic Plan",
+            when="2026-09-30",
+            plan_role="child",
+            scope_paths="test.py",
+            item_dependencies="none",
+            status="approved",
+            work_kind="chore",
+            priority="low",
+            author="test",
+            highest_e_allocated="01",
+            set="test",
+            order=1,
+            id6="tst001",
+            approval="2026-09-30, approved",
+            readiness="go-pending-approval",
+            raw_fields={"Concern": "test", "Scope": "test"},
+            history=[
+                "- 2026-09-30 /plan-review (test): APPROVE",
+                "- 2026-09-30: approved",
+            ],
+            body=(
+                "## Goal\n"
+                "test\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                f"- [{e_box}] E-01 work item\n"
+                f"  - Execution state: {e_state}\n\n"
+                "## Project conventions discovered (Step 0)\n"
+                "none\n\n"
+                "## Findings\n"
+                "none\n\n"
+                "## Proposed changes (ordered, validatable)\n"
+                "none\n\n"
+                "## Deferred / out of scope (with reason)\n"
+                "none\n\n"
+                "## Scope check\n"
+                "none\n\n"
+                "## Required tests / validation\n"
+                "none\n\n"
+                "## Spec / documentation sync\n"
+                "none\n\n"
+                "## Open questions\n"
+                "none\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                f"- [{v_box}] V-01 validates E-01\n"
+                f"  - Observed evidence: {v_evidence}\n"
+                f"  - Result: {v_result}\n\n"
+                "## Approval and execution gate\n"
+                "none\n"
+            ),
+            text_only=True,
         )
 
     def test_checkbox_mismatch_with_performed_and_pass_is_retryable(self):
@@ -578,25 +579,32 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             )
             plan_file = plans[0]
 
-            # 2. Hand-edit to approved with Scope-Paths and Approval:
-            content = plan_file.read_text(encoding="utf-8")
-            content = re.sub(r"- Status: draft", "- Status: approved", content)
-            content = re.sub(r"- Scope-Paths:.*", "- Scope-Paths: target.py", content)
-            content = re.sub(
-                r"- Item-Dependencies:.*", "- Item-Dependencies: none", content
+            # 2. Rebuild scaffolded plan as approved with Scope-Paths and Approval:
+            parsed = artifact_naming.parse_clustered(plan_file.name)
+            assert parsed is not None
+            day = parsed.group("date")
+            when_str = f"{day[:4]}-{day[4:6]}-{day[6:8]}"
+            plan_file.write_text(
+                RecordBuilder().plan(
+                    title="E2E Test Plan",
+                    when=when_str,
+                    plan_role="child",
+                    set="testset",
+                    order=1,
+                    id6=parsed.group("id6"),
+                    author="tester",
+                    priority="medium",
+                    work_kind="chore",
+                    status="approved",
+                    scope_paths="target.py",
+                    item_dependencies="none",
+                    approval="2026-09-30, approved via test",
+                    readiness="go-pending-approval",
+                    history=["- 2026-09-30 /plan-review (test): APPROVE"],
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
-            content = re.sub(
-                r"- Id: (\w+)",
-                r"- Id: \1\n- Approval: 2026-09-30, approved via test"
-                r"\n- Readiness: go-pending-approval",
-                content,
-            )
-            content = content.replace(
-                "## Workflow history\n",
-                "## Workflow history\n\n- 2026-09-30 /plan-review (test): APPROVE\n",
-                1,
-            )
-            plan_file.write_text(content, encoding="utf-8")
             subprocess.run(["git", "add", str(plan_file)], cwd=repo_dir, check=True)
             subprocess.run(
                 ["git", "commit", "-m", "approve plan"], cwd=repo_dir, check=True
@@ -685,7 +693,15 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
             pending.mkdir(parents=True)
             plan = pending / "20260908-test-01-tst001-test.ipd.md"
             plan.write_text(
-                "# IPD: Test\n\n- Id: tst001\n- Status: approved\n- Set: test\n- Order: 1\n- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Test",
+                    id6="tst001",
+                    status="approved",
+                    set="test",
+                    order=1,
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rcpt_path = ipd_lifecycle.receipt_path_for(repo, "tst001")
@@ -932,7 +948,10 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
             run_dir = repo / "run"
             run_dir.mkdir(parents=True)
             plan = repo / "plan.ipd.md"
-            plan.write_text("# IPD: x\n\n- Id: xbwq8n\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(title="x", id6="xbwq8n", text_only=True),
+                encoding="utf-8",
+            )
             state = _state([item], retry_budget=2)
             state["repo"] = str(repo)
             for label_name in ("OC_HOST_LABELS", "AGY_HOST_LABELS"):
@@ -969,7 +988,10 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
             run_dir = repo / "run"
             run_dir.mkdir(parents=True)
             plan = repo / "plan.ipd.md"
-            plan.write_text("# IPD: x\n\n- Id: xbwq8n\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(title="x", id6="xbwq8n", text_only=True),
+                encoding="utf-8",
+            )
             state = _state([item], retry_budget=2)
             state["repo"] = str(repo)
             prompt = runner_shared.build_prompt(
@@ -994,7 +1016,10 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
             run_dir = repo / "run"
             run_dir.mkdir(parents=True)
             plan = repo / "plan.ipd.md"
-            plan.write_text("# IPD: x\n\n- Id: xbwq8n\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(title="x", id6="xbwq8n", text_only=True),
+                encoding="utf-8",
+            )
             state = _state([item], retry_budget=2)
             state["repo"] = str(repo)
             prompt = runner_shared.build_prompt(
@@ -1105,11 +1130,25 @@ class TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains(unittest.TestCase):
         pending = repo / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True)
         (pending / "20260908-finalback-00-par001-orch.ipd.md").write_text(
-            "# IPD: orch\n\n- Id: par001\n- Set: finalback\n- Order: 0\n- Kind: orchestrator\n",
+            RecordBuilder().plan(
+                title="orch",
+                id6="par001",
+                set="finalback",
+                order=0,
+                plan_role="orchestrator",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (pending / "20260908-finalback-01-kid001-child.ipd.md").write_text(
-            "# IPD: child\n\n- Id: kid001\n- Set: finalback\n- Order: 1\n- Kind: child\n",
+            RecordBuilder().plan(
+                title="child",
+                id6="kid001",
+                set="finalback",
+                order=1,
+                plan_role="child",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return repo
@@ -1197,7 +1236,10 @@ class ARefusedItemDoesNotSatisfyADependentEdge(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             (pending / "20260919-s-01-yaxr4i-dep.ipd.md").write_text(
-                "# IPD: dep\n\n- Id: yaxr4i\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="dep", id6="yaxr4i", status="approved", text_only=True
+                ),
+                encoding="utf-8",
             )
             state = self._edge_state("substantially-complete", repo)
             dependent = state["queue"][1]

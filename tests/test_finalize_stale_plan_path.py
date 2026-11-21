@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import ipd_lifecycle, oc_runipd, render_stream, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class TestFinalizeStalePlanPath(unittest.TestCase):
@@ -44,7 +45,14 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
         plan_dir.mkdir(parents=True)
         plan_path = plan_dir / f"20260930-rfhiu2-01-{id6}-test-plan.ipd.md"
         plan_path.write_text(
-            f"# IPD: Test Plan\n\n- Id: {id6}\n- Set: rfhiu2\n- Status: approved\n\n## Goal\nTest.\n",
+            RecordBuilder().plan(
+                title="Test Plan",
+                id6=id6,
+                set="rfhiu2",
+                status="approved",
+                body="## Goal\nTest.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -381,7 +389,9 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
             main_exec_dir = main_repo / ".aw/records/plans/executed"
             main_exec_dir.mkdir(parents=True)
             main_plan = main_exec_dir / "20260930-rfhiu2-01-tst001-some-plan.ipd.md"
-            main_plan.write_text("# IPD\n- Id: tst001\n", encoding="utf-8")
+            main_plan.write_text(
+                RecordBuilder().plan(id6="tst001", text_only=True), encoding="utf-8"
+            )
             subprocess.run(["git", "-C", str(main_repo), "add", "."], check=True)
             subprocess.run(
                 ["git", "-C", str(main_repo), "commit", "-m", "add executed plan"],
@@ -431,7 +441,9 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
             exec_dir = tpath / ".aw/records/plans/executed"
             exec_dir.mkdir(parents=True)
             exec_plan = exec_dir / "20260930-rfhiu2-01-tst002-lane-plan.ipd.md"
-            exec_plan.write_text("# IPD\n- Id: tst002\n", encoding="utf-8")
+            exec_plan.write_text(
+                RecordBuilder().plan(id6="tst002", text_only=True), encoding="utf-8"
+            )
 
             # Control 1: contained executed plan -> True and rc 0 (idempotent no-op)
             self.assertTrue(
@@ -462,7 +474,9 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
             pending_dir = tpath / ".aw/records/plans/pending"
             pending_dir.mkdir(parents=True)
             pending_plan = pending_dir / "20260930-rfhiu2-01-tst003-pending-plan.ipd.md"
-            pending_plan.write_text("# IPD\n- Id: tst003\n", encoding="utf-8")
+            pending_plan.write_text(
+                RecordBuilder().plan(id6="tst003", text_only=True), encoding="utf-8"
+            )
             self.assertFalse(
                 runner_shared.finalize_already_done(tpath, pending_plan, "tst003")
             )
