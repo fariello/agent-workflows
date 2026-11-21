@@ -13,6 +13,7 @@ import pytest
 
 from agent_workflows import cli
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -21,7 +22,7 @@ def repo_with_review(tmp_path: Path) -> tuple[Path, Path]:
     reviews_dir = repo / ".aw" / "records" / "reviews"
     reviews_dir.mkdir(parents=True, exist_ok=True)
     review_path = reviews_dir / "20260929-demo-01-ab12cd-x.review.md"
-    content = "# Review: x\n\n- Subject-Id: ab12cd\n"
+    content = RecordBuilder().review(subject="ab12cd", text_only=True)
     review_path.write_text(content, encoding="utf-8")
     c_env = support.clean_git_env()
     subprocess.run(["git", "add", "."], cwd=repo, check=True, env=c_env)
@@ -143,14 +144,14 @@ def test_set_positive_control_backlog_item(repo_with_review: tuple[Path, Path]):
     bkl_dir = repo / ".aw" / "records" / "backlog" / "open"
     bkl_dir.mkdir(parents=True, exist_ok=True)
     bkl_path = bkl_dir / "20260929-zz12cd-01-zz12cd-y.backlog.md"
-    content = (
-        "# Backlog: y\n\n"
-        "- Id: zz12cd\n"
-        "- Status: open\n"
-        "- Set: zz12cd\n"
-        "- Priority: low\n"
-        "- Work-Kind: chore\n"
-        "- Summary: y\n"
+    content = RecordBuilder().backlog(
+        id6="zz12cd",
+        status="open",
+        set="zz12cd",
+        priority="low",
+        work_kind="chore",
+        summary="y",
+        text_only=True,
     )
     bkl_path.write_text(content, encoding="utf-8")
     c_env = support.clean_git_env()

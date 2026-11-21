@@ -27,18 +27,20 @@ from pathlib import Path
 
 from agent_workflows import attention_contract as A
 from agent_workflows import cli, specs
+from tests.record_builder import RecordBuilder
 
-_SPEC_TEMPLATE = """# Spec: Sample Spec
 
-- Date: 2026-10-07
-- Status: draft
-- Id: {id6}
-- Author: test
-{extra_metadata}
-
-## Workflow history
-- 2026-10-07 draft (test): created.
-"""
+def _spec_with_metadata(id6: str, raw_fields: dict[str, str]) -> str:
+    return RecordBuilder().spec(
+        id6=id6,
+        title="Sample Spec",
+        author="test",
+        when="2026-10-07",
+        status="draft",
+        history=["- 2026-10-07 draft (test): created."],
+        raw_fields=raw_fields,
+        text_only=True,
+    )
 
 
 class DescriptiveLengthClassesTests(unittest.TestCase):
@@ -92,17 +94,15 @@ class DescriptiveLengthClassesTests(unittest.TestCase):
     def test_spec_validation_prose_and_oneline_fields(self):
         """(d) 400-char Scope + 250-char Summary is clean; 301 Summary and 4301 Scope drift."""
         # Clean case: 400-char Scope and 250-char Summary
-        clean_text = _SPEC_TEMPLATE.format(
-            id6="cln001",
-            extra_metadata=f"- Scope: {'s' * 400}\n- Summary: {'m' * 250}",
+        clean_text = _spec_with_metadata(
+            "cln001", {"Scope": "s" * 400, "Summary": "m" * 250}
         )
         drift = specs.validate_spec(Path("tests/clean.spec.md"), clean_text)
         self.assertEqual(drift, [])
 
         # 301-char Summary drifts
-        over_summary_text = _SPEC_TEMPLATE.format(
-            id6="ovrsum",
-            extra_metadata=f"- Scope: {'s' * 400}\n- Summary: {'m' * 301}",
+        over_summary_text = _spec_with_metadata(
+            "ovrsum", {"Scope": "s" * 400, "Summary": "m" * 301}
         )
         drift_sum = specs.validate_spec(
             Path("tests/over_sum.spec.md"), over_summary_text
@@ -111,9 +111,8 @@ class DescriptiveLengthClassesTests(unittest.TestCase):
         self.assertIn("Summary", drift_sum[0].detail)
 
         # 4301-char Scope drifts
-        over_scope_text = _SPEC_TEMPLATE.format(
-            id6="ovrscp",
-            extra_metadata=f"- Scope: {'s' * 4301}\n- Summary: {'m' * 250}",
+        over_scope_text = _spec_with_metadata(
+            "ovrscp", {"Scope": "s" * 4301, "Summary": "m" * 250}
         )
         drift_scope = specs.validate_spec(
             Path("tests/over_scope.spec.md"), over_scope_text
@@ -191,10 +190,7 @@ class DescriptiveLengthClassesTests(unittest.TestCase):
     def test_no_echo_untrusted_value_regression(self):
         """(f) Drift detail and CLI refusal message do not echo untrusted values."""
         hostile_scope = "SECRET_TOKEN_" + "x" * 4300
-        text = _SPEC_TEMPLATE.format(
-            id6="noecho",
-            extra_metadata=f"- Scope: {hostile_scope}",
-        )
+        text = _spec_with_metadata("noecho", {"Scope": hostile_scope})
         drift = specs.validate_spec(Path("tests/no_echo.spec.md"), text)
         self.assertEqual(len(drift), 1)
         self.assertNotIn("SECRET_TOKEN_", drift[0].detail)

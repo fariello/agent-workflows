@@ -135,6 +135,7 @@ flowchart TD
 
 - Moved to 2ll84l (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G3a (items E-01; F-41 names each module).
   - Carrier: 2ll84l
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-203-2ll84l-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Moved to 9hk3rh (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subsets G3a, G5a (items E-01, E-02; F-41 names each module).
   - Carrier: 9hk3rh
 - Moved to 5mg9g1 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G5a (items E-02; F-41 names each module).

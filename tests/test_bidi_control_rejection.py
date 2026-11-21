@@ -22,6 +22,7 @@ from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
 from agent_workflows import releases
 from agent_workflows import specs
+from tests.record_builder import RecordBuilder
 
 
 def _args(**kw):
@@ -175,13 +176,17 @@ class BidiConsumerSurfacesTests(unittest.TestCase):
 
     def test_consumer_releases_validate_release_prose_rejects_bidi(self):
         """releases.validate_release returns attention.unsafe-field for bidi control in summary prose."""
-        release_text = (
-            "# Release 1.0.0\n\n"
-            "- Id: rel001\n"
-            "- Version: 1.0.0\n"
-            "- Status: planned\n\n"
-            "## Summary\n\n"
-            "This summary prose contains \u202e reversed \u202c bidi characters.\n"
+        release_text = RecordBuilder().release(
+            id6="rel001",
+            version="1.0.0",
+            status="planned",
+            summary="",
+            body=(
+                "# Release 1.0.0\n\n"
+                "## Summary\n\n"
+                "This summary prose contains \u202e reversed \u202c bidi characters.\n"
+            ),
+            text_only=True,
         )
         drifts = releases.validate_release(Path("test.release.md"), release_text)
         rules = [d.rule for d in drifts]

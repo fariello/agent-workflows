@@ -40,6 +40,7 @@ from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
 from agent_workflows import backlog, cli, runner_shared, specs, status_set
 from tests import support
+from tests.record_builder import RecordBuilder
 
 # =============================================================================
 # NORMALIZATION HELPERS (E-01)
@@ -104,25 +105,7 @@ def _write_conforming_plan(
     plan_dir = repo / ".aw" / "records" / "plans" / "pending"
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
-    p.write_text(
-        f"# IPD: Plan {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test scope.\n"
-        "- Status: to-review\n"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        "- Order: 1\n"
-        f"- Id: {id6}\n"
-        f"- From-Backlog: {backlog_id6}\n"
-        "- Scope-Paths: README.md\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-01 to-review (test): created\n\n"
+    body = (
         "## Goal\n"
         f"Goal {id6}.\n\n"
         "## Detailed Implementation Checklist (TODO)\n"
@@ -154,7 +137,28 @@ def _write_conforming_plan(
         "  - Result: pending\n\n"
         "## Approval and execution gate\n"
         "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        "- Cohesion rationale: not required\n"
+    )
+    p.write_text(
+        RecordBuilder().plan(
+            id6=id6,
+            kind="child",
+            title=f"Plan {id6}",
+            author="test",
+            when="2026-09-01",
+            set_name=set_id,
+            order=1,
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            scope_paths="README.md",
+            item_dependencies="none",
+            from_backlog=backlog_id6,
+            history=["- 2026-09-01 to-review (test): created"],
+            body=body,
+            raw_fields={"Concern": "Test concern.", "Scope": "Test scope."},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -192,11 +196,13 @@ def _setup_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -221,31 +227,6 @@ def _create_backlog_item(
     gate_ref: str | None = None,
     prior_history: list[str] | None = None,
 ) -> Path:
-    lines = [
-        f"- Id: {item_id}",
-        f"- Status: {status}",
-    ]
-    if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines.extend(
-        [
-            f"- Set: {set_id}",
-            f"- Priority: {priority}",
-            f"- Work-Kind: {work_kind}",
-            "- Summary: Parity test item",
-        ]
-    )
-    if gate_kind is not None:
-        lines.append(f"- Gate-Kind: {gate_kind}")
-    if gate_ref is not None:
-        lines.append(f"- Gate-Ref: {gate_ref}")
-    lines.extend(["", "## Workflow history"])
-    if prior_history is not None:
-        lines.extend(prior_history)
-    else:
-        lines.append("- 2026-09-28 created (tester): initial")
-    lines.append("")
-
     p = (
         repo
         / ".aw"
@@ -254,7 +235,27 @@ def _create_backlog_item(
         / status
         / f"20260928-{set_id}-01-{item_id}-test.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=status,
+            set_name=set_id,
+            priority=priority,
+            work_kind=work_kind,
+            summary="Parity test item",
+            when="2026-09-28",
+            blocks_release=blocks_release,
+            gate_kind=gate_kind,
+            gate_ref=gate_ref,
+            history=(
+                prior_history
+                if prior_history is not None
+                else ["- 2026-09-28 created (tester): initial"]
+            ),
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -281,32 +282,6 @@ def _create_spec(
     gate_ref: str | None = None,
     prior_history: list[str] | None = None,
 ) -> Path:
-    lines = [
-        f"# Spec: Parity Spec {spec_id}",
-        "",
-        f"- Id: {spec_id}",
-        f"- Status: {status}",
-    ]
-    if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines.extend(
-        [
-            f"- Priority: {priority}",
-            f"- Work-Kind: {work_kind}",
-            "- Scope: Parity testing",
-        ]
-    )
-    if gate_kind is not None:
-        lines.append(f"- Gate-Kind: {gate_kind}")
-    if gate_ref is not None:
-        lines.append(f"- Gate-Ref: {gate_ref}")
-    lines.extend(["", "## Workflow history"])
-    if prior_history is not None:
-        lines.extend(prior_history)
-    else:
-        lines.append("- 2026-10-01 created (tester): initial")
-    lines.append("")
-
     p = (
         repo
         / ".aw"
@@ -315,7 +290,29 @@ def _create_spec(
         / status
         / f"20261001-{set_id}-01-{spec_id}-test.spec.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().spec(
+            id6=spec_id,
+            title=f"Parity Spec {spec_id}",
+            status=status,
+            set_name=set_id,
+            when="2026-10-01",
+            work_kind=work_kind,
+            priority=priority,
+            blocks_release=blocks_release,
+            gate_kind=gate_kind,
+            gate_ref=gate_ref,
+            history=(
+                prior_history
+                if prior_history is not None
+                else ["- 2026-10-01 created (tester): initial"]
+            ),
+            body="",
+            raw_fields={"Scope": "Parity testing"},
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
