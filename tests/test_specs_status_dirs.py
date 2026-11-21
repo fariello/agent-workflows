@@ -14,6 +14,7 @@ from unittest.mock import patch
 from agent_workflows import attention_contract
 from agent_workflows import specs
 from agent_workflows import status_set
+from tests.record_builder import RecordBuilder
 
 
 class SpecStatusDirectoriesTests(unittest.TestCase):
@@ -79,17 +80,15 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
             / "20260924-aa1111-01-aa1111-test.spec.md"
         )
         spec_path.write_text(
-            """# Spec: Test Spec
-
-- Date: 2026-09-24
-- Status: draft
-- Id: aa1111
-- Author: tester
-
-## Workflow history
-
-- 2026-09-24 draft (tester): created
-""",
+            RecordBuilder().spec(
+                title="Test Spec",
+                when="2026-09-24",
+                status="draft",
+                id6="aa1111",
+                author="tester",
+                history=["- 2026-09-24 draft (tester): created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
@@ -142,17 +141,15 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
             / "20260924-bb2222-01-bb2222-test.spec.md"
         )
         spec_path.write_text(
-            """# Spec: Test Spec
-
-- Date: 2026-09-24
-- Status: draft
-- Id: bb2222
-- Author: tester
-
-## Workflow history
-
-- 2026-09-24 draft (tester): created
-""",
+            RecordBuilder().spec(
+                title="Test Spec",
+                when="2026-09-24",
+                status="draft",
+                id6="bb2222",
+                author="tester",
+                history=["- 2026-09-24 draft (tester): created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
@@ -210,17 +207,15 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
             / "20260924-aa1111-01-aa1111-test.spec.md"
         )
         spec_path.write_text(
-            """# Spec: Test Spec
-
-- Date: 2026-09-24
-- Status: draft
-- Id: aa1111
-- Author: tester
-
-## Workflow history
-
-- 2026-09-24 draft (tester): created
-""",
+            RecordBuilder().spec(
+                title="Test Spec",
+                when="2026-09-24",
+                status="draft",
+                id6="aa1111",
+                author="tester",
+                history=["- 2026-09-24 draft (tester): created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
@@ -278,18 +273,18 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
         )
         spec_path.parent.mkdir(parents=True, exist_ok=True)
         spec_path.write_text(
-            """# Spec: Test Spec
-
-- Date: 2026-09-24
-- Status: reviewed
-- Id: cc3333
-- Author: tester
-
-## Workflow history
-
-- 2026-09-24 reviewed (tester): ready
-- 2026-09-24 draft (tester): created
-""",
+            RecordBuilder().spec(
+                title="Test Spec",
+                when="2026-09-24",
+                status="reviewed",
+                id6="cc3333",
+                author="tester",
+                history=[
+                    "- 2026-09-24 reviewed (tester): ready",
+                    "- 2026-09-24 draft (tester): created",
+                ],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
@@ -330,17 +325,15 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
             / "20260924-dd4444-01-dd4444-test.spec.md"
         )
         spec_path.write_text(
-            """# Spec: Test Spec
-
-- Date: 2026-09-24
-- Status: draft
-- Id: dd4444
-- Author: tester
-
-## Workflow history
-
-- 2026-09-24 draft (tester): created
-""",
+            RecordBuilder().spec(
+                title="Test Spec",
+                when="2026-09-24",
+                status="draft",
+                id6="dd4444",
+                author="tester",
+                history=["- 2026-09-24 draft (tester): created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)

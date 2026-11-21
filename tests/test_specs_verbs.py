@@ -21,14 +21,6 @@ from tests.record_builder import RecordBuilder
 FIX = Path(__file__).parent / "fixtures" / "attnview"
 
 
-def _spec(status_block: str) -> str:
-    return (
-        "# Spec: t\n\n"
-        + status_block
-        + "\n## Body\n\ntext\n\n## Workflow history\n- 2026-08-08 draft (fixture): created.\n"
-    )
-
-
 def _args(**kw):
     ns = argparse.Namespace()
     for k, v in kw.items():
@@ -100,10 +92,14 @@ class CheckTests(unittest.TestCase):
     def test_body_gate_example_is_not_a_real_gate(self):
         # A spec that shows `- Gate-*` bullets as an EXAMPLE in its body (after a `## ` heading) must
         # NOT be read as carrying a real gate; only the metadata block (before the first `## `) counts.
-        text = (
-            "# Spec: s\n\n- Date: 2026-08-08\n- Status: implementing\n- Author: t\n\n"
-            "## 8.4 gates\n\nExample:\n\n```\n- Status: deferred\n- Gate-Kind: issue\n- Gate-Ref: <ref>\n```\n\n"
-            "## Workflow history\n- 2026-08-08 draft (t): x.\n"
+        text = RecordBuilder().spec(
+            title="s",
+            when="2026-08-08",
+            status="implementing",
+            author="t",
+            history=["- 2026-08-08 draft (t): x."],
+            body="## 8.4 gates\n\nExample:\n\n```\n- Status: deferred\n- Gate-Kind: issue\n- Gate-Ref: <ref>\n```",
+            text_only=True,
         )
         import tempfile
 
@@ -126,13 +122,32 @@ class CheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d) / ".agents" / "docs" / "specs"
             root.mkdir(parents=True)
-            (root / "good.md").write_text(_spec("- Status: draft"), encoding="utf-8")
+            (root / "good.md").write_text(
+                RecordBuilder().spec(
+                    title="t",
+                    when="2026-08-08",
+                    status="draft",
+                    body="## Body\n\ntext",
+                    history=["- 2026-08-08 draft (fixture): created."],
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
             out = io.StringIO()
             with redirect_stdout(out):
                 rc = specs.run_check(_args(dir=str(Path(d)), path=None, agent=False))
             self.assertEqual(rc, 0)
             (root / "bad.md").write_text(
-                _spec("- Status: frobnicated"), encoding="utf-8"
+                RecordBuilder().spec(
+                    title="t",
+                    when="2026-08-08",
+                    status="draft",
+                    raw_fields={"Status": "frobnicated"},
+                    body="## Body\n\ntext",
+                    history=["- 2026-08-08 draft (fixture): created."],
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
             with redirect_stdout(io.StringIO()):
                 rc = specs.run_check(_args(dir=str(Path(d)), path=None, agent=False))
@@ -140,14 +155,24 @@ class CheckTests(unittest.TestCase):
 
 
 class SetTests(unittest.TestCase):
-    def _mk(self, d, block):
+    def _mk(self, d, status: str):
         p = Path(d) / "s.md"
-        p.write_text(_spec(block), encoding="utf-8")
+        p.write_text(
+            RecordBuilder().spec(
+                title="t",
+                when="2026-08-08",
+                status=status,
+                body="## Body\n\ntext",
+                history=["- 2026-08-08 draft (fixture): created."],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         return p
 
     def test_legal_transition_updates_status_and_one_history(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: draft")
+            p = self._mk(d, "draft")
             with redirect_stdout(io.StringIO()):
                 rc = specs.run_set(
                     _args(
@@ -169,7 +194,7 @@ class SetTests(unittest.TestCase):
 
     def test_illegal_transition_refused_byte_identical(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: draft")
+            p = self._mk(d, "draft")
             before = p.read_text(encoding="utf-8")
             with redirect_stderr(io.StringIO()):
                 rc = specs.run_set(
@@ -190,7 +215,7 @@ class SetTests(unittest.TestCase):
 
     def test_approved_requires_human_and_is_refused_non_tty(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: reviewed")
+            p = self._mk(d, "reviewed")
             before = p.read_text(encoding="utf-8")
             # Without --by-human attestation: refused byte-identical even on non-TTY
             with mock.patch("sys.stdin") as stdin, redirect_stderr(io.StringIO()):
@@ -236,7 +261,7 @@ class SetTests(unittest.TestCase):
                 redirect_stdout(io.StringIO()),
             ):
                 stdin.isatty.return_value = True
-                p2 = self._mk(d, "- Status: reviewed")
+                p2 = self._mk(d, "reviewed")
                 rc = specs.run_set(
                     _args(
                         path=str(p2),
@@ -261,7 +286,7 @@ class SetTests(unittest.TestCase):
 
     def test_implemented_requires_resolvable_evidence(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: implementing")
+            p = self._mk(d, "implementing")
             before = p.read_text(encoding="utf-8")
             with redirect_stderr(io.StringIO()):
                 rc = specs.run_set(
@@ -282,7 +307,7 @@ class SetTests(unittest.TestCase):
 
     def test_deferred_gate_roundtrip(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: draft")
+            p = self._mk(d, "draft")
             with redirect_stdout(io.StringIO()):
                 rc = specs.run_set(
                     _args(
@@ -323,7 +348,7 @@ class SetTests(unittest.TestCase):
 
     def test_deferred_requires_valid_gate(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: draft")
+            p = self._mk(d, "draft")
             before = p.read_text(encoding="utf-8")
             with redirect_stderr(io.StringIO()):
                 rc = specs.run_set(
@@ -345,7 +370,7 @@ class SetTests(unittest.TestCase):
     def test_set_same_status_deduplicates_identical_history_record(self):
         """Regression test for 4vh5nb / E-04: identical same-status re-assertion appends no duplicate round."""
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: draft")
+            p = self._mk(d, "draft")
             args = _args(
                 path=str(p),
                 status="draft",
@@ -377,7 +402,7 @@ class SetTests(unittest.TestCase):
     def test_set_same_status_records_changed_message(self):
         """A deliberate message change on same status still records."""
         with tempfile.TemporaryDirectory() as d:
-            p = self._mk(d, "- Status: draft")
+            p = self._mk(d, "draft")
             with redirect_stdout(io.StringIO()):
                 specs.run_set(
                     _args(
@@ -415,7 +440,14 @@ class MigrateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
             p.write_text(
-                "# Spec: legacy\n\n- Date: 2026-08-08\n- Status: canonical reference; produced by IPD X\n- Author: t\n\n## Body\n\nx\n",
+                RecordBuilder().spec(
+                    title="legacy",
+                    when="2026-08-08",
+                    author="t",
+                    body="## Body\n\nx",
+                    raw_fields={"Status": "canonical reference; produced by IPD X"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             with redirect_stdout(io.StringIO()):
@@ -443,7 +475,14 @@ class MigrateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
             p.write_text(
-                "# Spec: legacy\n\n- Date: 2026-08-08\n- Status: draft spec (evidence-gated)\n- Author: t\n\n## Body\n\nx\n",
+                RecordBuilder().spec(
+                    title="legacy",
+                    when="2026-08-08",
+                    author="t",
+                    body="## Body\n\nx",
+                    raw_fields={"Status": "draft spec (evidence-gated)"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             with redirect_stdout(io.StringIO()):
@@ -469,7 +508,17 @@ class MigrateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
             p.write_text(
-                "# Spec: legacy\n\n- Date: 2026-08-08\n- Status: approved (2026-07-30, human)\n- Implemented: SHIPPED as D123\n- Author: t\n\n## Body\n\nx\n",
+                RecordBuilder().spec(
+                    title="legacy",
+                    when="2026-08-08",
+                    author="t",
+                    body="## Body\n\nx",
+                    raw_fields={
+                        "Status": "approved (2026-07-30, human)",
+                        "Implemented": "SHIPPED as D123",
+                    },
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             with redirect_stdout(io.StringIO()):
@@ -495,22 +544,41 @@ class NoteTests(unittest.TestCase):
     def test_note_appends_one_record_only(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
-            p.write_text(_spec("- Status: draft"), encoding="utf-8")
-            before_status = "- Status: draft"
+            p.write_text(
+                RecordBuilder().spec(
+                    title="t",
+                    when="2026-08-08",
+                    status="draft",
+                    body="## Body\n\ntext",
+                    history=["- 2026-08-08 draft (fixture): created."],
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
             with redirect_stdout(io.StringIO()):
                 rc = specs.run_note(
                     _args(path=str(p), message="a note", date="2026-08-09")
                 )
             self.assertEqual(rc, 0)
             t = p.read_text(encoding="utf-8")
-            self.assertIn(before_status, t)  # status unchanged
+            self.assertIn("- Status: draft", t)  # status unchanged
             self.assertEqual(t.count("- 2026-08-09 note (aw specs): a note"), 1)
 
     def test_note_deduplicates_identical_call(self):
         """Regression test for 4vh5nb / E-04: running identical note twice does not append a duplicate."""
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
-            p.write_text(_spec("- Status: draft"), encoding="utf-8")
+            p.write_text(
+                RecordBuilder().spec(
+                    title="t",
+                    when="2026-08-08",
+                    status="draft",
+                    body="## Body\n\ntext",
+                    history=["- 2026-08-08 draft (fixture): created."],
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
             args = _args(path=str(p), message="identical note", date="2026-08-09")
             with redirect_stdout(io.StringIO()):
                 rc1 = specs.run_note(args)
@@ -524,7 +592,17 @@ class NoteTests(unittest.TestCase):
         """A deliberate message change records a new note."""
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
-            p.write_text(_spec("- Status: draft"), encoding="utf-8")
+            p.write_text(
+                RecordBuilder().spec(
+                    title="t",
+                    when="2026-08-08",
+                    status="draft",
+                    body="## Body\n\ntext",
+                    history=["- 2026-08-08 draft (fixture): created."],
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
             with redirect_stdout(io.StringIO()):
                 specs.run_note(
                     _args(path=str(p), message="first note", date="2026-08-09")
@@ -540,7 +618,17 @@ class NoteTests(unittest.TestCase):
         """A note on a different date records a new note even with the same message."""
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.md"
-            p.write_text(_spec("- Status: draft"), encoding="utf-8")
+            p.write_text(
+                RecordBuilder().spec(
+                    title="t",
+                    when="2026-08-08",
+                    status="draft",
+                    body="## Body\n\ntext",
+                    history=["- 2026-08-08 draft (fixture): created."],
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
             with redirect_stdout(io.StringIO()):
                 specs.run_note(
                     _args(path=str(p), message="daily note", date="2026-08-09")
