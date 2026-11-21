@@ -20,6 +20,7 @@ import unittest
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class AlreadyLandedPredicateUnitTests(unittest.TestCase):
@@ -158,9 +159,17 @@ class AlreadyLandedDispatchTests(unittest.TestCase):
         plans_dir.mkdir(parents=True, exist_ok=True)
         plan_file = plans_dir / f"20260101-s-01-{id6}-test-plan.ipd.md"
         plan_file.write_text(
-            f"# IPD: Test plan\n\n- Date: 2026-01-01\n- Kind: child\n- Status: approved\n"
-            f"- Set: s\n- Id: {id6}\n- Highest E allocated: 01\n\n## Workflow history\n"
-            f"- 2026-01-01 approved: approved\n",
+            RecordBuilder().plan(
+                title="Test plan",
+                when="2026-01-01",
+                plan_role="child",
+                status="approved",
+                set="s",
+                id6=id6,
+                highest_e_allocated="01",
+                history=["- 2026-01-01 approved: approved"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
