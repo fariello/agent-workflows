@@ -129,6 +129,7 @@ flowchart TD
   - Carrier: y97k46
 - The five `runner_shared` git-content readers.
   - Carrier: iqhzse
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-146-iqhzse-move-the-setter-staleness-lifecycle-and-runner-merge-path-gi.ipd.md
 
 ## Scope check
 

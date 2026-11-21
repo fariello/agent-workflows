@@ -107,6 +107,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
 - E-01 (the 4.4 search rows for `plan_readiness`, `ipd_lifecycle`, `artifact_meta` and `status_set`) and E-04 (the setter, staleness, lifecycle and runner merge-path readers). Moved to iqhzse (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: iqhzse
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-146-iqhzse-move-the-setter-staleness-lifecycle-and-runner-merge-path-gi.ipd.md
 - The 4.4 search rows for `runner_shared`/`oc_runipd`/`agy_runipd`, the runner selection and execution reads, the own-log finalize scope, and the runner residual rows.
   - Carrier: y97k46
 - The 4.4 search rows for the other 31 files, and the plans, research and prompts module reads.
