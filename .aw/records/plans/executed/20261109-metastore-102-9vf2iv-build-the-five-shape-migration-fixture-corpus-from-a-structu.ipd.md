@@ -127,10 +127,10 @@ No spec change; implements the corpus half of `4sd62s` AC-42 ("one ANONYMIZED fi
 ### OQ-01: Should a fresh structural survey of the maintainer's private repositories replace or extend the recorded evidence?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Carrier-Declined: optional maintainer preference; default applies if unanswered
-- Resolution or deferral rationale: The authored E-01 asked for a survey of the maintainer's repositories. A runner lane is confined to its worktree, and printing the command that produced private counts would leak paths, so E-01 now cites public history (F-04, F-05) and the recorded `g5hpbb` F-02/F-03 measurements. No companion-backend repository has been surveyed, so shape e is built from the `project_context` contract. Default if unanswered: proceed as written. If the maintainer wants a survey, it runs attended outside this plan and only structural counts (no names, no paths) are added to the docstring.
+- Resolution or deferral rationale: The authored E-01 asked for a survey of the maintainer's repositories. A runner lane is confined to its worktree, and printing the command that produced private counts would leak paths, so E-01 now cites public history (F-04, F-05) and the recorded `g5hpbb` F-02/F-03 measurements. No companion-backend repository has been surveyed, so shape e is built from the `project_context` contract. Default if unanswered: proceed as written. If the maintainer wants a survey, it runs attended outside this plan and only structural counts (no names, no paths) are added to the docstring. RESOLVED 2026-11-20 by the user via /askme: Keep the current corpus and recorded evidence as written; do not run an attended survey of private repositories. No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
