@@ -151,6 +151,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-208-tsonlq-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Moved to erulw3 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G7a (items E-03; F-41 names each module).
   - Carrier: erulw3
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-209-erulw3-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - The builder, its tests, the baselines and the tracked fixtures.
   - Carrier: 9rgn2w
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
