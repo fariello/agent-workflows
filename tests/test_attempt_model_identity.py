@@ -17,6 +17,7 @@ from typing import Any
 from agent_workflows import host_sandbox_profile as hsp
 from agent_workflows import oc_runipd, runner_shared, runner_stop
 from tests.test_host_capability_extension import synthetic_gated_action
+from tests.record_builder import RecordBuilder
 
 
 def _fail_spawn(*args: Any, **kwargs: Any) -> Any:
@@ -71,7 +72,14 @@ def _setup_test_repo(root: Path) -> tuple[Path, Path]:
     plan_dir.mkdir(parents=True, exist_ok=True)
     plan_file = plan_dir / "20261001-test-01-tst001-test.ipd.md"
     plan_file.write_text(
-        "# IPD: Test\n- Id: tst001\n- Set: test\n- Status: approved\n- Scope-Paths: file.txt\n",
+        RecordBuilder().plan(
+            title="Test",
+            id6="tst001",
+            set="test",
+            status="approved",
+            scope_paths="file.txt",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root, plan_file
@@ -374,8 +382,14 @@ class TestAttemptModelIdentity(unittest.TestCase):
             plan_file = plan_dir / "20261001-test-02-stale1-stale.ipd.md"
             # Reference a path under .aw/records/ that does not exist (vanished)
             plan_file.write_text(
-                "# IPD: Stale\n- Id: stale1\n- Set: test\n- Status: approved\n"
-                "- Scope-Paths: .aw/records/plans/pending/20261001-nonexistent-99-nonex-vanished.ipd.md\n",
+                RecordBuilder().plan(
+                    title="Stale",
+                    id6="stale1",
+                    set="test",
+                    status="approved",
+                    scope_paths=".aw/records/plans/pending/20261001-nonexistent-99-nonex-vanished.ipd.md",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             run_dir = repo_root / ".aw/runs/run-stale"

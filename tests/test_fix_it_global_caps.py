@@ -17,6 +17,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream, runner_shared
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
 BOTH = ("oc_runipd", "agy_runipd")
@@ -683,6 +684,81 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
     def setUp(self) -> None:
         support.declare_execution_role(self)
 
+    @staticmethod
+    def _create_caps_plan(repo: pathlib.Path, id6: str, setid: str) -> pathlib.Path:
+        body = (
+            "## Goal\n\n"
+            "Demo goal sentence.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "Execution-state rule: mark an `E-*` item complete only after performing the action. "
+            "That mark is not validation.\n\n"
+            "### Task group 1: demo\n\n"
+            "- [x] E-01 Create the demo file.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: the demo file exists.\n"
+            "  - Execution state: performed\n\n"
+            "## Project conventions discovered (Step 0)\n\n"
+            "- demo convention.\n\n"
+            "## Findings\n\n"
+            "demo findings.\n\n"
+            "## Proposed changes (ordered, validatable)\n\n"
+            "1. src/demo.txt: create it.\n\n"
+            "## Deferred / out of scope (with reason)\n\n"
+            "none.\n\n"
+            "## Scope check\n\n"
+            "- Over-scope: none.\n"
+            "- Under-scope: none.\n\n"
+            "## Required tests / validation\n\n"
+            "Manual check that src/demo.txt exists.\n\n"
+            "## Spec / documentation sync\n\n"
+            "N/A: demo only.\n\n"
+            "## Open questions\n\n"
+            "None.\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            "Validation-state rule: inspect evidence in a separate pass.\n\n"
+            "- [x] V-01 validates E-01\n"
+            "  - Required evidence: src/demo.txt present.\n"
+            "  - Observed evidence: src/demo.txt present.\n"
+            "  - Result: pass\n\n"
+            "## Approval and execution gate\n\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required\n\n"
+            "Execution contract: commit path-scoped; do not push."
+        )
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        plan_text = RecordBuilder().plan(
+            id6=id6,
+            title="Demo self-finalize",
+            when="2026-08-28",
+            set=setid,
+            order=1,
+            slug="demo",
+            status="approved",
+            scope_paths=f"clash_{id6}.txt",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="chore",
+            author="test",
+            approval="2026-08-28, recorded via aw ipd set: status set to approved",
+            readiness="go-pending-approval",
+            history=[
+                "- 2026-08-28 approved (aw set): status set to approved",
+                "- 2026-08-28 /plan-review (test): APPROVE",
+                "- 2026-08-28 draft (test): created.",
+            ],
+            body=body,
+            raw_fields={
+                "Concern": "demo concern for the self-finalize test.",
+                "Scope": "demo scope.",
+            },
+            text_only=True,
+        )
+        assert isinstance(plan_text, str)
+        plan = pending / f"20260828-{setid}-01-{id6}-demo.ipd.md"
+        plan.write_text(plan_text, encoding="utf-8")
+        return plan
+
     def _setup_driver_fixture(
         self,
         td: str,
@@ -708,16 +784,7 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
         )
         (repo / "base.txt").write_text("base\n", encoding="utf-8")
 
-        pending = repo / ".aw" / "records" / "plans" / "pending"
-        pending.mkdir(parents=True, exist_ok=True)
-        plan_text = _CONFORMING_PLAN.format(id6=id6)
-        plan_text = plan_text.replace(
-            "Scope-Paths: src/", f"Scope-Paths: clash_{id6}.txt"
-        )
-        if setid != "demo":
-            plan_text = plan_text.replace("- Set: demo", f"- Set: {setid}")
-        plan = pending / f"20260828-{setid}-01-{id6}-demo.ipd.md"
-        plan.write_text(plan_text, encoding="utf-8")
+        plan = self._create_caps_plan(repo, id6, setid)
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
@@ -763,15 +830,7 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
     def _add_plan_item(
         self, repo: pathlib.Path, id6: str, setid: str, position: int
     ) -> dict:
-        pending = repo / ".aw" / "records" / "plans" / "pending"
-        plan_text = _CONFORMING_PLAN.format(id6=id6)
-        plan_text = plan_text.replace(
-            "Scope-Paths: src/", f"Scope-Paths: clash_{id6}.txt"
-        )
-        if setid != "demo":
-            plan_text = plan_text.replace("- Set: demo", f"- Set: {setid}")
-        plan = pending / f"20260828-{setid}-01-{id6}-demo.ipd.md"
-        plan.write_text(plan_text, encoding="utf-8")
+        plan = self._create_caps_plan(repo, id6, setid)
         subprocess.run(["git", "add", str(plan)], cwd=repo, check=True)
         subprocess.run(
             ["git", "commit", "-qm", f"add plan {id6}"], cwd=repo, check=True

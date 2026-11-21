@@ -56,6 +56,7 @@ from agent_workflows import (
     selectors,
 )
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.support import coordinator_role
 from tests.test_lane_rule_break_detection import (
     _PRE_COMMIT_SHIM_SOURCE,
@@ -879,11 +880,25 @@ class TestFixFirstEndToEnd(unittest.TestCase):
             plan_file = next(
                 (work_dir / ".aw" / "records" / "plans" / "pending").glob(f"*{id6}*")
             )
+            raw_id = None if len(id6) == 6 else {"Id": id6}
+            builder_id = id6 if len(id6) == 6 else "uts000"
             if calls[0] == 1:
                 # Hand-edit status without history line
-                text = plan_file.read_text(encoding="utf-8").replace(
-                    "- Status: approved", "- Status: to-review"
+                text = RecordBuilder().plan(
+                    id6=builder_id,
+                    title=f"Test Plan {id6}",
+                    when="2026-10-07",
+                    set="tstset",
+                    order=1,
+                    status="to-review",
+                    scope_paths="agent_workflows/runner_shared.py",
+                    work_kind="feature",
+                    author="test",
+                    history=["- 2026-10-07 approved (test): created."],
+                    raw_fields=raw_id,
+                    text_only=True,
                 )
+                assert isinstance(text, str)
                 plan_file.write_text(text, encoding="utf-8")
                 subprocess.run(
                     ["git", "commit", "-qam", "hand-edit status"],
@@ -892,9 +907,21 @@ class TestFixFirstEndToEnd(unittest.TestCase):
                 )
             else:
                 # Revert hand edit
-                text = plan_file.read_text(encoding="utf-8").replace(
-                    "- Status: to-review", "- Status: approved"
+                text = RecordBuilder().plan(
+                    id6=builder_id,
+                    title=f"Test Plan {id6}",
+                    when="2026-10-07",
+                    set="tstset",
+                    order=1,
+                    status="approved",
+                    scope_paths="agent_workflows/runner_shared.py",
+                    work_kind="feature",
+                    author="test",
+                    history=["- 2026-10-07 approved (test): created."],
+                    raw_fields=raw_id,
+                    text_only=True,
                 )
+                assert isinstance(text, str)
                 plan_file.write_text(text, encoding="utf-8")
                 (work_dir / "src").mkdir(parents=True, exist_ok=True)
                 (work_dir / "src" / "demo.txt").write_text("clean\n", encoding="utf-8")

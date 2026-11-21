@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import runner_shared as rs
+from tests.record_builder import RecordBuilder
 
 
 class FixItNoticeBuilderTests(unittest.TestCase):
@@ -215,7 +216,10 @@ class PromptAssemblyTests(unittest.TestCase):
         run_dir = repo / "run"
         run_dir.mkdir()
         plan_path = repo / "plan.ipd.md"
-        plan_path.write_text("# IPD: test\n\n- Id: tst123\n", encoding="utf-8")
+        plan_path.write_text(
+            RecordBuilder().plan(title="test", id6="tst123", text_only=True),
+            encoding="utf-8",
+        )
         state = {
             "run_id": "test-run",
             "repo": str(repo),

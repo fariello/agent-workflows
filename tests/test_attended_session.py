@@ -29,6 +29,7 @@ from agent_workflows import (
     term,
 )
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.support import coordinator_role
 
 
@@ -67,12 +68,23 @@ def _attended_repo(tmp_path: Path, *, with_dependent: bool = False) -> Path:
     from tests.test_freeze_time_refusal import _init_repo, _write_plan
 
     repo = _init_repo(tmp_path)
-    att = _write_plan(repo, "att004", order=1)
-    att.write_text(
-        att.read_text(encoding="utf-8").replace(
-            "- Id: att004\n", "- Id: att004\n- Attended: required\n"
-        ),
-        encoding="utf-8",
+    RecordBuilder(repo).plan(
+        id6="att004",
+        title="Plan att004",
+        when="2026-09-27",
+        set="demo",
+        order=1,
+        slug="plan",
+        status="approved",
+        readiness="go-pending-approval",
+        approval="2026-09-27, test",
+        scope_paths="README.md, src/demo.txt",
+        work_kind="feature",
+        attended="required",
+        history=[
+            "- 2026-09-27 approved (tester): approved",
+            "- 2026-09-27 /plan-review (tester): APPROVE",
+        ],
     )
     if with_dependent:
         _write_plan(repo, "dep005", order=2, dependencies=["executed:att004"])

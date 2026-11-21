@@ -24,50 +24,28 @@ from agent_workflows.work_cmd import _default_commit_message
 from tests import support
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
-_PLAN = """# IPD: Demo work plan
-
-- Date: 2026-08-28
-- Kind: child
-- Concern: A real concern statement for review.
-- Scope: A real scope statement.
-- Scope-Paths: src/, tests/
-- Item-Dependencies: none
-- Status: approved
-- Priority: medium
-- Work-Kind: chore
-- Set: wk
-- Order: 1
-- Highest E allocated: 01
-- Author: tester
-- Id: wk0001
-
-## Workflow history
-- 2026-08-28 approved (aw set): approved
-
-## Goal
-A real goal statement.
-
-## Detailed Implementation Checklist (TODO)
-
-### Task group 1: work
-- [ ] E-01 Do a real observable thing.
-  - Depends on: none
-  - Expected outcome: a real observable result.
-  - Execution state: pending
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: a real falsifiable evidence statement.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
+_PLAN = RecordBuilder().plan(
+    title="Demo work plan",
+    when="2026-08-28",
+    plan_role="child",
+    scope_paths="src/, tests/",
+    item_dependencies="none",
+    status="approved",
+    priority="medium",
+    work_kind="chore",
+    set="wk",
+    order=1,
+    highest_e_allocated="01",
+    author="tester",
+    id6="wk0001",
+    history=["- 2026-08-28 approved (aw set): approved"],
+    body="## Goal\nA real goal statement.\n\n## Detailed Implementation Checklist (TODO)\n\n### Task group 1: work\n- [ ] E-01 Do a real observable thing.\n  - Depends on: none\n  - Expected outcome: a real observable result.\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n- [ ] V-01 validates E-01\n  - Required evidence: a real falsifiable evidence statement.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n- Size assessment: standard\n- Cohesion rationale: not required",
+    text_only=True,
+)
 
 
 class CommitDefaultMessageTest(unittest.TestCase):
