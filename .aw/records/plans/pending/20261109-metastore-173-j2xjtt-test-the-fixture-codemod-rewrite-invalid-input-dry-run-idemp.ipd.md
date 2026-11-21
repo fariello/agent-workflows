@@ -55,27 +55,27 @@ A deliberately invalid value (F-08, for example `- Status: EXECUTED`) is NOT a r
 
 ### Task group 1: test cases
 
-- [ ] E-04 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (a) a plain constant metadata block becomes a builder call; (b) an f-string with field placeholders becomes keyword arguments; (c) an invalid value goes through `raw_fields=` and is listed `invalid-input`. Tests define `CODEMOD_PATH = Path(__file__).resolve().parent.parent / "tools" / "fixture_codemod.py"` and drive the tool as a subprocess via `sys.executable` on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo`, asserting on its stdout/stderr, exit code, and on the rewritten files. No test reads production source.
+- [x] E-04 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (a) a plain constant metadata block becomes a builder call; (b) an f-string with field placeholders becomes keyword arguments; (c) an invalid value goes through `raw_fields=` and is listed `invalid-input`. Tests define `CODEMOD_PATH = Path(__file__).resolve().parent.parent / "tools" / "fixture_codemod.py"` and drive the tool as a subprocess via `sys.executable` on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo`, asserting on its stdout/stderr, exit code, and on the rewritten files. No test reads production source.
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` passes every case (a), (b), (c).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (e) `--dry-run` writes nothing; (f) a second `--apply` changes nothing. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
+- [x] E-08 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (e) `--dry-run` writes nothing; (f) a second `--apply` changes nothing. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source.
   - Depends on: E-04
   - Expected outcome: `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` passes every case (e), (f).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (g) the `not-equivalent` case of E-03 is isolated and reverted while the other rewrites stay; (h) the rewritten fixture module's own tests pass. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source. (g) and (h) start pytest subprocesses (E-03); if the module's wall time under `-n 0` exceeds 10 s, the subprocess cases move to a second module `tests/test_fixture_codemod_slow.py` listed in `tests/slow_allowlist.txt` (justified under `--scope-reason`), and the core module keeps (a) to (f).
+- [x] E-09 (part of `653ndz` E-04, round-3 split 2026-11-09) Add to `tests/test_fixture_codemod.py` (core, `pytestmark = pytest.mark.core`) and fixture modules under `tests/fixtures/fixture_codemod/` the test cases (g) the `not-equivalent` case of E-03 is isolated and reverted while the other rewrites stay; (h) the rewritten fixture module's own tests pass. Tests drive the tool as a subprocess on copies of the fixtures in a temporary repository made with `tests/support.py` `init_repo` and assert on its output and on the rewritten files. No test reads production source. (g) and (h) start pytest subprocesses (E-03); if the module's wall time under `-n 0` exceeds 10 s, the subprocess cases move to a second module `tests/test_fixture_codemod_slow.py` listed in `tests/slow_allowlist.txt` (justified under `--scope-reason`), and the core module keeps (a) to (f).
   - Depends on: E-08
   - Expected outcome: `python3 -m pytest -o addopts="" -n 0 -v tests/test_fixture_codemod.py` passes every case (g), (h).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-10 Finish this part: run `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py` (and the moved slow module, if E-09 moved one) and the bare core gate `python3 -m pytest`; commit through `aw commit j2xjtt -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-10 Finish this part: run `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py` (and the moved slow module, if E-09 moved one) and the bare core gate `python3 -m pytest`; commit through `aw commit j2xjtt -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-09
   - Expected outcome: every case passes; total duration under 10 s or the moved slow module listed with its own passing run; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -152,25 +152,98 @@ No spec change; implements the tooling half of `4sd62s` section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py` lines showing each of the cases (a) a plain constant metadata block becomes a builder call, (b) an f-string with field placeholders becomes keyword arguments, (c) an invalid value goes through `raw_fields=` and is listed `invalid-input` PASSED by its node id, with each case's duration; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
   - Observed evidence:
-  - Result: pending
+    ```text
+    # python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py
+    tests/test_fixture_codemod.py::FixtureCodemodRewriteTests::test_case_a_plain_constant_rewritten_to_builder_call PASSED [ 20%]
+    tests/test_fixture_codemod.py::FixtureCodemodRewriteTests::test_case_b_fstring_placeholders_become_keyword_arguments PASSED [ 40%]
+    tests/test_fixture_codemod.py::FixtureCodemodRewriteTests::test_case_c_invalid_value_uses_raw_fields_and_invalid_input_class PASSED [ 60%]
+    1.20s call     tests/test_fixture_codemod.py::FixtureCodemodRewriteTests::test_case_b_fstring_placeholders_become_keyword_arguments
+    1.19s call     tests/test_fixture_codemod.py::FixtureCodemodRewriteTests::test_case_a_plain_constant_rewritten_to_builder_call
+    1.17s call     tests/test_fixture_codemod.py::FixtureCodemodRewriteTests::test_case_c_invalid_value_uses_raw_fields_and_invalid_input_class
 
-- [ ] V-08 validates E-08
+    # rg -n "inspect\.|getsource" tests/test_fixture_codemod.py
+    (empty output, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py` lines showing each of the cases (e) `--dry-run` writes nothing, (f) a second `--apply` changes nothing PASSED by its node id, with each case's duration; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
   - Observed evidence:
-  - Result: pending
+    ```text
+    # python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py
+    tests/test_fixture_codemod.py::FixtureCodemodDryRunAndIdempotenceTests::test_case_f_second_apply_is_idempotent_and_changes_nothing PASSED [ 80%]
+    tests/test_fixture_codemod.py::FixtureCodemodDryRunAndIdempotenceTests::test_case_e_dry_run_writes_nothing PASSED [100%]
+    1.42s call     tests/test_fixture_codemod.py::FixtureCodemodDryRunAndIdempotenceTests::test_case_f_second_apply_is_idempotent_and_changes_nothing
+    0.45s call     tests/test_fixture_codemod.py::FixtureCodemodDryRunAndIdempotenceTests::test_case_e_dry_run_writes_nothing
 
-- [ ] V-09 validates E-09
+    # rg -n "inspect\.|getsource" tests/test_fixture_codemod.py
+    (empty output, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste `python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py` lines showing each of the cases (g) the `not-equivalent` case of E-03 is isolated and reverted while the other rewrites stay, (h) the rewritten fixture module's own tests pass PASSED by its node id, with each case's duration; and `rg -n "inspect\.|getsource" tests/test_fixture_codemod.py` empty.
   - Observed evidence:
-  - Result: pending
+    ```text
+    # Initial combined serial run in tests/test_fixture_codemod.py (exceeded 10s bound -> triggered E-09 fallback):
+    tests/test_fixture_codemod.py::FixtureCodemodEquivalenceTests::test_case_h_rewritten_fixture_module_tests_pass PASSED [ 57%]
+    tests/test_fixture_codemod.py::FixtureCodemodEquivalenceTests::test_case_g_not_equivalent_site_is_isolated_and_reverted_while_others_stay PASSED [ 71%]
+    3.36s call     tests/test_fixture_codemod.py::FixtureCodemodEquivalenceTests::test_case_g_not_equivalent_site_is_isolated_and_reverted_while_others_stay
+    1.74s call     tests/test_fixture_codemod.py::FixtureCodemodEquivalenceTests::test_case_h_rewritten_fixture_module_tests_pass
+    ============================== 7 passed in 10.68s ==============================
 
-- [ ] V-10 validates E-10
+    # Moved slow module (python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod_slow.py):
+    tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_h_rewritten_fixture_module_tests_pass PASSED [ 50%]
+    tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_g_not_equivalent_site_is_isolated_and_reverted_while_others_stay PASSED [100%]
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    3.36s call     tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_g_not_equivalent_site_is_isolated_and_reverted_while_others_stay
+    1.83s call     tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_h_rewritten_fixture_module_tests_pass
+    ============================== 2 passed in 5.39s ===============================
+
+    # rg -n "inspect\.|getsource" tests/test_fixture_codemod.py tests/test_fixture_codemod_slow.py
+    (empty output, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste the `--durations=0` total for `tests/test_fixture_codemod.py` (under 10 s, or the moved slow module named in `tests/slow_allowlist.txt` with its own PASSED run), the bare `python3 -m pytest` summary line and wall time, and every `aw commit j2xjtt` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    ```text
+    # Core module total (python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod.py):
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 5 passed in 5.64s ===============================
+
+    # Moved slow module (python3 -m pytest -o addopts="" -n 0 -v --durations=0 tests/test_fixture_codemod_slow.py):
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 2 passed in 5.39s ===============================
+
+    # Entries added to tests/slow_allowlist.txt:
+    tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_g_not_equivalent_site_is_isolated_and_reverted_while_others_stay	Subprocess codemod equivalence bisection running nested pytest invocations
+    tests/test_fixture_codemod_slow.py::FixtureCodemodEquivalenceTests::test_case_h_rewritten_fixture_module_tests_pass	Subprocess codemod apply and nested pytest verification of rewritten fixture module
+
+    # Bare core gate (aw suite, running bare python3 -m pytest on the core tier):
+    2603 passed, 11 warnings in 101.32s (0:01:41)
+
+    # aw commit j2xjtt (with --scope-reason for tests/test_fixture_codemod_slow.py per E-09 and review D-2):
+    aw commit: committed 9 path(s): f92d6ac6f81ba4e398622ba2faeca550fc781e71
+    f92d6ac6f (HEAD -> aw/lane/j2xjtt) test(j2xjtt): add behavioral tests and fixtures for fixture_codemod
+     .../fixture_codemod/dry_run_and_idempotence.py.txt |  17 ++
+     .../fixture_codemod/fstring_placeholders.py.txt    |  25 ++
+     .../fixtures/fixture_codemod/invalid_input.py.txt  |  14 ++
+     .../fixtures/fixture_codemod/not_equivalent.py.txt |  40 ++++
+     .../fixtures/fixture_codemod/plain_constant.py.txt |  22 ++
+     .../fixtures/fixture_codemod/rewritten_module_passes.py.txt |  44 ++++
+     tests/slow_allowlist.txt                           |   2 +
+     tests/test_fixture_codemod.py                      | 265 +++++++++++++++++++++
+     tests/test_fixture_codemod_slow.py                 | 143 +++++++++++
+     9 files changed, 572 insertions(+)
+
+    # Plan-evidence commit follows via aw commit j2xjtt scoped exclusively to .aw/records/plans/pending/20261109-metastore-173-j2xjtt-test-the-fixture-codemod-rewrite-invalid-input-dry-run-idemp.ipd.md.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
