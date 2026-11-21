@@ -16,51 +16,9 @@ from typing import Optional
 
 from agent_workflows import check_engine
 from tests import support
+from tests.record_builder import RecordBuilder
 
 RULE_MISMATCH = "check.from-backlog-gate-mismatch"
-
-ITEM = """- Id: {id6}
-- Status: {status}
-- Set: tst
-- Priority: medium
-- Work-Kind: {work_kind}
-- Summary: A test item.
-{gate}
-## Workflow history
-- 2026-09-18 created (test): A test item.
-"""
-
-PLAN = """# IPD: A test plan
-
-- Date: 2026-09-18
-- Kind: child
-- Concern: Testing.
-- Scope: Testing.
-- Scope-Paths: x
-- Item-Dependencies: none
-- From-Backlog: {backlog_id6}
-{gate}- Status: {status}
-- Set: tst
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: {id6}
-
-## Workflow history
-- 2026-09-18 created (test): Testing.
-"""
-
-SPEC = """# Spec: A test spec
-
-- Date: 2026-09-18
-- Status: approved
-- Id: {id6}
-- From-Backlog: {backlog_id6}
-{gate}- Scope: Testing.
-
-## Workflow history
-- 2026-09-18 created (test): Testing.
-"""
 
 
 def _release(root: Path) -> Path:
@@ -68,11 +26,13 @@ def _release(root: Path) -> Path:
     d.mkdir(parents=True, exist_ok=True)
     p = d / "20260901-rel001-01-rel001-v1.release.md"
     p.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -89,12 +49,21 @@ def _item(
     d = root / ".aw" / "records" / "backlog" / status
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"20260918-tst-01-{id6}-a-test-item.backlog.md"
+    extra: dict[str, str] = {}
+    if gate:
+        extra["blocks_release"] = gate
     p.write_text(
-        ITEM.format(
+        RecordBuilder().backlog(
             id6=id6,
             status=status,
+            set="tst",
+            priority="medium",
             work_kind=work_kind,
-            gate=(f"- Blocks-Release: {gate}\n" if gate else ""),
+            summary="A test item.",
+            when="2026-09-18",
+            history=["- 2026-09-18 created (test): A test item."],
+            text_only=True,
+            **extra,
         ),
         encoding="utf-8",
     )
@@ -113,12 +82,25 @@ def _plan(
     d = root / ".aw" / "records" / "plans" / disposition
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"20260918-tst-01-{id6}-a-test-plan.ipd.md"
+    extra: dict[str, str] = {}
+    if gate:
+        extra["blocks_release"] = gate
     p.write_text(
-        PLAN.format(
-            id6=id6,
-            backlog_id6=backlog_id6,
+        RecordBuilder().plan(
+            title="A test plan",
+            when="2026-09-18",
+            plan_role="child",
+            scope_paths="x",
+            item_dependencies="none",
+            from_backlog=backlog_id6,
             status=status,
-            gate=(f"- Blocks-Release: {gate}\n" if gate else ""),
+            set="tst",
+            order=1,
+            author="test",
+            id6=id6,
+            history=["- 2026-09-18 created (test): Testing."],
+            text_only=True,
+            **extra,
         ),
         encoding="utf-8",
     )
@@ -131,11 +113,19 @@ def _spec(
     d = root / ".aw" / "records" / "specs"
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"20260918-{id6}-01-{id6}-a-test-spec.spec.md"
+    extra: dict[str, str] = {}
+    if gate:
+        extra["blocks_release"] = gate
     p.write_text(
-        SPEC.format(
+        RecordBuilder().spec(
+            title="A test spec",
+            when="2026-09-18",
+            status="approved",
             id6=id6,
-            backlog_id6=backlog_id6,
-            gate=(f"- Blocks-Release: {gate}\n" if gate else ""),
+            from_backlog=backlog_id6,
+            history=["- 2026-09-18 created (test): Testing."],
+            text_only=True,
+            **extra,
         ),
         encoding="utf-8",
     )

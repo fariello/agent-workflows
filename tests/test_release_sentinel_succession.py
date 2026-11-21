@@ -22,6 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from agent_workflows import check_engine, releases
+from tests.record_builder import RecordBuilder
 
 _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 _ENV = {**os.environ, "PYTHONPATH": _REPO_ROOT}
@@ -46,13 +47,14 @@ def _create_fixture_repo(root: Path, planned_count: int = 1) -> Path:
             / "20260901-rel001-01-rel001-v1.release.md"
         )
         rel1.write_text(
-            "# Release: 1.0.0\n\n"
-            "- Id: rel001\n"
-            "- Status: planned\n"
-            "- Version: 1.0.0\n"
-            "- Summary: First release\n\n"
-            "## Workflow history\n\n"
-            "- 2026-09-01 created (aw releases): First release\n",
+            RecordBuilder().release(
+                version="1.0.0",
+                id6="rel001",
+                status="planned",
+                summary="First release",
+                history=["- 2026-09-01 created (aw releases): First release"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
     if planned_count >= 2:
@@ -64,13 +66,14 @@ def _create_fixture_repo(root: Path, planned_count: int = 1) -> Path:
             / "20260902-rel002-01-rel002-v2.release.md"
         )
         rel2.write_text(
-            "# Release: 2.0.0\n\n"
-            "- Id: rel002\n"
-            "- Status: planned\n"
-            "- Version: 2.0.0\n"
-            "- Summary: Second release\n\n"
-            "## Workflow history\n\n"
-            "- 2026-09-02 created (aw releases): Second release\n",
+            RecordBuilder().release(
+                version="2.0.0",
+                id6="rel002",
+                status="planned",
+                summary="Second release",
+                history=["- 2026-09-02 created (aw releases): Second release"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
     return root
@@ -129,7 +132,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "open"
                 / "20260920-item01-01-item01-b1.backlog.md"
             ).write_text(
-                "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="open",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -140,7 +151,13 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "approved"
                 / "20260920-spec01-01-spec01-s1.spec.md"
             ).write_text(
-                "- Id: spec01\n- Status: approved\n- Blocks-Release: next\n- Set: spec01\n",
+                RecordBuilder().spec(
+                    id6="spec01",
+                    status="approved",
+                    blocks_release="next",
+                    set="spec01",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -151,7 +168,14 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "pending"
                 / "20260920-plan01-01-plan01-p1.ipd.md"
             ).write_text(
-                "# IPD: Plan 1\n\n- Id: plan01\n- Status: approved\n- Blocks-Release: next\n- Set: plan01\n- Scope: S\n",
+                RecordBuilder().plan(
+                    title="Plan 1",
+                    id6="plan01",
+                    status="approved",
+                    blocks_release="next",
+                    set="plan01",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -174,7 +198,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "open"
                 / "20260920-item01-01-item01-b1.backlog.md"
             ).write_text(
-                "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="open",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -185,7 +217,14 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "pending"
                 / "20260920-plan01-01-plan01-p1.ipd.md"
             ).write_text(
-                "# IPD: Plan 1\n\n- Id: plan01\n- Status: approved\n- Blocks-Release: next\n- Set: plan01\n- Scope: S\n",
+                RecordBuilder().plan(
+                    title="Plan 1",
+                    id6="plan01",
+                    status="approved",
+                    blocks_release="next",
+                    set="plan01",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -212,7 +251,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                     / "open"
                     / "20260920-item01-01-item01-b1.backlog.md"
                 ).write_text(
-                    "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                    RecordBuilder().backlog(
+                        id6="item01",
+                        status="open",
+                        blocks_release="next",
+                        set="item01",
+                        priority="medium",
+                        work_kind="feature",
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 # Planted unresolvable non-next record
@@ -224,7 +271,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                     / "open"
                     / "20260920-item02-01-item02-b2.backlog.md"
                 ).write_text(
-                    "- Id: item02\n- Status: open\n- Blocks-Release: nonexist\n- Set: item02\n- Priority: medium\n- Work-Kind: feature\n",
+                    RecordBuilder().backlog(
+                        id6="item02",
+                        status="open",
+                        blocks_release="nonexist",
+                        set="item02",
+                        priority="medium",
+                        work_kind="feature",
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 
@@ -250,7 +305,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "open"
                 / "20260920-item01-01-item01-b1.backlog.md"
             ).write_text(
-                "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="open",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rel_file = (
@@ -318,7 +381,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "open"
                 / "20260920-item01-01-item01-b1.backlog.md"
             ).write_text(
-                "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="open",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rel_file = (
@@ -406,7 +477,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "open"
                 / "20260920-item01-01-item01-b1.backlog.md"
             ).write_text(
-                "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="open",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             res0 = subprocess.run(
@@ -436,7 +515,15 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 / "open"
                 / "20260920-item01-01-item01-b1.backlog.md"
             ).write_text(
-                "- Id: item01\n- Status: open\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="open",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             res2 = subprocess.run(

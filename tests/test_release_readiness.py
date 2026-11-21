@@ -15,6 +15,7 @@ import pytest
 
 from agent_workflows import benchmark_thresholds as bt
 from agent_workflows import release_readiness as rr
+from tests.record_builder import RecordBuilder
 from tests.test_release_readiness_producers import setup_minimal_workflows_tree
 
 
@@ -437,7 +438,18 @@ def test_build_report_nonconforming_plan_flips_only_ipd_lint(
     bad_plan = (
         root / ".aw" / "records" / "plans" / "pending" / "20261012-x-01-abcdef-x.ipd.md"
     )
-    bad_plan.write_text("# IPD: x\n- Status: to-review\n", encoding="utf-8")
+    bad_plan.write_text(
+        RecordBuilder().plan(
+            title="x",
+            id6="abcdef",
+            set="x",
+            when="2026-10-12",
+            status="to-review",
+            body="",
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
 
     # Call build_report again and assert NO-GO naming only ipd_lint
     rep_bad = rr.build_report(

@@ -24,6 +24,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli, completion, releases
+from tests.record_builder import RecordBuilder
 
 
 def _args(**kw) -> argparse.Namespace:
@@ -77,24 +78,51 @@ class _ReleasesRepoFixture(unittest.TestCase):
         self.releases_dir = self.rec / "releases"
         _write(
             self.releases_dir / "20260101-aaaaaa-01-aaaaaa-2-0-0.release.md",
-            "# Release: 2.0.0\n\n- Id: aaaaaa\n- Status: planned\n- Version: 2.0.0\n"
-            "- Summary: the planned one\n\n## Workflow history\n\n"
-            "- 2026-01-01 created (aw releases): seeded\n",
+            RecordBuilder().release(
+                version="2.0.0",
+                id6="aaaaaa",
+                status="planned",
+                summary="the planned one",
+                history=["- 2026-01-01 created (aw releases): seeded"],
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "backlog" / "open" / "20260102-g-01-gate01-blocker.backlog.md",
-            "- Id: gate01\n- Status: open\n- Set: g\n- Priority: high\n- Kind: bug\n"
-            "- Summary: gates the release\n- Blocks-Release: next\n",
+            RecordBuilder().backlog(
+                id6="gate01",
+                status="open",
+                set="g",
+                priority="high",
+                work_kind="bug",
+                summary="gates the release",
+                blocks_release="next",
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "plans" / "pending" / "20260102-g-01-gate03-a-plan.ipd.md",
-            "# IPD: p\n\n- Id: gate03\n- Status: approved\n- Set: g (g)\n"
-            "- Blocks-Release: aaaaaa\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="p",
+                id6="gate03",
+                status="approved",
+                set="g (g)",
+                blocks_release="aaaaaa",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "backlog" / "open" / "20260102-g-01-free01-nogate.backlog.md",
-            "- Id: free01\n- Status: open\n- Set: g\n- Priority: low\n- Kind: chore\n"
-            "- Summary: gates nothing\n",
+            RecordBuilder().backlog(
+                id6="free01",
+                status="open",
+                set="g",
+                priority="low",
+                work_kind="chore",
+                summary="gates nothing",
+                text_only=True,
+            ),
         )
 
     def tearDown(self) -> None:
@@ -455,8 +483,13 @@ class ReleasesCompletionTests(_ReleasesRepoFixture):
         # Flip the only planned release to shipped: `next` no longer resolves, so it is not offered.
         p = next(self.releases_dir.glob("*.release.md"))
         p.write_text(
-            p.read_text(encoding="utf-8").replace(
-                "- Status: planned", "- Status: shipped"
+            RecordBuilder().release(
+                version="2.0.0",
+                id6="aaaaaa",
+                status="shipped",
+                summary="the planned one",
+                history=["- 2026-01-01 created (aw releases): seeded"],
+                text_only=True,
             ),
             encoding="utf-8",
         )
