@@ -6,7 +6,7 @@
 - Scope: Update three production modules and add behavioral outcome tests in three test modules. (1) Lazily seed the six-character base36 identifier (`id6`) collision pool once from `agent_workflows/artifact_core.py::global_id6s(repo_path)` in `agent_workflows/migrations/m0001_renames.py::build_rename_map` and mint each new `id6` in memory via `agent_workflows/artifact_core.py::generate_id6`, with behavioral tests in `tests/test_m0001_renames.py`. (2) Add a single-pass record stem indexer, pre-compiled per-stem regexes, a minimal `re.escape`-escaped combined literal alternation prefilter regex checked before and after masking, and per-stem substring guards in `agent_workflows/artifact_refs.py::plan_reference_rewrites_with_warnings`, with `@pytest.mark.core` behavioral parity and prefilter tests in `tests/test_artifact_refs_rewrite.py`. (3) Stream per-operation backup and applied events to an append-only JSON Lines (JSONL) write-ahead log (`ops-progress.jsonl`) inside `agent_workflows/migrations/m0001_metadata_v2.py::_execute_planned_operations`, closing the file handle before compacting into `journal.json` and unlinking `ops-progress.jsonl` on completion or exception, replaying `ops-progress.jsonl` on journal load, resume, and rollback, and clearing stale progress logs on fresh non-applying runs, with behavioral crash-recovery and compaction tests in `tests/test_m0001_preflight.py`. EXCLUDES: changing `agent_workflows/artifact_core.py::global_id6s`, `agent_workflows/artifact_core.py::generate_id6`, `agent_workflows/artifact_core.py::mint_id6`, `agent_workflows/artifact_refs.py::count_legacy_prefix_records`, `agent_workflows/migrations/m0001_renames.py::apply_step3`, `agent_workflows/layout_migration.py::MigrationManager`, or adding the `this_repository` clone migration test (`60mazt`).
 - Scope-Paths: agent_workflows/migrations/m0001_renames.py, agent_workflows/artifact_refs.py, agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_renames.py, tests/test_artifact_refs_rewrite.py, tests/test_m0001_preflight.py, .aw/records/plans/pending/20261119-e49gzt-01-n2bfd4-optimize-m0001-rename-id-minting-citation-scan-prefiltering.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Seed m0001_renames.build_rename_map id6 pool once, prefilter artifact_refs.plan_reference_rewrites_with_warnings, and stream m0001_metadata_v2._execute_planned_operations progress via ops-progress.jsonl
@@ -18,12 +18,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: n2bfd4
-- Approval: 2026-11-20, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: n2bfd4 verified (set e49gzt, attempt 1).
 - 2026-11-20 approved (aw set): status set to approved
 - 2026-11-20 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-20 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261119-e49gzt-01-n2bfd4-optimize-m0001-rename-id-minting-citation-scan-prefiltering.review.md
