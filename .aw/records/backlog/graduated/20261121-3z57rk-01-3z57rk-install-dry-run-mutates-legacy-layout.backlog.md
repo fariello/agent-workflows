@@ -1,5 +1,6 @@
 - Id: 3z57rk
-- Status: open
+- Status: graduated
+- Graduated-To: 3z57rk
 - Set: 3z57rk
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw backlog): graduated by run run-20261121T210815Z-1170144: rznd0q
 - 2026-11-21 created (aw backlog): aw install --dry-run --no-interactive executes legacy .agents/ to .aw/ migration live on disk
 
 ## Observed behavior
