@@ -16,53 +16,31 @@ import unittest
 
 from agent_workflows import artifact_core as core
 from agent_workflows import check_engine as ce
+from tests.record_builder import RecordBuilder
 
 
 def _fixture_plan_text(id6: str, history_text: str, status: str = "approved") -> str:
-    approval = (
-        "- Approval: 2026-09-03, recorded via aw ipd set\n"
-        if status == "approved"
-        else ""
-    )
-    return (
-        f"# IPD: Fixture {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: fixture plan\n"
-        "- Scope: fixture plan\n"
-        "- Scope-Paths: agent_workflows/check_engine.py\n"
-        "- Item-Dependencies: none\n"
-        f"- Status: {status}\n"
-        "- Set: demo\n"
-        "- Order: 1\n"
-        "- Highest E allocated: 01\n"
-        "- Priority: medium\n"
-        "- Work-Kind: chore\n"
-        "- Author: fixture\n"
-        f"- Id: {id6}\n"
-        f"{approval}"
-        "\n## Workflow history\n"
-        f"{history_text}\n"
-        "\n## Goal\n\nFixture goal.\n"
-        "\n## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 execute.\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: done\n"
-        "  - Execution state: pending\n"
-        "\n## Project conventions discovered (Step 0)\n\n- none\n"
-        "\n## Findings\n\n- none\n"
-        "\n## Proposed changes (ordered, validatable)\n\n- none\n"
-        "\n## Deferred / out of scope (with reason)\n\n- none\n"
-        "\n## Scope check\n\n- none\n"
-        "\n## Required tests / validation\n\n- none\n"
-        "\n## Spec / documentation sync\n\n- none\n"
-        "\n## Open questions\n\n- none\n"
-        "\n## Validation and cross-check (verify before reporting done)\n\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: none\n"
-        "  - Observed evidence: none\n"
-        "  - Result: pending\n"
-        "\n## Approval and execution gate\n\n- none\n"
+    history_lines = [line for line in history_text.splitlines() if line.strip()]
+    return str(
+        RecordBuilder().plan(
+            title=f"Fixture {id6}",
+            when="2026-09-01",
+            plan_role="child",
+            scope_paths="agent_workflows/check_engine.py",
+            item_dependencies="none",
+            status=status,
+            set="demo",
+            order=1,
+            priority="medium",
+            work_kind="chore",
+            author="fixture",
+            id6=id6,
+            approval=(
+                "2026-09-03, recorded via aw ipd set" if status == "approved" else None
+            ),
+            history=history_lines,
+            text_only=True,
+        )
     )
 
 

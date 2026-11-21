@@ -43,6 +43,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shared
 from tests.support import coordinator_role
+from tests.record_builder import RecordBuilder
 
 
 def _create_test_repo(root: Path) -> Path:
@@ -92,21 +93,19 @@ def _create_plan_file(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / f"20261017-{setid}-{order:02d}-{id6}-plan.ipd.md"
 
-    content = f"""# IPD: Test Plan {id6}
-
-- Kind: child
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Id: {id6}
-- Priority: medium
-- Work-Kind: feature
-- Scope-Paths: README.md
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Do work
-- [ ] V-01 Verify work
-"""
+    content = RecordBuilder().plan(
+        title=f"Test Plan {id6}",
+        plan_role="child",
+        status=status,
+        set=setid,
+        order=order,
+        id6=id6,
+        priority="medium",
+        work_kind="feature",
+        scope_paths="README.md",
+        body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Do work\n- [ ] V-01 Verify work",
+        text_only=True,
+    )
     plan_path.write_text(content, encoding="utf-8")
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", f"add plan {id6}"], cwd=repo, check=True)

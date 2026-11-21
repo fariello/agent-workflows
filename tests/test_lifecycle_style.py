@@ -31,6 +31,7 @@ from unittest import mock
 
 from agent_workflows import cli, lifecycle_style as L, term
 from tests import support
+from tests.record_builder import RecordBuilder
 
 REPO = Path(__file__).resolve().parents[1]
 SPEC_PATH = next(
@@ -629,12 +630,15 @@ class CriterionA19WorkKindIndependenceTests(unittest.TestCase):
 
             item_bug = backlog_open / "20261008-tstbug-01-tstbug-defect-item.backlog.md"
             item_bug.write_text(
-                "- Id: tstbug\n"
-                "- Status: open\n"
-                "- Set: tstbug\n"
-                "- Priority: low\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Defect item summary\n",
+                RecordBuilder().backlog(
+                    id6="tstbug",
+                    status="open",
+                    set="tstbug",
+                    priority="low",
+                    work_kind="bug",
+                    summary="Defect item summary",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -642,12 +646,15 @@ class CriterionA19WorkKindIndependenceTests(unittest.TestCase):
                 backlog_open / "20261008-tstchr-01-tstchr-chore-item.backlog.md"
             )
             item_chore.write_text(
-                "- Id: tstchr\n"
-                "- Status: open\n"
-                "- Set: tstchr\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: Chore item summary\n",
+                RecordBuilder().backlog(
+                    id6="tstchr",
+                    status="open",
+                    set="tstchr",
+                    priority="low",
+                    work_kind="chore",
+                    summary="Chore item summary",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

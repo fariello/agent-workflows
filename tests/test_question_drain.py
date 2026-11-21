@@ -53,6 +53,7 @@ from agent_workflows import (
     runner_shared,
 )
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.support import coordinator_role
 
 
@@ -108,27 +109,9 @@ def _create_plan_file(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / f"20261017-{setid}-{order:02d}-{id6}-plan.ipd.md"
 
-    content = f"""# IPD: Test Plan {id6}
-
-- Kind: child
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Id: {id6}
-- Priority: {priority}
-- Work-Kind: {work_kind}
-"""
-    if dependencies:
-        dep_str = ", ".join(dependencies)
-        content += f"- Item-Dependencies: {dep_str}\n"
-    content += """- Scope-Paths: README.md
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Perform task
-- [ ] V-01 Verify task
-"""
+    dep_str = ", ".join(dependencies) if dependencies else "none"
+    oq_blocks: list[str] = []
     if oqs:
-        oq_blocks = []
         for oq in oqs:
             oq_id = oq.get("id", "OQ-01")
             title = oq.get("title", f"Question {oq_id}")
@@ -147,7 +130,28 @@ def _create_plan_file(
                 f"- Owner: test author\n"
                 f"{rat_line}"
             )
-        content += "\n## Open questions\n\n" + "\n\n".join(oq_blocks) + "\n"
+    content = str(
+        RecordBuilder().plan(
+            title=f"Test Plan {id6}",
+            when="2026-10-17",
+            plan_role="child",
+            status=status,
+            set=setid,
+            order=order,
+            id6=id6,
+            priority=priority,
+            work_kind=work_kind,
+            item_dependencies=dep_str,
+            scope_paths="README.md",
+            body=(
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 Perform task\n"
+                "- [ ] V-01 Verify task"
+            ),
+            open_questions="\n\n".join(oq_blocks) if oq_blocks else None,
+            text_only=True,
+        )
+    )
 
     plan_path.write_text(content, encoding="utf-8")
     if commit:

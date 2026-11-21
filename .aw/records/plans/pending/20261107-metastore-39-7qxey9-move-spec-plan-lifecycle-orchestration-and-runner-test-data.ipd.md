@@ -150,6 +150,7 @@ flowchart TD
   - Carrier: 3k142n
 - Moved to 2etvye (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4b (items E-03; F-41 names each module).
   - Carrier: 2etvye
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-188-2etvye-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-7.ipd.md
 - Moved to 80p88l (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4b (items E-03; F-41 names each module).
   - Carrier: 80p88l
 - Moved to qb3n9s (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4c (items E-04; F-41 names each module).

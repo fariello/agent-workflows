@@ -19,6 +19,7 @@ from pathlib import Path
 
 from agent_workflows import cli, ipd_lifecycle as LC, oc_runipd, runner_shared as RS
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -64,14 +65,6 @@ def _completed_plan_text(
     return t
 
 
-def _write_plan(root: Path, text: str, name: str) -> Path:
-    d = root / ".aw" / "records" / "plans" / "pending"
-    d.mkdir(parents=True, exist_ok=True)
-    p = d / name
-    p.write_text(text, encoding="utf-8")
-    return p
-
-
 class LifecycleHolderGateMatrixTests(unittest.TestCase):
     """Tests the D4 entry-point matrix against a plan held by a live run."""
 
@@ -82,10 +75,12 @@ class LifecycleHolderGateMatrixTests(unittest.TestCase):
 
         self.plan_id = "hld001"
         self.plan_name = f"20261009-demo-01-{self.plan_id}-test-plan.ipd.md"
-        self.plan_path = _write_plan(
-            self.root,
+        pending_dir = self.root / ".aw" / "records" / "plans" / "pending"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        self.plan_path = pending_dir / self.plan_name
+        self.plan_path.write_text(
             _completed_plan_text(plan_id=self.plan_id, set_name="demo"),
-            self.plan_name,
+            encoding="utf-8",
         )
         (self.root / "agent_workflows").mkdir(parents=True, exist_ok=True)
         (self.root / "tests").mkdir(parents=True, exist_ok=True)
@@ -369,28 +364,6 @@ class LifecycleHolderGateMatrixTests(unittest.TestCase):
     def test_entry_05_retire_orchestrator_in_process(self) -> None:
         """Entry 5: retire_orchestrator refuses when held; proceeds with matching run_id."""
         orch_id = "orch01"
-        orch_name = f"20261009-demo-00-{orch_id}-orchestrator.ipd.md"
-        orch_text = f"""# IPD: Demo Orchestrator
-- Id: {orch_id}
-- Set: demo
-- Order: 0
-- Kind: orchestrator
-- Status: approved
-- Author: human
-- Date: 2026-10-09
-- Readiness: go
-- Work-Kind: feature
-- Priority: medium
-
-## Child IPDs, sequence, and dependencies
-| Order | Id | Depends on | Status | Description |
-|---|---|---|---|---|
-| 01 | {self.plan_id} | none | executed | child work |
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 CONFIRM {self.plan_id} REACHED executed
-  - Depends on: none
-"""
         executed_dir = self.root / ".aw" / "records" / "plans" / "executed"
         executed_dir.mkdir(parents=True, exist_ok=True)
         child_text = _completed_plan_text(
@@ -400,7 +373,31 @@ class LifecycleHolderGateMatrixTests(unittest.TestCase):
         if self.plan_path.exists():
             self.plan_path.unlink()
 
-        orch_path = _write_plan(self.root, orch_text, orch_name)
+        orch_path = Path(
+            RecordBuilder(self.root).plan(
+                title="Demo Orchestrator",
+                id6=orch_id,
+                set="demo",
+                order=0,
+                plan_role="orchestrator",
+                status="approved",
+                author="human",
+                when="2026-10-09",
+                readiness="go",
+                work_kind="feature",
+                priority="medium",
+                slug="orchestrator",
+                body=(
+                    f"## Child IPDs, sequence, and dependencies\n"
+                    f"| Order | Id | Depends on | Status | Description |\n"
+                    f"|---|---|---|---|---|\n"
+                    f"| 01 | {self.plan_id} | none | executed | child work |\n\n"
+                    f"## Detailed Implementation Checklist (TODO)\n"
+                    f"- [ ] E-01 CONFIRM {self.plan_id} REACHED executed\n"
+                    f"  - Depends on: none"
+                ),
+            )
+        )
         _commit_all(self.root, "add orchestrator and mark child executed")
 
         state = {
@@ -497,10 +494,12 @@ class RegressionAndFenceTests(unittest.TestCase):
 
         self.plan_id = "reg001"
         self.plan_name = f"20261009-demo-01-{self.plan_id}-regression-test.ipd.md"
-        self.plan_path = _write_plan(
-            self.root,
+        pending_dir = self.root / ".aw" / "records" / "plans" / "pending"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        self.plan_path = pending_dir / self.plan_name
+        self.plan_path.write_text(
             _completed_plan_text(plan_id=self.plan_id, set_name="demo"),
-            self.plan_name,
+            encoding="utf-8",
         )
         (self.root / "agent_workflows").mkdir(parents=True, exist_ok=True)
         (self.root / "tests").mkdir(parents=True, exist_ok=True)
@@ -749,9 +748,10 @@ class RegressionAndFenceTests(unittest.TestCase):
             repo_root = Path(fresh_repo_dir)
             _init_git(repo_root)
             p_text = _completed_plan_text(plan_id="fresh1", set_name="demo")
-            plan_file = _write_plan(
-                repo_root, p_text, "20261009-demo-01-fresh1-fresh.ipd.md"
-            )
+            pending_dir = repo_root / ".aw" / "records" / "plans" / "pending"
+            pending_dir.mkdir(parents=True, exist_ok=True)
+            plan_file = pending_dir / "20261009-demo-01-fresh1-fresh.ipd.md"
+            plan_file.write_text(p_text, encoding="utf-8")
             (repo_root / "agent_workflows").mkdir(parents=True, exist_ok=True)
             (repo_root / "tests").mkdir(parents=True, exist_ok=True)
             (repo_root / "agent_workflows" / "demo.py").write_text(
