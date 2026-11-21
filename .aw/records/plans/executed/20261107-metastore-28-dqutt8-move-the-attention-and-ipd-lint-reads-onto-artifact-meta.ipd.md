@@ -5,8 +5,9 @@
 - Concern: Split from `ffceq0` (Task groups 2 and 4) under the maintainer's step-complexity rule. `attention` holds 10 `^-` metadata regular expressions and 6 history-block reads across its six per-tree record builders, and `ipd_lint` parses plan metadata and history itself (5 `^-` literals and `ipd_schema.parse_metadata_block`); spec `4sd62s` C5 requires both to answer from `artifact_meta`. Both are status-and-history consumers of the same cached fields, which is why they share a part.
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): the `ipd_lint` item E-03 moved to `1suzlp` (Order 151). Pin then move the `attention` reads (`scan`, every per-tree `_*_record`, `_plans_id`, `_frontmatter_block`, `_ITEM_DEPS_RE`, `read_readiness` callers and the `attention_contract.history_block`/`last_history_at` calls) onto `artifact_meta.query` and `artifact_meta.history`, applying D-3 (`ffceq0` E-04, E-05 carried unchanged). EXCLUDES: `ipd_lint` (`1suzlp`), `selectors` and `aw find` (Order 27 `r81uvz`), `check_engine` (Orders 29 to 32), and everything `ffceq0` keeps.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_readers_attention.py, .aw/records/plans/pending/20261107-metastore-28-dqutt8-move-the-attention-and-ipd-lint-reads-onto-artifact-meta.ipd.md
+- Scope-Exceeded: agent_workflows/artifact_meta.py (Fix four small legacy-loader bugs blocking attention migration: use attention_contract.history_block in _parse_bullet_metadata_with_loose and YAML load_legacy_artifact, register blocks_release on rese...); tests/test_readers_check_engine.py (Fix malformed dummy abc123.jsonl event envelope in test_meta_dir_and_skip_names_yield_no_find_check_or_attention_row to a valid version-1 event so it no longer triggers E-02 incomplete violation repor...)
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:r81uvz, executed:w1cs3p, executed:na188y, executed:i3b5zu, executed:ebrc4t, executed:1suzlp
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dqutt8
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: dqutt8 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_meta.py: Fix four small legacy-loader bugs blocking attention migration: use attention_contract.history_block in _parse_bullet_metadata_with_loose and YAML load_legacy_artifact, register blocks_release on research, and populate last_history_day and prompt comment parsing in read_text (legacy_v9).; out-of-scope tests/test_readers_check_engine.py: Fix malformed dummy abc123.jsonl event envelope in test_meta_dir_and_skip_names_yield_no_find_check_or_attention_row to a valid version-1 event so it no longer triggers E-02 incomplete violation reporting.]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
