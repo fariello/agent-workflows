@@ -45,6 +45,7 @@ import pytest
 from agent_workflows import cli, completion
 from agent_workflows.term import Term
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _usable_bash():
@@ -927,31 +928,59 @@ class _DynamicRepoFixture(unittest.TestCase):
         # excluded by the active-disposition scan-scoping (latency budget).
         _write(
             rec / "plans" / "pending" / "20260828-tabcomp-02-4f1j25-child-two.ipd.md",
-            "# IPD: two\n\n- Id: 4f1j25\n- Status: approved\n- Set: tabcomp (tabs)\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="two",
+                id6="4f1j25",
+                status="approved",
+                set="tabcomp (tabs)",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
         )
         _write(
             rec / "plans" / "pending" / "20260828-tabcomp-01-bja8og-child-one.ipd.md",
-            "# IPD: one\n\n- Id: bja8og\n- Status: to-review\n- Set: tabcomp (tabs)\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="one",
+                id6="bja8og",
+                status="to-review",
+                set="tabcomp (tabs)",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
         )
         _write(
             rec / "plans" / "executed" / "20260101-oldset-01-ffffff-terminal.ipd.md",
-            "# IPD: old\n\n- Id: ffffff\n- Status: executed\n- Set: oldset\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="old",
+                id6="ffffff",
+                status="executed",
+                set="oldset",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
         )
         # A spec and a backlog item, each with a KNOWN id6.
         _write(
             rec / "specs" / "20260828-abc123-01-abc123-a-spec.spec.md",
-            "# Spec\n\n- Id: abc123\n- Status: draft\n",
+            RecordBuilder().spec(id6="abc123", status="draft", text_only=True),
         )
         _write(
             rec / "backlog" / "open" / "20260828-def456-01-def456-a-task.md",
-            "# Task\n\n- Id: def456\n- Status: open\n- Summary: x\n",
+            RecordBuilder().backlog(
+                id6="def456", status="open", summary="x", text_only=True
+            ),
         )
         # A single PLANNED release record with a KNOWN id6 + version, so `aw releases show`
         # completion (IPD w0ln4q E-04) resolves stably and `next` is offered.
         _write(
             rec / "releases" / "20260828-rel111-01-rel111-7-0-0.release.md",
-            "# Release: 7.0.0\n\n- Id: rel111\n- Status: planned\n- Version: 7.0.0\n"
-            "- Summary: the completable one\n",
+            RecordBuilder().release(
+                version="7.0.0",
+                id6="rel111",
+                status="planned",
+                summary="the completable one",
+                text_only=True,
+            ),
         )
         # A run directory.
         (rec / "runs" / "run-20260829T000000Z-1").mkdir(parents=True)

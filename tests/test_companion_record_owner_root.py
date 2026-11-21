@@ -26,12 +26,14 @@ import pytest
 
 from agent_workflows import (
     artifact_core,
+    artifact_meta,
     check_engine,
     project_context,
     record_placement,
     specs,
     status_set,
 )
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -146,11 +148,9 @@ def c1_sibling_companion(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     assert len(plans) == 1, f"Expected 1 plan, found {plans}"
     plan_path = plans[0]
 
-    id6 = None
-    for line in plan_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("- Id:"):
-            id6 = line.split(":", 1)[1].strip()
-            break
+    id6 = artifact_meta.read_text(
+        plan_path.read_text(encoding="utf-8"), record_type="ipd"
+    ).id6
     assert id6
 
     monkeypatch.setenv("HOME", str(home))
@@ -224,11 +224,9 @@ def c2_custom_companion(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     assert len(plans) == 1, f"Expected 1 plan, found {plans}"
     plan_path = plans[0]
 
-    id6 = None
-    for line in plan_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("- Id:"):
-            id6 = line.split(":", 1)[1].strip()
-            break
+    id6 = artifact_meta.read_text(
+        plan_path.read_text(encoding="utf-8"), record_type="ipd"
+    ).id6
     assert id6
 
     monkeypatch.setenv("HOME", str(home))
@@ -405,7 +403,9 @@ def test_companion_candidate_rejected_without_records_match(
     u_aw = tmp_path / "u.aw"
     x_plan = u_aw / "records" / "plans" / "pending" / "x.ipd.md"
     x_plan.parent.mkdir(parents=True)
-    x_plan.write_text("# Plan\n- Id: xxxxxx\n", encoding="utf-8")
+    x_plan.write_text(
+        RecordBuilder().plan(id6="xxxxxx", text_only=True), encoding="utf-8"
+    )
     assert project_context.record_owner_root(x_plan) is None
 
     # (b) Target moved
@@ -575,8 +575,14 @@ def test_ipd_lint_resolves_companion_sibling_dependency(
     assert res.returncode == 0
 
     # Point plan 2 dependencies to executed:<id6>
-    txt = plan2_path.read_text(encoding="utf-8")
-    txt = re.sub(r"- Item-Dependencies:.*", f"- Item-Dependencies: executed:{id6}", txt)
+    txt = artifact_meta.render_legacy_text(
+        plan2_path.read_text(encoding="utf-8"),
+        [{"op": "set", "fields": {"item_dependencies": f"executed:{id6}"}}],
+        record_type="ipd",
+        render=artifact_meta.LegacyRender(
+            tag="edit", day="2026-08-24", actor_label="probe", history=False
+        ),
+    )
     plan2_path.write_text(txt, encoding="utf-8")
 
     # Lint plan 2: must NOT contain check.ipd-dependency-dangling
@@ -590,7 +596,14 @@ def test_ipd_lint_resolves_companion_sibling_dependency(
     assert "check.ipd-dependency-dangling" not in res.stderr
 
     # Falsifiability: point to executed:zzzzzz -> MUST contain check.ipd-dependency-dangling
-    txt = re.sub(r"- Item-Dependencies:.*", "- Item-Dependencies: executed:zzzzzz", txt)
+    txt = artifact_meta.render_legacy_text(
+        txt,
+        [{"op": "set", "fields": {"item_dependencies": "executed:zzzzzz"}}],
+        record_type="ipd",
+        render=artifact_meta.LegacyRender(
+            tag="edit", day="2026-08-24", actor_label="probe", history=False
+        ),
+    )
     plan2_path.write_text(txt, encoding="utf-8")
     res_z = run_aw(
         ["ipd", "lint", "--phase", "pre-execution", str(plan2_path)],
