@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): confirm the tracked-fixture conversion (E-10, reduced) and run, commit (E-14). The baselines and builder moved to `j6o96i`, the builder tests to `ijpay0`, the fixture conversions to `7fpc8v`, `z4x192`, `9zcuyh` and `b3eilr`. Before the round-3 split: `59aiyh` E-13 (baselines), E-01 (the builder), E-02 (its tests) and E-10 (tracked `.md` fixtures), carried verbatim with their original ids so their cross-references stay valid, plus a finishing commit item E-14. EXCLUDES: every test-module batch (Orders 38 to 40 and `59aiyh` E-09); the switch-point proof, the F-06 census and the full-suite comparison (`59aiyh` E-11, E-12); changing production code; the review-pilot corpus (`tests/fixtures/review-pilot/plans/`, kept literal); the log format (Order 13).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
 - Item-Dependencies: executed:g5hpbb, executed:tve77h, executed:xexn45, executed:j6o96i, executed:ijpay0, executed:7fpc8v, executed:z4x192, executed:9zcuyh, executed:b3eilr
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +18,9 @@
 - Highest E allocated: 14
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9rgn2w
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: 9rgn2w verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
