@@ -15755,16 +15755,20 @@ def _find_type_records(
                 Tuple[str, int, str, Path, _meta.State, str, Optional[str], str, str]
             ] = []
             for p in ordered_paths:
-                parsed, _ = _rc.parse_name(p.name, repo_root=repo_root)
-                if parsed is None:
-                    continue
                 st = state_by_path.get(p.resolve())
                 if st is None or st.id_derived:
                     continue
-                res_id = st.id6 or parsed.id6
-                set_val = st.set_id or parsed.set_id
+                parsed, _ = _rc.parse_name(p.name, repo_root=repo_root)
+                if parsed is None and not st.id6:
+                    continue
+                res_id = st.id6 or (parsed.id6 if parsed is not None else "")
+                set_val = st.set_id or (parsed.set_id if parsed is not None else None)
                 topics_list, r_summary = research_extras.get(res_id, ([], ""))
-                raw_st = st.legacy_raw_status or ""
+                raw_st = (
+                    st.legacy_raw_status
+                    if st.legacy_raw_status is not None
+                    else (st.status or "")
+                )
 
                 if explicit_id and res_id != explicit_id:
                     continue
@@ -15789,7 +15793,11 @@ def _find_type_records(
                 order_val = (
                     st.order_nn
                     if st.order_nn is not None
-                    else (parsed.order if parsed.order is not None else 0)
+                    else (
+                        int(parsed.order)
+                        if (parsed is not None and parsed.order is not None)
+                        else 0
+                    )
                 )
                 res_rows.append(
                     (

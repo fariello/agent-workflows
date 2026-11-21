@@ -1,5 +1,5 @@
 - Id: 7mmhlp
-- Status: graduated
+- Status: done
 - Graduated-To: 7mmhlp
 - Set: 7mmhlp
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw backlog): closed by aw agy run: IPD vvxbbl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-7mmhlp-01-vvxbbl-return-migrated-legacy-research-records-lacking-a-kind-facet.ipd.md); evidence .aw/records/plans/executed/20261121-7mmhlp-01-vvxbbl-return-migrated-legacy-research-records-lacking-a-kind-facet.ipd.md
 - 2026-11-21 graduated (aw set): Graduated to review-ready plan vvxbbl (set 7mmhlp)
 - 2026-11-21 created (aw backlog): aw find drops migrated legacy research records whose minted filenames lack a research kind facet even when queried by minted id6
 

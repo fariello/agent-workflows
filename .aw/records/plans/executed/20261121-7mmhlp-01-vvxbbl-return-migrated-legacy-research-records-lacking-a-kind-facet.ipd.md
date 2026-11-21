@@ -6,7 +6,7 @@
 - Scope: Update the `artifact_type == "research"` branch of `agent_workflows/cli.py::_find_type_records` to look up `st = state_by_path.get(p.resolve())` before dropping on `parsed is None`, falling back to `agent_workflows/artifact_meta.py::State` (`st.id6`, `st.set_id`, `st.order_nn`, and `st.status` when `st.legacy_raw_status` is `None`) when `st is not None and not st.id_derived`, while still skipping unmigrated id-less research files where `st is None or st.id_derived` (or `parsed is None and not st.id6`). Add behavioral regression tests in `tests/test_find_filters.py` (using an isolated temporary repository) verifying `aw find <minted_id6> --agent` and `aw find research --agent` return a migrated legacy research record lacking a kind facet while still skipping an unmigrated id-less research file. EXCLUDES: changing `agent_workflows/migrations/m0001_renames.py` filename rules and status-less research conversion (`fnabjy` / `s4utmv`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_find_filters.py, .aw/records/plans/pending/20261121-7mmhlp-01-vvxbbl-return-migrated-legacy-research-records-lacking-a-kind-facet.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Fall back to artifact_meta state in cli._find_type_records when research_contract.parse_name returns None for a migrated research record with a non-derived id6.
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: vvxbbl verified (set 7mmhlp, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-7mmhlp-01-vvxbbl-return-migrated-legacy-research-records-lacking-a-kind-facet.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 7mmhlp
@@ -39,18 +40,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Research find fallback onto artifact_meta.State
 
-- [ ] E-01 Update the `artifact_type == "research"` loop in `agent_workflows/cli.py::_find_type_records`:
+- [x] E-01 Update the `artifact_type == "research"` loop in `agent_workflows/cli.py::_find_type_records`:
   1. Look up `st = state_by_path.get(p.resolve())` first and keep the existing `if st is None or st.id_derived: continue` guard so unmigrated id-less files (including `conformance-results-template.md` in `tests/test_find_single_read.py::test_e_unparseable_research_doc_produces_no_rows`) stay excluded.
   2. Call `parsed, _ = _rc.parse_name(p.name, repo_root=repo_root)`, but do NOT `continue` when `parsed is None` if `st.id6` is non-empty and `not st.id_derived` (a log-backed or explicitly ID-bearing research record). When `parsed is None` and `not st.id6`, `continue`.
   3. Derive `res_id = st.id6 or (parsed.id6 if parsed is not None else "")`, `set_val = st.set_id or (parsed.set_id if parsed is not None else None)`, `raw_st = st.legacy_raw_status if st.legacy_raw_status is not None else (st.status or "")`, and `order_val = st.order_nn if st.order_nn is not None else (parsed.order if (parsed is not None and parsed.order is not None) else 0)`.
   - Depends on: none
   - Expected outcome: `aw find <minted_id6>` and `aw find research` emit migrated legacy research records lacking a kind facet using their `agent_workflows/artifact_meta.py::State` metadata while continuing to exclude unmigrated id-less files and preserving all existing `--id`/`--set`/`--topic`/`--status`/`--status-not` filters.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add behavioral tests in `tests/test_find_filters.py` using an isolated temporary repository (separate from `TestFindFilters.setUp`'s `self.repo_root`, which already contains `res001`) containing: (a) a migrated v2 research record at `.aw/records/research/20260708-ab12cd-01-ab12cd-survey-notes.md` (with `meta/ab12cd.jsonl` containing a `v: 1, seq: 0, append: 0, op: "checkpoint"` event with `path: "research/20260708-ab12cd-01-ab12cd-survey-notes.md"` and `fields: {"id": "ab12cd", "type": "research", "set": "ab12cd", "order": 1}` and no `.<kind>.md` facet, independent of `s4utmv`), and (b) an unmigrated id-less research prose file `.aw/records/research/20260708-unmigrated-notes.md` without a log or front-matter `id`. Assert via real CLI invocation (`aw find ab12cd --agent`, `aw find research --agent`, and `aw find research --set ab12cd --agent`) that `ab12cd` is returned (`total == 1`, `id6 == "ab12cd"`, `status == "-"`) and the unmigrated id-less file is not returned. Keep all tests purely behavioral with zero `inspect`, `ast`, or production source-code regex checks. Run `python3 -m pytest -o addopts="" -v tests/test_find_filters.py tests/test_find_agent_stream.py tests/test_find_single_read.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
+- [x] E-02 Add behavioral tests in `tests/test_find_filters.py` using an isolated temporary repository (separate from `TestFindFilters.setUp`'s `self.repo_root`, which already contains `res001`) containing: (a) a migrated v2 research record at `.aw/records/research/20260708-ab12cd-01-ab12cd-survey-notes.md` (with `meta/ab12cd.jsonl` containing a `v: 1, seq: 0, append: 0, op: "checkpoint"` event with `path: "research/20260708-ab12cd-01-ab12cd-survey-notes.md"` and `fields: {"id": "ab12cd", "type": "research", "set": "ab12cd", "order": 1}` and no `.<kind>.md` facet, independent of `s4utmv`), and (b) an unmigrated id-less research prose file `.aw/records/research/20260708-unmigrated-notes.md` without a log or front-matter `id`. Assert via real CLI invocation (`aw find ab12cd --agent`, `aw find research --agent`, and `aw find research --set ab12cd --agent`) that `ab12cd` is returned (`total == 1`, `id6 == "ab12cd"`, `status == "-"`) and the unmigrated id-less file is not returned. Keep all tests purely behavioral with zero `inspect`, `ast`, or production source-code regex checks. Run `python3 -m pytest -o addopts="" -v tests/test_find_filters.py tests/test_find_agent_stream.py tests/test_find_single_read.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Depends on: E-01
   - Expected outcome: All targeted find tests (including `tests/test_find_single_read.py::test_e_unparseable_research_doc_produces_no_rows`), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` pass with zero regressions and zero source-code inspection tests.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,15 +112,66 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff agent_workflows/cli.py` summary showing the `artifact_type == "research"` branch checks `state_by_path` first, falls back to `artifact_meta.State` (`id6`, `set_id`, `order_nn`, `status`) when `parsed is None` and `not st.id_derived`, and still skips `st is None or st.id_derived` or `(parsed is None and not st.id6)`.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -15755,16 +15755,20 @@ def _find_type_records(
+                     Tuple[str, int, str, Path, _meta.State, str, Optional[str], str, str]
+                 ] = []
+                 for p in ordered_paths:
+    -                parsed, _ = _rc.parse_name(p.name, repo_root=repo_root)
+    -                if parsed is None:
+    -                    continue
+                     st = state_by_path.get(p.resolve())
+                     if st is None or st.id_derived:
+                         continue
+    -                res_id = st.id6 or parsed.id6
+    -                set_val = st.set_id or parsed.set_id
+    +                parsed, _ = _rc.parse_name(p.name, repo_root=repo_root)
+    +                if parsed is None and not st.id6:
+    +                    continue
+    +                res_id = st.id6 or (parsed.id6 if parsed is not None else "")
+    +                set_val = st.set_id or (parsed.set_id if parsed is not None else None)
+                     topics_list, r_summary = research_extras.get(res_id, ([], ""))
+    -                raw_st = st.legacy_raw_status or ""
+    +                raw_st = (
+    +                    st.legacy_raw_status
+    +                    if st.legacy_raw_status is not None
+    +                    else (st.status or "")
+    +                )
+    @@ -15789,7 +15793,11 @@ def _find_type_records(
+                     order_val = (
+                         st.order_nn
+                         if st.order_nn is not None
+    -                    else (parsed.order if parsed.order is not None else 0)
+    +                    else (
+    +                        int(parsed.order)
+    +                        if (parsed is not None and parsed.order is not None)
+    +                        else 0
+    +                    )
+                     )
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_find_filters.py tests/test_find_agent_stream.py tests/test_find_single_read.py` (showing the new isolated migrated-research test and `test_e_unparseable_research_doc_produces_no_rows` passing), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`, plus confirmation that no added test uses `inspect`, `ast`, or source-code regex checks.
   - Observed evidence:
-  - Result: pending
+    - Targeted pytest (`python3 -m pytest -o addopts="" -v tests/test_find_filters.py tests/test_find_agent_stream.py tests/test_find_single_read.py`):
+      - `tests/test_find_single_read.py::test_e_unparseable_research_doc_produces_no_rows PASSED`
+      - `tests/test_find_filters.py::TestFindMigratedLegacyResearch::test_01_find_by_minted_id6_returns_migrated_kindless_research PASSED`
+      - `tests/test_find_filters.py::TestFindMigratedLegacyResearch::test_02_find_research_returns_only_migrated_record_and_skips_unmigrated PASSED`
+      - `tests/test_find_filters.py::TestFindMigratedLegacyResearch::test_03_find_research_filter_set_returns_migrated_kindless_research PASSED`
+      - `tests/test_find_filters.py::TestFindMigratedLegacyResearch::test_04_find_migrated_kindless_research_uses_state_status_fallback PASSED`
+      - Summary: `42 passed in 2.28s` (0 unlisted slow tests).
+    - Full core suite (`aw suite`): `2653 passed, 11 warnings in 91.30s (0:01:31)`.
+    - Typecheck (`make typecheck`): `python3 -m mypy agent_workflows` -> `Success: no issues found in 228 source files`.
+    - Pre-transition lint (`aw ipd lint --phase pre-transition` on this plan): `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["plans-lint"],"next":null}`.
+    - Leak sanitizer (`aw sanitize --agent`): `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6851,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Behavioral-only confirmation: `TestFindMigratedLegacyResearch` in `tests/test_find_filters.py` invokes `cli.main(["find", ...])` against isolated temporary repositories with zero `inspect`, `ast`, or production source-code regex checks.
+  - Result: pass
 
 ## Approval and execution gate
 

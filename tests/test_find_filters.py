@@ -329,3 +329,175 @@ class TestFindFilters(unittest.TestCase):
         lines = [line.strip() for line in out.splitlines() if line.strip()]
         self.assertEqual(len(lines), 1)
         self.assertIn("wlk001", lines[0])
+
+
+class TestFindMigratedLegacyResearch(unittest.TestCase):
+    """Behavioral regression tests for migrated legacy research records lacking a kind facet (IPD vvxbbl)."""
+
+    def setUp(self):
+        from agent_workflows import artifact_meta
+
+        self.temp_dir = tempfile.mkdtemp(prefix="aw_test_find_migrated_research_")
+        self.repo_root = Path(self.temp_dir)
+        config_dir = self.repo_root / ".aw" / "config"
+        research_dir = self.repo_root / ".aw" / "records" / "research"
+        meta_dir = self.repo_root / ".aw" / "records" / "meta"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        research_dir.mkdir(parents=True, exist_ok=True)
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "config.json").write_text(
+            json.dumps({"records_backend": "repository"}) + "\n",
+            encoding="utf-8",
+        )
+
+        # (a) Migrated v2 research record lacking a .<kind>.md facet, backed by meta/ab12cd.jsonl
+        self.migrated_rel = "research/20260708-ab12cd-01-ab12cd-survey-notes.md"
+        self.migrated_doc = self.repo_root / ".aw" / "records" / self.migrated_rel
+        self.migrated_doc.write_text(
+            "# Survey Notes\n\nLegacy research notes without a kind facet.\n",
+            encoding="utf-8",
+        )
+        checkpoint_event = {
+            "v": 1,
+            "seq": 0,
+            "append": 0,
+            "at": "2026-11-21T00:00:00Z",
+            "actor": {"tool": "aw"},
+            "op": "checkpoint",
+            "path": self.migrated_rel,
+            "fields": {
+                "id": "ab12cd",
+                "type": "research",
+                "set": "ab12cd",
+                "order": 1,
+            },
+        }
+        (meta_dir / "ab12cd.jsonl").write_text(
+            artifact_meta.encode_event(checkpoint_event),
+            encoding="utf-8",
+        )
+
+        # (b) Unmigrated id-less research prose file (no meta log, no front-matter id)
+        self.unmigrated_doc = research_dir / "20260708-unmigrated-notes.md"
+        self.unmigrated_doc.write_text(
+            "# Unmigrated Notes\n\nPlain prose without a log or front-matter id.\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def run_find(
+        self, extra_args: list[str], repo_root: Path | None = None
+    ) -> tuple[int, str]:
+        target_root = repo_root or self.repo_root
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(["find", *extra_args, "--dir", str(target_root)])
+        return rc, buf.getvalue()
+
+    def _assert_single_migrated_record(self, rc: int, out: str) -> None:
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(
+            len(lines), 2, f"Expected 1 item + 1 summary record, got: {lines}"
+        )
+        item = json.loads(lines[0])
+        summary = json.loads(lines[1])
+
+        self.assertEqual(item.get("kind"), "item")
+        self.assertEqual(item.get("type"), "research")
+        self.assertEqual(item.get("id6"), "ab12cd")
+        self.assertEqual(item.get("status"), "-")
+        self.assertEqual(item.get("set"), "ab12cd")
+        self.assertEqual(
+            item.get("path"),
+            ".aw/records/research/20260708-ab12cd-01-ab12cd-survey-notes.md",
+        )
+
+        self.assertEqual(summary.get("kind"), "summary")
+        self.assertEqual(summary.get("total"), 1)
+        self.assertEqual(summary.get("emitted"), 1)
+        self.assertEqual(summary.get("omitted"), 0)
+        self.assertNotIn("unmigrated-notes", out)
+
+    def test_01_find_by_minted_id6_returns_migrated_kindless_research(self):
+        """aw find ab12cd --agent returns the migrated research record lacking a kind facet."""
+        rc, out = self.run_find(["ab12cd", "--agent"])
+        self._assert_single_migrated_record(rc, out)
+
+    def test_02_find_research_returns_only_migrated_record_and_skips_unmigrated(self):
+        """aw find research --agent returns the migrated record and excludes the unmigrated id-less file."""
+        rc, out = self.run_find(["research", "--agent"])
+        self._assert_single_migrated_record(rc, out)
+
+    def test_03_find_research_filter_set_returns_migrated_kindless_research(self):
+        """aw find research --set ab12cd --agent returns the migrated kind-less research record."""
+        rc, out = self.run_find(["research", "--set", "ab12cd", "--agent"])
+        self._assert_single_migrated_record(rc, out)
+
+    def test_04_find_migrated_kindless_research_uses_state_status_fallback(self):
+        """When legacy_raw_status is None, aw find uses State.status for output and status filtering."""
+        from agent_workflows import artifact_meta
+
+        iso_dir = tempfile.mkdtemp(prefix="aw_test_find_migrated_status_")
+        try:
+            iso_root = Path(iso_dir)
+            config_dir = iso_root / ".aw" / "config"
+            research_dir = iso_root / ".aw" / "records" / "research"
+            meta_dir = iso_root / ".aw" / "records" / "meta"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            research_dir.mkdir(parents=True, exist_ok=True)
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "config.json").write_text(
+                json.dumps({"records_backend": "repository"}) + "\n",
+                encoding="utf-8",
+            )
+
+            rel = "research/20260708-cd34ef-01-cd34ef-status-notes.md"
+            (iso_root / ".aw" / "records" / rel).write_text(
+                "# Status Notes\n\nMigrated research with log-backed status.\n",
+                encoding="utf-8",
+            )
+            checkpoint_event = {
+                "v": 1,
+                "seq": 0,
+                "append": 0,
+                "at": "2026-11-21T00:00:00Z",
+                "actor": {"tool": "aw"},
+                "op": "checkpoint",
+                "path": rel,
+                "fields": {
+                    "id": "cd34ef",
+                    "type": "research",
+                    "set": "cd34ef",
+                    "order": 1,
+                    "status": "todo",
+                },
+            }
+            (meta_dir / "cd34ef.jsonl").write_text(
+                artifact_meta.encode_event(checkpoint_event),
+                encoding="utf-8",
+            )
+
+            rc, out = self.run_find(
+                ["research", "--status", "todo", "--agent"], repo_root=iso_root
+            )
+            self.assertEqual(rc, 0)
+            lines = [line.strip() for line in out.splitlines() if line.strip()]
+            self.assertEqual(len(lines), 2)
+            item = json.loads(lines[0])
+            summary = json.loads(lines[1])
+            self.assertEqual(item.get("id6"), "cd34ef")
+            self.assertEqual(item.get("status"), "todo")
+            self.assertEqual(summary.get("total"), 1)
+
+            rc_not, out_not = self.run_find(
+                ["research", "--status-not", "todo", "--agent"], repo_root=iso_root
+            )
+            self.assertEqual(rc_not, 0)
+            lines_not = [line.strip() for line in out_not.splitlines() if line.strip()]
+            self.assertEqual(len(lines_not), 1)
+            self.assertEqual(json.loads(lines_not[0]).get("total"), 0)
+        finally:
+            shutil.rmtree(iso_dir, ignore_errors=True)
