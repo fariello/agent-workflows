@@ -456,6 +456,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="positional argument required",
         reason="Requires path positional argument.",
     ),
+    "meta repair": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires <id6> positional argument.",
+    ),
     "oc profile remove": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",

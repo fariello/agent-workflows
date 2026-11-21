@@ -487,6 +487,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # --- Noun-Verb Grammar Operations ---
     CommandDeclaration(
         command="check",
+        # metastore `a5ijjx` (spec `4sd62s` 4.6): `aw check meta` is a reserved positional value of
+        # this leaf (exit 0 clean, 1 findings, 2 cannot-run), so it shares this declaration.
         command_class="check",
         human_recipe="check",
         agent_record_kind="result",
@@ -627,6 +629,18 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="dry_run_default",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--summary", "--clear", "--apply", "--dir", "--json", "--agent"),
+        exit_contract=(0, 2),
+    ),
+    # metastore `a5ijjx` (spec `4sd62s` 4.3, 4.7, 4.8): preview and apply mirror, move, journal,
+    # and confirmed diverged-tail repairs over `artifact_meta.repair`.
+    CommandDeclaration(
+        command="meta repair",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--apply", "--confirm", "--dir", "--json", "--agent"),
         exit_contract=(0, 2),
     ),
     CommandDeclaration(
