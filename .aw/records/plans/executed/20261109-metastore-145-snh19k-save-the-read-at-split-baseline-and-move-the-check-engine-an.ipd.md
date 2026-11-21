@@ -5,8 +5,9 @@
 - Concern: Split from `h58z9n` (Order 33) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 5 E-items, 8 work Scope-Paths, about 8 named units per item): `h58z9n` declared 11 work Scope-Paths and its E-01 and E-04 named 9 and 11 units. Spec `4sd62s` 4.4 requires every reader of a HEAD, staged or branch revision to call `artifact_meta.read_at` instead of parsing git content, and C5a requires every gate and hook to read metadata through the cache. Measured 2026-11-07 at `ac76110f4`: `check_engine._blob_text` (`git show <ref>:<path>`, `:0:<path>`) has 12 call sites in 6 functions, `check_engine._status_meta` has 35 call sites in 13 functions, and `hooks/executed_transition_gate` reads blobs with its own `_blob_at`.
 - Scope: (a) Save the split-wide `aw check all --agent` baseline that must precede every code edit of the `t4gl15` family (formerly part of `h58z9n` E-01) and record it as table F-10 here. (b) The 4.4 search rows for `check_engine` and the two blob-reading hooks (the rest of `h58z9n` E-01's file subset goes to `iqhzse`). (c) `h58z9n` E-02: the `check_engine` git-content readers. (d) `h58z9n` E-03: the four hooks. EXCLUDES: the setter, staleness, lifecycle and runner merge-path readers (`iqhzse`, Order 146); the residual audit (kept in `h58z9n`); everything else of `t4gl15`.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/hooks/status_untooled_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_readers_read_at_gates.py, .aw/records/plans/pending/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-83kkzh-01-83kkzh-read-at-v2-rev-mirrors-join.backlog.md (Defect backlog item filed during snh19k execution per defect_report contract for read_at v2 rev_mirrors join gap); agent_workflows/artifact_meta.py (Commit rev_mirrors/rev_log_states cache writes and handle variable-length Markdown fences in read_at required by snh19k)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +19,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snh19k
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: snh19k verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-83kkzh-01-83kkzh-read-at-v2-rev-mirrors-join.backlog.md: Defect backlog item filed during snh19k execution per defect_report contract for read_at v2 rev_mirrors join gap; out-of-scope agent_workflows/artifact_meta.py: Commit rev_mirrors/rev_log_states cache writes and handle variable-length Markdown fences in read_at required by snh19k; in-scope-unmodified agent_workflows/hooks/backlog_blocking_close_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/hooks/status_untooled_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
@@ -41,27 +42,27 @@ Commit through `aw commit snh19k -- <each changed path>`, one commit per item al
 
 ### Task group 1: baseline and search rows
 
-- [ ] E-01 (carried from `h58z9n` E-01, baseline half) Before any code edit of the `t4gl15` split (this plan is the first part; every other part of the family depends on it directly or through `h58z9n`), save the sorted rule-id counts of `aw check all --agent` (one `rule` per diagnostic) to `.aw/state/t4gl15/check-before.txt` and paste those counts into this plan as table F-10, so that the last part (`t4gl15` E-15) can compare against them even when this plan ran in an isolated lane worktree whose gitignored `.aw/state/` is not carried back.
+- [x] E-01 (carried from `h58z9n` E-01, baseline half) Before any code edit of the `t4gl15` split (this plan is the first part; every other part of the family depends on it directly or through `h58z9n`), save the sorted rule-id counts of `aw check all --agent` (one `rule` per diagnostic) to `.aw/state/t4gl15/check-before.txt` and paste those counts into this plan as table F-10, so that the last part (`t4gl15` E-15) can compare against them even when this plan ran in an isolated lane worktree whose gitignored `.aw/state/` is not carried back.
   - Depends on: none
   - Expected outcome: `check-before.txt` is saved and F-10 holds its rule-id counts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `h58z9n` E-01, search half, gate-file subset) Re-run the 4.4 search for git-content readers over `agent_workflows/check_engine.py`, `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/ipd_dependency_statement_gate.py` (21 of the 44 `h58z9n` hits at `ac76110f4`: `check_engine` 11, `hooks/executed_transition_gate` 8, `hooks/ipd_dependency_statement_gate` 2), with `rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' <those three files>`, and record the result as table F-03 here, classifying each hit as metadata reader (moves to `read_at`), path-only reader (no change), or not a metadata read. Any metadata reader not in the 4.4 list is added to E-03 or E-04. (`status_set.py` has no direct hit, because it reads through `check_engine._blob_text`; its row and the `plan_readiness`, `ipd_lifecycle` and `artifact_meta` rows are written by `iqhzse`.)
+- [x] E-02 (carried from `h58z9n` E-01, search half, gate-file subset) Re-run the 4.4 search for git-content readers over `agent_workflows/check_engine.py`, `agent_workflows/hooks/executed_transition_gate.py` and `agent_workflows/hooks/ipd_dependency_statement_gate.py` (21 of the 44 `h58z9n` hits at `ac76110f4`: `check_engine` 11, `hooks/executed_transition_gate` 8, `hooks/ipd_dependency_statement_gate` 2), with `rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' <those three files>`, and record the result as table F-03 here, classifying each hit as metadata reader (moves to `read_at`), path-only reader (no change), or not a metadata read. Any metadata reader not in the 4.4 list is added to E-03 or E-04. (`status_set.py` has no direct hit, because it reads through `check_engine._blob_text`; its row and the `plan_readiness`, `ipd_lifecycle` and `artifact_meta` rows are written by `iqhzse`.)
   - Depends on: E-01
   - Expected outcome: F-03 lists every hit in the three files with its class; every metadata-reader row names E-03 or E-04.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: read_at gates and hooks
 
-- [ ] E-03 (carried from `h58z9n` E-02) Pin, then move, the `check_engine` git-content readers onto `artifact_meta.read_at`: `_blob_text` and `_status_meta` stop being called by `check_status_untooled`, `check_status_untooled_range`, `check_staged_illegal_backlog_transition`, `_lane_carrier_is_executed`, `_staged_backlog_done_items` and `check_release_gate_consistency`, which call `read_at(id6, ":0:")`, `read_at(id6, "HEAD")` or `read_at(id6, <commit>)` and compare the returned `State`s. The phase-B rule shapes stay (4.4 rewrites them only after the cutover): "status changed with no matching tool-authored history line" compares `read_at` states and their `history` rows; a renamed or moved record is resolved INSIDE each revision, so a staged rename compares the HEAD record at its old path with the staged record at its new path. Pin in `tests/test_readers_read_at_gates.py` (real `git init` fixtures: an untooled status flip refused, a tooled one accepted, a staged rename into `executed/`, an illegal backlog transition, a release-blocking `done` with and without a handoff), and run `tests/test_check_engine_status_meta.py`, `tests/test_check_engine_release_gate.py`, `tests/test_precommit_scope_gate_severity.py` and `tests/test_backlog_close_gate_prose.py` green before and after (outcome lists `E-02-before.txt`/`E-02-after.txt`).
+- [x] E-03 (carried from `h58z9n` E-02) Pin, then move, the `check_engine` git-content readers onto `artifact_meta.read_at`: `_blob_text` and `_status_meta` stop being called by `check_status_untooled`, `check_status_untooled_range`, `check_staged_illegal_backlog_transition`, `_lane_carrier_is_executed`, `_staged_backlog_done_items` and `check_release_gate_consistency`, which call `read_at(id6, ":0:")`, `read_at(id6, "HEAD")` or `read_at(id6, <commit>)` and compare the returned `State`s. The phase-B rule shapes stay (4.4 rewrites them only after the cutover): "status changed with no matching tool-authored history line" compares `read_at` states and their `history` rows; a renamed or moved record is resolved INSIDE each revision, so a staged rename compares the HEAD record at its old path with the staged record at its new path. Pin in `tests/test_readers_read_at_gates.py` (real `git init` fixtures: an untooled status flip refused, a tooled one accepted, a staged rename into `executed/`, an illegal backlog transition, a release-blocking `done` with and without a handoff), and run `tests/test_check_engine_status_meta.py`, `tests/test_check_engine_release_gate.py`, `tests/test_precommit_scope_gate_severity.py` and `tests/test_backlog_close_gate_prose.py` green before and after (outcome lists `E-02-before.txt`/`E-02-after.txt`).
   - Depends on: E-02
   - Expected outcome: every listed test passes before and after; `check_engine` no longer calls `_blob_text` from these six functions (the remaining callers, `hooks.ipd_dependency_statement_gate._staged_ipd_overlay` and `status_set._prepare_status_change`, move in E-04 and in `iqhzse`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (carried from `h58z9n` E-03) Move the four hooks onto `read_at`: `executed_transition_gate` (`_blob_at`, `_has_executed_status`, `_plan_id_of`, `_staged_plan_executed_transitions` call `read_at` for `HEAD` and `:0:`; "an executed transition" stays "the staged status is terminal and the HEAD status is not"); `ipd_dependency_statement_gate._staged_ipd_overlay` (staged status and Item-Dependencies from `read_at(id6, ":0:")`); `status_untooled_gate` and `backlog_blocking_close_gate` keep delegating to the moved `check_engine` rules. Pin in `tests/test_readers_read_at_gates.py` through the real CLI entry points (`aw ipd-executed-gate`, `aw ipd-status-untooled-gate`, `aw backlog-blocking-close-gate`, `aw ipd-dependency-statement-gate`) on staged fixture repositories, and run `tests/test_executed_transition_gate.py`, `tests/test_executed_transition_gate_e2e.py` and `tests/test_ipd_dependency_statement_gate.py` green before and after (outcome lists `E-03-before.txt`/`E-03-after.txt`).
+- [x] E-04 (carried from `h58z9n` E-03) Move the four hooks onto `read_at`: `executed_transition_gate` (`_blob_at`, `_has_executed_status`, `_plan_id_of`, `_staged_plan_executed_transitions` call `read_at` for `HEAD` and `:0:`; "an executed transition" stays "the staged status is terminal and the HEAD status is not"); `ipd_dependency_statement_gate._staged_ipd_overlay` (staged status and Item-Dependencies from `read_at(id6, ":0:")`); `status_untooled_gate` and `backlog_blocking_close_gate` keep delegating to the moved `check_engine` rules. Pin in `tests/test_readers_read_at_gates.py` through the real CLI entry points (`aw ipd-executed-gate`, `aw ipd-status-untooled-gate`, `aw backlog-blocking-close-gate`, `aw ipd-dependency-statement-gate`) on staged fixture repositories, and run `tests/test_executed_transition_gate.py`, `tests/test_executed_transition_gate_e2e.py` and `tests/test_ipd_dependency_statement_gate.py` green before and after (outcome lists `E-03-before.txt`/`E-03-after.txt`).
   - Depends on: E-03
   - Expected outcome: each hook refuses and accepts the same fixtures before and after with the same exit codes; no hook module contains a `^-` metadata regex or a `git show` of a record.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -81,8 +82,52 @@ Measured 2026-11-07 at `ac76110f4` (the round-1 split measurement, carried from 
 | Id | Evidence | Finding |
 |---|---|---|
 | F-01 | `rg -n "_blob_text\(\|_status_meta\(" agent_workflows` prints 39 lines: the two definitions, 12 `_blob_text` calls (in `check_status_untooled`, `check_status_untooled_range`, `check_staged_illegal_backlog_transition` 8, `_lane_carrier_is_executed`, `check_release_gate_consistency`, `hooks.ipd_dependency_statement_gate._staged_ipd_overlay`, `status_set._prepare_status_change`) and `_status_meta` calls in 13 functions | E-03 moves 6 `check_engine` callers; E-04 the hook caller; `iqhzse` the setter caller. |
-| F-03 | (written by E-02) the re-run 4.4 search over this plan's three files, each hit classified | 4.4 says the list is a minimum. |
-| F-10 | (written by E-01) rule-id counts of `aw check all --agent` before any edit of the `t4gl15` split | Baseline for `t4gl15` E-15. |
+| F-03 | E-02 4.4 search (`rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' agent_workflows/check_engine.py agent_workflows/hooks/executed_transition_gate.py agent_workflows/hooks/ipd_dependency_statement_gate.py`): 21 hits at `0a8d832e1` (see Table F-03 below) | All 21 hits classified; every metadata-reader row maps to E-03 or E-04 (none outside the 4.4 list). |
+| F-10 | E-01 `aw check all --agent` baseline at `0a8d832e1` before any edit (`git diff --stat agent_workflows/` empty): 87 diagnostics across 12 rule IDs saved to `.aw/state/t4gl15/check-before.txt` (see Table F-10 below) | Baseline for `t4gl15` E-15. |
+
+### Table F-10: Split-wide `aw check all --agent` rule-id baseline (E-01, commit `0a8d832e1`)
+
+| Rule ID | Count |
+|---|---:|
+| `check.graduated-to-dangling` | 1 |
+| `check.identity-absent-from-name` | 1 |
+| `check.ipd-carrier-finished-unverified` | 3 |
+| `check.ipd-uncarried-obligation` | 1 |
+| `check.lifecycle-transition-unvalidated` | 23 |
+| `check.name-nonconformant` | 4 |
+| `check.prompt-metadata-missing` | 6 |
+| `check.scope-drift` | 1 |
+| `check.source-test-citation-dangling` | 42 |
+| `check.spec-criteria-uncovered` | 2 |
+| `check.system-layout-missing` | 1 |
+| `spec.prose-dash` | 2 |
+| **Total** | **87** |
+
+### Table F-03: Re-run 4.4 git-content reader search over gate and hook files (E-02, commit `0a8d832e1`, 21 hits)
+
+| # | File and symbol | Matched code | Class | Owner / Action |
+|---|---|---|---|---|
+| 1 | `agent_workflows/hooks/executed_transition_gate.py::_repo_root` | `_git(start, ["rev-parse", "--show-toplevel"])` | not a metadata read | no change (resolves git root) |
+| 2 | `agent_workflows/hooks/executed_transition_gate.py::_blob_at` | `spec = f"{ref}:{path}" if ref != ":0:" else f":0:{path}"` | metadata reader | E-04 (removed; replaced by `artifact_meta.read_at`) |
+| 3 | `agent_workflows/hooks/executed_transition_gate.py::_blob_at` | `_git(repo_root, ["show", spec])` | metadata reader | E-04 (removed; replaced by `artifact_meta.read_at`) |
+| 4 | `agent_workflows/hooks/executed_transition_gate.py::_staged_plan_executed_transitions` | `_git(repo_root, ["diff", "--cached", "--name-status", "-M", "--", _PLANS_PREFIX])` | path-only | no change (lists staged paths) |
+| 5 | `agent_workflows/hooks/executed_transition_gate.py::_staged_plan_executed_transitions` | `staged_text = _blob_at(repo_root, ":0:", new_path)` | metadata reader | E-04 (moved to `artifact_meta.read_at`) |
+| 6 | `agent_workflows/hooks/executed_transition_gate.py::_git_dir` | docstring `git rev-parse --git-dir` | not a metadata read | no change (docstring) |
+| 7 | `agent_workflows/hooks/executed_transition_gate.py::_git_dir` | `_git(repo_root, ["rev-parse", "--git-dir"])` | not a metadata read | no change (resolves `.git` dir for `MERGE_HEAD`) |
+| 8 | `agent_workflows/hooks/executed_transition_gate.py::_merge_incoming_commits` | `_git(repo_root, ["cat-file", "-t", sha])` | not a metadata read | no change (checks commit object type) |
+| 9 | `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` | `_ce._git_capture(repo_root, ["diff", "--cached", "--name-status", "-M"])` | path-only | no change (lists staged paths) |
+| 10 | `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` | `staged_text = _ce._blob_text(repo_root, ":0:", new_path)` | metadata reader | E-04 (moved to `artifact_meta.read_at`) |
+| 11 | `agent_workflows/check_engine.py::_blob_text` | `spec = f":0:{path}" if ref == ":0:" else f"{ref}:{path}"` | metadata reader | E-03 / E-04 (all gate/hook callers moved; `status_set` moves in `iqhzse`, definition deleted in `9o83cr`) |
+| 12 | `agent_workflows/check_engine.py::_blob_text` | `_git_capture(repo_root, ["show", spec])` | metadata reader | E-03 / E-04 (same helper as row 11) |
+| 13 | `agent_workflows/check_engine.py::check_status_untooled` | `_git_capture(repo_root, ["diff", "--cached", "--name-status", "-M", "--", _PLANS_PREFIX])` | path-only | no change (lists staged paths) |
+| 14 | `agent_workflows/check_engine.py::check_status_untooled` | `staged_text = _blob_text(repo_root, ":0:", new_path)` | metadata reader | E-03 (moved to `artifact_meta.read_at`) |
+| 15 | `agent_workflows/check_engine.py::check_staged_illegal_backlog_transition` | `"--cached"` in `git diff --cached --name-status -M` | path-only | no change (lists staged backlog paths) |
+| 16 | `agent_workflows/check_engine.py::check_staged_illegal_backlog_transition` | `stext = _blob_text(repo_root, ":0:", new_path)` (`A` branch) | metadata reader | E-03 (moved to `artifact_meta.read_at`) |
+| 17 | `agent_workflows/check_engine.py::check_staged_illegal_backlog_transition` | `stext = _blob_text(repo_root, ":0:", new_path)` (`R` branch) | metadata reader | E-03 (moved to `artifact_meta.read_at`) |
+| 18 | `agent_workflows/check_engine.py::check_staged_illegal_backlog_transition` | `stext = _blob_text(repo_root, ":0:", path)` (`M` branch) | metadata reader | E-03 (moved to `artifact_meta.read_at`) |
+| 19 | `agent_workflows/check_engine.py::check_staged_illegal_backlog_transition` | `stext = _blob_text(repo_root, ":0:", new_path)` (`C` branch) | metadata reader | E-03 (moved to `artifact_meta.read_at`) |
+| 20 | `agent_workflows/check_engine.py::_staged_backlog_done_items` | `"--cached"` in `git diff --cached --name-status -M` | path-only | no change (lists staged `backlog/done/` paths) |
+| 21 | `agent_workflows/check_engine.py::check_release_gate_consistency` | `staged_text = _blob_text(repo_root, ":0:", staged_path)` | metadata reader | E-03 (moved to `artifact_meta.read_at`) |
 
 Size (round 3): measured with `ipd_schema.count_named_units`, each item names at most 8 distinct units; 6 work Scope-Paths.
 
@@ -156,25 +201,25 @@ No spec change. Implements the gate and hook part of `4sd62s` 4.4 and C5a.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat agent_workflows/` empty at the time the baseline was taken, `ls -l .aw/state/t4gl15/check-before.txt`, and the F-10 table written into this plan (one row per rule id with its count).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff --stat agent_workflows/` printed empty output at commit `0a8d832e1` before any code edit; `ls -l .aw/state/t4gl15/check-before.txt` showed `-rw-r--r-- 1 <user> <group> 435 Nov 21 02:06 .aw/state/t4gl15/check-before.txt` (local user/group redacted for leak-sanitizer compliance); `aw check all --agent` baseline (87 diagnostics across 12 rule IDs) is saved to `.aw/state/t4gl15/check-before.txt` and recorded in Table F-10 above.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the exact `rg` command of E-02 with its output line count, and the F-03 table with one row per hit and a class column (metadata reader / path-only / not a metadata read); every metadata-reader row names E-03 or E-04.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' agent_workflows/check_engine.py agent_workflows/hooks/executed_transition_gate.py agent_workflows/hooks/ipd_dependency_statement_gate.py | wc -l` returned `21` (`check_engine.py` 11, `executed_transition_gate.py` 8, `ipd_dependency_statement_gate.py` 2); all 21 hits are classified in Table F-03 above, and every `metadata reader` row names E-03 or E-04.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff --stat agent_workflows/check_engine.py` empty before the move, then `python3 -m pytest -o addopts="" -v tests/test_readers_read_at_gates.py -k check_engine` all PASSED (untooled flip refused, tooled flip accepted, staged rename into `executed/`, illegal backlog transition, release-blocking done with and without handoff) and `diff .aw/state/t4gl15/E-02-before.txt .aw/state/t4gl15/E-02-after.txt` (outcome lists of `tests/test_check_engine_status_meta.py tests/test_check_engine_release_gate.py tests/test_precommit_scope_gate_severity.py tests/test_backlog_close_gate_prose.py`) printing nothing; paste `rg -n "_blob_text\(" agent_workflows` with each remaining caller named (none of the six E-03 functions).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-move `git diff --stat agent_workflows/check_engine.py` was empty and pin-first `python3 -m pytest -o addopts="" -v tests/test_readers_read_at_gates.py -k check_engine` passed (`6 passed, 4 deselected in 0.63s`). Post-move `python3 -m pytest -o addopts="" -v tests/test_readers_read_at_gates.py -k check_engine` passed all 6 tests (`test_check_engine_staged_rename_into_executed_and_range`, `test_check_engine_illegal_backlog_transition`, `test_check_engine_untooled_status_flip_refused`, `test_check_engine_release_blocking_done_without_and_with_handoff`, `test_check_engine_tooled_status_flip_accepted`, `test_check_engine_lane_carrier_is_executed_plan_and_spec`; `6 passed, 7 deselected in 1.18s`, `0 unlisted slow tests`). Baseline modules (`tests/test_check_engine_status_meta.py`, `tests/test_check_engine_release_gate.py`, `tests/test_precommit_scope_gate_severity.py`, `tests/test_backlog_close_gate_prose.py`) ran `69 passed in 7.30s` before and `69 passed in 5.93s` after, with `diff .aw/state/t4gl15/E-02-before.txt .aw/state/t4gl15/E-02-after.txt` printing nothing (exit 0). `rg -n "_blob_text\(" agent_workflows` printed only `agent_workflows/status_set.py` (`status_set._prepare_status_change`, moves in `iqhzse`) and `agent_workflows/check_engine.py` (`def _blob_text`, deleted in `9o83cr`); none of the six E-03 functions calls `_blob_text`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_read_at_gates.py -k hook` all PASSED, each test driving the real `aw ipd-executed-gate`, `aw ipd-status-untooled-gate`, `aw backlog-blocking-close-gate` or `aw ipd-dependency-statement-gate` leaf on a staged fixture and asserting the exit code; `diff .aw/state/t4gl15/E-03-before.txt .aw/state/t4gl15/E-03-after.txt` (outcome lists of `tests/test_executed_transition_gate.py tests/test_executed_transition_gate_e2e.py tests/test_ipd_dependency_statement_gate.py`) printing nothing; and `rg -n "\^-|\"show\"" agent_workflows/hooks/` showing no metadata regex or record `git show`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Post-move `python3 -m pytest -o addopts="" -v tests/test_readers_read_at_gates.py -k hook` passed all 6 real-CLI tests (`test_hook_ipd_status_untooled_gate_cli`, `test_hook_backlog_blocking_close_gate_cli`, `test_hook_ipd_executed_gate_cli_accepts_journal_and_followup_edit`, `test_hook_ipd_executed_gate_cli_refuses_raw_transitions`, `test_hook_ipd_dependency_statement_gate_cli_refusals`, `test_hook_ipd_dependency_statement_gate_cli_accepts`; `6 passed, 7 deselected in 5.65s`, `0 unlisted slow tests`). Baseline modules (`tests/test_executed_transition_gate.py`, `tests/test_executed_transition_gate_e2e.py`, `tests/test_ipd_dependency_statement_gate.py`) ran `36 passed in 6.45s` before and `36 passed in 7.65s` after, with `diff .aw/state/t4gl15/E-03-before.txt .aw/state/t4gl15/E-03-after.txt` printing nothing (exit 0). `rg -n "\^-|\"show\"" agent_workflows/hooks/` returned zero hits.
+  - Result: pass
 
 ## Approval and execution gate
 

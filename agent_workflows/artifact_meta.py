@@ -2586,9 +2586,29 @@ def _parse_bullet_metadata_with_loose(
     loose_bullets: Dict[str, str] = {}
     title: Optional[str] = None
     first_h1_done = False
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
 
     for line in lines:
         stripped = line.strip()
+        if not in_fence:
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                ch = stripped[0]
+                in_fence = True
+                fence_char = ch
+                fence_len = len(stripped) - len(stripped.lstrip(ch))
+                continue
+        else:
+            if (
+                stripped.startswith(fence_char * fence_len)
+                and stripped.lstrip(fence_char) == ""
+            ):
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            continue
+
         if not first_h1_done and stripped.startswith("# "):
             title = stripped[2:].strip()
             first_h1_done = True
@@ -5258,10 +5278,282 @@ class ReadAtResult:
     kind: str  # ok, absent, invalid-revision, unversioned, corrupt
     state: Optional[State] = None
     error: Optional[str] = None
+    history: List[Dict[str, Any]] = dataclasses.field(default_factory=list)
 
 
-def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
-    """Read metadata state at a git revision (HEAD, SHA, branch, etc.)."""
+def _norm_git_rel_path(path: str) -> str:
+    norm = path.strip().replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    return norm.lstrip("/")
+
+
+def _git_blob_sha(repo_dir: Path, rev: str, repo_rel_path: str) -> Optional[str]:
+    """Return the git blob SHA for ``repo_rel_path`` at commit ``rev`` or index ``:0:``."""
+    norm = _norm_git_rel_path(repo_rel_path)
+    if not norm:
+        return None
+    if rev == ":0:":
+        res = subprocess.run(
+            ["git", "ls-files", "-s", "--", norm],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if res.returncode != 0 or not res.stdout.strip():
+            return None
+        for line in res.stdout.splitlines():
+            meta_part, sep, path_part = line.partition("\t")
+            if not sep or path_part.strip() != norm:
+                continue
+            cols = meta_part.split()
+            if len(cols) >= 3 and cols[2] == "0":
+                return cols[1]
+        return None
+
+    res = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{rev}:{norm}"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if res.returncode != 0:
+        return None
+    sha = res.stdout.strip()
+    return sha or None
+
+
+def _read_git_blob(repo_dir: Path, blob_sha: str) -> Optional[str]:
+    """Read raw UTF-8 text of git object ``blob_sha`` via ``git cat-file -p``."""
+    cat = subprocess.run(
+        ["git", "cat-file", "-p", blob_sha],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return cat.stdout if cat.returncode == 0 else None
+
+
+def _cache_rev_write(
+    conn: sqlite3.Connection, sql: str, params: Tuple[Any, ...]
+) -> None:
+    """Commit a single revision-cache row, tolerating transient SQLite lock contention."""
+    try:
+        with conn:
+            conn.execute(sql, params)
+    except sqlite3.OperationalError as exc:
+        if not _is_sqlite_lock_error(exc):
+            raise
+
+
+def resolve_mirror_at(
+    rel_path: str,
+    rev: str,
+    *,
+    project_context: Any = None,
+) -> Tuple[Optional[str], Optional[str], bool]:
+    """Return ``(declared_id6, status, exists_at_rev)`` for ``rel_path`` at commit ``rev`` or ``:0:``.
+
+    Uses the git blob SHA keyed against ``rev_mirrors`` and feeds misses to ``read_text`` (the
+    same phase-B / v2 mirror loader), never falling back to the working tree.
+    """
+    ctx = project_context or _proj_ctx.resolve_project_context()
+    records_root = Path(ctx.logical_roots["records"])
+    state_root = Path(ctx.logical_roots["state"])
+    repo_dir = _proj_ctx.record_git_root(records_root)
+    if repo_dir is None:
+        return None, None, False
+
+    if rev != ":0:":
+        chk = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+        )
+        if chk.returncode != 0:
+            return None, None, False
+
+    blob_sha = _git_blob_sha(repo_dir, rev, rel_path)
+    if blob_sha is None:
+        return None, None, False
+
+    conn, should_close = _open_for_read(records_root, state_root)
+    try:
+        cached = conn.execute(
+            "SELECT id6, status FROM rev_mirrors WHERE md_blob_sha = ?",
+            (blob_sha,),
+        ).fetchone()
+        if cached is not None:
+            cid = (
+                cached[0] if (cached[0] and _core.ID6_RE.fullmatch(cached[0])) else None
+            )
+            return cid, cached[1], True
+
+        text = _read_git_blob(repo_dir, blob_sha)
+        if text is None:
+            return None, None, False
+
+        rt = read_text(text)
+        declared = rt.id6 if (rt.id6 and _core.ID6_RE.fullmatch(rt.id6)) else None
+        mirror_status = rt.status or (
+            rt.legacy_raw_status.strip().split()[0].lower()
+            if rt.legacy_raw_status and rt.legacy_raw_status.strip()
+            else None
+        )
+        _cache_rev_write(
+            conn,
+            "INSERT OR REPLACE INTO rev_mirrors VALUES (?, ?, ?)",
+            (blob_sha, declared or "", mirror_status),
+        )
+        return declared, mirror_status, True
+    finally:
+        if should_close:
+            conn.close()
+
+
+def resolve_id_at(
+    rel_path: str,
+    rev: str,
+    *,
+    project_context: Any = None,
+) -> Optional[str]:
+    """Resolve the declared ``id6`` of ``rel_path`` inside commit ``rev`` or staged index ``:0:``."""
+    declared, _status, _exists = resolve_mirror_at(
+        rel_path, rev, project_context=project_context
+    )
+    return declared
+
+
+def _load_legacy_at_blob(
+    conn: sqlite3.Connection,
+    repo_dir: Path,
+    records_root: Path,
+    rel_repo: str,
+    rev: str,
+    md_file_path: str,
+    *,
+    require_id6: Optional[str] = None,
+) -> Optional[ReadAtResult]:
+    """Load and mirror-cache a Phase B Markdown blob at ``rev`` via ``load_legacy_artifact``."""
+    md_blob_sha = _git_blob_sha(repo_dir, rev, md_file_path)
+    if md_blob_sha is None:
+        return None
+    blob_text = _read_git_blob(repo_dir, md_blob_sha)
+    if blob_text is None:
+        return ReadAtResult(kind="corrupt", error="failed to read md blob")
+    if require_id6 is not None:
+        rt = read_text(blob_text)
+        if rt.id6 != require_id6:
+            return None
+    try:
+        if rel_repo and rel_repo != "." and md_file_path.startswith(f"{rel_repo}/"):
+            in_records = md_file_path[len(rel_repo) + 1 :]
+            target_path = records_root / in_records
+        elif not rel_repo or rel_repo == ".":
+            target_path = records_root / md_file_path
+        else:
+            target_path = repo_dir / md_file_path
+        art_row, hist_rows = load_legacy_artifact(
+            target_path, records_root, text=blob_text, repo_root=repo_dir
+        )
+        _cache_rev_write(
+            conn,
+            "INSERT OR REPLACE INTO rev_mirrors VALUES (?, ?, ?)",
+            (md_blob_sha, art_row["id6"], art_row["status"]),
+        )
+        st = State(
+            id6=art_row["id6"],
+            type=art_row["type"],
+            path=art_row["path"],
+            disposition=art_row.get("disposition"),
+            status=art_row["status"],
+            title=art_row["title"],
+            short_description=art_row["short_description"],
+            set_id=art_row["set_id"],
+            order_nn=art_row["order_nn"],
+            filename_date=art_row.get("filename_date"),
+            created_day=art_row.get("created_day"),
+            last_history_day=art_row.get("last_history_day"),
+            last_seq=art_row.get("last_seq", 0),
+            id_derived=bool(art_row.get("id_derived", False)),
+            fields=dict(art_row.get("fields") or {}),
+            legacy_raw_status=art_row.get("legacy_raw_status"),
+            legacy_raw_set=art_row.get("legacy_raw_set"),
+        )
+        return ReadAtResult(kind="ok", state=st, history=hist_rows)
+    except Exception as exc:
+        return ReadAtResult(kind="corrupt", error=str(exc))
+
+
+def read_path_at(
+    rel_path: str,
+    rev: str,
+    *,
+    project_context: Any = None,
+) -> ReadAtResult:
+    """Read metadata state for a path at ``rev`` (``:0:`` or commit) when no valid id6 is declared."""
+    ctx = project_context or _proj_ctx.resolve_project_context()
+    records_root = Path(ctx.logical_roots["records"])
+    state_root = Path(ctx.logical_roots["state"])
+    _require_schema(ctx, records_root)
+
+    repo_dir = _proj_ctx.record_git_root(records_root)
+    if repo_dir is None:
+        return ReadAtResult(
+            kind="unversioned", error="unversioned placement: no git repository found"
+        )
+
+    is_index = rev == ":0:"
+    if not is_index:
+        res = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode != 0:
+            return ReadAtResult(
+                kind="invalid-revision", error=f"invalid revision {rev!r}"
+            )
+
+    try:
+        rel_repo = str(records_root.resolve().relative_to(repo_dir.resolve())).replace(
+            "\\", "/"
+        )
+    except Exception:
+        rel_repo = ""
+
+    conn, should_close = _open_for_read(records_root, state_root)
+    try:
+        norm = _norm_git_rel_path(rel_path)
+        hit = _load_legacy_at_blob(
+            conn, repo_dir, records_root, rel_repo, rev, norm, require_id6=None
+        )
+        if hit is not None:
+            return hit
+        return ReadAtResult(
+            kind="absent", error=f"path {rel_path!r} not found in revision {rev}"
+        )
+    finally:
+        if should_close:
+            conn.close()
+
+
+def read_at(
+    id6: str,
+    rev: str,
+    *,
+    project_context: Any = None,
+    path_hint: Optional[str] = None,
+) -> ReadAtResult:
+    """Read metadata state at a git revision (``:0:`` staged index, HEAD, SHA, branch, etc.)."""
     validate_id6(id6)
     ctx = project_context or _proj_ctx.resolve_project_context()
     records_root = Path(ctx.logical_roots["records"])
@@ -5274,23 +5566,27 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
             kind="unversioned", error="unversioned placement: no git repository found"
         )
 
-    conn = open_cache(records_root, state_root)
+    is_index = rev == ":0:"
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
-        # Verify revision exists
-        res = subprocess.run(
-            ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-        )
-        if res.returncode != 0:
-            return ReadAtResult(
-                kind="invalid-revision", error=f"invalid revision {rev!r}"
+        # Verify commit revision exists (staged index `:0:` is valid even with unborn HEAD)
+        if not is_index:
+            res = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{rev}^{{commit}}"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
             )
+            if res.returncode != 0:
+                return ReadAtResult(
+                    kind="invalid-revision", error=f"invalid revision {rev!r}"
+                )
 
         # Find the log file or artifact file in revision
         try:
-            rel_repo = str(records_root.relative_to(repo_dir)).replace("\\", "/")
+            rel_repo = str(
+                records_root.resolve().relative_to(repo_dir.resolve())
+            ).replace("\\", "/")
         except Exception:
             rel_repo = ""
         log_path = f"meta/{id6}.jsonl"
@@ -5298,16 +5594,8 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
             log_path if not rel_repo or rel_repo == "." else f"{rel_repo}/{log_path}"
         )
 
-        res_log = subprocess.run(
-            ["git", "ls-tree", rev, "--", rel_log],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-        )
-        if res_log.returncode == 0 and res_log.stdout.strip():
-            parts = res_log.stdout.strip().split()
-            log_blob_sha = parts[2]
-
+        log_blob_sha = _git_blob_sha(repo_dir, rev, rel_log)
+        if log_blob_sha:
             # Lookup in rev_log_states
             cached = conn.execute(
                 "SELECT id6, status, last_seq, state_json FROM rev_log_states WHERE log_blob_sha = ?",
@@ -5316,25 +5604,33 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
             if cached:
                 s_dict = json.loads(cached[3])
                 st = State(**s_dict)
-                return ReadAtResult(kind="ok", state=st)
+                hist_events: List[Dict[str, Any]] = []
+                raw_log = _read_git_blob(repo_dir, log_blob_sha)
+                if raw_log is not None:
+                    for raw_ln in raw_log.splitlines(keepends=True):
+                        if raw_ln.strip():
+                            with contextlib.suppress(Exception):
+                                hist_events.append(decode_line(raw_ln))
+                return ReadAtResult(kind="ok", state=st, history=hist_events)
 
-            # Read blob with git cat-file
-            cat = subprocess.run(
-                ["git", "cat-file", "-p", log_blob_sha],
-                cwd=repo_dir,
-                capture_output=True,
-                text=True,
-            )
-            if cat.returncode != 0:
+            raw_log = _read_git_blob(repo_dir, log_blob_sha)
+            if raw_log is None:
                 return ReadAtResult(
                     kind="corrupt", error=f"cannot read git blob {log_blob_sha}"
                 )
 
             try:
-                lines = cat.stdout.splitlines(keepends=True)
-                state, _, _, _ = replay(id6, "ipd", lines, records_root=records_root)
+                lines = raw_log.splitlines(keepends=True)
+                decoded_events = [decode_line(ln) for ln in lines if ln.strip()]
+                art_type = "ipd"
+                if decoded_events:
+                    cand_type = (decoded_events[0].get("fields") or {}).get("type")
+                    if cand_type in SUPPORTED_TYPES:
+                        art_type = cand_type
+                state, _, _, _ = replay(id6, art_type, lines, records_root=records_root)
                 # Cache valid state
-                conn.execute(
+                _cache_rev_write(
+                    conn,
                     "INSERT OR REPLACE INTO rev_log_states VALUES (?, ?, ?, ?, ?)",
                     (
                         log_blob_sha,
@@ -5344,25 +5640,49 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
                         json.dumps(dataclasses.asdict(state)),
                     ),
                 )
-                return ReadAtResult(kind="ok", state=state)
+                return ReadAtResult(kind="ok", state=state, history=decoded_events)
             except Exception as exc:
                 return ReadAtResult(kind="corrupt", error=str(exc))
 
-        # Phase B legacy check: search for artifact .md containing id6 at revision
+        # Phase B legacy check: resolve artifact .md containing declared `- Id: <id6>` at revision.
+        candidates: List[str] = []
+        if path_hint:
+            hint_norm = _norm_git_rel_path(path_hint)
+            if hint_norm:
+                candidates.append(hint_norm)
+
+        for cand in candidates:
+            hit = _load_legacy_at_blob(
+                conn, repo_dir, records_root, rel_repo, rev, cand, require_id6=id6
+            )
+            if hit is not None:
+                return hit
+
         # `-e` is required: the pattern starts with `-`, so without it git reads it as an option and
         # exits 129, which made every phase-B record read `absent`.
         # Use POSIX character classes (`[[:blank:]]` / `[[:space:]]`) rather than `\t` / `\r`:
         # BSD/Windows POSIX ERE may treat `\t`/`\r` as literal chars, and Windows blobs with CRLF
         # retain `\r` before `$` when `git grep` splits lines on `\n`.
-        grep_cmd = [
-            "git",
-            "grep",
-            "-l",
-            "-E",
-            "-e",
-            f"^- Id:[[:blank:]]*{id6}[[:space:]]*$",
-            rev,
-        ]
+        if is_index:
+            grep_cmd = [
+                "git",
+                "grep",
+                "--cached",
+                "-l",
+                "-E",
+                "-e",
+                f"^- Id:[[:blank:]]*{id6}[[:space:]]*$",
+            ]
+        else:
+            grep_cmd = [
+                "git",
+                "grep",
+                "-l",
+                "-E",
+                "-e",
+                f"^- Id:[[:blank:]]*{id6}[[:space:]]*$",
+                rev,
+            ]
         if rel_repo and rel_repo != ".":
             grep_cmd += ["--", rel_repo]
         find_md = subprocess.run(
@@ -5370,51 +5690,41 @@ def read_at(id6: str, rev: str, *, project_context: Any = None) -> ReadAtResult:
             cwd=repo_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         if find_md.returncode == 0 and find_md.stdout.strip():
-            md_entry = find_md.stdout.strip().splitlines()[0]
-            # format: <rev>:<repo-relative path>
-            md_file_path = (
-                md_entry[len(rev) + 1 :] if md_entry.startswith(f"{rev}:") else md_entry
-            )
-            cat_md = subprocess.run(
-                ["git", "show", f"{rev}:{md_file_path}"],
-                cwd=repo_dir,
-                capture_output=True,
-                text=True,
-            )
-            if cat_md.returncode != 0:
-                return ReadAtResult(kind="corrupt", error="failed to read md blob")
-            try:
-                in_records = (
-                    md_file_path[len(rel_repo) + 1 :]
-                    if rel_repo and rel_repo != "."
-                    else md_file_path
+            seen_cands = set(candidates)
+            for md_entry in find_md.stdout.strip().splitlines():
+                if is_index:
+                    md_file_path = md_entry
+                else:
+                    md_file_path = (
+                        md_entry[len(rev) + 1 :]
+                        if md_entry.startswith(f"{rev}:")
+                        else md_entry
+                    )
+                if md_file_path in seen_cands:
+                    continue
+                seen_cands.add(md_file_path)
+                hit = _load_legacy_at_blob(
+                    conn,
+                    repo_dir,
+                    records_root,
+                    rel_repo,
+                    rev,
+                    md_file_path,
+                    require_id6=id6,
                 )
-                art_row, _ = load_legacy_artifact(
-                    records_root / in_records, records_root, text=cat_md.stdout
-                )
-                st = State(
-                    id6=art_row["id6"],
-                    type=art_row["type"],
-                    path=art_row["path"],
-                    status=art_row["status"],
-                    title=art_row["title"],
-                    short_description=art_row["short_description"],
-                    set_id=art_row["set_id"],
-                    order_nn=art_row["order_nn"],
-                    legacy_raw_status=art_row.get("legacy_raw_status"),
-                    legacy_raw_set=art_row.get("legacy_raw_set"),
-                )
-                return ReadAtResult(kind="ok", state=st)
-            except Exception as exc:
-                return ReadAtResult(kind="corrupt", error=str(exc))
+                if hit is not None:
+                    return hit
 
         return ReadAtResult(
             kind="absent", error=f"record {id6} not found in revision {rev}"
         )
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
 
 
 # --------------------------------------------------------------------------------------
