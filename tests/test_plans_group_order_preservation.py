@@ -17,41 +17,7 @@ import pytest
 
 from agent_workflows import cli
 from agent_workflows import plans_refs as refs
-
-
-def _seed_plan_record(
-    repo_dir: Path,
-    filename: str,
-    id6: str,
-    *,
-    set_line: str = "probeset (probe)",
-    order: int | None = 1,
-    date_line: str = "20260908",
-    disposition: str = "pending",
-    kind: str | None = None,
-    item_dependencies: str | None = None,
-) -> Path:
-    """Seed a plan record under .aw/records/plans/<disposition>/."""
-    pdir = repo_dir / ".aw" / "records" / "plans" / disposition
-    pdir.mkdir(parents=True, exist_ok=True)
-    path = pdir / filename
-    lines = [
-        f"# IPD: Test plan {id6}",
-        "",
-        f"- Id: {id6}",
-    ]
-    if kind is not None:
-        lines.append(f"- Kind: {kind}")
-    lines.append(f"- Set: {set_line}")
-    if order is not None:
-        lines.append(f"- Order: {order}")
-    if item_dependencies is not None:
-        lines.append(f"- Item-Dependencies: {item_dependencies}")
-    if date_line is not None:
-        lines.append(f"- Date: {date_line}")
-    lines.extend(["", "## Goal", "", "Test goal.", ""])
-    path.write_text("\n".join(lines), encoding="utf-8")
-    return path
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -65,37 +31,50 @@ def seeded_plans_repo(tmp_path: Path) -> Path:
     - ddd444: child with NO '- Order:' line, filename carrying '04' slot
     """
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    _seed_plan_record(
-        tmp_path,
-        "20260908-probeset-00-aaa000-probe-orchestrator.ipd.md",
-        "aaa000",
-        kind="orchestrator",
+    builder = RecordBuilder(tmp_path)
+    builder.plan(
+        id6="aaa000",
+        title="Test plan aaa000",
+        when="2026-09-08",
+        plan_role="orchestrator",
+        set="probeset",
         order=0,
-        set_line="probeset (probe)",
+        slug="probe-orchestrator",
+        body="## Goal\n\nTest goal.",
+        raw_fields={"Set": "probeset (probe)", "Date": "20260908"},
     )
-    _seed_plan_record(
-        tmp_path,
-        "20260908-probeset-01-bbb222-probe-child-one.ipd.md",
-        "bbb222",
-        kind="child",
+    builder.plan(
+        id6="bbb222",
+        title="Test plan bbb222",
+        when="2026-09-08",
+        plan_role="child",
+        set="probeset",
         order=1,
-        set_line="probeset (probe)",
+        slug="probe-child-one",
+        body="## Goal\n\nTest goal.",
+        raw_fields={"Set": "probeset (probe)", "Date": "20260908"},
     )
-    _seed_plan_record(
-        tmp_path,
-        "20260908-probeset-02-ccc333-probe-child-two.ipd.md",
-        "ccc333",
-        kind="child",
+    builder.plan(
+        id6="ccc333",
+        title="Test plan ccc333",
+        when="2026-09-08",
+        plan_role="child",
+        set="probeset",
         order=2,
-        set_line="probeset (probe)",
+        slug="probe-child-two",
+        body="## Goal\n\nTest goal.",
+        raw_fields={"Set": "probeset (probe)", "Date": "20260908"},
     )
-    _seed_plan_record(
-        tmp_path,
-        "20260908-probeset-04-ddd444-probe-no-order-line.ipd.md",
-        "ddd444",
-        kind="child",
-        order=None,
-        set_line="probeset (probe)",
+    builder.plan(
+        id6="ddd444",
+        title="Test plan ddd444",
+        when="2026-09-08",
+        plan_role="child",
+        set="probeset",
+        order=4,
+        slug="probe-no-order-line",
+        body="## Goal\n\nTest goal.",
+        raw_fields={"Set": "probeset (probe)", "Order": None, "Date": "20260908"},
     )
     return tmp_path
 
@@ -281,14 +260,28 @@ def test_explicit_order_zero_is_still_reachable(seeded_plans_repo: Path) -> None
 
 def test_mv_preserves_order_date_and_adds_facet(seeded_plans_repo: Path) -> None:
     """E-04: bare rename plans zzz111 --slug new-slug --apply preserves Order 3, Date 20260810, and emits .ipd.md."""
-    _seed_plan_record(
-        seeded_plans_repo,
-        "20260810-demo-03-zzz111-old-slug.md",
-        "zzz111",
-        kind="child",
-        order=3,
-        date_line="20260810",
-        set_line="demo (demo)",
+    legacy_path = (
+        seeded_plans_repo
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20260810-demo-03-zzz111-old-slug.md"
+    )
+    legacy_path.write_text(
+        RecordBuilder().plan(
+            id6="zzz111",
+            title="Test plan zzz111",
+            when="2026-08-10",
+            plan_role="child",
+            set="demo",
+            order=3,
+            slug="old-slug",
+            body="## Goal\n\nTest goal.",
+            raw_fields={"Set": "demo (demo)", "Date": "20260810"},
+            text_only=True,
+        ),
+        encoding="utf-8",
     )
     rc, out, err = _run_rename_plans(
         "zzz111", seeded_plans_repo, slug="new-slug", apply=True

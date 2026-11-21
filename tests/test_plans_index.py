@@ -15,6 +15,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import plans_index as I
+from tests.record_builder import RecordBuilder
 
 import pytest
 
@@ -34,22 +35,29 @@ def _plan(
 ):
     d = root / ".agents" / "plans" / disposition
     d.mkdir(parents=True, exist_ok=True)
-    meta = [
-        f"- Date: {date}",
-        "- Kind: child",
-        "- Concern: x.",
-        "- Scope: x.",
-        f"- Status: {status}",
-        "- Author: t",
-    ]
-    if plan_id:
-        meta.append(f"- Id: {plan_id}")
-    if set_id:
-        meta.append(f"- Set: {set_id}")
-        meta.append(f"- Order: {order}")
-    (d / name).write_text(
-        "# IPD: x\n\n" + "\n".join(meta) + "\n\n## Goal\n\nx\n", encoding="utf-8"
+    when = f"{date[:4]}-{date[4:6]}-{date[6:8]}" if len(date) == 8 else date
+    raw_fields: dict[str, str | None] = {"Date": date}
+    if plan_id is None:
+        raw_fields["Id"] = None
+    if set_id is None:
+        raw_fields["Set"] = None
+        raw_fields["Order"] = None
+    elif order is None:
+        raw_fields["Order"] = None
+    text = RecordBuilder().plan(
+        id6=plan_id or "tmp001",
+        title="x",
+        when=when,
+        plan_role="child",
+        set=set_id or "demo",
+        order=order if order is not None else 1,
+        status=status,
+        author="t",
+        body="## Goal\n\nx",
+        raw_fields=raw_fields,
+        text_only=True,
     )
+    (d / name).write_text(text, encoding="utf-8")
     return d / name
 
 

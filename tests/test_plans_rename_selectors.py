@@ -15,6 +15,7 @@ import subprocess
 import pytest
 
 from agent_workflows import artifact_naming, cli
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -33,38 +34,47 @@ def repo_with_plans(tmp_path: Path) -> tuple[Path, dict[str, Path]]:
     # Clustered plan fixture
     p_clustered = plans_dir / "20260929-mytest-01-ab12cd-my-plan.ipd.md"
     p_clustered.write_text(
-        "# IPD: My Plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: ab12cd\n"
-        "- Set: mytest\n"
-        "- Order: 1\n",
+        RecordBuilder().plan(
+            title="My Plan",
+            when="2026-09-29",
+            plan_role="child",
+            id6="ab12cd",
+            set="mytest",
+            order=1,
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # Legacy plan fixture
     p_legacy = plans_dir / "20260808-0004-06-migrate-existing-plans.ipd.md"
     p_legacy.write_text(
-        "# IPD: Migrate Existing Plans\n\n"
-        "- Date: 2026-08-08\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: 7qx7ys\n"
-        "- Set: plans-adopter (plans adopter)\n"
-        "- Order: 6\n",
+        RecordBuilder().plan(
+            title="Migrate Existing Plans",
+            when="2026-08-08",
+            plan_role="child",
+            id6="7qx7ys",
+            set="plans-adopter (plans adopter)",
+            order=6,
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # Standalone (set-less) plan fixture for E-02
     p_standalone = plans_dir / "20260929-st99zz-01-st99zz-standalone-plan.ipd.md"
     p_standalone.write_text(
-        "# IPD: Standalone Plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: st99zz\n"
-        "- Order: 1\n",
+        RecordBuilder().plan(
+            title="Standalone Plan",
+            when="2026-09-29",
+            plan_role="child",
+            id6="st99zz",
+            order=1,
+            raw_fields={"Status": "pending", "Set": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -346,12 +356,30 @@ def test_guard_setid_expansion_ordering(repo_with_plans: tuple[Path, dict[str, P
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     p1 = plans_dir / "20260929-expdemo-02-aa1111-plan-a.ipd.md"
     p1.write_text(
-        "# IPD: Plan A\n\n- Date: 2026-09-29\n- Kind: child\n- Status: pending\n- Id: aa1111\n- Set: expdemo\n- Order: 2\n",
+        RecordBuilder().plan(
+            title="Plan A",
+            when="2026-09-29",
+            plan_role="child",
+            id6="aa1111",
+            set="expdemo",
+            order=2,
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     p2 = plans_dir / "20260929-expdemo-01-bb2222-plan-b.ipd.md"
     p2.write_text(
-        "# IPD: Plan B\n\n- Date: 2026-09-29\n- Kind: child\n- Status: pending\n- Id: bb2222\n- Set: expdemo\n- Order: 1\n",
+        RecordBuilder().plan(
+            title="Plan B",
+            when="2026-09-29",
+            plan_role="child",
+            id6="bb2222",
+            set="expdemo",
+            order=1,
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -394,7 +422,14 @@ def test_guard_foreign_type_path_refusal_eby93o(
     specs_dir = repo / ".aw" / "records" / "specs" / "pending"
     specs_dir.mkdir(parents=True, exist_ok=True)
     spec_path = specs_dir / "20260929-demospec-01-sp1111-demo-spec.spec.md"
-    spec_content = "# Spec: Demo Spec\n\n- Date: 2026-09-29\n- Kind: spec\n- Status: draft\n- Id: sp1111\n- Set: demospec\n"
+    spec_content = RecordBuilder().spec(
+        title="Demo Spec",
+        when="2026-09-29",
+        status="draft",
+        id6="sp1111",
+        set="demospec",
+        text_only=True,
+    )
     spec_path.write_text(spec_content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "add spec"], cwd=repo, check=True)
@@ -427,10 +462,28 @@ def test_guard_multi_match_refusal_and_force_f15(
     repo, _ = repo_with_plans
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     p1 = plans_dir / "20260929-multiset-01-m11111-first.ipd.md"
-    p1_content = "# IPD: First\n\n- Date: 2026-09-29\n- Kind: child\n- Status: pending\n- Id: m11111\n- Set: multiset\n- Order: 1\n"
+    p1_content = RecordBuilder().plan(
+        title="First",
+        when="2026-09-29",
+        plan_role="child",
+        id6="m11111",
+        set="multiset",
+        order=1,
+        raw_fields={"Status": "pending"},
+        text_only=True,
+    )
     p1.write_text(p1_content, encoding="utf-8")
     p2 = plans_dir / "20260929-multiset-02-m22222-second.ipd.md"
-    p2_content = "# IPD: Second\n\n- Date: 2026-09-29\n- Kind: child\n- Status: pending\n- Id: m22222\n- Set: multiset\n- Order: 2\n"
+    p2_content = RecordBuilder().plan(
+        title="Second",
+        when="2026-09-29",
+        plan_role="child",
+        id6="m22222",
+        set="multiset",
+        order=2,
+        raw_fields={"Status": "pending"},
+        text_only=True,
+    )
     p2.write_text(p2_content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "add multiset plans"], cwd=repo, check=True)

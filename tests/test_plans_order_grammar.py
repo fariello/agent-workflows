@@ -22,7 +22,7 @@ from agent_workflows.plans_refs import (
     _set_metadata,
     run_set_assign,
 )
-from tests.test_ipd_lint import _conforming_child
+from tests.record_builder import RecordBuilder
 
 
 def _repo_env() -> dict[str, str]:
@@ -60,21 +60,24 @@ def _seed_conforming_plan(
     setid: str = "testset",
     order: int = 1,
     kind: str | None = "child",
+    raw_fields: dict[str, str | None] | None = None,
 ) -> Path:
     """Seed a conforming plan in pending/."""
-    pdir = repo / ".aw" / "records" / "plans" / "pending"
-    plan_path = pdir / f"20261002-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
-    text = (
-        _conforming_child()
-        .replace("- Set: x", f"- Set: {setid}")
-        .replace("- Order: 1", f"- Order: {order}")
-        .replace("- Id: abc123", f"- Id: {id6}")
-    )
+    merged_raw: dict[str, str | None] = dict(raw_fields or {})
     if kind is None:
-        text = text.replace("- Kind: child\n", "")
-    elif kind != "child":
-        text = text.replace("- Kind: child", f"- Kind: {kind}")
-    plan_path.write_text(text, encoding="utf-8")
+        merged_raw["Kind"] = None
+    plan_path = RecordBuilder(repo).plan(
+        id6=id6,
+        title="sample",
+        when="2026-10-02",
+        plan_role=kind or "child",
+        set=setid,
+        order=order,
+        status="to-review",
+        slug="test-plan",
+        raw_fields=merged_raw or None,
+    )
+    assert isinstance(plan_path, Path)
     return plan_path
 
 
@@ -416,7 +419,14 @@ def test_bmhoxe_repair_sequence_leaves_well_formed_name(order_repo: Path) -> Non
 
 def test_set_metadata_substitutes_negative_order_in_place() -> None:
     """E-03: _set_metadata on text with '- Order: -1' substitutes in place rather than inserting a duplicate."""
-    raw = "# IPD: Test\n\n- Id: sst001\n- Set: oldset\n- Order: -1\n\n## Goal\n"
+    raw = RecordBuilder().plan(
+        title="Test",
+        id6="sst001",
+        set="oldset",
+        body="## Goal",
+        raw_fields={"Order": "-1"},
+        text_only=True,
+    )
     updated = _set_metadata(raw, set_id="newset", order=5, plan_name="sst001")
     order_lines = [line for line in updated.splitlines() if line.startswith("- Order:")]
     assert order_lines == ["- Order: 5"]
@@ -425,7 +435,14 @@ def test_set_metadata_substitutes_negative_order_in_place() -> None:
 
 def test_set_metadata_raises_on_unmatchable_order_line() -> None:
     """E-03: _set_metadata raises ValueError when an unmatchable Order line would cause duplicate insertion."""
-    raw = "# IPD: Test\n\n- Id: sst002\n- Set: oldset\n- Order: x1\n\n## Goal\n"
+    raw = RecordBuilder().plan(
+        title="Test",
+        id6="sst002",
+        set="oldset",
+        body="## Goal",
+        raw_fields={"Order": "x1"},
+        text_only=True,
+    )
     with pytest.raises(ValueError, match="expected exactly one '- Order:' line"):
         _set_metadata(raw, set_id="newset", order=5, plan_name="sst002")
 
@@ -435,11 +452,10 @@ def test_forced_raise_in_apply_renames_leaves_batch_unmoved_and_unchanged(
 ) -> None:
     """E-03: A ValueError in apply_renames pre-pass leaves every plan in the batch byte-identical and unmoved."""
     p1 = _seed_conforming_plan(order_repo, "atc001", order=1)
-    p2 = _seed_conforming_plan(order_repo, "atc002", order=2)
-
-    # Corrupt p2 with an unmatchable Order line that will trigger the assertion in _set_metadata
-    p2_text = p2.read_text(encoding="utf-8").replace("- Order: 2", "- Order: x2")
-    p2.write_text(p2_text, encoding="utf-8")
+    # Seed p2 with an unmatchable Order line that will trigger the assertion in _set_metadata
+    p2 = _seed_conforming_plan(
+        order_repo, "atc002", order=2, raw_fields={"Order": "x2"}
+    )
 
     h1_before = _file_hash(p1)
     h2_before = _file_hash(p2)

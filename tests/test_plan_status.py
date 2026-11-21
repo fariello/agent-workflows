@@ -14,6 +14,7 @@ import pytest
 
 from agent_workflows import plans as plans_mod
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def status_drift(plans_dir: Path) -> tuple[int, list[str], list[str]]:
@@ -59,33 +60,39 @@ class TestSyntheticPlanStatus(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.plans_dir = Path(td.name)
 
-    def _write_plan(self, rel_path: str, status: str | None = None) -> Path:
-        p = self.plans_dir / rel_path
-        p.parent.mkdir(parents=True, exist_ok=True)
-        if status is not None:
-            content = f"# Plan\n\n- Status: {status}\n\n## Content\n"
-        else:
-            content = "# Plan\n\n## Content without status\n"
-        p.write_text(content, encoding="utf-8")
-        return p
-
     def test_clean_tree(self) -> None:
-        # pending/ with draft, to-review, approved, auto-approved
-        self._write_plan("pending/p1.ipd.md", "draft")
-        self._write_plan("pending/p2.ipd.md", "to-review")
-        self._write_plan("pending/p3.ipd.md", "approved")
-        self._write_plan("pending/p4.ipd.md", "auto-approved")
-        # executed/ with executed and legacy DONE
-        self._write_plan("executed/p5.ipd.md", "executed")
-        self._write_plan("executed/p6.ipd.md", "DONE")
-        # superseded/ with superseded
-        self._write_plan("superseded/p7.ipd.md", "superseded")
-        # not-executed/ with not-executed
-        self._write_plan("not-executed/p8.ipd.md", "not-executed")
-        # reusable/ with reusable
-        self._write_plan("reusable/p9.ipd.md", "reusable")
-        # README.md with no status
-        self._write_plan("pending/README.md", None)
+        builder = RecordBuilder()
+        fixtures = [
+            # pending/ with draft, to-review, approved, auto-approved
+            ("pending/p1.ipd.md", "draft", None),
+            ("pending/p2.ipd.md", "to-review", None),
+            ("pending/p3.ipd.md", "approved", None),
+            ("pending/p4.ipd.md", "auto-approved", None),
+            # executed/ with executed and legacy DONE
+            ("executed/p5.ipd.md", "executed", None),
+            ("executed/p6.ipd.md", "draft", {"Status": "DONE"}),
+            # superseded/ with superseded
+            ("superseded/p7.ipd.md", "superseded", None),
+            # not-executed/ with not-executed
+            ("not-executed/p8.ipd.md", "not-executed", None),
+            # reusable/ with reusable
+            ("reusable/p9.ipd.md", "reusable", None),
+            # README.md with no status
+            ("pending/README.md", "draft", {"Status": None}),
+        ]
+        for rel_path, status, raw_fields in fixtures:
+            target = self.plans_dir / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                builder.plan(
+                    title="Plan",
+                    status=status,
+                    body="## Content",
+                    raw_fields=raw_fields,
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
 
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 9)
@@ -93,8 +100,18 @@ class TestSyntheticPlanStatus(unittest.TestCase):
         self.assertEqual(mismatched, [])
 
     def test_unrecognized_token(self) -> None:
-        # A pending/ file with - Status: aproved appears in unrecognized
-        self._write_plan("pending/p_typo.ipd.md", "aproved")
+        # A pending/ file with typo status appears in unrecognized
+        target = self.plans_dir / "pending/p_typo.ipd.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            RecordBuilder().plan(
+                title="Plan",
+                body="## Content",
+                raw_fields={"Status": "aproved"},
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 1)
         self.assertTrue(
@@ -105,7 +122,17 @@ class TestSyntheticPlanStatus(unittest.TestCase):
 
     def test_missing_status(self) -> None:
         # A pending/ file with no status line appears in unrecognized
-        self._write_plan("pending/p_nostatus.ipd.md", None)
+        target = self.plans_dir / "pending/p_nostatus.ipd.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            RecordBuilder().plan(
+                title="Plan",
+                body="## Content without status",
+                raw_fields={"Status": None},
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 1)
         self.assertTrue(
@@ -115,8 +142,18 @@ class TestSyntheticPlanStatus(unittest.TestCase):
         self.assertEqual(mismatched, [])
 
     def test_terminal_mismatch(self) -> None:
-        # An executed/ file with - Status: approved appears in mismatched and not in unrecognized
-        self._write_plan("executed/p_bad_terminal.ipd.md", "approved")
+        # An executed/ file with approved status appears in mismatched and not in unrecognized
+        target = self.plans_dir / "executed/p_bad_terminal.ipd.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            RecordBuilder().plan(
+                title="Plan",
+                status="approved",
+                body="## Content",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 1)
         self.assertEqual(unrecognized, [])
@@ -126,16 +163,36 @@ class TestSyntheticPlanStatus(unittest.TestCase):
         )
 
     def test_pending_not_mismatched(self) -> None:
-        # A pending/ file with - Status: approved is not reported as mismatched
-        self._write_plan("pending/p_ok.ipd.md", "approved")
+        # A pending/ file with approved status is not reported as mismatched
+        target = self.plans_dir / "pending/p_ok.ipd.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            RecordBuilder().plan(
+                title="Plan",
+                status="approved",
+                body="## Content",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 1)
         self.assertEqual(unrecognized, [])
         self.assertEqual(mismatched, [])
 
     def test_sharded_terminal_mismatch(self) -> None:
-        # A sharded file executed/202609/<name>.ipd.md with - Status: approved appears in mismatched
-        self._write_plan("executed/202609/sharded_plan.ipd.md", "approved")
+        # A sharded file executed/202609/<name>.ipd.md with approved status appears in mismatched
+        target = self.plans_dir / "executed/202609/sharded_plan.ipd.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            RecordBuilder().plan(
+                title="Plan",
+                status="approved",
+                body="## Content",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 1)
         self.assertEqual(unrecognized, [])
@@ -146,10 +203,25 @@ class TestSyntheticPlanStatus(unittest.TestCase):
 
     def test_examined_count_excludes_readme(self) -> None:
         # examined equals the number of non-README files written
-        self._write_plan("pending/p1.ipd.md", "approved")
-        self._write_plan("executed/p2.ipd.md", "executed")
-        self._write_plan("pending/README.md", None)
-        self._write_plan("executed/README.md", None)
+        builder = RecordBuilder()
+        for rel_path, status, raw_fields in (
+            ("pending/p1.ipd.md", "approved", None),
+            ("executed/p2.ipd.md", "executed", None),
+            ("pending/README.md", "draft", {"Status": None}),
+            ("executed/README.md", "draft", {"Status": None}),
+        ):
+            target = self.plans_dir / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                builder.plan(
+                    title="Plan",
+                    status=status,
+                    body="## Content",
+                    raw_fields=raw_fields,
+                    text_only=True,
+                ),
+                encoding="utf-8",
+            )
         examined, unrecognized, mismatched = status_drift(self.plans_dir)
         self.assertEqual(examined, 2)
         self.assertEqual(unrecognized, [])

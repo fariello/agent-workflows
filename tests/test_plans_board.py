@@ -16,6 +16,7 @@ from agent_workflows import cli
 from agent_workflows import plans as plans_mod
 from agent_workflows.term import Term
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _write(
@@ -25,15 +26,31 @@ def _write(
     order: str | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    body = "# IPD: x\n\n"
-    if status is not None:
-        body += f"- Status: {status}\n"
-    if set_id is not None:
-        body += f"- Set: {set_id}\n"
-    if order is not None:
-        body += f"- Order: {order}\n"
-    body += "\n## Goal\n\nx\n"
-    path.write_text(body, encoding="utf-8")
+    raw_fields: dict[str, str | None] = {}
+    if status is None:
+        effective_status = "draft"
+        raw_fields["Status"] = None
+    elif status in plans_mod.RECOGNIZED:
+        effective_status = status
+    else:
+        effective_status = "draft"
+        raw_fields["Status"] = status
+    if set_id is None:
+        raw_fields["Set"] = None
+    else:
+        raw_fields["Set"] = set_id
+    if order is None:
+        raw_fields["Order"] = None
+    else:
+        raw_fields["Order"] = order
+    text = RecordBuilder().plan(
+        title="x",
+        status=effective_status,
+        body="## Goal\n\nx",
+        raw_fields=raw_fields,
+        text_only=True,
+    )
+    path.write_text(text, encoding="utf-8")
 
 
 def _fixture(root: Path) -> None:
