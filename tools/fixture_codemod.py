@@ -1931,6 +1931,17 @@ def record_module_outcomes(module_path: Path) -> tuple[list[str], str]:
     """Run the batch-rule pytest command in-process and return (sorted outcomes, sha256)."""
     _purge_module_pyc(module_path)
     run_root, env = _pytest_workdir_and_env()
+    resolved_module = module_path.resolve()
+    try:
+        resolved_module.relative_to(run_root)
+        proc_cwd = run_root
+        target_arg = str(resolved_module)
+    except ValueError:
+        # Target sits outside run_root (e.g. a temp repo on C: while run_root is on D: on Windows).
+        # Run pytest in the module's own directory so rootpath and nodeids stay on one drive while
+        # PYTHONPATH still resolves tests.record_builder and agent_workflows from run_root.
+        proc_cwd = resolved_module.parent
+        target_arg = resolved_module.name
     with tempfile.TemporaryDirectory(prefix="aw-codemod-pytest-") as tmp_base:
         cmd = [
             sys.executable,
@@ -1947,13 +1958,13 @@ def record_module_outcomes(module_path: Path) -> tuple[list[str], str]:
             "-p",
             "no:xdist",
             "--basetemp",
-            tmp_base,
+            str(Path(tmp_base) / "bt"),
             "-rA",
-            str(module_path.resolve()),
+            target_arg,
         ]
         proc = subprocess.run(
             cmd,
-            cwd=str(run_root),
+            cwd=str(proc_cwd),
             env=env,
             capture_output=True,
             text=True,
