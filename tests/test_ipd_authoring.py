@@ -21,6 +21,7 @@ from pathlib import Path
 from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
+from tests.record_builder import RecordBuilder
 
 
 def _ns(**kw) -> argparse.Namespace:
@@ -436,9 +437,16 @@ class SyncTests(unittest.TestCase):
         # able to get its identity handle; only the Id line may change.
         import re as _re
 
-        t = self.path.read_text()
-        t = _re.sub(r"(?m)^- Id: [0-9a-z]{6}\n", "", t)
-        t = _re.sub(r"(?m)^- Status: \S+$", "- Status: approved", t)
+        t = RecordBuilder().plan(
+            kind="child",
+            title="t (Set x, Order 1)",
+            author="tester",
+            set_name="x",
+            order=1,
+            status="approved",
+            raw_fields={"id": None},
+            text_only=True,
+        )
         self.path.write_text(t)
         rc, out = _run(A.run_sync, _ns(path=str(self.path), apply=True))
         self.assertEqual(rc, 0, out)
@@ -495,13 +503,15 @@ class SyncTests(unittest.TestCase):
         )
 
     def test_refuses_when_approved(self):
-        t = (
-            self.path.read_text()
-            .replace("- Status: draft", "- Status: approved")
-            .replace(
-                "- Author: tester",
-                "- Approval: approved by x 2026-08-03\n- Author: tester",
-            )
+        t = RecordBuilder().plan(
+            kind="child",
+            title="t (Set x, Order 1)",
+            author="tester",
+            set_name="x",
+            order=1,
+            status="approved",
+            approval="approved by x 2026-08-03",
+            text_only=True,
         )
         self.path.write_text(t)
         self._add_unassigned(1)
