@@ -3,10 +3,12 @@
 - Date: 2026-11-21
 - Kind: child
 - Concern: `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` slices `proposed_change` at 24 characters (`[:24]`) without respecting word boundaries when building the filed backlog summary and IPD title, while `_write_fallback_record` in the same function uses `[:60]`. In `run-20261121T014040Z-2638602`, proposal `735ium` for IPD `60mazt` received `- Summary: Proposal from 60mazt: Create and execute a sco` and slug `proposal-from-60mazt-create-and-execute-a-sco`, splitting the word `scoped` mid-token.
-- Scope: Add a small word-boundary truncation helper in `agent_workflows/runner_shared.py` (with a 60-character budget matching `_write_fallback_record`, collapsing whitespace and trimming trailing punctuation after backing up to the last word boundary when needed) and use it in both the live filing path and `_write_fallback_record` inside `perform_coordinator_proposal_file`. Add a behavioral test in `tests/test_run_proposal_channel.py` verifying that a multi-word `proposed_change` longer than 24 (and longer than 60) characters produces a filed proposal summary and filename slug that end on a complete word. EXCLUDES: lane defect backlog recovery (`8s4qhh` / `8h1q1k`).
+- Scope: Add a word-boundary truncation helper `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str` and a word-boundary slug helper `_truncate_proposal_slug(text: str, max_chars: int = 50) -> str` in `agent_workflows/runner_shared.py`, and use them in both the live filing path and `_write_fallback_record` inside `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` (passing `--slug` to `aw backlog new` for `size="material"` so both `- Summary:` and the `.backlog.md` filename slug end on complete words without hitting `agent_workflows/backlog.py::run_new`'s 50-character `kebab_slug` hard slice, while `size="small"` produces a complete-word `# IPD:` title via `aw ipd scaffold` whose derived filename slug remains bounded by `agent_workflows/artifact_core.py::kebab_slug`). Add behavioral and helper unit tests in `tests/test_run_proposal_channel.py` covering `size="material"`, `size="small"`, `_write_fallback_record` (held lock), and edge cases (words straddling character 24 and character 60, word ending exactly at `max_chars`, single unbroken token over `max_chars`, trailing punctuation, and embedded newlines/tabs). EXCLUDES: lane defect backlog recovery (`8s4qhh` / `8h1q1k`) and changing `agent_workflows/artifact_core.py::kebab_slug` globally.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_run_proposal_channel.py, .aw/records/plans/pending/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - Short-Description: Use a word-boundary truncation helper with a 60-character budget in perform_coordinator_proposal_file so proposal summaries and slugs never split words mid-token.
 - Work-Kind: bug
 - Priority: low
@@ -22,12 +24,14 @@
 
 ## Workflow history
 
+- 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
+- 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 68ympf
 - 2026-11-21 draft (antigravity/gemini): created.
 
 ## Goal
 
-Prevent `perform_coordinator_proposal_file` from cutting proposal summaries and filename slugs off mid-word at 24 characters by using a shared 60-character word-boundary truncation helper.
+Prevent `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` from cutting proposal summaries, IPD titles, and backlog filename slugs off mid-word at 24 characters by using shared 60-character summary and 50-character backlog-slug word-boundary truncation helpers.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -35,12 +39,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Word-boundary proposal summary truncation
 
-- [ ] E-01 Add a helper `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str` in `agent_workflows/runner_shared.py` that normalizes whitespace (`re.sub(r"\s+", " ", text).strip()`), returns the string unchanged when `len(s) <= max_chars`, and otherwise slices to `max_chars`, backs up to the last space boundary if one exists (falling back to the hard slice only for a single unbroken token longer than `max_chars`), and strips trailing punctuation/spaces. Use `_truncate_proposal_summary(proposed_change, max_chars=60)` in both `_write_fallback_record` and the live coordinator path inside `perform_coordinator_proposal_file`. Verify that the resulting `aw backlog new` and `aw ipd scaffold` filenames stay within repository filename length limits.
+- [ ] E-01 Add two small helpers in `agent_workflows/runner_shared.py`:
+  1. `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str`: normalize whitespace (`re.sub(r"\s+", " ", text).strip()`), return `s` unchanged when `len(s) <= max_chars`; otherwise check `s[: max_chars + 1]` for the last space so a word ending *exactly* at `max_chars` (`s[max_chars] == " "`) is preserved rather than dropped, falling back to `s[:max_chars]` only for a single unbroken token longer than `max_chars`; strip trailing punctuation and spaces (`" .,;:!?-_/([{'\""`), falling back to the unstripped cut (never returning `""` for non-empty `s`) if stripping empties the string.
+  2. `_truncate_proposal_slug(text: str, max_chars: int = 50) -> str`: convert `text` with `agent_workflows/artifact_core.py::kebab`, return unchanged when `len(k) <= max_chars`, otherwise check `k[: max_chars + 1]` for the last `"-"` boundary (preserving a token ending exactly at `max_chars` and falling back to `k[:max_chars].strip("-")` only for a single unbroken token longer than `max_chars`), and default to `"proposal"` if empty.
+  3. Wire `_truncate_proposal_summary(proposed_change, max_chars=60)` into both `_write_fallback_record` and the live coordinator path inside `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`, and pass `["--slug", _truncate_proposal_slug(summary, max_chars=50)]` to `aw backlog new` in the `size="material"` branch so `agent_workflows/backlog.py::run_new`'s 50-character `kebab_slug` hard slice never splits a word in the backlog filename slug.
   - Depends on: none
-  - Expected outcome: Both live and fallback proposal filing paths produce clean, complete-word summaries up to 60 characters without splitting words mid-token.
+  - Expected outcome: Both live and fallback proposal filing paths produce clean, complete-word summaries/titles up to 60 characters, and `size="material"` backlog filenames carry complete-word slugs up to 50 characters within repository naming rules.
   - Execution state: pending
 
-- [ ] E-02 Add a behavioral test in `tests/test_run_proposal_channel.py` passing a multi-word `proposed_change` longer than 60 characters (including a word straddling character 24 and another straddling character 60) through `perform_coordinator_proposal_file` for both `size="material"` (backlog) and `size="small"` (draft IPD), asserting that the filed record's summary/title ends on a complete word (no mid-word cut like `sco`) and conforms to `aw backlog check` / `ipd_lint`. Run `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
+- [ ] E-02 Add behavioral and helper unit tests in `tests/test_run_proposal_channel.py` (strictly behavioral, zero source-code inspection via `inspect`/`ast`/regex/`read_text` per `GUIDING_PRINCIPLES` P16):
+  1. Unit tests for `_truncate_proposal_summary` and `_truncate_proposal_slug` covering: short strings unchanged, multi-word strings longer than 60/50 chars, a word ending *exactly* at `max_chars` (not dropped), a single unbroken token longer than `max_chars`, embedded newlines/tabs, trailing punctuation at the cut, and all-punctuation prefix fallback (non-empty).
+  2. Live coordinator tests driving `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` with a multi-word `proposed_change` longer than 60 characters (containing a word straddling character 24 and another straddling character 60):
+     - For `size="material"`: assert `- Summary:` ends on a complete word (no mid-word cut like `sco`), the `.backlog.md` filename slug (`<= 50` chars) ends on a complete word and passes `agent_workflows/artifact_naming.py::parse_clustered`, and `agent_workflows/backlog.py::validate_item` returns zero drift.
+     - For `size="small"`: assert `# IPD:` title ends on a complete word (no mid-word cut at 24 or 60), and the scaffolded `.ipd.md` file conforms to `agent_workflows/ipd_lint.py` (`author` / draft checks) and clustered filename rules.
+  3. Fallback path test (held `integration_lock`, matching `test_coordinator_performer_held_integration_lock`) verifying `_write_fallback_record` uses `_truncate_proposal_summary` on word boundaries for both `size="material"` and `size="small"`.
+  Run `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Depends on: E-01
   - Expected outcome: All proposal-channel tests, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` pass.
   - Execution state: pending
@@ -48,28 +61,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` currently computes `clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]` in `_write_fallback_record` and `[:24]` in the coordinator worktree loop.
-- `aw backlog new` and `aw ipd scaffold` already bound derived filename slugs automatically, so a 60-character word-boundary summary keeps filenames conformant while making `- Summary:` and `# IPD:` readable.
+- `agent_workflows/backlog.py::run_new` derives the backlog filename slug via `agent_workflows/artifact_core.py::kebab_slug(args.slug or item.summary or "item", 50, "item")`, which hard-slices `kebab(text)[:50]`. Because `"Proposal from <id6>: "` is 22 characters (21 kebab chars), passing a 60-character `clean_summary` without `--slug` still produces an 82-character summary that `kebab_slug` cuts mid-word at 50 characters. Passing `--slug` (already supported by `aw backlog new`) guarantees a complete-word backlog slug.
+- `agent_workflows/ipd_authoring.py` derives the IPD filename slug via `agent_workflows/artifact_core.py::kebab_slug(title, 60, "ipd")` and has no `--slug` CLI flag on `aw ipd scaffold`; therefore `# IPD:` title uses the 60-character word-boundary helper while IPD filename slug truncation remains owned by `artifact_core.kebab_slug`.
 
 ## Findings
 
 | Id | Finding | Evidence |
 |---|---|---|
-| F-01 | `perform_coordinator_proposal_file` slices `proposed_change` mid-word at `[:24]`, inconsistent with `_write_fallback_record` (`[:60]`). | `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`; observed in `735ium` (`Proposal from 60mazt: Create and execute a sco`). |
+| F-01 | `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` slices `proposed_change` mid-word at `[:24]`, inconsistent with `_write_fallback_record` (`[:60]`), and does not pass a word-boundary `--slug` to `aw backlog new`. | `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`; `agent_workflows/backlog.py::run_new`; observed in `735ium` (`Proposal from 60mazt: Create and execute a sco`, slug `proposal-from-60mazt-create-and-execute-a-sco`). |
 
 ## Proposed changes (ordered, validatable)
 
-1. Add `_truncate_proposal_summary(text, max_chars=60)` in `agent_workflows/runner_shared.py` and replace both `[:60]` and `[:24]` slices in `perform_coordinator_proposal_file` (`E-01`).
-2. Add behavioral tests for `size="material"` and `size="small"` proposals in `tests/test_run_proposal_channel.py` and run all validation gates (`E-02`).
+1. Add `_truncate_proposal_summary(text, max_chars=60)` and `_truncate_proposal_slug(text, max_chars=50)` in `agent_workflows/runner_shared.py`, replace both `[:60]` and `[:24]` slices in `perform_coordinator_proposal_file`, and pass `--slug` to `aw backlog new` (`E-01`).
+2. Add helper unit tests and behavioral tests for `size="material"`, `size="small"`, and `_write_fallback_record` in `tests/test_run_proposal_channel.py` and run all validation gates (`E-02`).
+
+```mermaid
+flowchart TD
+    A[Normalize whitespace in proposed_change] --> B{len <= max_chars?}
+    B -->|Yes| C[Return normalized text]
+    B -->|No| D{Space in text[:max_chars + 1]?}
+    D -->|Yes| E[Slice at last space boundary]
+    D -->|No| F[Hard-slice single token at max_chars]
+    E --> G[Strip trailing punctuation; keep pre-strip cut if empty]
+    F --> G
+    G --> H[Build Proposal from id6 summary/title]
+    H --> I{size == material?}
+    I -->|Yes| J[Pass summary and word-boundary --slug <= 50 chars to aw backlog new]
+    I -->|No| K[Pass title to aw ipd scaffold or fallback writer]
+```
 
 ## Deferred / out of scope (with reason)
 
 - Landing agent-filed defect backlog items from preserved proposal lanes: owned by sibling plan `8h1q1k` (from backlog `8s4qhh`).
   - Carrier: 8h1q1k
+- Changing `agent_workflows/artifact_core.py::kebab_slug` globally to truncate on hyphen/word boundaries (which affects `aw ipd scaffold`, `aw specs new`, `aw prompts`, and migration renames across the repository): out of scope for this coordinator proposal-filing fix.
+  - Carrier-Declined: `artifact_core.kebab_slug` is shared across all record types and migrations; changing it globally risks altering filename expectations across unrelated commands and tests, whereas passing `--slug` to `aw backlog new` fixes the observed proposal backlog defect without cross-tree blast radius.
 
 ## Scope check
 
 - Over-scope: none. Only `agent_workflows/runner_shared.py`, `tests/test_run_proposal_channel.py`, and this plan are modified.
-- Under-scope: none. Handles multi-word strings, single-token strings over `max_chars`, newlines, and both `material` and `small` proposals.
+- Under-scope: none. Handles multi-word strings, exact-boundary words, single-token strings over `max_chars`, trailing punctuation, newlines/tabs, `--slug` for `material` proposals, `small` proposals, and `_write_fallback_record`.
 
 ## Required tests / validation
 
@@ -81,7 +112,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-N/A: internal formatting bug fix in coordinator proposal filing.
+N/A: internal formatting bug fix in coordinator proposal filing; no CLI flags, user-facing documentation, or specification contracts change.
 
 ## Open questions
 
@@ -92,12 +123,12 @@ None.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `git diff agent_workflows/runner_shared.py` summary showing `_truncate_proposal_summary` used in both `_write_fallback_record` and the live coordinator path inside `perform_coordinator_proposal_file`.
+  - Required evidence: paste the `git diff agent_workflows/runner_shared.py` summary showing `_truncate_proposal_summary` (with exact-boundary preservation and non-empty punctuation-strip fallback) used in both `_write_fallback_record` and the live coordinator path inside `perform_coordinator_proposal_file`, plus `_truncate_proposal_slug` passed via `--slug` to `aw backlog new`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
+  - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py` (showing helper unit tests and live/fallback behavioral tests passing with zero source-code inspection), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Observed evidence:
   - Result: pending
 
@@ -106,4 +137,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute after review and approval (`approved` or `auto-approved`). Commit only files changed for this plan through `aw commit l7d19a -- <paths>` (never `git add -A`, bare `git add`, `git commit -a`, or `--no-verify`; never push). Finalize to `.aw/records/plans/executed/` only via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after review (`Status: reviewed`), human approval (`Status: approved` or `auto-approved`), and with all blocking open questions resolved. Scope fence: edits are declared in `- Scope-Paths:` (`agent_workflows/runner_shared.py`, `tests/test_run_proposal_channel.py`, and this plan); if execution requires touching an undeclared path or leaving a declared path unmodified, document it at finalization with `--scope-reason PATH=WHY` or `--scope-ack PATH[=NOTE]`. Shared-checkout safety: never revert, stage, commit, discard, or reformat unrelated changes or untracked files belonging to another agent or human. Honesty rule (hard MUST): paste the actual runner output for every required test and validation command in `V-01..V-02`; never claim a check passed without running it. Commit only files changed for this plan through `aw commit l7d19a -- <paths>` (never `git add -A`, bare `git add`, `git commit -a`, or `--no-verify`; never push). Lifecycle transition: never hand-roll `git mv` into `.aw/records/plans/executed/`; after `aw ipd lint --phase pre-transition` reports `clean` and every `V-*` reads `pass` with pasted evidence, when executed by a runner with `self_finalize=True` leave finalization to the driver, and when executed directly or attended run `aw ipd finalize l7d19a` to move the plan to `.aw/records/plans/executed/`.
