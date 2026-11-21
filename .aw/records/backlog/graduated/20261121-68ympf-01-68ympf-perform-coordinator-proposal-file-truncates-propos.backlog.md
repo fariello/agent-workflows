@@ -1,5 +1,6 @@
 - Id: 68ympf
-- Status: open
+- Status: graduated
+- Graduated-To: 68ympf
 - Set: 68ympf
 - Work-Kind: bug
 - Priority: low
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw set): Graduated to review-ready plan l7d19a (set 68ympf)
 - 2026-11-21 created (aw backlog): perform_coordinator_proposal_file truncates proposal summaries mid-word at 24 characters
 
 ## Problem

@@ -1,5 +1,6 @@
 - Id: fnabjy
-- Status: open
+- Status: graduated
+- Graduated-To: fnabjy
 - Set: fnabjy
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw set): Graduated to review-ready plan s4utmv (set fnabjy)
 - 2026-11-21 created (aw backlog): m0001_convert fabricates status draft for status-less research-prompt and legacy research records causing attention.unknown-status and aw find status drift
 
 

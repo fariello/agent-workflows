@@ -1,5 +1,6 @@
 - Id: 7mmhlp
-- Status: open
+- Status: graduated
+- Graduated-To: 7mmhlp
 - Set: 7mmhlp
 - Work-Kind: bug
 - Priority: medium
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw set): Graduated to review-ready plan vvxbbl (set 7mmhlp)
 - 2026-11-21 created (aw backlog): aw find drops migrated legacy research records whose minted filenames lack a research kind facet even when queried by minted id6
 
 
