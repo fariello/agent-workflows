@@ -13,6 +13,7 @@ import json
 from unittest.mock import patch
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 from tests.test_status_set import StatusSetTestBase
 
 
@@ -304,56 +305,59 @@ class TestPlanTransitionGate(StatusSetTestBase):
         plan_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"
         plan_dir.mkdir(parents=True, exist_ok=True)
         (plan_dir / "20260901-testset-01-pl0001-plan.ipd.md").write_text(
-            "# IPD: Test Plan pl0001\n\n"
-            "- Date: 2026-09-01\n"
-            "- Kind: child\n"
-            "- Concern: Test concern.\n"
-            "- Scope: Test scope.\n"
-            "- Status: to-review\n"
-            "- Work-Kind: chore\n"
-            "- Priority: medium\n"
-            "- Set: testset\n"
-            "- Order: 1\n"
-            "- Id: pl0001\n"
-            "- From-Backlog: bkl001\n"
-            "- Scope-Paths: README.md\n"
-            "- Highest E allocated: 01\n"
-            "- Author: test\n"
-            "- Item-Dependencies: none\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 to-review (test): created\n\n"
-            "## Goal\n"
-            "Goal pl0001.\n\n"
-            "## Detailed Implementation Checklist (TODO)\n"
-            "### Task group 1: work\n"
-            "- [ ] E-01 Work item\n"
-            "  - Depends on: none\n"
-            "  - Expected outcome: done\n"
-            "  - Execution state: pending\n\n"
-            "## Project conventions discovered (Step 0)\n"
-            "None.\n\n"
-            "## Findings\n"
-            "None.\n\n"
-            "## Proposed changes (ordered, validatable)\n"
-            "1. E-01 do work.\n\n"
-            "## Deferred / out of scope (with reason)\n"
-            "- None.\n\n"
-            "## Scope check\n"
-            "- None.\n\n"
-            "## Required tests / validation\n"
-            "- None.\n\n"
-            "## Spec / documentation sync\n"
-            "- None.\n\n"
-            "## Open questions\n"
-            "- None.\n\n"
-            "## Validation and cross-check (verify before reporting done)\n"
-            "- [ ] V-01 validates E-01\n"
-            "  - Required evidence: check.\n"
-            "  - Observed evidence:\n"
-            "  - Result: pending\n\n"
-            "## Approval and execution gate\n"
-            "- Size assessment: standard\n"
-            "- Cohesion rationale: not required\n",
+            RecordBuilder().plan(
+                title="Test Plan pl0001",
+                when="2026-09-01",
+                plan_role="child",
+                status="to-review",
+                work_kind="chore",
+                priority="medium",
+                set="testset",
+                order=1,
+                id6="pl0001",
+                from_backlog="bkl001",
+                scope_paths="README.md",
+                highest_e_allocated="01",
+                author="test",
+                item_dependencies="none",
+                history=["- 2026-09-01 to-review (test): created"],
+                raw_fields={"Concern": "Test concern.", "Scope": "Test scope."},
+                body=(
+                    "## Goal\n"
+                    "Goal pl0001.\n\n"
+                    "## Detailed Implementation Checklist (TODO)\n"
+                    "### Task group 1: work\n"
+                    "- [ ] E-01 Work item\n"
+                    "  - Depends on: none\n"
+                    "  - Expected outcome: done\n"
+                    "  - Execution state: pending\n\n"
+                    "## Project conventions discovered (Step 0)\n"
+                    "None.\n\n"
+                    "## Findings\n"
+                    "None.\n\n"
+                    "## Proposed changes (ordered, validatable)\n"
+                    "1. E-01 do work.\n\n"
+                    "## Deferred / out of scope (with reason)\n"
+                    "- None.\n\n"
+                    "## Scope check\n"
+                    "- None.\n\n"
+                    "## Required tests / validation\n"
+                    "- None.\n\n"
+                    "## Spec / documentation sync\n"
+                    "- None.\n\n"
+                    "## Open questions\n"
+                    "- None.\n\n"
+                    "## Validation and cross-check (verify before reporting done)\n"
+                    "- [ ] V-01 validates E-01\n"
+                    "  - Required evidence: check.\n"
+                    "  - Observed evidence:\n"
+                    "  - Result: pending\n\n"
+                    "## Approval and execution gate\n"
+                    "- Size assessment: standard\n"
+                    "- Cohesion rationale: not required\n"
+                ),
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rc_backlog = cli.main(
