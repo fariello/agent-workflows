@@ -373,6 +373,198 @@ def _structural_lines(text: str) -> List[Tuple[int, str]]:
     return out
 
 
+_STATE_FIELD_TO_META: Tuple[Tuple[str, str], ...] = (
+    ("plan_role", "Kind"),
+    ("author", "Author"),
+    ("approval", S.META_APPROVAL),
+    ("scope_paths", S.META_SCOPE_PATHS),
+    ("item_dependencies", S.META_ITEM_DEPENDENCIES),
+    ("blocks_release", S.META_BLOCKS_RELEASE),
+    ("from_backlog", S.META_FROM_BACKLOG),
+    ("from_spec", S.META_FROM_SPEC),
+    ("graduated_to", S.META_GRADUATED_TO),
+    ("priority", S.META_PRIORITY),
+    ("work_kind", S.META_WORK_KIND),
+    ("readiness", S.META_READINESS),
+    ("coverage", S.META_COVERAGE),
+    ("coverage_fingerprint", S.META_COVERAGE_FINGERPRINT),
+    ("coverage_checked", S.META_COVERAGE_CHECKED),
+    ("attended", S.META_ATTENDED),
+    ("review_depth", S.META_REVIEW_DEPTH),
+    ("short_description", S.META_SHORT_DESCRIPTION),
+)
+
+
+def _parse_metadata_slice(
+    meta_slice: Sequence[str],
+) -> Tuple[Dict[str, str], List[S.MetaError]]:
+    """Single Phase-B call site for ``ipd_schema.parse_metadata_block``.
+
+    Supplies line-level ``meta_errors`` (duplicate/unknown field diagnostics IPD-M102/M103) and
+    non-registry schema fields (Date, Concern, Scope, Quarantine*, Highest E allocated) until
+    Order 287 (ad86ym) moves ``parse_metadata_block`` into ``artifact_meta``.
+    """
+    return S.parse_metadata_block(meta_slice)
+
+
+def _overlay_state_into_meta_fields(
+    meta_fields: Dict[str, str],
+    state: Any,
+    *,
+    authoritative_keys_only: bool = False,
+) -> Dict[str, str]:
+    """Overlay ``artifact_meta.State`` fields onto parsed ``meta_fields``.
+
+    When ``authoritative_keys_only`` is True (in-memory ``read_text`` fallback), only keys
+    already recognized in the fence-aware structural metadata slice are overwritten so fenced
+    or YAML-front-matter bullets cannot leak into structure. For a tracked cached ``State`` or
+    an explicit caller-supplied ``State``, all non-None fields carried by ``state`` apply.
+    """
+    if state is None:
+        return meta_fields
+    out = dict(meta_fields)
+    st_fields = getattr(state, "fields", None)
+    if not isinstance(st_fields, dict):
+        st_fields = {}
+
+    for st_key, meta_key in _STATE_FIELD_TO_META:
+        if authoritative_keys_only and meta_key not in out:
+            continue
+        val = st_fields.get(st_key)
+        if val is None:
+            continue
+        if isinstance(val, str):
+            out[meta_key] = val
+        elif isinstance(val, list):
+            out[meta_key] = ", ".join(str(x) for x in val)
+        else:
+            out[meta_key] = str(val)
+
+    raw_status = getattr(state, "legacy_raw_status", None)
+    if raw_status is None:
+        raw_status = getattr(state, "status", None)
+    if raw_status is not None and (not authoritative_keys_only or "Status" in out):
+        out["Status"] = str(raw_status)
+
+    st_id6 = getattr(state, "id6", None)
+    if st_id6 and not getattr(state, "id_derived", False):
+        if not authoritative_keys_only or "Id" in out:
+            if "Id" not in out or S._core.is_valid_id6(out["Id"].strip()):
+                out["Id"] = str(st_id6)
+
+    if not authoritative_keys_only:
+        st_date = st_fields.get("date")
+        if st_date is not None:
+            out["Date"] = str(st_date)
+        raw_set = getattr(state, "legacy_raw_set", None)
+        if "Set" not in out:
+            if raw_set is not None:
+                out["Set"] = str(raw_set)
+            elif not meta_fields and getattr(state, "set_id", None):
+                out["Set"] = str(state.set_id)
+        if "Order" not in out and not meta_fields:
+            ord_val = getattr(state, "order_nn", None)
+            if ord_val is None:
+                ord_val = st_fields.get("order")
+            if ord_val is not None:
+                out["Order"] = str(ord_val)
+    return out
+
+
+def _meta_context_and_state_map(
+    repo_root: Path,
+) -> Tuple[Optional[Any], Dict[Path, Any]]:
+    """Return ``(project_context, resolved_path -> State)`` for plans in ``repo_root``."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+    from agent_workflows import selectors as _selectors
+
+    repo_root = Path(repo_root)
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = (
+                "ipd_lint._meta_context_and_state_map",
+                str(repo_root.resolve()),
+            )
+            if cache_key in scan_cache:
+                return scan_cache[cache_key]
+        except OSError:
+            cache_key = None
+
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        result: Tuple[Optional[Any], Dict[Path, Any]] = (ctx, {})
+        if scan_cache is not None and cache_key is not None:
+            scan_cache[cache_key] = result
+        return result
+
+    out: Dict[Path, Any] = {}
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(type="ipd", project_context=ctx, include_fields=True)
+        for st in res.rows:
+            if not st.path or not st.id6:
+                continue
+            try:
+                if (
+                    st.path.startswith("@repo/")
+                    and scan_repo_res is not None
+                    and "/../" not in st.path
+                    and not st.path.endswith("/..")
+                ):
+                    cand = scan_repo_res / st.path[6:]
+                    resolved_p = cand.resolve() if cand.is_symlink() else cand
+                elif (
+                    not st.path.startswith("@repo/")
+                    and not st.path.startswith("..")
+                    and not st.path.startswith("/")
+                    and "/../" not in st.path
+                ):
+                    cand = records_root_res / st.path
+                    resolved_p = cand.resolve() if cand.is_symlink() else cand
+                else:
+                    resolved_p = _meta.source_path(
+                        st.path, records_root, scan_repo
+                    ).resolve()
+            except Exception:
+                continue
+            out[resolved_p] = st
+    result = (ctx, out)
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = result
+    return result
+
+
+def _lookup_tracked_state(path: Path) -> Tuple[Optional[Any], Optional[Any]]:
+    """Return ``(State, project_context)`` from ``artifact_meta`` for a tracked plan path."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None, None
+    if not any(part in ("plans", ".aw", ".agents") for part in resolved.parts):
+        return None, None
+    try:
+        repo_root = _plan_repo_root(resolved)
+        ctx, state_map = _meta_context_and_state_map(repo_root)
+        st = state_map.get(resolved)
+        if st is not None:
+            return st, ctx
+    except Exception:
+        return None, None
+    return None, None
+
+
 def parse_meta_fields(text: str) -> Dict[str, str]:
     """Parse only the top metadata block (between H1 and first H2), fence-aware.
 
@@ -416,11 +608,16 @@ def parse_meta_fields(text: str) -> Dict[str, str]:
         if _H2_RE.match(raw):
             break
         meta_slice.append(raw)
-    meta_fields, _meta_errors = S.parse_metadata_block(meta_slice)
+    meta_fields, _meta_errors = _parse_metadata_slice(meta_slice)
     return meta_fields
 
 
-def parse(text: str) -> ParsedDoc:
+def parse(
+    text: str,
+    *,
+    state: Optional[Any] = None,
+    _state_from_read_text: bool = False,
+) -> ParsedDoc:
     """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
     raw_lines = (text or "").splitlines()
     struct = _structural_lines(text)
@@ -441,7 +638,11 @@ def parse(text: str) -> ParsedDoc:
             first_h2_seen = True
         if not first_h2_seen:
             meta_slice.append(raw)
-    meta_fields, meta_errors = S.parse_metadata_block(meta_slice)
+    meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
+    if state is not None:
+        meta_fields = _overlay_state_into_meta_fields(
+            meta_fields, state, authoritative_keys_only=_state_from_read_text
+        )
 
     for lineno, raw in struct:
         mh = _H2_RE.match(raw)
@@ -2385,17 +2586,26 @@ def lint_text(
     doc: Optional[ParsedDoc] = None,
     citation_anchors: bool = False,
     path: Optional[Path] = None,
+    state: Optional[Any] = None,
 ) -> LintResult:
     """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics).
 
     ``doc`` lets a caller that has ALREADY parsed ``text`` hand the parse in, so the document is
     parsed exactly ONCE per lint. ``lint_file`` uses it to share one parse between the pure checks
     here and its own repo-aware checks (plqjt7 E-02 requires consuming the already-parsed
-    ``doc.open_questions`` rather than re-parsing the plan). Purity is unaffected: parsing is pure,
-    and omitting the argument keeps the original behavior exactly.
+    ``doc.open_questions`` rather than re-parsing the plan). ``state`` carries an
+    ``artifact_meta.State`` from ``artifact_meta.read``, ``artifact_meta.read_at``, or
+    ``artifact_meta.read_text``; when omitted, ``artifact_meta.read_text(text, record_type="ipd")``
+    supplies it so string callers stay unchanged.
     """
+    state_from_read_text = False
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="ipd")
+        state_from_read_text = True
     if doc is None:
-        doc = parse(text)
+        doc = parse(text, state=state, _state_from_read_text=state_from_read_text)
     # Legacy/grandfathered: a terminal-dir file evaluated without migration.
     # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
     if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
@@ -2602,7 +2812,8 @@ def _lint_file_impl(
 ) -> LintResult:
     # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
     # consume the already-parsed document instead of re-parsing the same text.
-    doc = parse(text)
+    tracked_state, _tracked_ctx = _lookup_tracked_state(path)
+    doc = parse(text, state=tracked_state)
     result = lint_text(
         text,
         checkpoint=checkpoint,
@@ -2611,6 +2822,7 @@ def _lint_file_impl(
         doc=doc,
         citation_anchors=citation_anchors,
         path=path,
+        state=tracked_state,
     )
     # ipddeps ovbnyq (spec 2.9-2.11): RESOLUTION-level Item-Dependencies checks (dangling / ambiguous
     # / cycle) need the repo, so they run HERE (lint_file has the path -> repo_root) via the ONE
@@ -3482,61 +3694,70 @@ def run_lint(args: argparse.Namespace) -> int:
                 membership_cache = _orch_readiness.resolve_all_set_memberships(root)
             except Exception:
                 pass
-            for f in files:
-                res = lint_file(
-                    f,
-                    checkpoint=checkpoint,
-                    legacy=legacy,
-                    citation_anchors=citation_anchors,
-                    membership_cache=membership_cache,
-                )
-                diags, disp = _with_name_check(res, f, legacy)
-                counts[disp] = counts.get(disp, 0) + 1
-                for d in diags:
-                    all_diags.append(
-                        OutDiag(
-                            location=str(f),
-                            rule=d.code,
-                            detail=d.message,
-                            severity="error"
-                            if disp == S.DISPOSITION_ERROR
-                            else "warning",
-                        )
+            from agent_workflows import artifact_meta as _meta
+
+            with _sel.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+                for f in files:
+                    res = lint_file(
+                        f,
+                        checkpoint=checkpoint,
+                        legacy=legacy,
+                        citation_anchors=citation_anchors,
+                        membership_cache=membership_cache,
                     )
-                for a in getattr(res, "advisories", []):
-                    all_diags.append(
-                        OutDiag(
-                            location=str(f),
-                            rule=a.code,
-                            detail=a.message,
-                            severity="info",
-                        )
-                    )
-                if not (ctx.is_agent or ctx.is_json):
-                    has_adv = bool(getattr(res, "advisories", []))
-                    term.line(_format_lint_line(f, disp, has_advisories=has_adv))
-                    if diags:
-                        for d in diags:
-                            loc_str = f"line {d.line}" if d.line else ""
-                            rule_str = f"{d.code} ({loc_str})" if loc_str else d.code
-                            diag_txt = (
-                                term.color256(f"     ! {rule_str}: {d.message}", 196)
-                                if getattr(term, "color", False)
-                                else f"     ! {rule_str}: {d.message}"
+                    diags, disp = _with_name_check(res, f, legacy)
+                    counts[disp] = counts.get(disp, 0) + 1
+                    for d in diags:
+                        all_diags.append(
+                            OutDiag(
+                                location=str(f),
+                                rule=d.code,
+                                detail=d.message,
+                                severity="error"
+                                if disp == S.DISPOSITION_ERROR
+                                else "warning",
                             )
-                            term.line(diag_txt)
-                    if has_adv:
-                        for a in _visible_advisories(res.advisories, detail):
-                            loc_str = f"line {a.line}" if a.line else ""
-                            rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
-                            adv_txt = (
-                                term.color256(
-                                    f"     ? advisory: {rule_str}: {a.message}", 214
+                        )
+                    for a in getattr(res, "advisories", []):
+                        all_diags.append(
+                            OutDiag(
+                                location=str(f),
+                                rule=a.code,
+                                detail=a.message,
+                                severity="info",
+                            )
+                        )
+                    if not (ctx.is_agent or ctx.is_json):
+                        has_adv = bool(getattr(res, "advisories", []))
+                        term.line(_format_lint_line(f, disp, has_advisories=has_adv))
+                        if diags:
+                            for d in diags:
+                                loc_str = f"line {d.line}" if d.line else ""
+                                rule_str = (
+                                    f"{d.code} ({loc_str})" if loc_str else d.code
                                 )
-                                if getattr(term, "color", False)
-                                else f"     ? advisory: {rule_str}: {a.message}"
-                            )
-                            term.line(adv_txt)
+                                diag_txt = (
+                                    term.color256(
+                                        f"     ! {rule_str}: {d.message}", 196
+                                    )
+                                    if getattr(term, "color", False)
+                                    else f"     ! {rule_str}: {d.message}"
+                                )
+                                term.line(diag_txt)
+                        if has_adv:
+                            for a in _visible_advisories(res.advisories, detail):
+                                loc_str = f"line {a.line}" if a.line else ""
+                                rule_str = (
+                                    f"{a.code} ({loc_str})" if loc_str else a.code
+                                )
+                                adv_txt = (
+                                    term.color256(
+                                        f"     ? advisory: {rule_str}: {a.message}", 214
+                                    )
+                                    if getattr(term, "color", False)
+                                    else f"     ? advisory: {rule_str}: {a.message}"
+                                )
+                                term.line(adv_txt)
 
             any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))
             exit_code = 1 if any_error else 0
