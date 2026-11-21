@@ -112,6 +112,7 @@ test = [
     "mypy>=1.18,<3",
     "filelock>=4; python_version >= '3.10'",
     "filelock>=3; python_version < '3.10'",
+    "zstandard>=0.22; python_version < '3.14'",
 ]
 
 # PEP 735 dependency group so `pip install --group dev` (or `pip install -e . --group dev`)
@@ -127,6 +128,7 @@ dev = [
     "mypy>=1.18,<3",
     "filelock>=4; python_version >= '3.10'",
     "filelock>=3; python_version < '3.10'",
+    "zstandard>=0.22; python_version < '3.14'",
 ]
 
 [project.urls]

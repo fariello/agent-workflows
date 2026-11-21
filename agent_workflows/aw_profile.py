@@ -263,9 +263,10 @@ def load_or_create_salt(cache_dir: Path | str) -> str:
     salt = secrets.token_hex(32)
     fd, tmp_name = tempfile.mkstemp(prefix=".salt-", dir=str(root))
     try:
-        os.chmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(salt + "\n")
+        if os.name != "nt":
+            os.chmod(tmp_name, 0o600)
         os.replace(tmp_name, salt_path)
     except Exception:
         try:

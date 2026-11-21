@@ -334,11 +334,16 @@ class RunnerHostStartupTimingPersistenceTests(unittest.TestCase):
 
                 orig_init = host_mod.initialize_run
 
+                def _wait_mono_tick() -> None:
+                    t0 = time.monotonic()
+                    while time.monotonic() <= t0:
+                        time.sleep(0.005)
+
                 def _init_with_question(args: Any) -> Path:
                     print(f"[{host_name}] preparing queue...", file=sys.stderr)
-                    time.sleep(0.01)
+                    _wait_mono_tick()
                     runner_shared.mark_active_startup_first_question()
-                    time.sleep(0.01)
+                    _wait_mono_tick()
                     return orig_init(args)
 
                 out_buf = io.StringIO()
@@ -498,7 +503,9 @@ class RunnerHostStartupTimingPersistenceTests(unittest.TestCase):
         orig_dispatch = cli._dispatch
 
         def _slow_dispatch(argv: Any) -> int:
-            time.sleep(0.02)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 0.02:
+                time.sleep(0.005)
             return orig_dispatch(argv)
 
         with (
