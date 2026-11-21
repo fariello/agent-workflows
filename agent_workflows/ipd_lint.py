@@ -306,7 +306,111 @@ def orch_row_canonical(
 _orch_row_canonical = orch_row_canonical
 
 _ORCH_ROW_RE = re.compile(orch_row_pattern())
-_HISTORY_LINE_RE = re.compile(r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(\S+)")
+
+
+def _history_line_status_token(line_text: str) -> Optional[str]:
+    """Return the status token after ``- YYYY-MM-DD `` in a legacy history line, or None."""
+    s = line_text.strip()
+    if len(s) < 14 or not s.startswith("-") or not s[1].isspace():
+        return None
+    parts = s[1:].lstrip().split(None, 2)
+    if len(parts) < 2:
+        return None
+    day, tok = parts[0], parts[1]
+    if (
+        len(day) != 10
+        or day[4] != "-"
+        or day[7] != "-"
+        or not (day[:4] + day[5:7] + day[8:]).isascii()
+        or not (day[:4] + day[5:7] + day[8:]).isdigit()
+    ):
+        return None
+    return tok
+
+
+class _LegacyHistoryLineMatcher:
+    """Phase-B shim preserving ``ipd_lint._HISTORY_LINE_RE.match(s).group(1)`` for
+    ``check_engine._has_matching_history_line`` (Order 09 ``t4gl15``) and ``tests/test_status_set.py``
+    without keeping a ``^-`` metadata regex literal in ``ipd_lint.py`` (Order 246 ``nx7fws`` retires it).
+    """
+
+    class _Match:
+        __slots__ = ("_tok",)
+
+        def __init__(self, tok: str) -> None:
+            self._tok = tok
+
+        def group(self, idx: int = 1) -> str:
+            if idx == 1:
+                return self._tok
+            raise IndexError(idx)
+
+    def match(self, line_text: str) -> Optional["_LegacyHistoryLineMatcher._Match"]:
+        tok = _history_line_status_token(line_text)
+        return self._Match(tok) if tok is not None else None
+
+
+_HISTORY_LINE_RE = _LegacyHistoryLineMatcher()
+
+
+def _get_history_events(
+    doc: ParsedDoc,
+    history_loader: Optional[Any] = None,
+) -> List[Dict[str, Any]]:
+    """Return ``artifact_meta.history`` events when supplied, else wrap ``doc.history_lines``."""
+    if history_loader is not None:
+        loaded = history_loader()
+        if loaded is not None:
+            return loaded
+    return [{"line": line} for _lineno, line in doc.history_lines]
+
+
+def _read_state_field(
+    state: Optional[Any],
+    st_key: str,
+    doc: ParsedDoc,
+    meta_key: str,
+    *,
+    fence_guard: bool = False,
+    allow_doc_fallback: bool = False,
+) -> Optional[Any]:
+    """Read a field from ``artifact_meta.State``, falling back to ``doc.meta_fields`` only when needed."""
+    if state is not None:
+        if fence_guard and meta_key not in doc.meta_fields:
+            return None
+        st_fields = getattr(state, "fields", None)
+        if isinstance(st_fields, dict) and st_key in st_fields:
+            val = st_fields[st_key]
+            if val is not None:
+                return val
+            if not allow_doc_fallback:
+                return None
+        elif not allow_doc_fallback:
+            return None
+    return doc.meta_fields.get(meta_key)
+
+
+def _read_state_status(
+    state: Optional[Any],
+    doc: ParsedDoc,
+    *,
+    fence_guard: bool = False,
+) -> Optional[str]:
+    """Read the raw status string from ``artifact_meta.State`` (or ``doc.meta_fields`` when absent)."""
+    if state is not None:
+        if fence_guard and "Status" not in doc.meta_fields:
+            return None
+        raw = getattr(state, "legacy_raw_status", None)
+        if raw is None:
+            raw = getattr(state, "status", None)
+        if raw is not None:
+            return str(raw)
+        if "Status" in doc.meta_fields and doc.meta_fields["Status"] == "":
+            return ""
+        return None
+    return doc.meta_fields.get("Status")
+
+
 # ipdgates Order wezhxg: parse the full terminal history line `- <date> <status> (<actor>): <msg>`
 # so the post-transition attribution lint can reject a generic/empty actor + empty summary.
 #
@@ -373,6 +477,198 @@ def _structural_lines(text: str) -> List[Tuple[int, str]]:
     return out
 
 
+_STATE_FIELD_TO_META: Tuple[Tuple[str, str], ...] = (
+    ("plan_role", "Kind"),
+    ("author", "Author"),
+    ("approval", S.META_APPROVAL),
+    ("scope_paths", S.META_SCOPE_PATHS),
+    ("item_dependencies", S.META_ITEM_DEPENDENCIES),
+    ("blocks_release", S.META_BLOCKS_RELEASE),
+    ("from_backlog", S.META_FROM_BACKLOG),
+    ("from_spec", S.META_FROM_SPEC),
+    ("graduated_to", S.META_GRADUATED_TO),
+    ("priority", S.META_PRIORITY),
+    ("work_kind", S.META_WORK_KIND),
+    ("readiness", S.META_READINESS),
+    ("coverage", S.META_COVERAGE),
+    ("coverage_fingerprint", S.META_COVERAGE_FINGERPRINT),
+    ("coverage_checked", S.META_COVERAGE_CHECKED),
+    ("attended", S.META_ATTENDED),
+    ("review_depth", S.META_REVIEW_DEPTH),
+    ("short_description", S.META_SHORT_DESCRIPTION),
+)
+
+
+def _parse_metadata_slice(
+    meta_slice: Sequence[str],
+) -> Tuple[Dict[str, str], List[S.MetaError]]:
+    """Single Phase-B call site for ``ipd_schema.parse_metadata_block``.
+
+    Supplies line-level ``meta_errors`` (duplicate/unknown field diagnostics IPD-M102/M103) and
+    non-registry schema fields (Date, Concern, Scope, Quarantine*, Highest E allocated) until
+    Order 287 (ad86ym) moves ``parse_metadata_block`` into ``artifact_meta``.
+    """
+    return S.parse_metadata_block(meta_slice)
+
+
+def _overlay_state_into_meta_fields(
+    meta_fields: Dict[str, str],
+    state: Any,
+    *,
+    authoritative_keys_only: bool = False,
+) -> Dict[str, str]:
+    """Overlay ``artifact_meta.State`` fields onto parsed ``meta_fields``.
+
+    When ``authoritative_keys_only`` is True (in-memory ``read_text`` fallback), only keys
+    already recognized in the fence-aware structural metadata slice are overwritten so fenced
+    or YAML-front-matter bullets cannot leak into structure. For a tracked cached ``State`` or
+    an explicit caller-supplied ``State``, all non-None fields carried by ``state`` apply.
+    """
+    if state is None:
+        return meta_fields
+    out = dict(meta_fields)
+    st_fields = getattr(state, "fields", None)
+    if not isinstance(st_fields, dict):
+        st_fields = {}
+
+    for st_key, meta_key in _STATE_FIELD_TO_META:
+        if authoritative_keys_only and meta_key not in out:
+            continue
+        val = st_fields.get(st_key)
+        if val is None:
+            continue
+        if isinstance(val, str):
+            out[meta_key] = val
+        elif isinstance(val, list):
+            out[meta_key] = ", ".join(str(x) for x in val)
+        else:
+            out[meta_key] = str(val)
+
+    raw_status = getattr(state, "legacy_raw_status", None)
+    if raw_status is None:
+        raw_status = getattr(state, "status", None)
+    if raw_status is not None and (not authoritative_keys_only or "Status" in out):
+        out["Status"] = str(raw_status)
+
+    st_id6 = getattr(state, "id6", None)
+    if st_id6 and not getattr(state, "id_derived", False):
+        if not authoritative_keys_only or "Id" in out:
+            if "Id" not in out or S._core.is_valid_id6(out["Id"].strip()):
+                out["Id"] = str(st_id6)
+
+    if not authoritative_keys_only:
+        st_date = st_fields.get("date")
+        if st_date is not None:
+            out["Date"] = str(st_date)
+        raw_set = getattr(state, "legacy_raw_set", None)
+        if "Set" not in out:
+            if raw_set is not None:
+                out["Set"] = str(raw_set)
+            elif not meta_fields and getattr(state, "set_id", None):
+                out["Set"] = str(state.set_id)
+        if "Order" not in out and not meta_fields:
+            ord_val = getattr(state, "order_nn", None)
+            if ord_val is None:
+                ord_val = st_fields.get("order")
+            if ord_val is not None:
+                out["Order"] = str(ord_val)
+    return out
+
+
+def _meta_context_and_state_map(
+    repo_root: Path,
+) -> Tuple[Optional[Any], Dict[Path, Any]]:
+    """Return ``(project_context, resolved_path -> State)`` for plans in ``repo_root``."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+    from agent_workflows import selectors as _selectors
+
+    repo_root = Path(repo_root)
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = (
+                "ipd_lint._meta_context_and_state_map",
+                str(repo_root.resolve()),
+            )
+            if cache_key in scan_cache:
+                return scan_cache[cache_key]
+        except OSError:
+            cache_key = None
+
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    has_tree = records_root.is_dir() or (
+        scan_repo is not None
+        and (
+            (scan_repo / ".aw" / "records").is_dir() or (scan_repo / ".agents").is_dir()
+        )
+    )
+    if not has_tree:
+        result: Tuple[Optional[Any], Dict[Path, Any]] = (ctx, {})
+        if scan_cache is not None and cache_key is not None:
+            scan_cache[cache_key] = result
+        return result
+
+    out: Dict[Path, Any] = {}
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(type="ipd", project_context=ctx, include_fields=True)
+        for st in res.rows:
+            if not st.path or not st.id6:
+                continue
+            try:
+                if (
+                    st.path.startswith("@repo/")
+                    and scan_repo_res is not None
+                    and "/../" not in st.path
+                    and not st.path.endswith("/..")
+                ):
+                    cand = scan_repo_res / st.path[6:]
+                    resolved_p = cand.resolve() if cand.is_symlink() else cand
+                elif (
+                    not st.path.startswith("@repo/")
+                    and not st.path.startswith("..")
+                    and not st.path.startswith("/")
+                    and "/../" not in st.path
+                ):
+                    cand = records_root_res / st.path
+                    resolved_p = cand.resolve() if cand.is_symlink() else cand
+                else:
+                    resolved_p = _meta.source_path(
+                        st.path, records_root, scan_repo
+                    ).resolve()
+            except Exception:
+                continue
+            out[resolved_p] = st
+    result = (ctx, out)
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = result
+    return result
+
+
+def _lookup_tracked_state(path: Path) -> Tuple[Optional[Any], Optional[Any]]:
+    """Return ``(State, project_context)`` from ``artifact_meta`` for a tracked plan path."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None, None
+    if not any(part in ("plans", ".aw", ".agents") for part in resolved.parts):
+        return None, None
+    try:
+        repo_root = _plan_repo_root(resolved)
+        ctx, state_map = _meta_context_and_state_map(repo_root)
+        st = state_map.get(resolved)
+        if st is not None:
+            return st, ctx
+    except Exception:
+        return None, None
+    return None, None
+
+
 def parse_meta_fields(text: str) -> Dict[str, str]:
     """Parse only the top metadata block (between H1 and first H2), fence-aware.
 
@@ -416,11 +712,16 @@ def parse_meta_fields(text: str) -> Dict[str, str]:
         if _H2_RE.match(raw):
             break
         meta_slice.append(raw)
-    meta_fields, _meta_errors = S.parse_metadata_block(meta_slice)
+    meta_fields, _meta_errors = _parse_metadata_slice(meta_slice)
     return meta_fields
 
 
-def parse(text: str) -> ParsedDoc:
+def parse(
+    text: str,
+    *,
+    state: Optional[Any] = None,
+    _state_from_read_text: bool = False,
+) -> ParsedDoc:
     """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
     raw_lines = (text or "").splitlines()
     struct = _structural_lines(text)
@@ -441,7 +742,11 @@ def parse(text: str) -> ParsedDoc:
             first_h2_seen = True
         if not first_h2_seen:
             meta_slice.append(raw)
-    meta_fields, meta_errors = S.parse_metadata_block(meta_slice)
+    meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
+    if state is not None:
+        meta_fields = _overlay_state_into_meta_fields(
+            meta_fields, state, authoritative_keys_only=_state_from_read_text
+        )
 
     for lineno, raw in struct:
         mh = _H2_RE.match(raw)
@@ -1236,17 +1541,15 @@ CITATION_ANCHOR_CUTOVER_DATE = "20260923"  # compact YYYYMMDD
 CITATION_ANCHOR_PROXIMITY_WINDOW = 80
 CITATION_ANCHOR_WINDOW = CITATION_ANCHOR_PROXIMITY_WINDOW
 
-_CITATION_PLAN_DATE_RE = re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
 
-
-def _citation_anchor_applies(doc: ParsedDoc) -> bool:
+def _citation_anchor_applies(doc: ParsedDoc, *, state: Optional[Any] = None) -> bool:
     """True when this plan is POST-cutover and therefore subject to the citation-anchor advisory.
 
     A plan with NO parseable `- Date:` is treated as PRE-cutover (suppressed). That direction is
     copied from the carrier precedent and for its stated reason: `IPD-M101` already owns the
     missing-`Date` complaint, so this rule must not invent a second consequence for the same defect.
     """
-    raw = doc.meta_fields.get("Date")
+    raw = _read_state_field(state, "date", doc, "Date", allow_doc_fallback=True)
     if not raw:
         return False
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw).strip())
@@ -1348,7 +1651,11 @@ def _has_durable_anchor(
 
 
 def check_citation_anchors(
-    doc: ParsedDoc, text: str, *, include_pre_cutover: bool = False
+    doc: ParsedDoc,
+    text: str,
+    *,
+    include_pre_cutover: bool = False,
+    state: Optional[Any] = None,
 ) -> List[Diagnostic]:
     """Advisory: a code citation with no durable anchor beside it (spec Section 10.2, `IPD-C801`).
 
@@ -1364,7 +1671,7 @@ def check_citation_anchors(
     ``_group_logical_units``) within a proximity window (``CITATION_ANCHOR_PROXIMITY_WINDOW``),
     curing continuation-line false positives while ensuring candidate anchors accompany the citation.
     """
-    if not include_pre_cutover and not _citation_anchor_applies(doc):
+    if not include_pre_cutover and not _citation_anchor_applies(doc, state=state):
         return []
     out: List[Diagnostic] = []
     for lineno, unit_text in _group_logical_units(_structural_lines(text)):
@@ -1446,15 +1753,27 @@ _REVIEW_EVIDENCE_RE = re.compile(
 )
 
 
-def check_readiness_attestation(doc: ParsedDoc) -> List[Diagnostic]:
+def check_readiness_attestation(
+    doc: ParsedDoc,
+    *,
+    state: Optional[Any] = None,
+    history_loader: Optional[Any] = None,
+    _fence_guard: bool = False,
+) -> List[Diagnostic]:
     """Refuse a `- Readiness:` value that no review in the plan's history accounts for (rdattest)."""
-    raw = doc.meta_fields.get(S.META_READINESS)
+    raw = _read_state_field(
+        state, "readiness", doc, S.META_READINESS, fence_guard=_fence_guard
+    )
     if raw is None or not str(raw).strip():
         # Absent is the correct authoring state and is silent, by design.
         return []
-    history = "\n".join(line for _lineno, line in doc.history_lines)
-    if _REVIEW_EVIDENCE_RE.search(history):
-        return []
+    events = _get_history_events(doc, history_loader)
+    for ev in events:
+        if ev.get("op") == "review" and ev.get("source") != "review-file":
+            return []
+        line = ev.get("line")
+        if isinstance(line, str) and _REVIEW_EVIDENCE_RE.search(line):
+            return []
     return [
         Diagnostic(
             0,
@@ -1471,7 +1790,12 @@ def check_readiness_attestation(doc: ParsedDoc) -> List[Diagnostic]:
 _READINESS_GATED_STATUSES = frozenset({"reviewed"}) | S.READY_TO_EXECUTE
 
 
-def check_readiness_required(doc: ParsedDoc) -> List[Diagnostic]:
+def check_readiness_required(
+    doc: ParsedDoc,
+    *,
+    state: Optional[Any] = None,
+    _fence_guard: bool = False,
+) -> List[Diagnostic]:
     """IPD-M113: Refuse a reviewed or approved plan lacking `- Readiness:` (rdyreq fhinri).
 
     Keyed on STATUS, not on checkpoint, so the R6 exhaustion path (which leaves
@@ -1480,13 +1804,15 @@ def check_readiness_required(doc: ParsedDoc) -> List[Diagnostic]:
     Gated status set is derived from frozenset({"reviewed"}) | ipd_schema.READY_TO_EXECUTE
     so auto-approved is covered without a second literal.
     """
-    raw_status = doc.meta_fields.get("Status")
+    raw_status = _read_state_status(state, doc, fence_guard=_fence_guard)
     if raw_status is None:
         return []
     status = str(raw_status).strip().lower()
     if status not in _READINESS_GATED_STATUSES:
         return []
-    raw_readiness = doc.meta_fields.get(S.META_READINESS)
+    raw_readiness = _read_state_field(
+        state, "readiness", doc, S.META_READINESS, fence_guard=_fence_guard
+    )
     if raw_readiness is not None and str(raw_readiness).strip():
         return []
     return [
@@ -1508,11 +1834,32 @@ _COVERAGE_HIST_RE = re.compile(
 )
 
 
-def check_coverage_record(doc: ParsedDoc, text: str) -> List[Diagnostic]:
+def check_coverage_record(
+    doc: ParsedDoc,
+    text: str,
+    *,
+    state: Optional[Any] = None,
+    history_loader: Optional[Any] = None,
+    _fence_guard: bool = False,
+) -> List[Diagnostic]:
     """IPD-M112: coverage record must be complete and attested in workflow history."""
-    cov = doc.meta_fields.get(S.META_COVERAGE)
-    fp = doc.meta_fields.get(S.META_COVERAGE_FINGERPRINT)
-    chk = doc.meta_fields.get(S.META_COVERAGE_CHECKED)
+    cov = _read_state_field(
+        state, "coverage", doc, S.META_COVERAGE, fence_guard=_fence_guard
+    )
+    fp = _read_state_field(
+        state,
+        "coverage_fingerprint",
+        doc,
+        S.META_COVERAGE_FINGERPRINT,
+        fence_guard=_fence_guard,
+    )
+    chk = _read_state_field(
+        state,
+        "coverage_checked",
+        doc,
+        S.META_COVERAGE_CHECKED,
+        fence_guard=_fence_guard,
+    )
 
     has_cov = cov is not None
     has_fp = fp is not None
@@ -1521,7 +1868,16 @@ def check_coverage_record(doc: ParsedDoc, text: str) -> List[Diagnostic]:
     if not (has_cov or has_fp or has_chk):
         return []
 
-    id6 = (doc.meta_fields.get("Id") or "").strip() or "<id6>"
+    st_id6 = (
+        getattr(state, "id6", None)
+        if (state is not None and not getattr(state, "id_derived", False))
+        else None
+    )
+    id6 = (
+        (str(st_id6 or "").strip())
+        or (doc.meta_fields.get("Id") or "").strip()
+        or "<id6>"
+    )
     remedy_msg = f"Fix it with `aw ipd coverage {id6}`."
 
     if not (has_cov and has_fp and has_chk):
@@ -1566,17 +1922,31 @@ def check_coverage_record(doc: ParsedDoc, text: str) -> List[Diagnostic]:
 
     fp_clean = str(fp).strip()
     prefix = fp_clean[:12] if len(fp_clean) >= 12 else fp_clean
-    history_text = "\n".join(line for _lineno, line in doc.history_lines)
+    events = _get_history_events(doc, history_loader)
 
     matched = False
-    for m in _COVERAGE_HIST_RE.finditer(history_text):
-        hist_verdict = m.group(1).lower()
-        hist_fp = m.group(2)
-        if hist_verdict == cov_val and (
-            hist_fp.startswith(prefix) or prefix.startswith(hist_fp)
-        ):
-            matched = True
-            break
+    for ev in events:
+        if ev.get("op") == "coverage":
+            ev_cov = str(ev.get("coverage") or "").strip().lower()
+            ev_fp = str(ev.get("coverage_fingerprint") or "").strip()
+            if (
+                ev_cov == cov_val
+                and ev_fp
+                and (ev_fp.startswith(prefix) or prefix.startswith(ev_fp))
+            ):
+                matched = True
+                break
+        line = ev.get("line")
+        if isinstance(line, str):
+            m = _COVERAGE_HIST_RE.search(line)
+            if m:
+                hist_verdict = m.group(1).lower()
+                hist_fp = m.group(2)
+                if hist_verdict == cov_val and (
+                    hist_fp.startswith(prefix) or prefix.startswith(hist_fp)
+                ):
+                    matched = True
+                    break
 
     if not matched:
         return [
@@ -1592,11 +1962,17 @@ def check_coverage_record(doc: ParsedDoc, text: str) -> List[Diagnostic]:
 
 
 def check_checkpoint(
-    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
+    doc: ParsedDoc,
+    checkpoint: str,
+    directory: Optional[str],
+    *,
+    state: Optional[Any] = None,
+    history_loader: Optional[Any] = None,
+    _fence_guard: bool = False,
 ) -> List[Diagnostic]:
     """Checkpoint-specific state requirements (spec Section 9.2)."""
     diags: List[Diagnostic] = []
-    status = doc.meta_fields.get("Status", "")
+    status = _read_state_status(state, doc, fence_guard=_fence_guard) or ""
     if not S.checkpoint_allows_status(checkpoint, status, directory):
         diags.append(
             Diagnostic(
@@ -1652,12 +2028,21 @@ def check_checkpoint(
                     )
     if checkpoint == "post-transition":
         if status == "executed":
+            events = _get_history_events(doc, history_loader)
             has_executed = False
-            for lineno, line_text in doc.history_lines:
-                m = _HISTORY_LINE_RE.match(line_text.strip())
-                if m and m.group(1).rstrip(":").lower() == "executed":
+            for ev in events:
+                if (
+                    ev.get("op") == "transition"
+                    and str(ev.get("to") or "").strip().lower() == "executed"
+                ):
                     has_executed = True
                     break
+                line_text = ev.get("line")
+                if isinstance(line_text, str):
+                    tok = _history_line_status_token(line_text)
+                    if tok is not None and tok.rstrip(":").lower() == "executed":
+                        has_executed = True
+                        break
             if not has_executed:
                 diags.append(
                     Diagnostic(
@@ -1672,7 +2057,7 @@ def check_checkpoint(
             # grandfather the existing executed tree by keying on Order 02's cutoff marker - a plan
             # WITHOUT a real `Scope-Paths` allowlist (absent, or `Scope-Paths: grandfathered`) is
             # pre-cutoff and is NOT subject to the strict attribution rule (OQ-01).
-            diags.extend(_check_terminal_attribution(doc))
+            diags.extend(_check_terminal_attribution(doc, history_events=events))
     return diags
 
 
@@ -1690,30 +2075,76 @@ def _is_grandfathered_for_attribution(doc: ParsedDoc) -> bool:
     return is_grandfathered
 
 
-def _newest_executed_history(doc: ParsedDoc):
-    """Return the parsed (status, actor, msg) of the NEWEST `executed` history entry, or None.
+def _format_event_actor(ev: Dict[str, Any]) -> str:
+    """Format a structured ``artifact_meta`` event actor dict into an attribution string."""
+    actor = ev.get("actor")
+    if isinstance(actor, str):
+        return actor.strip()
+    if not isinstance(actor, dict):
+        return ""
+    tool = str(actor.get("tool") or "").strip()
+    model = str(actor.get("model") or "").strip()
+    host = str(actor.get("host") or "").strip()
+    if model:
+        prefix = host or tool
+        return f"{prefix}/{model}" if prefix else model
+    if ev.get("by_human") and tool == "aw set":
+        return "aw set, --by-human"
+    return tool
 
-    History entries are appended newest-first (a new line is inserted right after the H2), so the
-    FIRST `executed` line encountered scanning top-down is the newest one - the entry this transition
-    wrote.
+
+def _newest_executed_history(
+    doc: ParsedDoc,
+    *,
+    history_events: Optional[List[Dict[str, Any]]] = None,
+):
+    """Return the parsed (actor, msg) of the NEWEST `executed` history entry, or None.
+
+    Legacy history entries are stored newest-first, while structured ``artifact_meta`` event logs
+    are chronological (``seq`` ascending), so structured ``transition`` events are checked from
+    newest to oldest when present, and legacy ``line`` entries are scanned top-down.
     """
+    if history_events is not None:
+        # Check structured transition events newest-first (ascending seq in event logs).
+        for ev in reversed(history_events):
+            if (
+                ev.get("op") == "transition"
+                and str(ev.get("to") or "").strip().lower() == "executed"
+            ):
+                return _format_event_actor(ev), str(ev.get("message") or "").strip()
+        # Fall back to legacy history lines in file order (newest-first).
+        for ev in history_events:
+            line_text = ev.get("line")
+            if not isinstance(line_text, str):
+                continue
+            m = _HISTORY_ATTRIB_RE.match(line_text.strip())
+            if m and m.group("status").rstrip(":").lower() == "executed":
+                return m.group("actor").strip(), m.group("msg").strip()
+            bare_tok = _history_line_status_token(line_text)
+            if bare_tok is not None and bare_tok.rstrip(":").lower() == "executed":
+                return "", ""
+        return None
     for _lineno, line_text in doc.history_lines:
         m = _HISTORY_ATTRIB_RE.match(line_text.strip())
         if m and m.group("status").rstrip(":").lower() == "executed":
             return m.group("actor").strip(), m.group("msg").strip()
         # A bare `executed` line without the (actor): msg shape also counts as the newest executed
         # entry but with an empty actor/msg (so the attribution rule flags it).
-        bare = _HISTORY_LINE_RE.match(line_text.strip())
-        if bare and bare.group(1).rstrip(":").lower() == "executed":
+        bare_tok = _history_line_status_token(line_text)
+        if bare_tok is not None and bare_tok.rstrip(":").lower() == "executed":
             return "", ""
     return None
 
 
-def _check_terminal_attribution(doc: ParsedDoc) -> List[Diagnostic]:
+def _check_terminal_attribution(
+    doc: ParsedDoc,
+    *,
+    history_events: Optional[List[Dict[str, Any]]] = None,
+) -> List[Diagnostic]:
     """Reject a generic/empty actor or empty summary on the newest `executed` entry (Order wezhxg)."""
     if _is_grandfathered_for_attribution(doc):
         return []  # pre-cutoff: do not retroactively fail the grandfathered executed tree
-    newest = _newest_executed_history(doc)
+    newest = _newest_executed_history(doc, history_events=history_events)
     if newest is None:
         return []  # the missing-executed-entry case is already covered by C_EXEC_HISTORY
     actor, msg = newest
@@ -2367,9 +2798,10 @@ def _m105_terminal_date_applies(raw_date: Optional[str]) -> bool:
     return "{0}{1}{2}".format(*m.groups()) >= M105_TERMINAL_CUTOVER_DATE
 
 
-def _m105_terminal_applies(doc: ParsedDoc) -> bool:
+def _m105_terminal_applies(doc: ParsedDoc, *, state: Optional[Any] = None) -> bool:
     """True when this plan is POST-cutover and subject to terminal path/status checking."""
-    return _m105_terminal_date_applies(doc.meta_fields.get("Date"))
+    raw = _read_state_field(state, "date", doc, "Date", allow_doc_fallback=True)
+    return _m105_terminal_date_applies(str(raw) if raw is not None else None)
 
 
 def _is_terminal_dir(directory: Optional[str]) -> bool:
@@ -2385,22 +2817,34 @@ def lint_text(
     doc: Optional[ParsedDoc] = None,
     citation_anchors: bool = False,
     path: Optional[Path] = None,
+    state: Optional[Any] = None,
+    _history_loader: Optional[Any] = None,
 ) -> LintResult:
     """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics).
 
     ``doc`` lets a caller that has ALREADY parsed ``text`` hand the parse in, so the document is
     parsed exactly ONCE per lint. ``lint_file`` uses it to share one parse between the pure checks
     here and its own repo-aware checks (plqjt7 E-02 requires consuming the already-parsed
-    ``doc.open_questions`` rather than re-parsing the plan). Purity is unaffected: parsing is pure,
-    and omitting the argument keeps the original behavior exactly.
+    ``doc.open_questions`` rather than re-parsing the plan). ``state`` carries an
+    ``artifact_meta.State`` from ``artifact_meta.read``, ``artifact_meta.read_at``, or
+    ``artifact_meta.read_text``; when omitted, ``artifact_meta.read_text(text, record_type="ipd")``
+    supplies it so string callers stay unchanged.
     """
+    state_from_read_text = False
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="ipd")
+        state_from_read_text = True
     if doc is None:
-        doc = parse(text)
+        doc = parse(text, state=state, _state_from_read_text=state_from_read_text)
     # Legacy/grandfathered: a terminal-dir file evaluated without migration.
     # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
     if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
-        if _m105_terminal_applies(doc):
-            status = _plans.read_status(Path(""), text=text)
+        if _m105_terminal_applies(doc, state=state):
+            status = _plans._status_from_state(state)
+            if status is None and getattr(state, "status", None):
+                status = _plans.normalize_status(state.status)
             if status is not None:
                 errs = S._check_path_status(status, directory)
                 if errs:
@@ -2416,16 +2860,36 @@ def lint_text(
 
     diags: List[Diagnostic] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     diags += check_metadata(doc, directory)
-    diags += check_readiness_attestation(doc)
-    diags += check_readiness_required(doc)
-    diags += check_coverage_record(doc, text)
+    diags += check_readiness_attestation(
+        doc,
+        state=state,
+        history_loader=_history_loader,
+        _fence_guard=state_from_read_text,
+    )
+    diags += check_readiness_required(
+        doc, state=state, _fence_guard=state_from_read_text
+    )
+    diags += check_coverage_record(
+        doc,
+        text,
+        state=state,
+        history_loader=_history_loader,
+        _fence_guard=state_from_read_text,
+    )
     diags += check_headings(doc)
     diags += check_ids_and_bijection(doc)
     diags += check_states(doc)
     diags += check_gate_contract(doc)
     diags += check_open_questions(doc)
     diags += check_size(doc)
-    diags += check_checkpoint(doc, checkpoint, directory)
+    diags += check_checkpoint(
+        doc,
+        checkpoint,
+        directory,
+        state=state,
+        history_loader=_history_loader,
+        _fence_guard=state_from_read_text,
+    )
     diags += check_orchestrator_rows(doc, text, checkpoint)
     scope_blocking, scope_advisory = check_scope_paths(doc, checkpoint, directory)
     diags += scope_blocking
@@ -2448,7 +2912,7 @@ def lint_text(
     # move. Date-gated inside the check itself, so a pre-cutover plan contributes nothing unless
     # requested on demand via `citation_anchors` (plan `cscv0c` E-03).
     advisories += check_citation_anchors(
-        doc, text, include_pre_cutover=citation_anchors
+        doc, text, include_pre_cutover=citation_anchors, state=state
     )
     advisories += check_prose_dashes(text)
     return LintResult(disposition, diags, advisories)
@@ -2602,7 +3066,27 @@ def _lint_file_impl(
 ) -> LintResult:
     # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
     # consume the already-parsed document instead of re-parsing the same text.
-    doc = parse(text)
+    tracked_state, tracked_ctx = _lookup_tracked_state(path)
+    doc = parse(text, state=tracked_state)
+
+    _history_cache: Dict[str, Optional[List[Dict[str, Any]]]] = {}
+
+    def _load_tracked_history() -> Optional[List[Dict[str, Any]]]:
+        if "events" in _history_cache:
+            return _history_cache["events"]
+        if tracked_state is None or not getattr(tracked_state, "id6", None):
+            _history_cache["events"] = None
+            return None
+        try:
+            from agent_workflows import artifact_meta as _meta
+
+            evs = _meta.history(tracked_state.id6, project_context=tracked_ctx)
+            _history_cache["events"] = evs
+            return evs
+        except Exception:
+            _history_cache["events"] = None
+            return None
+
     result = lint_text(
         text,
         checkpoint=checkpoint,
@@ -2611,6 +3095,8 @@ def _lint_file_impl(
         doc=doc,
         citation_anchors=citation_anchors,
         path=path,
+        state=tracked_state,
+        _history_loader=_load_tracked_history if tracked_state is not None else None,
     )
     # ipddeps ovbnyq (spec 2.9-2.11): RESOLUTION-level Item-Dependencies checks (dangling / ambiguous
     # / cycle) need the repo, so they run HERE (lint_file has the path -> repo_root) via the ONE
@@ -3320,19 +3806,31 @@ def run_lint(args: argparse.Namespace) -> int:
     term = Term(color=False if getattr(args, "no_color", False) else None)
 
     def _format_lint_line(path: Path, disp: str, has_advisories: bool = False) -> str:
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import attention as _att
 
-        raw_text = ""
-        try:
-            raw_text = path.read_text(encoding="utf-8")
-        except OSError:
-            pass
+        st, _st_ctx = _lookup_tracked_state(path)
+        if st is None:
+            raw_text = ""
+            try:
+                raw_text = path.read_text(encoding="utf-8")
+            except OSError:
+                pass
+            st = _meta.read_text(raw_text, record_type="ipd")
 
         # THE `- Status:` COLUMN IS LIFECYCLE and routes through the SHARED resolver (plan `9zvl2w`
         # E-03, spec `uonrjg` R10.3). This is the only lifecycle `status_256` call in this module; the
         # DISPOSITION column below is a different vocabulary and is handled separately.
-        m_stat = re.search(r"(?m)^-\s*Status:\s*(\S+)", raw_text)
-        status_word = m_stat.group(1).lower() if m_stat else "draft"
+        raw_stat = (
+            getattr(st, "legacy_raw_status", None)
+            or getattr(st, "status", None)
+            or getattr(st, "loose_status", None)
+        )
+        status_word = (
+            str(raw_stat).strip().split()[0].lower()
+            if (raw_stat and str(raw_stat).strip())
+            else "draft"
+        )
         status_resolved = _T.resolve_lifecycle(_LS.FAMILY_PLANS, status_word)
         # PADDED BY VISIBLE COLUMNS (Section 9.4), never by `len()` on styled text. The glyph is
         # carried inside this column ahead of the word, as `attention.py` does, so the column ORDER
@@ -3346,10 +3844,24 @@ def run_lint(args: argparse.Namespace) -> int:
             )
         )
 
-        m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_text)
-        priority = m_prio.group(1).lower() if m_prio else None
+        st_fields = getattr(st, "fields", None)
+        if not isinstance(st_fields, dict):
+            st_fields = {}
+        raw_prio = st_fields.get("priority")
+        priority = (
+            str(raw_prio).strip().split()[0].lower()
+            if (raw_prio and str(raw_prio).strip())
+            else None
+        )
 
-        blocks_release = _sel.read_front_matter_blocks_release(raw_text)
+        raw_br = st_fields.get("blocks_release") or getattr(
+            st, "loose_blocks_release", None
+        )
+        blocks_release = (
+            str(raw_br).strip()
+            if (raw_br and len(str(raw_br).strip().split()) == 1)
+            else None
+        )
 
         prio_txt = ""
         if priority:
@@ -3482,61 +3994,70 @@ def run_lint(args: argparse.Namespace) -> int:
                 membership_cache = _orch_readiness.resolve_all_set_memberships(root)
             except Exception:
                 pass
-            for f in files:
-                res = lint_file(
-                    f,
-                    checkpoint=checkpoint,
-                    legacy=legacy,
-                    citation_anchors=citation_anchors,
-                    membership_cache=membership_cache,
-                )
-                diags, disp = _with_name_check(res, f, legacy)
-                counts[disp] = counts.get(disp, 0) + 1
-                for d in diags:
-                    all_diags.append(
-                        OutDiag(
-                            location=str(f),
-                            rule=d.code,
-                            detail=d.message,
-                            severity="error"
-                            if disp == S.DISPOSITION_ERROR
-                            else "warning",
-                        )
+            from agent_workflows import artifact_meta as _meta
+
+            with _sel.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+                for f in files:
+                    res = lint_file(
+                        f,
+                        checkpoint=checkpoint,
+                        legacy=legacy,
+                        citation_anchors=citation_anchors,
+                        membership_cache=membership_cache,
                     )
-                for a in getattr(res, "advisories", []):
-                    all_diags.append(
-                        OutDiag(
-                            location=str(f),
-                            rule=a.code,
-                            detail=a.message,
-                            severity="info",
-                        )
-                    )
-                if not (ctx.is_agent or ctx.is_json):
-                    has_adv = bool(getattr(res, "advisories", []))
-                    term.line(_format_lint_line(f, disp, has_advisories=has_adv))
-                    if diags:
-                        for d in diags:
-                            loc_str = f"line {d.line}" if d.line else ""
-                            rule_str = f"{d.code} ({loc_str})" if loc_str else d.code
-                            diag_txt = (
-                                term.color256(f"     ! {rule_str}: {d.message}", 196)
-                                if getattr(term, "color", False)
-                                else f"     ! {rule_str}: {d.message}"
+                    diags, disp = _with_name_check(res, f, legacy)
+                    counts[disp] = counts.get(disp, 0) + 1
+                    for d in diags:
+                        all_diags.append(
+                            OutDiag(
+                                location=str(f),
+                                rule=d.code,
+                                detail=d.message,
+                                severity="error"
+                                if disp == S.DISPOSITION_ERROR
+                                else "warning",
                             )
-                            term.line(diag_txt)
-                    if has_adv:
-                        for a in _visible_advisories(res.advisories, detail):
-                            loc_str = f"line {a.line}" if a.line else ""
-                            rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
-                            adv_txt = (
-                                term.color256(
-                                    f"     ? advisory: {rule_str}: {a.message}", 214
+                        )
+                    for a in getattr(res, "advisories", []):
+                        all_diags.append(
+                            OutDiag(
+                                location=str(f),
+                                rule=a.code,
+                                detail=a.message,
+                                severity="info",
+                            )
+                        )
+                    if not (ctx.is_agent or ctx.is_json):
+                        has_adv = bool(getattr(res, "advisories", []))
+                        term.line(_format_lint_line(f, disp, has_advisories=has_adv))
+                        if diags:
+                            for d in diags:
+                                loc_str = f"line {d.line}" if d.line else ""
+                                rule_str = (
+                                    f"{d.code} ({loc_str})" if loc_str else d.code
                                 )
-                                if getattr(term, "color", False)
-                                else f"     ? advisory: {rule_str}: {a.message}"
-                            )
-                            term.line(adv_txt)
+                                diag_txt = (
+                                    term.color256(
+                                        f"     ! {rule_str}: {d.message}", 196
+                                    )
+                                    if getattr(term, "color", False)
+                                    else f"     ! {rule_str}: {d.message}"
+                                )
+                                term.line(diag_txt)
+                        if has_adv:
+                            for a in _visible_advisories(res.advisories, detail):
+                                loc_str = f"line {a.line}" if a.line else ""
+                                rule_str = (
+                                    f"{a.code} ({loc_str})" if loc_str else a.code
+                                )
+                                adv_txt = (
+                                    term.color256(
+                                        f"     ? advisory: {rule_str}: {a.message}", 214
+                                    )
+                                    if getattr(term, "color", False)
+                                    else f"     ? advisory: {rule_str}: {a.message}"
+                                )
+                                term.line(adv_txt)
 
             any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))
             exit_code = 1 if any_error else 0
