@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 6 requires that test data be written by ONE shared record builder in phase B, so that the cutover (Order 13, `cxxmyv`) changes the builder and not hundreds of test files, and C10a requires the suite to pass at every commit. Research `nj8zdp` and the maintainer's ruling ("plans that obtuse and not-too-smart agents won't mess up") set the guidance of at most 5 E-items, 8 work Scope-Paths and about 8 named units per item; `nbfg7w` named up to 25 modules per batch item. This part carries 8 of `nbfg7w`'s modules (subsets G5b, G6a; 136 F-01 legacy lines at `3d0ddb845`), each item at most 4 modules, converted by the Order-49 codemod (`653ndz`) plus only its census-counted refusals.
 - Scope: Chunk 4 of 11 of `nbfg7w` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `nbfg7w`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_work_gate_severity.py, tests/test_attention_contract.py, tests/test_attention_degraded_item.py, tests/test_attention_excluded_tree_selector.py, tests/test_attention_lane_detail_bound.py, tests/test_attention_output_safety.py, tests/test_attention_priority_blocker.py, tests/test_attention.py, .aw/records/plans/pending/20261109-metastore-195-lf0fe4-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-lufe6m-01-lufe6m-fixture-codemod-is-body-or-oq-kwarg-misclassifies.backlog.md (Required defect-report backlog carrier filed via aw backlog new for tools/fixture_codemod.py::_is_body_or_oq_kwarg misclassifying full record literals in body= kwargs)
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lf0fe4
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: lf0fe4 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-lufe6m-01-lufe6m-fixture-codemod-is-body-or-oq-kwarg-misclassifies.backlog.md: Required defect-report backlog carrier filed via aw backlog new for tools/fixture_codemod.py::_is_body_or_oq_kwarg misclassifying full record literals in body= kwargs]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from nbfg7w (round 3, research nj8zdp guidance).
