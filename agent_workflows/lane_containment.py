@@ -271,6 +271,7 @@ def project_worker_paths(
     run_dir: Path,
     plan_path: Path,
     lane_root: Path | None,
+    repo: Path | None = None,
 ) -> WorkerPaths:
     """Compute every worker-facing path for one turn (spec R1.1, R1.3; plan E-01).
 
@@ -281,9 +282,11 @@ def project_worker_paths(
     ISOLATED: returns POSIX-style paths RELATIVE to the lane root. Relative rather than
     lane-absolute for two reasons: it satisfies R1.1 by construction (a relative path cannot BE an
     absolute out-of-lane path), and it reinforces R1.4's statement that the cwd is the whole
-    workspace. The plan file is projected too when it lies inside the lane; if it somehow does not,
-    the absolute path is returned rather than a fabricated one, because inventing a lane path for a
-    file that is not there would send the worker to a nonexistent file.
+    workspace. The plan file is projected too when it lies inside the lane or when it is a
+    companion-backed artifact under `project_context.project_records_dir` (staged into
+    `lane_root / ".aw" / "records" / <rel>`); if it lies outside both, the absolute path is
+    returned rather than a fabricated one, because inventing a lane path for a file that is not
+    there would send the worker to a nonexistent file.
     """
     outcomes_rel = f"outcomes/{item_slug(item)}.json"
     if lane_root is None:
@@ -305,10 +308,25 @@ def project_worker_paths(
     lane_root = Path(lane_root)
     sub_root = lane_submission_root(lane_root, run_id, item)
     rel_root = sub_root.relative_to(lane_root).as_posix()
+    plan_rel: str
     try:
         plan_rel = Path(plan_path).relative_to(lane_root).as_posix()
     except ValueError:
-        plan_rel = str(plan_path)
+        try:
+            plan_rel = (
+                Path(plan_path).resolve().relative_to(lane_root.resolve()).as_posix()
+            )
+        except ValueError:
+            staged = resolve_companion_lane_path(
+                lane_root,
+                Path(plan_path),
+                repo=repo,
+                overwrite=False,
+            )
+            if staged is not None:
+                plan_rel = staged.relative_to(lane_root).as_posix()
+            else:
+                plan_rel = str(plan_path)
     return WorkerPaths(
         prompt_run_dir=rel_root,
         # The label changes with the branch ON PURPOSE. "External run directory" was accurate for a
@@ -344,6 +362,11 @@ _ABS_PATH_RE = re.compile(
 )
 
 
+#: Slash-command verbs emitted at the start of a review prompt line (`runner_shared.build_review_prompt`).
+#: These are host slash-command invocations, not filesystem paths.
+_REVIEW_SLASH_COMMAND_TOKENS = frozenset({"/plan-review", "/spec-review"})
+
+
 def absolute_paths_outside_lane(text: str, lane_root: Path | str) -> list[str]:
     """Every absolute path token in `text` that is not the lane root or under it (spec R1.1, A1).
 
@@ -356,6 +379,12 @@ def absolute_paths_outside_lane(text: str, lane_root: Path | str) -> list[str]:
     found: list[str] = []
     for match in _ABS_PATH_RE.finditer(text):
         token = match.group(0)
+        if token in _REVIEW_SLASH_COMMAND_TOKENS:
+            start, end = match.start(), match.end()
+            if (start == 0 or text[start - 1] == "\n") and (
+                end == len(text) or text[end].isspace()
+            ):
+                continue
         if token == root or token.startswith(root.rstrip("/") + "/"):
             continue
         if token not in found:
@@ -528,6 +557,195 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
     finally:
         if os.path.exists(temp_name):
             os.unlink(temp_name)
+
+
+# ---- Companion-mode writable lane staging (companion-bugs Order 03 `v8tqje` E-01) ------------------
+
+#: Lane-relative baseline manifest recording pre-turn SHA-256 digests of companion artifacts staged
+#: into `lane_root / ".aw" / "records"`. Lives under gitignored `.aw/state/` so companion record
+#: routing can distinguish agent-modified or agent-deleted lane copies from untouched staged copies.
+COMPANION_STAGED_BASELINE_REL = ".aw/state/companion-staged-baseline.json"
+
+
+def read_companion_staged_baseline(lane_root: Path) -> dict[str, str]:
+    """Return `{rel_under_records: sha256}` recorded when companion artifacts were staged."""
+    path = Path(lane_root) / COMPANION_STAGED_BASELINE_REL
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    entries = raw.get("entries") if isinstance(raw.get("entries"), dict) else raw
+    if not isinstance(entries, dict):
+        return {}
+    return {
+        str(k).replace("\\", "/").lstrip("/"): str(v)
+        for k, v in entries.items()
+        if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip()
+    }
+
+
+def write_companion_staged_baseline(
+    lane_root: Path, entries: Mapping[str, str]
+) -> Path:
+    """Atomically persist `{rel_under_records: sha256}` under gitignored `.aw/state/`."""
+    path = Path(lane_root) / COMPANION_STAGED_BASELINE_REL
+    payload = {
+        "schema_version": 1,
+        "entries": {
+            str(k).replace("\\", "/").lstrip("/"): str(v)
+            for k, v in sorted(entries.items())
+            if str(k).strip() and str(v).strip()
+        },
+    }
+    _atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return path
+
+
+def _assert_no_symlink_components(base_dir: Path, rel: Path) -> None:
+    """Reject any symlink along existing components from `base_dir` through `base_dir / rel`."""
+    cur = base_dir
+    if cur.is_symlink():
+        raise ValueError(f"staging root is a symlink: {cur}")
+    for part in rel.parts:
+        cur = cur / part
+        if cur.is_symlink():
+            raise ValueError(f"symlink component in lane staging path: {cur}")
+
+
+def stage_companion_lane_artifact(
+    lane_root: Path,
+    source_path: Path,
+    records_root: Path,
+) -> Path:
+    """Stage a writable, link-independent copy of a companion artifact inside `lane_root`.
+
+    Copies `source_path` (verified to live strictly under `records_root`, rejecting `..` segments
+    and symlink escapes) to `lane_root / ".aw" / "records" / <rel_under_records>` via atomic bytes
+    with mode `0644` (never symlink, never hardlink). Leaves `materialize_lane_inputs` untouched as
+    the sealed `0444` R5.1a/R5.2 audit snapshot in `.aw/state/lane-inputs/rev-N/`.
+    """
+    lane_root_path = Path(lane_root)
+    source_raw = Path(source_path)
+    records_raw = Path(records_root)
+
+    if ".." in source_raw.parts:
+        raise ValueError(f"refusing path traversal in source_path: {source_path}")
+
+    records_root_res = records_raw.resolve()
+    source_res = source_raw.resolve()
+    try:
+        rel = source_res.relative_to(records_root_res)
+    except ValueError as exc:
+        raise ValueError(
+            f"source_path {source_path} is outside companion records root {records_root}"
+        ) from exc
+
+    if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+        raise ValueError(f"invalid companion relative path: {rel}")
+    if not source_res.is_file():
+        raise FileNotFoundError(
+            f"companion source artifact does not exist: {source_path}"
+        )
+
+    lane_root_res = lane_root_path.resolve()
+    _assert_no_symlink_components(lane_root_res, Path(".aw") / "records" / rel)
+
+    dest_records_root = lane_root_res / ".aw" / "records"
+    dest_res_target = dest_records_root / rel
+    try:
+        dest_res_target.resolve().relative_to(dest_records_root.resolve())
+    except ValueError as exc:
+        raise ValueError(
+            f"staged destination escapes lane records root: {dest_res_target}"
+        ) from exc
+
+    payload = source_res.read_bytes()
+    dest_res_target.parent.mkdir(parents=True, exist_ok=True)
+    if dest_res_target.is_symlink():
+        raise ValueError(f"refusing to overwrite symlink in lane: {dest_res_target}")
+    _atomic_write_bytes(dest_res_target, payload)
+    os.chmod(dest_res_target, 0o644)
+
+    baseline = read_companion_staged_baseline(lane_root_res)
+    baseline[rel.as_posix()] = _sha256_file(dest_res_target)
+    write_companion_staged_baseline(lane_root_res, baseline)
+
+    return lane_root_path / ".aw" / "records" / rel
+
+
+def resolve_companion_lane_path(
+    lane_root: Path,
+    source_path: Path,
+    *,
+    repo: Path | None = None,
+    overwrite: bool = False,
+) -> Path | None:
+    """Return a lane-local path for a companion-backed artifact, staging it when needed.
+
+    Returns `None` if `source_path` is not under a companion records root. When `overwrite=False`
+    and the staged file already exists inside `lane_root / ".aw" / "records" / <rel>`, preserves
+    the existing lane copy (so post-turn calls like `collect_lane_submissions` never clobber
+    agent edits).
+    """
+    lane_root_path = Path(lane_root)
+    source_raw = Path(source_path)
+    if ".." in source_raw.parts:
+        return None
+
+    lane_root_res = lane_root_path.resolve()
+    source_res = source_raw.resolve()
+    try:
+        in_lane_rel = source_res.relative_to(lane_root_res)
+        return lane_root_path / in_lane_rel
+    except ValueError:
+        pass
+
+    from agent_workflows import project_context
+
+    candidates: list[Path] = []
+    if repo is not None:
+        candidates.append(Path(repo))
+    candidates.append(lane_root_path)
+
+    seen: set[str] = set()
+    for cand in candidates:
+        key = str(cand)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            ctx = project_context.resolve_project_context(target_repo=str(cand))
+        except Exception:
+            continue
+        if getattr(ctx, "records_backend", None) != "companion":
+            continue
+        records_raw = (ctx.logical_roots or {}).get("records")
+        if not records_raw:
+            try:
+                records_root = project_context.project_records_dir(cand)
+            except Exception:
+                continue
+        else:
+            records_root = Path(records_raw)
+        records_root_res = records_root.resolve()
+        try:
+            rel = source_res.relative_to(records_root_res)
+        except ValueError:
+            continue
+        if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+            continue
+        lane_dest = lane_root_path / ".aw" / "records" / rel
+        if overwrite or (not lane_dest.exists() and source_res.is_file()):
+            return stage_companion_lane_artifact(
+                lane_root_path, source_raw, records_root
+            )
+        _assert_no_symlink_components(lane_root_res, Path(".aw") / "records" / rel)
+        return lane_dest
+    return None
 
 
 # ---- R2.3: the run-wide decisions register ---------------------------------------------------------

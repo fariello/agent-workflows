@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/runner_shared.py`, `agent_workflows/lane_containment.py`, `tests/test_companion_runner_integration.py`
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_companion_runner_integration.py, .aw/records/plans/pending/20261121-companion-bugs-03-v8tqje-companion-safe-runner-prompts-record-routing-and-public-targ.ipd.md
 - Item-Dependencies: executed:pbdtss
-- Status: auto-approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Short-Description: Preserve R1 prompt purity in companion mode, evaluate review carriers against companion records, route lane record writes to companion repo, and refuse .aw/records merges into public target main
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: v8tqje verified (set companion-bugs, attempt 2).
 - 2026-11-21 auto-approved (aw agy run --full-auto): auto-approved by --full-auto: review readiness cleared (not human approval)
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261121-companion-bugs-03-v8tqje-companion-safe-runner-prompts-record-routing-and-public-targ.review.md
@@ -40,34 +41,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: R1 prompt purity and companion carrier evaluation in lanes
 
-- [ ] E-01 Preserve R1 prompt purity in `agent_workflows/lane_containment.py` and `agent_workflows/runner_shared.py` (`build_review_prompt`, `build_prompt`, `build_spec_production_prompt`, `build_backlog_production_prompt`, and `execute_item_core` dispatch) when `records_backend == "companion"`
+- [x] E-01 Preserve R1 prompt purity in `agent_workflows/lane_containment.py` and `agent_workflows/runner_shared.py` (`build_review_prompt`, `build_prompt`, `build_spec_production_prompt`, `build_backlog_production_prompt`, and `execute_item_core` dispatch) when `records_backend == "companion"`
   - Depends on: none
   - Expected outcome: Add a link-independent staging helper in `agent_workflows/lane_containment.py` (for example `stage_companion_lane_artifact`) that, when a companion-backed plan, spec, or backlog artifact sits outside `lane_root` under `project_context.project_records_dir(repo)`, writes a writable copy (atomic bytes, mode `0644`, never symlink or hardlink, with containment verification rejecting `..` escapes) into `lane_root / ".aw" / "records" / <rel_under_records>` BEFORE prompt construction, while keeping `agent_workflows/lane_containment.py::materialize_lane_inputs` unchanged as the sealed `0444` R5.1a/R5.2 audit snapshot in `.aw/state/lane-inputs/rev-N/`. `agent_workflows/runner_shared.py::build_review_prompt`, `build_prompt` (via `agent_workflows/lane_containment.py::project_worker_paths`), `build_spec_production_prompt`, and `build_backlog_production_prompt` emit only lane-local relative paths (never an external `<companion>/records/...` path), so `agent_workflows/lane_containment.py::absolute_paths_outside_lane(prompt_text, lane_root)` returns `[]` on both direct calls and `execute_item_core` dispatch. Non-isolated turns (`lane_root is None`) remain byte-identical (spec `7ckptx` R1.3).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Ensure `agent_workflows/runner_shared.py::check_review_lane_artifacts` evaluates `check.ipd-uncarried-obligation` and handoff readiness against the companion records context
+- [x] E-02 Ensure `agent_workflows/runner_shared.py::check_review_lane_artifacts` evaluates `check.ipd-uncarried-obligation` and handoff readiness against the companion records context
   - Depends on: E-01
   - Expected outcome: In `agent_workflows/runner_shared.py::check_review_lane_artifacts`, pending-plan carrier checks (`agent_workflows/check_engine.py::evaluate_durable_carrier`) and backlog handoff checks (`agent_workflows/check_engine.py::evaluate_handoff_ready`) resolve against a companion-aware root (relying on `pbdtss` linked-worktree inheritance and falling back to `repo` when `wt_path` is absent or unconfigured) and read modified `.aw/records/**` content from `wt_path / norm_p` first (handling gitignored companion staged copies in the lane working tree) and `branch:norm_p` second, so valid sibling pending carriers and executed companion `- Carrier-Evidence:` paths pass without false-positive `fail-merge`, while nonexistent carriers still fail at `error` severity.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Companion record routing and public-target merge guard
 
-- [ ] E-03 Route lane `.aw/records/**` outputs (revised IPDs, `.review.md` files, executed-plan transitions) into `<companion>/records/` (and companion Git history when `<companion>/.git` exists) during review and execute integration in `agent_workflows/runner_shared.py`
+- [x] E-03 Route lane `.aw/records/**` outputs (revised IPDs, `.review.md` files, executed-plan transitions) into `<companion>/records/` (and companion Git history when `<companion>/.git` exists) during review and execute integration in `agent_workflows/runner_shared.py`
   - Depends on: E-01, E-02
   - Expected outcome: When `project_context.resolve_project_context(target_repo=str(repo)).records_backend == "companion"`, add a companion record-routing helper in `agent_workflows/runner_shared.py` invoked by `integrate_lane_branch` (and review post-processing before `commit_review_lane_output`, skipping target-branch record commits in companion mode): (a) collect changed, added, or deleted `.aw/records/**` paths from BOTH gitignored lane-working-tree paths under `wt_path / ".aw" / "records"` (compared against the pre-turn companion baseline so untouched files are not rewritten) AND any `.aw/records/**` committed on `handle.branch`; (b) validate review artifacts via `check_review_lane_artifacts` BEFORE writing anything to `<companion>/records/`; (c) verify path containment (no `..` or symlink escape) and apply changes atomically under `Path(ctx.logical_roots["records"])` (unlinking moved/deleted paths only after replacement writes succeed), committing ONLY those paths in the companion Git root (`storage._resolve_records_git_root`) with `AW-Run` / `AW-Item` / `AW-Runner` trailers via `git_commit_helper.agent_commit_identity` when `<companion>/.git` exists (handling unborn `HEAD` cleanly, never `git add -A`, never pushing, and succeeding without Git when companion is unversioned); (d) for review lanes with only `.aw/records/**` changes, complete integration cleanly with zero target-repo commits (`main` untouched); (e) for execute lanes with both code and `.aw/records/**` changes, integrate only non-`.aw/records/**` code changes onto target `main` while private records land exclusively in `<companion>`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a fail-closed target-repo merge guard in `agent_workflows/runner_shared.py::integrate_lane_branch` that refuses to merge any `.aw/records` or `.aw/records/**` path into public target `main` in companion mode
+- [x] E-04 Add a fail-closed target-repo merge guard in `agent_workflows/runner_shared.py::integrate_lane_branch` that refuses to merge any `.aw/records` or `.aw/records/**` path into public target `main` in companion mode
   - Depends on: E-03
   - Expected outcome: In `agent_workflows/runner_shared.py::integrate_lane_branch` (the single shared merge site called by both `oc_runipd` and `agy_runipd` wrappers for both `INTEGRATION_ACTION_EXECUTE` and `INTEGRATION_ACTION_REVIEW`, preserving wrapper signatures unchanged), right before `git merge --ff-only` / `git merge --no-ff`, when `ctx.records_backend == "companion"` or `(ctx.git_policies or {}).get("records") == "companion-git"`, inspect BOTH `git diff --name-only --no-renames HEAD...<branch>` and the predicted merge tree (`merge_write_set` / `git merge-tree --write-tree HEAD <branch>`). If any normalized incoming path equals `.aw/records` or starts with `.aw/records/` (catching files, directories, symlinks, and renames), refuse with `(False, ..., INTEGRATION_REFUSAL_CONFLICT)` naming the offending paths and leaving target `main` `HEAD` and index completely unchanged. Non-companion (`repository` / `private-target`) merges of `.aw/records/**` remain unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Whole-Set end-to-end verification
 
-- [ ] E-05 Add end-to-end behavioral tests in `tests/test_companion_runner_integration.py` and run the whole-Set verification suite across all `companion-bugs` tests, runner/containment anti-regression suites, `make typecheck`, and `aw sanitize --agent`
+- [x] E-05 Add end-to-end behavioral tests in `tests/test_companion_runner_integration.py` and run the whole-Set verification suite across all `companion-bugs` tests, runner/containment anti-regression suites, `make typecheck`, and `aw sanitize --agent`
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: `tests/test_companion_runner_integration.py` provisions real temporary `public-target-private-companion` target and companion Git repositories and verifies behaviorally: (a) emitted review (`build_review_prompt`) and execute (`build_prompt`) prompts satisfy `lane_containment.absolute_paths_outside_lane(prompt, lane_root) == []` (zero external `<companion>` paths), keep non-isolated `lane_root=None` output unchanged, and keep `.aw/state/lane-inputs/rev-N/` sealed `0444`; (b) `check_review_lane_artifacts` passes a companion plan referencing a valid sibling pending carrier and valid executed companion `- Carrier-Evidence:` while failing a nonexistent carrier; (c) companion review integration writes the revised IPD and `.review.md` into `<companion>/records/` and commits them in `<companion>` (both initialized-with-commits and unborn-`HEAD`, plus unversioned companion without `.git`) while target `main` `HEAD` is untouched; (d) companion execute integration lands code changes on target `main` and routes `.aw/records/**` exclusively to `<companion>/records/`; (e) the fail-closed guard in `integrate_lane_branch` refuses a branch containing `.aw/records/**` (or symlink/file at `.aw/records`) in companion mode with target `main` unchanged, while permitting `.aw/records/**` merges in `private-target` mode. Whole-Set pytest across `tests/test_companion_containment_and_storage.py`, `tests/test_companion_doctor_and_carriers.py`, `tests/test_companion_runner_integration.py`, `tests/test_lane_input_manifest.py`, `tests/test_review_lane_output_commit.py`, and `tests/test_runner_shared.py`, plus `make typecheck` and `aw sanitize --agent`, all pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -149,30 +150,30 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `git diff agent_workflows/runner_shared.py agent_workflows/lane_containment.py` and pasted test output proving `build_review_prompt` and `build_prompt` in companion mode emit only lane-local relative paths with `lane_containment.absolute_paths_outside_lane(prompt, lane_root) == []`, preserve non-isolated `lane_root=None` output, and preserve `.aw/state/lane-inputs/rev-N/` `0444` sealing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff --stat` (`agent_workflows/lane_containment.py | 222 +++++++-`, `agent_workflows/runner_shared.py | 976 ++++++++++++++++++++++++++++++++++--`) adds `stage_companion_lane_artifact`, `resolve_companion_lane_path`, `project_worker_paths` companion staging, `_project_lane_artifact_path`, and pre-prompt staging in `execute_item_core`; `python3 -m pytest -v tests/test_companion_runner_integration.py` passed (`10 passed in 2.39s`) proving `absolute_paths_outside_lane == []` on `build_review_prompt`, `build_prompt`, `build_spec_production_prompt`, `build_backlog_production_prompt`, and `execute_item_core`, `lane_root=None` byte-identity, and sealed `0444` `.aw/state/lane-inputs/rev-1/`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff agent_workflows/runner_shared.py` for `check_review_lane_artifacts` and pasted test output proving a companion review referencing a valid sibling pending carrier and valid executed companion `- Carrier-Evidence:` passes conformance while a nonexistent carrier fails at `error` severity.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `agent_workflows/runner_shared.py` adds `_companion_aware_eval_root(repo, wt_path)` and wires `check_review_lane_artifacts` to evaluate `evaluate_durable_carrier` and `evaluate_handoff_ready` against the companion-aware root while reading modified `.aw/records/**` from `wt_path / norm_p` first; `CompanionCarrierCheckTests::test_check_review_lane_artifacts_passes_valid_companion_carriers_and_fails_missing` passed (`10 passed in 2.39s`), passing valid sibling pending carrier `sib111` and executed companion `- Carrier-Evidence:` (`exe222`) across linked worktree and unconfigured fallback while failing nonexistent carrier `zzz999` at `error` severity.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff agent_workflows/runner_shared.py` for companion record routing and pasted test output proving integrated review `.ipd.md` and `.review.md` files land and commit path-scoped in `<companion>/records/` (across committed, unborn-`HEAD`, and unversioned companion repos) with target `main` `HEAD` unchanged, and execute integration lands code on target `main` while routing `.aw/records/**` exclusively to `<companion>/records/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `agent_workflows/runner_shared.py` adds `_collect_companion_lane_record_changes`, `_validate_companion_record_rel`, `route_companion_lane_records`, companion-safe `commit_review_lane_output` / `read_zero_work_evidence` / `review_has_positive_evidence` / `reconcile_disposition`, and companion routing in `integrate_lane_branch`; `python3 -m pytest -v tests/test_companion_runner_integration.py` passed (`10 passed in 2.39s`) across initialized-with-commits, unborn-`HEAD`, and unversioned companion repos with target `main` untouched for review lanes and clean code-vs-records split for execute lanes.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted `git diff agent_workflows/runner_shared.py` for the fail-closed target merge guard in `integrate_lane_branch` and pasted test output proving an attempt to merge a branch containing `.aw/records/**` (or file/symlink at `.aw/records`) into a companion target `main` is refused (`INTEGRATION_REFUSAL_CONFLICT`) with target `main` unchanged, while `private-target` merges of `.aw/records/**` still succeed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `agent_workflows/runner_shared.py` adds `INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD`, `_is_target_records_path`, `_branch_incoming_paths`, and `_incoming_target_records_paths`, refusing `.aw/records` and `.aw/records/**` across `HEAD...<branch>` (`--no-renames -z`) and predicted merge tree in `integrate_lane_branch` while preserving `oc_runipd` and `agy_runipd` wrapper signatures; `test_fail_closed_merge_guard_refuses_aw_records_file_symlink_and_rename` and `test_private_target_mode_still_permits_aw_records_merges` passed (`10 passed in 2.39s`).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted actual runner output from `python3 -m pytest tests/test_companion_containment_and_storage.py tests/test_companion_doctor_and_carriers.py tests/test_companion_runner_integration.py tests/test_lane_input_manifest.py tests/test_review_lane_output_commit.py tests/test_runner_shared.py`, `make typecheck`, and `aw sanitize --agent` showing 0 failures, 0 mypy issues, and 0 leak findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Whole-Set pytest (`python3 -m pytest tests/test_companion_containment_and_storage.py tests/test_companion_doctor_and_carriers.py tests/test_companion_runner_integration.py tests/test_lane_input_manifest.py tests/test_review_lane_output_commit.py tests/test_runner_shared.py`) -> `189 passed in 13.87s`; extra containment anti-regression (`tests/test_attempt_lane_facts.py tests/test_verification_sendback.py`) -> `21 passed in 8.13s`; full core suite (`aw suite`) -> `2661 passed, 11 warnings in 107.54s (0:01:47)`; `make typecheck` (`python3 -m mypy agent_workflows`) -> `Success: no issues found in 228 source files`; `aw sanitize --agent` -> `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6871,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
