@@ -88,7 +88,8 @@ def test_exclusion_set_size_and_members() -> None:
     # longer a required-positional leaf; its bare invocation still refuses (exit 2, a FILE is required).
     # 70: `describe` added in metastore h06gs7 (requires <selector> and --summary|--clear).
     # 69: `partition` made `-t/--type` optional in 3734d54a7 (infers artifact type from selectors).
-    assert len(REQUIRED_LEAVES) == 69
+    # 70: `meta repair` added in metastore a5ijjx (requires <id6>).
+    assert len(REQUIRED_LEAVES) == 70
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)

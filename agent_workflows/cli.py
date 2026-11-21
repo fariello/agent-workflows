@@ -8010,6 +8010,11 @@ EXAMPLES
         parents=[common],
         formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Preview or apply mirror, move, journal, and confirmed diverged-tail repairs for an artifact.",
+        description=(
+            "Preview or apply metadata repairs for a single tracked artifact identified by its stable id6.\n"
+            "Dry-run by default (writes nothing); pass --apply to reconcile in-file mirrors, recorded moves,\n"
+            "or pending journals, and --apply --confirm to resequence a diverged tail after inspection."
+        ),
         epilog="""
 EXAMPLES
   aw meta repair ab12cd                   # preview repairs (writes nothing)

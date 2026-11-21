@@ -824,7 +824,7 @@ class AwProfileTests(unittest.TestCase):
         self.assertIn("cache dir:", plain_c)
         self.assertIn("traces dir:", plain_c)
         self.assertIn("index file:", plain_c)
-        self.assertIn(str(cache_dir.resolve()), plain_c)
+        self.assertIn(aw_profile._display_path(cache_dir.resolve()), plain_c)
 
         # 2. Human mode with --no-color on 100% cache hit still shows full metrics & zero ANSI escapes
         out_nc, err_nc, rc_nc = _run_cli(
