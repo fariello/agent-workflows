@@ -6,7 +6,7 @@
 - Scope: Companion storage layout (`agent_workflows/storage.py`, `agent_workflows/placement_switch.py`), target containment (`agent_workflows/work_cmd.py`, `agent_workflows/engine.py`, `.aw/.gitignore`, `AGENTS.md`, `.aw/system/workflows/assess/assess.md`), unified resolution (`agent_workflows/project_context.py`, `agent_workflows/doctor.py`, `agent_workflows/check_engine.py`, `agent_workflows/artifact_core.py`), and companion-safe runner integration (`agent_workflows/runner_shared.py`, `agent_workflows/lane_containment.py`) for backlog item `rvxmzz`
 - Scope-Paths: .aw/records/plans/pending/20261121-companion-bugs-00-p47398-fix-public-target-private-companion-records-split-brain-cont.ipd.md
 - Item-Dependencies: executed:mnsbzt, executed:pbdtss, executed:v8tqje
-- Status: reviewed
+- Status: auto-approved
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -27,6 +27,7 @@
 
 ## Workflow history
 
+- 2026-11-21 auto-approved (aw agy run --full-auto): auto-approved by --full-auto: review readiness cleared (not human approval)
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261121-companion-bugs-00-p47398-fix-public-target-private-companion-records-split-brain-cont.review.md
 - 2026-11-21 coverage pass (aw oc run): fingerprint 3f7e83a807d0, model uri/its_direct/pt3-claude-opus-5.5-1m-us
