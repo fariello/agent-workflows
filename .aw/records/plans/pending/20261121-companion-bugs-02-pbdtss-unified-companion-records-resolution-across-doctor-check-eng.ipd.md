@@ -99,6 +99,7 @@ flowchart LR
 
 - Companion storage Git detection, decoy directory removal, target `aw commit` / `.aw/.gitignore` containment, and `AGENTS.md` / `assess.md` guidance are owned by prerequisite child plan `mnsbzt` (Order 01).
   - Carrier: mnsbzt
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-companion-bugs-01-mnsbzt-companion-storage-layout-git-detection-target-containment-an.ipd.md
 - Runner prompt R1 purity, review/execute record routing to `<companion>/records/`, and the runner target-repo merge guard are owned by downstream child plan `v8tqje` (Order 03).
   - Carrier: v8tqje
 
