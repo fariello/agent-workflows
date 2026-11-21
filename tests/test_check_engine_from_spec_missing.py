@@ -48,6 +48,7 @@ from unittest import mock
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine
 from agent_workflows import releases
+from tests.record_builder import RecordBuilder
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -74,12 +75,12 @@ def _create_spec(
         / "approved"
         / f"20260901-{spec_id6}-01-{spec_id6}-test.spec.md"
     )
-    content = (
-        f"# Spec: {title}\n\n"
-        f"- Id: {spec_id6}\n"
-        "- Status: approved\n\n"
-        "## Acceptance criteria\n\n"
-        "- **A1** First criterion\n"
+    content = RecordBuilder().spec(
+        title=title,
+        id6=spec_id6,
+        status="approved",
+        body="## Acceptance criteria\n\n- **A1** First criterion",
+        text_only=True,
     )
     p.write_text(content, encoding="utf-8")
     return p
@@ -104,30 +105,30 @@ def _create_plan(
         / subfolder
         / f"20260928-testset-01-{plan_id6}-test.ipd.md"
     )
-    lines = [
-        f"# IPD: Test {plan_id6}",
-        "",
-        "- Date: 2026-09-28",
-        "- Kind: child",
-        f"- Concern: {concern}",
-        f"- Scope: {scope}",
-        f"- Scope-Paths: {scope_paths}",
-        "- Item-Dependencies: none",
-        f"- Status: {status}",
-    ]
-    if from_spec is not None:
-        lines.append(f"- From-Spec: {from_spec}")
-    lines.extend(
-        [
-            "- Set: testset",
-            "- Order: 1",
-            f"- Id: {plan_id6}",
-            "",
-            "## Workflow history",
-            f"- 2026-09-28 to-review (test): status set to {status}",
-        ]
+    raw_fields: dict[str, object] = {
+        "Concern": concern,
+        "Scope": scope,
+    }
+    extra: dict[str, str] = {}
+    if from_spec == "-":
+        raw_fields["From-Spec"] = "-"
+    elif from_spec is not None:
+        extra["from_spec"] = from_spec
+    content = RecordBuilder().plan(
+        id6=plan_id6,
+        title=f"Test {plan_id6}",
+        status=status,
+        set="testset",
+        order=1,
+        when="2026-09-28",
+        scope_paths=scope_paths,
+        item_dependencies="none",
+        history=[f"- 2026-09-28 to-review (test): status set to {status}"],
+        raw_fields=raw_fields,
+        text_only=True,
+        **extra,
     )
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    p.write_text(content, encoding="utf-8")
     return p
 
 
@@ -149,11 +150,10 @@ class TestParseCitedSpecIds(unittest.TestCase):
         )
 
     def test_cited_in_scope_paths(self) -> None:
-        text = (
-            "# Plan\n"
-            "- Concern: None\n"
-            "- Scope: None\n"
-            "- Scope-Paths: .aw/records/specs/20260901-c4gd2h-01-c4gd2h-test.spec.md\n"
+        text = RecordBuilder().plan(
+            scope_paths=".aw/records/specs/20260901-c4gd2h-01-c4gd2h-test.spec.md",
+            raw_fields={"Concern": "None", "Scope": "None"},
+            text_only=True,
         )
         self.assertEqual(
             check_engine.parse_cited_spec_ids(text, {"c4gd2h"}), ["c4gd2h"]
@@ -171,14 +171,12 @@ class TestParseCitedSpecIds(unittest.TestCase):
         )
 
     def test_cited_only_in_findings_body_row(self) -> None:
-        text = (
-            "# Plan\n"
-            "- Concern: Clean concern\n"
-            "- Scope: Clean scope\n"
-            "- Scope-Paths: agent_workflows/foo.py\n"
-            "- Status: to-review\n\n"
-            "## Findings\n"
-            "| F-01 | c4gd2h | Body row mentioning spec |\n"
+        text = RecordBuilder().plan(
+            status="to-review",
+            scope_paths="agent_workflows/foo.py",
+            body="## Findings\n| F-01 | c4gd2h | Body row mentioning spec |",
+            raw_fields={"Concern": "Clean concern", "Scope": "Clean scope"},
+            text_only=True,
         )
         self.assertEqual(check_engine.parse_cited_spec_ids(text, {"c4gd2h"}), [])
 
@@ -188,11 +186,13 @@ class TestParseCitedSpecIds(unittest.TestCase):
         self.assertEqual(check_engine.parse_cited_spec_ids(text, {"c4gd2h"}), [])
 
     def test_deduplication_across_bullets(self) -> None:
-        text = (
-            "# Plan\n"
-            "- Concern: Addresses c4gd2h\n"
-            "- Scope: Also implements c4gd2h\n"
-            "- Scope-Paths: foo.py\n"
+        text = RecordBuilder().plan(
+            scope_paths="foo.py",
+            raw_fields={
+                "Concern": "Addresses c4gd2h",
+                "Scope": "Also implements c4gd2h",
+            },
+            text_only=True,
         )
         self.assertEqual(
             check_engine.parse_cited_spec_ids(text, {"c4gd2h"}), ["c4gd2h"]
@@ -207,37 +207,87 @@ class TestSetFromSpecLine(unittest.TestCase):
     """E-01 / V-01: releases.set_from_spec_line writer tests."""
 
     def test_insert_after_status(self) -> None:
-        text = "# Plan\n- Date: 2026-09-28\n- Status: approved\n- Id: 0ykozn\n"
+        text = RecordBuilder().plan(
+            id6="0ykozn",
+            status="approved",
+            when="2026-09-28",
+            text_only=True,
+        )
         result = releases.set_from_spec_line(text, "c4gd2h")
-        expected = "# Plan\n- Date: 2026-09-28\n- Status: approved\n- From-Spec: c4gd2h\n- Id: 0ykozn\n"
+        expected = text.replace(
+            "- Status: approved\n",
+            "- Status: approved\n- From-Spec: c4gd2h\n",
+            1,
+        )
         self.assertEqual(result, expected)
 
     def test_idempotence(self) -> None:
-        text = "# Plan\n- Date: 2026-09-28\n- Status: approved\n- Id: 0ykozn\n"
+        text = RecordBuilder().plan(
+            id6="0ykozn",
+            status="approved",
+            when="2026-09-28",
+            text_only=True,
+        )
         once = releases.set_from_spec_line(text, "c4gd2h")
         twice = releases.set_from_spec_line(once, "c4gd2h")
         self.assertEqual(once, twice)
 
     def test_remove_with_dash(self) -> None:
-        text = "# Plan\n- Status: approved\n- From-Spec: c4gd2h\n- Id: 0ykozn\n"
+        text = RecordBuilder().plan(
+            id6="0ykozn",
+            status="approved",
+            when="2026-09-28",
+            from_spec="c4gd2h",
+            raw_fields={
+                "Work-Kind": None,
+                "Priority": None,
+                "Set": None,
+                "Order": None,
+                "Highest E allocated": None,
+                "Author": None,
+            },
+            text_only=True,
+        )
         result = releases.set_from_spec_line(text, "-")
         self.assertNotIn("- From-Spec:", result)
         self.assertIn("- Status: approved\n- Id: 0ykozn\n", result)
 
     def test_remove_with_none(self) -> None:
-        text = "# Plan\n- Status: approved\n- From-Spec: c4gd2h\n- Id: 0ykozn\n"
+        text = RecordBuilder().plan(
+            id6="0ykozn",
+            status="approved",
+            when="2026-09-28",
+            from_spec="c4gd2h",
+            text_only=True,
+        )
         result = releases.set_from_spec_line(text, None)
         self.assertNotIn("- From-Spec:", result)
 
     def test_fallback_after_id(self) -> None:
-        text = "# Plan\n- Date: 2026-09-28\n- Id: 0ykozn\n- Scope: test\n"
+        text = RecordBuilder().plan(
+            id6="0ykozn",
+            status="approved",
+            when="2026-09-28",
+            raw_fields={"Status": None, "Scope": "test"},
+            text_only=True,
+        )
         result = releases.set_from_spec_line(text, "c4gd2h")
-        expected = "# Plan\n- Date: 2026-09-28\n- Id: 0ykozn\n- From-Spec: c4gd2h\n- Scope: test\n"
+        expected = text.replace(
+            "- Id: 0ykozn\n",
+            "- Id: 0ykozn\n- From-Spec: c4gd2h\n",
+            1,
+        )
         self.assertEqual(result, expected)
 
     def test_replace_preexisting_empty_value(self) -> None:
         """F-11 regression guard: an empty - From-Spec: line must be replaced, not duplicated."""
-        text = "# Plan\n- Status: approved\n- From-Spec:\n- Id: 0ykozn\n"
+        text = RecordBuilder().plan(
+            id6="0ykozn",
+            status="approved",
+            when="2026-09-28",
+            raw_fields={"From-Spec": ""},
+            text_only=True,
+        )
         result = releases.set_from_spec_line(text, "c4gd2h")
         self.assertEqual(result.count("- From-Spec:"), 1)
         self.assertIn("- From-Spec: c4gd2h\n", result)
