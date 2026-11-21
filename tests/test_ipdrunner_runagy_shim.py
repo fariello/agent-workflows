@@ -11,8 +11,8 @@ from pathlib import Path
 
 from agent_workflows import render_stream
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.support import REPO_ROOT
-from tests.test_oc_runipd import _CONFORMING_PLAN
 
 driver = support.load_module(
     "ipdrunner_runagy_shim_under_test",
@@ -307,16 +307,20 @@ class AgyEventRenderTests(unittest.TestCase):
 
 class AgyParserAndDiscoveryTests(unittest.TestCase):
     def test_read_deps_and_set(self):
-        text = textwrap.dedent(
-            """
-            - Date: 2026-08-24
-            - Kind: child
-            - Status: to-review
-            - Set: "authset" (Authentication flow)
-            - Order: 2
-            - Dependencies: [dep001, dep002]
-            - Id: a1b2c3
-            """
+        text = str(
+            RecordBuilder().plan(
+                id6="a1b2c3",
+                kind="child",
+                when="2026-08-24",
+                status="to-review",
+                set="authset",
+                order=2,
+                raw_fields={
+                    "Set": '"authset" (Authentication flow)',
+                    "Dependencies": "[dep001, dep002]",
+                },
+                text_only=True,
+            )
         )
         self.assertEqual(driver._read_id(text), "a1b2c3")
         self.assertEqual(driver._read_set(text), "authset")
@@ -328,29 +332,47 @@ class AgyParserAndDiscoveryTests(unittest.TestCase):
     def test_dependency_status_execution_vs_review(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            pending_dir = repo / ".aw" / "records" / "plans" / "pending"
-            executed_dir = repo / ".aw" / "records" / "plans" / "executed"
-            pending_dir.mkdir(parents=True)
-            executed_dir.mkdir(parents=True)
-
-            p_dep001 = pending_dir / "20260828-demo-01-dep001-demo.ipd.md"
-            p_dep001.write_text(
-                _CONFORMING_PLAN.format(id6="dep001").replace(
-                    "- Status: approved", "- Status: reviewed"
-                ),
-                encoding="utf-8",
+            rb = RecordBuilder(repo)
+            approval = "2026-08-28, recorded via aw ipd set: status set to approved"
+            rb.plan(
+                id6="dep001",
+                title="Demo self-finalize",
+                author="test",
+                when="2026-08-28",
+                set="demo",
+                order=1,
+                slug="demo",
+                status="reviewed",
+                scope_paths="src/",
+                readiness="go-pending-approval",
+                disposition="pending",
             )
-
-            p_dep003 = executed_dir / "20260828-demo-01-dep003-demo.ipd.md"
-            p_dep003.write_text(
-                _CONFORMING_PLAN.format(id6="dep003"),
-                encoding="utf-8",
+            rb.plan(
+                id6="dep003",
+                title="Demo self-finalize",
+                author="test",
+                when="2026-08-28",
+                set="demo",
+                order=1,
+                slug="demo",
+                status="executed",
+                scope_paths="src/",
+                readiness="go-pending-approval",
+                disposition="executed",
             )
-
-            p_dep004 = pending_dir / "20260828-demo-01-dep004-demo.ipd.md"
-            p_dep004.write_text(
-                _CONFORMING_PLAN.format(id6="dep004"),
-                encoding="utf-8",
+            rb.plan(
+                id6="dep004",
+                title="Demo self-finalize",
+                author="test",
+                when="2026-08-28",
+                set="demo",
+                order=1,
+                slug="demo",
+                status="approved",
+                scope_paths="src/",
+                approval=approval,
+                readiness="go-pending-approval",
+                disposition="pending",
             )
 
             state = {
@@ -509,11 +531,20 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
             ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
         )
 
-        plans_pending = repo / ".aw" / "records" / "plans" / "pending"
-        plans_pending.mkdir(parents=True)
-
-        plan1 = plans_pending / "20260828-demo-01-a1b2c3-demo.ipd.md"
-        plan1.write_text(_CONFORMING_PLAN.format(id6="a1b2c3"), encoding="utf-8")
+        RecordBuilder(repo).plan(
+            id6="a1b2c3",
+            title="Demo self-finalize",
+            author="test",
+            when="2026-08-28",
+            set="demo",
+            order=1,
+            slug="demo",
+            status="approved",
+            scope_paths="src/",
+            approval="2026-08-28, recorded via aw ipd set: status set to approved",
+            readiness="go-pending-approval",
+            disposition="pending",
+        )
 
         test_ok = repo / "test_ok.py"
         test_ok.write_text("def test_ok():\n    pass\n", encoding="utf-8")

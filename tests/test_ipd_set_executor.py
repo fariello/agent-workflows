@@ -45,6 +45,7 @@ from agent_workflows import ipd_set_plan as SP
 from agent_workflows import orchestrate_isolation as ISO
 from agent_workflows import set_lifecycle as LC
 from agent_workflows import worktree_lease as WL
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -79,33 +80,11 @@ def _child_ipd(e_deps):
     )
 
 
-def _write_plan(
-    plans_dir, name, *, plan_id, order, status="approved", kind="child", body=""
-):
-    d = plans_dir / "pending"
-    d.mkdir(parents=True, exist_ok=True)
-    meta = [
-        "# IPD: x\n",
-        "- Date: 20260823",
-        f"- Kind: {kind}",
-        "- Concern: x.",
-        "- Scope: x.",
-        "- Scope-Paths: grandfathered",
-        f"- Status: {status}",
-        "- Set: s",
-        f"- Order: {order}",
-        f"- Id: {plan_id}",
-    ]
-    if status == "approved":
-        meta.append(
-            '- Approval: 2026-08-24, human ("approved. go."): status set to approved'
-        )
-    (d / name).write_text("\n".join(meta) + "\n\n" + body, encoding="utf-8")
-
-
 def _approved_manifest(ownership=None):
     root = Path(tempfile.mkdtemp())
     plans = root / ".aw" / "records" / "plans"
+    pending = plans / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
     # orchestrator with child table: order 2 depends on 1
     orch = (
         "## Child IPDs, sequence, and dependencies\n\n"
@@ -115,23 +94,45 @@ def _approved_manifest(ownership=None):
         "| 02 | `b.ipd.md` | p | 01 |\n\n"
         "## Goal\n\nx\n"
     )
-    _write_plan(
-        plans, "orc.ipd.md", plan_id="orc000", order=0, kind="orchestrator", body=orch
+    approval = '2026-08-24, human ("approved. go."): status set to approved'
+    rb = RecordBuilder()
+    (pending / "orc.ipd.md").write_text(
+        str(
+            rb.plan(
+                id6="orc000",
+                kind="orchestrator",
+                title="x",
+                when="2026-08-23",
+                set="s",
+                order=0,
+                status="approved",
+                scope_paths="grandfathered",
+                approval=approval,
+                body=orch,
+                text_only=True,
+            )
+        ),
+        encoding="utf-8",
     )
-    _write_plan(
-        plans,
-        "a.ipd.md",
-        plan_id="aaaaaa",
-        order=1,
-        body=_child_ipd({"E-01": [], "E-02": []}),
-    )
-    _write_plan(
-        plans,
-        "b.ipd.md",
-        plan_id="bbbbbb",
-        order=2,
-        body=_child_ipd({"E-01": [], "E-02": []}),
-    )
+    for fname, pid, order in (("a.ipd.md", "aaaaaa", 1), ("b.ipd.md", "bbbbbb", 2)):
+        (pending / fname).write_text(
+            str(
+                rb.plan(
+                    id6=pid,
+                    kind="child",
+                    title="x",
+                    when="2026-08-23",
+                    set="s",
+                    order=order,
+                    status="approved",
+                    scope_paths="grandfathered",
+                    approval=approval,
+                    body=_child_ipd({"E-01": [], "E-02": []}),
+                    text_only=True,
+                )
+            ),
+            encoding="utf-8",
+        )
     inv = SP.resolve_set(plans, "s")
     return SP.compile_manifest(inv, plans, base_head="deadbeef", ownership=ownership)
 

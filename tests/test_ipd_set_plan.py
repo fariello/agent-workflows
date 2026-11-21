@@ -13,6 +13,9 @@ from pathlib import Path
 
 from agent_workflows import ipd_set_plan as sp
 from agent_workflows import orchestrate_isolation as iso
+from tests.record_builder import RecordBuilder
+
+_APPROVAL = '2026-08-24, human ("approved. go."): status set to approved'
 
 
 def _child_ipd(
@@ -60,44 +63,6 @@ def _child_ipd(
     )
 
 
-def _write_plan(
-    plans_dir: Path,
-    disposition: str,
-    name: str,
-    *,
-    plan_id: str,
-    set_id: str,
-    order: int,
-    status: str,
-    kind: str = "child",
-    body: str = "",
-    approval: bool = True,
-) -> Path:
-    d = plans_dir / disposition
-    d.mkdir(parents=True, exist_ok=True)
-    meta = [
-        "# IPD: x\n",
-        "- Date: 20260823",
-        f"- Kind: {kind}",
-        "- Concern: x.",
-        "- Scope: x.",
-        "- Scope-Paths: grandfathered",
-        f"- Status: {status}",
-        f"- Set: {set_id}",
-        f"- Order: {order}",
-        f"- Id: {plan_id}",
-    ]
-    if status == "approved" and approval:
-        meta.append(
-            '- Approval: 2026-08-24, human ("approved. go."): status set to approved'
-        )
-    header = "\n".join(meta) + "\n\n"
-    # Strip the H1 from body since header already has one? Keep body providing sections.
-    text = header + body
-    (d / name).write_text(text, encoding="utf-8")
-    return d / name
-
-
 def _orchestrator_body(table_rows) -> str:
     """table_rows: list of (order, filename, depends_str)."""
     lines = [
@@ -120,38 +85,54 @@ def _mk_set(root: Path, *, statuses=None, with_table=True, cross=None):
     statuses = statuses or {1: "approved", 2: "approved", 3: "approved"}
     cross = cross or {1: "none", 2: "none", 3: "01, 02"}
     plans_dir = root / ".aw" / "records" / "plans"
+    pending = plans_dir / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
     names = {
         0: "20260823-s-00-orc000-orchestrator.ipd.md",
         1: "20260823-s-01-aaaaaa-one.ipd.md",
         2: "20260823-s-02-bbbbbb-two.ipd.md",
         3: "20260823-s-03-cccccc-three.ipd.md",
     }
+    rb = RecordBuilder()
     if with_table:
         rows = [(o, names[o], cross[o]) for o in (1, 2, 3)]
-        _write_plan(
-            plans_dir,
-            "pending",
-            names[0],
-            plan_id="orc000",
-            set_id="s",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            body=_orchestrator_body(rows),
+        (pending / names[0]).write_text(
+            str(
+                rb.plan(
+                    id6="orc000",
+                    kind="orchestrator",
+                    title="x",
+                    when="2026-08-23",
+                    set="s",
+                    order=0,
+                    status="approved",
+                    scope_paths="grandfathered",
+                    approval=_APPROVAL,
+                    body=_orchestrator_body(rows),
+                    text_only=True,
+                )
+            ),
+            encoding="utf-8",
         )
     ids = {1: "aaaaaa", 2: "bbbbbb", 3: "cccccc"}
     for o in (1, 2, 3):
-        _write_plan(
-            plans_dir,
-            "pending",
-            names[o],
-            plan_id=ids[o],
-            set_id="s",
-            order=o,
-            status=statuses[o],
-            kind="child",
-            body=_child_ipd(),
-            approval=(statuses[o] == "approved"),
+        (pending / names[o]).write_text(
+            str(
+                rb.plan(
+                    id6=ids[o],
+                    kind="child",
+                    title="x",
+                    when="2026-08-23",
+                    set="s",
+                    order=o,
+                    status=statuses[o],
+                    scope_paths="grandfathered",
+                    approval=_APPROVAL if statuses[o] == "approved" else None,
+                    body=_child_ipd(),
+                    text_only=True,
+                )
+            ),
+            encoding="utf-8",
         )
     return plans_dir
 
@@ -228,41 +209,47 @@ class ResolveSetV01(unittest.TestCase):
         # Build a child whose E-01 depends on E-03 and E-03 depends on E-01 -> cycle.
         plans_dir = self.root / ".aw" / "records" / "plans"
         cyc = _child_ipd(e_deps={"E-01": ["E-03"], "E-02": ["E-01"], "E-03": ["E-02"]})
-        _write_plan(
-            plans_dir,
-            "pending",
-            "20260823-s-01-aaaaaa-one.ipd.md",
-            plan_id="aaaaaa",
-            set_id="s",
+        RecordBuilder(self.root).plan(
+            id6="aaaaaa",
+            kind="child",
+            title="x",
+            when="2026-08-23",
+            set="s",
             order=1,
+            slug="one",
             status="approved",
+            scope_paths="grandfathered",
+            approval=_APPROVAL,
             body=cyc,
+            disposition="pending",
         )
         with self.assertRaises(sp.SetPlanError):
             sp.resolve_set(plans_dir, "s")
 
     def test_duplicate_id_rejected(self):
         plans_dir = self.root / ".aw" / "records" / "plans"
-        _write_plan(
-            plans_dir,
-            "pending",
-            "a.ipd.md",
-            plan_id="dupdup",
-            set_id="s",
-            order=1,
-            status="approved",
-            body=_child_ipd(),
-        )
-        _write_plan(
-            plans_dir,
-            "pending",
-            "b.ipd.md",
-            plan_id="dupdup",
-            set_id="s",
-            order=2,
-            status="approved",
-            body=_child_ipd(),
-        )
+        pending = plans_dir / "pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        rb = RecordBuilder()
+        for fname, order in (("a.ipd.md", 1), ("b.ipd.md", 2)):
+            (pending / fname).write_text(
+                str(
+                    rb.plan(
+                        id6="dupdup",
+                        kind="child",
+                        title="x",
+                        when="2026-08-23",
+                        set="s",
+                        order=order,
+                        status="approved",
+                        scope_paths="grandfathered",
+                        approval=_APPROVAL,
+                        body=_child_ipd(),
+                        text_only=True,
+                    )
+                ),
+                encoding="utf-8",
+            )
         with self.assertRaises(sp.SetPlanError):
             sp.resolve_set(plans_dir, "s")
 
@@ -347,15 +334,19 @@ class CompileManifestV02(unittest.TestCase):
         # Build a set with all-independent read-only high-confidence nodes -> parallel_read_only.
         root2 = Path(tempfile.mkdtemp())
         plans_dir = root2 / ".aw" / "records" / "plans"
-        _write_plan(
-            plans_dir,
-            "pending",
-            "a.ipd.md",
-            plan_id="aaaaaa",
-            set_id="t",
+        RecordBuilder(root2).plan(
+            id6="aaaaaa",
+            kind="child",
+            title="x",
+            when="2026-08-23",
+            set="t",
             order=1,
+            slug="a",
             status="approved",
+            scope_paths="grandfathered",
+            approval=_APPROVAL,
             body=_child_ipd(e_deps={"E-01": [], "E-02": [], "E-03": []}),
+            disposition="pending",
         )
         inv = sp.resolve_set(plans_dir, "t")
         ownership = {
@@ -539,27 +530,45 @@ class TestFallbackIsNeverSilent(unittest.TestCase):
 
     def _set(self, orch_body: str):
         d = Path(self.tmp.name)
-        _write_plan(
-            d,
-            "pending",
-            "20260101-s-00-oooooo-orc.ipd.md",
-            plan_id="oooooo",
-            set_id="s",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            body=orch_body,
+        pending = d / "pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        rb = RecordBuilder()
+        (pending / "20260101-s-00-oooooo-orc.ipd.md").write_text(
+            str(
+                rb.plan(
+                    id6="oooooo",
+                    kind="orchestrator",
+                    title="x",
+                    when="2026-08-23",
+                    set="s",
+                    order=0,
+                    status="approved",
+                    scope_paths="grandfathered",
+                    approval=_APPROVAL,
+                    body=orch_body,
+                    text_only=True,
+                )
+            ),
+            encoding="utf-8",
         )
         for i, pid in ((1, "aaaaaa"), (2, "bbbbbb")):
-            _write_plan(
-                d,
-                "pending",
-                f"20260101-s-0{i}-{pid}-c.ipd.md",
-                plan_id=pid,
-                set_id="s",
-                order=i,
-                status="approved",
-                body=_child_ipd(),
+            (pending / f"20260101-s-0{i}-{pid}-c.ipd.md").write_text(
+                str(
+                    rb.plan(
+                        id6=pid,
+                        kind="child",
+                        title="x",
+                        when="2026-08-23",
+                        set="s",
+                        order=i,
+                        status="approved",
+                        scope_paths="grandfathered",
+                        approval=_APPROVAL,
+                        body=_child_ipd(),
+                        text_only=True,
+                    )
+                ),
+                encoding="utf-8",
             )
         return sp.resolve_set(d, "s")
 
