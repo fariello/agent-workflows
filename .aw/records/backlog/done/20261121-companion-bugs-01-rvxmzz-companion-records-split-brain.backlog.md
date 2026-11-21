@@ -1,5 +1,5 @@
 - Id: rvxmzz
-- Status: graduated
+- Status: done
 - Set: companion-bugs
 - Work-Kind: bug
 - Priority: high
@@ -54,6 +54,7 @@ flowchart LR
 7. **Behavioral regression tests:** Automated tests must install a `public-target-private-companion` repository in a temporary directory and verify criteria 1 through 6 end-to-end by running the CLI and runner integration code against real temporary target + companion Git repositories and asserting on exit codes, outputs, carrier resolution, and Git state in both repositories.
 
 ## Workflow history
+- 2026-11-21 done (aw backlog): closed by aw agy run: IPD p47398 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-companion-bugs-00-p47398-fix-public-target-private-companion-records-split-brain-cont.ipd.md, .aw/records/plans/executed/20261121-companion-bugs-02-pbdtss-unified-companion-records-resolution-across-doctor-check-eng.ipd.md, .aw/records/plans/executed/20261121-companion-bugs-03-v8tqje-companion-safe-runner-prompts-record-routing-and-public-targ.ipd.md); evidence .aw/records/plans/executed/20261121-companion-bugs-02-pbdtss-unified-companion-records-resolution-across-doctor-check-eng.ipd.md
 - 2026-11-21 graduated (aw set): graduated to companion-bugs IPD set (p47398, mnsbzt, pbdtss, v8tqje)
 - 2026-11-21 created (aw backlog): Fix public-target-private-companion records split-brain, target-repo leaks, and diagnostics
 - 2026-11-21 updated: added four companion-mode runner and installer defects observed in run-20261121T055224Z-1705064 (false-positive check.ipd-uncarried-obligation fail-merge, runner attempting to merge private records into public target main, broken R1 prompt purity, and empty companion .aw/records decoy directory)
