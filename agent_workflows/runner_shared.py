@@ -4620,6 +4620,10 @@ def commit_review_lane_output(
         elif entry.strip():
             paths.append(entry.strip().strip('"'))
     paths = sorted({p for p in paths if p})
+    if _is_companion_records_context(_resolve_companion_context(repo)):
+        # companion-bugs Order 03 (`v8tqje`) E-03: never commit private `.aw/records/**` onto a
+        # target-repo lane branch in companion mode; companion record routing owns those outputs.
+        paths = [p for p in paths if not _is_target_records_path(p)]
     if own_paths is not None:
         # Compare in git's spelling: porcelain always reports `/`, while a caller building its
         # paths with `os.path`/`Path.relative_to` on Windows passes `\`. Without this the
@@ -6413,6 +6417,9 @@ INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE = "spec-anchor-new-stale"
 INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE = "artifact-conformance"
 #: cihealth: refuse a merge whose code changes fail static type checking (mypy).
 INTEGRATION_CAUSE_TYPECHECK = "typecheck"
+#: companion-bugs Order 03 (`v8tqje`) E-04: refuse a target-repo merge carrying `.aw/records` or
+#: `.aw/records/**` in companion mode so private records never land on public target `main`.
+INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD = "companion-records-guard"
 
 
 #: What an OLD record (or an unrecognized gate status) reads as. Routing an unknown cause to today's
@@ -8940,13 +8947,35 @@ def _review_incoming_changed_files(
     return list(fallback)
 
 
+def _companion_aware_eval_root(repo: Path, wt_path: Path | None) -> Path:
+    """Return a companion-aware repository root for carrier and handoff checks (v8tqje E-02).
+
+    Relies on linked-worktree companion inheritance (`pbdtss`) when `wt_path` resolves as companion,
+    and falls back to `repo` when `wt_path` is absent or lacks companion context configuration.
+    """
+    if wt_path is None:
+        return repo
+    try:
+        from agent_workflows import project_context
+
+        repo_ctx = project_context.resolve_project_context(target_repo=str(repo))
+        if getattr(repo_ctx, "records_backend", None) == "companion":
+            wt_ctx = project_context.resolve_project_context(target_repo=str(wt_path))
+            if getattr(wt_ctx, "records_backend", None) == "companion":
+                return wt_path
+            return repo
+    except Exception:
+        pass
+    return wt_path
+
+
 def check_review_lane_artifacts(
     repo: Path,
     handle: Any,
     changed_files: Sequence[str],
 ) -> tuple[bool, str]:
     """Check that any plan, backlog, or spec artifacts modified in a review/plan lane
-    conform to contract before merging to main.
+    conform to contract before merging to main (or routing to companion records).
 
     Prevents contract violations (e.g. check.ipd-uncarried-obligation, IPD-Q501 open
     blocking questions, check.graduation-incomplete) from polluting main and breaking CI.
@@ -8957,6 +8986,7 @@ def check_review_lane_artifacts(
         else None
     )
     branch = getattr(handle, "branch", None)
+    eval_root = _companion_aware_eval_root(repo, wt_path)
 
     from agent_workflows import artifact_meta as _meta
 
@@ -8995,7 +9025,6 @@ def check_review_lane_artifacts(
                 from agent_workflows import check_engine
 
                 try:
-                    eval_root = wt_path if wt_path else repo
                     item_id6 = (
                         b_state.id6
                         if (
@@ -9071,7 +9100,6 @@ def check_review_lane_artifacts(
                     pass
 
                 try:
-                    eval_root = wt_path if wt_path else repo
                     drifts = check_engine.evaluate_durable_carrier(
                         eval_root,
                         plan_path=Path(norm_p),
@@ -9160,6 +9188,594 @@ def check_lane_type_safety(
         summary = "; ".join(e.strip() for e in cmp.new_errors[:5])
         return False, f"type check failed: {summary}"
     return True, ""
+
+
+def _resolve_companion_context(repo: Path) -> Any | None:
+    """Resolve `ProjectContext` for `repo`, returning `None` if resolution fails."""
+    try:
+        from agent_workflows import project_context
+
+        return project_context.resolve_project_context(target_repo=str(repo))
+    except Exception:
+        return None
+
+
+def _is_companion_records_context(ctx: Any | None) -> bool:
+    """Return True when `ctx` configures companion-managed records (v8tqje E-03/E-04)."""
+    if ctx is None:
+        return False
+    if getattr(ctx, "records_backend", None) == "companion":
+        return True
+    git_policies = getattr(ctx, "git_policies", None) or {}
+    return git_policies.get("records") == "companion-git"
+
+
+def _is_target_records_path(path: str) -> bool:
+    """Return True if normalized `path` equals `.aw/records` or sits under `.aw/records/`."""
+    norm = str(path).replace("\\", "/").strip()
+    while norm.startswith("./"):
+        norm = norm[2:]
+    norm = norm.rstrip("/")
+    return norm == ".aw/records" or norm.startswith(".aw/records/")
+
+
+def _branch_incoming_paths(repo: Path, branch: str) -> list[str]:
+    """Return raw incoming paths from `HEAD...<branch>` with `--no-renames -z`."""
+    if not branch:
+        return []
+    rc, out, _ = _run_git(
+        repo, ["diff", "--name-only", "--no-renames", "-z", f"HEAD...{branch}"]
+    )
+    if rc != 0:
+        rc, out, _ = _run_git(
+            repo, ["diff", "--name-only", "--no-renames", "-z", "HEAD", branch]
+        )
+    if rc != 0:
+        return []
+    return sorted({p for p in out.split("\0") if p.strip()})
+
+
+def _incoming_target_records_paths(
+    repo: Path,
+    branch: str,
+    predicted: list[str] | None = None,
+) -> list[str]:
+    """Collect any `.aw/records` or `.aw/records/**` paths from both `HEAD...<branch>` and the
+    predicted merge tree (`merge_write_set` / `git merge-tree --write-tree HEAD <branch>`).
+    """
+    candidates: set[str] = set()
+    for p in _branch_incoming_paths(repo, branch):
+        candidates.add(p)
+
+    pred = predicted
+    if pred is None and branch:
+        pred = merge_write_set(repo, branch)
+    if pred is not None:
+        for p in pred:
+            candidates.add(p)
+        tree = getattr(pred, "tree", None)
+        if tree:
+            rc_td, out_td, _ = _run_git(
+                repo, ["diff", "--name-only", "--no-renames", "-z", "HEAD", tree]
+            )
+            if rc_td == 0:
+                for p in out_td.split("\0"):
+                    if p.strip():
+                        candidates.add(p)
+
+    offending = sorted({p for p in candidates if _is_target_records_path(p)})
+    return offending
+
+
+def _validate_companion_record_rel(
+    records_root: Path, rel_posix: str
+) -> tuple[Path | None, str | None]:
+    """Validate that `rel_posix` stays strictly inside `records_root` with no `..` or symlinks."""
+    if not rel_posix or "\x00" in rel_posix:
+        return None, f"invalid empty or NUL companion record path: {rel_posix!r}"
+    norm = rel_posix.replace("\\", "/")
+    if norm.startswith("/") or norm.startswith("\\"):
+        return None, f"refusing absolute companion record path: {rel_posix!r}"
+    rel = Path(norm)
+    if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+        return None, f"refusing path traversal in companion record path: {rel_posix!r}"
+
+    records_root_res = records_root.resolve()
+    if records_root.is_symlink():
+        return None, f"companion records root is a symlink: {records_root}"
+    cur = records_root_res
+    for part in rel.parts:
+        cur = cur / part
+        if cur.is_symlink():
+            return (
+                None,
+                f"refusing symlink component in companion records path: {rel_posix!r}",
+            )
+    dest = records_root_res / rel
+    try:
+        dest.resolve().relative_to(records_root_res)
+    except ValueError:
+        return (
+            None,
+            f"companion record path escapes records root: {rel_posix!r}",
+        )
+    return dest, None
+
+
+def _collect_companion_lane_record_changes(
+    repo: Path,
+    handle: Any,
+    records_root: Path,
+    *,
+    include_branch_records: bool = False,
+) -> tuple[dict[str, bytes], set[str], list[str], str | None]:
+    """Collect changed, added, or deleted `.aw/records/**` paths from a companion lane (v8tqje E-03).
+
+    Inspects BOTH:
+      1. gitignored lane-working-tree paths under `wt_path / ".aw" / "records"` (diffed against the
+         pre-turn baseline in `.aw/state/companion-staged-baseline.json` and against existing
+         companion bytes so untouched files are never rewritten); and
+      2. when `include_branch_records=True`, any `.aw/records/**` committed on `handle.branch`.
+
+    Returns `(writes, deletes, changed_norm_paths, error_reason)`.
+    """
+    from agent_workflows import lane_containment
+
+    writes: dict[str, bytes] = {}
+    deletes: set[str] = set()
+    changed_norm: set[str] = set()
+
+    wt_raw = getattr(handle, "path", None)
+    wt_path = Path(wt_raw) if (wt_raw and Path(wt_raw).is_dir()) else None
+    records_root_res = records_root.resolve()
+
+    if wt_path is not None:
+        wt_records = wt_path / ".aw" / "records"
+        if wt_records.is_symlink():
+            return (
+                {},
+                set(),
+                [],
+                "refusing lane .aw/records symlink during companion record routing",
+            )
+        baseline = lane_containment.read_companion_staged_baseline(wt_path)
+        seen_in_wt: set[str] = set()
+        if wt_records.is_dir():
+            for dirpath, dirnames, filenames in os.walk(wt_records, followlinks=False):
+                dp = Path(dirpath)
+                for dname in list(dirnames):
+                    sub_dir = dp / dname
+                    if sub_dir.is_symlink():
+                        rel_bad = sub_dir.relative_to(wt_records).as_posix()
+                        return (
+                            {},
+                            set(),
+                            [],
+                            f"refusing symlink directory in lane records: .aw/records/{rel_bad}",
+                        )
+                for fname in filenames:
+                    fpath = dp / fname
+                    rel_posix = fpath.relative_to(wt_records).as_posix()
+                    if fpath.is_symlink():
+                        return (
+                            {},
+                            set(),
+                            [],
+                            f"refusing symlink file in lane records: .aw/records/{rel_posix}",
+                        )
+                    dest, err = _validate_companion_record_rel(
+                        records_root_res, rel_posix
+                    )
+                    if err or dest is None:
+                        return {}, set(), [], err or "invalid companion record path"
+                    seen_in_wt.add(rel_posix)
+                    wt_bytes = fpath.read_bytes()
+                    wt_sha = hashlib.sha256(wt_bytes).hexdigest()
+                    if rel_posix in baseline:
+                        if wt_sha == baseline[rel_posix]:
+                            continue
+                    elif dest.is_file() and not dest.is_symlink():
+                        if dest.read_bytes() == wt_bytes:
+                            continue
+                    writes[rel_posix] = wt_bytes
+                    changed_norm.add(f".aw/records/{rel_posix}")
+
+        for rel_posix in sorted(baseline.keys()):
+            if rel_posix not in seen_in_wt:
+                dest, err = _validate_companion_record_rel(records_root_res, rel_posix)
+                if err or dest is None:
+                    return {}, set(), [], err or "invalid companion record path"
+                if dest.exists():
+                    deletes.add(rel_posix)
+                    changed_norm.add(f".aw/records/{rel_posix}")
+
+    branch = str(getattr(handle, "branch", "") or "").strip()
+    if include_branch_records and branch:
+        rc, out, _ = _run_git(
+            repo,
+            [
+                "diff",
+                "--name-status",
+                "--no-renames",
+                "-z",
+                f"HEAD...{branch}",
+                "--",
+                ".aw/records",
+            ],
+        )
+        if rc != 0:
+            base = str(getattr(handle, "base_commit", "") or "").strip()
+            if base:
+                rc, out, _ = _run_git(
+                    repo,
+                    [
+                        "diff",
+                        "--name-status",
+                        "--no-renames",
+                        "-z",
+                        f"{base}..{branch}",
+                        "--",
+                        ".aw/records",
+                    ],
+                )
+        if rc == 0 and out:
+            tokens = out.split("\0")
+            idx = 0
+            while idx + 1 < len(tokens):
+                status_code = tokens[idx].strip()
+                raw_path = tokens[idx + 1]
+                idx += 2
+                if not status_code or not raw_path:
+                    continue
+                norm_p = raw_path.replace("\\", "/").removeprefix("./")
+                if norm_p == ".aw/records":
+                    return (
+                        {},
+                        set(),
+                        [],
+                        "refusing non-directory entry at .aw/records on lane branch",
+                    )
+                if not norm_p.startswith(".aw/records/"):
+                    continue
+                rel_posix = norm_p[len(".aw/records/") :]
+                dest, err = _validate_companion_record_rel(records_root_res, rel_posix)
+                if err or dest is None:
+                    return {}, set(), [], err or "invalid companion record path"
+                if status_code.startswith("D"):
+                    if rel_posix not in writes and dest.exists():
+                        deletes.add(rel_posix)
+                        changed_norm.add(norm_p)
+                else:
+                    rc_ls, out_ls, _ = _run_git(repo, ["ls-tree", branch, "--", norm_p])
+                    if rc_ls == 0 and out_ls.startswith("120000 "):
+                        return (
+                            {},
+                            set(),
+                            [],
+                            f"refusing symlink in lane branch records: {norm_p}",
+                        )
+                    proc_show = subprocess.run(
+                        ["git", "show", f"{branch}:{norm_p}"],
+                        cwd=str(repo),
+                        capture_output=True,
+                        check=False,
+                    )
+                    if proc_show.returncode != 0:
+                        return (
+                            {},
+                            set(),
+                            [],
+                            f"failed to read {norm_p} from branch {branch}",
+                        )
+                    if rel_posix not in writes:
+                        blob = proc_show.stdout
+                        if not (
+                            dest.is_file()
+                            and not dest.is_symlink()
+                            and dest.read_bytes() == blob
+                        ):
+                            writes[rel_posix] = blob
+                            changed_norm.add(norm_p)
+
+    # Never simultaneously delete a path that is being written
+    deletes.difference_update(writes.keys())
+    return writes, deletes, sorted(changed_norm), None
+
+
+def _companion_git_base_env(repo: Path, git_root: Path) -> dict[str, str]:
+    """Build git env for companion commits, inheriting target repo author identity if companion lacks one."""
+    env = dict(os.environ)
+    if not env.get("GIT_AUTHOR_EMAIL"):
+        rc_c, out_c, _ = _run_git(git_root, ["config", "--get", "user.email"])
+        if rc_c != 0 or not out_c.strip():
+            rc_t, out_t, _ = _run_git(repo, ["config", "--get", "user.email"])
+            if rc_t == 0 and out_t.strip():
+                env["GIT_AUTHOR_EMAIL"] = out_t.strip()
+    if not env.get("GIT_AUTHOR_NAME"):
+        rc_c, out_c, _ = _run_git(git_root, ["config", "--get", "user.name"])
+        if rc_c != 0 or not out_c.strip():
+            rc_t, out_t, _ = _run_git(repo, ["config", "--get", "user.name"])
+            if rc_t == 0 and out_t.strip():
+                env["GIT_AUTHOR_NAME"] = out_t.strip()
+    return env
+
+
+def route_companion_lane_records(
+    repo: Path,
+    handle: Any,
+    id6: str,
+    *,
+    host_label: str,
+    run_id: str | None = None,
+    action_kind: str = INTEGRATION_ACTION_REVIEW,
+    validate_review: bool = True,
+    include_branch_records: bool = False,
+) -> tuple[bool, str, str, str | None, tuple[str, ...]]:
+    """Route lane `.aw/records/**` mutations into `<companion>/records/` (v8tqje E-03).
+
+    Returns `(ok, reason, kind, commit_sha_or_None, routed_rel_paths)`.
+    Validates review artifacts via `check_review_lane_artifacts` BEFORE writing anything to
+    `<companion>/records/`. Writes atomically (deleting moved/removed files only after replacement
+    writes succeed) and commits ONLY those explicit paths in the companion Git repository when
+    `storage._resolve_records_git_root` finds one (handling unborn `HEAD` and unversioned
+    companions cleanly, never `git add -A`, never pushing).
+    """
+    from agent_workflows import git_commit_helper as _gch
+    from agent_workflows import lane_containment, storage
+
+    ctx = _resolve_companion_context(repo)
+    if ctx is None or getattr(ctx, "records_backend", None) != "companion":
+        return True, "not a companion-backend repository", "integrated", None, ()
+
+    records_raw = (ctx.logical_roots or {}).get("records")
+    if not records_raw:
+        return (
+            False,
+            "companion records root is not configured",
+            INTEGRATION_REFUSAL_CONFLICT,
+            None,
+            (),
+        )
+    records_root = Path(records_raw).resolve()
+    records_root.mkdir(parents=True, exist_ok=True)
+
+    writes, deletes, changed_norm, collect_err = _collect_companion_lane_record_changes(
+        repo,
+        handle,
+        records_root,
+        include_branch_records=include_branch_records,
+    )
+    if collect_err:
+        return (
+            False,
+            tag_integration_cause(
+                INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                f"integration refused: {collect_err}",
+            ),
+            INTEGRATION_REFUSAL_CONFLICT,
+            None,
+            (),
+        )
+    if not writes and not deletes:
+        return True, "no companion record changes to route", "integrated", None, ()
+
+    if validate_review and action_kind == INTEGRATION_ACTION_REVIEW:
+        artifact_ok, artifact_reason = check_review_lane_artifacts(
+            repo, handle, changed_norm
+        )
+        if not artifact_ok:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE,
+                    f"integration refused: review artifact check failed: {artifact_reason}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+                None,
+                (),
+            )
+
+    # Validate containment for all paths BEFORE mutating companion records
+    validated_writes: list[tuple[str, Path, bytes]] = []
+    for rel_posix in sorted(writes.keys()):
+        dest, err = _validate_companion_record_rel(records_root, rel_posix)
+        if err or dest is None:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                    f"integration refused: {err}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+                None,
+                (),
+            )
+        validated_writes.append((rel_posix, dest, writes[rel_posix]))
+
+    validated_deletes: list[tuple[str, Path]] = []
+    for rel_posix in sorted(deletes):
+        dest, err = _validate_companion_record_rel(records_root, rel_posix)
+        if err or dest is None:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                    f"integration refused: {err}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+                None,
+                (),
+            )
+        validated_deletes.append((rel_posix, dest))
+
+    # Apply all replacement/new writes atomically FIRST
+    for _rel_posix, dest, payload in validated_writes:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.is_symlink():
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                    f"integration refused: refusing to overwrite symlink {dest}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+                None,
+                (),
+            )
+        lane_containment._atomic_write_bytes(dest, payload)
+        os.chmod(dest, 0o644)
+
+    # Unlink deleted/moved paths ONLY AFTER all replacement writes succeed
+    for _rel_posix, dest in validated_deletes:
+        if dest.exists() and not dest.is_symlink():
+            dest.unlink()
+
+    # Keep lane baseline synchronized so repeated calls are idempotent
+    wt_raw = getattr(handle, "path", None)
+    if wt_raw and Path(wt_raw).is_dir():
+        wt_path = Path(wt_raw)
+        baseline = lane_containment.read_companion_staged_baseline(wt_path)
+        for rel_posix, _dest, payload in validated_writes:
+            baseline[rel_posix] = hashlib.sha256(payload).hexdigest()
+        for rel_posix, _dest in validated_deletes:
+            baseline.pop(rel_posix, None)
+        lane_containment.write_companion_staged_baseline(wt_path, baseline)
+
+    routed_rel = tuple(
+        sorted({r for r, _, _ in validated_writes} | {r for r, _ in validated_deletes})
+    )
+
+    git_root = storage._resolve_records_git_root(records_root, ctx.records_backend)
+    if git_root is None:
+        return (
+            True,
+            f"routed {len(routed_rel)} record path(s) to unversioned companion records",
+            "integrated",
+            None,
+            routed_rel,
+        )
+
+    git_root_res = git_root.resolve()
+    write_git_paths: list[str] = []
+    for _rel_posix, dest, _payload in validated_writes:
+        write_git_paths.append(dest.resolve().relative_to(git_root_res).as_posix())
+
+    delete_git_paths: list[str] = []
+    for _rel_posix, dest in validated_deletes:
+        delete_git_paths.append(dest.resolve().relative_to(git_root_res).as_posix())
+
+    staged_targets: list[str] = []
+    if write_git_paths:
+        rc_add, _out_add, err_add = _run_git(
+            git_root_res, ["add", "--", *write_git_paths]
+        )
+        if rc_add != 0:
+            return (
+                False,
+                f"companion git add failed: {err_add.strip()}",
+                INTEGRATION_REFUSAL_CONFLICT,
+                None,
+                routed_rel,
+            )
+        staged_targets.extend(write_git_paths)
+
+    if delete_git_paths:
+        rc_ls, out_ls, _ = _run_git(
+            git_root_res, ["ls-files", "-z", "--", *delete_git_paths]
+        )
+        tracked_deletes = (
+            [p for p in out_ls.split("\0") if p.strip()] if rc_ls == 0 else []
+        )
+        if tracked_deletes:
+            rc_rm, _out_rm, err_rm = _run_git(
+                git_root_res, ["rm", "--cached", "--", *tracked_deletes]
+            )
+            if rc_rm != 0:
+                return (
+                    False,
+                    f"companion git rm --cached failed: {err_rm.strip()}",
+                    INTEGRATION_REFUSAL_CONFLICT,
+                    None,
+                    routed_rel,
+                )
+            staged_targets.extend(tracked_deletes)
+
+    staged_targets = sorted(set(staged_targets))
+    if not staged_targets:
+        return (
+            True,
+            f"routed {len(routed_rel)} record path(s) to companion records (no git diff)",
+            "integrated",
+            None,
+            routed_rel,
+        )
+
+    rc_diff, out_diff, _ = _run_git(
+        git_root_res, ["diff", "--cached", "--name-only", "-z", "--", *staged_targets]
+    )
+    actually_staged = (
+        sorted({p for p in out_diff.split("\0") if p.strip()}) if rc_diff == 0 else []
+    )
+    if not actually_staged:
+        return (
+            True,
+            f"routed {len(routed_rel)} record path(s) to companion records (already up to date)",
+            "integrated",
+            None,
+            routed_rel,
+        )
+
+    has_commits = storage._git_has_commits(git_root_res)
+    action_word = "review" if action_kind == INTEGRATION_ACTION_REVIEW else "execute"
+    subject = f"companion({host_label}): route {action_word} records for {id6}"
+    body = (
+        f"Routed {len(actually_staged)} companion record path(s) for {id6} "
+        f"from isolated lane into companion storage."
+    )
+    base_env = _companion_git_base_env(repo, git_root_res)
+    ident = _gch.agent_commit_identity(
+        git_root_res,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=id6,
+        message=body,
+        base_env=base_env,
+    )
+    rc_commit, out_commit, err_commit = _run_git(
+        git_root_res,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            ident.message,
+            "--",
+            *actually_staged,
+        ],
+        env=ident.env,
+    )
+    if rc_commit != 0:
+        if has_commits:
+            _run_git(git_root_res, ["restore", "--staged", "--", *actually_staged])
+        else:
+            _run_git(git_root_res, ["rm", "--cached", "--", *actually_staged])
+        detail = (err_commit or out_commit or "").strip() or "companion commit failed"
+        return (
+            False,
+            f"companion git commit failed: {detail}",
+            INTEGRATION_REFUSAL_CONFLICT,
+            None,
+            routed_rel,
+        )
+    rc_sha, sha_out, _ = _run_git(git_root_res, ["rev-parse", "HEAD"])
+    commit_sha = sha_out.strip() if rc_sha == 0 else None
+    return (
+        True,
+        f"routed {len(actually_staged)} record path(s) to companion repo ({(commit_sha or '')[:12]})",
+        "integrated",
+        commit_sha,
+        routed_rel,
+    )
 
 
 def integrate_lane_branch(
@@ -9256,6 +9872,16 @@ def integrate_lane_branch(
             )
         )
 
+    companion_ctx = _resolve_companion_context(repo)
+    is_companion_guarded = _is_companion_records_context(companion_ctx)
+    is_companion_backend = (
+        companion_ctx is not None
+        and getattr(companion_ctx, "records_backend", None) == "companion"
+    )
+    _integ_run_id = (
+        run_dir.name if (run_dir and run_dir.name.startswith("run-")) else None
+    )
+
     lane = build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
     # E-01: fail closed on a contaminated integration base BEFORE running the gate.
@@ -9293,6 +9919,25 @@ def integrate_lane_branch(
             format_foreign_merge_refusal_reason(repo),
             INTEGRATION_REFUSAL_TRANSIENT,
         )
+
+    # companion-bugs Order 03 (`v8tqje`) E-04: FAIL-CLOSED TARGET-REPO MERGE GUARD (early refusal).
+    # In companion mode, refuse any incoming target branch carrying `.aw/records` or `.aw/records/**`
+    # across both `HEAD...<branch>` (`--no-renames`) and the predicted merge tree before running
+    # gates or mutating target `main`.
+    if is_companion_guarded:
+        offending_records = _incoming_target_records_paths(
+            repo, handle.branch, predicted
+        )
+        if offending_records:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                    "integration refused: companion-mode target merge cannot include "
+                    f".aw/records paths: {', '.join(offending_records)}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
 
     # lifecycledup Order 02 (`46u3tu`) E-01: PRE-MERGE LIFECYCLE PLACEMENT GUARD.
     # Refuse an integration that would leave one artifact identity at more than one lifecycle
@@ -9479,6 +10124,28 @@ def integrate_lane_branch(
                 INTEGRATION_REFUSAL_CONFLICT,
             )
     elif action_kind == INTEGRATION_ACTION_REVIEW:
+        if is_companion_backend:
+            branch_non_records = _branch_incoming_paths(repo, handle.branch)
+            route_ok, route_reason, route_kind, _route_sha, _routed = (
+                route_companion_lane_records(
+                    repo,
+                    handle,
+                    id6,
+                    host_label=host_label,
+                    run_id=_integ_run_id,
+                    action_kind=INTEGRATION_ACTION_REVIEW,
+                    validate_review=True,
+                    include_branch_records=False,
+                )
+            )
+            if not route_ok:
+                return False, route_reason, route_kind
+            if not branch_non_records:
+                return (
+                    True,
+                    f"{route_reason} (target main unchanged)",
+                    "integrated",
+                )
         # Check artifact contracts ONLY on paths introduced by THIS review branch since its
         # merge-base with current HEAD (three-dot diff), NOT `lane.changed_files` (which diffs
         # against the sweep lane's frozen allocation base and falsely blames unrelated commits
@@ -9499,19 +10166,75 @@ def integrate_lane_branch(
                 INTEGRATION_REFUSAL_CONFLICT,
             )
 
+    # companion-bugs Order 03 (`v8tqje`) E-04: final fail-closed guard immediately before target
+    # `git merge --ff-only` / `git merge --no-ff` so no `.aw/records` or `.aw/records/**` path can
+    # ever merge into public target `main` in companion mode.
+    if is_companion_guarded:
+        offending_pre_merge = _incoming_target_records_paths(
+            repo, handle.branch, predicted
+        )
+        if offending_pre_merge:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                    "integration refused: companion-mode target merge cannot include "
+                    f".aw/records paths: {', '.join(offending_pre_merge)}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
+
+    if is_companion_backend and action_kind == INTEGRATION_ACTION_EXECUTE:
+        # Pre-validate companion lane working-tree record containment BEFORE mutating target main.
+        _comp_rec_raw = (companion_ctx.logical_roots or {}).get("records")
+        if _comp_rec_raw:
+            _w_pre, _d_pre, _c_pre, _pre_err = _collect_companion_lane_record_changes(
+                repo,
+                handle,
+                Path(_comp_rec_raw).resolve(),
+                include_branch_records=False,
+            )
+            if _pre_err:
+                return (
+                    False,
+                    tag_integration_cause(
+                        INTEGRATION_CAUSE_COMPANION_RECORDS_GUARD,
+                        f"integration refused: {_pre_err}",
+                    ),
+                    INTEGRATION_REFUSAL_CONFLICT,
+                )
+
     # Gate passed (conflict-free, revalidated), or - for a review - artifacts conformed. Perform the
     # real integration onto main.
     # NOTE the ff-only attempt's output is DELIBERATELY discarded: its failure is the EXPECTED
     # "main advanced" case, not an error, so it must never reach the operator-facing reason (mergemsg).
     rc, _out, _err = _run_git(repo, ["merge", "--ff-only", handle.branch])
     if rc == 0:
+        if is_companion_backend and action_kind == INTEGRATION_ACTION_EXECUTE:
+            route_ok, route_reason, route_kind, _route_sha, routed = (
+                route_companion_lane_records(
+                    repo,
+                    handle,
+                    id6,
+                    host_label=host_label,
+                    run_id=_integ_run_id,
+                    action_kind=INTEGRATION_ACTION_EXECUTE,
+                    validate_review=False,
+                    include_branch_records=False,
+                )
+            )
+            if not route_ok:
+                return False, route_reason, route_kind
+            if routed:
+                return (
+                    True,
+                    f"fast-forward integrated to main; {route_reason}",
+                    "integrated",
+                )
         return True, "fast-forward integrated to main", "integrated"
     # main advanced past the lane base: attempt a controlled non-ff merge of ONLY this branch.
     from agent_workflows import git_commit_helper as _gch
 
-    _integ_run_id = (
-        run_dir.name if (run_dir and run_dir.name.startswith("run-")) else None
-    )
     _merge_msg = f"integrate({host_label}): merge verified lane {id6} to main"
     _merge_ident = _gch.agent_commit_identity(
         repo,
@@ -9533,6 +10256,27 @@ def integrate_lane_branch(
         env=_merge_ident.env,
     )
     if rc == 0:
+        if is_companion_backend and action_kind == INTEGRATION_ACTION_EXECUTE:
+            route_ok, route_reason, route_kind, _route_sha, routed = (
+                route_companion_lane_records(
+                    repo,
+                    handle,
+                    id6,
+                    host_label=host_label,
+                    run_id=_integ_run_id,
+                    action_kind=INTEGRATION_ACTION_EXECUTE,
+                    validate_review=False,
+                    include_branch_records=False,
+                )
+            )
+            if not route_ok:
+                return False, route_reason, route_kind
+            if routed:
+                return (
+                    True,
+                    f"controlled non-ff merge integrated to main; {route_reason}",
+                    "integrated",
+                )
         return True, "controlled non-ff merge integrated to main", "integrated"
     # The merge FAILED. Which of the two ways it can fail decides the outcome kind, and that is
     # decided STRUCTURALLY (dirtygates-02 `metc8b` E-02).
@@ -12299,6 +13043,40 @@ def read_zero_work_evidence(
         # A lane that cannot be inspected is NOT evidence of emptiness. Returning None routes the
         # predicate to "cannot prove", which is the fail-closed direction.
         return outcome_written, None
+    # companion-bugs Order 03 (`v8tqje`): in companion mode target `.aw/.gitignore` ignores
+    # `/records/`, so gitignored edits under `wt_path/.aw/records/` are invisible to `git status`.
+    # Surface real lane record edits into `lane["dirty"]` so `turn_attempted_nothing` never
+    # falsely refuses a companion turn that edited staged plans or wrote review records.
+    if isinstance(lane, Mapping):
+        comp_ctx = _resolve_companion_context(repo)
+        if (
+            comp_ctx is not None
+            and getattr(comp_ctx, "records_backend", None) == "companion"
+        ):
+            rec_raw = (comp_ctx.logical_roots or {}).get("records")
+            wt_raw = attempt.get("worktree") or lane.get("worktree")
+            if rec_raw and wt_raw and Path(str(wt_raw)).is_dir():
+
+                class _LaneStub:
+                    def __init__(self, p: Path) -> None:
+                        self.path = p
+                        self.branch = ""
+                        self.base_commit = ""
+
+                w_c, d_c, changed_c, err_c = _collect_companion_lane_record_changes(
+                    repo,
+                    _LaneStub(Path(str(wt_raw))),
+                    Path(rec_raw).resolve(),
+                    include_branch_records=False,
+                )
+                if not err_c and (w_c or d_c):
+                    lane = dict(lane)
+                    existing_dirty = list(lane.get("dirty") or [])
+                    for cp in changed_c:
+                        if cp not in existing_dirty:
+                            existing_dirty.append(cp)
+                    lane["dirty"] = existing_dirty
+                    lane["dirty_count"] = len(existing_dirty)
     return outcome_written, lane
 
 
@@ -35147,6 +35925,45 @@ def review_handler_for(item: Mapping[str, Any]) -> str:
     raise DriverError(f"No review handler for artifact_type {atype!r}")
 
 
+def _project_lane_artifact_path(
+    artifact_path: Path,
+    repo: Path,
+    lane_root: Path | None,
+) -> str:
+    """Return a POSIX path for `artifact_path` relative to `lane_root` (or `repo` if non-isolated).
+
+    For non-isolated turns (`lane_root is None`), preserves the exact pre-existing behavior
+    (spec `7ckptx` R1.3). For isolated turns (`lane_root is not None`), stages/projects
+    companion-backed artifacts into `lane_root / ".aw" / "records" / <rel>` so emitted prompts
+    never carry external `<companion>/records/...` paths (v8tqje E-01).
+    """
+    if lane_root is None:
+        try:
+            return Path(artifact_path).relative_to(repo).as_posix()
+        except ValueError:
+            return Path(artifact_path).as_posix()
+
+    lane_root_p = Path(lane_root)
+    art_p = Path(artifact_path)
+    try:
+        return art_p.relative_to(lane_root_p).as_posix()
+    except ValueError:
+        pass
+    try:
+        return art_p.resolve().relative_to(lane_root_p.resolve()).as_posix()
+    except ValueError:
+        pass
+
+    from agent_workflows import lane_containment
+
+    staged = lane_containment.resolve_companion_lane_path(
+        lane_root_p, art_p, repo=repo, overwrite=False
+    )
+    if staged is not None:
+        return staged.relative_to(lane_root_p).as_posix()
+    return art_p.as_posix()
+
+
 def build_review_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -35188,11 +36005,7 @@ def build_review_prompt(
     from agent_workflows import lane_containment
 
     handler = review_handler_for(item)
-    root = lane_root if lane_root is not None else repo
-    try:
-        rel_path = plan_path.relative_to(root).as_posix()
-    except ValueError:
-        rel_path = Path(plan_path).as_posix()
+    rel_path = _project_lane_artifact_path(plan_path, repo, lane_root)
     command = f"/{handler} {rel_path}"
     if lane_root is None:
         return command
@@ -35202,6 +36015,7 @@ def build_review_prompt(
         run_dir=run_dir,
         plan_path=plan_path,
         lane_root=lane_root,
+        repo=repo,
     )
     lane_containment.prepare_lane_submission_dir(paths)
     item_id6 = str(item.get("id6") or "id6")
@@ -35241,6 +36055,9 @@ def _append_continue_handoff_section(
     root: Path,
     source_type: str,
     source_id6: str,
+    *,
+    repo: Path | None = None,
+    lane_root: Path | None = None,
 ) -> None:
     from agent_workflows import orchestrator_readiness as _orch_readiness
     from agent_workflows import production_checks as _pc
@@ -35256,10 +36073,15 @@ def _append_continue_handoff_section(
     lines.append("")
     lines.append("Existing plans:")
     for plan in existing:
-        try:
-            rel_p = str(plan.path.relative_to(root)).replace("\\", "/")
-        except ValueError:
-            rel_p = str(plan.path).replace("\\", "/")
+        if lane_root is not None:
+            rel_p = _project_lane_artifact_path(
+                plan.path, repo if repo is not None else root, lane_root
+            )
+        else:
+            try:
+                rel_p = str(plan.path.relative_to(root)).replace("\\", "/")
+            except ValueError:
+                rel_p = str(plan.path).replace("\\", "/")
         lines.append(f"- {rel_p} (- Status: {plan.status})")
         if plan.kind == "orchestrator":
             readiness = _orch_readiness.review_readiness(root, plan.path, ask=False)
@@ -35316,10 +36138,7 @@ def build_spec_production_prompt(
     from agent_workflows import lane_containment
 
     root = lane_root if lane_root is not None else repo
-    try:
-        rel_spec = str(spec_path.relative_to(root)).replace("\\", "/")
-    except ValueError:
-        rel_spec = str(spec_path).replace("\\", "/")
+    rel_spec = _project_lane_artifact_path(spec_path, repo, lane_root)
 
     spec_id6 = str(item.get("id6") or "").strip()
     from agent_workflows import status_set as _status_set
@@ -35355,7 +36174,9 @@ def build_spec_production_prompt(
             f"Each must be cited qualified with the spec id6 (for example `{spec_id6} R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.",
             _writing_standard_contract_line(root, 9),
         ]
-        _append_continue_handoff_section(lines, root, "spec", spec_id6)
+        _append_continue_handoff_section(
+            lines, root, "spec", spec_id6, repo=repo, lane_root=lane_root
+        )
         lines.extend(_ORCHESTRATOR_PLANS_SECTION)
         lines.extend(
             [
@@ -35389,7 +36210,9 @@ def build_spec_production_prompt(
         f"Each must be cited qualified with the spec id6 (for example `{spec_id6} R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.",
         _writing_standard_contract_line(root, 9),
     ]
-    _append_continue_handoff_section(lines, root, "spec", spec_id6)
+    _append_continue_handoff_section(
+        lines, root, "spec", spec_id6, repo=repo, lane_root=lane_root
+    )
     lines.extend(_ORCHESTRATOR_PLANS_SECTION)
     lines.extend(
         [
@@ -35417,10 +36240,7 @@ def build_backlog_production_prompt(
     from agent_workflows import lane_containment
 
     root = lane_root if lane_root is not None else repo
-    try:
-        rel_backlog = str(backlog_path.relative_to(root)).replace("\\", "/")
-    except ValueError:
-        rel_backlog = str(backlog_path).replace("\\", "/")
+    rel_backlog = _project_lane_artifact_path(backlog_path, repo, lane_root)
 
     item_id6 = str(item.get("id6") or "").strip()
     lines = [
@@ -35438,7 +36258,9 @@ def build_backlog_production_prompt(
         "7. Do NOT modify the backlog item's requirements.",
         _writing_standard_contract_line(root, 8),
     ]
-    _append_continue_handoff_section(lines, root, "backlog", item_id6)
+    _append_continue_handoff_section(
+        lines, root, "backlog", item_id6, repo=repo, lane_root=lane_root
+    )
     lines.extend(_ORCHESTRATOR_PLANS_SECTION)
     lines.extend(
         [
@@ -37937,6 +38759,7 @@ def build_prompt(
         run_dir=run_dir,
         plan_path=plan_path,
         lane_root=lane_root,
+        repo=Path(state["repo"]) if state.get("repo") else None,
     )
     lane_containment.prepare_lane_submission_dir(paths)
     decisions = paths.prompt_decisions
@@ -42349,13 +43172,42 @@ def review_has_positive_evidence(
     id6 = str(item.get("id6") or "").strip()
     from agent_workflows.project_context import project_records_dir
 
-    reviews_dir = project_records_dir(source) / "reviews"
-    try:
-        if reviews_dir.is_dir() and id6:
-            if any(reviews_dir.glob(f"*{id6}*")):
+    reviews_dirs = [
+        project_records_dir(source) / "reviews",
+        source / ".aw" / "records" / "reviews",
+    ]
+    for reviews_dir in reviews_dirs:
+        try:
+            if reviews_dir.is_dir() and id6:
+                if any(reviews_dir.glob(f"*{id6}*")):
+                    return True
+        except OSError:
+            pass
+
+    # In companion mode, gitignored edits to staged files under `source/.aw/records/` count as
+    # positive turn evidence even while target `git status --porcelain` is clean.
+    comp_ctx = _resolve_companion_context(source)
+    if (
+        comp_ctx is not None
+        and getattr(comp_ctx, "records_backend", None) == "companion"
+    ):
+        rec_raw = (comp_ctx.logical_roots or {}).get("records")
+        if rec_raw and (source / ".aw" / "records").is_dir():
+
+            class _SrcLaneStub:
+                def __init__(self, p: Path) -> None:
+                    self.path = p
+                    self.branch = ""
+                    self.base_commit = ""
+
+            w_c, d_c, _changed_c, err_c = _collect_companion_lane_record_changes(
+                source,
+                _SrcLaneStub(source),
+                Path(rec_raw).resolve(),
+                include_branch_records=False,
+            )
+            if not err_c and (w_c or d_c):
                 return True
-    except OSError:
-        pass
 
     try:
         proc = subprocess.run(
@@ -42550,6 +43402,13 @@ def reconcile_disposition(
             current_plan = resolve_plan_path(
                 source, item.get("configured_file", ""), item["id6"]
             )
+            from agent_workflows import lane_containment as _lc
+
+            staged_read = _lc.resolve_companion_lane_path(
+                source, current_plan, repo=repo, overwrite=False
+            )
+            if staged_read is not None and staged_read.is_file():
+                current_plan = staged_read
             text = current_plan.read_text(encoding="utf-8")
             status = _read_status(text)
         except Exception:
@@ -45409,6 +46268,11 @@ def execute_item_core(
             )
         except DriverError:
             lane_plan_path = plan_path
+        staged_exec_plan = lane_containment.resolve_companion_lane_path(
+            lane_root, lane_plan_path, repo=repo, overwrite=True
+        )
+        if staged_exec_plan is not None:
+            lane_plan_path = staged_exec_plan
         if attempt.get("answer_resume") == "session":
             resume_paths = lane_containment.project_worker_paths(
                 item=item,
@@ -45416,6 +46280,7 @@ def execute_item_core(
                 run_dir=run_dir,
                 plan_path=lane_plan_path,
                 lane_root=lane_root,
+                repo=repo,
             )
             lane_containment.prepare_lane_submission_dir(resume_paths)
             prompt_text = build_answer_notice(
@@ -45571,6 +46436,12 @@ def execute_item_core(
             )
         except DriverError:
             lane_plan_path = plan_path
+        if work_dir and isolate:
+            staged_review_plan = lane_containment.resolve_companion_lane_path(
+                lane_root, lane_plan_path, repo=repo, overwrite=True
+            )
+            if staged_review_plan is not None:
+                lane_plan_path = staged_review_plan
         prompt_text = build_review_prompt(
             item,
             state,
@@ -45615,6 +46486,11 @@ def execute_item_core(
             lane_art_path = queue_artifact_path(lane_root, item)
         except DriverError:
             lane_art_path = plan_path
+        staged_prod_art = lane_containment.resolve_companion_lane_path(
+            lane_root, lane_art_path, repo=repo, overwrite=True
+        )
+        if staged_prod_art is not None:
+            lane_art_path = staged_prod_art
         if is_spec_production:
             prompt_text = apply_production_correction_notice(
                 build_spec_production_prompt(
@@ -46328,9 +47204,14 @@ def execute_item_core(
             from agent_workflows import ipd_schema as _schema
 
             try:
-                _plan_p = queue_artifact_path(
-                    Path(work_dir) if work_dir else repo, item
-                )
+                _read_root = Path(work_dir) if work_dir else repo
+                _plan_p = queue_artifact_path(_read_root, item)
+                if work_dir:
+                    _staged_p = lane_containment.resolve_companion_lane_path(
+                        _read_root, _plan_p, repo=repo, overwrite=False
+                    )
+                    if _staged_p is not None and _staged_p.is_file():
+                        _plan_p = _staged_p
                 attempt["review_readiness"] = _schema.read_readiness(
                     _plan_p.read_text(encoding="utf-8")
                 )
@@ -48216,15 +49097,20 @@ def execute_item_core(
                 )
                 return
 
-            review_commit, review_committed_paths = commit_review_lane_output(
-                repo,
-                wt_handle,
-                item["id6"],
-                host_label=host_labels.command,
-                run_id=str(state.get("run_id") or "") or None,
-                own_paths=own_paths,
-                review_mode=options.get("review_mode", "single"),
-            )
+            _review_companion_ctx = _resolve_companion_context(repo)
+            _review_is_companion = _is_companion_records_context(_review_companion_ctx)
+            if _review_is_companion:
+                review_commit, review_committed_paths = None, ()
+            else:
+                review_commit, review_committed_paths = commit_review_lane_output(
+                    repo,
+                    wt_handle,
+                    item["id6"],
+                    host_label=host_labels.command,
+                    run_id=str(state.get("run_id") or "") or None,
+                    own_paths=own_paths,
+                    review_mode=options.get("review_mode", "single"),
+                )
             if review_commit:
                 attempt["review_lane_commit"] = review_commit
                 attempt["review_lane_committed_paths"] = list(review_committed_paths)
@@ -48262,6 +49148,19 @@ def execute_item_core(
                 lane_changed = review_turn_changed_files(
                     repo, wt_handle, since_commit=attempt.get("review_lane_tip_before")
                 )
+                if _review_is_companion and _review_companion_ctx is not None:
+                    _comp_rec_dir = (_review_companion_ctx.logical_roots or {}).get(
+                        "records"
+                    )
+                    if _comp_rec_dir:
+                        _cw, _cd, _cn, _cerr = _collect_companion_lane_record_changes(
+                            repo,
+                            wt_handle,
+                            Path(_comp_rec_dir).resolve(),
+                            include_branch_records=False,
+                        )
+                        if not _cerr and _cn:
+                            lane_changed = tuple(sorted(set(lane_changed) | set(_cn)))
             except (
                 Exception
             ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
