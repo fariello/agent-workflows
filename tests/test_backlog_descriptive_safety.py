@@ -25,6 +25,7 @@ from pathlib import Path
 from agent_workflows import agent_schema
 from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
+from tests.record_builder import RecordBuilder
 
 
 def _args(**kw):
@@ -333,17 +334,18 @@ class BacklogDescriptiveSafetyTests(unittest.TestCase):
 
     def test_pre_fix_injection_demonstration_checker_blindness(self):
         """E-05 / F-03 / F-04: proof that checker cannot detect newline front-matter injection."""
-        injected_raw = (
-            "- Date: 2026-09-28\n"
-            "- Set: s\n"
-            "- Id: inj001\n"
-            "- Status: open\n"
-            "- Priority: high\n"
-            "- Kind: bug\n"
-            "- Summary: legit\n"
-            "- Blocks-Release: next\n\n"
-            "## Workflow history\n"
-            "- 2026-09-28 created (aw backlog): legit\n"
+        injected_raw = RecordBuilder().backlog(
+            id6="inj001",
+            status="open",
+            set="s",
+            priority="high",
+            work_kind="bug",
+            summary="legit",
+            blocks_release="next",
+            when="2026-09-28",
+            author="aw backlog",
+            history=["- 2026-09-28 created (aw backlog): legit"],
+            text_only=True,
         )
         parsed = B.parse_item(injected_raw)
         self.assertEqual(parsed.summary, "legit")

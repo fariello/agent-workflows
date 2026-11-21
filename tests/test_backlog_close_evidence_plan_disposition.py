@@ -23,6 +23,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import check_engine, cli
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(root: Path) -> Path:
@@ -38,11 +39,13 @@ def _setup_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -60,28 +63,14 @@ def _create_item(
     history_date: str = "2026-10-05",
 ) -> Path:
     """Create a backlog item in the given status."""
-    lines = [
-        f"- Id: {item_id}",
-        f"- Status: {status}",
-    ]
-    if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    if close_evidence is not None:
-        lines.append(f"- Close-Evidence: {close_evidence}")
-    lines.extend(
-        [
-            f"- Set: {item_id}",
-            f"- Priority: {priority}",
-            f"- Work-Kind: {work_kind}",
-            "- Summary: Test defect",
-            "",
-            "## Workflow history",
-            f"- {history_date} created (tester): initial",
-        ]
-    )
+    history = [f"- {history_date} created (tester): initial"]
     if status == "done":
-        lines.append(f"- {history_date} closed (tester): done")
-    lines.append("")
+        history.append(f"- {history_date} closed (tester): done")
+    extra: dict[str, str] = {}
+    if blocks_release is not None:
+        extra["blocks_release"] = blocks_release
+    if close_evidence is not None:
+        extra["close_evidence"] = close_evidence
     p = (
         repo
         / ".aw"
@@ -90,7 +79,21 @@ def _create_item(
         / status
         / f"20260928-{item_id}-01-{item_id}-test.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=status,
+            set=item_id,
+            priority=priority,
+            work_kind=work_kind,
+            summary="Test defect",
+            when="2026-09-28",
+            history=history,
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -106,13 +109,13 @@ def _create_plan(
     plan_dir = repo / base / bucket
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20261011-test01-01-{plan_id}-test.ipd.md"
-    content = (
-        f"# IPD: Test plan {plan_id}\n\n"
-        f"- Id: {plan_id}\n"
-        f"- Status: {status}\n"
-        "- Set: test01\n"
-        "- Order: 1\n"
-        "- Scope: test\n"
+    content = RecordBuilder().plan(
+        title=f"Test plan {plan_id}",
+        id6=plan_id,
+        status=status,
+        set="test01",
+        order=1,
+        text_only=True,
     )
     p.write_text(content, encoding="utf-8")
     return p
@@ -146,13 +149,18 @@ def _create_spec(
         spec_dir = repo / base
     spec_dir.mkdir(parents=True, exist_ok=True)
     p = spec_dir / f"20261011-{spec_id}-01-{spec_id}-test.spec.md"
-    content = (
-        f"# Spec: Test spec {spec_id}\n\n"
-        f"- Id: {spec_id}\n"
-        f"- Status: {status}\n"
-        "- Scope: test\n\n"
-        "## Workflow history\n"
-        f"- 2026-10-11 {status} (tester): initial\n"
+    valid_id6 = len(spec_id) == 6 and spec_id.isalnum() and spec_id == spec_id.lower()
+    raw_fields = None if valid_id6 else {"id": spec_id}
+    content = RecordBuilder().spec(
+        id6=spec_id if valid_id6 else "sp0001",
+        title=f"Test spec {spec_id}",
+        status=status,
+        when="2026-10-11",
+        author="tester",
+        body="## Scope\n\ntest",
+        history=[f"- 2026-10-11 {status} (tester): initial"],
+        raw_fields=raw_fields,
+        text_only=True,
     )
     p.write_text(content, encoding="utf-8")
     return p

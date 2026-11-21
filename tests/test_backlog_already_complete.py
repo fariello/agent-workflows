@@ -32,6 +32,7 @@ from agent_workflows import (
     production_checks,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 from tests.test_backlog_production import (
     _HOSTS,
     _make_test_repo,
@@ -39,32 +40,6 @@ from tests.test_backlog_production import (
     _write_backlog_item,
     _write_conforming_plan,
 )
-
-
-def _write_spec_item(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "approved",
-    backlog_id6: str | None = None,
-    gate: str | None = None,
-) -> Path:
-    spc_dir = repo / ".aw" / "records" / "specs" / status
-    spc_dir.mkdir(parents=True, exist_ok=True)
-    f_path = spc_dir / f"20260901-{id6}-01-{id6}-test.spec.md"
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    f_path.write_text(
-        f"""# SPEC: Test Spec {id6}
-- Id: {id6}
-- Status: {status}
-{bkl_line}{gate_line}
-## Workflow history
-- 2026-09-01 {status} (tester): created.
-""",
-        encoding="utf-8",
-    )
-    return f_path
 
 
 class TestBacklogAlreadyCompleteUnitE02(unittest.TestCase):
@@ -123,8 +98,15 @@ class TestBacklogAlreadyCompleteUnitE02(unittest.TestCase):
             _write_conforming_plan(
                 repo, id6="plns01", backlog_id6="bklspc", bucket="executed"
             )
-            _write_spec_item(
-                repo, id6="spc001", status="approved", backlog_id6="bklspc"
+            RecordBuilder(repo).spec(
+                id6="spc001",
+                status="approved",
+                from_backlog="bklspc",
+                when="2026-09-01",
+                slug="test",
+                author="tester",
+                title="Test Spec spc001",
+                history=["- 2026-09-01 approved (tester): created."],
             )
             res_spc = runner_shared.backlog_item_already_complete(repo, "bklspc")
             self.assertEqual(res_spc.status, "NOT_COMPLETE")
@@ -133,8 +115,15 @@ class TestBacklogAlreadyCompleteUnitE02(unittest.TestCase):
 
             # 6. Item with only non-IPD carriers (spec only) -> NO_IPD_CARRIER
             _write_backlog_item(repo, id6="bklnoipd", status="open")
-            _write_spec_item(
-                repo, id6="spc002", status="implemented", backlog_id6="bklnoipd"
+            RecordBuilder(repo).spec(
+                id6="spc002",
+                status="implemented",
+                from_backlog="bklnoipd",
+                when="2026-09-01",
+                slug="test",
+                author="tester",
+                title="Test Spec spc002",
+                history=["- 2026-09-01 implemented (tester): created."],
             )
             res_noipd = runner_shared.backlog_item_already_complete(repo, "bklnoipd")
             self.assertEqual(res_noipd.status, "NO_IPD_CARRIER")
@@ -717,8 +706,15 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
                     _write_conforming_plan(
                         repo, id6="plne01", backlog_id6="bkle01", bucket="executed"
                     )
-                    _write_spec_item(
-                        repo, id6="spce01", status="approved", backlog_id6="bkle01"
+                    RecordBuilder(repo).spec(
+                        id6="spce01",
+                        status="approved",
+                        from_backlog="bkle01",
+                        when="2026-09-01",
+                        slug="test",
+                        author="tester",
+                        title="Test Spec spce01",
+                        history=["- 2026-09-01 approved (tester): created."],
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(

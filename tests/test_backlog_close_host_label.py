@@ -15,6 +15,7 @@ from unittest import mock
 
 
 from agent_workflows import agy_runipd, oc_runipd
+from tests.record_builder import RecordBuilder
 
 
 def _setup_backlog_and_plan_fixture(
@@ -34,7 +35,9 @@ def _setup_backlog_and_plan_fixture(
     backlog_dir.mkdir(parents=True, exist_ok=True)
     item_file = backlog_dir / f"20260929-test-01-{backlog_id6}-item.backlog.md"
     item_file.write_text(
-        f"- Id: {backlog_id6}\n- Status: open\n- Set: test\n- Summary: Test\n",
+        RecordBuilder().backlog(
+            id6=backlog_id6, status="open", set="test", summary="Test", text_only=True
+        ),
         encoding="utf-8",
     )
 
@@ -42,7 +45,9 @@ def _setup_backlog_and_plan_fixture(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_file = plans_dir / f"20260929-test-01-{plan_id6}-plan.ipd.md"
     plan_file.write_text(
-        f"- Id: {plan_id6}\n- From-Backlog: {backlog_id6}\n- Status: executed\n",
+        RecordBuilder().plan(
+            id6=plan_id6, from_backlog=backlog_id6, status="executed", text_only=True
+        ),
         encoding="utf-8",
     )
 
