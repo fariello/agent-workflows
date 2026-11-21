@@ -238,6 +238,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     - Core gate (`aw suite`, running bare core `python3 -m pytest` with bounded xdist workers): `2661 passed, 11 warnings in 94.63s (0:01:34)`, exit code 0 (0 failures; `CORE TIER BUDGET EXCEEDED` warning only because host 1-minute load average was 5.84 on 12 CPUs and `AW_CORE_BUDGET_ENFORCE=0`; none of `i29bd5`'s 8 modules appeared in the top-10 slowest or slow-tests report).
     - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6863,"findings":0,"evidence":["leak-scan"],"next":null}`.
     - `aw commit i29bd5` (6 modified test Scope-Paths): `aw commit: committed 6 path(s): 29c57325ce72161e1340153c980d1554cb91537a` (`tests/test_attempt_model_identity.py`, `tests/test_attended_session.py`, `tests/test_commit_default_message.py`, `tests/test_fix_it_global_caps.py`, `tests/test_fix_it_notice.py`, `tests/test_fixfirst_end_to_end.py`). Two declared Scope-Paths (`tests/test_clean_target_zero_delta_e2e.py`, `tests/test_commit_scope_reason.py`) had 0 codemod rewrites and 0 `hand` refusals and remain unmodified (acknowledged at finalize). Followed by the plan-evidence commit via `aw commit i29bd5 -- .aw/records/plans/pending/20261109-metastore-192-i29bd5-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md` (recorded in the lane execution report and outcome JSON).
+    - Re-verification on rebased `main` (`ec150a77b`, salvage commit `639ef8777`):
+      - `python3 tools/fixture_codemod.py --dry-run --format json <8 modules>`: `sites=4`, `rewrites=0`, `hand=0`, `legacy-kept=4`.
+      - Before/after union outcome diff (`-o addopts="" -m "" -p no:randomly -n 0 -rA <8 modules>`): `122 passed` before and after, empty `diff -u` (exit 0).
+      - Bare core gate (`python3 -m pytest`): `2661 passed, 11 warnings in 143.60s (0:02:23)`, exit 0.
+      - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6865,"findings":0,"evidence":["leak-scan"],"next":null}`.
+      - `aw ipd lint --phase pre-transition`: `outcome: "clean"`, `findings: 0`, exit 0.
   - Result: pass
 
 ## Approval and execution gate
