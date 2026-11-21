@@ -3,10 +3,12 @@
 - Date: 2026-11-21
 - Kind: child
 - Concern: `agent_workflows/attention.py::_spec_record` calls legacy `agent_workflows/specs.py::validate_spec(path, text)` unconditionally on every specification file, even when `state` comes from a migrated metadata-v2 event log (`meta/<id6>.jsonl`). After `aw migrate metadata --apply` strips `- Status:`, gate bullets, `- Priority:`, `- Work-Kind:`, and `## Workflow history` into `meta/<id6>.jsonl`, `specs.validate_spec` parses the stripped Markdown body and emits false `attention.missing-status`, `attention.history-missing`, and `attention.gate-missing` violations on every migrated specification. Measured during IPD `60mazt`, this caused 100 false violations across all 50 migrated specifications on a disposable clone of this repository and failed the `no_sidecar`, `mixed_layout`, and `legacy_agents_layout` AC-42 corpus tests, blocking `60mazt`, `5qyba0` rehearsal, and `cxxmyv` cutover.
-- Scope: Add state-aware validation for metadata-v2 log-backed specifications in `agent_workflows/specs.py` and route `agent_workflows/attention.py::_spec_record` through it when `state` is log-backed (`state.created_at` or `state.updated_at` is set, or an event log backs the record), validating status enum membership, deferred gate rules (`gate_kind`, `gate_ref`, `gate_summary`), descriptive safety (`scope`, `summary`), optional `priority` and `work_kind` vocabularies, and workflow history presence against `artifact_meta.State` and `artifact_meta.history` while keeping legacy Markdown spec validation unchanged. Add behavioral regression tests in `tests/test_readers_attention.py` covering migrated v2 specifications (valid, deferred with/without gate, missing history, invalid priority/work-kind) alongside legacy Markdown specifications. EXCLUDES: status-less research conversion (`fnabjy` / `s4utmv`), `aw migrate metadata` conversion code, and modifying `tests/test_m0001_any_repo.py` (`60mazt`).
+- Scope: Add a pure state-aware specification validator `agent_workflows/specs.py::validate_spec_state` and route `agent_workflows/attention.py::_spec_record` through it when a specification is backed by a metadata-v2 event log (`agent_workflows/artifact_meta.py::_storage_format` returning `"log"` for `meta/<id6>.jsonl`, falling back to `state.created_at` or `state.updated_at` only when `project_context` is absent). Validate status enum membership, deferred gate rules (`gate_kind`, `gate_ref`, `gate_summary`), optional descriptive safety (`scope` and `summary` defensively when present in `state.fields`), optional `priority` and `work_kind` vocabularies, and workflow history presence (`has_history=bool(lha)` from `agent_workflows/attention.py::_last_history_at_for_state`) while keeping legacy Markdown specification validation via `agent_workflows/specs.py::validate_spec` unchanged. Add behavioral regression tests in `tests/test_readers_attention.py` covering migrated and newly created v2 specifications (valid approved, freshly created `op: "create"`, deferred with valid/missing/malformed gate and unsafe `gate_summary`, non-deferred with gate, checkpoint-only missing history, unknown status, invalid `priority`/`work_kind`) alongside legacy Markdown specifications. EXCLUDES: status-less research conversion (`fnabjy` / `s4utmv`), `aw migrate metadata` conversion code, non-`attention` direct callers of `agent_workflows/specs.py::validate_spec` (`agent_workflows/specs.py::run_check`, `agent_workflows/check_engine.py::_check_type_contracts`, `agent_workflows/status_set.py`, `agent_workflows/runner_shared.py`), and modifying `tests/test_m0001_any_repo.py` (`60mazt`).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/specs.py, tests/test_readers_attention.py, .aw/records/plans/pending/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - Short-Description: Validate log-backed specs from artifact_meta state and history in attention._spec_record instead of parsing stripped Markdown bullets.
 - Work-Kind: bug
 - Priority: high
@@ -23,12 +25,14 @@
 
 ## Workflow history
 
+- 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
+- 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 0dsjzl
 - 2026-11-21 draft (antigravity/gemini): created.
 
 ## Goal
 
-Stop `aw attention` from reporting false `attention.missing-status`, `attention.history-missing`, and `attention.gate-missing` violations on migrated metadata-v2 specifications by validating log-backed specifications against `artifact_meta.State` and `artifact_meta.history` while preserving all legacy Markdown specification checks.
+Stop `aw attention` from reporting false `attention.missing-status`, `attention.history-missing`, and `attention.gate-missing` violations on migrated metadata-v2 specifications by validating log-backed specifications against `agent_workflows/artifact_meta.py::State` and workflow history while preserving all legacy Markdown specification checks.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -36,60 +40,70 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: State-aware v2 specification validation
 
-- [ ] E-01 Add a pure state-aware specification validator `validate_spec_state(path: Path, state: Any, *, has_history: bool) -> List[core.Drift]` in `agent_workflows/specs.py`. It must enforce the same specification contract rules as `specs.validate_spec` using `artifact_meta.State` fields rather than raw Markdown bullets:
-  1. `attention.missing-status` when `state.status` is missing or blank, or `attention.unknown-status` when `state.status` is not in `attention_contract.SPEC_STATUSES`.
-  2. Deferred gate rules (`attention.gate-missing`, `attention.gate-malformed`, `attention.gate-forbidden`, and `attention.unsafe-field` on `gate_summary`) from `state.fields.get("gate_kind")`, `state.fields.get("gate_ref")`, and `state.fields.get("gate_summary")`.
-  3. Descriptive safety (`attention.unsafe-field`) on `state.fields.get("scope")` (`is_safe_prose_descriptive`) and `state.fields.get("summary")` (`is_safe_descriptive`).
-  4. Workflow history presence (`attention.history-missing`) when `not has_history`.
-  5. Optional vocabulary checks (`spec.priority-invalid` against `backlog.PRIORITIES` and `spec.work-kind-invalid` against `backlog.KINDS`) on `state.fields.get("priority")` and `state.fields.get("work_kind")`.
-  Keep `specs.validate_spec(path, text)` intact for legacy Markdown specifications and direct callers.
+- [ ] E-01 Add a pure state-aware specification validator `agent_workflows/specs.py::validate_spec_state(path: Path, state: Any, *, has_history: bool) -> List[core.Drift]` (adding `Any` to the `typing` import in `agent_workflows/specs.py`). It must enforce the same specification contract rules and control flow as `agent_workflows/specs.py::validate_spec` using `agent_workflows/artifact_meta.py::State` fields and `agent_workflows/specs.py::drift_location(path)` rather than raw Markdown bullets:
+  1. Status normalization and membership: read `raw_status = getattr(state, "status", None)`. Emit `attention.missing-status` when `raw_status is None` or `not str(raw_status).strip()`. Otherwise normalize `status = str(raw_status).strip()`, and emit `attention.unknown-status` when `len(status.split()) != 1` or `status not in agent_workflows/attention_contract.py::SPEC_STATUSES`.
+  2. Deferred gate rules: read `fields = getattr(state, "fields", None) or {}` and extract `gate_kind`, `gate_ref`, and `gate_summary`, treating `None` and `""` as absent without stripping newlines or control characters from non-empty strings before validation. When `status == "deferred"`, emit `attention.gate-missing` if `gate_kind is None or gate_ref is None`, `attention.gate-malformed` if `gate_kind not in agent_workflows/attention_contract.py::GATE_KINDS` or `not agent_workflows/attention_contract.py::validate_gate_ref(gate_kind, gate_ref)`, and `attention.unsafe-field` if `gate_summary is not None and not agent_workflows/attention_contract.py::is_safe_descriptive(gate_summary)`. When `status != "deferred"` (including missing or unknown status, matching `agent_workflows/specs.py::validate_spec`) and any gate field is present, emit `attention.gate-forbidden`.
+  3. Descriptive safety: validate `fields.get("scope")` via `agent_workflows/attention_contract.py::is_safe_prose_descriptive` and `fields.get("summary")` via `agent_workflows/attention_contract.py::is_safe_descriptive` defensively when present and non-`None`, emitting `attention.unsafe-field` on failure. Note that `agent_workflows/artifact_meta.py::REGISTRY["spec"]` does not store `scope` or `summary` (since `agent_workflows/migrations/m0001_convert.py` moves `- Scope:` and `- Summary:` bullets into Markdown body sections), whereas `gate_summary` is stored in `REGISTRY["spec"]`.
+  4. Workflow history presence: emit `attention.history-missing` when `not has_history`.
+  5. Optional vocabulary checks: when `fields.get("priority")` is non-`None` and non-empty, validate its stripped string against `agent_workflows/backlog.py::PRIORITIES` (`spec.priority-invalid`); when `fields.get("work_kind")` is non-`None` and non-empty, validate its stripped string against `agent_workflows/backlog.py::KINDS` (`spec.work-kind-invalid`).
+  Keep `agent_workflows/specs.py::validate_spec(path, text)` intact for legacy Markdown specifications and direct callers.
   - Depends on: none
-  - Expected outcome: `agent_workflows/specs.py::validate_spec_state` validates v2 specification state with identical rule IDs and locations (`specs.drift_location(path)`) without parsing stripped Markdown bullets.
+  - Expected outcome: `agent_workflows/specs.py::validate_spec_state` validates v2 specification state with identical rule IDs and locations (`agent_workflows/specs.py::drift_location(path)`) without parsing stripped Markdown bullets, and `make typecheck` passes cleanly.
   - Execution state: pending
 
-- [ ] E-02 Update `agent_workflows/attention.py::_spec_record` to detect log-backed specification state (matching `_research_record` via `bool(getattr(state, "created_at", None) or getattr(state, "updated_at", None))` or `state.last_seq > 0` / non-legacy source). When the specification is log-backed, determine `has_history` from `_last_history_at_for_state(state, project_context=project_context)` or `artifact_meta.history(state.id6, project_context=project_context)` (checking whether at least one history entry or migrated `last_history_day` exists) and call `specs_mod.validate_spec_state(path, state, has_history=has_history)` instead of `specs_mod.validate_spec(path, text)`. Keep the legacy path calling `specs_mod.validate_spec(path, text)` unchanged when `state` is not log-backed.
+- [ ] E-02 Update `agent_workflows/attention.py::_spec_record` to detect log-backed specification state using the canonical storage-format check and route log-backed records to `agent_workflows/specs.py::validate_spec_state`:
+  1. Detect log-backed state explicitly: when `project_context is not None`, `getattr(state, "id6", None)` is non-empty, and `not getattr(state, "id_derived", False)`, resolve `records_root = Path(project_context.logical_roots["records"])` and check `agent_workflows/artifact_meta.py::_storage_format(records_root, state) == "log"` (equivalently `(records_root / "meta" / f"{state.id6}.jsonl").is_file()`). Only when `project_context is None` (direct unit-test calls without a project context), fall back to `bool(getattr(state, "created_at", None) or getattr(state, "updated_at", None))`. Do not use `state.last_seq > 0` (legacy specs populate `last_seq = len(history_lines)` while checkpoint-only logs have `last_seq == 0`), `state.last_history_day` (present on legacy specs), or `state.legacy_raw_status is None` (SQLite stores `state.status` in `legacy_raw_status` for log-backed rows).
+  2. Compute `lha = _last_history_at_for_state(state, project_context=project_context)` once before validation. When the specification is log-backed, call `specs_mod.validate_spec_state(path, state, has_history=bool(lha))` instead of `specs_mod.validate_spec(path, text)`. Do not treat a non-empty `artifact_meta.history(...)` list alone as `has_history=True`, because a checkpoint-only migrated log with zero workflow history still returns `[checkpoint_event]`.
+  3. Keep the legacy path calling `specs_mod.validate_spec(path, text)` unchanged when the specification is not log-backed.
   - Depends on: E-01
-  - Expected outcome: `attention._spec_record` validates log-backed v2 specifications from `artifact_meta.State` and history, returning zero false `attention.missing-status` or `attention.history-missing` violations on migrated specifications while preserving exact legacy behavior.
+  - Expected outcome: `agent_workflows/attention.py::_spec_record` validates log-backed v2 specifications (including checkpoint-only migrated logs with `created_at=None` and `updated_at=None`) from `agent_workflows/artifact_meta.py::State` and `_last_history_at_for_state`, returning zero false `attention.missing-status`, `attention.history-missing`, or `attention.gate-missing` violations while preserving exact legacy Markdown validation behavior.
   - Execution state: pending
 
-- [ ] E-03 Add behavioral tests in `tests/test_readers_attention.py` that construct migrated v2 log-backed specifications (via real `meta/<id6>.jsonl` event logs and v2 `---` mirror files stripped of `- Status:` and `## Workflow history`, or real `m0001_convert.convert_records` output) and run `attention.scan` and `aw attention --all --format json` to verify:
-  1. A migrated `approved` specification with checkpoint history returns `valid: true`, `native_status: "approved"`, `last_history_at`, and zero violations.
-  2. A migrated `deferred` specification with valid `gate_kind`/`gate_ref` returns zero violations; a migrated `deferred` specification missing `gate_kind`/`gate_ref` reports `attention.gate-missing`; a non-deferred specification carrying gate fields reports `attention.gate-forbidden`.
-  3. A migrated specification with no history entries and no `last_history_day` reports `attention.history-missing`.
-  4. A migrated specification with invalid `priority` or `work_kind` reports `spec.priority-invalid` or `spec.work-kind-invalid`.
-  5. Existing legacy Markdown specification tests continue to pass unchanged.
-  Run `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
+- [ ] E-03 Add behavioral tests in `tests/test_readers_attention.py` that construct v2 log-backed specifications (via real `meta/<id6>.jsonl` event logs and v2 `---` mirror files stripped of `- Status:` and `## Workflow history`, or real `agent_workflows/migrations/m0001_convert.py::convert_records` output) and run `agent_workflows/attention.py::scan` and `aw attention --all --format json` to verify:
+  1. A migrated `approved` specification (with `seq: 0` checkpoint `last_history_day` and `op: "legacy"` history events) returns `valid: true`, `native_status: "approved"`, `last_history_at`, and zero violations.
+  2. A freshly created v2 specification (`seq: 1`, `op: "create"`, no `last_history_day` checkpoint field) returns `valid: true`, expected `native_status`, `last_history_at` derived from the `create` event timestamp, and zero violations.
+  3. A migrated `deferred` specification with valid `gate_kind`/`gate_ref` returns zero violations; a migrated `deferred` specification missing `gate_kind`/`gate_ref` reports `attention.gate-missing`; a migrated `deferred` specification with malformed `gate_kind`/`gate_ref` reports `attention.gate-malformed`; a migrated `deferred` specification with control characters or over-length `gate_summary` reports `attention.unsafe-field`; and a non-deferred log-backed specification carrying gate fields reports `attention.gate-forbidden`.
+  4. A migrated checkpoint-only specification (`seq: 0` only, `created_at=None`, `updated_at=None`, no `last_history_day`, no history events) is recognized as log-backed (zero false `attention.missing-status`) and reports `attention.history-missing`.
+  5. Log-backed specifications with an unknown status report `attention.unknown-status`, and log-backed specifications with invalid `priority` or `work_kind` report `spec.priority-invalid` or `spec.work-kind-invalid`.
+  6. Existing legacy Markdown specification tests continue to pass unchanged, and a legacy Markdown specification with workflow history (`last_seq > 0`) still routes through `agent_workflows/specs.py::validate_spec` (for example still reporting `spec.metadata-bullet-repeated` when a single-valued metadata bullet is duplicated).
+  Keep all added tests purely behavioral with zero `inspect`, `ast`, or production source-code regex checks. Run `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Depends on: E-02
   - Expected outcome: All targeted tests, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` pass with zero regressions and zero source-code inspection tests.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- `agent_workflows/attention.py::_spec_record` calls `specs_mod.validate_spec(path, text)` unconditionally even after `dqutt8` moved `_spec_record` field extraction onto `artifact_meta.State`.
-- `agent_workflows/attention.py::_research_record` already detects log-backed records via `bool(getattr(state, "created_at", None) or getattr(state, "updated_at", None))`; note that migrated v2 records created by `m0001_convert` have `created_at=None` and `updated_at=None` when no post-cutover event has occurred (spec `4sd62s` 4.2b: "`created_at` is the `at` of the `create` event, or NULL for a migrated artifact"), so log-backed detection MUST check whether the record comes from a log (e.g. `getattr(state, "last_seq", 0) > 0` or `getattr(state, "last_history_day", None)` / `state.source == "log"`; inspect `artifact_meta.State` attributes before choosing the exact predicate).
-- `agent_workflows/specs.py::validate_spec` emits `core.Drift` records using `drift_location(path)` and rule IDs `attention.missing-status`, `attention.unknown-status`, `attention.gate-missing`, `attention.gate-malformed`, `attention.gate-forbidden`, `attention.unsafe-field`, `attention.history-missing`, `spec.priority-invalid`, and `spec.work-kind-invalid`.
+- `agent_workflows/attention.py::_spec_record` calls `agent_workflows/specs.py::validate_spec(path, text)` unconditionally even after `dqutt8` moved `_spec_record` field extraction onto `agent_workflows/artifact_meta.py::State`.
+- `agent_workflows/artifact_meta.py::_storage_format` defines the canonical log-vs-legacy storage test: `"log"` when `(records_root / "meta" / f"{id6}.jsonl").exists()`, else `"legacy"`. By contrast, `State` attributes alone cannot distinguish every migrated spec from a legacy spec:
+  - `agent_workflows/artifact_meta.py::load_legacy_artifact` and `read_text` set `last_seq = len(history_lines)` and populate `last_history_day` for legacy Markdown specs.
+  - `agent_workflows/artifact_meta.py::replay` sets `created_at` only on `seq == 1` (`op == "create"`) and `updated_at` only when `seq > 0`, so a checkpoint-only migrated spec (`seq == 0`) has `created_at=None`, `updated_at=None`, and `last_seq == 0`.
+  - `agent_workflows/artifact_meta.py::_load_sources` writes `state.status` into the SQLite `legacy_raw_status` column for log-backed rows, and `State` has no `source` attribute.
+- `agent_workflows/attention.py::_last_history_at_for_state` returns `state.last_history_day` for checkpoint-only logs (`None` when absent), parses conformant `op: "legacy"` lines via `agent_workflows/attention_contract.py::last_history_at`, and falls back to event timestamps for fresh `op: "create"`/`transition` logs. Meanwhile, `agent_workflows/artifact_meta.py::history` returns `[checkpoint_event]` (non-empty) even when a migrated spec had zero workflow history.
+- `agent_workflows/artifact_meta.py::REGISTRY["spec"]` stores `gate_kind`, `gate_ref`, `gate_summary`, `priority`, and `work_kind`, whereas `agent_workflows/migrations/m0001_convert.py::_build_field_destinations` moves `- Scope:` and `- Summary:` bullets into Markdown body sections (`## Scope`, `## Summary`).
+- `agent_workflows/specs.py::validate_spec` emits `core.Drift` records using `agent_workflows/specs.py::drift_location(path)` and rule IDs `spec.metadata-bullet-repeated`, `attention.missing-status`, `attention.unknown-status`, `attention.gate-missing`, `attention.gate-malformed`, `attention.gate-forbidden`, `attention.unsafe-field`, `attention.history-missing`, `spec.priority-invalid`, and `spec.work-kind-invalid`.
 - `tests/test_readers_attention.py` pins behavioral `aw attention` contracts across all tracked trees and is marked `@pytest.mark.core`.
 
 ## Findings
 
 | Id | Finding | Evidence |
 |---|---|---|
-| F-01 | `attention._spec_record` unconditionally calls legacy Markdown parser `specs.validate_spec(path, text)`. | `agent_workflows/attention.py::_spec_record`; measured during IPD `60mazt` (`50 attention.missing-status` + `50 attention.history-missing` across all 50 migrated specs on a repo clone, plus `no_sidecar`, `mixed_layout`, and `legacy_agents_layout`). |
-| F-02 | Migrated v2 logs have `created_at = None` and `updated_at = None` until a post-cutover event is appended, so `created_at or updated_at` alone would misclassify a freshly migrated spec as legacy. | Spec `4sd62s` SQLite `artifacts` table definition (`created_at` is NULL for a migrated artifact; `updated_at` is NULL if there is no post-cutover event); verify `artifact_meta.State` log-source signal (`last_seq >= 1` or `legacy_raw_status is None` vs log table) during E-02. |
+| F-01 | `agent_workflows/attention.py::_spec_record` unconditionally calls legacy Markdown parser `agent_workflows/specs.py::validate_spec(path, text)`. | `agent_workflows/attention.py::_spec_record`; measured during IPD `60mazt` (`50 attention.missing-status` + `50 attention.history-missing` across all 50 migrated specs on a repo clone, plus `no_sidecar`, `mixed_layout`, and `legacy_agents_layout`). |
+| F-02 | Migrated checkpoint-only v2 logs (`seq == 0`, no legacy history events and no post-cutover events) have `created_at = None`, `updated_at = None`, and `last_seq == 0`, while legacy Markdown specs with history have `last_seq > 0`, so `State` fields alone cannot reliably distinguish log-backed specs from legacy specs. | `agent_workflows/artifact_meta.py::replay`, `agent_workflows/artifact_meta.py::load_legacy_artifact`, `agent_workflows/artifact_meta.py::_load_sources`, `agent_workflows/artifact_meta.py::_storage_format`, and spec `4sd62s` Section 4.2b. |
+| F-03 | `agent_workflows/artifact_meta.py::history` returns `[checkpoint_event]` for a checkpoint-only migrated spec with zero workflow history, so checking list truthiness would suppress `attention.history-missing`; `agent_workflows/attention.py::_last_history_at_for_state` already distinguishes real/migrated history from an empty checkpoint. | `agent_workflows/artifact_meta.py::history`, `agent_workflows/attention.py::_last_history_at_for_state`. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Add `validate_spec_state` to `agent_workflows/specs.py` enforcing the full specification contract over `artifact_meta.State` and history presence (`E-01`).
-2. Route log-backed specifications in `agent_workflows/attention.py::_spec_record` to `specs_mod.validate_spec_state` while keeping legacy Markdown specifications on `specs_mod.validate_spec` (`E-02`).
+1. Add `agent_workflows/specs.py::validate_spec_state` enforcing the specification contract over `agent_workflows/artifact_meta.py::State` and `has_history` (`E-01`).
+2. Route log-backed specifications in `agent_workflows/attention.py::_spec_record` (detected via `agent_workflows/artifact_meta.py::_storage_format` == `"log"`, with `created_at`/`updated_at` fallback when `project_context` is absent) to `agent_workflows/specs.py::validate_spec_state` with `has_history=bool(lha)` while keeping legacy Markdown specifications on `agent_workflows/specs.py::validate_spec` (`E-02`).
 3. Add behavioral v2 specification attention tests to `tests/test_readers_attention.py` and run all verification gates (`E-03`).
 
 ```mermaid
 flowchart TD
-    A[attention._spec_record receives spec path and State] --> B{State backed by meta log?}
-    B -->|Yes| C[Check history via state/artifact_meta.history]
-    C --> D[specs.validate_spec_state]
-    B -->|No| E[specs.validate_spec on Markdown text]
-    D --> F[Return Item and Drift list]
+    A["attention._spec_record receives spec path, State, and project_context"] --> B{"_storage_format == 'log' (or created_at/updated_at when no context)?"}
+    B -->|Yes| C["Compute lha via _last_history_at_for_state"]
+    C --> D["Call specs.validate_spec_state(path, state, has_history=bool(lha))"]
+    B -->|No| E["Call specs.validate_spec(path, text) on legacy Markdown"]
+    D --> F["Return Item and Drift list"]
     E --> F
 ```
 
@@ -102,12 +116,12 @@ flowchart TD
 
 ## Scope check
 
-- Over-scope: none. Only `agent_workflows/specs.py`, `agent_workflows/attention.py`, `tests/test_readers_attention.py`, and this plan are modified.
-- Under-scope: none. Covers migrated v2 specifications with or without post-cutover events (`last_seq >= 1` / `last_history_day`), deferred gates, descriptive safety, priority/work-kind vocabularies, and history presence.
+- Over-scope: none. Only `agent_workflows/specs.py`, `agent_workflows/attention.py`, `tests/test_readers_attention.py`, and this plan are modified. Non-`attention` callers of `agent_workflows/specs.py::validate_spec` remain unchanged.
+- Under-scope: none. Covers migrated v2 specifications (with or without post-cutover events, including checkpoint-only specs with `created_at=None` and `updated_at=None`), freshly created `op: "create"` v2 specifications, deferred gate validation (`gate-missing`, `gate-malformed`, `gate-forbidden`, `unsafe-field`), optional defensive descriptive safety, `priority`/`work_kind` vocabularies, history presence, and legacy Markdown regression coverage.
 
 ## Required tests / validation
 
-- `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py` (all tests pass, including new migrated v2 specification cases)
+- `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py` (all tests pass, including new v2 specification cases and unchanged legacy cases)
 - `aw suite` (full core suite passes)
 - `make typecheck` (0 mypy errors)
 - `aw ipd lint --phase pre-transition` on this plan (`outcome: "clean"`)
@@ -115,7 +129,7 @@ flowchart TD
 
 ## Spec / documentation sync
 
-N/A: spec `4sd62s` already designates `meta/<id6>.jsonl` as the sole metadata and history authority for migrated v2 records; this plan brings `attention._spec_record` into compliance with spec `4sd62s`.
+N/A: spec `4sd62s` already designates `meta/<id6>.jsonl` as the sole metadata and history authority for migrated v2 records; this plan brings `agent_workflows/attention.py::_spec_record` into compliance with spec `4sd62s` without changing CLI flags, output schemas, or file formats.
 
 ## Open questions
 
@@ -126,17 +140,17 @@ None.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `git diff agent_workflows/specs.py` summary showing `validate_spec_state` covers status enum, deferred gate rules, descriptive safety, history presence, and optional `priority`/`work_kind` vocabularies while preserving `validate_spec`.
+  - Required evidence: paste the `git diff agent_workflows/specs.py` summary showing `validate_spec_state` (and the `Any` typing import) covers status normalization/enum, deferred gate rules (`gate-missing`, `gate-malformed`, `gate-forbidden`, `unsafe-field`), defensive descriptive safety (`scope`, `summary`), history presence (`has_history`), and optional `priority`/`work_kind` vocabularies while preserving `validate_spec`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `git diff agent_workflows/attention.py` summary showing log-backed detection (including migrated v2 specs with `created_at=None` and `updated_at=None`) and routing to `specs_mod.validate_spec_state`, plus confirmation that legacy Markdown specs still call `specs_mod.validate_spec`.
+  - Required evidence: paste the `git diff agent_workflows/attention.py` summary showing canonical log-backed detection via `artifact_meta._storage_format` (with `created_at`/`updated_at` fallback when `project_context is None`), single `lha = _last_history_at_for_state(...)` computation passed as `has_history=bool(lha)` into `specs_mod.validate_spec_state`, and confirmation that legacy Markdown specs still call `specs_mod.validate_spec`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`, plus confirmation that no added test uses `inspect`, `ast`, or source-code regex checks.
+  - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_readers_attention.py tests/test_attention.py tests/test_specs_verbs.py` (showing passing tests for migrated approved, fresh `op: "create"`, deferred valid/missing/malformed/unsafe gate, non-deferred gate forbidden, checkpoint-only missing history, unknown status, invalid `priority`/`work_kind`, and legacy Markdown spec parity), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`, plus confirmation that no added test uses `inspect`, `ast`, or source-code regex checks.
   - Observed evidence:
   - Result: pending
 
@@ -145,4 +159,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute after review and approval (`approved` or `auto-approved`). Commit only files changed for this plan through `aw commit zgxig2 -- <paths>` (never `git add -A`, bare `git add`, `git commit -a`, or `--no-verify`; never push). Finalize to `.aw/records/plans/executed/` only via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after human approval (`- Status: approved` or `auto-approved`). Open questions: none open.
+
+Scope fence: the paths in `- Scope-Paths:` are a declaration. If execution must edit a file outside the fence, make the needed edit and justify it at finalize (`--scope-reason`), and acknowledge any declared path left unmodified (`--scope-ack`).
+
+Safety rule: uncommitted changes and untracked files you did not create are not yours; never revert, stage, commit, discard, reformat, or clean up another party's work. Stop and report if a file you must edit has an unresolvable concurrent-edit conflict.
+
+Honesty rule: run all required tests and checks and paste the ACTUAL runner output and summary lines; never claim a result you did not run.
+
+Commits: commit only files modified for this plan through `aw commit zgxig2 -- <paths>`; never `git add -A`, a bare `git add`, `git commit -a`, or `--no-verify`; never push without explicit human instruction.
+
+Lifecycle transition: this plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`, and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence. When `aw oc run` or `aw agy run` executes this plan, the runner owns retirement to `executed/` and runs finalize automatically upon task completion; when executed standalone by hand or direct agent turn, the executor runs `aw ipd finalize zgxig2`.
