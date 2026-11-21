@@ -32,6 +32,7 @@ from agent_workflows import (
     selectors,
     status_set,
 )
+from tests.record_builder import RecordBuilder
 
 
 class TestBlocksReleaseReaderBounding(unittest.TestCase):
@@ -40,39 +41,43 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
     def test_read_front_matter_blocks_release_cases(self) -> None:
         """E-01 / V-01: read_front_matter_blocks_release on three distinct text shapes."""
         # Case 1: Declaring in bullet front matter
-        text_fm = (
-            "# Plan Title\n\n"
-            "- Id: ppp111\n"
-            "- Status: draft\n"
-            "- Blocks-Release: next\n\n"
-            "## Description\nBody here.\n"
+        text_fm = RecordBuilder().plan(
+            title="Plan Title",
+            id6="ppp111",
+            status="draft",
+            blocks_release="next",
+            body="## Description\nBody here.\n",
+            text_only=True,
         )
         self.assertEqual(selectors.read_front_matter_blocks_release(text_fm), "next")
 
         # Case 2: Only gate bullet sits below ## Workflow history
-        text_body = (
-            "# Plan Title\n\n"
-            "- Id: ppp222\n"
-            "- Status: draft\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created: - Blocks-Release: next\n"
+        text_body = RecordBuilder().plan(
+            title="Plan Title",
+            id6="ppp222",
+            status="draft",
+            history=["- 2026-10-01 created: - Blocks-Release: next"],
+            text_only=True,
         )
         self.assertIsNone(selectors.read_front_matter_blocks_release(text_body))
 
         # Case 3: YAML-fenced research doc with quoted bullet in body
-        text_yaml = (
-            "---\n"
-            "id: rrr333\n"
-            "status: active\n"
-            "---\n\n"
-            "# Research Document\n\n"
-            "Here is a quote:\n"
-            "- Blocks-Release: next\n"
+        text_yaml = RecordBuilder().research(
+            id6="rrr333",
+            status="active",
+            body="\n# Research Document\n\nHere is a quote:\n- Blocks-Release: next\n",
+            text_only=True,
         )
         self.assertIsNone(selectors.read_front_matter_blocks_release(text_yaml))
 
         # Anchored case from F-12: trailing content on gate line
-        text_trailing = "- Blocks-Release: next                  - Set: demo\n"
+        text_trailing = RecordBuilder().backlog(
+            id6="ppp333",
+            status="open",
+            set="demo",
+            raw_fields={"Blocks-Release": "next                  - Set: demo"},
+            text_only=True,
+        )
         self.assertIsNone(selectors.read_front_matter_blocks_release(text_trailing))
 
     def test_bidirectional_display_divergence(self) -> None:
@@ -87,30 +92,33 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             # Item 1: Body-quoted item
             item1 = bdir / "20261001-zzz999-01-zzz999-bug.backlog.md"
             item1.write_text(
-                "- Id: zzz999\n"
-                "- Status: open\n"
-                "- Set: testset\n"
-                "- Priority: low\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Demo item\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created: note\n"
-                "- Blocks-Release: next\n",
+                RecordBuilder().backlog(
+                    id6="zzz999",
+                    status="open",
+                    set="testset",
+                    priority="low",
+                    work_kind="bug",
+                    summary="Demo item",
+                    history=["- 2026-10-01 created: note", "- Blocks-Release: next"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             # Item 2: Real front-matter gate item
             item2 = bdir / "20261001-www555-01-www555-bug.backlog.md"
             item2.write_text(
-                "- Id: www555\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: testset\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Real gate item\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created: note\n",
+                RecordBuilder().backlog(
+                    id6="www555",
+                    status="open",
+                    blocks_release="next",
+                    set="testset",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Real gate item",
+                    history=["- 2026-10-01 created: note"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -154,15 +162,19 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             bdir.mkdir(parents=True)
             item = bdir / "20261001-bbb111-01-bbb111-bug.backlog.md"
             item.write_text(
-                "- Id: bbb111\n"
-                "- Status: open\n"
-                "- Set: testset\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Fix bug\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 created (aw backlog): Fix bug\n"
-                "- Blocks-Release: next\n",
+                RecordBuilder().backlog(
+                    id6="bbb111",
+                    status="open",
+                    set="testset",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Fix bug",
+                    history=[
+                        "- 2026-10-01 created (aw backlog): Fix bug",
+                        "- Blocks-Release: next",
+                    ],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             return td, root
@@ -256,26 +268,27 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             # Plan with body-only bullet
             body_plan = plan_dir / "20261001-test-01-ppp444-body.ipd.md"
             body_plan.write_text(
-                "# Title\n\n"
-                "- Id: ppp444\n"
-                "- Status: to-review\n"
-                "- Set: testset\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01: created\n"
-                "- Blocks-Release: next\n",
+                RecordBuilder().plan(
+                    id6="ppp444",
+                    status="to-review",
+                    set="testset",
+                    history=["- 2026-10-01: created", "- Blocks-Release: next"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             # Control plan with front-matter gate
             ctrl_plan = plan_dir / "20261001-test-02-qqq555-ctrl.ipd.md"
             ctrl_plan.write_text(
-                "# Title\n\n"
-                "- Id: qqq555\n"
-                "- Status: to-review\n"
-                "- Set: testset\n"
-                "- Blocks-Release: next\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01: created\n",
+                RecordBuilder().plan(
+                    id6="qqq555",
+                    status="to-review",
+                    set="testset",
+                    blocks_release="next",
+                    history=["- 2026-10-01: created"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -287,14 +300,17 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
 
     def test_set_blocks_release_line_preserves_body(self) -> None:
         """E-08(d) / V-07: set_blocks_release_line preserves body line while setting front-matter."""
-        text = (
-            "- Id: bbb222\n"
-            "- Status: open\n"
-            "- Set: demo\n\n"
-            "## Description\n"
-            "Example quoted configuration:\n"
-            "- Blocks-Release: next\n"
-            "End of example.\n"
+        text = RecordBuilder().backlog(
+            id6="bbb222",
+            status="open",
+            set="demo",
+            body=(
+                "## Description\n"
+                "Example quoted configuration:\n"
+                "- Blocks-Release: next\n"
+                "End of example.\n"
+            ),
+            text_only=True,
         )
         updated = releases.set_blocks_release_line(text, "next")
         # Line count: exactly 1 line added in front matter
@@ -322,25 +338,27 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             # Legitimate gated plan
             gated_plan = plan_dir / "20261001-test-01-ggg111-gated.ipd.md"
             gated_plan.write_text(
-                "# Gated Plan\n\n"
-                "- Id: ggg111\n"
-                "- Status: to-review\n"
-                "- Set: testset\n"
-                "- Blocks-Release: next\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01: created\n",
+                RecordBuilder().plan(
+                    id6="ggg111",
+                    status="to-review",
+                    set="testset",
+                    blocks_release="next",
+                    history=["- 2026-10-01: created"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             # Quoting plan quoting nonexistent release in body prose
             quoting_plan = plan_dir / "20261001-test-02-qqq222-quote.ipd.md"
             quoting_plan.write_text(
-                "# Quoting Plan\n\n"
-                "- Id: qqq222\n"
-                "- Status: to-review\n"
-                "- Set: testset\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01: - Blocks-Release: nonexistent999\n",
+                RecordBuilder().plan(
+                    id6="qqq222",
+                    status="to-review",
+                    set="testset",
+                    history=["- 2026-10-01: - Blocks-Release: nonexistent999"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -359,14 +377,13 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
 
     def test_set_blocks_release_line_remove_front_matter_only(self) -> None:
         """E-08(f) / V-07: set_blocks_release_line(text, '-') removes front-matter line only."""
-        text = (
-            "- Id: bbb333\n"
-            "- Status: open\n"
-            "- Blocks-Release: next\n"
-            "- Set: demo\n\n"
-            "## Description\n"
-            "Body quote:\n"
-            "- Blocks-Release: other_val\n"
+        text = RecordBuilder().backlog(
+            id6="bbb333",
+            status="open",
+            blocks_release="next",
+            set="demo",
+            body=("## Description\nBody quote:\n- Blocks-Release: other_val\n"),
+            text_only=True,
         )
         removed = releases.set_blocks_release_line(text, "-")
         self.assertNotIn("- Blocks-Release: next", removed)
@@ -386,24 +403,26 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
 
             p_body = plan_dir / "20261001-test-01-ppp111-body.ipd.md"
             p_body.write_text(
-                "# Title\n\n"
-                "- Id: ppp111\n"
-                "- Status: to-review\n"
-                "- Set: testset\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01: - Blocks-Release: next\n",
+                RecordBuilder().plan(
+                    id6="ppp111",
+                    status="to-review",
+                    set="testset",
+                    history=["- 2026-10-01: - Blocks-Release: next"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             p_ctrl = plan_dir / "20261001-test-02-ppp222-ctrl.ipd.md"
             p_ctrl.write_text(
-                "# Title\n\n"
-                "- Id: ppp222\n"
-                "- Status: to-review\n"
-                "- Set: testset\n"
-                "- Blocks-Release: next\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01: created\n",
+                RecordBuilder().plan(
+                    id6="ppp222",
+                    status="to-review",
+                    set="testset",
+                    blocks_release="next",
+                    history=["- 2026-10-01: created"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -453,30 +472,33 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             # Done item with body-quoted gate only
             item_body = done_dir / "20261001-done01-01-done01-bug.backlog.md"
             item_body.write_text(
-                "- Id: done01\n"
-                "- Status: done\n"
-                "- Set: testset\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Done item with body quote\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done: note\n"
-                "- Blocks-Release: next\n",
+                RecordBuilder().backlog(
+                    id6="done01",
+                    status="done",
+                    set="testset",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Done item with body quote",
+                    history=["- 2026-10-01 done: note", "- Blocks-Release: next"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             # Done item with real front-matter gate and no handoff
             item_ctrl = done_dir / "20261001-done02-01-done02-bug.backlog.md"
             item_ctrl.write_text(
-                "- Id: done02\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: testset\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Done item with real gate\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done: note\n",
+                RecordBuilder().backlog(
+                    id6="done02",
+                    status="done",
+                    blocks_release="next",
+                    set="testset",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Done item with real gate",
+                    history=["- 2026-10-01 done: note"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

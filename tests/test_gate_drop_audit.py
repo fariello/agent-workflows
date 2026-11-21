@@ -13,6 +13,7 @@ import sys
 import unittest
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Tuple
+from tests.record_builder import RecordBuilder
 
 
 AUDITOR_PATH = Path(__file__).resolve().parent.parent / "tools" / "gate_drop_audit.py"
@@ -40,11 +41,13 @@ def _create_minimal_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel_file.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -80,14 +83,16 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-item01-01-item01-ungated.backlog.md"
             )
             item.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Ungated done item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Ungated done item",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -108,15 +113,17 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-item01-01-item01-nocarrier.backlog.md"
             )
             item.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug with no carrier\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Gated bug with no carrier",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -141,14 +148,16 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-p01-01-p01-carrier.ipd.md"
             )
             plan.write_text(
-                "# IPD: Fix item01\n\n"
-                "- Id: p01\n"
-                "- Status: executed\n"
-                "- From-Backlog: item01\n"
-                "- Blocks-Release: next\n"
-                "- Set: p01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix item01",
+                    status="executed",
+                    from_backlog="item01",
+                    blocks_release="next",
+                    set="p01",
+                    scope_paths="foo.py",
+                    raw_fields={"Id": "p01"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             item = (
@@ -160,15 +169,17 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-item01-01-item01-handed-off.backlog.md"
             )
             item.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug handed off to executed plan\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Gated bug handed off to executed plan",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -190,14 +201,16 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-p01-01-p01-super.ipd.md"
             )
             plan.write_text(
-                "# IPD: Fix item01\n\n"
-                "- Id: p01\n"
-                "- Status: superseded\n"
-                "- From-Backlog: item01\n"
-                "- Blocks-Release: next\n"
-                "- Set: p01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix item01",
+                    status="superseded",
+                    from_backlog="item01",
+                    blocks_release="next",
+                    set="p01",
+                    scope_paths="foo.py",
+                    raw_fields={"Id": "p01"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             item = (
@@ -209,15 +222,17 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-item01-01-item01-supercarrier.backlog.md"
             )
             item.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug with superseded carrier\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Gated bug with superseded carrier",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -240,15 +255,17 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260820-pre001-01-pre001-early-bug.backlog.md"
             )
             item.write_text(
-                "- Id: pre001\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: pre001\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Pre-predicate bug\n\n"
-                "## Workflow history\n"
-                "- 2026-08-21 done (aw set): Closed by early Set\n",
+                RecordBuilder().backlog(
+                    id6="pre001",
+                    status="done",
+                    blocks_release="next",
+                    set="pre001",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Pre-predicate bug",
+                    history=["- 2026-08-21 done (aw set): Closed by early Set"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -272,15 +289,19 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260919-undat1-01-undat1-no-close-line.backlog.md"
             )
             item.write_text(
-                "- Id: undat1\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: undat1\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Undated bug with only created line\n\n"
-                "## Workflow history\n"
-                "- 2026-09-19 created (aw backlog): Filed and fixed in same change\n",
+                RecordBuilder().backlog(
+                    id6="undat1",
+                    status="done",
+                    blocks_release="next",
+                    set="undat1",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Undated bug with only created line",
+                    history=[
+                        "- 2026-09-19 created (aw backlog): Filed and fixed in same change"
+                    ],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -304,15 +325,19 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260923-flag01-01-flag01-custom-message.backlog.md"
             )
             item.write_text(
-                "- Id: flag01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: flag01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Custom message flag close\n\n"
-                "## Workflow history\n"
-                "- 2026-09-23 set (aw backlog): FIXED by runnerlayer Order 02 (custom message)\n",
+                RecordBuilder().backlog(
+                    id6="flag01",
+                    status="done",
+                    blocks_release="next",
+                    set="flag01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Custom message flag close",
+                    history=[
+                        "- 2026-09-23 set (aw backlog): FIXED by runnerlayer Order 02 (custom message)"
+                    ],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -336,17 +361,21 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260910-grad01-01-grad01-grad-then-done.backlog.md"
             )
             item.write_text(
-                "- Id: grad01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: grad01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Graduated then done item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n"
-                "- 2026-09-10 graduated (aw backlog): design handed off\n"
-                "- 2026-09-01 created (aw backlog): created\n",
+                RecordBuilder().backlog(
+                    id6="grad01",
+                    status="done",
+                    blocks_release="next",
+                    set="grad01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Graduated then done item",
+                    history=[
+                        "- 2026-09-20 done (aw set): status set to done",
+                        "- 2026-09-10 graduated (aw backlog): design handed off",
+                        "- 2026-09-01 created (aw backlog): created",
+                    ],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -368,7 +397,13 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260901-rel001-01-rel001-evidence.ipd.md"
             )
             evidence_file.write_text(
-                "# IPD: Shipped work\n\n- Id: rel001\n- Status: executed\n- Set: rel001\n",
+                RecordBuilder().plan(
+                    title="Shipped work",
+                    id6="rel001",
+                    status="executed",
+                    set="rel001",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             item = (
@@ -380,16 +415,18 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-evid01-01-evid01-satisfied.backlog.md"
             )
             item.write_text(
-                "- Id: evid01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Close-Evidence: .aw/records/plans/executed/20260901-rel001-01-rel001-evidence.ipd.md\n"
-                "- Set: evid01\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Item satisfied by close evidence\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="evid01",
+                    status="done",
+                    blocks_release="next",
+                    close_evidence=".aw/records/plans/executed/20260901-rel001-01-rel001-evidence.ipd.md",
+                    set="evid01",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Item satisfied by close evidence",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             code, data = _run_audit(repo)
@@ -409,15 +446,17 @@ class TestGateDropAudit(unittest.TestCase):
                 / "20260920-item01-01-item01-ro.backlog.md"
             )
             item.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

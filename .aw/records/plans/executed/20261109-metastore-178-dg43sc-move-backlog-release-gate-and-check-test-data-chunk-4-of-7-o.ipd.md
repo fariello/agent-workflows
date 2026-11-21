@@ -6,7 +6,7 @@
 - Scope: Chunk 4 of 7 of `x05v02` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `x05v02`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_blocks_release_reader_bounding.py, tests/test_carrier_detail_descriptive_bound.py, tests/test_carrier_reverse_lookup.py, tests/test_carrier_ungated_rule.py, tests/test_durable_carrier_shared_predicate.py, tests/test_from_backlog_cardinality.py, tests/test_gate_answer_wiring.py, tests/test_gate_drop_audit.py, .aw/records/plans/pending/20261109-metastore-178-dg43sc-move-backlog-release-gate-and-check-test-data-chunk-4-of-7-o.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dg43sc
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: dg43sc verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, batch rules, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `x05v02` E-02, batch subset G1b; round-3 split 2026-11-09) Batch G1b, 4 of its 22 modules (the release and release-gate tests (`test_release*`, `test_releases*`, `test_graduat*`, `test_gate_*`, `test_blocks_release*`, `test_handoff*`, `test_from_backlog*`, `test_live_bug*`, `test_*close*`, `test_carrier*`, `test_durable_carrier*`)): `tests/test_blocks_release_reader_bounding.py`, `tests/test_carrier_detail_descriptive_bound.py`, `tests/test_carrier_reverse_lookup.py`, `tests/test_carrier_ungated_rule.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_blocks_release_reader_bounding` 88, `test_carrier_detail_descriptive_bound` 17, `test_carrier_reverse_lookup` 3, `test_carrier_ungated_rule` 8. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G1b-dg43sc-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_carrier_ungated_rule.py`: `_build_plan`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `x05v02` E-02, batch subset G1b; round-3 split 2026-11-09) Batch G1b, 4 of its 22 modules (the release and release-gate tests (`test_release*`, `test_releases*`, `test_graduat*`, `test_gate_*`, `test_blocks_release*`, `test_handoff*`, `test_from_backlog*`, `test_live_bug*`, `test_*close*`, `test_carrier*`, `test_durable_carrier*`)): `tests/test_blocks_release_reader_bounding.py`, `tests/test_carrier_detail_descriptive_bound.py`, `tests/test_carrier_reverse_lookup.py`, `tests/test_carrier_ungated_rule.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_blocks_release_reader_bounding` 88, `test_carrier_detail_descriptive_bound` 17, `test_carrier_reverse_lookup` 3, `test_carrier_ungated_rule` 8. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G1b-dg43sc-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_carrier_ungated_rule.py`: `_build_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G1b-dg43sc-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `x05v02` E-02, batch subset G1b; round-3 split 2026-11-09) Batch G1b, 4 of its 22 modules (the release and release-gate tests (`test_release*`, `test_releases*`, `test_graduat*`, `test_gate_*`, `test_blocks_release*`, `test_handoff*`, `test_from_backlog*`, `test_live_bug*`, `test_*close*`, `test_carrier*`, `test_durable_carrier*`)): `tests/test_durable_carrier_shared_predicate.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_gate_answer_wiring.py`, `tests/test_gate_drop_audit.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_durable_carrier_shared_predicate` 4, `test_from_backlog_cardinality` 36, `test_gate_answer_wiring` 2, `test_gate_drop_audit` 85. Run the codemod on these modules and apply the batch rule with `<batch>` = `G1b-dg43sc-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `x05v02` E-02, batch subset G1b; round-3 split 2026-11-09) Batch G1b, 4 of its 22 modules (the release and release-gate tests (`test_release*`, `test_releases*`, `test_graduat*`, `test_gate_*`, `test_blocks_release*`, `test_handoff*`, `test_from_backlog*`, `test_live_bug*`, `test_*close*`, `test_carrier*`, `test_durable_carrier*`)): `tests/test_durable_carrier_shared_predicate.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_gate_answer_wiring.py`, `tests/test_gate_drop_audit.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_durable_carrier_shared_predicate` 4, `test_from_backlog_cardinality` 36, `test_gate_answer_wiring` 2, `test_gate_drop_audit` 85. Run the codemod on these modules and apply the batch rule with `<batch>` = `G1b-dg43sc-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G1b-dg43sc-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G1b-dg43sc-1-files.txt .aw/state/59aiyh/G1b-dg43sc-2-files.txt)`) into `.aw/state/59aiyh/dg43sc-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit dg43sc -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G1b-dg43sc-1-files.txt .aw/state/59aiyh/G1b-dg43sc-2-files.txt)`) into `.aw/state/59aiyh/dg43sc-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit dg43sc -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -154,20 +154,79 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G1b-dg43sc-1-files.txt` and the empty `diff .aw/state/59aiyh/G1b-dg43sc-1-before.txt .aw/state/59aiyh/G1b-dg43sc-1-after.txt`; then, for each of `tests/test_blocks_release_reader_bounding.py`, `tests/test_carrier_detail_descriptive_bound.py`, `tests/test_carrier_reverse_lookup.py`, `tests/test_carrier_ungated_rule.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G1b-dg43sc-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G1b-dg43sc-1-files.txt`: `tests/test_blocks_release_reader_bounding.py`, `tests/test_carrier_detail_descriptive_bound.py`, `tests/test_carrier_reverse_lookup.py`, `tests/test_carrier_ungated_rule.py`. (Late G1b partition check: none.)
+    - `diff .aw/state/59aiyh/G1b-dg43sc-1-before.txt .aw/state/59aiyh/G1b-dg43sc-1-after.txt`: empty output, exit code 0 (27 `PASSED` outcomes before and after).
+    - `tests/test_blocks_release_reader_bounding.py`:
+      - F-01 `rg -c`: 88 before -> 16 after.
+      - Remaining 16 F-01 matches and reason classes (post-format): `test_read_front_matter_blocks_release_cases` comment `# Case 2: Only gate bullet sits below ## Workflow history` (line 54, `body prose`), history quote `"- 2026-10-01 created: - Blocks-Release: next"` (line 59, `body prose`), research body quote `"- Blocks-Release: next"` (line 68, `body prose`), `raw_fields={"Blocks-Release": "next                  - Set: demo"}` (line 78, `invalid-input`); `test_bidirectional_display_divergence` history quote `"- Blocks-Release: next"` (line 102, `body prose`); `test_setter_spellings_byte_identical_with_body_quote` history quote `"- Blocks-Release: next"` (line 174, `body prose`) and `self.assertIn("- Blocks-Release: next", fm1)` (line 254, `setter-byte assertion`); `test_plan_with_body_only_bullet_absent_from_release_blockers` history quote `"- Blocks-Release: next"` (line 275, `body prose`); `test_set_blocks_release_line_preserves_body` body quote `"- Blocks-Release: next\n"` (line 310, `body prose`) and `self.assertEqual(updated.count("- Blocks-Release: next"), 2)` (line 318, `setter-byte assertion`); `test_regression_guard_fixture_tree` history quote `"- 2026-10-01: - Blocks-Release: nonexistent999"` (line 359, `body prose`); `test_set_blocks_release_line_remove_front_matter_only` body quote `"- Blocks-Release: other_val\n"` (line 385, `body prose`), `self.assertNotIn("- Blocks-Release: next", removed)` (line 389, `setter-byte assertion`), and `self.assertIn("- Blocks-Release: other_val", removed)` (line 390, `setter-byte assertion`); `test_ipd_lint_board_bounding` history quote `"- 2026-10-01: - Blocks-Release: next"` (line 410, `body prose`); `test_check_release_gates_at_rest_bounding` history quote `"- Blocks-Release: next"` (line 482, `body prose`). Summary: 11 `body prose`, 4 `setter-byte assertion`, 1 `invalid-input`.
+      - `G1b-dg43sc-1-codemod.json`: sites=21, rewrites=12 (standard=12, invalid-input=0), refusals=9 (`unsupported-shape`=5 `hand`, `setter-byte assertion`=4 `legacy-kept`), before_hash=`15d087801ec79c41fce83c93e6fc1e974a005b5a6125b7f81b8bc5292e4d6b3f`, after_hash=`15d087801ec79c41fce83c93e6fc1e974a005b5a6125b7f81b8bc5292e4d6b3f`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_blocks_release_reader_bounding.py | G1b | dg43sc | 21 | 12 | 0 | 0 | 5 | 0 | 0 | 0 | 4 | 0 | 5 | 4 |`.
+    - `tests/test_carrier_detail_descriptive_bound.py`:
+      - F-01 `rg -c`: 17 before -> 0 after (no remaining matches).
+      - `G1b-dg43sc-1-codemod.json`: sites=7, rewrites=6 (standard=2, invalid-input=4), refusals=1 (`dynamic-construction`=1 `hand`), before_hash=`f97c3bcbb2b2010b6cfed08813f148b995e299b6ca65a4e3bfd18676454c8b70`, after_hash=`f97c3bcbb2b2010b6cfed08813f148b995e299b6ca65a4e3bfd18676454c8b70`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_carrier_detail_descriptive_bound.py | G1b | dg43sc | 7 | 6 | 4 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |`.
+    - `tests/test_carrier_reverse_lookup.py`:
+      - F-01 `rg -c`: 3 before -> 0 after (no remaining matches).
+      - `G1b-dg43sc-1-codemod.json`: sites=1, rewrites=1 (standard=1, invalid-input=0), refusals=0, before_hash=`a3f43aec5f7ca7a395c861f2ddf670fafde0d684b451450e4f857a223ae54e20`, after_hash=`a3f43aec5f7ca7a395c861f2ddf670fafde0d684b451450e4f857a223ae54e20`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_carrier_reverse_lookup.py | G1b | dg43sc | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - `tests/test_carrier_ungated_rule.py`:
+      - F-01 `rg -c`: 8 before -> 0 after (no remaining matches).
+      - `G1b-dg43sc-1-codemod.json`: sites=3, rewrites=0, refusals=3 (`dynamic-construction`=1 `hand`, `unsupported-shape`=2 `hand`), before_hash=None, after_hash=None, equivalent=True (0 rewrites applied).
+      - `653ndz` F-30 row: `| tests/test_carrier_ungated_rule.py | G1b | dg43sc | 3 | 0 | 0 | 1 | 2 | 0 | 0 | 0 | 0 | 0 | 3 | 0 |`.
+    - Hand count: 9 (9 static in `653ndz` F-30 + 0 apply-time `not-equivalent`; <= 25). Hand-converted sites (original pre-codemod lines):
+      1. `tests/test_blocks_release_reader_bounding.py` `test_read_front_matter_blocks_release_cases` (`text_fm`, lines 44-48, `unsupported-shape`)
+      2. `tests/test_blocks_release_reader_bounding.py` `test_read_front_matter_blocks_release_cases` (`text_body`, lines 54-58, `unsupported-shape`)
+      3. `tests/test_blocks_release_reader_bounding.py` `test_read_front_matter_blocks_release_cases` (`text_trailing`, line 75, `unsupported-shape`, converted via `raw_fields=`)
+      4. `tests/test_blocks_release_reader_bounding.py` `test_set_blocks_release_line_preserves_body` (`text`, lines 291-297, `unsupported-shape`)
+      5. `tests/test_blocks_release_reader_bounding.py` `test_set_blocks_release_line_remove_front_matter_only` (`text`, lines 363-369, `unsupported-shape`)
+      6. `tests/test_carrier_detail_descriptive_bound.py` `test_case_e_uncarried_nine_rows_single_body_partial_group_bound` (`plan_text`, lines 237-242, `dynamic-construction`)
+      7. `tests/test_carrier_ungated_rule.py` `_build_plan` (`"- Item-Dependencies:"`, line 49, `unsupported-shape`; eliminated by direct `RecordBuilder().plan(item_dependencies=...)` calls)
+      8. `tests/test_carrier_ungated_rule.py` `_build_plan` (`f"- Item-Dependencies: {deps}"`, line 50, `unsupported-shape`; eliminated by direct `RecordBuilder().plan(item_dependencies=...)` calls)
+      9. `tests/test_carrier_ungated_rule.py` `_setup_repo` (`bk_text`, lines 81-89, `dynamic-construction`)
+    - E-09 helper census (`rg -n -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`): before = 1 (`tests/test_carrier_ungated_rule.py`: `def _build_plan`, line 37); after = 0 (`(none)`). Deleted: `TestCarrierUngatedRule._build_plan` in `tests/test_carrier_ungated_rule.py` (all 13 callers replaced with direct `RecordBuilder().plan(...)` calls). Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G1b-dg43sc-2-files.txt` and the empty `diff .aw/state/59aiyh/G1b-dg43sc-2-before.txt .aw/state/59aiyh/G1b-dg43sc-2-after.txt`; then, for each of `tests/test_durable_carrier_shared_predicate.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_gate_answer_wiring.py`, `tests/test_gate_drop_audit.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G1b-dg43sc-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G1b-dg43sc-2-files.txt`: `tests/test_durable_carrier_shared_predicate.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_gate_answer_wiring.py`, `tests/test_gate_drop_audit.py`.
+    - `diff .aw/state/59aiyh/G1b-dg43sc-2-before.txt .aw/state/59aiyh/G1b-dg43sc-2-after.txt`: empty output, exit code 0 (70 `PASSED` outcomes before and after).
+    - `tests/test_durable_carrier_shared_predicate.py`:
+      - F-01 `rg -c`: 4 before -> 0 after (no remaining matches).
+      - `G1b-dg43sc-2-codemod.json`: sites=1, rewrites=1 (standard=1, invalid-input=0), refusals=0, before_hash=`042af1a8de71367d1e96538fd50a3ba75dc751a8758e5585e805ad66d01a4e7b`, after_hash=`042af1a8de71367d1e96538fd50a3ba75dc751a8758e5585e805ad66d01a4e7b`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_durable_carrier_shared_predicate.py | G1b | dg43sc | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - `tests/test_from_backlog_cardinality.py`:
+      - F-01 `rg -c`: 36 before -> 6 after.
+      - Remaining 6 F-01 matches and reason classes (post-format): `test_multi_bullet_preservation` `raw_fields={"From-Backlog": "aaaaaa\n- From-Backlog: bbbbbb"}` (line 156, `invalid-input`); `test_writer_idempotency_and_metadata_parse` `self.assertEqual(written_1.count("- From-Backlog:"), 1)` (line 235, `setter-byte assertion`), `self.assertIn("- From-Backlog: cccccc", written_1)` (line 236, `setter-byte assertion`), `self.assertEqual(written_2.count("- From-Backlog:"), 1)` (line 240, `setter-byte assertion`), `self.assertIn("- From-Backlog: dddddd", written_2)` (line 241, `setter-byte assertion`), and `self.assertNotIn("- From-Backlog:", cleared)` (line 255, `setter-byte assertion`). Summary: 5 `setter-byte assertion`, 1 `invalid-input`.
+      - `G1b-dg43sc-2-codemod.json`: sites=14, rewrites=7 (standard=6, invalid-input=1), refusals=7 (`unsupported-shape`=1 `hand`, `not-equivalent`=1 `hand`, `setter-byte assertion`=5 `legacy-kept`), before_hash=`e02d9771f57c4fbbfe98aa1832e264f0a12ca9d42c0abaf89d0193ea251c8a00`, after_hash=`e02d9771f57c4fbbfe98aa1832e264f0a12ca9d42c0abaf89d0193ea251c8a00`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_from_backlog_cardinality.py | G1b | dg43sc | 14 | 8 | 1 | 0 | 1 | 0 | 0 | 0 | 5 | 0 | 1 | 5 |`.
+    - `tests/test_gate_answer_wiring.py`:
+      - F-01 `rg -c`: 2 before -> 1 after.
+      - Remaining 1 F-01 match and reason class: module docstring line mentioning `` `- Readiness:` `` (line 35, `body prose`).
+      - `G1b-dg43sc-2-codemod.json`: sites=1, rewrites=1 (standard=1, invalid-input=0), refusals=0, before_hash=`16baaeec69c90054db2b8dd9d37567c9232981939ec5cb5434857c8159b66560`, after_hash=`16baaeec69c90054db2b8dd9d37567c9232981939ec5cb5434857c8159b66560`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_gate_answer_wiring.py | G1b | dg43sc | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - `tests/test_gate_drop_audit.py`:
+      - F-01 `rg -c`: 85 before -> 1 after.
+      - Remaining 1 F-01 match and reason class: `test_undated_item_partitioned_undated` docstring `"""An item with no close line in ## Workflow history (only created) lands in the undated bucket."""` (line 280, `body prose`).
+      - `G1b-dg43sc-2-codemod.json`: sites=14, rewrites=14 (standard=12, invalid-input=2), refusals=0, before_hash=`f1d52bb25c8a51e1040e330da170d4d27930f0d511ca9efc2d5e36fecb576bf7`, after_hash=`f1d52bb25c8a51e1040e330da170d4d27930f0d511ca9efc2d5e36fecb576bf7`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_gate_drop_audit.py | G1b | dg43sc | 14 | 14 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - Hand count: 2 (1 static in `653ndz` F-30 + 1 apply-time `not-equivalent`; <= 25). Hand-converted sites (original pre-codemod lines):
+      1. `tests/test_from_backlog_cardinality.py` `test_multi_bullet_preservation` (`plan_text`, lines 149-157, `unsupported-shape`, converted via `raw_fields={"From-Backlog": "aaaaaa\n- From-Backlog: bbbbbb"}`)
+      2. `tests/test_from_backlog_cardinality.py` `test_malformed_rule_reachability_and_separation` (`p_file.write_text(...)`, line 294, `not-equivalent`, converted via `RecordBuilder().plan(..., raw_fields={"Id": plan_id} if len(plan_id) != 6 else None)` to preserve the 5-character `valid` fixture ID)
+    - E-09 helper census: before = 0 (`(none)`); after = 0 (`(none)`). Deleted helpers: none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G1b-dg43sc-1`, `G1b-dg43sc-2` against `.aw/state/59aiyh/dg43sc-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit dg43sc` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff .aw/state/59aiyh/dg43sc-union-before.txt .aw/state/59aiyh/dg43sc-union-after.txt`): empty output, exit code 0 (97 `PASSED` outcomes across all 8 modules).
+    - Bare `python3 -m pytest`: `2653 passed, 11 warnings in 92.72s (0:01:32)` (0 test failures; `CORE TIER BUDGET EXCEEDED` wall-time check triggered exit 1 solely from concurrent host load 6.02 on 12 CPUs across unrelated tests; none of `dg43sc`'s 8 modules appeared in top-10 slowest). Verified clean exit 0 via `aw suite`: `2653 passed, 11 warnings in 69.31s (0:01:09)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6853,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit dg43sc` (8 test Scope-Paths): `aw commit: committed 8 path(s): 6a8d6b5476a4776cd07195f1a8f69e1548487c0c` (`tests/test_blocks_release_reader_bounding.py`, `tests/test_carrier_detail_descriptive_bound.py`, `tests/test_carrier_reverse_lookup.py`, `tests/test_carrier_ungated_rule.py`, `tests/test_durable_carrier_shared_predicate.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_gate_answer_wiring.py`, `tests/test_gate_drop_audit.py`). Followed by the plan-evidence commit via `aw commit dg43sc -- .aw/records/plans/pending/20261109-metastore-178-dg43sc-move-backlog-release-gate-and-check-test-data-chunk-4-of-7-o.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 

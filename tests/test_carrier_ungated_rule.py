@@ -15,14 +15,14 @@ from pathlib import Path
 from agent_workflows import artifact_core as ac
 from agent_workflows import check_engine as ce
 from agent_workflows import cli
-from tests import support
+from tests.record_builder import RecordBuilder
 
 
 class TestCarrierUngatedRule(unittest.TestCase):
     """Pin the check.ipd-carrier-ungated rule behaviorally in both directions."""
 
     def _make_oq_block(self, questions: list[dict[str, str]]) -> str:
-        blocks = ["## Open questions\n"]
+        blocks: list[str] = []
         for q in questions:
             loc = q.get("id", "OQ-01")
             blocks.append(f"### {loc}: Question heading\n")
@@ -33,29 +33,6 @@ class TestCarrierUngatedRule(unittest.TestCase):
                 blocks.append("- Resolution or deferral rationale: Not resolved yet.")
             blocks.append("")
         return "\n".join(blocks) + "\n"
-
-    def _build_plan(
-        self,
-        *,
-        plan_id: str = "pl000a",
-        when: str = "2026-09-26",
-        status: str = "approved",
-        deps: str = "none",
-        questions: list[dict[str, str]] | None = None,
-    ) -> str:
-        raw = support.ready_plan_text(plan_id=plan_id, when=when, status=status)
-        lines = []
-        for line in raw.splitlines():
-            if line.startswith("- Item-Dependencies:"):
-                lines.append(f"- Item-Dependencies: {deps}")
-            else:
-                lines.append(line)
-        text = "\n".join(lines) + "\n"
-
-        if questions is not None:
-            oq_text = self._make_oq_block(questions)
-            text = text.replace("## Open questions\n\n#", oq_text)
-        return text
 
     def _setup_repo(
         self,
@@ -77,16 +54,17 @@ class TestCarrierUngatedRule(unittest.TestCase):
         # Create carrier as live backlog item
         bk_dir = root / ".aw" / "records" / "backlog" / carrier_status
         bk_dir.mkdir(parents=True, exist_ok=True)
-        bk_text = (
-            f"- Id: {carrier_id}\n"
-            f"- Status: {carrier_status}\n"
-            f"- Set: sample\n"
-            f"- Priority: medium\n"
-            f"- Work-Kind: chore\n"
-            f"- Summary: Carrier item\n\n"
-            f"## Workflow history\n"
-            f"- 2026-09-26 created (aw backlog): Carrier item\n\n"
-            f"Description\n"
+        bk_text = RecordBuilder().backlog(
+            id6=carrier_id,
+            status=carrier_status,
+            set="sample",
+            priority="medium",
+            work_kind="chore",
+            summary="Carrier item",
+            when="2026-09-26",
+            history=["- 2026-09-26 created (aw backlog): Carrier item"],
+            body="Description",
+            text_only=True,
         )
         (
             bk_dir / f"20260926-sample-01-{carrier_id}-carrier-item.backlog.md"
@@ -126,7 +104,14 @@ class TestCarrierUngatedRule(unittest.TestCase):
                 "Carrier": "bk0001",
             }
         ]
-        plan_text = self._build_plan(deps="none", questions=questions)
+        plan_text = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="none",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
+        )
         with tempfile.TemporaryDirectory() as td:
             repo, plan_path = self._setup_repo(td, plan_text=plan_text)
             drifts = ce.evaluate_carrier_ungated(
@@ -151,16 +136,31 @@ class TestCarrierUngatedRule(unittest.TestCase):
             }
         ]
         # state:backlog:graduated
-        plan_grad = self._build_plan(
-            deps="state:backlog:graduated:bk0001", questions=questions
+        plan_grad = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="state:backlog:graduated:bk0001",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
         )
         # state:backlog:done
-        plan_done = self._build_plan(
-            deps="state:backlog:done:bk0001", questions=questions
+        plan_done = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="state:backlog:done:bk0001",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
         )
         # exists:backlog
-        plan_exists = self._build_plan(
-            deps="exists:backlog:bk0001", questions=questions
+        plan_exists = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="exists:backlog:bk0001",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
         )
 
         with tempfile.TemporaryDirectory() as td:
@@ -215,9 +215,30 @@ class TestCarrierUngatedRule(unittest.TestCase):
         ]
 
         with tempfile.TemporaryDirectory() as td:
-            plan_res = self._build_plan(deps="none", questions=q_resolved)
-            plan_def = self._build_plan(deps="none", questions=q_deferred)
-            plan_dec = self._build_plan(deps="none", questions=q_declined)
+            plan_res = RecordBuilder().plan(
+                plan_id="pl000a",
+                when="2026-09-26",
+                status="approved",
+                item_dependencies="none",
+                open_questions=self._make_oq_block(q_resolved),
+                text_only=True,
+            )
+            plan_def = RecordBuilder().plan(
+                plan_id="pl000a",
+                when="2026-09-26",
+                status="approved",
+                item_dependencies="none",
+                open_questions=self._make_oq_block(q_deferred),
+                text_only=True,
+            )
+            plan_dec = RecordBuilder().plan(
+                plan_id="pl000a",
+                when="2026-09-26",
+                status="approved",
+                item_dependencies="none",
+                open_questions=self._make_oq_block(q_declined),
+                text_only=True,
+            )
             repo, plan_path = self._setup_repo(td, plan_text=plan_res)
             self.assertEqual(
                 ce.evaluate_carrier_ungated(
@@ -249,7 +270,14 @@ class TestCarrierUngatedRule(unittest.TestCase):
                 "Carrier": "bk0001",
             }
         ]
-        plan_text = self._build_plan(deps="none", questions=questions)
+        plan_text = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="none",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
+        )
         with tempfile.TemporaryDirectory() as td:
             repo, plan_path = self._setup_repo(td, plan_text=plan_text)
             drifts = ce.evaluate_carrier_ungated(
@@ -270,7 +298,16 @@ class TestCarrierUngatedRule(unittest.TestCase):
                 "Carrier": "bk0001",
             }
         ]
-        plan_text = self._build_plan(deps="none", questions=questions)
+        plan_text = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="none",
+            approval="2026-09-26, human: approved",
+            readiness="go-pending-approval",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
+        )
         with tempfile.TemporaryDirectory() as td:
             repo, plan_path = self._setup_repo(td, plan_text=plan_text)
             code, data = self._run_check_plans(repo)
@@ -295,8 +332,13 @@ class TestCarrierUngatedRule(unittest.TestCase):
                 "Carrier": "bk0001",
             }
         ]
-        plan_text = self._build_plan(
-            status="executed", deps="none", questions=questions
+        plan_text = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="executed",
+            item_dependencies="none",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
         )
         with tempfile.TemporaryDirectory() as td:
             repo, plan_path = self._setup_repo(
@@ -317,7 +359,14 @@ class TestCarrierUngatedRule(unittest.TestCase):
             }
             for i in range(1, 7)
         ]
-        plan_text = self._build_plan(deps="none", questions=questions)
+        plan_text = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="none",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
+        )
         with tempfile.TemporaryDirectory() as td:
             repo, plan_path = self._setup_repo(td, plan_text=plan_text)
             drifts = ce.evaluate_carrier_ungated(
@@ -342,10 +391,22 @@ class TestCarrierUngatedRule(unittest.TestCase):
             }
         ]
         # Pre-cutover date: 2026-08-15 (cutover is 20260901)
-        plan_pre = self._build_plan(when="2026-08-15", deps="none", questions=questions)
+        plan_pre = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-08-15",
+            status="approved",
+            item_dependencies="none",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
+        )
         # Post-cutover date: 2026-09-26
-        plan_post = self._build_plan(
-            when="2026-09-26", deps="none", questions=questions
+        plan_post = RecordBuilder().plan(
+            plan_id="pl000a",
+            when="2026-09-26",
+            status="approved",
+            item_dependencies="none",
+            open_questions=self._make_oq_block(questions),
+            text_only=True,
         )
 
         with tempfile.TemporaryDirectory() as td:

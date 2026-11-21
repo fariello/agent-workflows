@@ -32,6 +32,7 @@ from agent_workflows import (
     releases,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -78,15 +79,15 @@ class TestFromBacklogCardinality(unittest.TestCase):
 
         for val, is_usable, expected_id in cases:
             with self.subTest(val=val):
-                text = (
-                    f"# IPD: Test\n\n"
-                    f"- Id: tstpln\n"
-                    f"- Status: to-review\n"
-                    f"- From-Backlog: {val}\n"
-                    f"- Set: tstset\n"
-                    f"- Scope: Test\n"
-                    f"- Scope-Paths: foo.py\n\n"
-                    f"## Goal\n"
+                text = RecordBuilder().plan(
+                    title="Test",
+                    id6="tstpln",
+                    status="to-review",
+                    from_backlog=val,
+                    set="tstset",
+                    scope_paths="foo.py",
+                    body="## Goal",
+                    text_only=True,
                 )
                 plan_file = (
                     self.root
@@ -145,16 +146,15 @@ class TestFromBacklogCardinality(unittest.TestCase):
 
     def test_multi_bullet_preservation(self) -> None:
         """Artifact carrying two valid-id6 From-Backlog bullets indexes under BOTH keys."""
-        plan_text = (
-            "# IPD: Test Multi Bullet\n\n"
-            "- Id: mblt01\n"
-            "- Status: to-review\n"
-            "- From-Backlog: aaaaaa\n"
-            "- From-Backlog: bbbbbb\n"
-            "- Set: testset\n"
-            "- Scope: Test\n"
-            "- Scope-Paths: foo.py\n\n"
-            "## Goal\n"
+        plan_text = RecordBuilder().plan(
+            title="Test Multi Bullet",
+            id6="mblt01",
+            status="to-review",
+            set="testset",
+            scope_paths="foo.py",
+            body="## Goal",
+            raw_fields={"From-Backlog": "aaaaaa\n- From-Backlog: bbbbbb"},
+            text_only=True,
         )
         plan_file = (
             self.root
@@ -184,15 +184,15 @@ class TestFromBacklogCardinality(unittest.TestCase):
 
     def test_operator_surface_graduation_cluster(self) -> None:
         """graduation_cluster attributes no artifact to a junk token on the no-space form."""
-        plan_text = (
-            "# IPD: Junk Token Test\n\n"
-            "- Id: jnktok\n"
-            "- Status: to-review\n"
-            "- From-Backlog: dstnso,8hx3g3\n"
-            "- Set: testset\n"
-            "- Scope: Test\n"
-            "- Scope-Paths: foo.py\n\n"
-            "## Goal\n"
+        plan_text = RecordBuilder().plan(
+            title="Junk Token Test",
+            id6="jnktok",
+            status="to-review",
+            from_backlog="dstnso,8hx3g3",
+            set="testset",
+            scope_paths="foo.py",
+            body="## Goal",
+            text_only=True,
         )
         plan_file = (
             self.root
@@ -220,15 +220,15 @@ class TestFromBacklogCardinality(unittest.TestCase):
 
     def test_writer_idempotency_and_metadata_parse(self) -> None:
         """releases.set_from_backlog_line is idempotent on multi-token lines and clears with '-'."""
-        text = (
-            "# IPD: Writer Test\n\n"
-            "- Id: wrtpln\n"
-            "- Status: to-review\n"
-            "- From-Backlog: aaaaaa, bbbbbb\n"
-            "- Set: testset\n"
-            "- Scope: Test\n"
-            "- Scope-Paths: foo.py\n\n"
-            "## Goal\n"
+        text = RecordBuilder().plan(
+            title="Writer Test",
+            id6="wrtpln",
+            status="to-review",
+            from_backlog="aaaaaa, bbbbbb",
+            set="testset",
+            scope_paths="foo.py",
+            body="## Goal",
+            text_only=True,
         )
         # First write: overwrite multi-token value with single token
         written_1 = releases.set_from_backlog_line(text, "cccccc")
@@ -269,7 +269,14 @@ class TestFromBacklogCardinality(unittest.TestCase):
             / "20260901-bkl001-01-valid1-test.backlog.md"
         )
         bkl_item.write_text(
-            "- Id: valid1\n- Status: open\n- Set: bkl001\n- Priority: medium\n- Work-Kind: bug\n",
+            RecordBuilder().backlog(
+                id6="valid1",
+                status="open",
+                set="bkl001",
+                priority="medium",
+                work_kind="bug",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -290,8 +297,17 @@ class TestFromBacklogCardinality(unittest.TestCase):
                 / "pending"
                 / f"20260901-set001-01-{name[:6]}-test.ipd.md"
             )
+            plan_id = name[:6]
             p_file.write_text(
-                f"# IPD: {name}\n\n- Id: {name[:6]}\n- Status: to-review\n- From-Backlog: {val}\n- Set: set001\n",
+                RecordBuilder().plan(
+                    title=name,
+                    id6=plan_id if len(plan_id) == 6 else plan_id.ljust(6, "0"),
+                    status="to-review",
+                    from_backlog=val,
+                    set="set001",
+                    raw_fields={"Id": plan_id} if len(plan_id) != 6 else None,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -328,7 +344,14 @@ class TestFromBacklogCardinality(unittest.TestCase):
             / "20260901-set001-01-malf01-test.ipd.md"
         )
         plan_file.write_text(
-            "# IPD: Malformed\n\n- Id: malf01\n- Status: to-review\n- From-Backlog: aaaaaa, bbbbbb\n- Set: set001\n",
+            RecordBuilder().plan(
+                title="Malformed",
+                id6="malf01",
+                status="to-review",
+                from_backlog="aaaaaa, bbbbbb",
+                set="set001",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -356,7 +379,15 @@ class TestFromBacklogCardinality(unittest.TestCase):
             )
             f = target_dir / f"20260901-bkl001-01-{item_id}-item.backlog.md"
             f.write_text(
-                f"- Id: {item_id}\n- Status: {status}\n- Set: bkl001\n- Priority: high\n- Work-Kind: bug\n- Blocks-Release: next\n",
+                RecordBuilder().backlog(
+                    id6=item_id,
+                    status=status,
+                    set="bkl001",
+                    priority="high",
+                    work_kind="bug",
+                    blocks_release="next",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -369,15 +400,17 @@ class TestFromBacklogCardinality(unittest.TestCase):
             / "20260917-test01-01-plnf01-test.ipd.md"
         )
         plan_file.write_text(
-            "# IPD: Two sources\n\n"
-            "- Id: plnf01\n"
-            "- Status: pending\n"
-            "- From-Backlog: dstnso, 8hx3g3\n"
-            "- Set: test01\n"
-            "- Blocks-Release: next\n"
-            "- Scope: Test\n"
-            "- Scope-Paths: foo.py\n\n"
-            "## Goal\n",
+            RecordBuilder().plan(
+                title="Two sources",
+                id6="plnf01",
+                from_backlog="dstnso, 8hx3g3",
+                set="test01",
+                blocks_release="next",
+                scope_paths="foo.py",
+                body="## Goal",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
