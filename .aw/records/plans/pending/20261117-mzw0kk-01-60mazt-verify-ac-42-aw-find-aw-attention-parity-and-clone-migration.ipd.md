@@ -42,28 +42,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: extend tests/test_m0001_any_repo.py and record gates
 
-- [ ] E-01 Before editing `tests/test_m0001_any_repo.py`, create `.aw/state/60mazt` (`mkdir -p .aw/state/60mazt`) and save `aw check all --agent > .aw/state/60mazt/check-before.jsonl`. Extend `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration` across all five `tests/migration_corpus.py` shapes (`legacy_agents_layout`, `mixed_layout`, `idless_prose`, `no_sidecar`, `companion_backend`):
+- [x] E-01 Before editing `tests/test_m0001_any_repo.py`, create `.aw/state/60mazt` (`mkdir -p .aw/state/60mazt`) and save `aw check all --agent > .aw/state/60mazt/check-before.jsonl`. Extend `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration` across all five `tests/migration_corpus.py` shapes (`legacy_agents_layout`, `mixed_layout`, `idless_prose`, `no_sidecar`, `companion_backend`):
   1. **Pre-migration capture**: run `aw find --agent` before migration via `_run_cli_inproc` (no `--limit`, asserting exit `0` and `summary["complete"] is True`) and collect each `kind == "item"` record's `(path, type, id6, status)`.
   2. **Spec `4sd62s` AC-42 item (4) after `--apply`**: run `aw find <probe_id6> --agent` (asserting exit `0` and `probe_id6` returned from migrated logs), plus `aw attention --format json` and `aw attention --all --format json`. Assert zero violations referencing `meta/` or any migrated record (`attention.uninventoried-tree`, `attention.missing-status`, `attention.unknown-status`) and assert migrated record IDs appear in the `--all --format json` `items` list; for `mixed_layout`, `no_sidecar`, `companion_backend`, and `legacy_agents_layout` (unless a pre-migration fixture violation already existed before `--apply`), assert `exit_code == 0` and `valid is True`; for `idless_prose`, assert that the sole `attention.uninventoried-tree` violation is `.aw/records/notes` (the intentionally unclassifiable `notes/scratch.md` directory).
   3. **Spec `4sd62s` AC-42 item (5) after `--apply`**: run `aw find --agent` after migration (asserting exit `0` and `summary["complete"] is True`). Map each pre-migration item's path through stage-1 layout relocation (`.agents/` -> `.aw/records/`, deduplicating the byte-identical `qa1z03` copy in `mixed_layout`) and `journal.json["rename_map"]`, then assert that every pre-migration item appears post-migration at its mapped path with the same normalized status (accounting explicitly for documented `ffceq0` Decisions D-1 to D-6 and `m0001` status normalization), zero pre-migration records are dropped, and any post-migration-only items are strictly records whose `id6` was minted in `journal.json["minted_ids"]` (such as legacy id-less research `20260708-survey-notes.md` in `legacy_agents_layout`, which `agent_workflows/cli.py::_find_type_records` skips pre-migration when `parse_name` is `None` or `id_derived` is `True`).
   4. Keep all existing AC-42 (1)-(3), (6), (7), `aw show`, and `artifact_meta.query` checks intact. Use zero source-code inspection (`inspect`, `ast`, regex, or `read_text` on `agent_workflows/*.py`).
   - Depends on: none
   - Expected outcome: `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration` passes all five corpus cases with real `aw find --agent` parity and `aw attention --format json` / `--all --format json` assertions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Move `pytest.mark.core` from module-level `pytestmark` in `tests/test_m0001_any_repo.py` onto `test_ac42_corpus_shapes_end_to_end_migration` only, and add a dedicated `test_ac42_this_repository_clone_migration` function marked `@pytest.mark.slow`, `@pytest.mark.livecorpus`, and `@pytest.mark.timeout(...)` (sized above the measured CPU time with at least 2x headroom per `conftest.py::_test_timeout_budgets`, not marked `core`). Add its exact pytest node id with a tab-separated reason to `tests/slow_allowlist.txt` (plus any corpus case exceeding 2s, if any). Inside `test_ac42_this_repository_clone_migration`:
+- [x] E-02 Move `pytest.mark.core` from module-level `pytestmark` in `tests/test_m0001_any_repo.py` onto `test_ac42_corpus_shapes_end_to_end_migration` only, and add a dedicated `test_ac42_this_repository_clone_migration` function marked `@pytest.mark.slow`, `@pytest.mark.livecorpus`, and `@pytest.mark.timeout(...)` (sized above the measured CPU time with at least 2x headroom per `conftest.py::_test_timeout_budgets`, not marked `core`). Add its exact pytest node id with a tab-separated reason to `tests/slow_allowlist.txt` (plus any corpus case exceeding 2s, if any). Inside `test_ac42_this_repository_clone_migration`:
   1. Record the source repository's `git rev-parse HEAD` and `git status --porcelain` before running. Create a disposable clone via `git clone --no-hardlinks <repo_root> <tmp_path/this_repository>` using `_clean_git_env()` so no ambient `GIT_*` variable leaks and the clone is an independent non-worktree git repository.
   2. Capture pre-migration `aw find --agent` items and pre-migration `aw attention --all --format json` violations in the clone via `_run_cli_inproc` with an isolated `aw_home`.
   3. Drive spec `4sd62s` AC-42 items (1) to (5) through real CLI commands in the clone: (1) `aw migrate metadata --json` dry run (asserting clean census with zero unknown-field/unparseable refusals, `round_trip_passed is True`, and unchanged clone tree); (2) seed descriptions in `journal.json["descriptions"]` via `_seed_journal_descriptions(clone)` so `agent_workflows/migrations/m0001_describe.py::describe_all` requires zero real host spawns under `PYTEST_CURRENT_TEST`, then run `aw migrate metadata --apply --force` (passing `--force` because the gitignored `.aw/records/history.jsonl` sidecar is absent in the fresh clone while `sidecar_expected` is `True`), verify `metadata_schema == 2` and a new clean commit, then run a second `aw migrate metadata --apply --force` and verify it changes nothing (`metadata_schema is 2; nothing to do`, unchanged `HEAD` and tree); (3) verify post-apply `meta/<id6>.jsonl` checkpoint and `artifact_meta.replay` round-trip validity across converted logs; (4) run `aw find <probe_id6> --agent`, `aw show <probe_id6> --history`, `aw show <probe_id6> --format json`, and `aw attention --format json` / `--all --format json` (asserting zero violations on `.aw/records/meta` and zero new violations relative to the pre-migration `aw attention --all --format json` baseline); and (5) assert before/after `aw find --agent` parity by mapped path (`journal.json["rename_map"]`) and normalized status, accounting for `ffceq0` Decisions D-1 to D-6 and `journal.json["minted_ids"]`.
   4. Verify the source repository's `git rev-parse HEAD` and `git status --porcelain` are identical before and after.
   - Depends on: E-01
   - Expected outcome: `tests/test_m0001_any_repo.py` passes all five corpus cases and `test_ac42_this_repository_clone_migration` with `0 unlisted slow tests`, bare `python3 -m pytest` / `aw suite` runs the five core corpus cases while deselecting `test_ac42_this_repository_clone_migration`, and the source checkout is untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add one bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with zero em or en dashes): ``- Added: `aw migrate metadata` AC-42 verification now covers `aw find` and `aw attention` parity across all five prior-format corpus shapes and a fresh clone of this repository.`` Run `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py`, `aw suite` (core tier), `make typecheck`, `aw check all --agent` (diffed by `(location, rule)` against `.aw/state/60mazt/check-before.jsonl` with zero added error or warning pairs), `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`; commit only changed `Scope-Paths` files through `aw commit 60mazt -- <each changed path>`. Never push.
+- [x] E-03 Add one bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with zero em or en dashes): ``- Added: `aw migrate metadata` AC-42 verification now covers `aw find` and `aw attention` parity across all five prior-format corpus shapes and a fresh clone of this repository.`` Run `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py`, `aw suite` (core tier), `make typecheck`, `aw check all --agent` (diffed by `(location, rule)` against `.aw/state/60mazt/check-before.jsonl` with zero added error or warning pairs), `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`; commit only changed `Scope-Paths` files through `aw commit 60mazt -- <each changed path>`. Never push.
   - Depends on: E-02
   - Expected outcome: all named tests and gates pass with `0 unlisted slow tests`, zero new `aw check all --agent` errors/warnings, clean `aw sanitize --agent`, zero em/en dashes in the added `CHANGELOG.md` line, and one path-scoped commit on `- Scope-Paths:`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -138,20 +138,47 @@ None. Circular dependency with Order 08 and runtime bottleneck `e49gzt` were res
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py` showing all five corpus cases PASSED (`legacy_agents_layout`, `mixed_layout`, `idless_prose`, `no_sidecar`, `companion_backend`), quoting the spec `4sd62s` AC-42(4) `aw find` / `aw attention --format json` / `--all --format json` and AC-42(5) `aw find --agent` mapped path/status parity assertions executed for each shape, plus confirmation that `.aw/state/60mazt/check-before.jsonl` was captured before editing.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/60mazt/check-before.jsonl` captured on clean base `ec150a77b` before applying any edits (`findings: 80`, `findings_by_severity: {"error": 13, "warning": 2, "info": 65}`).
+    - `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py` (all 5 corpus shapes PASSED):
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[legacy_agents_layout] PASSED [ 16%]` (`1.43s`)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[companion_backend] PASSED [ 50%]` (`0.97s`)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[no_sidecar] PASSED [ 66%]` (`0.78s`)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[idless_prose] PASSED [ 83%]` (`0.87s`)
+      - `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration[mixed_layout] PASSED [100%]` (`0.98s`)
+    - Executed AC-42(4) and AC-42(5) assertions in `test_ac42_corpus_shapes_end_to_end_migration`: pre-migration `aw find --agent` (`summary["complete"] is True`) and `aw attention --all --format json`; post-apply `aw find <probe_id6> --agent` (`probe_id6` present), `aw show <probe_id6> --history` and `--format json`, `aw attention --format json` and `--all --format json` (`meta_viols == []`, `probe_id6 in attn_all_ids`, sole `attention.uninventoried-tree` at `.aw/records/notes` for `idless_prose`, `valid is True` / zero new migrated violations for `no_sidecar`, `companion_backend`, `mixed_layout`, `legacy_agents_layout`); and post-apply `aw find --agent` mapped through `.agents/` -> `.aw/records/` and `rename_map` (`dropped_paths == []`, `post_norm_status == pre_norm_status`, post-only items strictly in `minted_ids`). Zero source-code inspection.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py` showing `test_ac42_this_repository_clone_migration` PASSED with its wall time and `0 unlisted slow tests`, the `tests/slow_allowlist.txt` diff hunk, `python3 -m pytest --collect-only -q tests/test_m0001_any_repo.py` (with default `addopts`) confirming the five corpus cases are collected while `test_ac42_this_repository_clone_migration` is deselected, and identical `git rev-parse HEAD` and `git status --porcelain` on the source checkout before and after.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v --durations=0 tests/test_m0001_any_repo.py`:
+      - `tests/test_m0001_any_repo.py::test_ac42_this_repository_clone_migration PASSED [ 33%]`
+      - `391.86s call     tests/test_m0001_any_repo.py::test_ac42_this_repository_clone_migration` (marked `@pytest.mark.slow`, `@pytest.mark.livecorpus`, `@pytest.mark.timeout(700, wall=1000)`)
+      - `0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).`
+      - `6 passed in 398.69s (0:06:38)`
+    - `tests/slow_allowlist.txt` diff hunk:
+      - `+tests/test_m0001_any_repo.py::test_ac42_this_repository_clone_migration	Full repository migration dry-run, apply, log replay, aw find parity, and aw attention check on disposable git clone of this repository`
+    - `python3 -m pytest --collect-only -q tests/test_m0001_any_repo.py`:
+      - `tests/test_m0001_any_repo.py: 5`
+      - `NOTE: 1 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all`
+    - Source checkout unchanged before and after: `HEAD_BEFORE=de61ddefacd748fc92f68fd2207ff52eba1ab65d`, `HEAD_AFTER=de61ddefacd748fc92f68fd2207ff52eba1ab65d`, `STATUS_BEFORE=0`, `STATUS_AFTER=0`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `CHANGELOG.md` diff hunk (verifying zero em or en dashes in the added line), the `aw suite` and `make typecheck` summaries, the `(location, rule)` diff of `aw check all --agent` against `.aw/state/60mazt/check-before.jsonl` (zero new error/warning pairs), `aw ipd lint --phase pre-transition` output on this plan, `aw sanitize --agent` output, and the `aw commit 60mazt` output listing only `- Scope-Paths:` files.
   - Observed evidence:
-  - Result: pending
+    - `CHANGELOG.md` diff hunk (zero em or en dashes in added line):
+      - `+- Added: \`aw migrate metadata\` AC-42 verification now covers \`aw find\` and \`aw attention\` parity across all five prior-format corpus shapes and a fresh clone of this repository.`
+    - `aw suite` (core tier): `2661 passed, 11 warnings in 148.60s (0:02:28)` (exit 0; runs the 5 `@pytest.mark.core` corpus cases, deselects `test_ac42_this_repository_clone_migration`; 0 tests from `tests/test_m0001_any_repo.py` in slow report).
+    - `make typecheck`: `Success: no issues found in 228 source files` (exit 0).
+    - `aw check all --agent` `(location, rule)` diff against `.aw/state/60mazt/check-before.jsonl`: `before: {'error': 13, 'warning': 2, 'info': 65} total: 80`, `after: {'error': 13, 'warning': 2, 'info': 66} total: 81`, zero added error or warning pairs (the sole new `info` entry is `check.ipd-carrier-finished-unverified` on `nbfg7w` from intervening `i29bd5` finalization on `main`).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6865,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw ipd lint --phase pre-transition` on this plan: verified `outcome: "clean"`, `findings: 0` immediately before commit and finalize.
+    - Commits on `- Scope-Paths:` only: `cc0602e28` (`tests/test_m0001_any_repo.py`, `tests/slow_allowlist.txt`), `de61ddefa` (`tests/test_m0001_any_repo.py`, `CHANGELOG.md`, committed via `aw commit 60mazt` as `de05761517d7b284ec671f29ac42117c1e60365e` and rebased onto `59b0abce8`), plus the plan-evidence commit via `aw commit 60mazt -- .aw/records/plans/pending/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
