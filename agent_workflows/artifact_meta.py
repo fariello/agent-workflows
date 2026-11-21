@@ -314,6 +314,7 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "research_kind": FieldDef("research_kind", "string", "generic"),
         "outcome": FieldDef("outcome", "string", "generic"),
         "priority": FieldDef("priority", "string", "generic"),
+        "blocks_release": FieldDef("blocks_release", "reference", "generic"),
         "consumed_by": FieldDef("consumed_by", "string list", "generic"),
         "topic": FieldDef("topic", "string list", "generic"),
         "created": FieldDef("created", "string", "migration-only"),
@@ -2057,7 +2058,8 @@ LAYOUT_VERSION = "layout_v1"
 #: enforce strict `^- <Key>:` bullet matching and lowercase scalar normalization for YAML front matter.
 #: "legacy_v7" (2026-11-18, r81uvz): map legacy backlog `- Kind:` bullets to `work_kind` when `- Work-Kind:` is absent.
 #: "legacy_v8" (2026-11-19, xxdzcq): map prompt `Kind`/`kind` to `prompt_kind` and `Created`/`created` to `created_day`, and set `artifact_row["created_day"]` for prompts.
-LEGACY_LOADER_VERSION = "legacy_v8"
+#: "legacy_v9" (2026-11-21, dqutt8): extract workflow history via `attention_contract.history_block` for both bullet and YAML records (fixing indented-line leaks and YAML research history), and register `blocks_release` on `research`.
+LEGACY_LOADER_VERSION = "legacy_v9"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (
@@ -2556,45 +2558,30 @@ def _parse_bullet_metadata_with_loose(
     bullets: Dict[str, str] = {}
     loose_bullets: Dict[str, str] = {}
     title: Optional[str] = None
-    in_bullets = True
     first_h1_done = False
-    history_lines: List[str] = []
-    in_history = False
 
     for line in lines:
         stripped = line.strip()
-        if not first_h1_done and in_bullets and stripped.startswith("# "):
+        if not first_h1_done and stripped.startswith("# "):
             title = stripped[2:].strip()
             first_h1_done = True
             continue
 
-        if stripped.startswith("## Workflow history"):
-            in_history = True
-            in_bullets = False
-            continue
-        elif in_history and stripped.startswith("## "):
-            in_history = False
+        if re.match(r"^#{2,}(?:[ \t]|$)", stripped):
+            break
 
-        if in_history:
-            if stripped.startswith("- "):
-                history_lines.append(stripped)
-            continue
+        m_strict = _STRICT_BULLET_RE.match(line)
+        if m_strict:
+            k = m_strict.group(1).strip()
+            v = m_strict.group(2).strip()
+            bullets.setdefault(k, v)
+        m_loose = _LOOSE_BULLET_RE.match(line)
+        if m_loose:
+            k_l = m_loose.group(1).strip()
+            v_l = m_loose.group(2).strip()
+            loose_bullets.setdefault(k_l, v_l)
 
-        if in_bullets:
-            if re.match(r"^#{2,}(?:[ \t]|$)", stripped):
-                in_bullets = False
-                continue
-            m_strict = _STRICT_BULLET_RE.match(line)
-            if m_strict:
-                k = m_strict.group(1).strip()
-                v = m_strict.group(2).strip()
-                bullets.setdefault(k, v)
-            m_loose = _LOOSE_BULLET_RE.match(line)
-            if m_loose:
-                k_l = m_loose.group(1).strip()
-                v_l = m_loose.group(2).strip()
-                loose_bullets.setdefault(k_l, v_l)
-
+    history_lines = _att.history_block(text).records
     return bullets, loose_bullets, title, history_lines
 
 
@@ -2949,6 +2936,7 @@ def load_legacy_artifact(
     if is_yaml_record:
         yaml_data, title = _parse_yaml_front_matter(text)
         bullets = dict(yaml_data)
+        history_lines = _att.history_block(text).records
         raw_y_id = bullets.get("id")
         if raw_y_id:
             yaml_id = _first_token(_normalize_yaml_scalar(raw_y_id))
@@ -4641,6 +4629,7 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
         }
         if "kind" in _yaml_probe:
             fields["research_kind"] = _normalize_yaml_scalar(_yaml_probe["kind"])
+        yaml_history = _att.history_block(text).records
         return State(
             id6=y_id or "",
             type=art_type,
@@ -4649,6 +4638,8 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
             short_description=fields.get("short_description"),
             set_id=legacy_raw_set,
             order_nn=order_nn,
+            last_history_day=_att.last_history_at(yaml_history),
+            last_seq=len(yaml_history),
             fields=fields,
             legacy_raw_status=y_status,
             legacy_raw_set=legacy_raw_set,
@@ -4657,11 +4648,51 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
             loose_blocks_release=None,
         )
 
+    comment_bullets: Dict[str, str] = {}
+    if art_type == "prompt" and text.startswith("<!--"):
+        first_line = lines[0].strip() if lines else ""
+        m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(first_line)
+        if m_prompt:
+            for item in m_prompt.group(1).split("|"):
+                if ":" in item:
+                    k, v = item.split(":", 1)
+                    comment_bullets[k.strip()] = v.strip()
+        else:
+            m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
+            if m_aw:
+                inner = m_aw.group(1)
+                split_aw = _split_prompt_comment(first_line)
+                if split_aw is not None and split_aw[2]:
+                    inner = split_aw[1]
+                else:
+                    from agent_workflows import prompts as _prompts
+
+                    for marker in (
+                        f" . {_prompts._METADATA_TRAILER}",
+                        " . This HTML comment is",
+                        _prompts._METADATA_TRAILER,
+                    ):
+                        if marker in inner:
+                            inner = inner.split(marker, 1)[0].strip()
+                            break
+                for item in inner.split("|"):
+                    if ":" in item:
+                        k, v = item.split(":", 1)
+                        comment_bullets[k.strip()] = v.strip()
+
     bullets, loose_bullets, title, history_lines = _parse_bullet_metadata_with_loose(
         text
     )
-    strict_id = _first_token(bullets.get("Id"))
-    raw_status = bullets.get("Status")
+    if comment_bullets:
+        merged_bullets = dict(bullets)
+        merged_bullets.update(comment_bullets)
+        if bullets.get("Status") or bullets.get("status"):
+            merged_bullets["Status"] = bullets.get("Status") or bullets["status"]
+        bullets = merged_bullets
+    strict_id = _first_token(bullets.get("Id") or bullets.get("id"))
+    raw_status = bullets.get("Status") or (
+        bullets.get("status") if comment_bullets else None
+    )
     raw_status_legacy = raw_status.strip() or None if raw_status else None
     clean_bullet_status: Optional[str] = None
     if raw_status_legacy and len(raw_status_legacy.split()) == 1:
@@ -4706,6 +4737,7 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
         title=title,
         short_description=bullets.get("Short-Description") or None,
         set_id=legacy_raw_set,
+        last_history_day=_att.last_history_at(history_lines),
         fields=fields_out,
         last_seq=len(history_lines),
         legacy_raw_status=raw_status_legacy,
