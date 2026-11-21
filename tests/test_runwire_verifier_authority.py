@@ -29,6 +29,7 @@ from agent_workflows import (
     runner_shared,
     verify_roles,
 )
+from tests.record_builder import RecordBuilder
 
 
 def _setup_test_repo(root: Path) -> Path:
@@ -73,7 +74,10 @@ def _drive_execute_turn(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_file = plans_dir / "20260101-test-01-tst001-test.ipd.md"
     plan_file.write_text(
-        "- Id: tst001\n- Set: test\n- Status: approved\n", encoding="utf-8"
+        RecordBuilder().plan(
+            id6="tst001", set="test", status="approved", text_only=True
+        ),
+        encoding="utf-8",
     )
 
     item: dict[str, Any] = {

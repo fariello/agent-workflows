@@ -30,6 +30,7 @@ from agent_workflows.runner_shared import (
     has_verifier_test_evidence,
 )
 from agent_workflows.term import Term
+from tests.record_builder import RecordBuilder
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "verifier_corroboration"
 
@@ -363,7 +364,14 @@ def _setup_test_repo(root: Path) -> tuple[Path, Path]:
     plan_dir.mkdir(parents=True, exist_ok=True)
     plan_file = plan_dir / "20261001-test-01-tst001-test.ipd.md"
     plan_file.write_text(
-        "# IPD: Test\n- Id: tst001\n- Set: test\n- Status: executed\n- Scope-Paths: file.txt\n",
+        RecordBuilder().plan(
+            title="Test",
+            id6="tst001",
+            set="test",
+            status="executed",
+            scope_paths="file.txt",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(

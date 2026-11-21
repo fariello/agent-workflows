@@ -12,8 +12,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-
 from agent_workflows import git_commit_helper, specs, term
+from tests.record_builder import RecordBuilder
 from tests.support import init_repo
 
 
@@ -82,12 +82,12 @@ def test_site_win32_nul_specs_run_set_refuses_unattested_approval():
             GetConsoleMode=lambda h, m: 0,
         )
     )
-    spec_content = (
-        "# Spec: sample\n\n"
-        "- Status: reviewed\n\n"
-        "## Body\n\nContent\n\n"
-        "## Workflow history\n"
-        "- 2026-09-26 reviewed (fixture): ready\n"
+    spec_content = RecordBuilder().spec(
+        title="sample",
+        status="reviewed",
+        history=["- 2026-09-26 reviewed (fixture): ready"],
+        body="## Body\n\nContent",
+        text_only=True,
     )
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / "20260926-0001-01-sample.spec.md"

@@ -25,6 +25,7 @@ from agent_workflows import (
 )
 from agent_workflows.runner_shared import DriverError, RunFlagRefusal
 from agent_workflows.runner_stop import deliberate_stop_exit_code
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -52,211 +53,38 @@ def _write_plan(
     bucket = "pending"
     if status in ("executed", "superseded", "not-executed", "reusable"):
         bucket = status
-    dir_path = repo / ".aw" / "records" / "plans" / bucket
-    dir_path.mkdir(parents=True, exist_ok=True)
     if kind == "orchestrator":
         order = 0
-    file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-{slug}.ipd.md"
-
     k = kind or "child"
-    lines = [
-        f"# IPD: Test {id6}",
-        "",
-        "- Date: 2026-09-27",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        f"- Order: {order}",
-        f"- Status: {status}",
-        f"- Kind: {k}",
-        "- Concern: Test concern for typed queue entry tests.",
-        "- Scope: Typed queue entry test scope.",
-        "- Scope-Paths: none",
-        "- Priority: medium",
-        "- Work-Kind: feature",
-        "- Author: test",
-        "- Highest E allocated: 01",
-    ]
-    if status == "approved":
-        lines.append("- Approval: 2026-09-27, test approved")
+    history = [f"- 2026-09-27 {status} (test): created."]
     if status in ("reviewed", "approved", "auto-approved"):
-        lines.append("- Readiness: go-pending-approval")
-    if dependencies:
-        lines.append(f"- Item-Dependencies: {', '.join(dependencies)}")
-    else:
-        lines.append("- Item-Dependencies: none")
-    lines.append("")
-    lines.append("## Workflow history")
-    lines.append("")
-    lines.append(f"- 2026-09-27 {status} (test): created.")
-    if status in ("reviewed", "approved", "auto-approved"):
-        lines.append("- 2026-09-27 /plan-review (test): APPROVE")
-    lines.append("")
-    lines.append("## Goal")
-    lines.append("")
-    lines.append("A synthetic plan for typed queue entry tests.")
-    lines.append("")
-    lines.append("## Detailed Implementation Checklist (TODO)")
-    lines.append("")
-    if k == "orchestrator":
-        lines.extend(
-            [
-                "- [ ] E-01 CONFIRM chld01 REACHED executed",
-                "  - Depends on: none",
-                "  - Expected outcome: done",
-                "  - Execution state: pending",
-                "",
-                "## Child IPDs, sequence, and dependencies",
-                "",
-                "| Order | Id | Status | Plan | Depends on |",
-                "|---|---|---|---|---|",
-                f"| 01 | chld01 | pending | .aw/records/plans/pending/20260927-{setid}-01-chld01-test.ipd.md | none |",
-                "",
-                "## Completion criteria (the whole Set is done only when)",
-                "",
-                "- None.",
-                "",
-                "## Cross-IPD validation",
-                "",
-                "- None.",
-            ]
+        history.append("- 2026-09-27 /plan-review (test): APPROVE")
+    return Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            set=setid,
+            order=order,
+            status=status,
+            plan_role=k,
+            title=f"Test {id6}",
+            when="2026-09-27",
+            slug=slug,
+            disposition=bucket,
+            scope_paths="none",
+            priority="medium",
+            work_kind="feature",
+            author="test",
+            highest_e_allocated="01",
+            approval="2026-09-27, test approved" if status == "approved" else None,
+            readiness=(
+                "go-pending-approval"
+                if status in ("reviewed", "approved", "auto-approved")
+                else None
+            ),
+            item_dependencies=", ".join(dependencies) if dependencies else "none",
+            history=history,
         )
-    else:
-        lines.extend(
-            [
-                "- [ ] E-01 Test item.",
-                "  - Depends on: none",
-                "  - Expected outcome: done",
-                "  - Execution state: pending",
-                "",
-                "## Project conventions discovered (Step 0)",
-                "",
-                "- None.",
-                "",
-                "## Findings",
-                "",
-                "- None.",
-                "",
-                "## Proposed changes (ordered, validatable)",
-                "",
-                "- None.",
-            ]
-        )
-    lines.extend(
-        [
-            "",
-            "## Deferred / out of scope (with reason)",
-            "",
-            "- None.",
-            "",
-            "## Scope check",
-            "",
-            "- None.",
-            "",
-            "## Required tests / validation",
-            "",
-            "- None.",
-        ]
     )
-    if k != "orchestrator":
-        lines.extend(
-            [
-                "",
-                "## Spec / documentation sync",
-                "",
-                "- None.",
-            ]
-        )
-    val_header = (
-        "## Validation and cross-check (verify before reporting the Set complete)"
-        if k == "orchestrator"
-        else "## Validation and cross-check (verify before reporting done)"
-    )
-    lines.extend(
-        [
-            "",
-            "## Open questions",
-            "",
-            "- None.",
-            "",
-            val_header,
-            "",
-            "- [ ] V-01 validates E-01",
-            "  - Required evidence: check.",
-            "  - Observed evidence:",
-            "  - Result: pending",
-            "",
-            "## Approval and execution gate",
-            "",
-            "- None.",
-            "",
-        ]
-    )
-    file_path.write_text("\n".join(lines), encoding="utf-8")
-    return file_path
-
-
-def _write_spec(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "to-review",
-    title: str = "Test Spec",
-    slug: str = "test-spec",
-) -> Path:
-    specs_dir = repo / ".aw" / "records" / "specs"
-    specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"20260927-0001-01-{id6}-{slug}.spec.md"
-
-    lines = [
-        f"# Spec: {title}",
-        "",
-        "- Date: 2026-09-27",
-        f"- Id: {id6}",
-        f"- Status: {status}",
-        "",
-        "## Workflow history",
-        "",
-        f"- 2026-09-27 {status} (test): created.",
-        "",
-        "## Goal",
-        "",
-        "A synthetic spec for typed queue entry tests.",
-        "",
-    ]
-    file_path.write_text("\n".join(lines), encoding="utf-8")
-    return file_path
-
-
-def _write_backlog_item(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "open",
-    setid: str = "test",
-    title: str = "Test Backlog Item",
-    slug: str = "test-item",
-) -> Path:
-    backlog_dir = repo / ".aw" / "records" / "backlog" / status
-    backlog_dir.mkdir(parents=True, exist_ok=True)
-    file_path = backlog_dir / f"20260927-{id6}-{slug}.backlog.md"
-
-    sid = setid or "test"
-    lines = [
-        f"- Id: {id6}",
-        f"- Set: {sid}",
-        f"- Status: {status}",
-        "- Work-Kind: feature",
-        "- Priority: medium",
-        f"- Summary: {title}",
-        "",
-        "## Workflow history",
-        f"- 2026-09-27 created: {title}",
-        "",
-        "A synthetic backlog item for typed queue entry tests.",
-        "",
-    ]
-    file_path.write_text("\n".join(lines), encoding="utf-8")
-    return file_path
 
 
 _run_counter = 0
@@ -319,8 +147,15 @@ class TestSelectionAndEntryShape(unittest.TestCase):
                     repo = _make_test_repo(Path(td))
 
                     # Exact setid shadowing: backlog item faov03 and plan wja06w with Set faov03
-                    _write_backlog_item(
-                        repo, id6="faov03", status="open", title="Backlog faov03"
+                    RecordBuilder(repo).backlog(
+                        id6="faov03",
+                        status="open",
+                        set="test",
+                        summary="Backlog faov03",
+                        work_kind="feature",
+                        priority="medium",
+                        when="2026-09-27",
+                        slug="test-item",
                     )
                     _write_plan(
                         repo,
@@ -331,8 +166,15 @@ class TestSelectionAndEntryShape(unittest.TestCase):
                     )
 
                     # Prefix shadowing: backlog item 8t5ghs and plan s2ufeo in Set 8t5ghsgi
-                    _write_backlog_item(
-                        repo, id6="8t5ghs", status="open", title="Backlog 8t5ghs"
+                    RecordBuilder(repo).backlog(
+                        id6="8t5ghs",
+                        status="open",
+                        set="test",
+                        summary="Backlog 8t5ghs",
+                        work_kind="feature",
+                        priority="medium",
+                        when="2026-09-27",
+                        slug="test-item",
                     )
                     _write_plan(
                         repo,
@@ -343,8 +185,12 @@ class TestSelectionAndEntryShape(unittest.TestCase):
                     )
 
                     # Plan filename substring: spec spc001 and plan whose filename has spc001
-                    _write_spec(
-                        repo, id6="spc001", status="to-review", title="Spec spc001"
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="to-review",
+                        title="Spec spc001",
+                        when="2026-09-27",
+                        slug="test-spec",
                     )
                     _write_plan(
                         repo,
@@ -386,8 +232,27 @@ class TestSelectionAndEntryShape(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
             p_plan = _write_plan(repo, id6="pln001", setid="s1", order=1)
-            p_spec = _write_spec(repo, id6="spc001")
-            p_bk = _write_backlog_item(repo, id6="bkl001")
+            p_spec = Path(
+                RecordBuilder(repo).spec(
+                    id6="spc001",
+                    status="to-review",
+                    title="Test Spec",
+                    when="2026-09-27",
+                    slug="test-spec",
+                )
+            )
+            p_bk = Path(
+                RecordBuilder(repo).backlog(
+                    id6="bkl001",
+                    status="open",
+                    set="test",
+                    summary="Test Backlog Item",
+                    work_kind="feature",
+                    priority="medium",
+                    when="2026-09-27",
+                    slug="test-item",
+                )
+            )
 
             # Correct resolution
             item_plan = {
@@ -467,8 +332,23 @@ class TestSelectionAndEntryShape(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="to-review")
-                    _write_backlog_item(repo, id6="bkl001", status="open")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="to-review",
+                        title="Test Spec",
+                        when="2026-09-27",
+                        slug="test-spec",
+                    )
+                    RecordBuilder(repo).backlog(
+                        id6="bkl001",
+                        status="open",
+                        set="test",
+                        summary="Test Backlog Item",
+                        work_kind="feature",
+                        priority="medium",
+                        when="2026-09-27",
+                        slug="test-item",
+                    )
                     _write_plan(repo, id6="pln001", setid="s1", order=1)
 
                     # all --type spec queues specs only
@@ -531,7 +411,13 @@ class TestPreQueueSeams(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="to-review",
+                        title="Test Spec",
+                        when="2026-09-27",
+                        slug="test-spec",
+                    )
 
                     # --action review succeeds and freezes action: review
                     data = _build_queue_for_selector(
@@ -566,7 +452,15 @@ class TestPreQueueSeams(unittest.TestCase):
         """F-10: spec named without --type contributes path and triggers [RUN-MIXED-TYPES] with plan."""
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            p_spec = _write_spec(repo, id6="spc001")
+            p_spec = Path(
+                RecordBuilder(repo).spec(
+                    id6="spc001",
+                    status="to-review",
+                    title="Test Spec",
+                    when="2026-09-27",
+                    slug="test-spec",
+                )
+            )
             _write_plan(repo, id6="pln001", setid="s1", order=1)
 
             manifest = runner_shared.build_dynamic_manifest(
@@ -745,7 +639,16 @@ class TestQueueShapeSeams(unittest.TestCase):
         """F-11: backlog open item born queued; plan success bar exits 0; refusal exits nonzero."""
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl001", status="open")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                set="test",
+                summary="Test Backlog Item",
+                work_kind="feature",
+                priority="medium",
+                when="2026-09-27",
+                slug="test-item",
+            )
 
             data = _build_queue_for_selector(oc_runipd, repo, "bkl001")
             q = data["queue"]
@@ -794,26 +697,34 @@ class TestQueueShapeSeams(unittest.TestCase):
         """F-12: conflicting typed entry in conflict table appears with real path and real status."""
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_spec(repo, id6="spc001", status="to-review")
+            RecordBuilder(repo).spec(
+                id6="spc001",
+                status="to-review",
+                title="Test Spec",
+                when="2026-09-27",
+                slug="test-spec",
+            )
             manifest = runner_shared.build_dynamic_manifest(
                 repo, runner_shared.discover_plans(repo)
             )
             runner_shared.populate_manifest_specs(manifest, repo)
 
             out_buf = io.StringIO()
-            with patch(
-                "agent_workflows.attention.get_active_runs_map",
-                return_value={"spc001": "running"},
+            with (
+                patch(
+                    "agent_workflows.attention.get_active_runs_map",
+                    return_value={"spc001": "running"},
+                ),
+                self.assertRaises(runner_shared.DriverError) as ctx,
             ):
-                with self.assertRaises(runner_shared.DriverError) as ctx:
-                    runner_shared.enforce_no_active_runner_conflict(
-                        repo,
-                        ["spc001"],
-                        [],
-                        manifest=manifest,
-                        on_conflict="refuse",
-                        stream=out_buf,
-                    )
+                runner_shared.enforce_no_active_runner_conflict(
+                    repo,
+                    ["spc001"],
+                    [],
+                    manifest=manifest,
+                    on_conflict="refuse",
+                    stream=out_buf,
+                )
             table_output = str(ctx.exception)
             # Must show real type and real status, not empty path or fabricated to-review
             self.assertIn("spc001", table_output)
@@ -826,7 +737,16 @@ class TestQueueShapeSeams(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkg001", status="open")
+                    RecordBuilder(repo).backlog(
+                        id6="bkg001",
+                        status="open",
+                        set="test",
+                        summary="Test Backlog Item",
+                        work_kind="feature",
+                        priority="medium",
+                        when="2026-09-27",
+                        slug="test-item",
+                    )
                     _write_plan(
                         repo, id6="pln001", setid="s1", order=1, status="approved"
                     )
@@ -893,7 +813,13 @@ class TestNonPlanDependencyClosureDefects(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="to-review",
+                        title="Test Spec",
+                        when="2026-09-27",
+                        slug="test-spec",
+                    )
                     _write_plan(
                         repo,
                         id6="pln001",
@@ -920,7 +846,16 @@ class TestNonPlanDependencyClosureDefects(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkg001", status="open")
+                    RecordBuilder(repo).backlog(
+                        id6="bkg001",
+                        status="open",
+                        set="test",
+                        summary="Test Backlog Item",
+                        work_kind="feature",
+                        priority="medium",
+                        when="2026-09-27",
+                        slug="test-item",
+                    )
                     _write_plan(
                         repo,
                         id6="pln001",
@@ -1138,7 +1073,13 @@ class TestNewOrderingAndRefusalCases(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="to-review",
+                        title="Test Spec",
+                        when="2026-09-27",
+                        slug="test-spec",
+                    )
                     _write_plan(
                         repo,
                         id6="pln001",
@@ -1172,7 +1113,16 @@ class TestNewOrderingAndRefusalCases(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkg001", status="open")
+                    RecordBuilder(repo).backlog(
+                        id6="bkg001",
+                        status="open",
+                        set="test",
+                        summary="Test Backlog Item",
+                        work_kind="feature",
+                        priority="medium",
+                        when="2026-09-27",
+                        slug="test-item",
+                    )
                     _write_plan(
                         repo,
                         id6="pln001",

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -42,11 +43,12 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared, runner_stop
 from agent_workflows.runner_shared import (
+    VERIFICATION_REFUSED_KEY,
     HostSpawnError,
     StallTimeout,
-    VERIFICATION_REFUSED_KEY,
     recorded_outcome_path,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -73,43 +75,49 @@ def _write_plan(
     status: str = "approved",
     order: int = 1,
 ) -> Path:
+    body = (
+        "## Goal\n"
+        "Test goal.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "Execution-state rule: mark performed only after doing it.\n"
+        "### Task group 1: work\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n"
+        "- None."
+    )
+    common_kwargs: dict[str, Any] = {
+        "title": f"Test Plan {id6}",
+        "when": "2026-10-07",
+        "plan_role": "child",
+        "scope_paths": "agent_workflows/runner_shared.py",
+        "status": status,
+        "set": setid,
+        "order": order,
+        "slug": "test-plan",
+        "highest_e_allocated": "01",
+        "author": "test",
+        "priority": "medium",
+        "work_kind": "feature",
+        "item_dependencies": "none",
+        "history": [f"- 2026-10-07 {status} (test): created."],
+        "body": body,
+    }
+    if re.fullmatch(r"[a-z0-9]{6}", id6):
+        return Path(RecordBuilder(repo).plan(id6=id6, **common_kwargs))
     p_dir = repo / ".aw" / "records" / "plans" / "pending"
     p_dir.mkdir(parents=True, exist_ok=True)
     file_path = p_dir / f"20261007-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
-    content = f"""# IPD: Test Plan {id6}
-
-- Date: 2026-10-07
-- Kind: child
-- Concern: Test concern.
-- Scope: Test scope.
-- Scope-Paths: agent_workflows/runner_shared.py
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-07 {status} (test): created.
-
-## Goal
-Test goal.
-
-## Detailed Implementation Checklist (TODO)
-Execution-state rule: mark performed only after doing it.
-### Task group 1: work
-- [ ] E-01 Work item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-- None.
-"""
+    content = str(
+        RecordBuilder().plan(
+            id6="tst001",
+            raw_fields={"id": id6},
+            text_only=True,
+            **common_kwargs,
+        )
+    )
     file_path.write_text(content, encoding="utf-8")
     return file_path
 

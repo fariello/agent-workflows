@@ -33,6 +33,7 @@ from typing import Any
 from unittest import mock
 
 from agent_workflows import oc_runipd, runner_shared, runner_stop
+from tests.record_builder import RecordBuilder
 
 
 class AttemptLogStatusTests(unittest.TestCase):
@@ -263,13 +264,15 @@ class ReviewEvidenceAndDispositionTests(unittest.TestCase):
             # Plan 1: to-review
             p_toreview = plans_dir / "20260928-demo-01-rev001-test.ipd.md"
             p_toreview.write_text(
-                "- Id: rev001\n- Status: to-review\n", encoding="utf-8"
+                RecordBuilder().plan(id6="rev001", status="to-review", text_only=True),
+                encoding="utf-8",
             )
 
             # Plan 2: approved
             p_approved = plans_dir / "20260928-demo-02-rev002-test.ipd.md"
             p_approved.write_text(
-                "- Id: rev002\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().plan(id6="rev002", status="approved", text_only=True),
+                encoding="utf-8",
             )
 
             # Commit the plans so working tree is clean for zero-output test
@@ -344,7 +347,10 @@ class CompletionSeamRefusalTests(unittest.TestCase):
             plans_dir = repo / ".aw" / "records" / "plans" / "pending"
             plans_dir.mkdir(parents=True)
             plan_file = plans_dir / "20260928-set1-01-tst001-test.ipd.md"
-            plan_file.write_text("- Id: tst001\n- Status: approved\n", encoding="utf-8")
+            plan_file.write_text(
+                RecordBuilder().plan(id6="tst001", status="approved", text_only=True),
+                encoding="utf-8",
+            )
             subprocess.run(["git", "add", ".aw"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "add plan"], cwd=repo, check=True)
 
@@ -379,17 +385,20 @@ class CompletionSeamRefusalTests(unittest.TestCase):
             )
             state["options"]["opencode"] = str(fake_bin)
 
-            with mock.patch.object(
-                oc_runipd, "driver_begin", lambda *a, **k: (0, "ok")
-            ), mock.patch.object(
-                oc_runipd, "driver_finalize", lambda *a, **k: (0, "ok")
-            ), mock.patch.object(
-                oc_runipd, "assert_child_tool_identity", lambda *a, **k: None
-            ), mock.patch.object(
-                oc_runipd, "extract_suite_failures", None
-            ), mock.patch.object(
-                oc_runipd, "run_suite_check", lambda *a, **k: (True, "1 passed")
-            ), mock.patch("sys.stderr", new_callable=io.StringIO):
+            with (
+                mock.patch.object(oc_runipd, "driver_begin", lambda *a, **k: (0, "ok")),
+                mock.patch.object(
+                    oc_runipd, "driver_finalize", lambda *a, **k: (0, "ok")
+                ),
+                mock.patch.object(
+                    oc_runipd, "assert_child_tool_identity", lambda *a, **k: None
+                ),
+                mock.patch.object(oc_runipd, "extract_suite_failures", None),
+                mock.patch.object(
+                    oc_runipd, "run_suite_check", lambda *a, **k: (True, "1 passed")
+                ),
+                mock.patch("sys.stderr", new_callable=io.StringIO),
+            ):
                 oc_runipd.execute_item(run_dir, state, item, recovery=False)
 
             # Verification of E-02 contract:
