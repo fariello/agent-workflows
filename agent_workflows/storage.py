@@ -150,6 +150,39 @@ def _remote_reachable(records_path: str) -> Optional[bool]:
     return proc.returncode == 0
 
 
+def _resolve_records_git_root(records_path: Path, backend: str) -> Optional[Path]:
+    """Resolve the Git repository root governing ``records_path`` without climbing above companion root.
+
+    Checks ``records_path / ".git"`` first. For ``RecordsBackend.COMPANION`` when
+    ``records_path.name == "records"``, also checks ``records_path.parent / ".git"``
+    (the companion repository root) and never climbs further.
+    """
+    if (records_path / ".git").exists():
+        return records_path
+    if (
+        backend == RecordsBackend.COMPANION.value
+        and records_path.name == "records"
+        and (records_path.parent / ".git").exists()
+    ):
+        return records_path.parent
+    return None
+
+
+def _git_has_commits(git_root: Path) -> bool:
+    """Return True if ``git_root`` has at least one commit (HEAD resolves), False for unborn HEAD."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(git_root), "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+        return proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def get_storage_status(
     repo_path: Optional[str] = None, aw_home: Optional[str] = None
 ) -> StorageStatus:
@@ -162,15 +195,19 @@ def get_storage_status(
         ctx.target_repo, records_path, backend, ctx.effective_aw_home
     )
 
-    # Check git existence in records_path
-    git_dir = Path(records_path) / ".git"
-    has_git = git_dir.exists()
+    # Check git existence for records_path (or companion root for companion/records)
+    git_root = _resolve_records_git_root(Path(records_path), backend)
+    has_git = git_root is not None
 
     # Probe remote origin URL if git exists
     remote_url = None
-    if has_git:
-        remote_url = get_git_origin_url(records_path)
-    remote_reachable = _remote_reachable(records_path) if remote_url else None
+    if git_root is not None:
+        remote_url = get_git_origin_url(str(git_root))
+    remote_reachable = (
+        _remote_reachable(str(git_root))
+        if (git_root is not None and remote_url)
+        else None
+    )
 
     # Check explicit remote acknowledgement record
     ack_file = _get_ack_file_path(ctx.logical_roots[LogicalRoot.STATE.value])
@@ -218,10 +255,18 @@ def get_storage_status(
         rec = "Records have a configured remote whose durability policy is not acknowledged."
     elif has_git:
         durability_state = DurabilityState.LOCAL_GIT.value
-        rec = (
-            "Records storage has local Git history. Configure a remote or acknowledge the "
-            f"backup policy to reach the {DurabilityState.ACKNOWLEDGED_DURABLE.value} state."
-        )
+        assert git_root is not None
+        if _git_has_commits(git_root):
+            rec = (
+                "Records storage has local Git history. Configure a remote or acknowledge the "
+                f"backup policy to reach the {DurabilityState.ACKNOWLEDGED_DURABLE.value} state."
+            )
+        else:
+            rec = (
+                "Records storage has an initialized local Git repository with no commits yet (unborn HEAD). "
+                "Create an initial commit and configure a remote or acknowledge the backup policy to reach "
+                f"the {DurabilityState.ACKNOWLEDGED_DURABLE.value} state."
+            )
     else:
         durability_state = DurabilityState.UNVERSIONED.value
         rec = "Records storage is unversioned local files. Run 'aw storage init' to create a local Git repository."
@@ -290,10 +335,15 @@ def init_records_storage(
     rec_p.mkdir(parents=True, exist_ok=True)
 
     # Initialize local Git if requested and absent (NEVER creates remote or pushes!)
-    git_dir = rec_p / ".git"
-    if git_init and not git_dir.exists():
+    git_root = _resolve_records_git_root(rec_p, backend)
+    if git_init and git_root is None:
+        init_target = (
+            rec_p.parent
+            if backend == RecordsBackend.COMPANION.value and rec_p.name == "records"
+            else rec_p
+        )
         subprocess.run(
-            ["git", "-C", str(rec_p), "init"],
+            ["git", "-C", str(init_target), "init"],
             capture_output=True,
             check=True,
             text=True,
@@ -567,8 +617,8 @@ def materialize_companion_storage(
             (comp_p / ".aw" / "state" / "durable").mkdir(parents=True, exist_ok=True)
             deltas.append("Created .aw/state/durable/")
         if "records" in selected_root_classes:
-            (comp_p / ".aw" / "records").mkdir(parents=True, exist_ok=True)
-            deltas.append("Created .aw/records/")
+            (comp_p / "records").mkdir(parents=True, exist_ok=True)
+            deltas.append("Created records/")
 
         gitignore_path = comp_p / ".gitignore"
         ignore_content = ".aw/config/local.json\n.aw/state/runtime/\n"

@@ -99,9 +99,13 @@ directory) and a run record (the evidence and report of this assessment, under
 2. **Guiding principles** - `GUIDING_PRINCIPLES.md` or equivalent; or the universal
    fallback in `../release-review/00-run-protocol.md`.
 3. **Plan/IPD lifecycle location and format** - where plans live and any required
-   structure. Discover the project's existing convention and USE it (do not impose a
-   different one): a pending dir (e.g. `.aw/records/plans/pending/`, `docs/rfcs/`, an ADR
-   dir) and terminal dirs for finished plans. If none exists, create and use the
+   structure. In an `aw`-managed repository, run `aw path records` to locate the active
+   records root and create plans with `aw ipd scaffold` (or under `<aw path records>/plans/pending/`).
+   In `public-target-private-companion` repositories, durable records live in the external
+   companion repository, so target-local `.aw/records/` must never receive plans. Outside
+   `aw`-managed repositories, discover the project's existing convention and USE it (do not
+   impose a different one): a pending dir (e.g. `.aw/records/plans/pending/`, `docs/rfcs/`,
+   an ADR dir) and terminal dirs for finished plans. If none exists, create and use the
    canonical five-state lifecycle: `.aw/records/plans/pending/` (new/awaiting-approval IPDs),
    `.aw/records/plans/executed/` (terminal; implemented, verified, and tested),
    `.aw/records/plans/superseded/` (replaced by a better/subsequent plan; kept for the
@@ -148,8 +152,12 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
    (a needed capability that is missing - propose adding it). Enforce right-sizing: each E-item
    must address one concern and be executable in one focused pass; split when an E-item names
    multiple distinct deliverables or touches multiple independent test-surfaces. Do not gold-plate.
-5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named per
-   the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, local
+5. **Write the IPD** to the pending-plans directory. In an `aw`-managed repository, create
+   the plan via `aw ipd scaffold` (or write it under `<aw path records>/plans/pending/`).
+   In `public-target-private-companion` repositories, target-local `.aw/records/` must never
+   receive plans; write the plan only under the companion records root returned by
+   `aw path records`. When `aw` tooling is unavailable, write the IPD using `templates/ipd.md`,
+   named per the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, local
    date+time, `NN` a two-digit per-minute sequence with `00` reserved for an orchestrator),
    e.g. `<plans-pending>/YYYYMMDD-HHMM-NN-assess-<concern>.md`. Set the IPD's front-matter
    `Status: to-review` (assess produces a complete proposal, which is review-ready by
@@ -158,7 +166,13 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
    proposed N changes`.
 6. **Write the run record** to `.aw/workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
    next section) so the report and evidence are durable, not just shown in chat.
-7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). The run record in `.aw/workflow-artifacts/` is local-only working material: the framework-owned `.aw/.gitignore` ignores it (the anchored pattern `/workflow-artifacts/`, verifiable with `git check-ignore -v .aw/workflow-artifacts/`), so do NOT commit or force-add it. Do not commit unrelated changes; run `git status --short` first.
+7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). In
+   `public-target-private-companion` (companion) mode, never commit the IPD into the target
+   repository; commit it only inside the companion Git repository if initialized, and never
+   push. The run record in `.aw/workflow-artifacts/` is local-only working material: the
+   framework-owned `.aw/.gitignore` ignores it (the anchored pattern `/workflow-artifacts/`,
+   verifiable with `git check-ignore -v .aw/workflow-artifacts/`), so do NOT commit or
+   force-add it. Do not commit unrelated changes; run `git status --short` first.
 
 8. **Report and stop.** Present the report (below) to the user, ending with the shared
    closing report (`templates/closing-report.md`): the artifact paths CREATED (the IPD and

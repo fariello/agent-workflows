@@ -1435,7 +1435,11 @@ def generate_shim_members(
     return shims
 
 
-def agents_pointer_prose(target_layout: str = "legacy") -> str:
+def agents_pointer_prose(
+    target_layout: str = "legacy",
+    *,
+    records_backend: Optional[str] = None,
+) -> str:
     """The human-visible prose of the managed pointer (WITHOUT any wrapper markers).
 
     This is the single source of the pointer content. `agents_pointer_block()` wraps it in
@@ -1488,6 +1492,22 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         else ""
     )
 
+    companion_section = (
+        (
+            "### Companion records storage (do NOT write to target-local `.aw/records/`)\n"
+            "This repository uses companion records storage (`public-target-private-companion`). "
+            "Durable records (plans, specs, backlog items, research, walkthroughs, and reviews) "
+            "live in the external companion repository located by `aw path records`, never under "
+            "target-local `.aw/records/`. "
+            "Author records with `aw ipd scaffold`, `aw backlog new`, `aw specs new`, and "
+            "`aw research new` so they land in the companion root automatically. "
+            "Never stage or commit `.aw/records/` paths in this target repository; commit record "
+            "changes only inside the companion Git repository.\n\n"
+        )
+        if records_backend == "companion"
+        else ""
+    )
+
     return (
         "## Agent workflows\n\n"
         f"This repository includes reusable agent workflows under `{workflows_dir}/`. "
@@ -1517,6 +1537,7 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         '"read and execute the attached prompt", with nothing to edit.\n'
         "3. It instructs the target AI to return its answer as a DOWNLOADABLE markdown (`.md`) file, "
         "so the result can be handed back for consumption.\n\n"
+        f"{companion_section}"
         "### Durable reference and walkthroughs documentation\n"
         f"1. Immortalize research/analysis you rely on for a decision to `{research_dir}/`. Do "
         "NOT hand-name research files or hand-maintain the index: use the `aw research` and `aw "
@@ -2012,7 +2033,11 @@ def render_aw_block(
     return "\n".join(out) + "\n"
 
 
-def agents_managed_sections(target_layout: str = "legacy") -> list[AwSection]:
+def agents_managed_sections(
+    target_layout: str = "legacy",
+    *,
+    records_backend: Optional[str] = None,
+) -> list[AwSection]:
     """The agent-workflows-managed sections written into a shared instruction file.
 
     The whole workflow pointer prose is a single `aw:pointer` section (maintainer decision,
@@ -2029,7 +2054,9 @@ def agents_managed_sections(target_layout: str = "legacy") -> list[AwSection]:
     return [
         AwSection(
             slug=AW_POINTER_SLUG,
-            lines=agents_pointer_prose(target_layout=target_layout).splitlines(),
+            lines=agents_pointer_prose(
+                target_layout=target_layout, records_backend=records_backend
+            ).splitlines(),
         ),
         AwSection(
             slug=AW_REPORTING_SLUG,
@@ -2041,11 +2068,16 @@ def agents_managed_sections(target_layout: str = "legacy") -> list[AwSection]:
 def agents_managed_block(
     style: AwCommentStyle = AW_STYLE_MARKDOWN,
     target_layout: str = "legacy",
+    *,
+    records_backend: Optional[str] = None,
 ) -> str:
     """The sectioned managed block the installer writes (wrapper + `aw:pointer`/`aw:reporting`)."""
 
     return render_aw_block(
-        agents_managed_sections(target_layout=target_layout), style=style
+        agents_managed_sections(
+            target_layout=target_layout, records_backend=records_backend
+        ),
+        style=style,
     )
 
 
@@ -3295,7 +3327,10 @@ def update_agents_pointer(
     - Backs up the existing file before the first modification (unless --no-backup).
     """
 
-    sections = agents_managed_sections(target_layout=target_layout)
+    resolved_backend = _resolve_records_backend(plan.repo_root)
+    sections = agents_managed_sections(
+        target_layout=target_layout, records_backend=resolved_backend
+    )
     results: dict[str, str] = {}
 
     # 1. Handle AGENTS file (create if absent)
@@ -7770,9 +7805,18 @@ def create_setup_artifacts(
     # create-or-append back-fill rather than a flat member, but create_setup_artifacts retains
     # writing it no-clobber for canonical aw layout to preserve exact write semantics.
     files: list[tuple[str, str]] = []
+    companion_backend = _resolve_records_backend(repo_root) == "companion"
     for rel, content_bytes in targets.items():
         if rel == GITLEAKSIGNORE_FILE and _canonical_aw and not clean:
-            files.append((AW_GITIGNORE_PATH, _AW_GITIGNORE_TEMPLATE))
+            gi_template = _AW_GITIGNORE_TEMPLATE
+            if companion_backend:
+                gi_template = (
+                    gi_template.rstrip("\n")
+                    + "\n"
+                    + _COMPANION_RECORDS_IGNORE_COMMENT
+                    + "\n/records/\n"
+                )
+            files.append((AW_GITIGNORE_PATH, gi_template))
         if clean and rel in (AW_GITIGNORE_PATH, GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
             continue
         files.append((rel, content_bytes.decode("utf-8")))
@@ -7871,6 +7915,33 @@ def _merge_tree(old: Path, new: Path) -> None:
         pass
 
 
+_UNTRACKED_RECORDS_IGNORE_COMMENT = "# repository-untracked backend: records are git-ignored and not durable across clones"
+_COMPANION_RECORDS_IGNORE_COMMENT = "# companion backend: durable records live in the companion repository, not target-local .aw/records/"
+
+
+def _resolve_records_backend(repo_root: Path) -> Optional[str]:
+    """Return the resolved records_backend for ``repo_root``, or None on resolution error."""
+    try:
+        from agent_workflows.project_context import resolve_project_context
+
+        ctx = resolve_project_context(target_repo=str(repo_root))
+        return ctx.records_backend
+    except Exception:
+        return None
+
+
+def _append_anchored_records_ignore(gi: Path, *, comment: str) -> bool:
+    """Append the anchored `/records/` rule to `gi` if absent. Returns True iff written."""
+    text = gi.read_text(encoding="utf-8") if gi.is_file() else ""
+    if re.search(r"(?m)^/records/[ \t]*$", text):
+        return False
+    addition = f"{comment.rstrip()}\n/records/\n"
+    new_text = text.rstrip("\n") + "\n" + addition if text else addition
+    gi.parent.mkdir(parents=True, exist_ok=True)
+    gi.write_text(new_text, encoding="utf-8")
+    return True
+
+
 def _ensure_aw_gitignore(repo_root: Path) -> bool:
     """awgitignore Order 01: ensure the single framework-owned `repo/.aw/.gitignore` exists and
     ignores every records untracked/ lane (`records/*/untracked/`). Create it (from the template) if
@@ -7886,9 +7957,14 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
     """
 
     gi = Path(repo_root) / ".aw" / ".gitignore"
+    companion_backend = _resolve_records_backend(repo_root) == "companion"
     if not gi.is_file():
         gi.parent.mkdir(parents=True, exist_ok=True)
         gi.write_text(_AW_GITIGNORE_TEMPLATE, encoding="utf-8")
+        if companion_backend:
+            _append_anchored_records_ignore(
+                gi, comment=_COMPANION_RECORDS_IGNORE_COMMENT
+            )
         return True
     text = gi.read_text(encoding="utf-8")
     additions = []
@@ -7984,6 +8060,10 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
         wrote = True
     if wrote:
         gi.write_text(text, encoding="utf-8")
+    if companion_backend and _append_anchored_records_ignore(
+        gi, comment=_COMPANION_RECORDS_IGNORE_COMMENT
+    ):
+        wrote = True
     return wrote
 
 
@@ -7991,15 +8071,20 @@ def ensure_untracked_records_ignore(repo_root: Path) -> bool:
     """Ensure .aw/.gitignore contains the anchored /records/ ignore rule for repository-untracked backend."""
     wrote_base = _ensure_aw_gitignore(repo_root)
     gi = Path(repo_root) / ".aw" / ".gitignore"
-    text = gi.read_text(encoding="utf-8") if gi.is_file() else ""
-    if re.search(r"(?m)^/records/[ \t]*$", text):
-        return wrote_base
+    wrote_rec = _append_anchored_records_ignore(
+        gi, comment=_UNTRACKED_RECORDS_IGNORE_COMMENT
+    )
+    return wrote_base or wrote_rec
 
-    comment = "# repository-untracked backend: records are git-ignored and not durable across clones\n"
-    addition = f"{comment}/records/\n"
-    new_text = text.rstrip("\n") + "\n" + addition if text else addition
-    gi.write_text(new_text, encoding="utf-8")
-    return True
+
+def ensure_companion_records_ignore(repo_root: Path) -> bool:
+    """Ensure .aw/.gitignore contains the anchored /records/ ignore rule for companion backend."""
+    wrote_base = _ensure_aw_gitignore(repo_root)
+    gi = Path(repo_root) / ".aw" / ".gitignore"
+    wrote_rec = _append_anchored_records_ignore(
+        gi, comment=_COMPANION_RECORDS_IGNORE_COMMENT
+    )
+    return wrote_base or wrote_rec
 
 
 def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str]:
@@ -8359,8 +8444,9 @@ def install_into_repo(
     ensure_plans_readmes(plan, use_git, installed, skipped)
     ensure_docs_readmes(plan, use_git, installed, skipped)
     ensure_prompts_readmes(plan, use_git, installed, skipped)
-    if not clean and (repo_root / AW_GITIGNORE_PATH).is_file():
-        _ensure_aw_gitignore(repo_root)
+    if not clean and not dry_run and (repo_root / AW_GITIGNORE_PATH).is_file():
+        if _ensure_aw_gitignore(repo_root) and use_git:
+            git_add_optional(repo_root, AW_GITIGNORE_PATH)
     if not clean:
         ensure_inbox_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(
@@ -8371,6 +8457,14 @@ def install_into_repo(
         installed=installed,
         skipped=skipped,
     )
+    if (
+        not clean
+        and not dry_run
+        and target_layout == "aw"
+        and _resolve_records_backend(repo_root) == "companion"
+    ):
+        if ensure_companion_records_ignore(repo_root) and use_git:
+            git_add_optional(repo_root, AW_GITIGNORE_PATH)
     # wslayout Order 04 (hauwqh), spec kw5y2s Section 6.1: emit the machine-readable layout document
     # + its schema for non-Python consumers. Deliberately INSIDE this shared core rather than in a
     # caller, so `aw install`, `aw setup`, and library callers all get it by construction. Runs AFTER

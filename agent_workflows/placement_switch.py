@@ -1872,7 +1872,7 @@ def _perform_rollback(
             ".aw/state/durable",
             ".aw/state",
             ".aw/config",
-            ".aw/records",
+            "records",
             ".aw",
         ):
             should_check = False
@@ -2484,7 +2484,7 @@ def _run_transaction(
                 ".aw/state/durable": (
                     plan.companion_dir / ".aw" / "state" / "durable"
                 ).exists(),
-                ".aw/records": (plan.companion_dir / ".aw" / "records").exists(),
+                "records": (plan.companion_dir / "records").exists(),
                 ".gitignore": (plan.companion_dir / ".gitignore").exists(),
             }
             _write_atomic_json(journal_file, journal)

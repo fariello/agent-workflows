@@ -377,7 +377,8 @@ class CompanionAttachmentTests(unittest.TestCase):
         self.assertTrue(res["deltas"])
         self.assertTrue((comp_dir / ".aw" / "config").is_dir())
         self.assertTrue((comp_dir / ".aw" / "state" / "durable").is_dir())
-        self.assertTrue((comp_dir / ".aw" / "records").is_dir())
+        self.assertTrue((comp_dir / "records").is_dir())
+        self.assertFalse((comp_dir / ".aw" / "records").exists())
         self.assertTrue((comp_dir / ".gitignore").is_file())
 
         boundaries = get_git_commit_boundaries(self.target_repo, comp_dir)

@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -574,6 +575,175 @@ def _staged_paths(repo_root: Path) -> List[str]:
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
 
+def _is_aw_records_rel(rel_posix: str) -> bool:
+    """Return True when a repo-relative POSIX path targets `.aw/records` or any descendant."""
+    norm = posixpath.normpath(rel_posix.replace("\\", "/"))
+    return norm == ".aw/records" or norm.startswith(".aw/records/")
+
+
+def _to_repo_rel_lexical(repo_root: Path, raw_posix: str) -> Optional[str]:
+    """Normalize a requested path lexically relative to ``repo_root`` (without following symlinks)."""
+    p = Path(raw_posix)
+    if p.is_absolute():
+        abs_norm = posixpath.normpath(raw_posix)
+        candidates = {
+            posixpath.normpath(str(repo_root).replace("\\", "/")),
+            posixpath.normpath(str(repo_root.resolve()).replace("\\", "/")),
+        }
+        for base in candidates:
+            base_clean = base.rstrip("/")
+            if abs_norm == base_clean or (base == "/" and abs_norm == "/"):
+                return "."
+            prefix = "/" if base_clean == "" else base_clean + "/"
+            if abs_norm.startswith(prefix):
+                return abs_norm[len(prefix) :]
+        return None
+    norm = posixpath.normpath(raw_posix)
+    if norm == ".." or norm.startswith("../"):
+        return None
+    return norm
+
+
+def _to_repo_rel_resolved(
+    repo_resolved: Path, repo_root: Path, raw_posix: str
+) -> Optional[str]:
+    """Resolve symlinks on a requested path and express it relative to ``repo_resolved``."""
+    p = Path(raw_posix)
+    cand = p if p.is_absolute() else (repo_root / raw_posix)
+    try:
+        resolved = cand.resolve()
+        rel = resolved.relative_to(repo_resolved).as_posix()
+        return "." if not rel else rel
+    except (OSError, ValueError):
+        return None
+
+
+def _target_aw_records_has_tracked_or_unignored(repo_root: Path) -> bool:
+    """Return True when target-local `.aw/records` holds any tracked or unignored files."""
+    rc_tracked, out_tracked, _ = _git(repo_root, ["ls-files", "--", ".aw/records"])
+    if rc_tracked == 0 and out_tracked.strip():
+        return True
+    rc_unignored, out_unignored, _ = _git(
+        repo_root,
+        ["ls-files", "--others", "--exclude-standard", "--", ".aw/records"],
+    )
+    return rc_unignored == 0 and bool(out_unignored.strip())
+
+
+def _path_targets_aw_records(
+    repo_root: Path,
+    repo_resolved: Path,
+    raw_path: str,
+    *,
+    dir_has_active_records: Optional[bool],
+) -> Tuple[bool, Optional[bool]]:
+    """Return ``(matches, cached_dir_has_active_records)`` for one requested or staged path."""
+    raw_posix = raw_path.replace("\\", "/")
+    rels = []
+    lex = _to_repo_rel_lexical(repo_root, raw_posix)
+    if lex is not None:
+        rels.append(lex)
+    res = _to_repo_rel_resolved(repo_resolved, repo_root, raw_posix)
+    if res is not None and res not in rels:
+        rels.append(res)
+
+    for rel in rels:
+        if _is_aw_records_rel(rel):
+            return True, dir_has_active_records
+        if rel in (".", ".aw"):
+            if dir_has_active_records is None:
+                dir_has_active_records = _target_aw_records_has_tracked_or_unignored(
+                    repo_root
+                )
+            if dir_has_active_records:
+                return True, dir_has_active_records
+    return False, dir_has_active_records
+
+
+def _enforce_companion_records_containment(
+    repo_root: Path, paths: List[str]
+) -> Optional[int]:
+    """Fail-closed guard refusing `.aw/records/**` commits in companion-mode target repositories."""
+    from agent_workflows import storage as _storage
+    from agent_workflows.project_context import resolve_project_context
+    from agent_workflows.project_schema import GitPolicy, LogicalRoot, RecordsBackend
+
+    try:
+        ctx = resolve_project_context(target_repo=str(repo_root))
+    except Exception:
+        return None
+
+    is_companion = (
+        ctx.records_backend == RecordsBackend.COMPANION.value
+        or (ctx.git_policies or {}).get("records") == GitPolicy.COMPANION_GIT.value
+    )
+    if not is_companion:
+        return None
+
+    repo_resolved = repo_root.resolve()
+    dir_has_active_records: Optional[bool] = None
+    offending_requested: List[str] = []
+    for raw_p in paths:
+        matches, dir_has_active_records = _path_targets_aw_records(
+            repo_root,
+            repo_resolved,
+            raw_p,
+            dir_has_active_records=dir_has_active_records,
+        )
+        if matches:
+            offending_requested.append(raw_p)
+
+    offending_staged: List[str] = []
+    for staged_p in _staged_paths(repo_root):
+        if _is_aw_records_rel(staged_p):
+            offending_staged.append(staged_p)
+            continue
+        res = _to_repo_rel_resolved(repo_resolved, repo_root, staged_p)
+        if res is not None and _is_aw_records_rel(res):
+            offending_staged.append(staged_p)
+
+    if not offending_requested and not offending_staged:
+        return None
+
+    comp_records = Path(ctx.logical_roots[LogicalRoot.RECORDS.value])
+    companion_dir = (
+        comp_records.parent if comp_records.name == "records" else comp_records
+    )
+    boundaries = _storage.get_git_commit_boundaries(
+        repo_root, companion_dir=companion_dir
+    )
+    comp_info = boundaries.get("companion") or {}
+    comp_dir_str = comp_info.get("companion_dir") or str(companion_dir)
+    comp_commit_cmd = comp_info.get("commit_command")
+
+    print(
+        "aw commit: refusing - target repository uses companion records storage "
+        "(public-target-private-companion); target-local '.aw/records/' paths must not be "
+        "staged or committed into the target repository:"
+    )
+    for p in sorted(set(offending_requested)):
+        print(f"  requested: {p}")
+    for p in sorted(set(offending_staged)):
+        print(f"  staged: {p}")
+    print(
+        "  records location: run `aw path records` to locate the companion records root "
+        f"(companion repository boundary: {comp_dir_str})."
+    )
+    if comp_commit_cmd:
+        print(f"  companion commit boundary: {comp_commit_cmd}")
+    else:
+        print(
+            f"  companion commit boundary: {comp_dir_str} (initialize Git in the companion "
+            "repository with `aw storage init` before committing records there)"
+        )
+    if offending_staged:
+        restore_cmds = ", ".join(
+            f"git restore --staged {p}" for p in sorted(set(offending_staged))
+        )
+        print(f"  unstage first: {restore_cmds}")
+    return 1
+
+
 def _in_scope(path: str, scope_paths: List[str], plan_rel: str) -> bool:
     from agent_workflows import ipd_lifecycle as _life
 
@@ -867,6 +1037,10 @@ def run_commit(args: argparse.Namespace) -> int:
             f"aw commit: recorded {len(parsed_scope_reasons)} scope justification(s) for {plan_id}: {summary}"
         )
         return 0
+
+    containment_rc = _enforce_companion_records_containment(repo_root, paths)
+    if containment_rc is not None:
+        return containment_rc
 
     scope_paths: List[str] = []
     is_grandfathered = False
