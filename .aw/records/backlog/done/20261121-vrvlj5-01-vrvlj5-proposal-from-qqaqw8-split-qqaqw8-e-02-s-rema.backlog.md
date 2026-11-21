@@ -1,15 +1,15 @@
 - Id: vrvlj5
-- Status: open
+- Status: done
 - Set: vrvlj5
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from qqaqw8: Split qqaqw8 E-02's rema
 - Short-Description: Proposal from qqaqw8: Split qqaqw8 E-02's rema
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from qqaqw8: Split qqaqw8 E-02's rema
 
 ## Agent Proposal from qqaqw8
@@ -18,7 +18,6 @@
 - Proposing-Item: qqaqw8
 - Lane-Branch: aw/lane/qqaqw8
 - Blocked-By: qqaqw8 Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-02 (G4a-qqaqw8-2) has 34 hand refusals (34 static in 653ndz F-30 [16 in tests/test_plan_priority_required.py + 12 in tests/test_plan_readiness_recheck.py + 6 in tests/test_plans_archive.py] plus 0 apply-time not-equivalent).
-- Kind: different-approach
 - Size: material
 
 ### Why

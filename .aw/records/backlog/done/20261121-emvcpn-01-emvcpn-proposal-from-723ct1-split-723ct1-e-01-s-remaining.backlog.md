@@ -1,15 +1,15 @@
 - Id: emvcpn
-- Status: open
+- Status: done
 - Set: emvcpn
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from 723ct1: Split 723ct1 E-01's remaining 43 hand conversions into two
 - Short-Description: Proposal from 723ct1: Split 723ct1 E-01's remaining 43 hand conversions into two
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from 723ct1: Split 723ct1 E-01's remaining 43 hand conversions into two
 
 ## Agent Proposal from 723ct1
@@ -18,7 +18,6 @@
 - Proposing-Item: 723ct1
 - Lane-Branch: aw/lane/723ct1
 - Blocked-By: 723ct1 Batch rule step 4 and D-3 stop hand conversion when an item hand count exceeds 25; E-01 (G4c-723ct1-1) has 43 hand refusals (42 static in 653ndz F-30 [7 in tests/test_orchestrator_probe_payload.py, 0 in tests/test_orchestrator_probe_quotes.py, 1 in tests/test_orchestrator_probe_scope.py, 34 in tests/test_orchestrator_readiness.py] plus 1 apply-time not-equivalent in tests/test_orchestrator_probe_scope.py).
-- Kind: different-approach
 - Size: material
 
 ### Why

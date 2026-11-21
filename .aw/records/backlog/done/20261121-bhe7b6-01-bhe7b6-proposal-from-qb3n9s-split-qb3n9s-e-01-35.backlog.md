@@ -1,15 +1,15 @@
 - Id: bhe7b6
-- Status: open
+- Status: done
 - Set: bhe7b6
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from qb3n9s: Split qb3n9s E-01 (35 remaining hand) and E-02 (30 remaining
 - Short-Description: Proposal from qb3n9s: Split qb3n9s E-01 (35 remaining hand) and E-02 (30 remaining
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from qb3n9s: Split qb3n9s E-01 (35 remaining hand) and E-02 (30 remaining
 
 ## Agent Proposal from qb3n9s
@@ -18,7 +18,6 @@
 - Proposing-Item: qb3n9s
 - Lane-Branch: aw/lane/qb3n9s
 - Blocked-By: qb3n9s Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-01 (G4c-qb3n9s-1) has 35 hand refusals (33 static in 653ndz F-30 plus 2 apply-time not-equivalent in tests/test_gradcover_end_to_end.py) and E-02 (G4c-qb3n9s-2) has 30 hand refusals (28 static in 653ndz F-30 plus 2 apply-time not-equivalent, with tests/test_orchestrator_child_retired.py at 27 alone).
-- Kind: different-approach
 - Size: material
 
 ### Why

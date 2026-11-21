@@ -1,15 +1,15 @@
 - Id: oht6ab
-- Status: open
+- Status: done
 - Set: oht6ab
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from wirc2e: Split wirc2e E-02's rema
 - Short-Description: Proposal from wirc2e: Split wirc2e E-02's rema
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from wirc2e: Split wirc2e E-02's rema
 
 ## Agent Proposal from wirc2e
@@ -18,7 +18,6 @@
 - Proposing-Item: wirc2e
 - Lane-Branch: aw/lane/wirc2e
 - Blocked-By: wirc2e Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-02 (G1b-wirc2e-2) has 44 hand refusals (44 static in 653ndz F-30 plus 0 apply-time not-equivalent, with tests/test_handoff_ready_gate.py at 26 alone).
-- Kind: different-approach
 - Size: material
 
 ### Why

@@ -1,15 +1,15 @@
 - Id: op7dwg
-- Status: open
+- Status: done
 - Set: op7dwg
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from 872zd9: Split 872zd9 E-01's rema
 - Short-Description: Proposal from 872zd9: Split 872zd9 E-01's rema
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from 872zd9: Split 872zd9 E-01's rema
 
 ## Agent Proposal from 872zd9
@@ -18,7 +18,6 @@
 - Proposing-Item: 872zd9
 - Lane-Branch: aw/lane/872zd9
 - Blocked-By: 872zd9 Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-01 (G2a-872zd9-1) has 39 hand refusals (35 static in 653ndz F-30 plus 4 apply-time not-equivalent in tests/test_check_engine.py).
-- Kind: different-approach
 - Size: material
 
 ### Why

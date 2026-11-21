@@ -1,15 +1,15 @@
 - Id: 5bgges
-- Status: open
+- Status: done
 - Set: 5bgges
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from isj48z: Split isj48z E-03's rema
 - Short-Description: Proposal from isj48z: Split isj48z E-03's rema
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from isj48z: Split isj48z E-03's rema
 
 ## Agent Proposal from isj48z
@@ -18,7 +18,6 @@
 - Proposing-Item: isj48z
 - Lane-Branch: aw/lane/isj48z
 - Blocked-By: isj48z Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-03 (G1b-isj48z-3) has 38 hand refusals (38 static in 653ndz F-30 plus 0 apply-time not-equivalent, with tests/test_releases_line_writers.py at 28 alone).
-- Kind: different-approach
 - Size: material
 
 ### Why

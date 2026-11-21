@@ -1,15 +1,15 @@
 - Id: ptkizn
-- Status: open
+- Status: done
 - Set: ptkizn
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from 2fn0vd: Split 2fn0vd's remaining
 - Short-Description: Proposal from 2fn0vd: Split 2fn0vd's remaining
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 100 on the 12 over-cap metastore chunks and salvaging completed lane commits onto main
 - 2026-11-21 created (aw backlog): Proposal from 2fn0vd: Split 2fn0vd's remaining
 
 ## Agent Proposal from 2fn0vd
@@ -18,7 +18,6 @@
 - Proposing-Item: 2fn0vd
 - Lane-Branch: aw/lane/2fn0vd
 - Blocked-By: 2fn0vd Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-01 (G1a-2fn0vd-1) has 42 hand refusals (40 static in 653ndz F-30 plus 2 apply-time not-equivalent, with test_backlog_metadata_duplicate_and_gate_summary.py at 28 alone) and E-02 (G1a-2fn0vd-2) has 44 hand refusals (42 static in 653ndz F-30 plus 2 apply-time not-equivalent).
-- Kind: different-approach
 - Size: material
 
 ### Why
