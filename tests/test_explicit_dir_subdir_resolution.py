@@ -26,6 +26,7 @@ from agent_workflows.project_context import (
     ProjectLocationCase,
     classify_project_dir,
 )
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -46,13 +47,16 @@ class ExplicitDirSubdirResolutionTests(unittest.TestCase):
         backlog_open = self.real_proj / ".aw" / "records" / "backlog" / "open"
         backlog_open.mkdir(parents=True)
         (backlog_open / "20261001-ci9kx2-01-abc123-test.backlog.md").write_text(
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Date: 2026-10-01\n"
-            "- Work-Kind: feature\n"
-            "- Priority: low\n"
-            "- Summary: Test item\n\n"
-            "## Description\nTest backlog item\n"
+            RecordBuilder().backlog(
+                id6="abc123",
+                status="open",
+                when="2026-10-01",
+                work_kind="feature",
+                priority="low",
+                summary="Test item",
+                body="## Description\nTest backlog item",
+                text_only=True,
+            )
         )
         subprocess.run(
             ["git", "init", str(self.real_proj)], check=True, capture_output=True

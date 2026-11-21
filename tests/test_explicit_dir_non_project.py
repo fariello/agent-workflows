@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 from agent_workflows import agent_schema
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -55,13 +56,16 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
         backlog_open = self.real_proj / ".aw" / "records" / "backlog" / "open"
         backlog_open.mkdir(parents=True)
         (backlog_open / "20260930-ci9kx2-01-abc123-test.backlog.md").write_text(
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Date: 2026-09-30\n"
-            "- Work-Kind: feature\n"
-            "- Priority: low\n"
-            "- Summary: Test item\n\n"
-            "## Description\nTest backlog item\n"
+            RecordBuilder().backlog(
+                id6="abc123",
+                status="open",
+                when="2026-09-30",
+                work_kind="feature",
+                priority="low",
+                summary="Test item",
+                body="## Description\nTest backlog item",
+                text_only=True,
+            )
         )
         self.deep_subdir = self.real_proj / "src" / "deep"
         self.deep_subdir.mkdir(parents=True)

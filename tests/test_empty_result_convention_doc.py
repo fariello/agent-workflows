@@ -23,6 +23,7 @@ from pathlib import Path
 from agent_workflows import agent_schema
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from tests.record_builder import RecordBuilder
 
 
 def _build_fixture_repo(root: Path) -> tuple[Path, A.TreePolicy, str]:
@@ -40,7 +41,13 @@ def _build_fixture_repo(root: Path) -> tuple[Path, A.TreePolicy, str]:
 
     # One tracked artifact: a pending IPD with id6 'pln001'
     (plans / "20260901-test-01-pln001-sample.ipd.md").write_text(
-        "# IPD: sample plan\n\n- Status: draft\n- Id: pln001\n\n## Workflow history\n- 2026-09-01 draft (t): created.\n",
+        RecordBuilder().plan(
+            title="sample plan",
+            status="draft",
+            id6="pln001",
+            history=["- 2026-09-01 draft (t): created."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -56,7 +63,13 @@ def _build_fixture_repo(root: Path) -> tuple[Path, A.TreePolicy, str]:
     artifact_id6 = "ex0001"
     artifact_file = excluded_dir / f"20260901-test-01-{artifact_id6}-sample.{ext}.md"
     artifact_file.write_text(
-        f"# {excluded_policy.name.capitalize()}: sample\n\n- Id: {artifact_id6}\n\nNarrative content.\n",
+        RecordBuilder().walkthrough(
+            id6=artifact_id6,
+            set="test",
+            when="2026-09-01",
+            body=f"# {excluded_policy.name.capitalize()}: sample\n\nNarrative content.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
