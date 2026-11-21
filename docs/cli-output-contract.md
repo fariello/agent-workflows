@@ -559,3 +559,46 @@ records, without changing record status.
     single-line, <=300-character, control-character, and leak-sanitizer rules (plus `-->` and `|`
     refusal on `aw prompts new`), exiting `2` on invalid input and omitting `short_description` when
     omitted or whitespace-only.
+
+## 15. Metadata Drift Check and Repair: `aw check meta` and `aw meta repair`
+
+These two commands verify and repair artifact metadata mirrors through the metadata store
+(`artifact_meta`, backed by `.aw/state/index.db`).
+
+- **`aw check meta`**: Checks every spec `4sd62s` Section 4.6 metadata mirror and drift rule over
+  `artifact_meta.query`: in-file `id` and `status` mirrors, filename facets (`Set`, order `NN`,
+  `id6`, date, and D177 `ace`/`model` attribution), research filename facets, disposition directory
+  alignment, review round headings against cached review rows, and orphan or invalid logs and
+  records.
+  - **Phase B legacy reporting**: In a legacy-format repository (before event logs exist), rows
+    that require event logs (`logged-path` and `orphan-record`) are emitted explicitly as
+    `not-applicable (legacy format)` instead of omitted.
+  - **Reserved `check` target**: `meta` is a reserved word on `aw check <type>`, dispatched before
+    standard artifact-type validation. In phase B, `aw check all` excludes `meta` so existing
+    check-engine rule baselines remain comparable.
+  - **Output modes**: Under `--agent`, emits streaming `aw.agent/v1` `item` records carrying
+    `location`, `rule`, `detail`, and `severity`, terminated by a `summary` record carrying `total`,
+    `emitted`, `omitted`, `complete`, `checked`, `counts_by_rule`, and `not_applicable` (honoring
+    `--limit` and `--fields`). Under `--json`, emits the `CommandResult` dictionary with
+    `data.counts_by_rule` and `data.not_applicable`. Human mode lists each finding, the
+    not-applicable rows, per-rule counts, and a summary line.
+  - **Exit codes**: `0` when zero findings occur, `1` when one or more drift findings or invalid
+    records occur, `2` when the command cannot run (for example outside an `aw` project or when the
+    metadata cache cannot be queried).
+- **`aw meta repair <id6> [--apply] [--confirm]`**: Previews or applies metadata repairs for one
+  artifact identified by its 6-character base36 `id6`, delegating mutations to
+  `artifact_meta.repair`.
+  - **Preview and apply**: Runs in dry-run preview mode by default (`status: "preview"`,
+    `applied: false`, exit `0`, zero disk writes). Passing `--apply` performs deterministic mirror,
+    pending-move, and operation-journal repairs without appending a new log event (the event log
+    remains byte-identical, and repeating `--apply` is idempotent and reports `nothing to repair`).
+  - **Diverged-tail safety**: When a metadata log contains duplicate `seq` numbers (a diverged
+    tail), preview lists every resulting field change and tail note; `--apply` without `--confirm`
+    refuses at exit `2` (`diverged-tail-confirm-required`, no files modified) and requires
+    `--apply --confirm` to resequence the tail.
+  - **Phase B legacy reporting**: When `<id6>` resolves to a legacy-format record that has no event
+    log or operation journal, exits `0` with `status: "clean"` and summary
+    `nothing to repair (legacy format)`.
+  - **Exit codes**: `0` on clean preview, applied repair, or no-op; `2` (`cannot-run`) on invalid
+    `id6`, missing project records root, unknown artifact, corrupt log or journal, missing recovery
+    source, unreconcilable diverged tail, or diverged tail without `--confirm`.
