@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import oc_runipd, render_stream, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class TestOrchestratorNotApprovedReason(unittest.TestCase):
@@ -28,7 +29,14 @@ class TestOrchestratorNotApprovedReason(unittest.TestCase):
         pending = repo / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
         (pending / "20260908-finalback-00-par001-orch.ipd.md").write_text(
-            "# IPD: orch\n\n- Id: par001\n- Set: finalback\n- Order: 0\n- Kind: orchestrator\n",
+            RecordBuilder().plan(
+                title="orch",
+                id6="par001",
+                set="finalback",
+                order=0,
+                plan_role="orchestrator",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         for idx, (cid, st) in enumerate(child_specs, start=1):

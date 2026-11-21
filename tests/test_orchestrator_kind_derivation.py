@@ -27,6 +27,7 @@ import unittest
 import unittest.mock
 
 from agent_workflows import agy_runipd, coverage_record, oc_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 
 HOSTS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
 
@@ -40,14 +41,15 @@ def _write_synthetic_plan_file(
     setid: str = "recset",
 ) -> pathlib.Path:
     path = pending_dir / f"20261014-{setid}-{order:02d}-{id6}-synthetic.ipd.md"
-    content = (
-        f"# IPD: synthetic {id6}\n\n"
-        f"- Date: 2026-10-14\n"
-        f"- Kind: {kind}\n"
-        f"- Id: {id6}\n"
-        f"- Set: {setid}\n"
-        f"- Order: {order}\n"
-        f"- Status: {status}\n"
+    content = RecordBuilder().plan(
+        title=f"synthetic {id6}",
+        when="2026-10-14",
+        plan_role=kind,
+        id6=id6,
+        set=setid,
+        order=order,
+        status=status,
+        text_only=True,
     )
     path.write_text(content, encoding="utf-8")
     return path
@@ -119,8 +121,16 @@ def _run_legacy_manifest_queue_build(
         d_exec = root / ".aw" / "records" / "plans" / "executed"
         d_exec.mkdir(parents=True, exist_ok=True)
         (d_exec / "20260906-qbuild-01-chiq01-synthetic.ipd.md").write_text(
-            "# IPD: synthetic child\n\n"
-            "- Date: 2026-09-06\n- Kind: child\n- Id: chiq01\n- Set: qbuild\n- Order: 1\n- Status: executed\n",
+            RecordBuilder().plan(
+                title="synthetic child",
+                when="2026-09-06",
+                plan_role="child",
+                id6="chiq01",
+                set="qbuild",
+                order=1,
+                status="executed",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         coverage_record.write(orc_path, "pass", model="synthetic", tool="test")
