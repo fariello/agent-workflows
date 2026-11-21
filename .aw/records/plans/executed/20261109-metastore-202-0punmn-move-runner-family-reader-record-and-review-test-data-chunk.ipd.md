@@ -6,7 +6,7 @@
 - Scope: Chunk 11 of 11 of `nbfg7w` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 7 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `nbfg7w`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_rename_receipt_guard.py, tests/test_research_archive.py, tests/test_research_index.py, tests/test_review_decisions.py, tests/test_review_failure_reason.py, tests/test_review_findings_gate.py, tests/test_review_pilot.py, .aw/records/plans/pending/20261109-metastore-202-0punmn-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0punmn
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 0punmn verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
@@ -48,22 +48,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `nbfg7w` E-04, batch subset G6c; round-3 split 2026-11-09) Batch G6c, 4 of its 19 modules (the rename, research, prompt, walkthrough and review tests (`test_rename*`, `test_research*`, `test_prompt*`, `test_prompts*`, `test_walkthrough*`, `test_review*`, `test_reviews*`)): `tests/test_rename_receipt_guard.py`, `tests/test_research_archive.py`, `tests/test_research_index.py`, `tests/test_review_decisions.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_rename_receipt_guard` 6, `test_research_archive` 1, `test_research_index` 6, `test_review_decisions` 10. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6c-0punmn-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. Then delete each private record-building helper in these modules that no longer has a caller (at the split, matched by the `59aiyh` V-09 census pattern: `tests/test_research_archive.py::_write_prompt`; `tests/test_research_index.py::StaleStateDriftTests._write_plan`, `tests/test_research_index.py::ConsumedByValidationTests._write_plan_with_id`; `tests/test_review_decisions.py::_Repo.write_plan`, `tests/test_review_decisions.py::_Repo.write_review`; plus module-local helpers outside that regex such as `tests/test_rename_receipt_guard.py::_plan_text`, `tests/test_review_decisions.py::_plan_text`, and `tests/test_review_decisions.py::_Repo.write_malformed_review`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `nbfg7w` E-04, batch subset G6c; round-3 split 2026-11-09) Batch G6c, 4 of its 19 modules (the rename, research, prompt, walkthrough and review tests (`test_rename*`, `test_research*`, `test_prompt*`, `test_prompts*`, `test_walkthrough*`, `test_review*`, `test_reviews*`)): `tests/test_rename_receipt_guard.py`, `tests/test_research_archive.py`, `tests/test_research_index.py`, `tests/test_review_decisions.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_rename_receipt_guard` 6, `test_research_archive` 1, `test_research_index` 6, `test_review_decisions` 10. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6c-0punmn-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. Then delete each private record-building helper in these modules that no longer has a caller (at the split, matched by the `59aiyh` V-09 census pattern: `tests/test_research_archive.py::_write_prompt`; `tests/test_research_index.py::StaleStateDriftTests._write_plan`, `tests/test_research_index.py::ConsumedByValidationTests._write_plan_with_id`; `tests/test_review_decisions.py::_Repo.write_plan`, `tests/test_review_decisions.py::_Repo.write_review`; plus module-local helpers outside that regex such as `tests/test_rename_receipt_guard.py::_plan_text`, `tests/test_review_decisions.py::_plan_text`, and `tests/test_review_decisions.py::_Repo.write_malformed_review`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G6c-0punmn-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `nbfg7w` E-04, batch subset G6c; round-3 split 2026-11-09) Batch G6c, 3 of its 19 modules (the rename, research, prompt, walkthrough and review tests (`test_rename*`, `test_research*`, `test_prompt*`, `test_prompts*`, `test_walkthrough*`, `test_review*`, `test_reviews*`)): `tests/test_review_failure_reason.py`, `tests/test_review_findings_gate.py`, `tests/test_review_pilot.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_review_failure_reason` 5, `test_review_findings_gate` 12, `test_review_pilot` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6c-0punmn-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held zero matches of the `59aiyh` V-09 census pattern at the split; any private record-building helper found now (including module-local helpers outside that regex such as `tests/test_review_failure_reason.py::ReviewFailureReasonIntegrationTests._setup_repo_and_plan`, `tests/test_review_findings_gate.py::_plan`, and `tests/test_review_findings_gate.py::_review`) is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `nbfg7w` E-04, batch subset G6c; round-3 split 2026-11-09) Batch G6c, 3 of its 19 modules (the rename, research, prompt, walkthrough and review tests (`test_rename*`, `test_research*`, `test_prompt*`, `test_prompts*`, `test_walkthrough*`, `test_review*`, `test_reviews*`)): `tests/test_review_failure_reason.py`, `tests/test_review_findings_gate.py`, `tests/test_review_pilot.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_review_failure_reason` 5, `test_review_findings_gate` 12, `test_review_pilot` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6c-0punmn-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held zero matches of the `59aiyh` V-09 census pattern at the split; any private record-building helper found now (including module-local helpers outside that regex such as `tests/test_review_failure_reason.py::ReviewFailureReasonIntegrationTests._setup_repo_and_plan`, `tests/test_review_findings_gate.py::_plan`, and `tests/test_review_findings_gate.py::_review`) is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G6c-0punmn-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G6c-0punmn-1-files.txt .aw/state/59aiyh/G6c-0punmn-2-files.txt)`) into `.aw/state/59aiyh/0punmn-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 0punmn -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G6c-0punmn-1-files.txt .aw/state/59aiyh/G6c-0punmn-2-files.txt)`) into `.aw/state/59aiyh/0punmn-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 0punmn -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,20 +155,103 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G6c-0punmn-1-files.txt` and the empty `diff .aw/state/59aiyh/G6c-0punmn-1-before.txt .aw/state/59aiyh/G6c-0punmn-1-after.txt`; then, for each of `tests/test_rename_receipt_guard.py`, `tests/test_research_archive.py`, `tests/test_research_index.py`, `tests/test_review_decisions.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6c-0punmn-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the `59aiyh` V-09 `rg` pattern (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`) over these modules, plus any deleted or surviving module-local record-building helper outside that regex and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G6c-0punmn-1-files.txt`:
+      - `tests/test_rename_receipt_guard.py`
+      - `tests/test_research_archive.py`
+      - `tests/test_research_index.py`
+      - `tests/test_review_decisions.py`
+    - Partition check at HEAD `e9958bde6`: all 4 named modules matched F-01 before conversion; 2 unnamed post-split modules match G6c prefixes (`tests/test_research_meta_writer_characterization.py`, `tests/test_review_unreviewed_deps.py`) and are not added here per batch rule Step 1 (deferred to `nbfg7w` E-06).
+    - Outcome diff (`diff -u .aw/state/59aiyh/G6c-0punmn-1-before.txt .aw/state/59aiyh/G6c-0punmn-1-after.txt`): empty output, exit code 0 (118 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_rename_receipt_guard.py`:
+        - F-01 `rg -c`: before 6, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-1-codemod.json`): `sites=6`, `rewrites=4` (`standard=4`, `invalid-input=0`), `refusals=2` (`unsupported-shape=2`, `hand=2`, `legacy-kept=0`), `before_hash=2fddec50d2a1e346007c116ef5888c5225892e1f3663a42dd8ce99c649d8b86b`, `after_hash=2fddec50d2a1e346007c116ef5888c5225892e1f3663a42dd8ce99c649d8b86b`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 6 | 4 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | 0`.
+      - `tests/test_research_archive.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-1-codemod.json`): `sites=1`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=1` (`unsupported-shape=1`, `hand=1`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0`.
+      - `tests/test_research_index.py`:
+        - F-01 `rg -c`: before 6, after 0. Remaining matches: none. (`CheckDriftTests.test_invalid_frontmatter_detected` uses `RecordBuilder().research(..., raw_fields={"id": None, "status": "intake"}, text_only=True)` for a deliberately missing `id` key, `invalid-input`.)
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-1-codemod.json`): `sites=7`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=5` (`dynamic-construction=1`, `unsupported-shape=3`, `not-equivalent=1`, `hand=5`, `legacy-kept=0`), `before_hash=f75aa84d0d4455609311252764b368568462b6800e6fdae29971ada28d58f7c5`, `after_hash=f75aa84d0d4455609311252764b368568462b6800e6fdae29971ada28d58f7c5`, `equivalent=true`, `pytest_runs=4`, `changed=true`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 7 | 3 | 1 | 1 | 3 | 0 | 0 | 0 | 0 | 0 | 4 | 0`.
+      - `tests/test_review_decisions.py`:
+        - F-01 `rg -c`: before 10, after 1. Remaining match (1):
+          - `body prose` (1, `legacy-kept` per `653ndz` F-30 and codemod): `_BLOCKING_OQ` (`"- Status: open\n"`, line 40; open-question Markdown bullet retained per N3).
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-1-codemod.json`): `sites=3`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=3` (`dynamic-construction=2`, `body prose=1`, `hand=2`, `legacy-kept=1`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 3 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 1 | 2 | 1`.
+    - Hand count: 10 reported by codemod (9 static + 1 apply-time `not-equivalent`; <= 25; all 10 hand-converted to `RecordBuilder`):
+      1. `tests/test_rename_receipt_guard.py` pre-edit line 33 (`_plan_text`, `unsupported-shape`): `"- Scope-Paths: agent_workflows/x.py\n"` -> `RecordBuilder().plan(..., scope_paths="agent_workflows/x.py", ...)` in `_GuardCase._cite`.
+      2. `tests/test_rename_receipt_guard.py` pre-edit line 35 (`_plan_text`, `unsupported-shape`): `f"- Scope-Paths: {cite}\n"` -> `RecordBuilder().plan(..., scope_paths=cite, ...)` in `_GuardCase._cite`.
+      3. `tests/test_research_archive.py` pre-edit line 419 (`SuggestTriageTests.setUp`, `unsupported-shape`): executed plan `plnexe` -> `RecordBuilder(self.root).plan(id6="plnexe", ..., disposition="executed", body="Adopts research RSCH-rprt01.")`.
+      4. `tests/test_research_index.py` pre-edit line 264 (`CheckDriftTests.test_invalid_frontmatter_detected`, `not-equivalent`): YAML missing `id` -> `RecordBuilder().research(when="2026-07-01", research_kind="notes", raw_fields={"id": None, "status": "intake"}, text_only=True)` (`invalid-input`).
+      5. `tests/test_research_index.py` pre-edit line 363 (`StaleStateDriftTests._write_plan`, `dynamic-construction`): pending and executed citer plans `pln001`/`pln002` -> `RecordBuilder(self.root).plan(...)` in `test_trigger_b_cited_by_executed_plan_flags_but_pending_does_not`.
+      6. `tests/test_research_index.py` pre-edit line 464 (`StaleStateDriftTests.test_cited_by_executed_ids_reverse_traversal`, `unsupported-shape`): implemented spec `spc001` -> `RecordBuilder().spec(id6="spc001", ..., status="implemented", body="cites RSCH-solo11 here", text_only=True)`.
+      7. `tests/test_research_index.py` pre-edit line 471 (`StaleStateDriftTests.test_cited_by_executed_ids_reverse_traversal`, `unsupported-shape`): draft spec `spc002` -> `RecordBuilder().spec(id6="spc002", ..., status="draft", body="cites RSCH-nofind here", text_only=True)`.
+      8. `tests/test_research_index.py` pre-edit line 528 (`ConsumedByValidationTests._write_plan_with_id`, `unsupported-shape`): executed plans `pln001`/`pln002`/`pln003` -> `RecordBuilder(self.root).plan(...)` at the 3 call sites.
+      9. `tests/test_review_decisions.py` pre-edit lines 54-60 (`_plan_text`, `dynamic-construction`): plan fixture -> `repo.builder.plan(...)` at every test call site (with `open_questions=_BLOCKING_OQ` where escalated).
+      10. `tests/test_review_decisions.py` pre-edit lines 148-160 (`_Repo.write_malformed_review`, `dynamic-construction`): malformed review fixture -> `repo.builder.review(...)` followed by replacing `"| low |"` with `"| HGIH |"` in `test_malformed_artifact_is_reported_and_does_not_raise`.
+    - `59aiyh` V-09 helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before (5 matches): `tests/test_research_archive.py::_write_prompt` (pre-edit line 537); `tests/test_research_index.py::StaleStateDriftTests._write_plan` (pre-edit line 359); `tests/test_research_index.py::ConsumedByValidationTests._write_plan_with_id` (pre-edit line 524); `tests/test_review_decisions.py::_Repo.write_plan` (pre-edit line 109); `tests/test_review_decisions.py::_Repo.write_review` (pre-edit line 118).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (8 total: all 5 V-09 matches plus 3 module-local helpers outside the regex): `tests/test_research_archive.py::_write_prompt` (2 callers replaced with `RecordBuilder().research(...)`); `tests/test_research_index.py::StaleStateDriftTests._write_plan`; `tests/test_research_index.py::ConsumedByValidationTests._write_plan_with_id`; `tests/test_review_decisions.py::_Repo.write_plan`; `tests/test_review_decisions.py::_Repo.write_review`; `tests/test_rename_receipt_guard.py::_plan_text`; `tests/test_review_decisions.py::_plan_text`; `tests/test_review_decisions.py::_Repo.write_malformed_review`.
+      - Surviving module-local helpers (outside V-09 regex, using production `research_cmd.build_frontmatter`, zero F-01 matches): `tests/test_research_archive.py::_write_doc`, `tests/test_research_archive.py::_write_kind_doc`, `tests/test_research_index.py::_write`, `tests/test_research_index.py::RepeatedFrontmatterKeyTests._write_doc`, `tests/test_research_index.py::StatusTierMismatchTests._write_doc` (retained because they have active callers testing research frontmatter/tier behaviors via production `research_cmd.build_frontmatter` and legacy `.agents/docs/research` paths, with zero F-01 legacy strings).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G6c-0punmn-2-files.txt` and the empty `diff .aw/state/59aiyh/G6c-0punmn-2-before.txt .aw/state/59aiyh/G6c-0punmn-2-after.txt`; then, for each of `tests/test_review_failure_reason.py`, `tests/test_review_findings_gate.py`, `tests/test_review_pilot.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6c-0punmn-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the `59aiyh` V-09 `rg` pattern (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`) over these modules, plus any deleted or surviving module-local record-building helper outside that regex and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G6c-0punmn-2-files.txt`:
+      - `tests/test_review_failure_reason.py`
+      - `tests/test_review_findings_gate.py`
+      - `tests/test_review_pilot.py`
+    - Partition check at HEAD `e9958bde6`: all 3 named modules matched F-01 before conversion; the 2 unnamed post-split G6c modules noted in V-01 remain deferred to `nbfg7w` E-06 per batch rule Step 1.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G6c-0punmn-2-before.txt .aw/state/59aiyh/G6c-0punmn-2-after.txt`): empty output, exit code 0 (38 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_review_failure_reason.py`:
+        - F-01 `rg -c`: before 5, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=f5084ca41068810fdc3c8d1082ab8f2f5104d5a0e4f3ef3ea64ff4cdda07250f`, `after_hash=f5084ca41068810fdc3c8d1082ab8f2f5104d5a0e4f3ef3ea64ff4cdda07250f`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_review_findings_gate.py`:
+        - F-01 `rg -c`: before 12, after 6. Remaining matches (6):
+          - `body prose` (2): `_oq` (`f"- Status: {status}"`, line 108; open-question Markdown bullet per N3) and `GateOutcomeTests.CASES` (`"- Blocking: yes\n- Status: open\n- Owner: maintainer\n"`, line 552; `legacy-kept` per codemod).
+          - `legacy-format subject` (3): `_build` (`"- Subject-Id: aaa111", "- Plan-Id: aaa111"`, line 279), `SubjectFieldIndexTests.SPELLINGS` (`"- Subject-Id: aaa111"`, line 1059), and `SubjectFieldIndexTests.test_the_index_and_the_gate_agree_on_the_subject_spelling` (`"- Subject-Id: aaa111", field_line`, line 1087) — these tests mutate the legacy review bullet spelling from `- Subject-Id:` to retired `- Plan-Id:` to verify that `_review_index` does not index the retired spelling.
+          - `setter-byte assertion` (1, `legacy-kept` per `653ndz` F-30 and codemod): `SubjectFieldIndexTests.test_the_index_and_the_gate_agree_on_the_subject_spelling` assertion message (`"NEUTRAL row went silent, `_review_index` stopped recognizing `- Subject-Id:` and NO "`, line 1128).
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-2-codemod.json`): `sites=8`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=7` (`unsupported-shape=5`, `setter-byte assertion=1`, `body prose=1`, `hand=5`, `legacy-kept=2`), `before_hash=a7060bea58303c7d1c5857be72854b83cea4e4dc5cc1bf9e012080568cd1967d`, `after_hash=a7060bea58303c7d1c5857be72854b83cea4e4dc5cc1bf9e012080568cd1967d`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 8 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 1 | 1 | 5 | 2`.
+      - `tests/test_review_pilot.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G6c-0punmn-2-codemod.json`): `sites=1`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=1` (`unsupported-shape=1`, `hand=1`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G6c | 0punmn | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0`.
+    - Hand count: 6 reported by codemod (6 static + 0 apply-time `not-equivalent`; <= 25; 2 fixture sites hand-converted to `RecordBuilder`, 4 non-fixture sites classified and retained):
+      1. `tests/test_review_findings_gate.py` pre-edit lines 237-238 (`_MALFORMED_BODY`, `unsupported-shape`): hand-converted to `RecordBuilder().review("aaa111", when="2026-08-29", reviewer="test", verdict="v", rounds=(), text_only=True) + "\nthis file has no rounds at all\n"`.
+      2. `tests/test_review_pilot.py` pre-edit lines 304-309 (`ReviewPilotTests.test_f_redaction_replaces_agent_model_host_runid`, `unsupported-shape`): hand-converted to `RecordBuilder().review(...)` + `RecordBuilder().plan(...)`.
+      3. `tests/test_review_findings_gate.py` pre-edit line 107 (`_oq`, `unsupported-shape`): `f"- Status: {status}"` — open-question Markdown body prose retained per N3 (`body prose`).
+      4. `tests/test_review_findings_gate.py` pre-edit line 256 (`_build`, `unsupported-shape`): `"- Subject-Id: aaa111"` replacement target — retained (`legacy-format subject`).
+      5. `tests/test_review_findings_gate.py` pre-edit line 1036 (`SubjectFieldIndexTests.SPELLINGS`, `unsupported-shape`): `"- Subject-Id: aaa111"` spelling contrast row — retained (`legacy-format subject`).
+      6. `tests/test_review_findings_gate.py` pre-edit line 1064 (`SubjectFieldIndexTests.test_the_index_and_the_gate_agree_on_the_subject_spelling`, `unsupported-shape`): `"- Subject-Id: aaa111"` replacement target — retained (`legacy-format subject`).
+    - `59aiyh` V-09 helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none.
+      - Surviving module-local helpers outside the V-09 regex (3):
+        - `tests/test_review_failure_reason.py::ReviewFailureReasonIntegrationTests._setup_repo_and_plan`: survives with 4 active callers; initializes git repo, `.gitignore`, initial commit, and `run_dir` layout while delegating plan creation to `RecordBuilder().plan(...)`.
+        - `tests/test_review_findings_gate.py::_plan`: survives with 7 active callers; thin wrapper delegating directly to `RecordBuilder(repo).plan(...)` with shared gate-fixture defaults.
+        - `tests/test_review_findings_gate.py::_review`: survives with 5 active callers; delegates valid reviews to `RecordBuilder(repo).review(...)` and falls back to `rf.write_review(...)` only for the deliberate invalid-severity (`hgih`) malformed-review test row.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G6c-0punmn-1`, `G6c-0punmn-2` against `.aw/state/59aiyh/0punmn-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 0punmn` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G6c-0punmn-1-before.txt .aw/state/59aiyh/G6c-0punmn-2-before.txt) .aw/state/59aiyh/0punmn-union-after.txt`): empty output, exit code 0 (156 lines = 118 + 38 across all 7 modules).
+    - Post-edit codemod dry-run over all 7 modules (`python3 tools/fixture_codemod.py --dry-run --format table`): 5 modules at `sites=0` (`test_rename_receipt_guard`, `test_research_archive`, `test_research_index`, `test_review_failure_reason`, `test_review_pilot`); `test_review_decisions` has 1 `body prose` (`legacy-kept`) refusal and 0 `hand` refusals; `test_review_findings_gate` has 2 `legacy-kept` refusals (`body prose=1`, `setter-byte assertion=1`) and 4 `unsupported-shape` (`hand`) sites verified to be open-question Markdown prose (`_oq`) and retired-spelling replacement strings (`legacy-format subject`).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2661 passed, 11 warnings in 134.03s (0:02:14)`, exit code 0 (0 failures; none of `0punmn`'s 7 modules appeared in the top-10 slowest or unlisted slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6883,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 0punmn` (all 7 test Scope-Paths): `aw commit: committed 7 path(s): a5d0e7c90e5ccf0dd5ea94e3baa97d4ea7aed8a4` (`tests/test_rename_receipt_guard.py`, `tests/test_research_archive.py`, `tests/test_research_index.py`, `tests/test_review_decisions.py`, `tests/test_review_failure_reason.py`, `tests/test_review_findings_gate.py`, `tests/test_review_pilot.py`), followed by the plan-evidence commit via `aw commit 0punmn -- .aw/records/plans/pending/20261109-metastore-202-0punmn-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md`. Every committed path is in Scope-Paths; never pushed.
+  - Result: pass
 
 ## Approval and execution gate
 

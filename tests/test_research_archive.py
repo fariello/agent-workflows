@@ -23,6 +23,7 @@ from agent_workflows import research_contract as R
 from agent_workflows import research_index as I
 from agent_workflows import research_refs as RF
 from agent_workflows import selectors
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -413,10 +414,16 @@ class SuggestTriageTests(unittest.TestCase):
             kind="notes",
         )
         # An executed plan citing the run-set report -> makes rprt01 cited (=> reference).
-        pl = self.root / ".aw" / "records" / "plans" / "executed"
-        pl.mkdir(parents=True, exist_ok=True)
-        (pl / "20260805-set-01-plnexe-x.ipd.md").write_text(
-            "# Plan\n\n- Id: plnexe\n\nAdopts research RSCH-rprt01.\n", encoding="utf-8"
+        RecordBuilder(self.root).plan(
+            id6="plnexe",
+            title="Plan",
+            when="2026-08-05",
+            set="set",
+            order=1,
+            slug="x",
+            status="executed",
+            disposition="executed",
+            body="Adopts research RSCH-rprt01.",
         )
 
     def test_suggest_classifies_and_previews_without_mutation(self):
@@ -534,42 +541,12 @@ class IntakeToTodoMigrationTests(unittest.TestCase):
         self.assertFalse(any(e.field == "status" for e in errs))
 
 
-def _write_prompt(root: Path, *, set_id, order=0, id6, slug, created, status=None):
-    rroot = root / R.RESEARCH_ROOT
-    rroot.mkdir(parents=True, exist_ok=True)
-    name = R.format_name(
-        R.ResearchName(
-            date=created,
-            set_id=set_id,
-            order=f"{order:02d}",
-            id6=id6,
-            slug=slug,
-            model=None,
-            kind="research-prompt",
-        )
-    )
-    content = C.build_frontmatter(
-        id6=id6,
-        created=created,
-        set_id=set_id,
-        order=f"{order:02d}",
-        topic=["t"],
-        model=None,
-        kind="research-prompt",
-        status=status,
-        outcome="none-yet",
-        summary="s",
-    )
-    p = rroot / name
-    p.write_text(content, encoding="utf-8")
-    return p
-
-
 class PromptArchiveTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         _init_git(self.root)
         self.rroot = self.root / R.RESEARCH_ROOT
+        self.rroot.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self):
         import shutil
@@ -577,14 +554,33 @@ class PromptArchiveTests(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def test_hot_status_refused_for_prompt(self):
-        _write_prompt(
-            self.root,
-            set_id="prmset",
-            order=0,
-            id6="prm001",
-            slug="test-prompt",
-            created="20260701",
-            status=None,
+        name = R.format_name(
+            R.ResearchName(
+                date="20260701",
+                set_id="prmset",
+                order="00",
+                id6="prm001",
+                slug="test-prompt",
+                model=None,
+                kind="research-prompt",
+            )
+        )
+        (self.rroot / name).write_text(
+            RecordBuilder().research(
+                id6="prm001",
+                set="prmset",
+                order=0,
+                slug="test-prompt",
+                when="2026-07-01",
+                research_kind="research-prompt",
+                status=None,
+                outcome="none-yet",
+                topic=["t"],
+                summary="s",
+                body="",
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         mv, err = A.plan_transition(self.rroot, "prm001", "todo")
         self.assertIsNone(mv)
@@ -600,14 +596,33 @@ class PromptArchiveTests(unittest.TestCase):
         )
 
     def test_statusless_prompt_promote_to_reference_inserts_status(self):
-        _write_prompt(
-            self.root,
-            set_id="prmset2",
-            order=0,
-            id6="prm002",
-            slug="test-prompt-2",
-            created="20260701",
-            status=None,
+        name = R.format_name(
+            R.ResearchName(
+                date="20260701",
+                set_id="prmset2",
+                order="00",
+                id6="prm002",
+                slug="test-prompt-2",
+                model=None,
+                kind="research-prompt",
+            )
+        )
+        (self.rroot / name).write_text(
+            RecordBuilder().research(
+                id6="prm002",
+                set="prmset2",
+                order=0,
+                slug="test-prompt-2",
+                when="2026-07-01",
+                research_kind="research-prompt",
+                status=None,
+                outcome="none-yet",
+                topic=["t"],
+                summary="s",
+                body="",
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         mv, err = A.plan_transition(self.rroot, "prm002", "reference")
         self.assertIsNone(err)

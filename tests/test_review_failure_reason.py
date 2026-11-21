@@ -34,6 +34,7 @@ from agent_workflows import (
     runner_shared,
 )
 from agent_workflows.render_stream import Palette
+from tests.record_builder import RecordBuilder
 
 
 class HostErrorHelpersUnitTests(unittest.TestCase):
@@ -296,12 +297,15 @@ class ReviewFailureReasonIntegrationTests(unittest.TestCase):
         plan_name = f"20261007-set1-01-{id6}-test.ipd.md"
         plan_file = plans_dir / plan_name
         plan_file.write_text(
-            f"# IPD: Test\n\n"
-            f"- Id: {id6}\n"
-            f"- Kind: {kind}\n"
-            f"- Set: set1\n"
-            f"- Order: 1\n"
-            f"- Status: {status}\n",
+            RecordBuilder().plan(
+                title="Test",
+                id6=id6,
+                plan_role=kind,
+                set="set1",
+                order=1,
+                status=status,
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)

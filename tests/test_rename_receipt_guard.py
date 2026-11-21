@@ -18,6 +18,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import agent_schema, cli, ipd_lifecycle
+from tests.record_builder import RecordBuilder
 
 SPEC = "20260701-grp-01-s11111-my-spec.spec.md"
 TARGET_PLAN = "20260701-p33333-01-p33333-tgt.ipd.md"
@@ -25,20 +26,6 @@ RESEARCH = "20260701-seta-01-r44444-topic.reference-research.md"
 IN_FLIGHT = "20260701-x-01-p22222-x.ipd.md"
 SIBLING = "20260701-y-01-p55555-y.ipd.md"
 SKIP_MARK = "--- SKIPPED citation rewrite in .aw/records/plans/pending/" + IN_FLIGHT
-
-
-def _plan_text(id6: str, cite: str, *, in_action_only: bool = False) -> str:
-    head = f"# IPD: {id6}\n\n- Date: 2026-07-01\n- Id: {id6}\n- Status: approved\n- Set: x\n- Order: 1\n"
-    if in_action_only:
-        head += "- Scope-Paths: agent_workflows/x.py\n"
-    else:
-        head += f"- Scope-Paths: {cite}\n"
-    return (
-        head
-        + "\n## Detailed Implementation Checklist (TODO)\n\n"
-        + f"- [ ] E-01 Update the behavior described by {cite}.\n"
-        + "  - Execution state: pending\n"
-    )
 
 
 class _GuardCase(unittest.TestCase):
@@ -62,25 +49,71 @@ class _GuardCase(unittest.TestCase):
         for d in (self.specs, self.plans, self.research):
             d.mkdir(parents=True)
         (self.specs / SPEC).write_text(
-            "# Spec: My\n\n- Date: 2026-07-01\n- Id: s11111\n- Set: grp\n- Status: draft\n",
+            RecordBuilder().spec(
+                title="My",
+                when="2026-07-01",
+                id6="s11111",
+                set="grp",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (self.plans / TARGET_PLAN).write_text(
-            "# IPD: tgt\n\n- Date: 2026-07-01\n- Id: p33333\n- Status: draft\n- Set: p33333\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="tgt",
+                when="2026-07-01",
+                id6="p33333",
+                status="draft",
+                set="p33333",
+                order=1,
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (self.research / RESEARCH).write_text(
-            "# Research: topic\n\n- Date: 2026-07-01\n- Id: r44444\n- Set: seta\n",
+            RecordBuilder().research(
+                when="2026-07-01", id6="r44444", set="seta", text_only=True
+            ),
             encoding="utf-8",
         )
 
     def _cite(self, cite: str, *, in_action_only: bool = False, receipt: bool = True):
+        body = (
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            f"- [ ] E-01 Update the behavior described by {cite}.\n"
+            "  - Execution state: pending"
+        )
         self.in_flight = self.plans / IN_FLIGHT
         self.in_flight.write_text(
-            _plan_text("p22222", cite, in_action_only=in_action_only), encoding="utf-8"
+            RecordBuilder().plan(
+                title="p22222",
+                when="2026-07-01",
+                id6="p22222",
+                status="approved",
+                set="x",
+                order=1,
+                scope_paths="agent_workflows/x.py" if in_action_only else cite,
+                body=body,
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         self.sibling = self.plans / SIBLING
-        self.sibling.write_text(_plan_text("p55555", cite), encoding="utf-8")
+        self.sibling.write_text(
+            RecordBuilder().plan(
+                title="p55555",
+                when="2026-07-01",
+                id6="p55555",
+                status="approved",
+                set="x",
+                order=1,
+                scope_paths=cite,
+                body=body,
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         self.test_file = self.tmp / "tests" / "test_cites.py"
         self.test_file.parent.mkdir(exist_ok=True)
         self.test_file.write_text(f"# see {cite}\n", encoding="utf-8")
