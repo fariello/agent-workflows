@@ -1,0 +1,16 @@
+"""Fixture: refusal reason legacy-format subject (legacy-kept)."""
+
+from agent_workflows import artifact_meta
+
+
+def test_legacy_grammar_plan_parses() -> None:
+    text = (
+        "# IPD: Legacy Subject Plan\n\n"
+        "- Id: lg1001\n"
+        "- Status: approved\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+    )
+    st = artifact_meta.read_text(text, record_type="ipd")
+    assert st.id6 == "lg1001"
+    assert st.status == "approved"
