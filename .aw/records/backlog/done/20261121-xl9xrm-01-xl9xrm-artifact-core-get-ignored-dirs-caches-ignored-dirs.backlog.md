@@ -1,5 +1,5 @@
 - Id: xl9xrm
-- Status: graduated
+- Status: done
 - Graduated-To: xl9xrm
 - Set: xl9xrm
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw backlog): closed by aw agy run: IPD dd48b5 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-xl9xrm-01-dd48b5-invalidate-artifact-core-get-ignored-dirs-cache-when-aw-giti.ipd.md); evidence .aw/records/plans/executed/20261121-xl9xrm-01-dd48b5-invalidate-artifact-core-get-ignored-dirs-cache-when-aw-giti.ipd.md
 - 2026-11-21 graduated (aw set): Graduated to review-ready plan dd48b5 (set xl9xrm)
 - 2026-11-21 created (aw backlog): artifact_core.get_ignored_dirs caches ignored dirs without .aw/.gitignore or .git/index mtime hiding .aw/records after in-process layout migration
 
