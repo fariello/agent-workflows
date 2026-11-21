@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 4 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_authoring_coverage_guidance.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_awmigrename.py`, `tests/test_awphysical_tools.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_authoring_coverage_guidance` 2, `test_awcmdsurf_mutation_verbs` 3, `test_awmigrename` 2, `test_awphysical_tools` 1. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-tsonlq-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-01 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 4 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_authoring_coverage_guidance.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_awmigrename.py`, `tests/test_awphysical_tools.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_authoring_coverage_guidance` 2, `test_awcmdsurf_mutation_verbs` 3, `test_awmigrename` 2, `test_awphysical_tools` 1. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-tsonlq-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7a-tsonlq-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 3 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_collision_population_parity.py`, `tests/test_companion_record_owner_root.py`, `tests/test_completion.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_collision_population_parity` 2, `test_companion_record_owner_root` 7, `test_completion` 7. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-tsonlq-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 3 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_collision_population_parity.py`, `tests/test_companion_record_owner_root.py`, `tests/test_completion.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_collision_population_parity` 2, `test_companion_record_owner_root` 7, `test_completion` 7. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-tsonlq-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7a-tsonlq-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7a-tsonlq-1-files.txt .aw/state/59aiyh/G7a-tsonlq-2-files.txt)`) into `.aw/state/59aiyh/tsonlq-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit tsonlq -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7a-tsonlq-1-files.txt .aw/state/59aiyh/G7a-tsonlq-2-files.txt)`) into `.aw/state/59aiyh/tsonlq-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit tsonlq -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,20 +153,91 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G7a-tsonlq-1-files.txt` and the empty `diff .aw/state/59aiyh/G7a-tsonlq-1-before.txt .aw/state/59aiyh/G7a-tsonlq-1-after.txt`; then, for each of `tests/test_authoring_coverage_guidance.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_awmigrename.py`, `tests/test_awphysical_tools.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7a-tsonlq-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7a-tsonlq-1-files.txt`:
+      - `tests/test_authoring_coverage_guidance.py`
+      - `tests/test_awcmdsurf_mutation_verbs.py`
+      - `tests/test_awmigrename.py`
+      - `tests/test_awphysical_tools.py`
+    - Partition check at starting HEAD `6d258d9324dff458d7ef95db977037b509f3e27d`: all 4 named modules matched F-01 before conversion. Nine post-split G7a modules matching F-01 are not named by any chunk plan (`tests/test_aw_repo_survey.py`, `tests/test_companion_containment_and_storage.py`, `tests/test_companion_doctor_and_carriers.py`, `tests/test_companion_runner_integration.py`, `tests/test_ctrlc_worktree_cleanup_ux.py`, `tests/test_fixture_codemod.py`, `tests/test_fixture_codemod_slow.py`, `tests/test_install_migrate_prompt.py`, `tests/test_installer_scaffold_preview_parity.py`); per the batch rule they were not added here and are reported for `1upea0` E-04.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7a-tsonlq-1-before.txt .aw/state/59aiyh/G7a-tsonlq-1-after.txt`): empty output, exit code 0 (62 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_authoring_coverage_guidance.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-1-codemod.json`): `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=e144177ef7e9c03be493902da24e34938447719c0f21c2590512aa027cd3f6ff`, `after_hash=e144177ef7e9c03be493902da24e34938447719c0f21c2590512aa027cd3f6ff`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_awcmdsurf_mutation_verbs.py`:
+        - F-01 `rg -c`: before 3, after 2. Remaining matches (2):
+          - `setter-byte assertion` (2, `legacy-kept` per codemod): `MutationVerbsTests.test_rename_apply_updates_refs_and_preserves_id` committed line 80 (`self.assertIn("- Id: aaa111", moved[0].read_text())`); `MutationVerbsTests.test_group_apply` committed line 95 (`self.assertIn("- Set: regrp", moved[0].read_text())`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-1-codemod.json`): `sites=3`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=2` (`setter-byte assertion=2`, `hand=0`, `legacy-kept=2`), `before_hash=dc0224f814cb24d31a4dbbe66638bf2b1b86abdd65454501800280188c421a6a`, `after_hash=dc0224f814cb24d31a4dbbe66638bf2b1b86abdd65454501800280188c421a6a`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 3 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 2`.
+      - `tests/test_awmigrename.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-1-codemod.json`): `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=6305fe92b3d82cedfd261049027514cf04b45192b911d5535a2a41bc2862ff58`, `after_hash=6305fe92b3d82cedfd261049027514cf04b45192b911d5535a2a41bc2862ff58`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_awphysical_tools.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none (pre-edit line 244 `"- Id: x\n- Status: open\n"` rewritten via `RecordBuilder().backlog(status='open', raw_fields={'Id': 'x'}, text_only=True)`, `invalid-input` rewrite class).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-1-codemod.json`): `sites=1`, `rewrites=1` (`standard=0`, `invalid-input=1`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=8059061e6a9078bc86f17e133d1a76ebeb4b9a6b95d7aee8d89da09b41e47c09`, `after_hash=8059061e6a9078bc86f17e133d1a76ebeb4b9a6b95d7aee8d89da09b41e47c09`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 0 (0 static + 0 apply-time `not-equivalent`; <= 25; no hand-converted sites).
+    - Post-edit codemod dry-run over all 4 modules: `test_authoring_coverage_guidance.py`, `test_awmigrename.py`, `test_awphysical_tools.py` at `sites=0`; `test_awcmdsurf_mutation_verbs.py` at `sites=2` (`hand=0`, `legacy-kept=2`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G7a-tsonlq-2-files.txt` and the empty `diff .aw/state/59aiyh/G7a-tsonlq-2-before.txt .aw/state/59aiyh/G7a-tsonlq-2-after.txt`; then, for each of `tests/test_collision_population_parity.py`, `tests/test_companion_record_owner_root.py`, `tests/test_completion.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7a-tsonlq-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7a-tsonlq-2-files.txt`:
+      - `tests/test_collision_population_parity.py`
+      - `tests/test_companion_record_owner_root.py`
+      - `tests/test_completion.py`
+    - Partition check at starting HEAD `6d258d9324dff458d7ef95db977037b509f3e27d`: all 3 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7a-tsonlq-2-before.txt .aw/state/59aiyh/G7a-tsonlq-2-after.txt`): empty output, exit code 0 (43 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_collision_population_parity.py`:
+        - F-01 `rg -c`: before 2, after 2 (file intentionally left unmodified; 0 codemod sites; declared Scope-Path acknowledged for finalize). Remaining matches (2):
+          - `body prose` (2): `CollisionPopulationParityTests.setUp` comment lines 47-48 (`# 3) a walkthrough whose identity slot reuses aaa111 while declaring no - Id:`, `# 4) two executed plans that both declare - Id: ccc333`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-2-codemod.json`): `sites=0`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_companion_record_owner_root.py`:
+        - F-01 `rg -c`: before 7, after 2. Remaining matches (2):
+          - `body prose` (2, `legacy-kept` per codemod): `test_specs_note_history_lands_in_companion_records_root` committed lines 656 and 716 (`r"^- Id:\s*([a-z0-9]{6})"` regex over `aw specs new` output with filename fallback).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-2-codemod.json`): `sites=9`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=8` (`unsupported-shape=6`, `body prose=2`, `hand=6`, `legacy-kept=2`), `before_hash=537cb9efbec7364e4738596a166ad132fa318da831214188232625f01c388556`, `after_hash=537cb9efbec7364e4738596a166ad132fa318da831214188232625f01c388556`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 9 | 1 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 2 | 6 | 2`.
+      - `tests/test_completion.py`:
+        - F-01 `rg -c`: before 7, after 1. Remaining matches (1):
+          - `body prose` (1, `legacy-kept` per codemod): `CompleteQueryTests.QUERIES` rationale string committed line 1078 (`"the Set id comes from the plans' \`- Set:\` FRONT MATTER, not from the resolver; target "`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-tsonlq-2-codemod.json`): `sites=7`, `rewrites=5` (`standard=5`, `invalid-input=0`), `refusals=2` (`unsupported-shape=1`, `body prose=1`, `hand=1`, `legacy-kept=1`), `before_hash=923a64bc36b2b57d70cf59694c15fc992ae1ba5f9f0732287fe04926ea19a6ae`, `after_hash=923a64bc36b2b57d70cf59694c15fc992ae1ba5f9f0732287fe04926ea19a6ae`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | tsonlq | 7 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 1 | 1`.
+    - Hand count: 7 (7 static + 0 apply-time `not-equivalent`; <= 25; all 7 hand-converted):
+      1. `tests/test_companion_record_owner_root.py` pre-edit line 151 (`c1_sibling_companion`, `unsupported-shape`): replaced manual `- Id:` line scan with `artifact_meta.read_text(plan_path.read_text(encoding="utf-8"), record_type="ipd").id6`.
+      2. `tests/test_companion_record_owner_root.py` pre-edit line 229 (`c2_custom_companion`, `unsupported-shape`): replaced manual `- Id:` line scan with `artifact_meta.read_text(plan_path.read_text(encoding="utf-8"), record_type="ipd").id6`.
+      3. `tests/test_companion_record_owner_root.py` pre-edit line 579 (2 sites in `test_ipd_lint_resolves_companion_sibling_dependency`, `unsupported-shape`): replaced `re.sub(r"- Item-Dependencies:.*", f"- Item-Dependencies: executed:{id6}", txt)` with `artifact_meta.render_legacy_text(..., [{"op": "set", "fields": {"item_dependencies": f"executed:{id6}"}}], record_type="ipd", render=artifact_meta.LegacyRender(tag="edit", day="2026-08-24", actor_label="probe", history=False))`.
+      4. `tests/test_companion_record_owner_root.py` pre-edit line 593 (2 sites in `test_ipd_lint_resolves_companion_sibling_dependency`, `unsupported-shape`): replaced `re.sub(r"- Item-Dependencies:.*", "- Item-Dependencies: executed:zzzzzz", txt)` with `artifact_meta.render_legacy_text(..., [{"op": "set", "fields": {"item_dependencies": "executed:zzzzzz"}}], record_type="ipd", render=artifact_meta.LegacyRender(tag="edit", day="2026-08-24", actor_label="probe", history=False))`.
+      5. `tests/test_completion.py` pre-edit line 947 (`_DynamicRepoFixture.setUp`, `unsupported-shape`): replaced `"# Task\n\n- Id: def456\n- Status: open\n- Summary: x\n"` with `RecordBuilder().backlog(id6="def456", status="open", summary="x", text_only=True)`.
+    - Post-edit codemod dry-run over all 3 modules: `test_collision_population_parity.py` at `sites=0`; `test_companion_record_owner_root.py` at `sites=2` (`hand=0`, `legacy-kept=2`); `test_completion.py` at `sites=1` (`hand=0`, `legacy-kept=1`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G7a-tsonlq-1`, `G7a-tsonlq-2` against `.aw/state/59aiyh/tsonlq-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit tsonlq` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/tsonlq-union-before.txt .aw/state/59aiyh/tsonlq-union-after.txt`): empty output, exit code 0 (105 `PASSED` outcomes = 62 + 43 across all 7 modules).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2666 passed, 11 warnings in 105.77s (0:01:45)`, exit code 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6899,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit tsonlq` outputs (all committed paths strictly inside Scope-Paths; `tests/test_collision_population_parity.py` intentionally unmodified with 0 codemod sites; never pushed):
+      - E-01: `aw commit: committed 4 path(s): 3d3ec634ddaabaad77c3d43757be3324da9d868e` (`tests/test_authoring_coverage_guidance.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_awmigrename.py`, `tests/test_awphysical_tools.py`).
+      - E-02: `aw commit: committed 2 path(s): a53160140d661e0f4e3df0a8e6998124d5ba30b4` (`tests/test_companion_record_owner_root.py`, `tests/test_completion.py`).
+      - Plan evidence: committed via `aw commit tsonlq -- .aw/records/plans/pending/20261109-metastore-208-tsonlq-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
