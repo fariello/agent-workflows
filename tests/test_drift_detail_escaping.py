@@ -20,6 +20,7 @@ from agent_workflows import releases
 from agent_workflows import research_cmd as C
 from agent_workflows import research_index as I
 from agent_workflows import specs
+from tests.record_builder import RecordBuilder
 
 
 class TestReprWrappedSites(unittest.TestCase):
@@ -43,7 +44,9 @@ class TestReprWrappedSites(unittest.TestCase):
                 pdir = root / ".aw" / "records" / "prompts" / bucket
                 pdir.mkdir(parents=True, exist_ok=True)
             p = pdir / "20260101-prm-01-test.prompt.md"
-            p.write_text("# Prompt\n- Id: prm001\n", encoding="utf-8")
+            p.write_text(
+                RecordBuilder().prompt(id6="prm001", text_only=True), encoding="utf-8"
+            )
 
             items, drift = att.scan(root)
             unknown = [d for d in drift if d.rule == "attention.unknown-status"]
@@ -64,7 +67,12 @@ class TestReprWrappedSites(unittest.TestCase):
             rdir.mkdir(parents=True, exist_ok=True)
             p = rdir / "20260101-rel-01-rel-test.release.md"
             p.write_text(
-                f"# Release 1.0.0\n- Id: rel001\n- Status: {status}\n- Version: 1.0.0\n",
+                RecordBuilder().release(
+                    id6="rel001",
+                    version="1.0.0",
+                    raw_fields={"Status": status},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -87,7 +95,14 @@ class TestReprWrappedSites(unittest.TestCase):
             pdir.mkdir(parents=True, exist_ok=True)
             p = pdir / "20260101-set-01-p10001-test.ipd.md"
             p.write_text(
-                f"# IPD: test\n- Id: p10001\n- Status: {status}\n- Set: set\n- Order: 1\n",
+                RecordBuilder().plan(
+                    title="test",
+                    id6="p10001",
+                    set="set",
+                    order=1,
+                    raw_fields={"Status": status},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -111,7 +126,12 @@ class TestReprWrappedSites(unittest.TestCase):
             rdir.mkdir(parents=True, exist_ok=True)
             p = rdir / "20260101-01-test.research.md"
             p.write_text(
-                f"---\nid: res001\nstatus: {status}\n---\n# Research\n",
+                RecordBuilder().research(
+                    id6="res001",
+                    body="# Research\n",
+                    raw_fields={"status": status},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -134,7 +154,14 @@ class TestReprWrappedSites(unittest.TestCase):
             bdir.mkdir(parents=True, exist_ok=True)
             p = bdir / "20260101-b10001-01-b10001-test.backlog.md"
             p.write_text(
-                f"- Id: b10001\n- Status: {status}\n- Priority: high\n- Work-Kind: feature\n- Summary: test\n",
+                RecordBuilder().backlog(
+                    id6="b10001",
+                    priority="high",
+                    work_kind="feature",
+                    summary="test",
+                    raw_fields={"Status": status},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -151,12 +178,12 @@ class TestReprWrappedSites(unittest.TestCase):
     def test_specs_validate_spec_status_escaping(self):
         """specs.validate_spec: status {status!r} not in the spec enum."""
         status = "we\\ird"
-        text = (
-            f"# Spec: test\n"
-            f"- Id: s10001\n"
-            f"- Status: {status}\n"
-            f"## Workflow history\n"
-            f"- 2026-01-01 draft (t): init\n"
+        text = RecordBuilder().spec(
+            title="test",
+            id6="s10001",
+            history=["- 2026-01-01 draft (t): init"],
+            raw_fields={"Status": status},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("test.spec.md"), text)
         unknown = [d for d in drift if d.rule == "attention.unknown-status"]
@@ -171,14 +198,14 @@ class TestReprWrappedSites(unittest.TestCase):
     def test_specs_validate_spec_unknown_gate_kind_escaping(self):
         """specs.validate_spec: unknown Gate-Kind {kind!r}."""
         kind = "we\\ird"
-        text = (
-            f"# Spec: test\n"
-            f"- Id: s10001\n"
-            f"- Status: deferred\n"
-            f"- Gate-Kind: {kind}\n"
-            f"- Gate-Ref: ref\n"
-            f"## Workflow history\n"
-            f"- 2026-01-01 draft (t): init\n"
+        text = RecordBuilder().spec(
+            title="test",
+            id6="s10001",
+            status="deferred",
+            gate_kind=kind,
+            gate_ref="ref",
+            history=["- 2026-01-01 draft (t): init"],
+            text_only=True,
         )
         drift = specs.validate_spec(Path("test.spec.md"), text)
         malformed = [d for d in drift if d.rule == "attention.gate-malformed"]
@@ -193,14 +220,14 @@ class TestReprWrappedSites(unittest.TestCase):
     def test_specs_validate_spec_invalid_gate_ref_escaping(self):
         """specs.validate_spec: invalid Gate-Ref for {kind}: {ref!r}."""
         ref = "we\\ird\tx"
-        text = (
-            f"# Spec: test\n"
-            f"- Id: s10001\n"
-            f"- Status: deferred\n"
-            f"- Gate-Kind: external\n"
-            f"- Gate-Ref: {ref}\n"
-            f"## Workflow history\n"
-            f"- 2026-01-01 draft (t): init\n"
+        text = RecordBuilder().spec(
+            title="test",
+            id6="s10001",
+            status="deferred",
+            gate_kind="external",
+            history=["- 2026-01-01 draft (t): init"],
+            raw_fields={"Gate-Ref": ref},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("test.spec.md"), text)
         malformed = [d for d in drift if d.rule == "attention.gate-malformed"]
@@ -222,14 +249,14 @@ class TestProvableIdentitySites(unittest.TestCase):
 
     def test_specs_validate_spec_duplicate_bullet(self):
         """specs.validate_spec: metadata bullet - {k}: appears {count} times."""
-        text = (
-            "# Spec: test\n"
-            "- Id: s10001\n"
-            "- Status: draft\n"
-            "- Author: alice\n"
-            "- Author: bob\n"
-            "## Workflow history\n"
-            "- 2026-01-01 draft (t): init\n"
+        text = RecordBuilder().spec(
+            title="test",
+            id6="s10001",
+            status="draft",
+            author="alice",
+            history=["- 2026-01-01 draft (t): init"],
+            raw_fields={"Author": "alice\n- Author: bob"},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("test.spec.md"), text)
         repeated = [d for d in drift if d.rule == "spec.metadata-bullet-repeated"]
@@ -240,13 +267,13 @@ class TestProvableIdentitySites(unittest.TestCase):
 
     def test_specs_validate_spec_scope_over_length(self):
         """specs.validate_spec: Scope is over-length or has control chars/newlines."""
-        text = (
-            "# Spec: test\n"
-            "- Id: s10001\n"
-            "- Status: draft\n"
-            f"- Scope: {'x' * 4301}\n"
-            "## Workflow history\n"
-            "- 2026-01-01 draft (t): init\n"
+        text = RecordBuilder().spec(
+            title="test",
+            id6="s10001",
+            status="draft",
+            history=["- 2026-01-01 draft (t): init"],
+            raw_fields={"Scope": "x" * 4301},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("test.spec.md"), text)
         unsafe = [d for d in drift if d.rule == "attention.unsafe-field"]
@@ -257,13 +284,13 @@ class TestProvableIdentitySites(unittest.TestCase):
 
     def test_specs_validate_spec_summary_over_length(self):
         """specs.validate_spec: Summary is over-length or has control chars/newlines."""
-        text = (
-            "# Spec: test\n"
-            "- Id: s10001\n"
-            "- Status: draft\n"
-            f"- Summary: {'x' * 301}\n"
-            "## Workflow history\n"
-            "- 2026-01-01 draft (t): init\n"
+        text = RecordBuilder().spec(
+            title="test",
+            id6="s10001",
+            status="draft",
+            history=["- 2026-01-01 draft (t): init"],
+            raw_fields={"Summary": "x" * 301},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("test.spec.md"), text)
         unsafe = [d for d in drift if d.rule == "attention.unsafe-field"]
@@ -368,12 +395,13 @@ class TestProvableIdentitySites(unittest.TestCase):
 
     def test_releases_validate_release_summary_bullet_over_length(self):
         """releases.validate_release: Summary bullet is over-length or has control chars/newlines."""
-        text = (
-            f"# Release 1.0.0\n"
-            f"- Id: rel001\n"
-            f"- Status: planned\n"
-            f"- Version: 1.0.0\n"
-            f"- Summary: {'x' * 301}\n"
+        text = RecordBuilder().release(
+            id6="rel001",
+            status="planned",
+            version="1.0.0",
+            summary="",
+            raw_fields={"Summary": "x" * 301},
+            text_only=True,
         )
         drift = releases.validate_release(Path("test.release.md"), text)
         unsafe = [d for d in drift if d.rule == "attention.unsafe-field"]
@@ -385,13 +413,13 @@ class TestProvableIdentitySites(unittest.TestCase):
 
     def test_releases_validate_release_summary_prose_control_char(self):
         """releases.validate_release: Summary prose contains control characters."""
-        text = (
-            "# Release 1.0.0\n"
-            "- Id: rel001\n"
-            "- Status: planned\n"
-            "- Version: 1.0.0\n\n"
-            "## Summary\n\n"
-            "Prose with \x07 control char.\n"
+        text = RecordBuilder().release(
+            id6="rel001",
+            status="planned",
+            version="1.0.0",
+            summary="",
+            body="# Release 1.0.0\n\n## Summary\n\nProse with \x07 control char.\n",
+            text_only=True,
         )
         drift = releases.validate_release(Path("test.release.md"), text)
         unsafe = [d for d in drift if d.rule == "attention.unsafe-field"]
@@ -406,7 +434,14 @@ class TestProvableIdentitySites(unittest.TestCase):
             pdir.mkdir(parents=True, exist_ok=True)
             p = pdir / "20260101-set-01-p10001-test.ipd.md"
             p.write_text(
-                "# IPD: test\n- Id: p10001\n- Status: superseded\n- Set: set\n- Order: 1\n",
+                RecordBuilder().plan(
+                    title="test",
+                    id6="p10001",
+                    status="superseded",
+                    set="set",
+                    order=1,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             items, drift = att.scan(root)
@@ -429,7 +464,14 @@ class TestEndToEndSubprocess(unittest.TestCase):
             bdir.mkdir(parents=True, exist_ok=True)
             p = bdir / "20260101-b10001-01-b10001-test.backlog.md"
             p.write_text(
-                "- Id: b10001\n- Status: we\\ird\n- Priority: high\n- Work-Kind: feature\n- Summary: test\n",
+                RecordBuilder().backlog(
+                    id6="b10001",
+                    priority="high",
+                    work_kind="feature",
+                    summary="test",
+                    raw_fields={"Status": "we\\ird"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             proc = subprocess.run(

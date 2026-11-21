@@ -6,7 +6,7 @@
 - Scope: Chunk 7 of 7 of `1upea0` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 7 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `1upea0`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_cross_tree_session_refusal.py, tests/test_defect_report.py, tests/test_doctor.py, tests/test_drift_detail_escaping.py, tests/test_empty_result_convention_doc.py, tests/test_explicit_dir_non_project.py, tests/test_explicit_dir_subdir_resolution.py, .aw/records/plans/pending/20261109-metastore-209-erulw3-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: erulw3
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: erulw3 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-209-erulw3-move-setter-runner-lane-and-first-half-unmatched-test-data-c.review.md
@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 4 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_cross_tree_session_refusal.py`, `tests/test_defect_report.py`, `tests/test_doctor.py`, `tests/test_drift_detail_escaping.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_cross_tree_session_refusal` 1, `test_defect_report` 7, `test_doctor` 3, `test_drift_detail_escaping` 32. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-erulw3-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-01 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 4 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_cross_tree_session_refusal.py`, `tests/test_defect_report.py`, `tests/test_doctor.py`, `tests/test_drift_detail_escaping.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_cross_tree_session_refusal` 1, `test_defect_report` 7, `test_doctor` 3, `test_drift_detail_escaping` 32. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-erulw3-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7a-erulw3-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 3 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_empty_result_convention_doc.py`, `tests/test_explicit_dir_non_project.py`, `tests/test_explicit_dir_subdir_resolution.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_empty_result_convention_doc` 2, `test_explicit_dir_non_project` 5, `test_explicit_dir_subdir_resolution` 5. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-erulw3-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `1upea0` E-03, batch subset G7a; round-3 split 2026-11-09) Batch G7a, 3 of its 24 modules (the unmatched test modules, first half (basename sorts before `test_l`)): `tests/test_empty_result_convention_doc.py`, `tests/test_explicit_dir_non_project.py`, `tests/test_explicit_dir_subdir_resolution.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_empty_result_convention_doc` 2, `test_explicit_dir_non_project` 5, `test_explicit_dir_subdir_resolution` 5. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7a-erulw3-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7a-erulw3-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7a-erulw3-1-files.txt .aw/state/59aiyh/G7a-erulw3-2-files.txt)`) into `.aw/state/59aiyh/erulw3-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit erulw3 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7a-erulw3-1-files.txt .aw/state/59aiyh/G7a-erulw3-2-files.txt)`) into `.aw/state/59aiyh/erulw3-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit erulw3 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,20 +153,96 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G7a-erulw3-1-files.txt` and the empty `diff .aw/state/59aiyh/G7a-erulw3-1-before.txt .aw/state/59aiyh/G7a-erulw3-1-after.txt`; then, for each of `tests/test_cross_tree_session_refusal.py`, `tests/test_defect_report.py`, `tests/test_doctor.py`, `tests/test_drift_detail_escaping.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7a-erulw3-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7a-erulw3-1-files.txt`:
+      - `tests/test_cross_tree_session_refusal.py`
+      - `tests/test_defect_report.py`
+      - `tests/test_doctor.py`
+      - `tests/test_drift_detail_escaping.py`
+    - Partition check at starting HEAD `1cbc9be609acabab6ab0b400dba6f7ad4d8c9966`: all 4 named modules matched F-01 before conversion. Nine post-split G7a modules matching F-01 are not named by any chunk plan (`tests/test_aw_repo_survey.py`, `tests/test_companion_containment_and_storage.py`, `tests/test_companion_doctor_and_carriers.py`, `tests/test_companion_runner_integration.py`, `tests/test_ctrlc_worktree_cleanup_ux.py`, `tests/test_fixture_codemod.py`, `tests/test_fixture_codemod_slow.py`, `tests/test_install_migrate_prompt.py`, `tests/test_installer_scaffold_preview_parity.py`); per the batch rule they were not added here and are reported for `1upea0` E-04.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7a-erulw3-1-before.txt .aw/state/59aiyh/G7a-erulw3-1-after.txt`): empty output, exit code 0 (82 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_cross_tree_session_refusal.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-1-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=bd69050a9406ec372c795169d6c7b1905e250a0f858f2ab741468371c681d30d`, `after_hash=bd69050a9406ec372c795169d6c7b1905e250a0f858f2ab741468371c681d30d`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_defect_report.py`:
+        - F-01 `rg -c`: before 7, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-1-codemod.json`): `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=c19336d64e9b65e972bda31e8b78b6beaf663c9ba58915ec3f3e3ac67b2ed5b6`, `after_hash=c19336d64e9b65e972bda31e8b78b6beaf663c9ba58915ec3f3e3ac67b2ed5b6`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_doctor.py`:
+        - F-01 `rg -c`: before 3, after 1. Remaining matches (1):
+          - `setter-byte assertion` (1, `legacy-kept` per codemod and F-30): `DoctorRemediationTests.test_remediation_blocks_release_dangling` committed line 777 (`self.assertIn("'- Blocks-Release:'", rem_r.detailed_fix)`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-1-codemod.json`): `sites=3`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=2` (`unsupported-shape=1`, `setter-byte assertion=1`, `hand=1`, `legacy-kept=1`), `before_hash=024e0a575906b2af5b06f0331cbdb411b5cb2df524a51c5953341e62b4b21346`, `after_hash=024e0a575906b2af5b06f0331cbdb411b5cb2df524a51c5953341e62b4b21346`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 3 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 1 | 0 | 1 | 1`.
+      - `tests/test_drift_detail_escaping.py`:
+        - F-01 `rg -c`: before 32, after 0. Remaining matches: none (deliberately invalid values routed through `RecordBuilder` `raw_fields=` with reason class `invalid-input`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-1-codemod.json`): `sites=15`, `rewrites=4` (`standard=3`, `invalid-input=1`), `refusals=11` (`unsupported-shape=4`, `not-equivalent=7`, `hand=11`, `legacy-kept=0`), `before_hash=da495d58553bc6fa51710ecdb050d50aba2d49cc3155ae1a3c0bfcb534b9397a`, `after_hash=da495d58553bc6fa51710ecdb050d50aba2d49cc3155ae1a3c0bfcb534b9397a`, `equivalent=true`, `pytest_runs=20`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 15 | 11 | 1 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 4 | 0`.
+    - Hand count: 12 (5 static + 7 apply-time `not-equivalent`; <= 25; all 12 hand-converted):
+      1. `tests/test_doctor.py` pre-edit line 166 (`DoctorTests.test_render_groups_artifact_issues_by_type_and_dir_with_fixes`, `unsupported-shape`): replaced invalid multiline backlog literal with `RecordBuilder().backlog(status="open", raw_fields={"Id": "bk1", "Summary": "multi\nline"}, text_only=True)` (`invalid-input`).
+      2. `tests/test_drift_detail_escaping.py` pre-edit line 67 (`TestReprWrappedSites.test_release_record_status_escaping`, `not-equivalent`): replaced release literal with `RecordBuilder().release(id6="rel001", version="1.0.0", raw_fields={"Status": status}, text_only=True)` (`invalid-input`).
+      3. `tests/test_drift_detail_escaping.py` pre-edit line 90 (`TestReprWrappedSites.test_plans_record_status_escaping`, `not-equivalent`): replaced plan literal with `RecordBuilder().plan(title="test", id6="p10001", set="set", order=1, raw_fields={"Status": status}, text_only=True)` (`invalid-input`).
+      4. `tests/test_drift_detail_escaping.py` pre-edit line 114 (`TestReprWrappedSites.test_research_record_status_escaping`, `not-equivalent`): replaced YAML research literal with `RecordBuilder().research(id6="res001", body="# Research\n", raw_fields={"status": status}, text_only=True)` (`invalid-input`).
+      5. `tests/test_drift_detail_escaping.py` pre-edit line 137 (`TestReprWrappedSites.test_backlog_record_status_escaping`, `not-equivalent`): replaced backlog literal with `RecordBuilder().backlog(id6="b10001", priority="high", work_kind="feature", summary="test", raw_fields={"Status": status}, text_only=True)` (`invalid-input`).
+      6. `tests/test_drift_detail_escaping.py` pre-edit line 155 (`TestReprWrappedSites.test_specs_validate_spec_status_escaping`, `not-equivalent`): replaced spec literal with `RecordBuilder().spec(title="test", id6="s10001", history=["- 2026-01-01 draft (t): init"], raw_fields={"Status": status}, text_only=True)` (`invalid-input`).
+      7. `tests/test_drift_detail_escaping.py` pre-edit line 197 (`TestReprWrappedSites.test_specs_validate_spec_invalid_gate_ref_escaping`, `not-equivalent`): replaced spec literal with `RecordBuilder().spec(title="test", id6="s10001", status="deferred", gate_kind="external", history=["- 2026-01-01 draft (t): init"], raw_fields={"Gate-Ref": ref}, text_only=True)` (`invalid-input`).
+      8. `tests/test_drift_detail_escaping.py` pre-edit line 226 (`TestProvableIdentitySites.test_specs_validate_spec_duplicate_bullet`, `unsupported-shape`): replaced duplicate-Author spec literal with `RecordBuilder().spec(title="test", id6="s10001", status="draft", author="alice", history=["- 2026-01-01 draft (t): init"], raw_fields={"Author": "alice\n- Author: bob"}, text_only=True)` (`invalid-input`).
+      9. `tests/test_drift_detail_escaping.py` pre-edit line 244 (`TestProvableIdentitySites.test_specs_validate_spec_scope_over_length`, `unsupported-shape`): replaced over-length Scope spec literal with `RecordBuilder().spec(title="test", id6="s10001", status="draft", history=["- 2026-01-01 draft (t): init"], raw_fields={"Scope": "x" * 4301}, text_only=True)` (`invalid-input`).
+      10. `tests/test_drift_detail_escaping.py` pre-edit line 261 (`TestProvableIdentitySites.test_specs_validate_spec_summary_over_length`, `not-equivalent`): replaced over-length Summary bullet spec literal with `RecordBuilder().spec(title="test", id6="s10001", status="draft", history=["- 2026-01-01 draft (t): init"], raw_fields={"Summary": "x" * 301}, text_only=True)` (`invalid-input`).
+      11. `tests/test_drift_detail_escaping.py` pre-edit line 372 (`TestProvableIdentitySites.test_releases_validate_release_summary_bullet_over_length`, `unsupported-shape`): replaced over-length Summary bullet release literal with `RecordBuilder().release(id6="rel001", status="planned", version="1.0.0", summary="", raw_fields={"Summary": "x" * 301}, text_only=True)` (`invalid-input`).
+      12. `tests/test_drift_detail_escaping.py` pre-edit line 389 (`TestProvableIdentitySites.test_releases_validate_release_summary_prose_control_char`, `unsupported-shape`): replaced release literal with `RecordBuilder().release(id6="rel001", status="planned", version="1.0.0", summary="", body="# Release 1.0.0\n\n## Summary\n\nProse with \x07 control char.\n", text_only=True)`.
+    - Post-edit codemod dry-run over all 4 modules: `test_cross_tree_session_refusal.py`, `test_defect_report.py`, and `test_drift_detail_escaping.py` at `sites=0`; `test_doctor.py` at `sites=1` (`hand=0`, `legacy-kept=1`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G7a-erulw3-2-files.txt` and the empty `diff .aw/state/59aiyh/G7a-erulw3-2-before.txt .aw/state/59aiyh/G7a-erulw3-2-after.txt`; then, for each of `tests/test_empty_result_convention_doc.py`, `tests/test_explicit_dir_non_project.py`, `tests/test_explicit_dir_subdir_resolution.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7a-erulw3-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7a-erulw3-2-files.txt`:
+      - `tests/test_empty_result_convention_doc.py`
+      - `tests/test_explicit_dir_non_project.py`
+      - `tests/test_explicit_dir_subdir_resolution.py`
+    - Partition check at starting HEAD `1cbc9be609acabab6ab0b400dba6f7ad4d8c9966`: all 3 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7a-erulw3-2-before.txt .aw/state/59aiyh/G7a-erulw3-2-after.txt`): empty output, exit code 0 (25 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_empty_result_convention_doc.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-2-codemod.json`): `sites=2`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=1` (`unsupported-shape=1`, `hand=1`, `legacy-kept=0`), `before_hash=2655d9c482f53f3d3cab9152403d4c72e7c667123c96d3e42f495e06401ed649`, `after_hash=2655d9c482f53f3d3cab9152403d4c72e7c667123c96d3e42f495e06401ed649`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 2 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0`.
+      - `tests/test_explicit_dir_non_project.py`:
+        - F-01 `rg -c`: before 5, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=ec733e601dd96629ad7558bb8f291f6ba2b2c9b11497baf3caff444fb96c0e45`, `after_hash=ec733e601dd96629ad7558bb8f291f6ba2b2c9b11497baf3caff444fb96c0e45`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_explicit_dir_subdir_resolution.py`:
+        - F-01 `rg -c`: before 5, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7a-erulw3-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=1bfda0f7929e17c4e9ccf4bea42e9dedf1b330a7398a3d0e2d4a91da3305ecca`, `after_hash=1bfda0f7929e17c4e9ccf4bea42e9dedf1b330a7398a3d0e2d4a91da3305ecca`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7a | erulw3 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 1 (1 static + 0 apply-time `not-equivalent`; <= 25; 1 hand-converted):
+      1. `tests/test_empty_result_convention_doc.py` pre-edit line 59 (`_build_fixture_repo`, `unsupported-shape`): replaced excluded-tree walkthrough literal with `RecordBuilder().walkthrough(id6=artifact_id6, set="test", when="2026-09-01", body=f"# {excluded_policy.name.capitalize()}: sample\n\nNarrative content.\n", text_only=True)`.
+    - Post-edit codemod dry-run over all 3 modules: all 3 modules at `sites=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G7a-erulw3-1`, `G7a-erulw3-2` against `.aw/state/59aiyh/erulw3-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit erulw3` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/erulw3-union-before.txt .aw/state/59aiyh/erulw3-union-after.txt`): empty output, exit code 0 (107 `PASSED` outcomes = 82 + 25 across all 7 modules).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2666 passed, 11 warnings in 110.15s (0:01:50)`, exit code 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6902,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit erulw3` outputs (all committed paths strictly inside Scope-Paths; never pushed):
+      - E-01: `aw commit: committed 4 path(s): 3f35425bf347e97388e698f02734e7a36bbc6661` (`tests/test_cross_tree_session_refusal.py`, `tests/test_defect_report.py`, `tests/test_doctor.py`, `tests/test_drift_detail_escaping.py`).
+      - E-02: `aw commit: committed 3 path(s): 8da02c7598d8e4e8eabbea62a8875bb36f4a53e1` (`tests/test_empty_result_convention_doc.py`, `tests/test_explicit_dir_non_project.py`, `tests/test_explicit_dir_subdir_resolution.py`).
+      - Plan evidence: committed via `aw commit erulw3 -- .aw/records/plans/pending/20261109-metastore-209-erulw3-move-setter-runner-lane-and-first-half-unmatched-test-data-c.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 

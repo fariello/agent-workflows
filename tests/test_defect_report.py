@@ -15,6 +15,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, reporting_contract as RC
 from agent_workflows import runner_shared as R
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DRIVERS = (oc_runipd, agy_runipd)
@@ -395,7 +396,9 @@ class HostResumeSpellingTests(unittest.TestCase):
             prompt = root / "reask.md"
             prompt.write_text("answer the report question\n", encoding="utf-8")
             plan = repo / "plan.ipd.md"
-            plan.write_text("- Id: abc123\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(id6="abc123", text_only=True), encoding="utf-8"
+            )
             dummy_exe = root / ("dummy.cmd" if sys.platform == "win32" else "dummy")
             dummy_exe.write_text("")
             dummy_exe.chmod(0o755)
@@ -570,15 +573,16 @@ class RescorePredicateTests(unittest.TestCase):
 
 
 class RescoreAfterAReaskTests(unittest.TestCase):
-    PLAN = (
-        "# IPD: rescore fixture\n\n"
-        "- Date: 2026-09-19\n"
-        "- Kind: child\n"
-        "- Id: prb001\n"
-        "- Set: reask\n"
-        "- Order: 1\n"
-        "- Status: approved\n\n"
-        "## Goal\n\nfixture\n"
+    PLAN = RecordBuilder().plan(
+        title="rescore fixture",
+        when="2026-09-19",
+        plan_role="child",
+        id6="prb001",
+        set="reask",
+        order=1,
+        status="approved",
+        body="## Goal\n\nfixture",
+        text_only=True,
     )
 
     GOOD = {
