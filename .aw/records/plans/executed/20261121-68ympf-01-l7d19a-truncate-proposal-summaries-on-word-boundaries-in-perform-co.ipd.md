@@ -6,7 +6,7 @@
 - Scope: Add a word-boundary truncation helper `_truncate_proposal_summary(text: str, max_chars: int = 60) -> str` and a word-boundary slug helper `_truncate_proposal_slug(text: str, max_chars: int = 50) -> str` in `agent_workflows/runner_shared.py`, and use them in both the live filing path and `_write_fallback_record` inside `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` (passing `--slug` to `aw backlog new` for `size="material"` so both `- Summary:` and the `.backlog.md` filename slug end on complete words without hitting `agent_workflows/backlog.py::run_new`'s 50-character `kebab_slug` hard slice, while `size="small"` produces a complete-word `# IPD:` title via `aw ipd scaffold` whose derived filename slug remains bounded by `agent_workflows/artifact_core.py::kebab_slug`). Add behavioral and helper unit tests in `tests/test_run_proposal_channel.py` covering `size="material"`, `size="small"`, `_write_fallback_record` (held lock), and edge cases (words straddling character 24 and character 60, word ending exactly at `max_chars`, single unbroken token over `max_chars`, trailing punctuation, and embedded newlines/tabs). EXCLUDES: lane defect backlog recovery (`8s4qhh` / `8h1q1k`) and changing `agent_workflows/artifact_core.py::kebab_slug` globally.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_run_proposal_channel.py, .aw/records/plans/pending/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Use a word-boundary truncation helper with a 60-character budget in perform_coordinator_proposal_file so proposal summaries and slugs never split words mid-token.
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: l7d19a verified (set 68ympf, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-68ympf-01-l7d19a-truncate-proposal-summaries-on-word-boundaries-in-perform-co.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 68ympf
