@@ -32,6 +32,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(root: Path) -> Path:
@@ -49,11 +50,13 @@ def _setup_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -68,29 +71,13 @@ def _create_spec(
     gate_ref: str | None = None,
     gate_summary: str | None = None,
 ) -> Path:
-    lines = [
-        f"# Spec: Test Spec {id6}",
-        "",
-        "- Date: 2026-10-02",
-        f"- Status: {status}",
-        f"- Id: {id6}",
-    ]
+    extra: dict[str, str] = {}
     if gate_kind is not None:
-        lines.append(f"- Gate-Kind: {gate_kind}")
+        extra["gate_kind"] = gate_kind
     if gate_ref is not None:
-        lines.append(f"- Gate-Ref: {gate_ref}")
+        extra["gate_ref"] = gate_ref
     if gate_summary is not None:
-        lines.append(f"- Gate-Summary: {gate_summary}")
-    lines.extend(
-        [
-            "- Author: tester",
-            "",
-            "## Workflow history",
-            "- 2026-10-02 created (tester): initial spec",
-            "",
-            "Spec body text.",
-        ]
-    )
+        extra["gate_summary"] = gate_summary
     p = (
         repo
         / ".aw"
@@ -99,7 +86,20 @@ def _create_spec(
         / status
         / f"20261002-{id6}-01-{id6}-test-spec.spec.md"
     )
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    p.write_text(
+        RecordBuilder().spec(
+            id6=id6,
+            title=f"Test Spec {id6}",
+            status=status,
+            author="tester",
+            when="2026-10-02",
+            history=["- 2026-10-02 created (tester): initial spec"],
+            body="Spec body text.",
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -112,29 +112,13 @@ def _create_backlog_item(
     gate_ref: str | None = None,
     gate_summary: str | None = None,
 ) -> Path:
-    lines = [
-        f"- Id: {id6}",
-        f"- Status: {status}",
-        f"- Set: {id6}",
-        "- Priority: medium",
-        "- Work-Kind: bug",
-        "- Summary: Test backlog item",
-    ]
+    extra: dict[str, str] = {}
     if gate_kind is not None:
-        lines.append(f"- Gate-Kind: {gate_kind}")
+        extra["gate_kind"] = gate_kind
     if gate_ref is not None:
-        lines.append(f"- Gate-Ref: {gate_ref}")
+        extra["gate_ref"] = gate_ref
     if gate_summary is not None:
-        lines.append(f"- Gate-Summary: {gate_summary}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            "- 2026-10-02 created (tester): initial item",
-            "",
-            "Backlog body text.",
-        ]
-    )
+        extra["gate_summary"] = gate_summary
     p = (
         repo
         / ".aw"
@@ -143,7 +127,22 @@ def _create_backlog_item(
         / status
         / f"20261002-{id6}-01-{id6}-test-item.backlog.md"
     )
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=id6,
+            status=status,
+            set=id6,
+            priority="medium",
+            work_kind="bug",
+            summary="Test backlog item",
+            when="2026-10-02",
+            history=["- 2026-10-02 created (tester): initial item"],
+            body="Backlog body text.",
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 

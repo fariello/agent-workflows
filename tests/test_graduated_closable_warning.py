@@ -28,6 +28,7 @@ from tempfile import TemporaryDirectory
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
 from agent_workflows import check_engine
+from tests.record_builder import RecordBuilder
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -52,11 +53,13 @@ def _create_minimal_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel_file.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     rel2_file = (
@@ -67,11 +70,13 @@ def _create_minimal_repo(root: Path) -> Path:
         / "20260901-rel002-01-rel002-v2.release.md"
     )
     rel2_file.write_text(
-        "# Release: 2.0.0\n\n"
-        "- Id: rel002\n"
-        "- Status: planned\n"
-        "- Version: 2.0.0\n"
-        "- Summary: Test release 2\n",
+        RecordBuilder().release(
+            version="2.0.0",
+            id6="rel002",
+            status="planned",
+            summary="Test release 2",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -126,15 +131,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -146,13 +152,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spec_file = (
@@ -164,12 +172,14 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-spec01-01-spec01-test-spec.spec.md"
             )
             spec_file.write_text(
-                "# Spec: Test spec 01\n\n"
-                "- Id: spec01\n"
-                "- Status: implemented\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 implemented (test): done.\n",
+                RecordBuilder().spec(
+                    title="Test spec 01",
+                    id6="spec01",
+                    status="implemented",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 implemented (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -195,15 +205,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -215,13 +226,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spec_file = (
@@ -233,12 +246,14 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-spec01-01-spec01-test-spec.spec.md"
             )
             spec_file.write_text(
-                "# Spec: Test spec 01\n\n"
-                "- Id: spec01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 approved (test): approved.\n",
+                RecordBuilder().spec(
+                    title="Test spec 01",
+                    id6="spec01",
+                    status="approved",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 approved (test): approved."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -258,15 +273,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -278,13 +294,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 approved (test): approved.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="approved",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 approved (test): approved."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -304,15 +322,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -324,13 +343,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -354,15 +375,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-open-item.bklg.md"
             )
             open_item.write_text(
-                "# Backlog: Open item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: open\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Open item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 open (test): open.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="open",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Open item 01",
+                    history=["- 2026-10-12 open (test): open."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             done_item = (
@@ -374,15 +396,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0002-01-bklg02-done-item.bklg.md"
             )
             done_item.write_text(
-                "# Backlog: Done item 02\n\n"
-                "- Id: bklg02\n"
-                "- Status: done\n"
-                "- Set: bklg02\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Done item 02\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 done (test): done.\n",
+                RecordBuilder().backlog(
+                    id6="bklg02",
+                    status="done",
+                    set="bklg02",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Done item 02",
+                    history=["- 2026-10-12 done (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan1 = (
@@ -394,13 +417,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             )
             plan1.write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan2 = (
@@ -412,13 +437,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set02-01-plan02-test-plan.ipd.md"
             )
             plan2.write_text(
-                "# IPD: Test plan 02\n\n"
-                "- Id: plan02\n"
-                "- Status: executed\n"
-                "- Set: set02\n"
-                "- From-Backlog: bklg02\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 02",
+                    id6="plan02",
+                    status="executed",
+                    set="set02",
+                    from_backlog="bklg02",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -438,15 +465,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -467,16 +495,17 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Blocks-Release: rel001\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    blocks_release="rel001",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -488,14 +517,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- Blocks-Release: rel001\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    blocks_release="rel001",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spec_file = (
@@ -507,12 +538,14 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-spec01-01-spec01-test-spec.spec.md"
             )
             spec_file.write_text(
-                "# Spec: Test spec 01\n\n"
-                "- Id: spec01\n"
-                "- Status: implemented\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 implemented (test): done.\n",
+                RecordBuilder().spec(
+                    title="Test spec 01",
+                    id6="spec01",
+                    status="implemented",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 implemented (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -557,16 +590,17 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-0002-01-bklg02-test-item.bklg.md"
             )
             item_file.write_text(
-                "# Backlog: Test item 02\n\n"
-                "- Id: bklg02\n"
-                "- Status: graduated\n"
-                "- Set: bklg02\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Blocks-Release: rel001\n"
-                "- Summary: Test item 02\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg02",
+                    status="graduated",
+                    set="bklg02",
+                    priority="medium",
+                    work_kind="followup",
+                    blocks_release="rel001",
+                    summary="Test item 02",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -578,14 +612,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-set02-01-plan02-test-plan.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test plan 02\n\n"
-                "- Id: plan02\n"
-                "- Status: executed\n"
-                "- Set: set02\n"
-                "- Blocks-Release: rel002\n"
-                "- From-Backlog: bklg02\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 02",
+                    id6="plan02",
+                    status="executed",
+                    set="set02",
+                    blocks_release="rel002",
+                    from_backlog="bklg02",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spec_file = (
@@ -597,12 +633,14 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "20261012-spec02-01-spec02-test-spec.spec.md"
             )
             spec_file.write_text(
-                "# Spec: Test spec 02\n\n"
-                "- Id: spec02\n"
-                "- Status: implemented\n"
-                "- From-Backlog: bklg02\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 implemented (test): done.\n",
+                RecordBuilder().spec(
+                    title="Test spec 02",
+                    id6="spec02",
+                    status="implemented",
+                    from_backlog="bklg02",
+                    history=["- 2026-10-12 implemented (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -648,15 +686,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "graduated"
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             ).write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -667,13 +706,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "executed"
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             ).write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -684,12 +725,14 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "implemented"
                 / "20261012-spec01-01-spec01-test-spec.spec.md"
             ).write_text(
-                "# Spec: Test spec 01\n\n"
-                "- Id: spec01\n"
-                "- Status: implemented\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 implemented (test): done.\n",
+                RecordBuilder().spec(
+                    title="Test spec 01",
+                    id6="spec01",
+                    status="implemented",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 implemented (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -703,15 +746,16 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "graduated"
                 / "20261012-0001-01-bklg01-test-item.bklg.md"
             ).write_text(
-                "# Backlog: Test item 01\n\n"
-                "- Id: bklg01\n"
-                "- Status: graduated\n"
-                "- Set: bklg01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: followup\n"
-                "- Summary: Test item 01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 graduated (test): graduated.\n",
+                RecordBuilder().backlog(
+                    id6="bklg01",
+                    status="graduated",
+                    set="bklg01",
+                    priority="medium",
+                    work_kind="followup",
+                    summary="Test item 01",
+                    history=["- 2026-10-12 graduated (test): graduated."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -722,13 +766,15 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "executed"
                 / "20261012-set01-01-plan01-test-plan.ipd.md"
             ).write_text(
-                "# IPD: Test plan 01\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Set: set01\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 executed (test): done.\n",
+                RecordBuilder().plan(
+                    title="Test plan 01",
+                    id6="plan01",
+                    status="executed",
+                    set="set01",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 executed (test): done."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (
@@ -739,12 +785,14 @@ class TestGraduatedClosableWarning(unittest.TestCase):
                 / "approved"
                 / "20261012-spec01-01-spec01-test-spec.spec.md"
             ).write_text(
-                "# Spec: Test spec 01\n\n"
-                "- Id: spec01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bklg01\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 approved (test): approved.\n",
+                RecordBuilder().spec(
+                    title="Test spec 01",
+                    id6="spec01",
+                    status="approved",
+                    from_backlog="bklg01",
+                    history=["- 2026-10-12 approved (test): approved."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

@@ -21,6 +21,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import check_engine, cli, releases
+from tests.record_builder import RecordBuilder
 
 
 def _capture_cli(*args: str) -> tuple[int, str, str]:
@@ -58,7 +59,9 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-fwdonly-01-fwd001-item.backlog.md"
         )
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: fwd001\n- Status: graduated\n- Graduated-To: fwdset\n",
+            RecordBuilder().backlog(
+                id6="fwd001", status="graduated", graduated_to="fwdset", text_only=True
+            ),
             encoding="utf-8",
         )
         p1 = (
@@ -70,7 +73,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-fwdset-01-plan01-first.ipd.md"
         )
         p1.write_text(
-            "# IPD: First\n\n- Id: plan01\n- Status: pending\n- Set: fwdset (First)\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="First",
+                id6="plan01",
+                set="fwdset (First)",
+                order=1,
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         p2 = (
@@ -82,7 +92,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-fwdset-02-plan02-second.ipd.md"
         )
         p2.write_text(
-            "# IPD: Second\n\n- Id: plan02\n- Status: pending\n- Set: fwdset (Second)\n- Order: 2\n",
+            RecordBuilder().plan(
+                title="Second",
+                id6="plan02",
+                set="fwdset (Second)",
+                order=2,
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -115,7 +132,7 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-revonly-01-rev001-item.backlog.md"
         )
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: rev001\n- Status: graduated\n",
+            RecordBuilder().backlog(id6="rev001", status="graduated", text_only=True),
             encoding="utf-8",
         )
         p_file = (
@@ -127,7 +144,15 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-revset-01-plan03-rev.ipd.md"
         )
         p_file.write_text(
-            "# IPD: Rev\n\n- Id: plan03\n- Status: pending\n- Set: revset\n- Order: 1\n- From-Backlog: rev001\n",
+            RecordBuilder().plan(
+                title="Rev",
+                id6="plan03",
+                set="revset",
+                order=1,
+                from_backlog="rev001",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -161,7 +186,9 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-both-01-bth001-item.backlog.md"
         )
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: bth001\n- Status: graduated\n- Graduated-To: bothset\n",
+            RecordBuilder().backlog(
+                id6="bth001", status="graduated", graduated_to="bothset", text_only=True
+            ),
             encoding="utf-8",
         )
         p_file = (
@@ -173,7 +200,15 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-bothset-01-plan04-both.ipd.md"
         )
         p_file.write_text(
-            "# IPD: Both\n\n- Id: plan04\n- Status: pending\n- Set: bothset\n- Order: 1\n- From-Backlog: bth001\n",
+            RecordBuilder().plan(
+                title="Both",
+                id6="plan04",
+                set="bothset",
+                order=1,
+                from_backlog="bth001",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -200,7 +235,12 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-dangle-01-dng001-item.backlog.md"
         )
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: dng001\n- Status: graduated\n- Graduated-To: nosuchset\n",
+            RecordBuilder().backlog(
+                id6="dng001",
+                status="graduated",
+                graduated_to="nosuchset",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         # Create at least one valid plan so the corpus is not considered empty by check_graduated_to
@@ -213,7 +253,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-restr-01-plan05-other.ipd.md"
         )
         p_file.write_text(
-            "# IPD: Other\n\n- Id: plan05\n- Status: pending\n- Set: realset\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="Other",
+                id6="plan05",
+                set="realset",
+                order=1,
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -246,7 +293,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-setone-01-plan10-live.ipd.md"
         )
         p1.write_text(
-            "# IPD: Live\n\n- Id: plan10\n- Status: pending\n- Set: setone\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="Live",
+                id6="plan10",
+                set="setone",
+                order=1,
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         p2 = (
@@ -258,7 +312,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-execset-01-plan11-done.ipd.md"
         )
         p2.write_text(
-            "# IPD: Exec\n\n- Id: plan11\n- Status: executed\n- Set: execset\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="Exec",
+                id6="plan11",
+                status="executed",
+                set="execset",
+                order=1,
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         b_file = (
@@ -270,7 +331,9 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-swp-01-swp001-item.backlog.md"
         )
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: swp001\n- Status: graduated\n- Graduated-To: execset\n",
+            RecordBuilder().backlog(
+                id6="swp001", status="graduated", graduated_to="execset", text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -292,7 +355,7 @@ class GraduationForwardLinksTests(unittest.TestCase):
         )
         b_file.parent.mkdir(parents=True, exist_ok=True)
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: none01\n- Status: graduated\n",
+            RecordBuilder().backlog(id6="none01", status="graduated", text_only=True),
             encoding="utf-8",
         )
 
@@ -323,7 +386,9 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-agnt-01-agnt01-item.backlog.md"
         )
         b_file.write_text(
-            "# Backlog: Item\n\n- Id: agnt01\n- Status: graduated\n- Graduated-To: fwdset\n",
+            RecordBuilder().backlog(
+                id6="agnt01", status="graduated", graduated_to="fwdset", text_only=True
+            ),
             encoding="utf-8",
         )
         p_file = (
@@ -335,7 +400,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-fwdset-01-plan20-p.ipd.md"
         )
         p_file.write_text(
-            "# IPD: P\n\n- Id: plan20\n- Status: pending\n- Set: fwdset\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="P",
+                id6="plan20",
+                set="fwdset",
+                order=1,
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -378,7 +450,13 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-spec01-01-spec01-universal.spec.md"
         )
         s_file.write_text(
-            "# Spec: Spec\n\n- Id: spec01\n- Status: approved\n- Graduated-To: specset\n",
+            RecordBuilder().spec(
+                title="Spec",
+                id6="spec01",
+                status="approved",
+                raw_fields={"Graduated-To": "specset"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         p_file = (
@@ -390,7 +468,14 @@ class GraduationForwardLinksTests(unittest.TestCase):
             / "20260927-specset-01-plan30-specplan.ipd.md"
         )
         p_file.write_text(
-            "# IPD: Specplan\n\n- Id: plan30\n- Status: pending\n- Set: specset\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="Specplan",
+                id6="plan30",
+                set="specset",
+                order=1,
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -412,29 +497,24 @@ class GraduationForwardLinksTests(unittest.TestCase):
 
     def test_parse_graduated_to_ignores_body_and_code_fence(self) -> None:
         """parse_graduated_to bounds search to metadata_region so code fence examples in plan bodies are ignored."""
-        text = (
-            "# IPD: Example Plan\n\n"
-            "- Id: plan99\n"
-            "- Status: executed\n"
-            "- Set: realset\n\n"
-            "## Description\n\n"
-            "Here is an example in a code block:\n\n"
-            "```markdown\n"
-            "- Graduated-To: set401\n"
-            "```\n"
+        text = RecordBuilder().plan(
+            title="Example Plan",
+            id6="plan99",
+            status="executed",
+            set="realset",
+            body="## Description\n\nHere is an example in a code block:\n\n```markdown\n- Graduated-To: set401\n```",
+            text_only=True,
         )
         self.assertEqual(releases.parse_graduated_to(text), [])
 
-        text_with_header = (
-            "# IPD: Example Plan\n\n"
-            "- Id: plan99\n"
-            "- Status: executed\n"
-            "- Graduated-To: realset\n"
-            "- Set: realset\n\n"
-            "## Description\n\n"
-            "```markdown\n"
-            "- Graduated-To: set401\n"
-            "```\n"
+        text_with_header = RecordBuilder().plan(
+            title="Example Plan",
+            id6="plan99",
+            status="executed",
+            set="realset",
+            body="## Description\n\n```markdown\n- Graduated-To: set401\n```",
+            raw_fields={"Graduated-To": "realset"},
+            text_only=True,
         )
         self.assertEqual(releases.parse_graduated_to(text_with_header), ["realset"])
 

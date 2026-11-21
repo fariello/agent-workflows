@@ -28,6 +28,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import check_engine
+from tests.record_builder import RecordBuilder
 
 
 def _create_backlog_item(
@@ -41,22 +42,23 @@ def _create_backlog_item(
     item_dir = root / ".aw" / "records" / "backlog" / status
     item_dir.mkdir(parents=True, exist_ok=True)
     file_path = item_dir / f"20261001-test01-01-{id6}-item.backlog.md"
-    gate_lines = ""
+    extra: dict[str, str] = {}
     if gate_kind:
-        gate_lines += f"- Gate-Kind: {gate_kind}\n"
+        extra["gate_kind"] = gate_kind
     if gate_ref:
-        gate_lines += f"- Gate-Ref: {gate_ref}\n"
-    content = (
-        f"- Id: {id6}\n"
-        f"- Status: {status}\n"
-        "- Set: test01\n"
-        "- Priority: low\n"
-        "- Work-Kind: chore\n"
-        f"- Summary: test item {id6}\n"
-        f"{gate_lines}\n"
-        "## Workflow history\n"
-        "- 2026-10-01 created (test): created\n\n"
-        "Prose\n"
+        extra["gate_ref"] = gate_ref
+    content = RecordBuilder().backlog(
+        id6=id6,
+        status=status,
+        set="test01",
+        priority="low",
+        work_kind="chore",
+        summary=f"test item {id6}",
+        when="2026-10-01",
+        history=["- 2026-10-01 created (test): created"],
+        body="Prose",
+        text_only=True,
+        **extra,
     )
     file_path.write_text(content, encoding="utf-8")
     return file_path
@@ -73,19 +75,20 @@ def _create_spec(
     spec_dir = root / ".aw" / "records" / "specs" / status
     spec_dir.mkdir(parents=True, exist_ok=True)
     file_path = spec_dir / f"20261001-test01-01-{id6}-spec.spec.md"
-    gate_lines = ""
+    extra: dict[str, str] = {}
     if gate_kind:
-        gate_lines += f"- Gate-Kind: {gate_kind}\n"
+        extra["gate_kind"] = gate_kind
     if gate_ref:
-        gate_lines += f"- Gate-Ref: {gate_ref}\n"
-    content = (
-        f"# Spec: Test {id6}\n\n"
-        f"- Id: {id6}\n"
-        f"- Status: {status}\n"
-        f"{gate_lines}\n"
-        "## Workflow history\n"
-        f"- 2026-10-01 {status} (test): {status}\n\n"
-        "Prose\n"
+        extra["gate_ref"] = gate_ref
+    content = RecordBuilder().spec(
+        id6=id6,
+        title=f"Test {id6}",
+        status=status,
+        when="2026-10-01",
+        history=[f"- 2026-10-01 {status} (test): {status}"],
+        body="Prose",
+        text_only=True,
+        **extra,
     )
     file_path.write_text(content, encoding="utf-8")
     return file_path
@@ -103,15 +106,16 @@ def _create_plan(
     plan_dir = root / ".aw" / "records" / "plans" / status_dir
     plan_dir.mkdir(parents=True, exist_ok=True)
     file_path = plan_dir / f"20261001-test01-01-{id6}-plan.ipd.md"
-    content = (
-        f"# IPD: Test {id6}\n\n"
-        f"- Id: {id6}\n"
-        f"- Status: {plan_status}\n"
-        "- Set: test01\n"
-        "- Order: 1\n\n"
-        "## Workflow history\n"
-        f"- 2026-10-01 {status_dir} (test): done\n\n"
-        "Prose\n"
+    content = RecordBuilder().plan(
+        id6=id6,
+        title=f"Test {id6}",
+        status=plan_status,
+        set="test01",
+        order=1,
+        when="2026-10-01",
+        history=[f"- 2026-10-01 {status_dir} (test): done"],
+        body="Prose",
+        text_only=True,
     )
     file_path.write_text(content, encoding="utf-8")
     return file_path
