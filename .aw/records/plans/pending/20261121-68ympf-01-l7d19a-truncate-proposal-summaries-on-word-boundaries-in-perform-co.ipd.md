@@ -65,6 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Landing agent-filed defect backlog items from preserved proposal lanes: owned by sibling plan `8h1q1k` (from backlog `8s4qhh`).
   - Carrier: 8h1q1k
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.ipd.md
 
 ## Scope check
 
