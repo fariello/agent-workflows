@@ -3466,24 +3466,132 @@ def _plan_lifecycle_bucket(path: str) -> str | None:
     return parts[0] if parts else None
 
 
+def _git_read_at_context(repo_root: Path, *, rel_path: Optional[str] = None) -> Any:
+    """Resolve a project_context whose records root sits inside a git repo for ``read_at``."""
+    from agent_workflows import project_context as _proj_ctx
+
+    root = Path(repo_root).resolve()
+    norm_rel = (rel_path or "").strip().replace("\\", "/")
+    while norm_rel.startswith("./"):
+        norm_rel = norm_rel[2:]
+    if norm_rel.startswith(".agents/") and (root / ".git").exists():
+        return type(
+            "_GitReadAtCtx",
+            (),
+            {
+                "logical_roots": {
+                    "records": root / ".agents",
+                    "state": root / ".aw" / "state",
+                },
+                "repo_root": root,
+                "target_repo": str(root),
+            },
+        )()
+    ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
+    records_root = Path(ctx.logical_roots["records"])
+    if _proj_ctx.record_git_root(records_root) is not None:
+        return ctx
+    if (root / ".git").exists():
+        if (root / ".agents").is_dir() and not (root / ".aw" / "records").is_dir():
+            rec = root / ".agents"
+        else:
+            rec = root / ".aw" / "records"
+        return type(
+            "_GitReadAtCtx",
+            (),
+            {
+                "logical_roots": {"records": rec, "state": root / ".aw" / "state"},
+                "repo_root": root,
+                "target_repo": str(root),
+            },
+        )()
+    return ctx
+
+
+def _plan_status_from_state(st: Any) -> Optional[str]:
+    """Return the plan's canonical status token from an ``artifact_meta.State`` (D-1)."""
+    if st is None:
+        return None
+    if st.status:
+        return str(st.status).strip().lower()
+    raw = getattr(st, "legacy_raw_status", None)
+    if raw and str(raw).strip():
+        from agent_workflows import plans as _plans
+
+        tok = str(raw).strip().split()[0].lower()
+        norm = _plans.normalize_status(tok)
+        return norm if norm and norm != _plans.LEGACY_GROUP else tok
+    return None
+
+
+def _has_matching_history_row(
+    history_rows: Sequence[Dict[str, Any]], status: str
+) -> bool:
+    """True iff ``artifact_meta`` history rows carry a tool-authored transition for ``status``."""
+    if not history_rows:
+        return False
+    from agent_workflows import ipd_lint as _lint
+
+    want = status.strip().lower()
+    for row in history_rows:
+        line = row.get("line")
+        if isinstance(line, str):
+            m = _lint._HISTORY_LINE_RE.match(line.strip())
+            if m and m.group(1).rstrip(":").lower() == want:
+                return True
+        op = row.get("op")
+        if op == "transition" and str(row.get("to") or "").strip().lower() == want:
+            return True
+        if op == "create":
+            c_st = (row.get("fields") or {}).get("status")
+            if isinstance(c_st, str) and c_st.strip().lower() == want:
+                return True
+    return False
+
+
+def _read_plan_state_at(
+    repo_root: Path,
+    rev: str,
+    rel_path: str,
+    *,
+    ctx: Any = None,
+) -> Tuple[Optional[Any], List[Dict[str, Any]], Optional[str]]:
+    """Read ``(State, history_rows, declared_id6)`` of plan ``rel_path`` at ``rev`` via ``read_at``."""
+    from agent_workflows import artifact_meta as _meta
+
+    use_ctx = ctx or _git_read_at_context(repo_root, rel_path=rel_path)
+    declared_id = _meta.resolve_id_at(rel_path, rev, project_context=use_ctx)
+    if declared_id:
+        res = _meta.read_at(
+            declared_id, rev, project_context=use_ctx, path_hint=rel_path
+        )
+        if res.kind == "ok" and res.state is not None:
+            return res.state, list(res.history or ()), declared_id
+    fallback = _meta.read_path_at(rel_path, rev, project_context=use_ctx)
+    if fallback.kind == "ok" and fallback.state is not None:
+        return fallback.state, list(fallback.history or ()), declared_id
+    return None, [], declared_id
+
+
 def _check_untooled_plan_transition(
     old_path: Optional[str],
-    old_text: Optional[str],
+    old_state: Optional[Any],
     new_path: str,
-    new_text: Optional[str],
+    new_state: Optional[Any],
+    new_history: Sequence[Dict[str, Any]] = (),
     commit_subjects: Optional[Sequence[str]] = None,
     scope_label: str = "this commit",
 ) -> Optional[_core.Drift]:
-    """Check a single plan transition between old and new state for untooled changes.
+    """Check a single plan transition between old and new ``read_at`` states for untooled changes.
 
     Shared core between commit-scoped `check_status_untooled` (comparing :0: against HEAD)
     and range-scoped `check_status_untooled_range` (comparing base..head across lane commits).
     """
-    if not _is_plan_ipd_path(new_path) or not new_text:
+    if not _is_plan_ipd_path(new_path) or new_state is None:
         return None
 
-    new_status = _status_meta(new_text)
-    old_status = _status_meta(old_text) if old_text else None
+    new_status = _plan_status_from_state(new_state)
+    old_status = _plan_status_from_state(old_state) if old_state is not None else None
 
     is_in_executed = _EXECUTED_SEGMENT in ("/" + new_path.replace("\\", "/"))
     was_in_executed = bool(
@@ -3504,7 +3612,7 @@ def _check_untooled_plan_transition(
             status_is_executed and not status_was_executed
         )
         if arrived_in_executed:
-            plan_id = _read_declared_id(new_text)
+            plan_id = _meta_declared_id6(new_state)
             if not plan_id:
                 from agent_workflows import artifact_naming as _an
 
@@ -3550,7 +3658,7 @@ def _check_untooled_plan_transition(
     # For retirement (superseded or not-executed), the matching history line is required
     # (aw ipd set superseded writes one; hand retirement does not).
     wanted_history_status = new_status
-    if not _has_matching_history_line(new_text, wanted_history_status):
+    if not _has_matching_history_row(new_history, wanted_history_status):
         return _core.Drift(
             new_path,
             "check.status-untooled",
@@ -3567,12 +3675,10 @@ def _check_untooled_plan_transition(
 def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
     """COMMIT-SCOPED detector for the careless UNTOOLED intermediate status change (proclint 79li67).
 
-    Compares the STAGED index (``:0:``) against HEAD and flags each PLAN whose ``- Status:`` changed in
-    THIS commit with NO matching tool-authored ``## Workflow history`` transition line for the new
-    status value - the fingerprint of a hand-edited (non-``aw set``) status flip. ``aw set``/``aw ipd
-    set`` append ``- <date> <status> (<actor>): <message>`` on every transition (status_set.py:504);
-    a staged status change with no such matching line looks hand-edited. Emits ``check.status-untooled``
-    naming the plan and the tool fix.
+    Compares the STAGED index (``:0:``) against HEAD via ``artifact_meta.read_at`` and flags each
+    PLAN whose ``- Status:`` changed in THIS commit with NO matching tool-authored
+    ``## Workflow history`` transition line for the new status value - the fingerprint of a
+    hand-edited (non-``aw set``) status flip.
 
     Commit-scoping is the key simplification: ONLY files changed in the commit are examined, so
     historical records are never touched (NO grandfathering, NO whole-tree scan). ``executed/`` records
@@ -3581,43 +3687,54 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
 
     Fast no-op when no plan status change is staged (e.g. ordinary ``aw check`` on a clean tree).
     """
+    from agent_workflows import artifact_meta as _meta
+
     repo_root = Path(repo_root)
     rc, out, _err = _git_capture(
         repo_root, ["diff", "--cached", "--name-status", "-M", "--", _PLANS_PREFIX]
     )
     if rc != 0 or not out.strip():
         return []  # fast no-op: nothing staged under plans/
+    ctx = _git_read_at_context(repo_root)
     drift: List[_core.Drift] = []
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if not parts:
-            continue
-        code = parts[0].strip()
-        if code.startswith("D"):
-            continue  # a pure deletion carries no new status to attribute
-        if code.startswith("R") and len(parts) >= 3:
-            old_path, new_path = parts[1].strip(), parts[2].strip()
-        elif len(parts) >= 2:
-            new_path = parts[-1].strip()
-            old_path = parts[1].strip() if code in ("C",) else None
-            if code in ("M",):
-                old_path = new_path  # same path, compare staged vs HEAD content
-        else:
-            continue
-        if not _is_plan_ipd_path(new_path):
-            continue
-        staged_text = _blob_text(repo_root, ":0:", new_path)
-        head_text = _blob_text(repo_root, "HEAD", old_path) if old_path else None
-        d = _check_untooled_plan_transition(
-            old_path,
-            head_text,
-            new_path,
-            staged_text,
-            commit_subjects=None,
-            scope_label="this commit",
-        )
-        if d is not None:
-            drift.append(d)
+    with _meta.ephemeral_if_uninitialized():
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            code = parts[0].strip()
+            if code.startswith("D"):
+                continue  # a pure deletion carries no new status to attribute
+            if code.startswith("R") and len(parts) >= 3:
+                old_path, new_path = parts[1].strip(), parts[2].strip()
+            elif len(parts) >= 2:
+                new_path = parts[-1].strip()
+                old_path = parts[1].strip() if code in ("C",) else None
+                if code in ("M",):
+                    old_path = new_path  # same path, compare staged vs HEAD content
+            else:
+                continue
+            if not _is_plan_ipd_path(new_path):
+                continue
+            staged_state, staged_history, _sid = _read_plan_state_at(
+                repo_root, ":0:", new_path, ctx=ctx
+            )
+            head_state = None
+            if old_path:
+                head_state, _hh, _hid = _read_plan_state_at(
+                    repo_root, "HEAD", old_path, ctx=ctx
+                )
+            d = _check_untooled_plan_transition(
+                old_path,
+                head_state,
+                new_path,
+                staged_state,
+                new_history=staged_history,
+                commit_subjects=None,
+                scope_label="this commit",
+            )
+            if d is not None:
+                drift.append(d)
     return drift
 
 
@@ -3628,13 +3745,16 @@ def check_status_untooled_range(
 ) -> List[_core.Drift]:
     """RANGE-SCOPED detector for untooled plan status transitions and moves in base..head.
 
-    Compares the net diff across `base..head` for plans under `.aw/records/plans/`:
+    Compares the net diff across `base..head` via ``artifact_meta.read_at`` for plans under
+    `.aw/records/plans/`:
     - An arrival in `executed/` (or gaining `executed` status) requires a commit whose
       subject starts with `lifecycle(<id6>): finalize` within `base..head`.
     - Intermediate status transitions and retirements (`superseded`, `not-executed`)
       require a matching tool-authored `## Workflow history` line for the new status.
     - Clean plans or tooled transitions emit no drift.
     """
+    from agent_workflows import artifact_meta as _meta
+
     repo_root = Path(repo_root)
     rc, out, _err = _git_capture(repo_root, ["log", "--format=%s", f"{base}..{head}"])
     if rc != 0:
@@ -3648,45 +3768,55 @@ def check_status_untooled_range(
     if rc != 0 or not out.strip():
         return []
 
+    ctx = _git_read_at_context(repo_root)
     drift: List[_core.Drift] = []
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if not parts:
-            continue
-        code = parts[0].strip()
-        if code.startswith("D"):
-            continue  # a pure deletion carries no new status to attribute
-        if code.startswith("R") and len(parts) >= 3:
-            old_path, new_path = parts[1].strip(), parts[2].strip()
-        elif len(parts) >= 2:
-            new_path = parts[-1].strip()
-            old_path = parts[1].strip() if code.startswith("C") else None
-            if code.startswith("M"):
-                old_path = new_path
-        else:
-            continue
-        if not _is_plan_ipd_path(new_path):
-            continue
-        new_text = _blob_text(repo_root, head, new_path)
-        old_text = _blob_text(repo_root, base, old_path) if old_path else None
-        d = _check_untooled_plan_transition(
-            old_path,
-            old_text,
-            new_path,
-            new_text,
-            commit_subjects=commit_subjects,
-            scope_label="this range",
-        )
-        if d is not None:
-            drift.append(d)
+    with _meta.ephemeral_if_uninitialized():
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            code = parts[0].strip()
+            if code.startswith("D"):
+                continue  # a pure deletion carries no new status to attribute
+            if code.startswith("R") and len(parts) >= 3:
+                old_path, new_path = parts[1].strip(), parts[2].strip()
+            elif len(parts) >= 2:
+                new_path = parts[-1].strip()
+                old_path = parts[1].strip() if code.startswith("C") else None
+                if code.startswith("M"):
+                    old_path = new_path
+            else:
+                continue
+            if not _is_plan_ipd_path(new_path):
+                continue
+            new_state, new_history, _nid = _read_plan_state_at(
+                repo_root, head, new_path, ctx=ctx
+            )
+            old_state = None
+            if old_path:
+                old_state, _oh, _oid = _read_plan_state_at(
+                    repo_root, base, old_path, ctx=ctx
+                )
+            d = _check_untooled_plan_transition(
+                old_path,
+                old_state,
+                new_path,
+                new_state,
+                new_history=new_history,
+                commit_subjects=commit_subjects,
+                scope_label="this range",
+            )
+            if d is not None:
+                drift.append(d)
     return drift
 
 
 def check_staged_illegal_backlog_transition(repo_root: Path) -> List[_core.Drift]:
     """COMMIT-SCOPED detector for staged hand-edited illegal backlog status transitions (IPD miimjb, backlog qbn1dx).
 
-    Compares the STAGED index (``:0:``) against HEAD by item ID6 and flags each backlog item whose
-    status transition is not permitted by ``attention_contract.backlog_transition_allowed``.
+    Compares the STAGED index (``:0:``) against HEAD by item ID6 via ``artifact_meta.read_at``
+    and flags each backlog item whose status transition is not permitted by
+    ``attention_contract.backlog_transition_allowed``.
 
     PAIR BY ID6, NOT BY PATH:
     Backlog items reside in status-named directories (e.g. ``backlog/open/``, ``backlog/done/``), so a
@@ -3694,7 +3824,7 @@ def check_staged_illegal_backlog_transition(repo_root: Path) -> List[_core.Drift
     same-commit rewrite git's similarity drops below the rename threshold and reports an unrelated
     delete-plus-add (``D`` + ``A``). A path-keyed rule would find no HEAD blob for the added path,
     treat it as a newly created item, and silently pass the illegal transition. Joining by ID6 across
-    HEAD and the index blobs recovers the transition reliably across renames, rewrites, and same-directory edits.
+    HEAD and the index recovers the transition reliably across renames, rewrites, and same-directory edits.
 
     FIVE REFUSALS-TO-REFUSE ARE MANDATORY:
     (1) AN ID6 PRESENT ONLY ON THE INDEX SIDE IS NOT A TRANSITION: newly created item authored by
@@ -3711,6 +3841,8 @@ def check_staged_illegal_backlog_transition(repo_root: Path) -> List[_core.Drift
 
     Fast no-op when no backlog item is staged.
     """
+    from agent_workflows import artifact_meta as _meta
+
     repo_root = Path(repo_root)
     rc, out, _err = _git_capture(
         repo_root,
@@ -3730,66 +3862,38 @@ def check_staged_illegal_backlog_transition(repo_root: Path) -> List[_core.Drift
     head_items: Dict[str, Tuple[str, str | None]] = {}
     staged_items: Dict[str, Tuple[str, str | None]] = {}
 
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if not parts:
-            continue
-        code = parts[0].strip()
-        if code.startswith("D"):
-            if len(parts) >= 2:
-                old_path = parts[1].strip()
-                htext = _blob_text(repo_root, "HEAD", old_path)
-                if htext:
-                    hid = _read_item_id(htext)
-                    if hid:
-                        head_items[hid] = (old_path, _status_meta(htext))
-        elif code.startswith("A"):
-            if len(parts) >= 2:
-                new_path = parts[-1].strip()
-                stext = _blob_text(repo_root, ":0:", new_path)
-                if stext:
-                    sid = _read_item_id(stext)
-                    if sid:
-                        staged_items[sid] = (new_path, _status_meta(stext))
-        elif code.startswith("R"):
-            if len(parts) >= 3:
-                old_path, new_path = parts[1].strip(), parts[2].strip()
-                htext = _blob_text(repo_root, "HEAD", old_path)
-                if htext:
-                    hid = _read_item_id(htext)
-                    if hid:
-                        head_items[hid] = (old_path, _status_meta(htext))
-                stext = _blob_text(repo_root, ":0:", new_path)
-                if stext:
-                    sid = _read_item_id(stext)
-                    if sid:
-                        staged_items[sid] = (new_path, _status_meta(stext))
-        elif code.startswith("M"):
-            if len(parts) >= 2:
-                path = parts[-1].strip()
-                htext = _blob_text(repo_root, "HEAD", path)
-                if htext:
-                    hid = _read_item_id(htext)
-                    if hid:
-                        head_items[hid] = (path, _status_meta(htext))
-                stext = _blob_text(repo_root, ":0:", path)
-                if stext:
-                    sid = _read_item_id(stext)
-                    if sid:
-                        staged_items[sid] = (path, _status_meta(stext))
-        elif code.startswith("C"):
-            if len(parts) >= 3:
-                old_path, new_path = parts[1].strip(), parts[2].strip()
-                htext = _blob_text(repo_root, "HEAD", old_path)
-                if htext:
-                    hid = _read_item_id(htext)
-                    if hid:
-                        head_items[hid] = (old_path, _status_meta(htext))
-                stext = _blob_text(repo_root, ":0:", new_path)
-                if stext:
-                    sid = _read_item_id(stext)
-                    if sid:
-                        staged_items[sid] = (new_path, _status_meta(stext))
+    def _record_at(
+        target: Dict[str, Tuple[str, str | None]], rev: str, rel_path: str
+    ) -> None:
+        ctx = _git_read_at_context(repo_root, rel_path=rel_path)
+        item_id = _meta.resolve_id_at(rel_path, rev, project_context=ctx)
+        if not item_id:
+            return
+        res = _meta.read_at(item_id, rev, project_context=ctx, path_hint=rel_path)
+        if res.kind == "ok" and res.state is not None:
+            target[item_id] = (rel_path, res.state.status)
+
+    with _meta.ephemeral_if_uninitialized():
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            code = parts[0].strip()
+            if code.startswith("D"):
+                if len(parts) >= 2:
+                    _record_at(head_items, "HEAD", parts[1].strip())
+            elif code.startswith("A"):
+                if len(parts) >= 2:
+                    _record_at(staged_items, ":0:", parts[-1].strip())
+            elif code.startswith("R") or code.startswith("C"):
+                if len(parts) >= 3:
+                    _record_at(head_items, "HEAD", parts[1].strip())
+                    _record_at(staged_items, ":0:", parts[2].strip())
+            elif code.startswith("M"):
+                if len(parts) >= 2:
+                    path = parts[-1].strip()
+                    _record_at(head_items, "HEAD", path)
+                    _record_at(staged_items, ":0:", path)
 
     from agent_workflows import attention_contract as _ac
     from agent_workflows import backlog as _backlog
@@ -6317,6 +6421,7 @@ def _lane_carrier_is_executed(
         rc, out, _err = _git_capture(repo_root, ["ls-tree", "-r", "--name-only", ref])
         if rc != 0:
             return False
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import artifact_naming as _naming
 
         m = _naming.parse_clustered(p.name)
@@ -6335,10 +6440,19 @@ def _lane_carrier_is_executed(
                 target_path = str(p.resolve().relative_to(Path(repo_root).resolve()))
             except ValueError:
                 target_path = str(p)
-        blob = _blob_text(repo_root, ref, target_path)
-        if blob is not None:
-            return _status_meta(blob) == "implemented"
-        return False
+        with _meta.ephemeral_if_uninitialized():
+            ctx = _git_read_at_context(repo_root, rel_path=target_path)
+            spec_id = cid6 or _meta.resolve_id_at(target_path, ref, project_context=ctx)
+            if not spec_id:
+                return False
+            res = _meta.read_at(
+                spec_id, ref, project_context=ctx, path_hint=target_path
+            )
+            return (
+                res.kind == "ok"
+                and res.state is not None
+                and res.state.status == "implemented"
+            )
     return False
 
 
@@ -7350,29 +7464,42 @@ def check_release_gate_consistency(
     # `done/` items closed before this guard existed are grandfathered (never retroactively flagged).
     # A staged done+blocking item with no legitimate gate is the fingerprint of a hand-edit that
     # bypassed the `aw backlog set done` gate. Fast no-op when nothing under backlog/ is staged.
+    from agent_workflows import artifact_meta as _meta
+
     seen_blocking_locations: Set[str] = set()
-    for staged_path in _staged_backlog_done_items(repo_root):
-        staged_text = _blob_text(repo_root, ":0:", staged_path)
-        if not staged_text or not _read_blocks_release(staged_text):
-            continue
-        if _status_meta(staged_text) != "done":
-            continue
-        verdict = evaluate_blocking_close(
-            repo_root, repo_root / staged_path, "done", item_text=staged_text
-        )
-        if not verdict.legitimate and verdict.severity == "error":
-            seen_blocking_locations.add(staged_path)
-            drift.append(
-                _core.Drift(
-                    staged_path,
-                    "check.blocking-item-closed-without-gate",
-                    (
-                        "a done backlog item staged in this commit still carries Blocks-Release with "
-                        "no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it "
-                        "via `aw backlog set done` (which enforces the gate) rather than by hand"
-                    ),
+    with _meta.ephemeral_if_uninitialized():
+        for staged_path in _staged_backlog_done_items(repo_root):
+            ctx = _git_read_at_context(repo_root, rel_path=staged_path)
+            sid = _meta.resolve_id_at(staged_path, ":0:", project_context=ctx)
+            if sid:
+                sres = _meta.read_at(
+                    sid, ":0:", project_context=ctx, path_hint=staged_path
                 )
+            else:
+                sres = _meta.read_path_at(staged_path, ":0:", project_context=ctx)
+            if sres.kind != "ok" or sres.state is None:
+                continue
+            st = sres.state
+            if not _meta_single_token((st.fields or {}).get("blocks_release")):
+                continue
+            if st.status != "done":
+                continue
+            verdict = evaluate_blocking_close(
+                repo_root, repo_root / staged_path, "done", item_state=st
             )
+            if not verdict.legitimate and verdict.severity == "error":
+                seen_blocking_locations.add(staged_path)
+                drift.append(
+                    _core.Drift(
+                        staged_path,
+                        "check.blocking-item-closed-without-gate",
+                        (
+                            "a done backlog item staged in this commit still carries Blocks-Release with "
+                            "no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it "
+                            "via `aw backlog set done` (which enforces the gate) rather than by hand"
+                        ),
+                    )
+                )
 
     if staged_only:
         return drift
@@ -8005,6 +8132,7 @@ def evaluate_ipd_dependencies(
     phase: str = "check",
     plans: Optional[List[Tuple[Path, str]]] = None,
     overlay: Optional[Dict[str, str]] = None,
+    overlay_states: Optional[Dict[str, Any]] = None,
     include_retired: bool = False,
     actions: Optional[Dict[str, str]] = None,
 ) -> List[_core.Drift]:
@@ -8051,6 +8179,7 @@ def evaluate_ipd_dependencies(
             phase=phase,
             plans=plans,
             overlay=overlay,
+            overlay_states=overlay_states,
             include_retired=include_retired,
             actions=actions,
         )
@@ -8062,6 +8191,7 @@ def _evaluate_ipd_dependencies_impl(
     phase: str = "check",
     plans: Optional[List[Tuple[Path, str]]] = None,
     overlay: Optional[Dict[str, str]] = None,
+    overlay_states: Optional[Dict[str, Any]] = None,
     include_retired: bool = False,
     actions: Optional[Dict[str, str]] = None,
 ) -> List[_core.Drift]:
@@ -8081,7 +8211,10 @@ def _evaluate_ipd_dependencies_impl(
     # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph). The
     # staged overlay (if any) overrides on-disk text and contributes any newly-staged plan path.
     overlay = dict(overlay or {})
-    scan_cache = _selectors.current_scan_cache() if not overlay else None
+    overlay_states = dict(overlay_states or {})
+    scan_cache = (
+        _selectors.current_scan_cache() if not overlay and not overlay_states else None
+    )
     graph_key = None
     cached_graph = None
     if scan_cache is not None:
@@ -8108,6 +8241,8 @@ def _evaluate_ipd_dependencies_impl(
         merged: Dict[str, str] = {str(p): text for p, text in disk_plans}
         for ov_ps, ov_text in overlay.items():
             merged[ov_ps] = ov_text
+        for ov_ps in overlay_states:
+            merged.setdefault(ov_ps, "")
         all_plans = [(Path(ps), text) for ps, text in merged.items()]
         state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
         own_id = {}  # path_str -> declared id6
@@ -8122,7 +8257,9 @@ def _evaluate_ipd_dependencies_impl(
             # than a behavior change - which is exactly why it should be made now, before a plan
             # discussing `Item-Dependencies` (a normal thing for a plan about the graph to do) acquires a
             # quoted `- Id:` and silently takes over another plan's node.
-            if ps in overlay:
+            if ps in overlay_states:
+                st_obj = overlay_states[ps]
+            elif ps in overlay:
                 st_obj = _meta.read_text(text, record_type="ipd")
             else:
                 try:
@@ -8184,7 +8321,9 @@ def _evaluate_ipd_dependencies_impl(
         if ps in dep_value and plans is None:
             raw = dep_value[ps]
         else:
-            if ps in overlay or plans is not None:
+            if ps in overlay_states:
+                st_t = overlay_states[ps]
+            elif ps in overlay or plans is not None:
                 st_t = _meta.read_text(text, record_type="ipd")
             else:
                 try:

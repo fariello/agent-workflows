@@ -38,66 +38,76 @@ _HARD_REFUSE_RULES = (
 )
 
 
-def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Return (overlay, staged_status) for every staged `.ipd.md`.
+def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, str]]:
+    """Return (overlay_states, staged_status) for every staged `.ipd.md` via ``artifact_meta.read_at``.
 
-    overlay: path_str -> staged blob text (``:0:``); staged_status: path_str -> staged `- Status:`.
+    overlay_states: abs_path_str -> staged ``artifact_meta.State``;
+    staged_status: abs_path_str -> staged lowercased status.
     Fast-empty when nothing is staged under a plans tree. Additions/modifications/renames are
     included; pure deletions are skipped (nothing to check).
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import check_engine as _ce
 
-    overlay: Dict[str, str] = {}
+    overlay_states: Dict[str, object] = {}
     statuses: Dict[str, str] = {}
     rc, out, _err = _ce._git_capture(
         repo_root, ["diff", "--cached", "--name-status", "-M"]
     )
     if rc != 0 or not out.strip():
-        return overlay, statuses
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if not parts:
-            continue
-        code = parts[0].strip()
-        if code.startswith("D"):
-            continue  # a pure deletion carries no statement to check
-        new_path = parts[-1].strip()
-        if not new_path.endswith(".ipd.md"):
-            continue
-        staged_text = _ce._blob_text(repo_root, ":0:", new_path)
-        if staged_text is None:
-            continue
-        abs_ps = str((repo_root / new_path).resolve())
-        overlay[abs_ps] = staged_text
-        st = _ce._status_meta(staged_text)
-        if st is not None:
-            statuses[abs_ps] = st.strip().lower()
-    return overlay, statuses
+        return overlay_states, statuses
+    ctx = _ce._git_read_at_context(repo_root)
+    with _meta.ephemeral_if_uninitialized():
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            code = parts[0].strip()
+            if code.startswith("D"):
+                continue  # a pure deletion carries no statement to check
+            new_path = parts[-1].strip()
+            if not new_path.endswith(".ipd.md"):
+                continue
+            plan_id = _meta.resolve_id_at(new_path, ":0:", project_context=ctx)
+            if plan_id:
+                res = _meta.read_at(
+                    plan_id, ":0:", project_context=ctx, path_hint=new_path
+                )
+            else:
+                res = _meta.read_path_at(new_path, ":0:", project_context=ctx)
+            if res.kind != "ok" or res.state is None:
+                continue
+            abs_ps = str((repo_root / new_path).resolve())
+            overlay_states[abs_ps] = res.state
+            st_val = _ce._plan_status_from_state(res.state)
+            if st_val is not None:
+                statuses[abs_ps] = st_val
+    return overlay_states, statuses
 
 
 def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     """Run the gate. Returns (exit_code, messages). exit 0 = ok/no-op, 1 = refused.
 
-    Delegates to the ONE shared ``check_engine.evaluate_ipd_dependencies`` over a staged overlay +
-    the staged IPD path set, keeping only findings on staged files. Same rule IDs/messages as
-    ``aw check`` (no divergence). Fast no-op when no `.ipd.md` is staged.
+    Delegates to the ONE shared ``check_engine.evaluate_ipd_dependencies`` over a staged-state
+    overlay + the staged IPD path set, keeping only findings on staged files. Same rule IDs/messages
+    as ``aw check`` (no divergence). Fast no-op when no `.ipd.md` is staged.
     """
     from agent_workflows import check_engine as _ce
     from agent_workflows import ipd_schema as _S
 
     root = Path(repo_root).resolve() if repo_root is not None else Path(".").resolve()
-    overlay, statuses = _staged_ipd_overlay(root)
-    if not overlay:
+    overlay_states, statuses = _staged_ipd_overlay(root)
+    if not overlay_states:
         return 0, []  # fast no-op: no staged IPD
 
-    staged_plans = [(Path(ps), text) for ps, text in overlay.items()]
+    staged_plans = [(Path(ps), "") for ps in overlay_states]
     # Evaluate at a blocking phase so dangling/ambiguous/cycle/malformed are all errors; the overlay
     # makes the whole-repo graph reflect the staged content.
     drift = _ce.evaluate_ipd_dependencies(
-        root, phase="pre-execution", plans=staged_plans, overlay=overlay
+        root, phase="pre-execution", plans=staged_plans, overlay_states=overlay_states
     )
 
-    staged_locations = {str(Path(ps).resolve()) for ps in overlay}
+    staged_locations = {str(Path(ps).resolve()) for ps in overlay_states}
 
     def _on_staged_file(location: str) -> bool:
         try:

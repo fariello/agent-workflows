@@ -88,43 +88,49 @@ def _is_plan_path(path: str) -> bool:
     return p.startswith(_PLANS_PREFIX) and p.endswith(".ipd.md")
 
 
-def _blob_at(repo_root: Path, ref: str, path: str) -> Optional[str]:
-    """The content of ``path`` at ``ref`` (e.g. HEAD or the staged index ``:0:``), or None if absent."""
-    spec = f"{ref}:{path}" if ref != ":0:" else f":0:{path}"
-    rc, out, _err = _git(repo_root, ["show", spec])
-    if rc != 0:
-        return None
-    return out
-
-
 def _has_executed_status(text: Optional[str]) -> bool:
     """True if the plan text carries a metadata `- Status: executed` (or `done` alias) line."""
     if not text:
         return False
-    import re
-    from agent_workflows import selectors
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import plans as _plans
 
-    region = selectors.metadata_region(text)
-    m = re.search(r"(?mi)^-\s*status:\s*(\S+)", region)
-    if not m:
-        return False
-    return m.group(1).lower() in ("executed", "done")
+    st = _meta.read_text(text, record_type="ipd")
+    raw = st.status or (
+        st.legacy_raw_status.strip().split()[0]
+        if st.legacy_raw_status and st.legacy_raw_status.strip()
+        else None
+    )
+    return _plans.normalize_status(raw) == "executed"
 
 
 def _plan_id_of(text: Optional[str]) -> Optional[str]:
-    """Read the `- Id:` id6 from plan text (staged content)."""
+    """Read the `- Id:` id6 from plan text."""
     if not text:
         return None
-    import re
-    from agent_workflows import check_engine, selectors
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
 
-    region = selectors.metadata_region(text)
-    fenced_lines = check_engine._fenced_line_numbers(region)
-    for m in re.finditer(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", region):
-        line_no = region[: m.start()].count("\n") + 1
-        if line_no not in fenced_lines:
-            return m.group(1)
-    return None
+    st = _meta.read_text(text, record_type="ipd")
+    return st.id6 if (st.id6 and _core.ID6_RE.fullmatch(st.id6)) else None
+
+
+def _state_is_executed(
+    st: Optional[object], fallback_status: Optional[str] = None
+) -> bool:
+    """True iff an ``artifact_meta.State`` (or mirror status) is canonically ``executed`` (D-2)."""
+    from agent_workflows import plans as _plans
+
+    raw: Optional[str] = None
+    if st is not None:
+        raw = getattr(st, "status", None)
+        if not raw:
+            lraw = getattr(st, "legacy_raw_status", None)
+            if lraw and str(lraw).strip():
+                raw = str(lraw).strip().split()[0]
+    if not raw:
+        raw = fallback_status
+    return _plans.normalize_status(raw) == "executed"
 
 
 def _staged_plan_executed_transitions(
@@ -132,9 +138,9 @@ def _staged_plan_executed_transitions(
 ) -> List[Tuple[str, Optional[str], str]]:
     """Return (staged_path, plan_id, reason) for each plan gaining executed status / moved to executed/.
 
-    Detection compares the STAGED index (`:0:`) against the HEAD blob AT THE PATH THE FILE OCCUPIED
-    AT HEAD (the rename source for an `R`, the unchanged path for an `A`/`M`/`C`):
-      * a plan whose staged content has `- Status: executed`/`done` that its HEAD content did NOT
+    Detection compares the STAGED index (`:0:`) against HEAD via ``artifact_meta.read_at`` AT THE
+    PATH THE FILE OCCUPIED AT HEAD (the rename source for an `R`, the unchanged path for an `A`/`M`/`C`):
+      * a plan whose staged status is terminal ``executed`` that its HEAD state did NOT have
         (a hand-edited status flip), OR
       * a plan ARRIVING in an `executed/` directory in this commit, meaning it was not ALREADY there
         at HEAD under the SAME `- Id:` (a `git mv`, an `A` straight into `executed/`, or a wholesale
@@ -143,70 +149,78 @@ def _staged_plan_executed_transitions(
     An ORDINARY EDIT to a plan already in `executed/` under the same `- Id:` is NOT a transition and
     is NOT reported (i4c0c3): nothing is transitioning, so there is no finalize to demand evidence of.
     """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
     rc, out, _err = _git(
         repo_root, ["diff", "--cached", "--name-status", "-M", "--", _PLANS_PREFIX]
     )
     if rc != 0 or not out.strip():
         return []
+    ctx = _ce._git_read_at_context(repo_root)
     transitions: List[Tuple[str, Optional[str], str]] = []
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if not parts:
-            continue
-        code = parts[0].strip()
-        if code.startswith("R") and len(parts) >= 3:
-            old_path, new_path = parts[1].strip(), parts[2].strip()
-        elif len(parts) >= 2:
-            old_path, new_path = (
-                (None, parts[1].strip())
-                if code in ("A", "M", "C")
-                else (parts[1].strip(), parts[1].strip())
-            )
-        else:
-            continue
-        if not _is_plan_path(new_path):
-            continue
-        staged_text = _blob_at(repo_root, ":0:", new_path)
-        plan_id = _plan_id_of(staged_text)
+    with _meta.ephemeral_if_uninitialized():
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            code = parts[0].strip()
+            if code.startswith("R") and len(parts) >= 3:
+                old_path, new_path = parts[1].strip(), parts[2].strip()
+            elif len(parts) >= 2:
+                old_path, new_path = (
+                    (None, parts[1].strip())
+                    if code in ("A", "M", "C")
+                    else (parts[1].strip(), parts[1].strip())
+                )
+            else:
+                continue
+            if not _is_plan_path(new_path):
+                continue
 
-        # THE PATH THE FILE ACTUALLY OCCUPIED AT HEAD (i4c0c3): the rename SOURCE for an `R`, and the
-        # unchanged path itself for an `A`/`M`/`C`, where git reports ONE path and `old_path` is None
-        # because there is no rename source. `old_path is None` is a true statement about a rename
-        # source and was WRONG as a proxy for "this file was not previously here"; used as that proxy
-        # it made every ordinary edit to a plan already in `executed/` look like an arrival.
-        head_path = old_path or new_path
-        head_text = _blob_at(repo_root, "HEAD", head_path)
-        # TWO DISTINCT CONCERNS, kept apart deliberately; do not collapse one back into the other:
-        #   (1) did this file ENTER `executed/` IN THIS COMMIT  -> `moved_into_executed`
-        #   (2) was it merely EDITED while ALREADY there        -> exempt, nothing is transitioning
-        # `head_text is None` means the path did not exist at HEAD (git code `A`), so a plan ADDED
-        # straight into `executed/` is NOT exempt: it is arriving now and is still gated.
-        was_in_executed_at_head = head_text is not None and _EXECUTED_SEGMENT in (
-            "/" + head_path
-        )
-        # The exemption is bound to the plan's IDENTITY, not merely to its path: overwriting an
-        # already-executed plan's file with a DIFFERENT plan is a raw plan->executed transition
-        # wearing an existing filename, so identity must match for the edit to be exempt. An
-        # unreadable id on either side fails this clause (fail closed) - `None == None` must never be
-        # read as an identity match, and a staged plan with no `- Id:` is refused below anyway.
-        same_plan_at_head = plan_id is not None and _plan_id_of(head_text) == plan_id
-        moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not (
-            was_in_executed_at_head and same_plan_at_head
-        )
-        # A status flip: staged content is executed but the HEAD content AT THE SAME PATH was not.
-        # This compares against the real HEAD blob; while `head_text` was guarded on `old_path` it
-        # compared against NOTHING for an `A`/`M`/`C` and so fired on every already-executed plan.
-        gained_executed = _has_executed_status(
-            staged_text
-        ) and not _has_executed_status(head_text)
-
-        if moved_into_executed or gained_executed:
-            reason = (
-                "moved into executed/"
-                if moved_into_executed
-                else "gained '- Status: executed'"
+            plan_id, staged_mirror_status, _staged_exists = _meta.resolve_mirror_at(
+                new_path, ":0:", project_context=ctx
             )
-            transitions.append((new_path, plan_id, reason))
+            staged_state = None
+            if plan_id is not None:
+                sres = _meta.read_at(
+                    plan_id, ":0:", project_context=ctx, path_hint=new_path
+                )
+                if sres.kind == "ok":
+                    staged_state = sres.state
+
+            # THE PATH THE FILE ACTUALLY OCCUPIED AT HEAD (i4c0c3): the rename SOURCE for an `R`,
+            # and the unchanged path itself for an `A`/`M`/`C`.
+            head_path = old_path or new_path
+            head_id, head_mirror_status, head_exists = _meta.resolve_mirror_at(
+                head_path, "HEAD", project_context=ctx
+            )
+            head_state = None
+            if head_id is not None:
+                hres = _meta.read_at(
+                    head_id, "HEAD", project_context=ctx, path_hint=head_path
+                )
+                if hres.kind == "ok":
+                    head_state = hres.state
+
+            was_in_executed_at_head = head_exists and _EXECUTED_SEGMENT in (
+                "/" + head_path
+            )
+            same_plan_at_head = plan_id is not None and head_id == plan_id
+            moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not (
+                was_in_executed_at_head and same_plan_at_head
+            )
+            gained_executed = _state_is_executed(
+                staged_state, staged_mirror_status
+            ) and not _state_is_executed(head_state, head_mirror_status)
+
+            if moved_into_executed or gained_executed:
+                reason = (
+                    "moved into executed/"
+                    if moved_into_executed
+                    else "gained '- Status: executed'"
+                )
+                transitions.append((new_path, plan_id, reason))
     return transitions
 
 
