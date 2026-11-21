@@ -24,6 +24,7 @@ import pytest
 
 from agent_workflows import (
     artifact_core,
+    artifact_meta,
     check_engine,
     project_context,
     project_registry,
@@ -31,6 +32,7 @@ from agent_workflows import (
     specs,
     status_set,
 )
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -140,11 +142,9 @@ def f1_clean_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     assert len(plans) == 1
     plan_path = plans[0]
 
-    id6 = None
-    for line in plan_path.read_text().splitlines():
-        if line.startswith("- Id:"):
-            id6 = line.split(":", 1)[1].strip()
-            break
+    id6 = artifact_meta.read_text(
+        plan_path.read_text(encoding="utf-8"), record_type="ipd"
+    ).id6
     assert id6
 
     # Setup monkeypatch for in-process tests
@@ -202,7 +202,15 @@ def f2_tracked_home_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     plan_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plan_dir / "20261016-probe-01-f2plan-probe.ipd.md"
     plan_path.write_text(
-        "---\n# IPD: Probe\n- Id: f2plan\n- Set: probe\n- Order: 1\n- Status: draft\n",
+        RecordBuilder().plan(
+            title="Probe",
+            when="2026-10-16",
+            id6="f2plan",
+            set="probe",
+            order=1,
+            status="draft",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -277,11 +285,9 @@ def f3_repo_backed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     rb_plans = list(target.glob(".aw/records/plans/pending/*.ipd.md"))
     assert len(rb_plans) == 1
     rb_plan_path = rb_plans[0]
-    rb_id6 = None
-    for line in rb_plan_path.read_text().splitlines():
-        if line.startswith("- Id:"):
-            rb_id6 = line.split(":", 1)[1].strip()
-            break
+    rb_id6 = artifact_meta.read_text(
+        rb_plan_path.read_text(encoding="utf-8"), record_type="ipd"
+    ).id6
     assert rb_id6
 
     monkeypatch.setenv("HOME", str(home))
@@ -497,11 +503,9 @@ def test_specs_note_history_lands_in_project_records(f1_clean_target):
     )
     assert len(spec_files) == 1
     spec_path = spec_files[0]
-    spec_id6 = None
-    for line in spec_path.read_text().splitlines():
-        if line.startswith("- Id:"):
-            spec_id6 = line.split(":", 1)[1].strip()
-            break
+    spec_id6 = artifact_meta.read_text(
+        spec_path.read_text(encoding="utf-8"), record_type="spec"
+    ).id6
     assert spec_id6
 
     res = run_aw(
@@ -566,24 +570,25 @@ def test_ipd_lint_resolves_home_sibling_dependency(f1_clean_target):
     )
     assert len(plan2_files) == 1
     plan2_path = plan2_files[0]
-    plan2_id6 = None
-    for line in plan2_path.read_text().splitlines():
-        if line.startswith("- Id:"):
-            plan2_id6 = line.split(":", 1)[1].strip()
-            break
+    plan2_id6 = artifact_meta.read_text(
+        plan2_path.read_text(encoding="utf-8"), record_type="ipd"
+    ).id6
 
     run_aw(
         ["ipd", "set", "to-review", plan1_id6], cwd=target, home=home, aw_home=aw_home
     )
 
-    content2 = plan2_path.read_text()
-    new_lines = []
-    for line in content2.splitlines():
-        if line.startswith("- Item-Dependencies:"):
-            new_lines.append(f"- Item-Dependencies: executed:{plan1_id6}")
-        else:
-            new_lines.append(line)
-    plan2_path.write_text("\n".join(new_lines) + "\n")
+    plan2_path.write_text(
+        artifact_meta.render_legacy_text(
+            plan2_path.read_text(encoding="utf-8"),
+            [{"op": "set", "fields": {"item_dependencies": f"executed:{plan1_id6}"}}],
+            record_type="ipd",
+            render=artifact_meta.LegacyRender(
+                tag="note", day="2026-10-16", actor_label="tester", history=False
+            ),
+        ),
+        encoding="utf-8",
+    )
 
     run_aw(
         ["ipd", "set", "to-review", plan2_id6], cwd=target, home=home, aw_home=aw_home
@@ -600,13 +605,17 @@ def test_ipd_lint_resolves_home_sibling_dependency(f1_clean_target):
     assert "check.ipd-dependency-dangling" not in lint_res.stderr
 
     # Falsifiability: pointing at executed:zzzzzz DOES report it
-    falsified_lines = []
-    for line in plan2_path.read_text().splitlines():
-        if line.startswith("- Item-Dependencies:"):
-            falsified_lines.append("- Item-Dependencies: executed:zzzzzz")
-        else:
-            falsified_lines.append(line)
-    plan2_path.write_text("\n".join(falsified_lines) + "\n")
+    plan2_path.write_text(
+        artifact_meta.render_legacy_text(
+            plan2_path.read_text(encoding="utf-8"),
+            [{"op": "set", "fields": {"item_dependencies": "executed:zzzzzz"}}],
+            record_type="ipd",
+            render=artifact_meta.LegacyRender(
+                tag="note", day="2026-10-16", actor_label="tester", history=False
+            ),
+        ),
+        encoding="utf-8",
+    )
 
     lint_falsified = run_aw(
         ["ipd", "lint", "--phase", "pre-execution", str(plan2_path)],
@@ -688,11 +697,9 @@ def test_ipd_coverage_from_clean_target_root(f1_clean_target, tmp_path: Path):
     t2_plans = list(aw_home.glob("projects/*/records/plans/pending/*probe2-01*.ipd.md"))
     assert len(t2_plans) == 1
     t2_plan_path = t2_plans[0]
-    t2_plan_id6 = None
-    for line in t2_plan_path.read_text().splitlines():
-        if line.startswith("- Id:"):
-            t2_plan_id6 = line.split(":", 1)[1].strip()
-            break
+    t2_plan_id6 = artifact_meta.read_text(
+        t2_plan_path.read_text(encoding="utf-8"), record_type="ipd"
+    ).id6
     assert t2_plan_id6
 
     res2 = run_aw(["ipd", "coverage", t2_plan_id6], cwd=t2, home=home, aw_home=aw_home)

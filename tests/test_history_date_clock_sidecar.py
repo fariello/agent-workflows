@@ -22,6 +22,7 @@ import time
 import unittest
 
 from agent_workflows import record_history
+from tests.record_builder import RecordBuilder
 
 SKEW_ZONES = [
     ("XXX-24", "east"),  # UTC+24: always +1 day ahead of UTC
@@ -127,14 +128,16 @@ class HistoryDateClockSidecarTests(unittest.TestCase):
                 )
                 item_id6 = f"bk{direction[:4]}"
                 item_file.write_text(
-                    f"- Id: {item_id6}\n"
-                    f"- Status: open\n"
-                    f"- Set: testset\n"
-                    f"- Priority: high\n"
-                    f"- Work-Kind: bug\n"
-                    f"- Summary: test item under {zone}\n\n"
-                    f"## Workflow history\n"
-                    f"- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6=item_id6,
+                        status="open",
+                        set="testset",
+                        priority="high",
+                        work_kind="bug",
+                        summary=f"test item under {zone}",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 

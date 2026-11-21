@@ -24,6 +24,7 @@ import unittest
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
 from agent_workflows import backlog, cli
+from tests.record_builder import RecordBuilder
 
 _ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
 
@@ -49,56 +50,58 @@ def _write_conforming_plan(
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
     p.write_text(
-        f"# IPD: Plan {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test scope.\n"
-        "- Status: to-review\n"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        "- Order: 1\n"
-        f"- Id: {id6}\n"
-        f"- From-Backlog: {backlog_id6}\n"
-        "- Scope-Paths: README.md\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-01 to-review (test): created\n\n"
-        "## Goal\n"
-        f"Goal {id6}.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n"
-        "### Task group 1: work\n"
-        "- [ ] E-01 Work item\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: done\n"
-        "  - Execution state: pending\n\n"
-        "## Project conventions discovered (Step 0)\n"
-        "None.\n\n"
-        "## Findings\n"
-        "None.\n\n"
-        "## Proposed changes (ordered, validatable)\n"
-        "1. E-01 do work.\n\n"
-        "## Deferred / out of scope (with reason)\n"
-        "- None.\n\n"
-        "## Scope check\n"
-        "- None.\n\n"
-        "## Required tests / validation\n"
-        "- None.\n\n"
-        "## Spec / documentation sync\n"
-        "- None.\n\n"
-        "## Open questions\n"
-        "- None.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: check.\n"
-        "  - Observed evidence:\n"
-        "  - Result: pending\n\n"
-        "## Approval and execution gate\n"
-        "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        RecordBuilder().plan(
+            title=f"Plan {id6}",
+            when="2026-09-01",
+            plan_role="child",
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            set=set_id,
+            order=1,
+            id6=id6,
+            from_backlog=backlog_id6,
+            scope_paths="README.md",
+            highest_e_allocated="01",
+            author="test",
+            item_dependencies="none",
+            history=["- 2026-09-01 to-review (test): created"],
+            raw_fields={"Concern": "Test concern.", "Scope": "Test scope."},
+            body=(
+                f"## Goal\nGoal {id6}.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "### Task group 1: work\n"
+                "- [ ] E-01 Work item\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n"
+                "None.\n\n"
+                "## Findings\n"
+                "None.\n\n"
+                "## Proposed changes (ordered, validatable)\n"
+                "1. E-01 do work.\n\n"
+                "## Deferred / out of scope (with reason)\n"
+                "- None.\n\n"
+                "## Scope check\n"
+                "- None.\n\n"
+                "## Required tests / validation\n"
+                "- None.\n\n"
+                "## Spec / documentation sync\n"
+                "- None.\n\n"
+                "## Open questions\n"
+                "- None.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: check.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required"
+            ),
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -131,15 +134,17 @@ class HistoryLabelParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0001-test-item.backlog.md"
         )
         item.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: test item\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="test item",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -196,27 +201,31 @@ class HistoryLabelParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0002-item-2.backlog.md"
         )
         f1.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: item 1\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         f2.write_text(
-            "- Id: bk0002\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: item 2\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 2",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -304,27 +313,31 @@ class HistoryLabelParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0002-item-2.backlog.md"
         )
         f1.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: item 1\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         f2.write_text(
-            "- Id: bk0002\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: item 2\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 2",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -401,14 +414,17 @@ class HistoryLabelParityTests(unittest.TestCase):
             "- 2026-01-01 created (aw backlog): first",
         ]
         item.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: medium\n"
-            "- Work-Kind: chore\n"
-            "- Summary: multi\n\n"
-            "## Workflow history\n" + "\n".join(original_records) + "\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="medium",
+                work_kind="chore",
+                summary="multi",
+                history=original_records,
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -450,16 +466,19 @@ class HistoryLabelParityTests(unittest.TestCase):
             "- 2026-02-02 note (tester): note 2",
             "- 2026-01-01 created (tester): initial",
         ]
-        old_text = (
-            "- Id: bk0001\n- Status: open\n\n"
-            "## Workflow history\n" + "\n".join(prior_records) + "\n\n"
-            "Body\n"
+        old_text = RecordBuilder().backlog(
+            id6="bk0001",
+            status="open",
+            history=prior_records,
+            body="Body",
+            text_only=True,
         )
-        rendered = (
-            "- Id: bk0001\n- Status: done\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (aw backlog): item\n\n"
-            "Body\n"
+        rendered = RecordBuilder().backlog(
+            id6="bk0001",
+            status="done",
+            history=["- 2026-10-01 created (aw backlog): item"],
+            body="Body",
+            text_only=True,
         )
 
         res = backlog._reattach_history(old_text, rendered, "done", "test message")

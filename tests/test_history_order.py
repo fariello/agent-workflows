@@ -19,6 +19,7 @@ import unittest
 from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lifecycle as il
 from agent_workflows import selectors
+from tests.record_builder import RecordBuilder
 
 
 def _repo_root() -> Path:
@@ -26,50 +27,24 @@ def _repo_root() -> Path:
 
 
 def _fixture_plan_text(id6: str, history_text: str, status: str = "approved") -> str:
-    approval = (
-        "- Approval: 2026-09-03, recorded via aw ipd set\n"
+    return RecordBuilder().plan(
+        id6=id6,
+        title=f"Fixture {id6}",
+        when="2026-09-01",
+        plan_role="child",
+        set="demo",
+        order=1,
+        status=status,
+        scope_paths="agent_workflows/ipd_lifecycle.py",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        author="fixture",
+        approval="2026-09-03, recorded via aw ipd set"
         if status == "approved"
-        else ""
-    )
-    return (
-        f"# IPD: Fixture {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: history order fixture\n"
-        "- Scope: history order fixture\n"
-        "- Scope-Paths: agent_workflows/ipd_lifecycle.py\n"
-        "- Item-Dependencies: none\n"
-        f"- Status: {status}\n"
-        "- Set: demo\n"
-        "- Order: 1\n"
-        "- Highest E allocated: 01\n"
-        "- Priority: medium\n"
-        "- Work-Kind: chore\n"
-        "- Author: fixture\n"
-        f"- Id: {id6}\n"
-        f"{approval}"
-        "\n## Workflow history\n"
-        f"{history_text}\n"
-        "\n## Goal\n\nFixture goal.\n"
-        "\n## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 execute.\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: done\n"
-        "  - Execution state: pending\n"
-        "\n## Project conventions discovered (Step 0)\n\n- none\n"
-        "\n## Findings\n\n- none\n"
-        "\n## Proposed changes (ordered, validatable)\n\n- none\n"
-        "\n## Deferred / out of scope (with reason)\n\n- none\n"
-        "\n## Scope check\n\n- none\n"
-        "\n## Required tests / validation\n\n- none\n"
-        "\n## Spec / documentation sync\n\n- none\n"
-        "\n## Open questions\n\n- none\n"
-        "\n## Validation and cross-check (verify before reporting done)\n\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: none\n"
-        "  - Observed evidence: none\n"
-        "  - Result: pending\n"
-        "\n## Approval and execution gate\n\n- none\n"
+        else None,
+        history=[history_text],
+        text_only=True,
     )
 
 
