@@ -18,32 +18,6 @@ from tests.record_builder import RecordBuilder
 REPO = Path(__file__).resolve().parent.parent
 FIX = REPO / "tests" / "fixtures" / "attnview"
 
-# Test fixtures for specs
-_SPEC_TEMPLATE = """# Spec: Sample Spec
-
-- Date: 2026-08-08
-- Status: draft
-- Author: test
-{extra_metadata}
-
-## Workflow history
-- 2026-08-08 draft (test): created.
-{body}
-"""
-
-_RELEASE_TEMPLATE = """# Release: 9.9.9
-
-- Id: rel123
-- Status: planned
-- Version: 9.9.9
-{extra_metadata}
-
-{summary_section}
-
-## Workflow history
-- 2026-08-08 created (test): initial.
-"""
-
 
 class TestSpecsReleasesUnsafeField(unittest.TestCase):
     def test_spec_scope_unsafe_shapes(self):
@@ -54,9 +28,15 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
             "c1-control": "scope\x85value",
         }
         for shape_name, val in shapes.items():
-            text = _SPEC_TEMPLATE.format(
-                extra_metadata=f"- Scope: {val}",
+            text = RecordBuilder().spec(
+                title="Sample Spec",
+                when="2026-08-08",
+                status="draft",
+                author="test",
+                history=["- 2026-08-08 draft (test): created."],
                 body="",
+                raw_fields={"Scope": val},
+                text_only=True,
             )
             drift = specs.validate_spec(Path("tests/spec.md"), text)
             rules = [d.rule for d in drift]
@@ -73,9 +53,15 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
 
     def test_spec_scope_conforming_boundary(self):
         val = "x" * A.MAX_PROSE_DESCRIPTIVE_LEN
-        text = _SPEC_TEMPLATE.format(
-            extra_metadata=f"- Scope: {val}",
+        text = RecordBuilder().spec(
+            title="Sample Spec",
+            when="2026-08-08",
+            status="draft",
+            author="test",
+            history=["- 2026-08-08 draft (test): created."],
             body="",
+            raw_fields={"Scope": val},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("tests/spec.md"), text)
         self.assertEqual(drift, [])
@@ -88,9 +74,15 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
             "c1-control": "sum\x85value",
         }
         for shape_name, val in shapes.items():
-            text = _SPEC_TEMPLATE.format(
-                extra_metadata=f"- Summary: {val}",
+            text = RecordBuilder().spec(
+                title="Sample Spec",
+                when="2026-08-08",
+                status="draft",
+                author="test",
+                history=["- 2026-08-08 draft (test): created."],
                 body="",
+                raw_fields={"Summary": val},
+                text_only=True,
             )
             drift = specs.validate_spec(Path("tests/spec.md"), text)
             rules = [d.rule for d in drift]
@@ -107,9 +99,15 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
 
     def test_spec_summary_conforming(self):
         val = "Conforming summary text within 300 characters"
-        text = _SPEC_TEMPLATE.format(
-            extra_metadata=f"- Summary: {val}",
+        text = RecordBuilder().spec(
+            title="Sample Spec",
+            when="2026-08-08",
+            status="draft",
+            author="test",
+            history=["- 2026-08-08 draft (test): created."],
             body="",
+            raw_fields={"Summary": val},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("tests/spec.md"), text)
         self.assertEqual(drift, [])
@@ -122,9 +120,16 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
             "c1-control": "rel\x85val",
         }
         for shape_name, val in shapes.items():
-            text = _RELEASE_TEMPLATE.format(
-                extra_metadata=f"- Summary: {val}",
-                summary_section="",
+            text = RecordBuilder().release(
+                id6="rel123",
+                version="9.9.9",
+                status="planned",
+                summary="",
+                when="2026-08-08",
+                body="# Release: 9.9.9\n",
+                history=["- 2026-08-08 created (test): initial."],
+                raw_fields={"Summary": val},
+                text_only=True,
             )
             drift = releases.validate_release(Path("tests/release.md"), text)
             rules = [d.rule for d in drift]
@@ -141,9 +146,16 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
 
     def test_release_bullet_conforming(self):
         val = "Conforming release summary bullet"
-        text = _RELEASE_TEMPLATE.format(
-            extra_metadata=f"- Summary: {val}",
-            summary_section="",
+        text = RecordBuilder().release(
+            id6="rel123",
+            version="9.9.9",
+            status="planned",
+            summary="",
+            when="2026-08-08",
+            body="# Release: 9.9.9\n",
+            history=["- 2026-08-08 created (test): initial."],
+            raw_fields={"Summary": val},
+            text_only=True,
         )
         drift = releases.validate_release(Path("tests/release.md"), text)
         self.assertEqual(drift, [])
@@ -156,9 +168,19 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
             "c1-control": "prose\x85val",
         }
         for shape_name, val in control_shapes.items():
-            text = _RELEASE_TEMPLATE.format(
-                extra_metadata="",
-                summary_section=f"## Summary\n{val}\n",
+            text = (
+                RecordBuilder()
+                .release(
+                    id6="rel123",
+                    version="9.9.9",
+                    status="planned",
+                    summary="",
+                    when="2026-08-08",
+                    body="# Release: 9.9.9\n\n## Summary\n__SUMMARY_PROSE__\n",
+                    history=["- 2026-08-08 created (test): initial."],
+                    text_only=True,
+                )
+                .replace("__SUMMARY_PROSE__", val, 1)
             )
             drift = releases.validate_release(Path("tests/release.md"), text)
             rules = [d.rule for d in drift]
@@ -176,9 +198,15 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
         # Deliberate length asymmetry: 400-char prose without control characters must NOT flag (F-13, OQ-04)
         prose_400 = "Valid prose paragraph. " * 18  # > 400 chars
         self.assertGreater(len(prose_400), 400)
-        text_400 = _RELEASE_TEMPLATE.format(
-            extra_metadata="",
-            summary_section=f"## Summary\n{prose_400}\n",
+        text_400 = RecordBuilder().release(
+            id6="rel123",
+            version="9.9.9",
+            status="planned",
+            summary="",
+            when="2026-08-08",
+            body=f"# Release: 9.9.9\n\n## Summary\n{prose_400}\n",
+            history=["- 2026-08-08 created (test): initial."],
+            text_only=True,
         )
         drift_400 = releases.validate_release(Path("tests/release.md"), text_400)
         self.assertEqual(
@@ -191,9 +219,16 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
         # the `- Scope:` line is seen as 'legit' (safe, bounded, control-char-free).
         # The checker therefore yields NO attention.unsafe-field drift.
         # This vector can ONLY be closed at write-time (Order 01 / uz05bl), not by checkers.
-        smuggled_text = _SPEC_TEMPLATE.format(
-            extra_metadata="- Scope: legit\n- Blocks-Release: next",
+        smuggled_text = RecordBuilder().spec(
+            title="Sample Spec",
+            when="2026-08-08",
+            status="draft",
+            author="test",
+            blocks_release="next",
+            history=["- 2026-08-08 draft (test): created."],
             body="",
+            raw_fields={"Scope": "legit"},
+            text_only=True,
         )
         drift = specs.validate_spec(Path("tests/spec.md"), smuggled_text)
         rules = [d.rule for d in drift]
@@ -208,15 +243,14 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
         # search, so it extracts the ANSI value!
         # This two-sided test pins the checker's deliberate metadata bound and proves the
         # renderer's input set is wider, which carrier llnvwj is responsible for escaping.
-        body_scope_text = (
-            "# Spec: body-scope-spec\n\n"
-            "- Date: 2026-08-08\n"
-            "- Status: draft\n"
-            "- Author: fixture\n\n"
-            "## Section 1\n\n"
-            "- Scope: red\x1b[31mINJECTED\x1b[0m\n\n"
-            "## Workflow history\n"
-            "- 2026-08-08 draft (fixture): created.\n"
+        body_scope_text = RecordBuilder().spec(
+            title="body-scope-spec",
+            when="2026-08-08",
+            status="draft",
+            author="fixture",
+            history=["- 2026-08-08 draft (fixture): created."],
+            body="## Section 1\n\n- Scope: red\x1b[31mINJECTED\x1b[0m",
+            text_only=True,
         )
         drift = specs.validate_spec(Path("tests/spec.md"), body_scope_text)
         self.assertEqual(
@@ -243,11 +277,16 @@ class TestSpecsReleasesUnsafeField(unittest.TestCase):
 
     def test_non_regression_metadata_region_bound(self):
         # A spec quoting `- Scope: <301 chars>` inside a fenced block after a `## ` heading yields []
-        quoted_text = _SPEC_TEMPLATE.format(
-            extra_metadata="",
+        quoted_text = RecordBuilder().spec(
+            title="Sample Spec",
+            when="2026-08-08",
+            status="draft",
+            author="test",
+            history=["- 2026-08-08 draft (test): created."],
             body="## 1. Documentation\n\nExample:\n```\n- Scope: "
             + ("x" * 301)
             + "\n```\n",
+            text_only=True,
         )
         drift = specs.validate_spec(Path("tests/spec.md"), quoted_text)
         self.assertEqual(drift, [])

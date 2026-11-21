@@ -31,6 +31,7 @@ from agent_workflows import attention_contract as A
 from agent_workflows import cli
 from agent_workflows import releases as R
 from agent_workflows import specs as S
+from tests.record_builder import RecordBuilder
 
 
 def _sha256(path: Path) -> str:
@@ -100,7 +101,7 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
             hasattr(S, "_refuse_unsafe_descriptive"),
             "Helper _refuse_unsafe_descriptive missing from specs",
         )
-        fn = getattr(S, "_refuse_unsafe_descriptive")
+        fn = S._refuse_unsafe_descriptive
 
         # bound_length=True (default)
         self.assertIsNone(fn("aw specs new", "--title", None))
@@ -388,13 +389,18 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
                 summary="ok",
             )
         forged = (
-            "# Spec: Legit\n"
-            "- Status: approved\n\n"
-            "- Id: id6abc\n"
-            "- Status: draft\n"
-            "- Author: aw specs new\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (aw specs): ok\n"
+            RecordBuilder()
+            .spec(
+                title="Legit",
+                id6="id6abc",
+                status="draft",
+                author="aw specs new",
+                when="2026-10-01",
+                history=["- 2026-10-01 created (aw specs): ok"],
+                body="",
+                text_only=True,
+            )
+            .replace("# Spec: Legit\n", "# Spec: Legit\n- Status: approved\n", 1)
         )
         lines = forged.splitlines()
         self.assertEqual(S._read_status(lines), "approved")
@@ -415,16 +421,17 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
                 date_iso="2026-10-01",
                 summary="legit\n- Blocks-Release: next",
             )
-        forged = (
-            "# Spec: Legit\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Id: id6abc\n"
-            "- Author: aw specs new\n"
-            "- Scope: legit\n"
-            "- Blocks-Release: next\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (aw specs): legit\n"
+        forged = RecordBuilder().spec(
+            title="Legit",
+            when="2026-10-01",
+            status="draft",
+            id6="id6abc",
+            author="aw specs new",
+            blocks_release="next",
+            history=["- 2026-10-01 created (aw specs): legit"],
+            body="",
+            raw_fields={"Scope": "legit"},
+            text_only=True,
         )
         m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", forged)
         self.assertIsNotNone(m)

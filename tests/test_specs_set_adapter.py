@@ -22,6 +22,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_core as core
 from agent_workflows import specs
+from tests.record_builder import RecordBuilder
 
 
 def _sha256(path: Path) -> str:
@@ -52,23 +53,24 @@ class SpecsSetAdapterTests(unittest.TestCase):
         id6: str = "sp0001",
         status: str = "draft",
         slug: str = "fixture",
-        body_extra: str = "",
+        raw_fields: dict[str, str] | None = None,
     ) -> Path:
         spec_dir = self.tmp / ".aw" / "records" / "specs" / status
         spec_dir.mkdir(parents=True, exist_ok=True)
         p = spec_dir / f"20261009-{id6}-01-{id6}-{slug}.spec.md"
-        text = (
-            f"# Spec: Fixture Spec {id6}\n\n"
-            f"- Date: 2026-10-09\n"
-            f"- Status: {status}\n"
-            f"- Id: {id6}\n"
-            f"- Author: tester\n"
-            f"- Priority: low\n"
-            f"- Work-Kind: chore\n"
-            f"- Scope: Fixture scope\n"
-            f"{body_extra}\n"
-            f"## Workflow history\n\n"
-            f"- 2026-10-09 {status} (tester): initial\n"
+        merged_raw = {"Scope": "Fixture scope", **(raw_fields or {})}
+        text = RecordBuilder().spec(
+            id6=id6,
+            title=f"Fixture Spec {id6}",
+            when="2026-10-09",
+            status=status,
+            author="tester",
+            priority="low",
+            work_kind="chore",
+            history=[f"- 2026-10-09 {status} (tester): initial"],
+            body="",
+            raw_fields=merged_raw,
+            text_only=True,
         )
         p.write_text(text, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.tmp, check=True)
@@ -179,7 +181,7 @@ class SpecsSetAdapterTests(unittest.TestCase):
         """Refusal from validate_spec backstop rejects non-conforming result byte-identically."""
         # A spec that would not conform if transitioned because of an invalid priority field
         p = self._create_spec(
-            id6="cf0001", status="draft", body_extra="- Priority: bogus"
+            id6="cf0001", status="draft", raw_fields={"Priority": "bogus"}
         )
         before_hash = _sha256(p)
         args = argparse.Namespace(

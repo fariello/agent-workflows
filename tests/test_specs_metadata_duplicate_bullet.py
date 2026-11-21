@@ -18,20 +18,19 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import check_engine, specs
+from tests.record_builder import RecordBuilder
 
 
 class TestSpecsMetadataDuplicateBullet(unittest.TestCase):
     def test_duplicated_blocks_release(self):
         """(a) duplicated - Blocks-Release: is reported once with the expected detail."""
-        text = """# Spec: Duplicate Blocks-Release
-
-- Status: approved
-- Blocks-Release: next
-- Blocks-Release: future
-
-## Workflow history
-- 2026-10-01 approved: ok
-"""
+        text = RecordBuilder().spec(
+            title="Duplicate Blocks-Release",
+            status="approved",
+            history=["- 2026-10-01 approved: ok"],
+            raw_fields={"Blocks-Release": "next\n- Blocks-Release: future"},
+            text_only=True,
+        )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)
         self.assertEqual(len(drift), 1)
         self.assertEqual(drift[0].rule, "spec.metadata-bullet-repeated")
@@ -42,16 +41,15 @@ class TestSpecsMetadataDuplicateBullet(unittest.TestCase):
 
     def test_duplicated_gate_kind_same_valid(self):
         """(b1) both lines carry the same valid kind with a valid - Gate-Ref:, new rule is only finding."""
-        text = """# Spec: Deferred Same Valid Gate-Kind
-
-- Status: deferred
-- Gate-Kind: date
-- Gate-Ref: 2027-01-01
-- Gate-Kind: date
-
-## Workflow history
-- 2026-10-01 deferred: waiting for date
-"""
+        text = RecordBuilder().spec(
+            title="Deferred Same Valid Gate-Kind",
+            status="deferred",
+            gate_kind="date",
+            gate_ref="2027-01-01",
+            history=["- 2026-10-01 deferred: waiting for date"],
+            raw_fields={"Gate-Kind": "date\n- Gate-Kind: date"},
+            text_only=True,
+        )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)
         self.assertEqual(len(drift), 1)
         self.assertEqual(drift[0].rule, "spec.metadata-bullet-repeated")
@@ -61,16 +59,15 @@ class TestSpecsMetadataDuplicateBullet(unittest.TestCase):
 
     def test_duplicated_gate_kind_different_invalid_ref(self):
         """(b2) lines carry different kinds where last one makes ref invalid: gate-malformed and bullet-repeated."""
-        text = """# Spec: Deferred Different Gate-Kinds
-
-- Status: deferred
-- Gate-Kind: date
-- Gate-Ref: 2027-01-01
-- Gate-Kind: decision
-
-## Workflow history
-- 2026-10-01 deferred: waiting
-"""
+        text = RecordBuilder().spec(
+            title="Deferred Different Gate-Kinds",
+            status="deferred",
+            gate_kind="date",
+            gate_ref="2027-01-01",
+            history=["- 2026-10-01 deferred: waiting"],
+            raw_fields={"Gate-Kind": "date\n- Gate-Kind: decision"},
+            text_only=True,
+        )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)
         rules = [d.rule for d in drift]
         self.assertEqual(
@@ -87,17 +84,18 @@ class TestSpecsMetadataDuplicateBullet(unittest.TestCase):
 
     def test_constrained_by_allowlisted(self):
         """(c) four - Constrained-by: lines are not reported as duplicates."""
-        text = """# Spec: Multi Constrained-by
-
-- Status: approved
-- Constrained-by: spec1
-- Constrained-by: spec2
-- Constrained-by: spec3
-- Constrained-by: spec4
-
-## Workflow history
-- 2026-10-01 approved: ok
-"""
+        text = RecordBuilder().spec(
+            title="Multi Constrained-by",
+            status="approved",
+            history=["- 2026-10-01 approved: ok"],
+            raw_fields={
+                "Constrained-by": (
+                    "spec1\n- Constrained-by: spec2\n"
+                    "- Constrained-by: spec3\n- Constrained-by: spec4"
+                )
+            },
+            text_only=True,
+        )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)
         repeated_findings = [
             d for d in drift if d.rule == "spec.metadata-bullet-repeated"
@@ -107,20 +105,14 @@ class TestSpecsMetadataDuplicateBullet(unittest.TestCase):
 
     def test_duplicate_in_prose_body_ignored(self):
         """(d) a duplicate appearing only after the first ## heading is not reported."""
-        text = """# Spec: Prose Duplicate
-
-- Status: approved
-- Blocks-Release: next
-
-## Workflow history
-- 2026-10-01 approved: ok
-
-## Section 1: Examples
-
-Here is a prose example of duplicated fields:
-- Blocks-Release: first
-- Blocks-Release: second
-"""
+        text = RecordBuilder().spec(
+            title="Prose Duplicate",
+            status="approved",
+            blocks_release="next",
+            history=["- 2026-10-01 approved: ok"],
+            body="## Section 1: Examples\n\nHere is a prose example of duplicated fields:\n- Blocks-Release: first\n- Blocks-Release: second",
+            text_only=True,
+        )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)
         repeated_findings = [
             d for d in drift if d.rule == "spec.metadata-bullet-repeated"
@@ -130,16 +122,15 @@ Here is a prose example of duplicated fields:
 
     def test_conformant_single_valued_spec(self):
         """(e) a conformant single-valued spec yields no finding."""
-        text = """# Spec: Conformant Single Valued
-
-- Status: approved
-- Blocks-Release: next
-- Priority: low
-- Work-Kind: chore
-
-## Workflow history
-- 2026-10-01 approved: ok
-"""
+        text = RecordBuilder().spec(
+            title="Conformant Single Valued",
+            status="approved",
+            blocks_release="next",
+            priority="low",
+            work_kind="chore",
+            history=["- 2026-10-01 approved: ok"],
+            text_only=True,
+        )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)
         self.assertEqual(drift, [])
 

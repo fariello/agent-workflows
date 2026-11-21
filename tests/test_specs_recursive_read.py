@@ -18,20 +18,22 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from agent_workflows import check_engine, specs
+from tests.record_builder import RecordBuilder
 
 
 def _spec_content(status: str = "approved", id6: str = "test01") -> str:
-    return (
-        f"# Spec: Test Spec {id6}\n\n"
-        f"- Date: 2026-09-08\n"
-        f"- Status: {status}\n"
-        f"- Author: tester\n"
-        f"- Id: {id6}\n\n"
-        f"## Body\n\n"
-        f"Spec body text.\n\n"
-        f"## Workflow history\n"
-        f"- 2026-09-08 draft (tester): created.\n"
-        f"- 2026-09-08 approved (tester): approved.\n"
+    return RecordBuilder().spec(
+        title=f"Test Spec {id6}",
+        when="2026-09-08",
+        status=status,
+        author="tester",
+        id6=id6,
+        history=[
+            "- 2026-09-08 draft (tester): created.",
+            "- 2026-09-08 approved (tester): approved.",
+        ],
+        body="## Body\n\nSpec body text.",
+        text_only=True,
     )
 
 
@@ -94,7 +96,12 @@ class SpecsRecursiveReadTests(unittest.TestCase):
             spec_dir.mkdir(parents=True)
             self.assertFalse((repo / ".aw" / "config" / "project.json").exists())
             (spec_dir / "20260908-bad001-01-bad.spec.md").write_text(
-                "# Spec: bad\n\n- Status: not-a-status\n- Id: bad001\n",
+                RecordBuilder().spec(
+                    title="bad",
+                    id6="bad001",
+                    raw_fields={"Status": "not-a-status"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             ns = argparse.Namespace(
@@ -205,11 +212,14 @@ class SpecsRecursiveReadTests(unittest.TestCase):
             sub_dir.mkdir(parents=True)
             bad_spec = sub_dir / "20260908-bad001-01-bad.spec.md"
             bad_spec.write_text(
-                "# Spec: Bad Spec\n\n"
-                "- Date: 2026-09-08\n"
-                "- Status: notavalidstatus\n"
-                "- Id: bad001\n\n"
-                "## Body\n\nText\n",
+                RecordBuilder().spec(
+                    title="Bad Spec",
+                    when="2026-09-08",
+                    id6="bad001",
+                    body="## Body\n\nText",
+                    raw_fields={"Status": "notavalidstatus"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

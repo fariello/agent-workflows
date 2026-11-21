@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import specs
-from agent_workflows import status_set
+from agent_workflows import specs, status_set
+from tests.record_builder import RecordBuilder
 
 
 class SpecsFromBacklogTests(unittest.TestCase):
@@ -52,17 +52,16 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "releases"
             / "20260925-relaaa-01-relaaa-test-rel.release.md"
         ).write_text(
-            """# Release: Test Release
-
-- Date: 2026-09-25
-- Status: planned
-- Id: relaaa
-- Version: 1.0.0
-- Author: tester
-
-## Workflow history
-- 2026-09-25 planned (tester): planned
-""",
+            RecordBuilder().release(
+                id6="relaaa",
+                version="1.0.0",
+                status="planned",
+                summary="Test Release",
+                when="2026-09-25",
+                author="tester",
+                history=["- 2026-09-25 planned (tester): planned"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         # Planned release relbbb
@@ -73,17 +72,16 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "releases"
             / "20260925-relbbb-01-relbbb-other-rel.release.md"
         ).write_text(
-            """# Release: Other Release
-
-- Date: 2026-09-25
-- Status: planned
-- Id: relbbb
-- Version: 2.0.0
-- Author: tester
-
-## Workflow history
-- 2026-09-25 planned (tester): planned
-""",
+            RecordBuilder().release(
+                id6="relbbb",
+                version="2.0.0",
+                status="planned",
+                summary="Other Release",
+                when="2026-09-25",
+                author="tester",
+                history=["- 2026-09-25 planned (tester): planned"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         # Open backlog item with Blocks-Release: relaaa
@@ -95,17 +93,18 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "open"
             / "20260925-bkl001-01-bkl001-my-bug.backlog.md"
         ).write_text(
-            """- Id: bkl001
-- Status: open
-- Priority: medium
-- Work-Kind: bug
-- Blocks-Release: relaaa
-- Summary: Test bug
-- Author: tester
-
-## Workflow history
-- 2026-09-25 open (tester): created
-""",
+            RecordBuilder().backlog(
+                id6="bkl001",
+                status="open",
+                priority="medium",
+                work_kind="bug",
+                blocks_release="relaaa",
+                summary="Test bug",
+                when="2026-09-25",
+                author="tester",
+                history=["- 2026-09-25 open (tester): created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -127,27 +126,23 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "draft"
             / f"20260925-{id6}-01-{id6}-{name}.spec.md"
         )
-        lines = [
-            f"# Spec: {name}",
-            "",
-            "- Date: 2026-09-25",
-            "- Status: draft",
-        ]
+        extra: dict[str, str] = {}
         if blocks_release is not None:
-            lines.append(f"- Blocks-Release: {blocks_release}")
+            extra["blocks_release"] = blocks_release
         if from_backlog is not None:
-            lines.append(f"- From-Backlog: {from_backlog}")
-        lines.extend(
-            [
-                f"- Id: {id6}",
-                "- Author: tester",
-                "",
-                "## Workflow history",
-                "- 2026-09-25 draft (tester): created",
-                "",
-            ]
+            extra["from_backlog"] = from_backlog
+        content = RecordBuilder().spec(
+            id6=id6,
+            title=name,
+            when="2026-09-25",
+            status="draft",
+            author="tester",
+            history=["- 2026-09-25 draft (tester): created"],
+            body="",
+            text_only=True,
+            **extra,
         )
-        p.write_text("\n".join(lines), encoding="utf-8")
+        p.write_text(content, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.repo_root, check=True)
         subprocess.run(
             ["git", "commit", "-m", f"add spec {id6}"],

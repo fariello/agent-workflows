@@ -39,6 +39,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(root: Path) -> Path:
@@ -67,11 +68,13 @@ def _setup_repo(root: Path) -> Path:
         / "20261001-rel001-01-rel001-v1.release.md"
     )
     rel.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -93,16 +96,15 @@ def _create_spec(
         / status
         / f"20261002-{set_id}-01-{id6}-test.spec.md"
     )
-    content = (
-        f"# Spec: Test Spec {id6}\n\n"
-        f"- Date: 2026-10-02\n"
-        f"- Status: {status}\n"
-        f"- Set: {set_id}\n"
-        f"- Id: {id6}\n\n"
-        f"## Workflow history\n\n"
-        f"- 2026-10-02 {status} (author): initial spec {status}.\n\n"
-        f"## Goal\n"
-        f"Test spec goal.\n"
+    content = RecordBuilder().spec(
+        title=f"Test Spec {id6}",
+        when="2026-10-02",
+        status=status,
+        set=set_id,
+        id6=id6,
+        history=[f"- 2026-10-02 {status} (author): initial spec {status}."],
+        body="## Goal\nTest spec goal.",
+        text_only=True,
     )
     path.write_text(content, encoding="utf-8")
     return path
@@ -123,20 +125,19 @@ def _create_executed_plan(
         / "executed"
         / f"20261002-{set_id}-01-{id6}-test.ipd.md"
     )
-    content = (
-        f"# IPD: Executed Test Plan {id6}\n\n"
-        f"- Date: 2026-10-02\n"
-        f"- Kind: child\n"
-        f"- Status: executed\n"
-        f"- Work-Kind: chore\n"
-        f"- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        f"- Order: 1\n"
-        f"- Id: {id6}\n\n"
-        f"## Workflow history\n\n"
-        f"- 2026-10-02 executed (author): executed plan.\n\n"
-        f"## Goal\n"
-        f"Test plan goal.\n"
+    content = RecordBuilder().plan(
+        title=f"Executed Test Plan {id6}",
+        when="2026-10-02",
+        plan_role="child",
+        status="executed",
+        work_kind="chore",
+        priority="medium",
+        set=set_id,
+        order=1,
+        id6=id6,
+        history=["- 2026-10-02 executed (author): executed plan."],
+        body="## Goal\nTest plan goal.",
+        text_only=True,
     )
     path.write_text(content, encoding="utf-8")
     return path
