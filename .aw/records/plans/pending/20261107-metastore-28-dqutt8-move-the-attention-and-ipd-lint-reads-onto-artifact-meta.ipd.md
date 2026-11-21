@@ -114,6 +114,7 @@ flowchart TD
 
 - E-03 (`ipd_lint`, `ffceq0` E-09). Moved to 1suzlp (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 1suzlp
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-151-1suzlp-pin-and-move-the-ipd-lint-metadata-reads-onto-artifact-meta.ipd.md
 - The post-cutover `last_history_at` from the newest event `at` with `last_history_precision`.
   - Carrier: cxxmyv
 - `selectors` and `aw find` (`ffceq0` E-01 to E-03). Moved to r81uvz (split 2026-11-07 per maintainer step-complexity rule), then round-3 split to `cdglt1` (2026-11-09), which executed them.
