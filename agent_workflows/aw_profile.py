@@ -2170,6 +2170,7 @@ def collect_runs(
     cache_dir: Path | str = DEFAULT_CACHE_DIR,
     include_active: bool = False,
     rebuild: bool = False,
+    scan_max_depth: int = 7,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
 ) -> dict[str, Any]:
     """Incrementally extract new/updated runs into `<cache_dir>/runs/*.trace.json.zst`."""
@@ -2196,7 +2197,7 @@ def collect_runs(
         p = Path(sdir).expanduser()
         if not p.exists() or not p.is_dir():
             raise ValueError(f"--scan path is not an existing directory: {sdir}")
-        for run_p in scan_runs_dirs(p):
+        for run_p in scan_runs_dirs(p, max_depth=scan_max_depth):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
@@ -2545,30 +2546,140 @@ def ingest_bundles(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="aw-profile",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Collect, pack, and ingest compact zstd-compressed, strictly de-identified "
-            "behavioral profiling traces from aw run directories."
+            "Collect, pack, and ingest compact zstd-compressed, strictly de-identified\n"
+            "behavioral profiling traces from `aw agy run` / `aw oc run` directories.\n"
+            "\n"
+            "Designed for deep performance and cost profiling across multiple repos,\n"
+            "multiple servers, and external contributors without shipping raw logs,\n"
+            "source code, prompts, or file paths."
+        ),
+        epilog=(
+            "WORKFLOW\n"
+            "  1. Extract new or resumed runs on each machine into its local trace cache:\n"
+            "       aw-profile collect --scan ~/projects --scan ~/.aw/projects\n"
+            "  2. Audit a de-identified sample trace before sharing:\n"
+            "       aw-profile pack --inspect 1\n"
+            "  3. Bundle cached traces into one portable .tar.zst archive:\n"
+            "       aw-profile pack --out server-a-traces.tar.zst\n"
+            "  4. Validate and merge bundles (or .trace.json.zst dirs/files) centrally:\n"
+            "       aw-profile ingest server-a-traces.tar.zst --batch server-a\n"
+            "\n"
+            "WHAT IS CAPTURED (6-TABLE LOSSLESS BEHAVIORAL SCHEMA)\n"
+            "  run            Host, driver, model/variant, toolkit version, policy flags,\n"
+            "                 wall time, startup_timings (script -> output -> question ->\n"
+            "                 execution), resume_startup_timings, resume/restart counts.\n"
+            "  items          Queue items (salted item/set IDs, action, status, refusal\n"
+            "                 code, disposition, readiness, verification, retries, reasks).\n"
+            "  attempts       Per-turn summaries across main, verify, recovery, reask,\n"
+            "                 and unclaimed sessions (tokens, cost, context curve, timings).\n"
+            "  steps          Every individual LLM turn (per-step input/output/reasoning/\n"
+            "                 cache tokens, context_size, step cost, duration, tool counts).\n"
+            "  tool_calls     Every tool invocation (tool_name, tool_category, normalized\n"
+            "                 shell cmd_kind/cmd_families like 'pytest' or 'aw ipd set',\n"
+            "                 error_class, input/output bytes, duration, salted\n"
+            "                 target_file_id + allowlisted file_ext for re-read analysis).\n"
+            "  driver_events  Allowlisted lifecycle events (events.jsonl) and resource\n"
+            "                 telemetry samples (cpu_seconds, max_rss_bytes, load_avg).\n"
+            "\n"
+            "DE-IDENTIFICATION & PRIVACY\n"
+            "  - Allowlist-only schema validated before write (collect) and before merge\n"
+            "    (ingest). Never stores prompts, source code, file contents, stdout/stderr,\n"
+            "    raw paths, shell arguments, git remotes, branch names, or usernames.\n"
+            "  - Identifiers (source_id, machine_id, repo_id, set_id, item_id,\n"
+            "    target_file_id) use HMAC-SHA256 with a local random salt stored at\n"
+            "    <cache-dir>/salt (mode 0600, never exported by pack).\n"
+            "  - Traces are de-identified (minimized), not strictly anonymous: timing,\n"
+            "    step counts, and volumes remain present for profiling.\n"
+            "\n"
+            "CACHE LAYOUT & RESUME-SAFE WATERMARKS\n"
+            "  Default cache: ~/.aw/profile-cache/\n"
+            "    runs/<run_id>.trace.json.zst   One zstd JSON file per run (suffixed with\n"
+            "                                   source_id hash only on cross-source clash)\n"
+            "    index.json                     Run watermarks & metadata (stat-only check)\n"
+            "    salt                           Local HMAC salt (never exported)\n"
+            "\n"
+            "  Watermarks track mtime+size of state.json, events.jsonl, ledger.jsonl,\n"
+            "  sessions/*.jsonl, outcomes/*.json, telemetry/*, and extractor_version.\n"
+            "  Unchanged runs hit cache via stat() in milliseconds; resumed runs\n"
+            "  automatically re-extract and upgrade on ingest.\n"
+            "\n"
+            "ZSTANDARD BACKENDS\n"
+            "  Uses Python 3.14+ stdlib compression.zstd automatically; falls back to\n"
+            "  `zstandard`, `backports.zstd`, or the `zstd` CLI on Python 3.9-3.13.\n"
+            "\n"
+            "EXIT CODES\n"
+            "  0  Success (all discovered runs cached, packed, or ingested cleanly).\n"
+            "  1  Completed with one or more per-run extraction errors or rejected traces.\n"
+            "  2  Fatal usage, missing path, unsafe archive, or missing zstd backend error.\n"
+            "\n"
+            "Run `aw-profile <subcommand> --help` for subcommand options and examples."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_collect = sub.add_parser(
         "collect",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Extract new or resumed runs into the local .trace.json.zst cache.",
+        description=(
+            "Discover `aw` run directories, skip unchanged runs via resume-safe stat\n"
+            "watermarks, and extract new or updated runs into <cache-dir>/runs/*.trace.json.zst.\n"
+            "\n"
+            "HOW DISCOVERY WORKS\n"
+            "  --runs-dir DIR   Inspects DIR directly: accepts a runs container holding\n"
+            "                   run-* subdirectories, a single run directory (state.json\n"
+            "                   or ledger.jsonl), or a repo root (.aw/records/runs,\n"
+            "                   .aw/runs, .agents/runs). Does NOT recurse deeply.\n"
+            "  --scan DIR       Walks DIR RECURSIVELY (up to --max-depth, default 7) to\n"
+            "                   find verified run-* directories anywhere beneath DIR.\n"
+            "                   Follows a symlink passed as DIR itself, prunes .git,\n"
+            "                   worktrees, analytics, node_modules, .venv, venv,\n"
+            "                   __pycache__, and test/lint caches, never descends inside\n"
+            "                   a matched run directory, and requires each run-* folder\n"
+            "                   to contain state.json or ledger.jsonl (ignoring unrelated\n"
+            "                   run-* folders from other tools).\n"
+            "  (no flags)       Defaults to discovering runs in the current directory.\n"
+            "\n"
+            "LIVE RUNS & RESUME\n"
+            "  Runs holding an active driver.lock are skipped by default so half-written\n"
+            "  JSONL files are not snapshotted (pass --include-active to include them).\n"
+            "  When a previously cached run is later resumed, its watermark advances and\n"
+            "  the next collect atomically replaces only that run's .trace.json.zst."
+        ),
+        epilog=(
+            "EXAMPLES\n"
+            "  aw-profile collect                                   # current repo/dir\n"
+            "  aw-profile collect --scan ~/projects --scan ~/.aw/projects\n"
+            "  aw-profile collect --runs-dir /mnt/archive/runs --json\n"
+            "  aw-profile collect --scan ~/projects --max-depth 9 --include-active\n"
+            "  aw-profile collect --scan ~/projects --rebuild       # force re-extract"
+        ),
     )
     p_collect.add_argument(
         "--runs-dir",
         action="append",
         default=[],
         metavar="DIR",
-        help="Runs directory, single run dir, or repo root (repeatable).",
+        help="Runs container dir, single run dir, or repo root (repeatable; non-recursive).",
     )
     p_collect.add_argument(
         "--scan",
         action="append",
         default=[],
         metavar="DIR",
-        help="Root directory to scan recursively for verified aw runs (repeatable; follows root symlink).",
+        help=(
+            "Root directory to scan recursively for verified run-* dirs up to --max-depth "
+            "(repeatable; follows root symlink, prunes .git/worktrees/analytics/caches)."
+        ),
+    )
+    p_collect.add_argument(
+        "--max-depth",
+        type=int,
+        default=7,
+        metavar="N",
+        help="Maximum recursion depth for --scan (default: 7; covers <root>/<org>/<repo>/.aw/records/runs/run-*).",
     )
     p_collect.add_argument(
         "--cache-dir",
@@ -2584,19 +2695,40 @@ def build_parser() -> argparse.ArgumentParser:
     p_collect.add_argument(
         "--rebuild",
         action="store_true",
-        help="Re-extract all discovered runs even if their watermark matches.",
+        help="Re-extract all discovered runs even if their watermark matches index.json.",
     )
     p_collect.add_argument(
         "--level",
         type=int,
         default=DEFAULT_ZSTD_LEVEL,
+        metavar="N",
         help="Zstandard compression level (default: 6).",
     )
     p_collect.add_argument("--json", action="store_true", help="Emit JSON summary.")
 
     p_pack = sub.add_parser(
         "pack",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Bundle cached traces into a portable de-identified .tar.zst archive (or --inspect).",
+        description=(
+            "Package cached traces into a single portable .tar.zst bundle for transferring\n"
+            "between servers or sharing from external contributors.\n"
+            "\n"
+            "Each trace is re-validated against the strict de-identified allowlist before\n"
+            "being added. Inner members are stored as raw .trace.json inside one shared\n"
+            "zstd stream so zstd compresses repeated keys across runs. The local HMAC\n"
+            "salt (<cache-dir>/salt) is NEVER included in a bundle.\n"
+            "\n"
+            "Use --inspect [N] to print N sample de-identified JSON records to stdout\n"
+            "without writing any file, so you can audit exactly what would be shared."
+        ),
+        epilog=(
+            "EXAMPLES\n"
+            "  aw-profile pack --inspect 1                          # preview 1 trace\n"
+            "  aw-profile pack --out host-a.tar.zst                 # bundle all cached runs\n"
+            "  aw-profile pack --out nov.tar.zst --since 2026-11-01 --until 2026-11-30\n"
+            "  aw-profile pack --cache-dir /tmp/prof --out out.tar.zst --json"
+        ),
     )
     p_pack.add_argument(
         "--cache-dir",
@@ -2608,19 +2740,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         default=None,
         metavar="FILE",
-        help="Output .tar.zst bundle path.",
+        help="Output .tar.zst bundle path (required unless --inspect is given).",
     )
     p_pack.add_argument(
         "--since",
         default=None,
         metavar="YYYY-MM-DD",
-        help="Include only runs on or after YYYY-MM-DD.",
+        help="Include only runs dated on or after YYYY-MM-DD (inclusive).",
     )
     p_pack.add_argument(
         "--until",
         default=None,
         metavar="YYYY-MM-DD",
-        help="Include only runs on or before YYYY-MM-DD.",
+        help="Include only runs dated on or before YYYY-MM-DD (inclusive).",
     )
     p_pack.add_argument(
         "--inspect",
@@ -2635,19 +2767,44 @@ def build_parser() -> argparse.ArgumentParser:
         "--level",
         type=int,
         default=DEFAULT_ZSTD_LEVEL,
+        metavar="N",
         help="Zstandard compression level (default: 6).",
     )
     p_pack.add_argument("--json", action="store_true", help="Emit JSON summary.")
 
     p_ingest = sub.add_parser(
         "ingest",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Validate and merge .tar.zst bundles or .trace.json.zst files into the cache.",
+        description=(
+            "Safely validate and merge traces from one or more .tar.zst bundles,\n"
+            ".trace.json.zst/.trace.json files, or directories of .trace.json.zst files\n"
+            "into the destination trace cache.\n"
+            "\n"
+            "SAFETY & MERGE RULES\n"
+            "  - Archive safety: refuses symlinks, hardlinks, device nodes, absolute paths,\n"
+            "    '..' path traversal, unexpected member filenames, and members > 64 MiB.\n"
+            "  - Privacy gate: validates every trace against the strict allowlist schema;\n"
+            "    rejects unknown keys, raw filesystem paths, multi-line strings, non-finite\n"
+            "    numbers, or free text (exits 1 if any trace is rejected).\n"
+            "  - Resume-safe upgrades: an incoming trace with a strictly newer watermark\n"
+            "    (or newer extractor_version at equal watermark) upgrades the cached copy;\n"
+            "    same or older copies are skipped and never downgrade existing data.\n"
+            "  - Cross-source collisions: two distinct source_id values sharing a run_id\n"
+            "    are both preserved via <run_id>.<src8>.trace.json.zst."
+        ),
+        epilog=(
+            "EXAMPLES\n"
+            "  aw-profile ingest server-a.tar.zst --batch server-a\n"
+            "  aw-profile ingest contrib.tar.zst --batch contrib-01 --dry-run\n"
+            "  aw-profile ingest /mnt/synced-runs/ box2.tar.zst --json"
+        ),
     )
     p_ingest.add_argument(
         "sources",
         nargs="+",
         metavar="PATH",
-        help="One or more .tar.zst bundles, .trace.json.zst files, or directories.",
+        help="One or more .tar.zst bundles, .trace.json.zst/.trace.json files, or directories.",
     )
     p_ingest.add_argument(
         "--cache-dir",
@@ -2659,17 +2816,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--batch",
         default=None,
         metavar="LABEL",
-        help="Optional batch/source tag (e.g. server-b or contrib-20261120).",
+        help="Optional closed-vocabulary provenance tag (e.g. server-b or contrib-20261120).",
     )
     p_ingest.add_argument(
         "--dry-run",
         action="store_true",
-        help="Validate sources and report counts without modifying the cache.",
+        help="Validate all inputs and report add/upgrade/skip/reject counts without writing.",
     )
     p_ingest.add_argument(
         "--level",
         type=int,
         default=DEFAULT_ZSTD_LEVEL,
+        metavar="N",
         help="Zstandard compression level (default: 6).",
     )
     p_ingest.add_argument("--json", action="store_true", help="Emit JSON summary.")
@@ -2682,12 +2840,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if args.command == "collect":
+            if args.max_depth < 1:
+                raise ValueError("--max-depth must be >= 1")
             res = collect_runs(
                 runs_dirs=args.runs_dir,
                 scan_dirs=args.scan,
                 cache_dir=args.cache_dir,
                 include_active=args.include_active,
                 rebuild=args.rebuild,
+                scan_max_depth=args.max_depth,
                 zstd_level=args.level,
             )
             if args.json:

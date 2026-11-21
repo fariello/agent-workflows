@@ -591,6 +591,179 @@ class AwProfileTests(unittest.TestCase):
         self.assertEqual(rc_t, 1)
         self.assertEqual(json.loads(out_t)["rejected"], 1)
 
+    def test_extensive_help_and_max_depth_and_shell_completion_integration(
+        self,
+    ) -> None:
+        import shutil
+        import subprocess
+        from unittest import mock
+
+        from agent_workflows import completion
+
+        # 1. Root and every subcommand emit rich, structured --help text.
+        for argv, required_phrases in (
+            (
+                ["--help"],
+                (
+                    "WORKFLOW",
+                    "6-TABLE LOSSLESS BEHAVIORAL SCHEMA",
+                    "DE-IDENTIFICATION & PRIVACY",
+                    "CACHE LAYOUT & RESUME-SAFE WATERMARKS",
+                    "ZSTANDARD BACKENDS",
+                    "EXIT CODES",
+                ),
+            ),
+            (
+                ["collect", "--help"],
+                (
+                    "HOW DISCOVERY WORKS",
+                    "RECURSIVELY",
+                    "--max-depth",
+                    "LIVE RUNS & RESUME",
+                    "EXAMPLES",
+                ),
+            ),
+            (
+                ["pack", "--help"],
+                ("--inspect", "--since", "--until", "NEVER included", "EXAMPLES"),
+            ),
+            (
+                ["ingest", "--help"],
+                ("SAFETY & MERGE RULES", "--batch", "--dry-run", "EXAMPLES"),
+            ),
+        ):
+            out_buf = io.StringIO()
+            err_buf = io.StringIO()
+            with (
+                contextlib.redirect_stdout(out_buf),
+                contextlib.redirect_stderr(err_buf),
+                self.assertRaises(SystemExit) as cm,
+            ):
+                aw_profile.main(argv)
+            self.assertEqual(cm.exception.code, 0)
+            help_text = out_buf.getvalue()
+            for phrase in required_phrases:
+                self.assertIn(phrase, help_text, f"{argv}: missing {phrase!r}")
+
+        # 2. --max-depth bounds --scan recursion depth.
+        deep_root = self.root / "deep"
+        deep_runs = deep_root / "a" / "b" / "c" / "d" / "runs"
+        _write_oc_run(deep_runs, "run-20261120T100000Z-6001")
+        cache_shallow = self.root / "cache-shallow"
+        out_s, err_s, rc_s = _run_cli(
+            [
+                "collect",
+                "--scan",
+                str(deep_root),
+                "--max-depth",
+                "2",
+                "--cache-dir",
+                str(cache_shallow),
+                "--json",
+            ]
+        )
+        self.assertEqual(rc_s, 0, out_s + err_s)
+        self.assertEqual(json.loads(out_s)["discovered"], 0)
+        out_d, err_d, rc_d = _run_cli(
+            [
+                "collect",
+                "--scan",
+                str(deep_root),
+                "--max-depth",
+                "7",
+                "--cache-dir",
+                str(cache_shallow),
+                "--json",
+            ]
+        )
+        self.assertEqual(rc_d, 0, out_d + err_d)
+        self.assertEqual(json.loads(out_d)["discovered"], 1)
+
+        # 3. Tab-completion install/uninstall/staleness includes aw-profile for bash, zsh, and fish.
+        xdg_data = self.root / "xdg-data"
+        xdg_config = self.root / "xdg-config"
+        home_dir = self.root / "home"
+        home_dir.mkdir()
+        with mock.patch.dict(
+            os.environ,
+            {
+                "HOME": str(home_dir),
+                "XDG_DATA_HOME": str(xdg_data),
+                "XDG_CONFIG_HOME": str(xdg_config),
+            },
+        ):
+            for shell in ("bash", "zsh", "fish"):
+                res = completion.install_shell_completion(shell)
+                prof_file = res["dir"] / completion.profile_completion_filename(shell)
+                self.assertTrue(prof_file.is_file(), f"missing {prof_file}")
+                body = prof_file.read_text(encoding="utf-8")
+                self.assertIn(completion.INSTALL_SENTINEL, body)
+                expected_tokens = (
+                    (
+                        "collect",
+                        "pack",
+                        "ingest",
+                        "-l scan",
+                        "-l runs-dir",
+                        "-l max-depth",
+                        "-l inspect",
+                        "-l batch",
+                    )
+                    if shell == "fish"
+                    else (
+                        "collect",
+                        "pack",
+                        "ingest",
+                        "--scan",
+                        "--runs-dir",
+                        "--max-depth",
+                        "--inspect",
+                        "--batch",
+                    )
+                )
+                for token in expected_tokens:
+                    self.assertIn(token, body, f"{shell} completion missing {token!r}")
+                self.assertEqual(
+                    completion.installed_completion_state(shell), "current"
+                )
+
+                # Syntax-check generated scripts under real shell binaries when present.
+                shell_bin = shutil.which(shell)
+                if shell_bin:
+                    proc = subprocess.run(
+                        [shell_bin, "-n", str(prof_file)],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(
+                        proc.returncode,
+                        0,
+                        f"{shell} -n failed on {prof_file}: {proc.stderr}",
+                    )
+
+                # Removing aw-profile drop-in makes installed state report stale!
+                prof_file.unlink()
+                self.assertEqual(completion.installed_completion_state(shell), "stale")
+
+                # Re-install restores it, and uninstall removes it cleanly.
+                completion.install_shell_completion(shell)
+                self.assertEqual(
+                    completion.installed_completion_state(shell), "current"
+                )
+                completion.uninstall_shell_completion(shell)
+                self.assertFalse(prof_file.exists())
+
+                # Foreign aw-profile file refuses install without clobbering.
+                res["dir"].mkdir(parents=True, exist_ok=True)
+                prof_file.write_text("# foreign aw-profile\n", encoding="utf-8")
+                with self.assertRaises(completion.CompletionInstallError):
+                    completion.install_shell_completion(shell)
+                self.assertEqual(
+                    prof_file.read_text(encoding="utf-8"), "# foreign aw-profile\n"
+                )
+                prof_file.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()

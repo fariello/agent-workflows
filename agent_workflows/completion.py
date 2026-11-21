@@ -558,6 +558,220 @@ def _lazy_parser() -> argparse.ArgumentParser:
     return cli._build_parser()
 
 
+def _lazy_profile_parser() -> argparse.ArgumentParser:
+    """Build the standalone ``aw-profile`` CLI parser on demand."""
+    from agent_workflows import aw_profile
+
+    return aw_profile.build_parser()
+
+
+_PROFILE_DIR_FLAGS = frozenset({"--runs-dir", "--scan", "--cache-dir"})
+_PROFILE_FILE_FLAGS = frozenset({"--out"})
+
+
+def generate_profile_bash_completion(tree: Dict[str, Any] | None = None) -> str:
+    """Emit a self-contained Bash completion script for ``aw-profile``."""
+    if tree is None:
+        tree = introspect_cli_tree(_lazy_profile_parser())
+    subcmds = tree.get("subcommands", {})
+    sub_names = " ".join(_bash_word(n) for n in sorted(subcmds))
+    root_flags = " ".join(
+        _bash_word(f["flag"]) for f in tree.get("flags", []) if f.get("flag")
+    )
+
+    lines: List[str] = [
+        "# Bash completion for aw-profile (generated from aw_profile.build_parser())",
+        "_aw_profile_completion() {",
+        "  local cur prev cmd",
+        '  cur="${COMP_WORDS[COMP_CWORD]}"',
+        '  prev=""',
+        "  if [[ $COMP_CWORD -ge 1 ]]; then",
+        '    prev="${COMP_WORDS[COMP_CWORD-1]}"',
+        "  fi",
+        "",
+        "  # Path completions for directory- and file-taking flags",
+        '  case "$prev" in',
+        "    --runs-dir|--scan|--cache-dir)",
+        '      COMPREPLY=( $(compgen -d -- "$cur") )',
+        "      return 0",
+        "      ;;",
+        "    --out)",
+        '      COMPREPLY=( $(compgen -f -- "$cur") )',
+        "      return 0",
+        "      ;;",
+        "  esac",
+        "",
+        "  if [[ $COMP_CWORD -eq 1 ]]; then",
+        '    if [[ "$cur" == -* ]]; then',
+        f'      COMPREPLY=( $(compgen -W "{root_flags}" -- "$cur") )',
+        "    else",
+        f'      COMPREPLY=( $(compgen -W "{sub_names}" -- "$cur") )',
+        "    fi",
+        "    return 0",
+        "  fi",
+        "",
+        '  cmd="${COMP_WORDS[1]}"',
+        '  case "$cmd" in',
+    ]
+    for name in sorted(subcmds):
+        node = subcmds[name]
+        flags_str = " ".join(
+            _bash_word(f["flag"]) for f in node.get("flags", []) if f.get("flag")
+        )
+        lines.append(f"    {_bash_word(name)})")
+        lines.append('      if [[ "$cur" == -* ]]; then')
+        lines.append(f'        COMPREPLY=( $(compgen -W "{flags_str}" -- "$cur") )')
+        if name == "ingest":
+            lines.append("      else")
+            lines.append('        COMPREPLY=( $(compgen -f -- "$cur") )')
+        lines.append("      fi")
+        lines.append("      return 0")
+        lines.append("      ;;")
+    lines += [
+        "  esac",
+        "  return 0",
+        "}",
+        "complete -F _aw_profile_completion aw-profile",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def generate_profile_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
+    """Emit a native Zsh ``#compdef aw-profile`` completion script."""
+    if tree is None:
+        tree = introspect_cli_tree(_lazy_profile_parser())
+    subcmds = tree.get("subcommands", {})
+
+    lines: List[str] = [
+        "#compdef aw-profile",
+        "# Zsh completion for aw-profile (generated from aw_profile.build_parser())",
+        "",
+        "_aw_profile_subcommands() {",
+        "  local -a subcmds",
+        "  subcmds=(",
+    ]
+    for name in sorted(subcmds):
+        desc = _zsh_desc(subcmds[name].get("help", ""))
+        lines.append(f"    '{name}:{desc}'")
+    lines += [
+        "  )",
+        "  _describe -t subcommands 'aw-profile command' subcmds",
+        "}",
+        "",
+        "_aw-profile() {",
+        "  local context state line",
+        "  _arguments -C \\",
+        "    '(-h --help)'{-h,--help}'[Show help and exit]' \\",
+        "    '1:command:_aw_profile_subcommands' \\",
+        "    '*::arg:->args'",
+        "",
+        '  case "$state" in',
+        "    args)",
+        '      case "$words[1]" in',
+    ]
+    for name in sorted(subcmds):
+        node = subcmds[name]
+        lines.append(f"        {name})")
+        arg_specs: List[str] = []
+        for f in node.get("flags", []):
+            flag = f.get("flag", "")
+            if not flag:
+                continue
+            desc = _zsh_desc(f.get("help", ""))
+            if flag in _PROFILE_DIR_FLAGS:
+                arg_specs.append(f"            '*{flag}[{desc}]:directory:_files -/'")
+            elif flag in _PROFILE_FILE_FLAGS:
+                arg_specs.append(f"            '{flag}[{desc}]:file:_files'")
+            elif flag in ("--max-depth", "--level", "--since", "--until", "--batch"):
+                arg_specs.append(f"            '{flag}[{desc}]:value:'")
+            elif flag == "--inspect":
+                arg_specs.append(f"            '{flag}[{desc}]::count:'")
+            else:
+                arg_specs.append(f"            '{flag}[{desc}]'")
+        if name == "ingest":
+            arg_specs.append("            '*:bundle or trace:_files'")
+        lines.append("          _arguments \\")
+        lines.append(" \\\n".join(arg_specs))
+        lines.append("          ;;")
+    lines += [
+        "      esac",
+        "      ;;",
+        "  esac",
+        "}",
+        "",
+        'if [[ "$funcstack[1]" == "_aw-profile" ]]; then',
+        '  _aw-profile "$@"',
+        "fi",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def generate_profile_fish_completion(tree: Dict[str, Any] | None = None) -> str:
+    """Emit a native Fish completion script for ``aw-profile``."""
+    if tree is None:
+        tree = introspect_cli_tree(_lazy_profile_parser())
+    subcmds = tree.get("subcommands", {})
+    sub_names_list = " ".join(sorted(subcmds))
+
+    lines: List[str] = [
+        "# Fish completion for aw-profile (generated from aw_profile.build_parser())",
+        "complete -c aw-profile -f",
+    ]
+    for name in sorted(subcmds):
+        desc = _fish_desc(subcmds[name].get("help", ""))
+        lines.append(
+            f"complete -c aw-profile -n '__fish_use_subcommand' -a {_fish_word(name)} -d '{desc}'"
+        )
+    for name in sorted(subcmds):
+        node = subcmds[name]
+        cond = f"__fish_seen_subcommand_from {name}"
+        if name == "ingest":
+            lines.append(f"complete -c aw-profile -n '{cond}' -F")
+        for f in node.get("flags", []):
+            flag = f.get("flag", "")
+            if not flag:
+                continue
+            desc = _fish_desc(f.get("help", ""))
+            if flag.startswith("--"):
+                flag_spec = f"-l {flag[2:]}"
+            elif flag.startswith("-") and len(flag) == 2:
+                flag_spec = f"-s {flag[1:]}"
+            else:
+                continue
+            if flag in _PROFILE_DIR_FLAGS:
+                lines.append(
+                    f"complete -c aw-profile -n '{cond}' {flag_spec} -r -a '(__fish_complete_directories)' -d '{desc}'"
+                )
+            elif flag in _PROFILE_FILE_FLAGS:
+                lines.append(
+                    f"complete -c aw-profile -n '{cond}' {flag_spec} -r -F -d '{desc}'"
+                )
+            else:
+                lines.append(
+                    f"complete -c aw-profile -n '{cond}' {flag_spec} -d '{desc}'"
+                )
+    # Keep root help available before any subcommand is chosen.
+    lines.append(
+        f"complete -c aw-profile -n 'not __fish_seen_subcommand_from {sub_names_list}' -s h -l help -d 'Show help and exit'"
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+_PROFILE_GENERATORS = {
+    "bash": generate_profile_bash_completion,
+    "zsh": generate_profile_zsh_completion,
+    "fish": generate_profile_fish_completion,
+}
+
+
+def generate_profile(shell: str) -> str:
+    """Generate the ``aw-profile`` completion script for ``shell`` (bash|zsh|fish)."""
+    return _PROFILE_GENERATORS[shell]()
+
+
 # Re-export the flatten helper for tests / child 02.
 all_command_paths = _all_command_paths
 top_level_commands = _top_level
@@ -1101,6 +1315,13 @@ _DROPIN_LAYOUT: Dict[str, Any] = {
     "fish": ("XDG_CONFIG_HOME", ".config", "fish/completions", "aw.fish"),
 }
 
+# Companion drop-in filename for the standalone `aw-profile` console script.
+_PROFILE_DROPIN_FILENAME: Dict[str, str] = {
+    "bash": "aw-profile",
+    "zsh": "_aw-profile",
+    "fish": "aw-profile.fish",
+}
+
 
 class CompletionInstallError(RuntimeError):
     """A drop-in install/uninstall could not be performed safely (e.g. a foreign file present)."""
@@ -1149,6 +1370,13 @@ def completion_filename(shell: str) -> str:
     return _DROPIN_LAYOUT[shell][3]
 
 
+def profile_completion_filename(shell: str) -> str:
+    """The companion ``aw-profile`` drop-in filename for ``shell``."""
+    if shell not in _PROFILE_DROPIN_FILENAME:
+        raise CompletionInstallError(f"unsupported shell {shell!r}")
+    return _PROFILE_DROPIN_FILENAME[shell]
+
+
 def _alias_filenames(shell: str) -> List[str]:
     """Extra command-name files needed to bind the console-script aliases, per shell.
 
@@ -1161,6 +1389,13 @@ def _alias_filenames(shell: str) -> List[str]:
     return []
 
 
+def _with_sentinel(body: str) -> str:
+    lines = body.split("\n")
+    if lines and lines[0].startswith("#compdef"):
+        return "\n".join([lines[0], INSTALL_SENTINEL, *lines[1:]])
+    return f"{INSTALL_SENTINEL}\n{body}"
+
+
 def _script_with_sentinel(shell: str) -> str:
     """The generated completion script carrying the self-identifying sentinel line.
 
@@ -1169,11 +1404,12 @@ def _script_with_sentinel(shell: str) -> str:
     prepending anything above it would silently break the alias binding. In that case the sentinel
     becomes line 2 (``_is_ours`` scans the first few lines, so detection is unaffected).
     """
-    body = generate(shell)
-    lines = body.split("\n")
-    if lines and lines[0].startswith("#compdef"):
-        return "\n".join([lines[0], INSTALL_SENTINEL, *lines[1:]])
-    return f"{INSTALL_SENTINEL}\n{body}"
+    return _with_sentinel(generate(shell))
+
+
+def _profile_script_with_sentinel(shell: str) -> str:
+    """The generated ``aw-profile`` completion script carrying ``INSTALL_SENTINEL``."""
+    return _with_sentinel(generate_profile(shell))
 
 
 def _is_ours(path: Path) -> bool:
@@ -1236,9 +1472,10 @@ def install_shell_completion(
     directory = resolve_completion_dir(shell, target_dir)
     primary = directory / completion_filename(shell)
     aliases = [directory / name for name in _alias_filenames(shell)]
+    profile_dropin = directory / profile_completion_filename(shell)
 
     # Fail closed BEFORE writing anything: a foreign file at any target aborts the whole install.
-    for path in [primary, *aliases]:
+    for path in [primary, *aliases, profile_dropin]:
         if _foreign(path):
             raise CompletionInstallError(
                 f"refusing to overwrite {path}: it was not created by agent-workflows "
@@ -1249,7 +1486,7 @@ def install_shell_completion(
         return {
             "shell": shell,
             "dir": directory,
-            "paths": [primary, *aliases],
+            "paths": [primary, *aliases, profile_dropin],
             "aliases": aliases,
             "dry_run": True,
         }
@@ -1272,6 +1509,12 @@ def install_shell_completion(
             # A filesystem without symlink support still gets working completion via a real copy.
             _write_text_exact(link, _script_with_sentinel(shell))
         written.append(link)
+
+    if profile_dropin.is_symlink():
+        profile_dropin.unlink()
+    _write_text_exact(profile_dropin, _profile_script_with_sentinel(shell))
+    profile_dropin.chmod(0o644)
+    written.append(profile_dropin)
 
     return {
         "shell": shell,
@@ -1302,8 +1545,10 @@ def uninstall_shell_completion(
             f"unsupported shell {shell!r} (expected one of {', '.join(SUPPORTED_SHELLS)})"
         )
     directory = resolve_completion_dir(shell, target_dir)
-    candidates = [directory / completion_filename(shell)] + [
-        directory / name for name in _alias_filenames(shell)
+    candidates = [
+        directory / completion_filename(shell),
+        *[directory / name for name in _alias_filenames(shell)],
+        directory / profile_completion_filename(shell),
     ]
 
     removed: List[Path] = []
@@ -1376,7 +1621,30 @@ def installed_completion_state(shell: str, target_dir: Optional[Path] = None) ->
         Exception
     ):  # pragma: no cover - a generator failure is not evidence of staleness
         return "current"
-    return "current" if body == expected else "stale"
+    if body != expected:
+        return "stale"
+
+    # Also verify the companion `aw-profile` drop-in is present and current.
+    try:
+        profile_dropin = resolve_completion_dir(
+            shell, target_dir
+        ) / profile_completion_filename(shell)
+    except CompletionInstallError:
+        return "stale"
+    if not _is_ours(profile_dropin):
+        return "stale"
+    try:
+        prof_installed = profile_dropin.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "stale"
+    prof_body = "\n".join(
+        line for line in prof_installed.split("\n") if line.strip() != INSTALL_SENTINEL
+    )
+    try:
+        prof_expected = generate_profile(shell)
+    except Exception:  # pragma: no cover
+        return "current"
+    return "current" if prof_body == prof_expected else "stale"
 
 
 # --------------------------------------------------------------------------------------

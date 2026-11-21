@@ -1656,34 +1656,34 @@ class InstallShellCompletionTests(_DropInFixture):
         (
             "bash",
             ("xdg_data", "bash-completion/completions"),
-            {"aw", "agentwf", "agent-workflows"},
+            {"aw", "agentwf", "agent-workflows", "aw-profile"},
             {"agentwf": "aw", "agent-workflows": "aw"},
             (),
             "BASH dispatches completion BY COMMAND NAME, so each alias needs its own entry; they "
-            "are RELATIVE symlinks to `aw` so the set survives the directory being moved",
+            "are RELATIVE symlinks to `aw` so the set survives the directory being moved, alongside "
+            "the standalone `aw-profile` drop-in",
         ),
         (
             "zsh",
             ("xdg_data", "zsh/site-functions"),
-            {"_aw"},
+            {"_aw", "_aw-profile"},
             {},
             ("#compdef aw agentwf agent-workflows",),
-            "ZSH binds all three aliases from the ONE file's `#compdef` line, so per-alias files "
-            "must NOT exist. That is WRONG rather than merely redundant: a second file in "
-            "site-functions is a second completion definition zsh may load instead",
+            "ZSH binds all three `aw` aliases from the ONE `_aw` file's `#compdef` line, alongside "
+            "the standalone `_aw-profile` completion file",
         ),
         (
             "fish",
             ("xdg_config", "fish/completions"),
-            {"aw.fish"},
+            {"aw.fish", "aw-profile.fish"},
             {},
             (
                 "complete -c aw ",
                 "complete -c agentwf ",
                 "complete -c agent-workflows ",
             ),
-            "FISH binds each alias from its own `complete -c` line INSIDE the single file, so the "
-            "alias coverage is a content claim here where for bash it is a filesystem claim",
+            "FISH binds each `aw` alias from its own `complete -c` line INSIDE `aw.fish`, alongside "
+            "the standalone `aw-profile.fish` completion file",
         ),
     )
 
@@ -1836,11 +1836,11 @@ class UninstallShellCompletionTests(_DropInFixture):
             {"other-tool": "# foreign\n"},
             "bash",
             False,
-            ["agent-workflows", "agentwf", "aw"],
+            ["agent-workflows", "agentwf", "aw", "aw-profile"],
             [],
             {"other-tool"},
-            "the primary AND both alias links go, while another tool's unrelated completion file "
-            "in the same shared directory must survive untouched",
+            "the primary, both alias links, and the aw-profile companion go, while another tool's "
+            "unrelated completion file in the same shared directory must survive untouched",
         ),
         (
             "a foreign file under OUR name",
@@ -1872,10 +1872,10 @@ class UninstallShellCompletionTests(_DropInFixture):
             {},
             "zsh",
             True,
-            ["_aw"],
+            ["_aw", "_aw-profile"],
             [],
-            {"_aw"},
-            "a dry run must report exactly what a real run WOULD remove while leaving the file in "
+            {"_aw", "_aw-profile"},
+            "a dry run must report exactly what a real run WOULD remove while leaving the files in "
             "place; reporting nothing would make the preview useless",
         ),
     )
@@ -2000,7 +2000,7 @@ class CompletionInstallCliTests(_DropInFixture):
             False,
             0,
             ("bash-completion/completions/aw",),
-            {"aw", "agentwf", "agent-workflows"},
+            {"aw", "agentwf", "agent-workflows", "aw-profile"},
             "the base case, and it must PRINT the installed path: a file written somewhere the "
             "user cannot see is not a usable install",
         ),
@@ -2033,7 +2033,7 @@ class CompletionInstallCliTests(_DropInFixture):
             False,
             0,
             ("_aw",),
-            {"_aw"},
+            {"_aw", "_aw-profile"},
             "--dir overrides the resolved directory even though $SHELL says bash and XDG is set",
         ),
         (
@@ -2043,7 +2043,7 @@ class CompletionInstallCliTests(_DropInFixture):
             False,
             0,
             ("aw.fish",),
-            {"aw.fish"},
+            {"aw.fish", "aw-profile.fish"},
             "the shell DEFAULTS to `cli._detect_shell()`, so the install surface and the "
             "script-output surface agree about what shell the user is in",
         ),
