@@ -22,6 +22,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(root: Path) -> Path:
@@ -37,11 +38,13 @@ def _setup_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     # Specs tree for case (e) non-backlog test
@@ -71,56 +74,23 @@ def _write_conforming_plan(
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
     p.write_text(
-        f"# IPD: Plan {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test scope.\n"
-        "- Status: to-review\n"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        "- Order: 1\n"
-        f"- Id: {id6}\n"
-        f"- From-Backlog: {backlog_id6}\n"
-        "- Scope-Paths: README.md\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-01 to-review (test): created\n\n"
-        "## Goal\n"
-        f"Goal {id6}.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n"
-        "### Task group 1: work\n"
-        "- [ ] E-01 Work item\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: done\n"
-        "  - Execution state: pending\n\n"
-        "## Project conventions discovered (Step 0)\n"
-        "None.\n\n"
-        "## Findings\n"
-        "None.\n\n"
-        "## Proposed changes (ordered, validatable)\n"
-        "1. E-01 do work.\n\n"
-        "## Deferred / out of scope (with reason)\n"
-        "- None.\n\n"
-        "## Scope check\n"
-        "- None.\n\n"
-        "## Required tests / validation\n"
-        "- None.\n\n"
-        "## Spec / documentation sync\n"
-        "- None.\n\n"
-        "## Open questions\n"
-        "- None.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: check.\n"
-        "  - Observed evidence:\n"
-        "  - Result: pending\n\n"
-        "## Approval and execution gate\n"
-        "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        RecordBuilder().plan(
+            title=f"Plan {id6}",
+            when="2026-09-01",
+            plan_role="child",
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            set=set_id,
+            order=1,
+            id6=id6,
+            from_backlog=backlog_id6,
+            scope_paths="README.md",
+            author="test",
+            item_dependencies="none",
+            history=["- 2026-09-01 to-review (test): created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -135,29 +105,14 @@ def _create_item(
     priority: str = "medium",
     gate_kind: str | None = None,
     gate_ref: str | None = None,
-    raw_status_line: str | None = None,
+    raw_status: str | None = None,
 ) -> Path:
     """Create a backlog item in the given status."""
-    st_line = raw_status_line if raw_status_line is not None else f"- Status: {status}"
-    lines = [
-        f"- Id: {item_id}",
-        st_line,
-        f"- Set: {item_id}",
-        f"- Priority: {priority}",
-        f"- Work-Kind: {work_kind}",
-        "- Summary: Test item",
-    ]
+    extra: dict[str, str] = {}
     if gate_kind and gate_ref:
-        lines.append(f"- Gate-Kind: {gate_kind}")
-        lines.append(f"- Gate-Ref: {gate_ref}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- 2026-10-01 created (tester): initial {status}",
-            "",
-        ]
-    )
+        extra["gate_kind"] = gate_kind
+        extra["gate_ref"] = gate_ref
+    raw_fields = {"status": raw_status} if raw_status is not None else None
     # Normalize directory based on canonical status
     dir_name = status.lower()
     p = (
@@ -168,7 +123,22 @@ def _create_item(
         / dir_name
         / f"20261001-{item_id}-01-{item_id}-test.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=dir_name,
+            set=item_id,
+            priority=priority,
+            work_kind=work_kind,
+            summary="Test item",
+            when="2026-10-01",
+            history=[f"- 2026-10-01 created (tester): initial {status}"],
+            raw_fields=raw_fields,
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -546,7 +516,13 @@ class TestBacklogTransitionGate(unittest.TestCase):
                 / "20261001-spec01-01-spec01-test.spec.md"
             )
             spec_file.write_text(
-                "# Spec: Test Spec\n\n- Id: spec01\n- Status: draft\n\n## Workflow history\n- 2026-10-01 draft (tester): initial\n",
+                RecordBuilder().spec(
+                    title="Test Spec",
+                    id6="spec01",
+                    status="draft",
+                    history=["- 2026-10-01 draft (tester): initial"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -668,7 +644,7 @@ class TestBacklogTransitionGate(unittest.TestCase):
                 repo,
                 status="done",
                 item_id="bk0001",
-                raw_status_line="- Status: DONE",
+                raw_status="DONE",
             )
             original_bytes = item_path.read_bytes()
 
@@ -702,7 +678,7 @@ class TestBacklogTransitionGate(unittest.TestCase):
                 repo,
                 status="done",
                 item_id="bk0001",
-                raw_status_line="- Status: DONE",
+                raw_status="DONE",
             )
             original_bytes = item_path.read_bytes()
 
