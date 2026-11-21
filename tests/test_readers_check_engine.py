@@ -2010,7 +2010,9 @@ class TestRecordSkipListAndMetaDirExclusion:
         meta_log.write_text(
             json.dumps(
                 {
-                    "seq": 0,
+                    "v": 1,
+                    "seq": 1,
+                    "append": 1,
                     "op": "create",
                     "at": "2026-10-01T00:00:00Z",
                     "actor": {"tool": "test"},
@@ -2018,7 +2020,7 @@ class TestRecordSkipListAndMetaDirExclusion:
                     "fields": {
                         "id": "abc123",
                         "type": "ipd",
-                        "status": "pending",
+                        "status": "draft",
                         "set": "tstset",
                         "order": 1,
                     },

@@ -535,3 +535,144 @@ def test_check_agent_exit_code_with_one_violation(tmp_path: Path) -> None:
         d.get("rule") == "attention.missing-status" and d.get("location") == bad_rel
         for d in diagnostics
     )
+
+
+def test_incomplete_query_record_becomes_missing_status_violation(
+    tmp_path: Path,
+) -> None:
+    """An `incomplete` record from `artifact_meta.query` becomes `attention.missing-status` (dqutt8 E-02)."""
+    repo = _init_repo(tmp_path)
+    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+    meta_dir = repo / ".aw" / "records" / "meta"
+    pending_dir.mkdir(parents=True)
+    meta_dir.mkdir(parents=True)
+
+    # 1. Valid plan for control
+    ok_rel = ".aw/records/plans/pending/20261010-pinset-01-inc001-ok.ipd.md"
+    (repo / ok_rel).write_text(
+        "# IPD: Control Plan\n\n- Date: 2026-10-10\n- Status: draft\n- Set: pinset\n- Id: inc001\n",
+        encoding="utf-8",
+    )
+
+    # 2. Plan with a corrupt authoritative log (has both .md mirror and invalid meta/<id6>.jsonl)
+    bad_rel = ".aw/records/plans/pending/20261011-pinset-02-inc002-corrupt.ipd.md"
+    (repo / bad_rel).write_text(
+        "# IPD: Corrupt Log Plan\n\n- Date: 2026-10-11\n- Status: approved\n- Set: pinset\n- Id: inc002\n",
+        encoding="utf-8",
+    )
+    (meta_dir / "inc002.jsonl").write_text("{not valid json\n", encoding="utf-8")
+
+    # 3. Log-only corrupt record (no .md file on disk)
+    (meta_dir / "inc003.jsonl").write_text("{also broken\n", encoding="utf-8")
+
+    items, drift = att.scan(repo)
+
+    # Control item is valid; inc002 must NOT be served as approved from its .md mirror
+    ok_item = _item_by_path(items, ok_rel)
+    assert ok_item.native_status == "draft"
+    bad_item = _item_by_path(items, bad_rel)
+    assert bad_item.native_status == "-"
+    assert bad_item.attention_class == A.BLOCKED
+
+    missing_drifts = [d for d in drift if d.rule == "attention.missing-status"]
+    assert any(d.location == bad_rel and "inc002" in d.detail for d in missing_drifts)
+    assert any("inc003" in d.detail for d in missing_drifts)
+
+
+def test_short_description_wins_over_extract_detail_fallback(tmp_path: Path) -> None:
+    """D-3: cached `short_description` wins when present; `_extract_detail` stays as fallback."""
+    repo = _init_repo(tmp_path)
+    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+    pending_dir.mkdir(parents=True)
+
+    with_sd_rel = ".aw/records/plans/pending/20261010-pinset-01-sd0001-with-sd.ipd.md"
+    (repo / with_sd_rel).write_text(
+        "# IPD: With Short Description\n\n"
+        "- Date: 2026-10-10\n"
+        "- Status: draft\n"
+        "- Scope: Long fallback scope paragraph.\n"
+        "- Short-Description: Crisp one-line description.\n"
+        "- Set: pinset\n"
+        "- Id: sd0001\n",
+        encoding="utf-8",
+    )
+
+    no_sd_rel = ".aw/records/plans/pending/20261011-pinset-02-sd0002-no-sd.ipd.md"
+    (repo / no_sd_rel).write_text(
+        "# IPD: Without Short Description\n\n"
+        "- Date: 2026-10-11\n"
+        "- Status: draft\n"
+        "- Scope: Fallback scope paragraph.\n"
+        "- Set: pinset\n"
+        "- Id: sd0002\n",
+        encoding="utf-8",
+    )
+
+    items, drift = att.scan(repo)
+    assert drift == []
+    with_sd = _item_by_path(items, with_sd_rel)
+    assert with_sd.detail_kind == "summary"
+    assert with_sd.detail_text == "Crisp one-line description."
+
+    no_sd = _item_by_path(items, no_sd_rel)
+    assert no_sd.detail_kind == "scope"
+    assert no_sd.detail_text == "Fallback scope paragraph."
+
+
+def test_log_format_record_history_via_artifact_meta(tmp_path: Path) -> None:
+    """Log-format record reads `last_history_at` via `artifact_meta.history` and `A.last_history_at`."""
+    repo = _init_repo(tmp_path)
+    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+    meta_dir = repo / ".aw" / "records" / "meta"
+    pending_dir.mkdir(parents=True)
+    meta_dir.mkdir(parents=True)
+
+    rel = ".aw/records/plans/pending/20261010-pinset-01-log001-log-plan.ipd.md"
+    (repo / rel).write_text(
+        "---\nid: log001\nstatus: reviewed\n---\n\n# IPD: Log Plan\n",
+        encoding="utf-8",
+    )
+    events = [
+        {
+            "v": 1,
+            "seq": 1,
+            "append": 1,
+            "at": "2026-10-10T10:00:00Z",
+            "actor": {"tool": "aw"},
+            "op": "create",
+            "path": "plans/pending/20261010-pinset-01-log001-log-plan.ipd.md",
+            "fields": {
+                "type": "ipd",
+                "status": "draft",
+                "set": "pinset",
+                "priority": "high",
+                "short_description": "Log-backed plan summary.",
+            },
+        },
+        {
+            "v": 1,
+            "seq": 2,
+            "append": 2,
+            "at": "2026-10-19T15:30:00Z",
+            "actor": {"tool": "aw"},
+            "op": "transition",
+            "from": "draft",
+            "to": "reviewed",
+        },
+    ]
+    (meta_dir / "log001.jsonl").write_text(
+        "".join(
+            json.dumps(ev, sort_keys=True, separators=(",", ":")) + "\n"
+            for ev in events
+        ),
+        encoding="utf-8",
+    )
+
+    items, drift = att.scan(repo)
+    assert drift == []
+    it = _item_by_path(items, rel)
+    assert it.id == "log001"
+    assert it.native_status == "reviewed"
+    assert it.priority == "high"
+    assert it.last_history_at == "2026-10-19"
+    assert it.detail_text == "Log-backed plan summary."

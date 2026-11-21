@@ -15,6 +15,7 @@ no timestamps/mtime/locale; `last_history_at` parsed from history, never mtime.
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import json
 import os
@@ -42,7 +43,6 @@ from agent_workflows import check_engine as _ce
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import lifecycle_style as LS
 from agent_workflows import plans as plans_mod
-from agent_workflows import prompts as prompts_mod
 from agent_workflows import research_contract
 from agent_workflows import selectors as _sel
 from agent_workflows import specs as specs_mod
@@ -237,22 +237,91 @@ def count_question_stats(text: str) -> Tuple[int, int]:
     return unresolved_count, resolved_count
 
 
+def _normalize_readiness_value(raw: Any) -> Optional[str]:
+    """Normalize a cached readiness string against the closed schema enum, or None."""
+    if raw is None:
+        return None
+    val = str(raw).strip().lower()
+    return val if val in _schema.READINESS_VALUES else None
+
+
 def read_readiness(text: str) -> Optional[str]:
     """The artifact's `- Readiness:` value normalized to the closed enum, or None.
 
-    DELEGATES to `ipd_schema.read_readiness` rather than re-scanning, because that is the READ-path
-    authority for this field and the enum (`go`/`go-pending-approval`/`no-go`) belongs to it. The
-    four call sites here previously each ran their own `(\\S+)` scan, which stopped at the first
-    space and so folded the workflow's documented multi-word spellings (`GO - PENDING HUMAN
-    APPROVAL`, `go (pending human approval)`) down to a bare `go`. That is the one direction this
-    field must never fail in: it renders and FILTERS as a clean `go` while the source says the plan
-    still needs human approval. The schema reader returns None for anything out-of-vocabulary
-    instead, which is the fail-closed answer the rest of the toolkit already relies on.
-
-    Absent and unrecognized are deliberately the same answer (None), matching the schema reader; the
-    board shows both as `-`. Pure.
+    Reads through `artifact_meta.read_text` and validates against `ipd_schema.READINESS_VALUES`
+    so absent and out-of-vocabulary values both fail closed to None. Pure.
     """
-    return _schema.read_readiness(text)
+    if not text or "readiness:" not in text.lower():
+        return None
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type="ipd")
+    return _normalize_readiness_value(st.fields.get("readiness"))
+
+
+def _readiness_from_state(state: Any, text: str) -> Optional[str]:
+    """Read normalized readiness from cached `artifact_meta.State` (with read_text for non-IPD)."""
+    if state is not None:
+        raw = state.fields.get("readiness")
+        if raw is not None:
+            return _normalize_readiness_value(raw)
+        if state.type == "ipd":
+            return None
+        if state.type in ("spec", "backlog") and text and "readiness:" in text.lower():
+            from agent_workflows import artifact_meta as _meta
+
+            return _normalize_readiness_value(
+                _meta.read_text(text, record_type=state.type).fields.get("readiness")
+            )
+    return None
+
+
+def _detail_from_state(state: Any, text: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return `(detail_kind, detail_text)`: cached `short_description` wins (D-3), else `_extract_detail`."""
+    if state is not None:
+        sd = getattr(state, "short_description", None)
+        if isinstance(sd, str) and sd.strip():
+            return "summary", sd.strip()
+    return _extract_detail(text)
+
+
+def _last_history_at_for_state(
+    state: Any, *, project_context: Any = None
+) -> Optional[str]:
+    """Derive `last_history_at` from `artifact_meta` state and `artifact_meta.history`."""
+    if state is None:
+        return None
+    # Log-format record (replayed from meta/<id6>.jsonl): query artifact_meta.history via A.last_history_at.
+    if (
+        getattr(state, "updated_at", None) is not None
+        or getattr(state, "created_at", None) is not None
+    ):
+        id6 = getattr(state, "id6", None)
+        if id6 and project_context is not None:
+            from agent_workflows import artifact_meta as _meta
+
+            try:
+                events = _meta.history(id6, project_context=project_context)
+            except Exception:
+                events = []
+            # Phase B: prefer legacy history lines through the unchanged A.last_history_at rule,
+            # then checkpoint last_history_day, then newest event date.
+            legacy_lines = [
+                ev["line"]
+                for ev in events
+                if isinstance(ev, dict)
+                and isinstance(ev.get("line"), str)
+                and ev["line"]
+            ]
+            if legacy_lines:
+                return A.last_history_at(legacy_lines)
+            if state.last_history_day:
+                return state.last_history_day
+            return A.last_history_at(events)
+        return state.last_history_day
+    # Legacy .md record: last_history_day is the cached projection of A.last_history_at over
+    # artifact_meta's parsed history lines.
+    return state.last_history_day
 
 
 def count_unresolved_open_questions(text: str) -> int:
@@ -449,49 +518,75 @@ def _history_section_lines(text: str) -> List[str]:
     return lines
 
 
-# worksequence i6015i E-07: the `- Item-Dependencies:` front-matter bullet. Only the bullet is matched
-# here; the VALUE grammar is parsed by `ipd_schema.parse_item_dependencies`, the shipped authority for
-# this field, rather than by a second regex that would drift from it.
-_ITEM_DEPS_RE = re.compile(r"(?m)^-[ \t]*Item-Dependencies:[ \t]*(.+?)[ \t]*$")
+def _format_structured_dependency(entry: Any) -> Optional[str]:
+    """Format one cached structured dependency entry into canonical token form."""
+    if isinstance(entry, str):
+        edge, err = _schema._parse_item_dependency_edge(entry)
+        return edge.canonical() if (not err and edge is not None) else None
+    if isinstance(entry, dict):
+        cond = entry.get("condition")
+        target = entry.get("target_raw") or entry.get("target_id6") or entry.get("id6")
+        ttype = entry.get("target_type")
+        req_status = entry.get("required_status")
+        if cond == "state" and ttype and req_status and target:
+            raw = f"state:{ttype}:{req_status}:{target}"
+        elif cond == "exists" and ttype and target:
+            raw = f"exists:{ttype}:{target}"
+        elif cond and target:
+            raw = f"{cond}:{target}"
+        else:
+            return None
+        edge, err = _schema._parse_item_dependency_edge(raw)
+        return edge.canonical() if (not err and edge is not None) else None
+    return None
 
 
-def _extract_item_dependencies(text: str) -> Optional[Tuple[str, ...]]:
+def _extract_item_dependencies(
+    text: str = "", *, state: Any = None
+) -> Optional[Tuple[str, ...]]:
     """The artifact's declared `Item-Dependencies` edges in canonical token form, or None.
 
-    Returns None when the field is ABSENT, and a (possibly empty) tuple when it is present. Reuses
-    `ipd_schema.parse_item_dependencies` so the edge grammar, the `none`/`unresolved` sentinels, the
-    accepted target types (`ipd`/`spec`/`backlog`) and the canonical token spelling all come from the
-    one owning module. A malformed value yields an empty tuple rather than raising: this is a pure
-    READ on a display/ordering path, and the fail-closed contract violation for a bad edge already
-    belongs to `aw check`, which must stay the single authority for that finding. Pure.
+    Reads the cached `item_dependencies` field from `artifact_meta.State` (falling back to
+    `artifact_meta.read_text(text)` when called without a `State`). Returns None when the field
+    is ABSENT, and a (possibly empty) tuple when it is present. Reuses
+    `ipd_schema.parse_item_dependencies` so the edge grammar, sentinels, target types, and
+    canonical token spelling all come from the one owning module. Pure.
     """
-    if "Item-Dependencies:" not in text and "item-dependencies:" not in text:
+    if state is None:
+        if "Item-Dependencies:" not in text and "item-dependencies:" not in text:
+            return None
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text)
+    raw = state.fields.get("item_dependencies")
+    if raw is None:
+        dep_decl = state.fields.get("dependency_declaration")
+        if dep_decl in ("none", "unresolved"):
+            return ()
         return None
-    m = _ITEM_DEPS_RE.search(text)
-    if m is None:
-        return None
-    edges, _ready, err = _schema.parse_item_dependencies(m.group(1))
-    if err:
-        return ()
-    return tuple(e.canonical() for e in edges)
+    if isinstance(raw, str):
+        edges, _ready, err = _schema.parse_item_dependencies(raw)
+        if err:
+            return ()
+        return tuple(e.canonical() for e in edges)
+    if isinstance(raw, (list, tuple)):
+        out = []
+        for entry in raw:
+            tok = _format_structured_dependency(entry)
+            if tok is not None:
+                out.append(tok)
+        return tuple(out)
+    return ()
 
 
 def _plans_id(text: str) -> Optional[str]:
-    # The fast path searches a bounded prefix. At 2048 it TRUNCATED an id whose `- Id:` line
-    # straddled the boundary (measured 2026-09-25: `je74a0` at offset 2039 read as `je7`, `udgilu` at
-    # 2040 as `ud`). Widening the window alone only MOVES that boundary, so the match must also be
-    # followed by a NEWLINE inside the slice: `$` is not enough, because it also matches at the END OF
-    # THE STRING, which is exactly where a cut line ends. A line cut by the slice therefore no longer
-    # matches and falls through to the full scan below.
-    # Interim: front matter is moving to a database, which retires this scan.
-    m = re.search(r"(?m)^-\s*Id:[ \t]*(\S+)[ \t]*\n", text[:4096])
-    if m:
-        return m.group(1).strip()
-    for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("- Id:"):
-            return s[len("- Id:") :].strip()
-    return None
+    """Return the plan's declared `- Id:` value via `artifact_meta.read_text`, or None."""
+    if not text:
+        return None
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type="ipd")
+    return st.id6 or st.loose_id or None
 
 
 _TREE_TO_SCAN_ROOTS: Dict[str, Tuple[str, ...]] = {
@@ -521,10 +616,38 @@ FATAL_STATUS_PARSE_RULES: FrozenSet[str] = frozenset(
 )
 
 
+_TREE_TO_META_TYPE: Dict[str, str] = {
+    "plans": "ipd",
+    "specs": "spec",
+    "backlog": "backlog",
+    "research": "research",
+    "releases": "release",
+    "prompts": "prompt",
+}
+
+
+_ACTIVE_META_CTX: contextvars.ContextVar[Optional[Tuple[Any, Any]]] = (
+    contextvars.ContextVar("_ACTIVE_META_CTX", default=None)
+)
+
+
+def _filename_id6(name: str) -> Optional[str]:
+    """Extract an id6 from an attributed or clustered artifact filename, or None."""
+    m_attr = _naming.parse_attributed(name)
+    if m_attr is not None:
+        return m_attr.id6
+    m = _naming.parse_clustered(name)
+    if m is None:
+        m = _naming.parse_clustered_prefix(name)
+    return m.group("id6") if m else None
+
+
 def scan(
     repo_root: Path, type_filters: Optional[Collection[str]] = None
 ) -> Tuple[List[Item], List[core.Drift]]:
-    """Full deterministic scan of the tracked trees. Returns (items, violations). Pure read."""
+    """Full deterministic scan of the tracked trees via `artifact_meta.query`. Pure read."""
+
+    from agent_workflows import artifact_meta as _meta
 
     items: List[Item] = []
     drift: List[core.Drift] = []
@@ -532,121 +655,187 @@ def scan(
     seen_paths: set = set()
 
     scan_roots = None
+    query_type: Optional[str] = None
     if type_filters:
         collected = []
+        meta_types = []
         for t in type_filters:
             if t in _TREE_TO_SCAN_ROOTS:
                 collected.extend(_TREE_TO_SCAN_ROOTS[t])
             else:
                 collected = None
                 break
+            mt = _TREE_TO_META_TYPE.get(t)
+            if mt:
+                meta_types.append(mt)
         if collected is not None and collected:
             scan_roots = tuple(dict.fromkeys(collected))
+        unique_mt = tuple(dict.fromkeys(meta_types))
+        if len(unique_mt) == 1 and len(type_filters) == 1:
+            query_type = unique_mt[0]
 
-    scan_files = (
-        core.iter_scan_files(repo_root, scan_roots=scan_roots)
-        if scan_roots
-        else core.iter_scan_files(repo_root)
-    )
+    ctx = _meta.legacy_context(repo_root)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
 
-    for f in scan_files:
-        rel = _rel_posix(repo_root, f)
-        # only artifacts under an inventoried tree matter; the four root docs + READMEs are not artifacts
-        pol = _classify_tree(rel)
-        if pol is None:
-            if not A.is_exempt_unclassified(rel):
-                drift.append(
-                    core.Drift(
-                        rel,
-                        "attention.unclassified-tree",
-                        "file under no inventoried tree",
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        q_kwargs: Dict[str, Any] = {"project_context": ctx, "include_fields": True}
+        if query_type is not None:
+            q_kwargs["type"] = query_type
+        qres = _meta.query(**q_kwargs)
+
+        state_by_rel: Dict[str, Any] = {}
+        for st in qres:
+            if not st.path:
+                continue
+            try:
+                abs_p = _meta.source_path(st.path, records_root, scan_repo)
+                st_rel = _rel_posix(repo_root, abs_p)
+            except Exception:
+                continue
+            state_by_rel[st_rel] = st
+
+        incomplete_ids: List[str] = list(getattr(qres, "incomplete", ()) or ())
+        incomplete_set = set(incomplete_ids)
+        handled_incomplete: set = set()
+
+        scan_files = (
+            core.iter_scan_files(repo_root, scan_roots=scan_roots)
+            if scan_roots
+            else core.iter_scan_files(repo_root)
+        )
+
+        for f in scan_files:
+            rel = _rel_posix(repo_root, f)
+            # only artifacts under an inventoried tree matter; the four root docs + READMEs are not artifacts
+            pol = _classify_tree(rel)
+            if pol is None:
+                if not A.is_exempt_unclassified(rel):
+                    drift.append(
+                        core.Drift(
+                            rel,
+                            "attention.unclassified-tree",
+                            "file under no inventoried tree",
+                        )
                     )
-                )
-            continue
-        if not pol.tracked:
-            continue
-        if A.is_nonartifact_name(Path(rel).name):
-            continue
-
-        # IPD mtdxiu E-06 (Set rescomp): companion files belonging to a research document
-        # companion directory (<doc-stem>.data/) are not artifacts and are not tracked by
-        # attention (an orphaned companion is policed by check.research-companion-orphaned).
-        if pol.name == "research":
-            from agent_workflows import research_contract as _rc
-
-            if _rc.companion_owner_stem(f, repo_root) is not None:
+                continue
+            if not pol.tracked:
+                continue
+            if A.is_nonartifact_name(Path(rel).name):
                 continue
 
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            drift.append(core.Drift(rel, "attention.unreadable", "cannot read/decode"))
-            continue
+            # IPD mtdxiu E-06 (Set rescomp): companion files belonging to a research document
+            # companion directory (<doc-stem>.data/) are not artifacts and are not tracked by
+            # attention (an orphaned companion is policed by check.research-companion-orphaned).
+            if pol.name == "research":
+                from agent_workflows import research_contract as _rc
 
-        if rel in seen_paths:
-            drift.append(
-                core.Drift(rel, "attention.duplicate-path", "duplicate normalized path")
-            )
-            continue
-        seen_paths.add(rel)
+                if _rc.companion_owner_stem(f, repo_root) is not None:
+                    continue
 
-        rec, rec_drift = _record_for(pol.name, rel, f, text)
-        drift.extend(rec_drift)
-        if rec is None:
-            if any(d.rule in FATAL_STATUS_PARSE_RULES for d in rec_drift):
-                m = _naming.parse_clustered(f.name)
-                if m is None:
-                    m = _naming.parse_clustered_prefix(f.name)
-                deg_id = m.group("id6") if m else ""
-                # E-03: Assign the existing `blocked` class (A.BLOCKED) and add no new class.
-                # Three reasons:
-                # (1) A new class would edit attention_contract.py (declared by live pending plans
-                #     1qt1u3 and r61br4), break tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes
-                #     plus the ATTENTION_CLASS_ORDER identity assertion beside it, and falsify the
-                #     five-value enum contract in the attention-registry-and-cross-tree-status spec
-                #     (decision 2, G1, Section 6, F1).
-                # (2) `blocked` is semantically right by the spec's Section 6 definition: work is
-                #     intended to continue but a named gate prevents progress - an unparseable artifact
-                #     cannot proceed until a human fixes the status.
-                # (3) /whatnext already surfaces `blocked` items and stops on `valid: false`, so the
-                #     artifact lands in front of a human with no workflow changes.
-                # Gateless `blocked` is safe: the spec's Section 8.4 gate requirement governs artifact
-                # front matter, not synthesized view records, and all gate consumers in attention.py
-                # guard on truthiness (if it.gate) before reading kind/ref, rendering as no gate.
-                items.append(
-                    Item(
-                        id=deg_id,
-                        path=rel,
-                        tree=pol.name,
-                        native_status="-",
-                        attention_class=A.BLOCKED,
-                        gate=None,
-                        last_history_at=None,
-                    )
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                drift.append(
+                    core.Drift(rel, "attention.unreadable", "cannot read/decode")
                 )
-            continue
+                unr_id = _filename_id6(f.name)
+                if unr_id and unr_id in incomplete_set:
+                    handled_incomplete.add(unr_id)
+                continue
 
-        # worksequence i6015i E-07: extract the declared dependency edges HERE, while `text` is still
-        # in hand, so `-o depth` needs no second artifact-reading pass. Applied uniformly to every
-        # tracked type rather than inside the five per-tree `_*_record` builders: the field's grammar is
-        # type-agnostic (`ipd_schema.ITEM_DEP_TYPES` accepts `ipd`/`spec`/`backlog` TARGETS) and one
-        # call site cannot drift from four others.
-        deps = _extract_item_dependencies(text)
-        if deps is not None:
-            rec = rec._replace(item_dependencies=deps)
-
-        if rec.id:
-            if rec.id in seen_ids:
+            if rel in seen_paths:
                 drift.append(
                     core.Drift(
-                        rel,
-                        "attention.duplicate-id",
-                        A.escape_detail(f"id {rec.id} also on {seen_ids[rec.id]}"),
+                        rel, "attention.duplicate-path", "duplicate normalized path"
                     )
                 )
-            else:
-                seen_ids[rec.id] = rel
-        items.append(rec)
+                continue
+            seen_paths.add(rel)
+
+            meta_type = _TREE_TO_META_TYPE.get(pol.name, "ipd")
+            state = state_by_rel.get(rel)
+            if state is None:
+                cand_id = _filename_id6(f.name)
+                if not cand_id:
+                    st_probe = _meta.read_text(text, record_type=meta_type)
+                    cand_id = st_probe.id6 or st_probe.loose_id
+                if cand_id and cand_id in incomplete_set:
+                    handled_incomplete.add(cand_id)
+                    drift.append(
+                        core.Drift(
+                            rel,
+                            "attention.missing-status",
+                            f"incomplete metadata record {cand_id}",
+                        )
+                    )
+                    items.append(
+                        Item(
+                            id=cand_id,
+                            path=rel,
+                            tree=pol.name,
+                            native_status="-",
+                            attention_class=A.BLOCKED,
+                            gate=None,
+                            last_history_at=None,
+                        )
+                    )
+                    continue
+                state = _meta.read_text(text, record_type=meta_type)
+
+            tok = _ACTIVE_META_CTX.set((state, ctx))
+            try:
+                rec, rec_drift = _record_for(pol.name, rel, f, text)
+            finally:
+                _ACTIVE_META_CTX.reset(tok)
+            drift.extend(rec_drift)
+            if rec is None:
+                if any(d.rule in FATAL_STATUS_PARSE_RULES for d in rec_drift):
+                    deg_id = _filename_id6(f.name) or ""
+                    items.append(
+                        Item(
+                            id=deg_id,
+                            path=rel,
+                            tree=pol.name,
+                            native_status="-",
+                            attention_class=A.BLOCKED,
+                            gate=None,
+                            last_history_at=None,
+                        )
+                    )
+                continue
+
+            deps = _extract_item_dependencies(text, state=state)
+            if deps is not None:
+                rec = rec._replace(item_dependencies=deps)
+
+            if rec.id:
+                if rec.id in seen_ids:
+                    drift.append(
+                        core.Drift(
+                            rel,
+                            "attention.duplicate-id",
+                            A.escape_detail(f"id {rec.id} also on {seen_ids[rec.id]}"),
+                        )
+                    )
+                else:
+                    seen_ids[rec.id] = rel
+            items.append(rec)
+
+        # Report any remaining invalid/incomplete records from artifact_meta.query() so an
+        # invalid record is never silently dropped (dqutt8 E-02).
+        for inc_id in incomplete_ids:
+            if inc_id in handled_incomplete:
+                continue
+            log_path = records_root / "meta" / f"{inc_id}.jsonl"
+            loc = _rel_posix(repo_root, log_path) if log_path.exists() else inc_id
+            drift.append(
+                core.Drift(
+                    loc,
+                    "attention.missing-status",
+                    f"incomplete metadata record {inc_id}",
+                )
+            )
 
     # E-04 (IPD 1qt1u3): shallow discovery of uninventoried records trees.
     # When a tree exists on disk but has no entry in SCAN_ROOTS, iter_scan_files never opens it,
@@ -1167,25 +1356,42 @@ def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]
 
 
 def _record_for(
-    tree: str, rel: str, path: Path, text: str
+    tree: str,
+    rel: str,
+    path: Path,
+    text: str,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
+    meta_pair = _ACTIVE_META_CTX.get()
+    state, project_context = meta_pair if meta_pair is not None else (None, None)
     if tree == "specs":
-        return _spec_record(rel, path, text)
+        return _spec_record(
+            rel, path, text, state=state, project_context=project_context
+        )
     if tree == "plans":
-        return _plans_record(rel, path, text)
+        return _plans_record(
+            rel, path, text, state=state, project_context=project_context
+        )
     if tree == "research":
-        return _research_record(rel, path, text)
+        return _research_record(
+            rel, path, text, state=state, project_context=project_context
+        )
     if tree == "backlog":
-        return _backlog_record(rel, path, text)
+        return _backlog_record(
+            rel, path, text, state=state, project_context=project_context
+        )
     if tree == "releases":
-        return _release_record(rel, path, text)
+        return _release_record(
+            rel, path, text, state=state, project_context=project_context
+        )
     if tree == "prompts":
-        return _prompts_record(rel, path, text)
+        return _prompts_record(
+            rel, path, text, state=state, project_context=project_context
+        )
     return None, []
 
 
 def item_for_path(path: Path, repo_root: Optional[Path] = None) -> Optional[Item]:
-    """Build an Item for a single artifact file path."""
+    """Build an Item for a single artifact file path via `artifact_meta`."""
     if repo_root is None:
         try:
             from agent_workflows.project_context import resolve_verb_repo_root
@@ -1201,13 +1407,44 @@ def item_for_path(path: Path, repo_root: Optional[Path] = None) -> Optional[Item
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
-    rec, _ = _record_for(pol.name, rel, path, text)
+
+    from agent_workflows import artifact_meta as _meta
+
+    meta_type = _TREE_TO_META_TYPE.get(pol.name, "ipd")
+    ctx = _meta.legacy_context(repo_root)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+
+    state = None
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        try:
+            qres = _meta.query(type=meta_type, project_context=ctx, include_fields=True)
+            for st in qres:
+                if not st.path:
+                    continue
+                if (
+                    _rel_posix(
+                        repo_root, _meta.source_path(st.path, records_root, scan_repo)
+                    )
+                    == rel
+                ):
+                    state = st
+                    break
+        except Exception:
+            state = None
+        if state is None:
+            state = _meta.read_text(text, record_type=meta_type)
+        tok = _ACTIVE_META_CTX.set((state, ctx))
+        try:
+            rec, _ = _record_for(pol.name, rel, path, text)
+        finally:
+            _ACTIVE_META_CTX.reset(tok)
     if rec is not None:
         if rec.tree == "research":
             reclassed = _reclassify_stale_research(repo_root, [rec])
             if reclassed:
                 rec = reclassed[0]
-        deps = _extract_item_dependencies(text)
+        deps = _extract_item_dependencies(text, state=state)
         if deps is not None:
             rec = rec._replace(item_dependencies=deps)
     return rec
@@ -1221,7 +1458,10 @@ def format_plan_detail_line(
         text = plan_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
-    d_kind, d_text = _extract_detail(text)
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type="ipd")
+    d_kind, d_text = _detail_from_state(st, text)
     if not d_text:
         return None
     safe_text = _safe_detail(d_text)
@@ -1252,10 +1492,14 @@ def _prompt_disposition_from_rel(rel: str) -> str:
 
 
 def _prompts_record(
-    rel: str, path: Path, text: str
+    rel: str,
+    path: Path,
+    text: str,
+    *,
+    state: Any = None,
+    project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
-    """Attention record for a staged prompt (plan dx0u4s). The native status is the disposition
-    directory. The id comes from prompts.read_metadata_id6 (empty string when absent)."""
+    """Attention record for a staged prompt (plan dx0u4s). Reads id and history from `artifact_meta`."""
     drift: List[core.Drift] = []
     disp = _prompt_disposition_from_rel(rel)
     if not disp:
@@ -1277,9 +1521,13 @@ def _prompts_record(
             )
         )
         return None, drift
-    id6 = prompts_mod.read_metadata_id6(text) or ""
-    lha = A.last_history_at(A.history_block(text).records)
-    d_kind, d_text = _extract_detail(text)
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="prompt")
+    id6 = "" if getattr(state, "id_derived", False) else (state.id6 or "")
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    d_kind, d_text = _detail_from_state(state, text)
     oqs, rqs = count_question_stats(text)
     return Item(
         id6,
@@ -1297,15 +1545,27 @@ def _prompts_record(
 
 
 def _release_record(
-    rel: str, path: Path, text: str
+    rel: str,
+    path: Path,
+    text: str,
+    *,
+    state: Any = None,
+    project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
-    """Attention record for a release record (ship-gate anchor, awrelease). Reads `- Status:` +
-    `- Id:` and maps via the releases CLASS_MAP (planned->ready, blocked->blocked, shipped->done)."""
-    import re as _re
+    """Attention record for a release record (ship-gate anchor, awrelease). Reads cached fields via `artifact_meta`."""
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
 
+        state = _meta.read_text(text, record_type="release")
     drift: List[core.Drift] = []
-    ms = _re.search(r"(?m)^- Status:\s*(\S+)\s*$", text)
-    status = ms.group(1) if ms else None
+    raw_status = (
+        state.legacy_raw_status if state.legacy_raw_status is not None else state.status
+    )
+    status = (
+        raw_status.strip()
+        if (raw_status is not None and len(str(raw_status).split()) == 1)
+        else None
+    )
     if status is None:
         drift.append(core.Drift(rel, "attention.missing-status", "no release Status"))
         return None, drift
@@ -1320,12 +1580,12 @@ def _release_record(
             )
         )
         return None, drift
-    mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
-    lha = A.last_history_at(A.history_block(text).records)
-    d_kind, d_text = _extract_detail(text)
+    rid = "" if getattr(state, "id_derived", False) else (state.id6 or "")
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    d_kind, d_text = _detail_from_state(state, text)
     oqs, rqs = count_question_stats(text)
     return Item(
-        mid.group(1) if mid else "",
+        rid,
         rel,
         "releases",
         status,
@@ -1340,30 +1600,45 @@ def _release_record(
 
 
 def _spec_record(
-    rel: str, path: Path, text: str
+    rel: str,
+    path: Path,
+    text: str,
+    *,
+    state: Any = None,
+    project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="spec")
     drift = specs_mod.validate_spec(path, text)
-    lines = text.split("\n")
-    status = specs_mod._read_status(lines)
+    raw_status = (
+        state.legacy_raw_status if state.legacy_raw_status is not None else state.status
+    )
+    status = (
+        str(raw_status).strip()
+        if (raw_status is not None and len(str(raw_status).split()) == 1)
+        else None
+    )
     if status is None or status not in A.SPEC_STATUSES:
         return None, drift  # violations already recorded by validate_spec
-    kind, ref, summary = specs_mod._read_gate(lines)
+    kind = state.fields.get("gate_kind") or None
+    ref = state.fields.get("gate_ref") or None
+    summary = state.fields.get("gate_summary") or None
     gate = None
     if status == "deferred" and kind and ref:
         gate = {"kind": kind, "ref": ref}
         if summary:
             gate["summary"] = summary
-    lha = A.last_history_at(A.history_block(text).records)
-    # awdoctorfix Order 01: read Blocks-Release from the spec's front-matter so the board can surface it.
-    br = specs_mod._read_blocks_release(lines)
-    # xprio rp859c E-03: populate Item.priority from the spec's `- Priority:` line so the board LABELS
-    # a spec's priority via the existing renderer (absent = None = no label). Shared sort key unchanged.
-    pr = specs_mod._read_priority(lines)
-    d_kind, d_text = _extract_detail(text)
-    rd = read_readiness(text)
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    br_val = state.fields.get("blocks_release")
+    br = str(br_val).strip() if br_val not in (None, "") else None
+    pr_val = state.fields.get("priority")
+    pr = str(pr_val).strip().split()[0] if pr_val and str(pr_val).strip() else None
+    d_kind, d_text = _detail_from_state(state, text)
+    rd = _readiness_from_state(state, text)
     oqs, rqs = count_question_stats(text)
-    sid_m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
-    sid = sid_m.group(1) if sid_m else ""
+    sid = "" if getattr(state, "id_derived", False) else (state.id6 or "")
     return Item(
         sid,
         rel,
@@ -1408,10 +1683,27 @@ def _plan_disposition_from_rel(rel: str) -> str:
 
 
 def _plans_record(
-    rel: str, path: Path, text: str
+    rel: str,
+    path: Path,
+    text: str,
+    *,
+    state: Any = None,
+    project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="ipd")
     drift: List[core.Drift] = []
-    status = plans_mod.read_status(path, text=text)
+    raw_status = (
+        state.legacy_raw_status if state.legacy_raw_status is not None else state.status
+    )
+    if raw_status is None:
+        raw_status = getattr(state, "loose_status", None)
+    if raw_status and str(raw_status).strip():
+        status = plans_mod.normalize_status(str(raw_status).strip().split()[0])
+    else:
+        status = None
     if status is None:
         drift.append(core.Drift(rel, "attention.missing-status", "no plan Status"))
         return None, drift
@@ -1424,13 +1716,6 @@ def _plans_record(
             )
         )
         return None, drift
-    # disposition vs terminal-status consistency (spec F3: "disposition-vs-terminal-status
-    # disagreement" fails `--check` closed).
-    #
-    # attcor `rkn8ya` E-05: this check was DEAD under the modern layout. It tested only
-    # `rel.startswith(".agents/plans/")`, so every `.aw/records/plans/<disp>/...` path yielded
-    # `disp = ""` and the rule below could never fire; measured on this tree, all 700+ plans live
-    # under `.aw/records/plans/`, so the rule fired for exactly zero of them.
     disp = _plan_disposition_from_rel(rel)
     if (
         disp in plans_mod.DIR_TERMINAL
@@ -1444,28 +1729,24 @@ def _plans_record(
                 f"dir {disp} vs status {status}",
             )
         )
-    pid = _plans_id(text)
-    lha = A.last_history_at(A.history_block(text).records)
-    # IPD 7mw7m5 E-02: populate Item.blocks_release for a release-blocking plan so it renders with
-    # the `>` glyph / `[blocking]` label like specs/backlog blockers (the release_blockers SET scan
-    # already re-reads the file, so set-membership does not depend on this; display parity does).
-    br = _sel.read_front_matter_blocks_release(text)
-    # xprio 1b45el E-03: populate Item.priority from the plan's `- Priority:` line so the board LABELS
-    # a plan's priority via the existing type-agnostic renderer (absent = None = no label). This does
-    # NOT alter the shared attention sort key (core), which excludes priority for all trees today.
-    pr = None
-    if "Priority:" in text:
-        pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text[:4096])
-        if not pr_m and len(text) > 4096:
-            pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
-        if pr_m:
-            pr = pr_m.group(1)
-    d_kind, d_text = _extract_detail(text)
-    rd = read_readiness(text)
+    pid = (
+        ""
+        if getattr(state, "id_derived", False)
+        else (state.id6 or getattr(state, "loose_id", None) or "")
+    )
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    br_raw = state.fields.get("blocks_release") or getattr(
+        state, "loose_blocks_release", None
+    )
+    br = str(br_raw).strip() if br_raw not in (None, "") else None
+    pr_val = state.fields.get("priority")
+    pr = str(pr_val).strip().split()[0] if pr_val and str(pr_val).strip() else None
+    d_kind, d_text = _detail_from_state(state, text)
+    rd = _readiness_from_state(state, text)
     oqs, rqs = count_question_stats(text)
     exec_prog, valid_prog = _extract_checklist_progress(text)
     return Item(
-        pid or "",
+        pid,
         rel,
         "plans",
         status,
@@ -1485,11 +1766,23 @@ def _plans_record(
 
 
 def _research_record(
-    rel: str, path: Path, text: str
+    rel: str,
+    path: Path,
+    text: str,
+    *,
+    state: Any = None,
+    project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="research")
     drift: List[core.Drift] = []
-    data = research_contract.parse_frontmatter(text)
-    if not data:
+    is_log = bool(
+        getattr(state, "created_at", None) or getattr(state, "updated_at", None)
+    )
+    has_yaml = is_log or (text.startswith("---") and bool(_frontmatter_block(text)))
+    if not has_yaml:
         drift.append(
             core.Drift(
                 rel, "attention.missing-status", "no research frontmatter status"
@@ -1497,8 +1790,10 @@ def _research_record(
         )
         return None, drift
 
-    is_prompt = data.get("kind") == "research-prompt"
-    raw_status = data.get("status")
+    is_prompt = state.fields.get("research_kind") == "research-prompt"
+    raw_status = (
+        state.legacy_raw_status if state.legacy_raw_status is not None else state.status
+    )
 
     if raw_status in (None, ""):
         if is_prompt:
@@ -1514,10 +1809,6 @@ def _research_record(
             )
             return None, drift
     else:
-        # rstodo p3o9je: normalize the RAW frontmatter status to canonical (a legacy `intake` -> `todo`)
-        # BEFORE the STATUSES membership check, native_status storage, and class_of lookup, so an
-        # unmigrated `intake` doc classifies exactly as `todo` (READY, stale-reclass, color) through the
-        # migration window and never raises attention.unknown-status.
         raw_status_str = str(raw_status)
         norm = research_contract.normalize_status(raw_status_str)
         if not norm.ok:
@@ -1532,21 +1823,14 @@ def _research_record(
         status = norm.value or raw_status_str
         cls = A.class_of("research", status)
 
-    rid = str(data.get("id", "")) if data.get("id") else ""
-    lha = A.last_history_at(A.history_block(text).records)
-    # xprio 6vgd0k E-04: populate Item.priority from the doc's `priority:` frontmatter key so the
-    # board LABELS a research doc's priority via the existing renderer (absent = None = no label).
-    # Shared sort key unchanged.
-    pr_val = data.get("priority")
-    pr = str(pr_val) if pr_val not in (None, "") else None
-    br_val = (
-        data.get("blocks-release")
-        or data.get("blocks_release")
-        or data.get("Blocks-Release")
-    )
+    rid = "" if getattr(state, "id_derived", False) else (state.id6 or "")
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    pr_val = state.fields.get("priority")
+    pr = str(pr_val).strip() if pr_val not in (None, "") else None
+    br_val = state.fields.get("blocks_release")
     br = str(br_val).strip() if br_val not in (None, "") else None
-    d_kind, d_text = _extract_detail(text)
-    rd = read_readiness(text)
+    d_kind, d_text = _detail_from_state(state, text)
+    rd = _readiness_from_state(state, text)
     oqs, rqs = count_question_stats(text)
     return Item(
         rid,
@@ -1567,16 +1851,30 @@ def _research_record(
 
 
 def _backlog_record(
-    rel: str, path: Path, text: str
+    rel: str,
+    path: Path,
+    text: str,
+    *,
+    state: Any = None,
+    project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
-    """Attention record for a backlog item. A `blocked` item carries its typed gate so the board
-    renders `[gate kind: ref]` and the JSON includes it (IPD crv40v PR-002)."""
+    """Attention record for a backlog item. Reads cached fields via `artifact_meta`."""
 
     from agent_workflows import backlog as backlog_mod
 
+    if state is None:
+        from agent_workflows import artifact_meta as _meta
+
+        state = _meta.read_text(text, record_type="backlog")
     drift: List[core.Drift] = []
-    item = backlog_mod.parse_item(text)
-    status = item.status
+    raw_status = (
+        state.legacy_raw_status if state.legacy_raw_status is not None else state.status
+    )
+    status = (
+        str(raw_status).strip()
+        if (raw_status is not None and len(str(raw_status).split()) == 1)
+        else None
+    )
     if status is None:
         drift.append(core.Drift(rel, "attention.missing-status", "no backlog Status"))
         return None, drift
@@ -1590,22 +1888,29 @@ def _backlog_record(
         )
         return None, drift
     gate = None
-    if status == "blocked" and item.gate_kind and item.gate_ref:
-        gate = {"kind": item.gate_kind, "ref": item.gate_ref}
-    lha = A.last_history_at(A.history_block(text).records)
-    d_kind, d_text = _extract_detail(text)
-    rd = read_readiness(text)
+    g_kind = state.fields.get("gate_kind") or None
+    g_ref = state.fields.get("gate_ref") or None
+    if status == "blocked" and g_kind and g_ref:
+        gate = {"kind": g_kind, "ref": g_ref}
+    lha = _last_history_at_for_state(state, project_context=project_context)
+    d_kind, d_text = _detail_from_state(state, text)
+    rd = _readiness_from_state(state, text)
     oqs, rqs = count_question_stats(text)
+    bid = "" if getattr(state, "id_derived", False) else (state.id6 or "")
+    pr_val = state.fields.get("priority")
+    pr = str(pr_val).strip() if pr_val not in (None, "") else None
+    br_val = state.fields.get("blocks_release")
+    br = str(br_val).strip() if br_val not in (None, "") else None
     return Item(
-        item.id or "",
+        bid,
         rel,
         "backlog",
         status,
         A.class_of("backlog", status),
         gate,
         lha,
-        priority=item.priority,
-        blocks_release=item.blocks_release,
+        priority=pr,
+        blocks_release=br,
         detail_kind=d_kind,
         detail_text=d_text,
         readiness=rd,

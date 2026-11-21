@@ -40,7 +40,17 @@ violation); NEVER file mtime.
 from __future__ import annotations
 
 import re
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from agent_workflows import lifecycle_dirs as _LD
 
@@ -958,9 +968,12 @@ def newest_history_record(history_lines: List[str]) -> Optional[str]:
     return None
 
 
-def last_history_at(history_lines: List[str]) -> Optional[str]:
-    """Derive ``last_history_at`` from parsed ``## Workflow history`` lines: the date of the NEWEST
-    record, or ``None`` when there is no record. Never uses file mtime (Section 8.5).
+def last_history_at(
+    history_lines: Sequence[Union[str, Dict[str, Any]]],
+) -> Optional[str]:
+    """Derive ``last_history_at`` from parsed ``## Workflow history`` lines or ``artifact_meta.history``
+    event dicts: the date of the NEWEST record, or ``None`` when there is no record. Never uses file
+    mtime (Section 8.5).
 
     The NAME is historical and is kept because it is the published field name in
     ``aw attention --format json`` and in the spec's Section 8.5; it means "the date this artifact was
@@ -969,7 +982,34 @@ def last_history_at(history_lines: List[str]) -> Optional[str]:
     about the answer.
     """
 
-    newest = newest_history_record(history_lines)
+    if not history_lines:
+        return None
+    if isinstance(history_lines[0], dict):
+        str_lines = [
+            ev["line"]
+            for ev in history_lines
+            if isinstance(ev, dict) and isinstance(ev.get("line"), str) and ev["line"]
+        ]
+        if str_lines:
+            newest = newest_history_record(str_lines)
+            if newest is None:
+                return None
+            m = HISTORY_RECORD_RE.match(newest)
+            return m.group("date") if m else None
+        # Log-format events without legacy line records: newest event date (seq ASC -> last event).
+        for ev in reversed(history_lines):
+            if not isinstance(ev, dict):
+                continue
+            obs = ev.get("observed_day")
+            if isinstance(obs, str) and _DATE_RE.match(obs.strip()):
+                return obs.strip()
+            at_val = ev.get("at")
+            if isinstance(at_val, str) and len(at_val) >= 10:
+                day = at_val[:10]
+                if _DATE_RE.match(day):
+                    return day
+        return None
+    newest = newest_history_record(list(history_lines))  # type: ignore[arg-type]
     if newest is None:
         return None
     m = HISTORY_RECORD_RE.match(newest)
