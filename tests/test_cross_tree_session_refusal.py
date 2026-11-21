@@ -35,6 +35,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import oc_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class CrossTreeSessionRefusalTests(unittest.TestCase):
@@ -188,7 +189,9 @@ class CrossTreeSessionRefusalTests(unittest.TestCase):
             }
 
             plan_path = root / "plan.ipd.md"
-            plan_path.write_text("- Id: rev001\n", encoding="utf-8")
+            plan_path.write_text(
+                RecordBuilder().plan(id6="rev001", text_only=True), encoding="utf-8"
+            )
             prompt_path = root / "prompt.txt"
             prompt_path.write_text("test review prompt\n", encoding="utf-8")
 

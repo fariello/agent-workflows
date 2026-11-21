@@ -19,6 +19,7 @@ from agent_workflows import check_engine
 from agent_workflows import cli
 from agent_workflows import doctor
 from agent_workflows import engine, versioning
+from tests.record_builder import RecordBuilder
 
 
 def _git(root, *args):
@@ -108,7 +109,8 @@ class DoctorTests(unittest.TestCase):
         pdir = self.root / ".aw" / "records" / "plans" / "executed"
         pdir.mkdir(parents=True)
         (pdir / "bad-plan-name.md").write_text(
-            "# Plan\n- Id: ppp111\n- Status: executed\n", encoding="utf-8"
+            RecordBuilder().plan(id6="ppp111", status="executed", text_only=True),
+            encoding="utf-8",
         )
         _git(self.root, "add", "-A")
         _git(self.root, "commit", "-qm", "add executed plan")
@@ -163,7 +165,11 @@ class DoctorTests(unittest.TestCase):
         bdir = self.root / ".aw" / "records" / "backlog" / "open"
         bdir.mkdir(parents=True, exist_ok=True)
         (bdir / "bad-backlog.backlog.md").write_text(
-            "# Title\n- Id: bk1\n- Summary: multi\nline\n- Status: open\n",
+            RecordBuilder().backlog(
+                status="open",
+                raw_fields={"Id": "bk1", "Summary": "multi\nline"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         _git(self.root, "add", "-A")
