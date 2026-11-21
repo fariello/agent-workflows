@@ -693,13 +693,18 @@ def test_apply_streams_ops_progress_and_compacts_journal_saves(
         tmp_path, monkeypatch, name="compact_saves", extra_plans=5
     )
     orig_save = layout_migration.MigrationManager._save_transaction
+    save_calls = 0
+
+    def _spy_save(self, *args, **kwargs):
+        nonlocal save_calls
+        save_calls += 1
+        return orig_save(self, *args, **kwargs)
 
     with unittest.mock.patch.object(
         layout_migration.MigrationManager,
         "_save_transaction",
-        autospec=True,
-        wraps=orig_save,
-    ) as mock_save:
+        _spy_save,
+    ):
         result = m0001_metadata_v2.run(repo, apply=True, commit=False)
 
     assert result["status"] == "applied"
@@ -707,7 +712,7 @@ def test_apply_streams_ops_progress_and_compacts_journal_saves(
     journal = json.loads((journal_dir / "journal.json").read_text(encoding="utf-8"))
     op_ids = [op["op_id"] for op in journal["operations"]]
     assert len(op_ids) >= 10
-    assert mock_save.call_count < len(op_ids)
+    assert save_calls < len(op_ids)
     assert journal["status"] == "applied"
     applied_ids = {entry["op_id"] for entry in journal["applied_files"]}
     backup_ids = {entry["op_id"] for entry in journal["backups"]}
