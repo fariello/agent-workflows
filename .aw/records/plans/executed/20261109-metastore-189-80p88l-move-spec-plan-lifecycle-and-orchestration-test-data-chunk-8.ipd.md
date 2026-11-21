@@ -6,7 +6,7 @@
 - Scope: Chunk 8 of 10 of `7qxey9` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 7 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `7qxey9`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_question_preflight.py, tests/test_question_resume.py, tests/test_question_visibility.py, tests/test_scope_drift_lane_resolution.py, tests/test_scope_match.py, tests/test_scope_paths_status_agnostic.py, tests/test_scope_path_target_stale.py, .aw/records/plans/pending/20261109-metastore-189-80p88l-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-8.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 80p88l
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: 80p88l verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-09 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from 7qxey9 (round 3, research nj8zdp guidance).
@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 4 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_question_preflight.py`, `tests/test_question_resume.py`, `tests/test_question_visibility.py`, `tests/test_scope_drift_lane_resolution.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_question_preflight` 16, `test_question_resume` 9, `test_question_visibility` 10, `test_scope_drift_lane_resolution` 4. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-80p88l-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-01 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 4 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_question_preflight.py`, `tests/test_question_resume.py`, `tests/test_question_visibility.py`, `tests/test_scope_drift_lane_resolution.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_question_preflight` 16, `test_question_resume` 9, `test_question_visibility` 10, `test_scope_drift_lane_resolution` 4. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-80p88l-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G4b-80p88l-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 3 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_scope_match.py`, `tests/test_scope_paths_status_agnostic.py`, `tests/test_scope_path_target_stale.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_scope_match` 13, `test_scope_paths_status_agnostic` 8, `test_scope_path_target_stale` 50. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-80p88l-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 3 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_scope_match.py`, `tests/test_scope_paths_status_agnostic.py`, `tests/test_scope_path_target_stale.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_scope_match` 13, `test_scope_paths_status_agnostic` 8, `test_scope_path_target_stale` 50. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-80p88l-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G4b-80p88l-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G4b-80p88l-1-files.txt .aw/state/59aiyh/G4b-80p88l-2-files.txt)`) into `.aw/state/59aiyh/80p88l-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 80p88l -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G4b-80p88l-1-files.txt .aw/state/59aiyh/G4b-80p88l-2-files.txt)`) into `.aw/state/59aiyh/80p88l-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 80p88l -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,20 +153,85 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G4b-80p88l-1-files.txt` and the empty `diff .aw/state/59aiyh/G4b-80p88l-1-before.txt .aw/state/59aiyh/G4b-80p88l-1-after.txt`; then, for each of `tests/test_question_preflight.py`, `tests/test_question_resume.py`, `tests/test_question_visibility.py`, `tests/test_scope_drift_lane_resolution.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G4b-80p88l-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G4b-80p88l-1-files.txt`:
+      - `tests/test_question_preflight.py`
+      - `tests/test_question_resume.py`
+      - `tests/test_question_visibility.py`
+      - `tests/test_scope_drift_lane_resolution.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G4b-80p88l-1-before.txt .aw/state/59aiyh/G4b-80p88l-1-after.txt`): empty output, exit code 0 (46 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_question_preflight.py`:
+        - F-01 `rg -c`: before 16, after 8. Remaining matches (8): line 120 (`f"- Status: {oq_status}\n"`, `body prose`: N3 open-question row in `_create_plan_with_oqs`, passed inside `RecordBuilder().plan(..., body=...)`) and 7 `setter-byte assertion` lines (lines 359 `assert "- Status: resolved" in text`, 392 `assert "- Status: open" in text`, 432 `assert "- Status: resolved" in text`, 487 `assert "- Status: resolved" in text`, 524 `assert "- Status: resolved" in text`, 575 `assert "- Status: resolved" in text`, 800 `assert "- Status: resolved" in p1_text`).
+        - Codemod JSON row: `sites=9`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=8` (`setter-byte assertion=7` `legacy-kept=7`, `body prose=1` `legacy-kept=1`, `hand=0`), `before_hash=8aad2f32089b5b10fd6e69a48b7ca0fc0701dc1eb55196c4e2fe6c77af313391`, `after_hash=8aad2f32089b5b10fd6e69a48b7ca0fc0701dc1eb55196c4e2fe6c77af313391`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 9 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 1 | 0 | 8`.
+      - `tests/test_question_resume.py`:
+        - F-01 `rg -c`: before 9, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=3`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=2` (`unsupported-shape=2` `hand=2`, `legacy-kept=0`), `before_hash=103542c8dd804230e16836c6aedddc5e4098d06b1002eb124fa4111b916ecdb7`, `after_hash=103542c8dd804230e16836c6aedddc5e4098d06b1002eb124fa4111b916ecdb7`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 3 | 1 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | 0`.
+      - `tests/test_question_visibility.py`:
+        - F-01 `rg -c`: before 10, after 1. Remaining matches (1): line 525 (`self.assertIn("- Status: approved", current_content)`, `setter-byte assertion`).
+        - Codemod JSON row: `sites=2`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=1` (`setter-byte assertion=1` `legacy-kept=1`, `hand=0`), `before_hash=c13620de496b9471ad9ef0742a82f978844f1f7144cd4b2080849c1d8d1a90f7`, `after_hash=c13620de496b9471ad9ef0742a82f978844f1f7144cd4b2080849c1d8d1a90f7`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 1`.
+      - `tests/test_scope_drift_lane_resolution.py`:
+        - F-01 `rg -c`: before 4, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=3168506870707d061a61ea92b7ebed243e359848aa59cf9f722f11cdb2d2d201`, `after_hash=3168506870707d061a61ea92b7ebed243e359848aa59cf9f722f11cdb2d2d201`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 2 (2 static + 0 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_question_resume.py` pre-edit line 124 (`unsupported-shape`, `content += f"- Item-Dependencies: {dep_str}\n"` inside `_create_plan_file`).
+      2. `tests/test_question_resume.py` pre-edit lines 125-130 (`unsupported-shape`, `content += """- Scope-Paths: README.md\n\n## Detailed Implementation Checklist (TODO)\n..."""` inside `_create_plan_file`).
+      Both folded into one `RecordBuilder().plan(..., item_dependencies=dep_str, scope_paths="README.md", body=..., text_only=True)` call in `_create_plan_file`.
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (0): none.
+      - After (0): none.
+      - Deleted helpers (0): none. Surviving E-09 helpers (0): none. (Existing `_create_plan_with_oqs`, `_create_plan_file`, and `_create_plan_and_receipt` do not match the E-09 pattern and now delegate to `RecordBuilder`.)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G4b-80p88l-2-files.txt` and the empty `diff .aw/state/59aiyh/G4b-80p88l-2-before.txt .aw/state/59aiyh/G4b-80p88l-2-after.txt`; then, for each of `tests/test_scope_match.py`, `tests/test_scope_paths_status_agnostic.py`, `tests/test_scope_path_target_stale.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G4b-80p88l-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G4b-80p88l-2-files.txt`:
+      - `tests/test_scope_match.py`
+      - `tests/test_scope_paths_status_agnostic.py`
+      - `tests/test_scope_path_target_stale.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G4b-80p88l-2-before.txt .aw/state/59aiyh/G4b-80p88l-2-after.txt`): empty output, exit code 0 (37 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_scope_match.py`:
+        - F-01 `rg -c`: before 13, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=931008d2e18f3fce9610032127bb498628a0cc1b99eda5b24508d8666bf20075`, `after_hash=931008d2e18f3fce9610032127bb498628a0cc1b99eda5b24508d8666bf20075`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_scope_paths_status_agnostic.py`:
+        - F-01 `rg -c`: before 8, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=8`, `rewrites=8` (`standard=8`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=a095bc28d14ad9f3a6a198d98c19627fbe6d290427fa4bf79fb1bd4a55c454b0`, `after_hash=a095bc28d14ad9f3a6a198d98c19627fbe6d290427fa4bf79fb1bd4a55c454b0`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_scope_path_target_stale.py`:
+        - F-01 `rg -c`: before 50, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=50`, `rewrites=36` (`standard=36`, `invalid-input=0`), `refusals=14` (`unsupported-shape=14` `hand=14`, `legacy-kept=0`), `before_hash=2b651fc5c891bc8803dfa38ea31eb01d237df95e7eb0a85f5fda442cc0304dfc`, `after_hash=2b651fc5c891bc8803dfa38ea31eb01d237df95e7eb0a85f5fda442cc0304dfc`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 80p88l | 50 | 36 | 0 | 0 | 14 | 0 | 0 | 0 | 0 | 0 | 14 | 0`.
+    - Hand count: 14 (14 static + 0 apply-time `not-equivalent`; <= 25). Every hand-converted site (14 `unsupported-shape` string literals across 7 `.replace("- Scope-Paths: src/", ...)` calls in `tests/test_scope_path_target_stale.py`, each pair replaced by `_set_plan_scope_paths(repo, id6, ...)` delegating to `RecordBuilder(repo).plan(...)`):
+      1. `tests/test_scope_path_target_stale.py` pre-edit line 237 cols 16-37 and 39-73 (2 `unsupported-shape` sites in `test_10_dispatch_oc_host_refusal_moved_terminal`).
+      2. `tests/test_scope_path_target_stale.py` pre-edit line 306 cols 16-37 and 39-73 (2 `unsupported-shape` sites in `test_11_dispatch_agy_host_refusal_moved_terminal`).
+      3. `tests/test_scope_path_target_stale.py` pre-edit line 382 cols 16-37 and 39-73 (2 `unsupported-shape` sites in `test_12_dispatch_two_item_queue_run_queue`).
+      4. `tests/test_scope_path_target_stale.py` pre-edit line 497 cols 16-37 and 39-73 (2 `unsupported-shape` sites in `test_13_dispatch_new_code_file_not_refused`).
+      5. `tests/test_scope_path_target_stale.py` pre-edit line 556 cols 16-37 and 39-73 (2 `unsupported-shape` sites in `test_14_dispatch_moved_negative_reaches_launcher_and_check_reports`).
+      6. `tests/test_scope_path_target_stale.py` pre-edit line 642 cols 16-37 and 39-73 (2 `unsupported-shape` sites in `test_16_dispatch_no_orphan_prompt_on_refusal`).
+      7. `tests/test_scope_path_target_stale.py` pre-edit line 936 cols 16-37 and 39-79 (2 `unsupported-shape` sites in `DeclaredMovePairTests.test_dispatch_runs_a_plan_declaring_a_move_pair`).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (0): none.
+      - After (0): none.
+      - Deleted helpers (0): none. Surviving E-09 helpers (0): none. (Helper `_set_plan_scope_paths` in `tests/test_scope_path_target_stale.py` delegates to `RecordBuilder(repo).plan(...)` and does not match the E-09 pattern.)
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G4b-80p88l-1`, `G4b-80p88l-2` against `.aw/state/59aiyh/80p88l-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 80p88l` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G4b-80p88l-1-before.txt .aw/state/59aiyh/G4b-80p88l-2-before.txt) .aw/state/59aiyh/80p88l-union-after.txt`): empty output, exit code 0 (83 `PASSED` outcomes across all 7 modules).
+    - Core gate (`aw suite`, running bare core `python3 -m pytest` with bounded xdist workers): `2653 passed, 11 warnings in 95.83s (0:01:35)`, exit code 0 (0 failures; `CORE TIER BUDGET EXCEEDED` warning only because host 1-minute load average was 5.88 on 12 CPUs and `AW_CORE_BUDGET_ENFORCE=0`; none of `80p88l`'s 7 modules appeared in the top-10 slowest or slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6860,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 80p88l` (7 modified test Scope-Paths): `aw commit: committed 7 path(s): 59b6e91ef1147cc361c308cf0eff79300d1c85bc` (`tests/test_question_preflight.py`, `tests/test_question_resume.py`, `tests/test_question_visibility.py`, `tests/test_scope_drift_lane_resolution.py`, `tests/test_scope_match.py`, `tests/test_scope_paths_status_agnostic.py`, `tests/test_scope_path_target_stale.py`). Followed by the plan-evidence commit via `aw commit 80p88l -- .aw/records/plans/pending/20261109-metastore-189-80p88l-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-8.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 

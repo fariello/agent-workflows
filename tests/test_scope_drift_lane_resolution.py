@@ -19,6 +19,7 @@ from unittest import mock
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine as _ce
 from agent_workflows import worktree_lease as _lease
+from tests.record_builder import RecordBuilder
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -59,13 +60,13 @@ def _create_plan_and_receipt(
     plan_file = plans_dir / f"20261001-fkmjoy-01-{plan_id}-test-plan.ipd.md"
     scope_decl = ", ".join(scope_paths) if scope_paths else "allowed.txt"
     plan_file.write_text(
-        f"""# Plan: Test Plan
-
-- Id: {plan_id}
-- Set: fkmjoy
-- Scope-Paths: {scope_decl}
-- Status: approved
-""",
+        RecordBuilder().plan(
+            id6=plan_id,
+            set="fkmjoy",
+            scope_paths=scope_decl,
+            status="approved",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

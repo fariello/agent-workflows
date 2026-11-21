@@ -56,6 +56,7 @@ from agent_workflows import (
 )
 from tests import support
 from tests.support import coordinator_role
+from tests.record_builder import RecordBuilder
 
 
 def _create_test_repo(root: Path) -> Path:
@@ -109,25 +110,28 @@ def _create_plan_file(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / f"20261017-{setid}-{order:02d}-{id6}-plan.ipd.md"
 
-    content = f"""# IPD: Test Plan {id6}
-
-- Kind: child
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Id: {id6}
-- Priority: {priority}
-- Work-Kind: {work_kind}
-"""
-    if dependencies:
-        dep_str = ", ".join(dependencies)
-        content += f"- Item-Dependencies: {dep_str}\n"
-    content += """- Scope-Paths: README.md
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Perform task
-- [ ] V-01 Verify task
-"""
+    dep_str = ", ".join(dependencies) if dependencies else "none"
+    content = str(
+        RecordBuilder().plan(
+            title=f"Test Plan {id6}",
+            when="2026-10-17",
+            plan_role="child",
+            status=status,
+            set=setid,
+            order=order,
+            id6=id6,
+            priority=priority,
+            work_kind=work_kind,
+            item_dependencies=dep_str,
+            scope_paths="README.md",
+            body=(
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 Perform task\n"
+                "- [ ] V-01 Verify task"
+            ),
+            text_only=True,
+        )
+    )
     plan_path.write_text(content, encoding="utf-8")
     if commit:
         subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)

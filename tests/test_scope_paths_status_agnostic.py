@@ -12,6 +12,7 @@ from pathlib import Path
 from agent_workflows import check_engine, ipd_lifecycle, ipd_schema
 from tests import support
 from tests.test_oc_runipd import _CONFORMING_PLAN
+from tests.record_builder import RecordBuilder
 
 
 class ScopePathsStatusAgnosticTests(unittest.TestCase):
@@ -92,14 +93,18 @@ class ScopePathsStatusAgnosticTests(unittest.TestCase):
             graduated_dir.mkdir(parents=True)
             target = graduated_dir / "20261002-scoperewrite-01-ho7qjb-x.backlog.md"
             target.write_text(
-                "# Backlog: Target\n- Status: graduated\n- Id: ho7qjb\n",
+                RecordBuilder().backlog(
+                    status="graduated", id6="ho7qjb", text_only=True
+                ),
                 encoding="utf-8",
             )
 
             lit_path = (
                 ".aw/records/backlog/open/20261002-scoperewrite-01-ho7qjb-x.backlog.md"
             )
-            lit_plan = f"# IPD: Subj\n- Status: approved\n- Scope-Paths: {lit_path}\n"
+            lit_plan = RecordBuilder().plan(
+                title="Subj", status="approved", scope_paths=lit_path, text_only=True
+            )
             res_lit = check_engine.stale_record_scope_paths(repo, lit_plan)
             self.assertEqual(len(res_lit), 1)
             self.assertEqual(res_lit[0].path, lit_path)
@@ -112,7 +117,9 @@ class ScopePathsStatusAgnosticTests(unittest.TestCase):
             glob_path = (
                 ".aw/records/backlog/**/20261002-scoperewrite-01-ho7qjb-x.backlog.md"
             )
-            glob_plan = f"# IPD: Subj\n- Status: approved\n- Scope-Paths: {glob_path}\n"
+            glob_plan = RecordBuilder().plan(
+                title="Subj", status="approved", scope_paths=glob_path, text_only=True
+            )
             res_glob = check_engine.stale_record_scope_paths(repo, glob_plan)
             self.assertEqual(res_glob, [])
 
@@ -125,8 +132,11 @@ class ScopePathsStatusAgnosticTests(unittest.TestCase):
             nonexistent_glob = (
                 ".aw/records/backlog/**/20261002-nonexistent-01-notfound.backlog.md"
             )
-            glob_plan = (
-                f"# IPD: Subj\n- Status: approved\n- Scope-Paths: {nonexistent_glob}\n"
+            glob_plan = RecordBuilder().plan(
+                title="Subj",
+                status="approved",
+                scope_paths=nonexistent_glob,
+                text_only=True,
             )
             res_glob = check_engine.stale_record_scope_paths(repo, glob_plan)
             self.assertEqual(res_glob, [])
@@ -135,8 +145,11 @@ class ScopePathsStatusAgnosticTests(unittest.TestCase):
             nonexistent_lit = (
                 ".aw/records/backlog/open/20261002-nonexistent-01-notfound.backlog.md"
             )
-            lit_plan = (
-                f"# IPD: Subj\n- Status: approved\n- Scope-Paths: {nonexistent_lit}\n"
+            lit_plan = RecordBuilder().plan(
+                title="Subj",
+                status="approved",
+                scope_paths=nonexistent_lit,
+                text_only=True,
             )
             res_lit = check_engine.stale_record_scope_paths(repo, lit_plan)
             self.assertEqual(len(res_lit), 1)
@@ -184,14 +197,16 @@ class ScopePathsStatusAgnosticTests(unittest.TestCase):
             done_dir.mkdir(parents=True)
             target = done_dir / "20261002-scoperewrite-01-ho7qjb-x.backlog.md"
             target.write_text(
-                "# Backlog: Target\n- Status: done\n- Id: ho7qjb\n",
+                RecordBuilder().backlog(status="done", id6="ho7qjb", text_only=True),
                 encoding="utf-8",
             )
 
             lit_path = (
                 ".aw/records/backlog/open/20261002-scoperewrite-01-ho7qjb-x.backlog.md"
             )
-            lit_plan = f"# IPD: Subj\n- Status: approved\n- Scope-Paths: {lit_path}\n"
+            lit_plan = RecordBuilder().plan(
+                title="Subj", status="approved", scope_paths=lit_path, text_only=True
+            )
             res_lit = check_engine.stale_record_scope_paths(repo, lit_plan)
             self.assertEqual(len(res_lit), 1)
             self.assertEqual(res_lit[0].path, lit_path)
@@ -206,7 +221,9 @@ class ScopePathsStatusAgnosticTests(unittest.TestCase):
             glob_path = (
                 ".aw/records/backlog/**/20261002-scoperewrite-01-ho7qjb-x.backlog.md"
             )
-            glob_plan = f"# IPD: Subj\n- Status: approved\n- Scope-Paths: {glob_path}\n"
+            glob_plan = RecordBuilder().plan(
+                title="Subj", status="approved", scope_paths=glob_path, text_only=True
+            )
             res_glob = check_engine.stale_record_scope_paths(repo, glob_plan)
             self.assertEqual(res_glob, [])
 
