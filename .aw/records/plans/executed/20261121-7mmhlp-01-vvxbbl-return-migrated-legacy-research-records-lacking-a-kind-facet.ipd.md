@@ -6,7 +6,7 @@
 - Scope: Update the `artifact_type == "research"` branch of `agent_workflows/cli.py::_find_type_records` to look up `st = state_by_path.get(p.resolve())` before dropping on `parsed is None`, falling back to `agent_workflows/artifact_meta.py::State` (`st.id6`, `st.set_id`, `st.order_nn`, and `st.status` when `st.legacy_raw_status` is `None`) when `st is not None and not st.id_derived`, while still skipping unmigrated id-less research files where `st is None or st.id_derived` (or `parsed is None and not st.id6`). Add behavioral regression tests in `tests/test_find_filters.py` (using an isolated temporary repository) verifying `aw find <minted_id6> --agent` and `aw find research --agent` return a migrated legacy research record lacking a kind facet while still skipping an unmigrated id-less research file. EXCLUDES: changing `agent_workflows/migrations/m0001_renames.py` filename rules and status-less research conversion (`fnabjy` / `s4utmv`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_find_filters.py, .aw/records/plans/pending/20261121-7mmhlp-01-vvxbbl-return-migrated-legacy-research-records-lacking-a-kind-facet.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Fall back to artifact_meta state in cli._find_type_records when research_contract.parse_name returns None for a migrated research record with a non-derived id6.
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: vvxbbl verified (set 7mmhlp, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-7mmhlp-01-vvxbbl-return-migrated-legacy-research-records-lacking-a-kind-facet.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 7mmhlp
