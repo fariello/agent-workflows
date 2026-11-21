@@ -48,22 +48,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `x05v02` E-04, batch subset G2b; round-3 split 2026-11-09) Batch G2b, 4 of its 15 modules (the other check, production, decision-ref, citation, severity and suppression tests (`test_check*` except `test_check_engine*`, `test_production*`, `test_decision_ref*`, `test_source_citation*`, `test_severity*`, `test_suppress*`, `test_from_spec*`)): `tests/test_check_ci_local_parity.py`, `tests/test_check_finding_path_relativity.py`, `tests/test_check_recovery_fidelity.py`, `tests/test_check_severity_tally.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_check_ci_local_parity` 10, `test_check_finding_path_relativity` 63, `test_check_recovery_fidelity` 15, `test_check_severity_tally` 8. Run the codemod on these modules and apply the batch rule with `<batch>` = `G2b-zl2pki-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_check_ci_local_parity.py`: `_seed_plans`, `_seed_releases`, `_seed_backlog`, `_seed_release_gates`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `x05v02` E-04, batch subset G2b; round-3 split 2026-11-09) Batch G2b, 4 of its 15 modules (the other check, production, decision-ref, citation, severity and suppression tests (`test_check*` except `test_check_engine*`, `test_production*`, `test_decision_ref*`, `test_source_citation*`, `test_severity*`, `test_suppress*`, `test_from_spec*`)): `tests/test_check_ci_local_parity.py`, `tests/test_check_finding_path_relativity.py`, `tests/test_check_recovery_fidelity.py`, `tests/test_check_severity_tally.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_check_ci_local_parity` 10, `test_check_finding_path_relativity` 63, `test_check_recovery_fidelity` 15, `test_check_severity_tally` 8. Run the codemod on these modules and apply the batch rule with `<batch>` = `G2b-zl2pki-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_check_ci_local_parity.py`: `_seed_plans`, `_seed_releases`, `_seed_backlog`, `_seed_release_gates`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G2b-zl2pki-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `x05v02` E-04, batch subset G2b; round-3 split 2026-11-09) Batch G2b, 3 of its 15 modules (the other check, production, decision-ref, citation, severity and suppression tests (`test_check*` except `test_check_engine*`, `test_production*`, `test_decision_ref*`, `test_source_citation*`, `test_severity*`, `test_suppress*`, `test_from_spec*`)): `tests/test_decision_ref_resolution.py`, `tests/test_production_baseline_same_commit.py`, `tests/test_production_checks_trace.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_decision_ref_resolution` 45, `test_production_baseline_same_commit` 2, `test_production_checks_trace` 66. Run the codemod on these modules and apply the batch rule with `<batch>` = `G2b-zl2pki-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `x05v02` E-04, batch subset G2b; round-3 split 2026-11-09) Batch G2b, 3 of its 15 modules (the other check, production, decision-ref, citation, severity and suppression tests (`test_check*` except `test_check_engine*`, `test_production*`, `test_decision_ref*`, `test_source_citation*`, `test_severity*`, `test_suppress*`, `test_from_spec*`)): `tests/test_decision_ref_resolution.py`, `tests/test_production_baseline_same_commit.py`, `tests/test_production_checks_trace.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_decision_ref_resolution` 45, `test_production_baseline_same_commit` 2, `test_production_checks_trace` 66. Run the codemod on these modules and apply the batch rule with `<batch>` = `G2b-zl2pki-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G2b-zl2pki-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G2b-zl2pki-1-files.txt .aw/state/59aiyh/G2b-zl2pki-2-files.txt)`) into `.aw/state/59aiyh/zl2pki-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit zl2pki -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G2b-zl2pki-1-files.txt .aw/state/59aiyh/G2b-zl2pki-2-files.txt)`) into `.aw/state/59aiyh/zl2pki-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit zl2pki -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -151,20 +151,87 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G2b-zl2pki-1-files.txt` and the empty `diff .aw/state/59aiyh/G2b-zl2pki-1-before.txt .aw/state/59aiyh/G2b-zl2pki-1-after.txt`; then, for each of `tests/test_check_ci_local_parity.py`, `tests/test_check_finding_path_relativity.py`, `tests/test_check_recovery_fidelity.py`, `tests/test_check_severity_tally.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G2b-zl2pki-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G2b-zl2pki-1-files.txt`: `tests/test_check_ci_local_parity.py`, `tests/test_check_finding_path_relativity.py`, `tests/test_check_recovery_fidelity.py`, `tests/test_check_severity_tally.py`. (Late G2b partition check at HEAD: `tests/test_check_meta.py` added after the split by `a5ijjx`; not added here per batch rule step 1, reported for `x05v02`.)
+    - `diff .aw/state/59aiyh/G2b-zl2pki-1-before.txt .aw/state/59aiyh/G2b-zl2pki-1-after.txt`: empty output, exit code 0 (19 `PASSED` outcomes before and after, verified post-format).
+    - `tests/test_check_ci_local_parity.py`:
+      - F-01 `rg -c`: 10 before -> 0 after (no remaining matches).
+      - `G2b-zl2pki-1-codemod.json`: sites=4, rewrites=4 (standard=2, invalid-input=2), refusals=0, before_hash=`cba847a80e4c0b1b04656fb641f08b278481399e1486f7855628e4b1c36144d7`, after_hash=`cba847a80e4c0b1b04656fb641f08b278481399e1486f7855628e4b1c36144d7`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_check_ci_local_parity.py | G2b | zl2pki | 4 | 4 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - `tests/test_check_finding_path_relativity.py`:
+      - F-01 `rg -c`: 63 before -> 0 after (no remaining matches).
+      - `G2b-zl2pki-1-codemod.json`: sites=7, rewrites=5 (standard=0, invalid-input=5), refusals=2 (`unsupported-shape`=2 `hand`), before_hash=`407c7473695c51a24f18163ff286928168aed04378947eac4b1b02593c169b84`, after_hash=`407c7473695c51a24f18163ff286928168aed04378947eac4b1b02593c169b84`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_check_finding_path_relativity.py | G2b | zl2pki | 7 | 5 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |`.
+    - `tests/test_check_recovery_fidelity.py`:
+      - F-01 `rg -c`: 15 before -> 0 after (no remaining matches).
+      - `G2b-zl2pki-1-codemod.json`: sites=3, rewrites=3 (standard=3, invalid-input=0), refusals=0, before_hash=`ed3af27331c13d662a5cc51cfcc053206373e6b6b70743f96ec0618f51874d7a`, after_hash=`ed3af27331c13d662a5cc51cfcc053206373e6b6b70743f96ec0618f51874d7a`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_check_recovery_fidelity.py | G2b | zl2pki | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - `tests/test_check_severity_tally.py`:
+      - F-01 `rg -c`: 8 before -> 0 after (no remaining matches).
+      - `G2b-zl2pki-1-codemod.json`: sites=2, rewrites=1 (standard=1, invalid-input=0), refusals=1 (`not-equivalent`=1 `hand`), before_hash=`d009ca3b0f907107fb4c017aac115894d982de4f35239d6b8d8a8b2643d46ed7`, after_hash=`d009ca3b0f907107fb4c017aac115894d982de4f35239d6b8d8a8b2643d46ed7`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_check_severity_tally.py | G2b | zl2pki | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - Hand count: 3 (2 static in `653ndz` F-30 + 1 apply-time `not-equivalent`; <= 25). Hand-converted sites (original pre-codemod lines):
+      1. `tests/test_check_finding_path_relativity.py` `test_lifecycle_placement_conflict_no_crash_and_no_leak` (`"- Status: pending"` in `plan_text.replace(...)`, line 101, `unsupported-shape`; replaced with a direct `RecordBuilder().plan(..., status="executed", ...)` call)
+      2. `tests/test_check_finding_path_relativity.py` `test_lifecycle_placement_conflict_no_crash_and_no_leak` (`"- Status: executed"` in `plan_text.replace(...)`, line 101, `unsupported-shape`; replaced with a direct `RecordBuilder().plan(..., status="executed", ...)` call)
+      3. `tests/test_check_severity_tally.py` `CheckSeverityTallyTests._setup_mixed_severity_repo` (draft IPD fixture, lines 49-53, `not-equivalent`; converted via `RecordBuilder().plan(..., body="", text_only=True)` so `check.ipd-lint-diagnostic` (`info`) remains emitted)
+    - E-09 helper census (`rg -n -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`): before = 4 (`tests/test_check_ci_local_parity.py`: `def _seed_plans` line 94, `def _seed_releases` line 104, `def _seed_backlog` line 114, `def _seed_release_gates` line 124); after (post-format) = 4 (`tests/test_check_ci_local_parity.py`: `def _seed_plans` line 95, `def _seed_releases` line 107, `def _seed_backlog` line 119, `def _seed_release_gates` line 129). Deleted helpers: none. Surviving helpers: `_seed_plans`, `_seed_releases`, `_seed_backlog`, `_seed_release_gates` in `tests/test_check_ci_local_parity.py` (all four now construct record content via `RecordBuilder`; each remains an active parametrized case callable in `SEEDED_CASES` for `test_seeded_violation_parity` that creates its fixture directory, writes a specific target filename, and returns the expected rule ID).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G2b-zl2pki-2-files.txt` and the empty `diff .aw/state/59aiyh/G2b-zl2pki-2-before.txt .aw/state/59aiyh/G2b-zl2pki-2-after.txt`; then, for each of `tests/test_decision_ref_resolution.py`, `tests/test_production_baseline_same_commit.py`, `tests/test_production_checks_trace.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G2b-zl2pki-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G2b-zl2pki-2-files.txt`: `tests/test_decision_ref_resolution.py`, `tests/test_production_baseline_same_commit.py`, `tests/test_production_checks_trace.py`.
+    - `diff .aw/state/59aiyh/G2b-zl2pki-2-before.txt .aw/state/59aiyh/G2b-zl2pki-2-after.txt`: empty output, exit code 0 (44 `PASSED` outcomes before and after, verified post-format).
+    - `tests/test_decision_ref_resolution.py`:
+      - F-01 `rg -c`: 45 before -> 0 after (no remaining matches; malformed gate fixture `D10-garbage` in `test_sweep_skips_malformed_ref` routed through `raw_fields={"Gate-Ref": "D10-garbage"}`, class `invalid-input`).
+      - `G2b-zl2pki-2-codemod.json`: sites=6, rewrites=0 (standard=0, invalid-input=0), refusals=6 (`dynamic-construction`=6 `hand`), before_hash=None, after_hash=None, equivalent=True (0 rewrites applied).
+      - `653ndz` F-30 row: `| tests/test_decision_ref_resolution.py | G2b | zl2pki | 6 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 | 0 |`.
+    - `tests/test_production_baseline_same_commit.py`:
+      - F-01 `rg -c`: 2 before -> 2 after.
+      - Remaining 2 F-01 matches and reason classes: `test_case_a_backlog_production_concurrent_merge` `self.assertIn("- Status: graduated", bkl_txt)` (line 138, `setter-byte assertion`) and `test_case_b_spec_production_concurrent_merge` `self.assertIn("- Status: implementing", spec_txt)` (line 260, `setter-byte assertion`). Summary: 2 `setter-byte assertion` (`legacy-kept`; file intentionally unmodified).
+      - `G2b-zl2pki-2-codemod.json`: sites=2, rewrites=0 (standard=0, invalid-input=0), refusals=2 (`setter-byte assertion`=2 `legacy-kept`), before_hash=None, after_hash=None, equivalent=True (0 rewrites applied).
+      - `653ndz` F-30 row: `| tests/test_production_baseline_same_commit.py | G2b | zl2pki | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 2 |`.
+    - `tests/test_production_checks_trace.py`:
+      - F-01 `rg -c`: 66 before -> 1 after.
+      - Remaining 1 F-01 match and reason class (post-format): `TestSpecDeferredImplementedGate.test_transition_succeeds_after_deferred_markers_removed` `self.assertIn("- Status: implemented", implemented_path.read_text(encoding="utf-8"))` (line 1039, `setter-byte assertion`). Summary: 1 `setter-byte assertion` (`legacy-kept`).
+      - `G2b-zl2pki-2-codemod.json`: sites=20, rewrites=3 (standard=3, invalid-input=0), refusals=17 (`unsupported-shape`=16 `hand`, `setter-byte assertion`=1 `legacy-kept`), before_hash=`6a5bd475466f91311630cb6a05d3f3f98ddda65dd828ec7e2a32964ee78ce00d`, after_hash=`6a5bd475466f91311630cb6a05d3f3f98ddda65dd828ec7e2a32964ee78ce00d`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_production_checks_trace.py | G2b | zl2pki | 20 | 3 | 0 | 0 | 16 | 0 | 0 | 0 | 1 | 0 | 16 | 1 |`.
+    - Hand count: 22 (22 static in `653ndz` F-30 + 0 apply-time `not-equivalent`; <= 25). Hand-converted sites (original pre-codemod lines):
+      1. `tests/test_decision_ref_resolution.py` `test_sweep_reports_dangling_decision_ref` (backlog fixture, lines 98-108, `dynamic-construction`)
+      2. `tests/test_decision_ref_resolution.py` `test_sweep_reports_nothing_for_resolvable_ref` (backlog fixture, lines 128-138, `dynamic-construction`)
+      3. `tests/test_decision_ref_resolution.py` `test_sweep_skips_malformed_ref` (backlog fixture, lines 156-166, `dynamic-construction`, converted via `raw_fields={"Gate-Ref": "D10-garbage"}`)
+      4. `tests/test_decision_ref_resolution.py` `test_sweep_suppressed_when_decisions_log_absent` (backlog fixture, lines 186-196, `dynamic-construction`)
+      5. `tests/test_decision_ref_resolution.py` `test_falsifiable_negative_rule_id_and_severity` (backlog fixture, lines 214-224, `dynamic-construction`)
+      6. `tests/test_decision_ref_resolution.py` `test_sweep_reports_dangling_decision_ref_in_spec` (spec fixture, lines 246-253, `dynamic-construction`)
+      7. `tests/test_production_checks_trace.py` `test_full_coverage_passes` (`spec_content`, lines 331-341, `unsupported-shape`)
+      8. `tests/test_production_checks_trace.py` `test_missing_requirement_fails` (`spec_content`, lines 365-375, `unsupported-shape`)
+      9. `tests/test_production_checks_trace.py` `test_missing_acceptance_criterion_fails` (`spec_content`, lines 406-416, `unsupported-shape`)
+      10. `tests/test_production_checks_trace.py` `test_grandfathered_spec_passes_vacuously` (`spec_content`, lines 439-446, `unsupported-shape`)
+      11. `tests/test_production_checks_trace.py` `test_no_declared_ids_passes_vacuously` (`spec_content`, lines 468-474, `unsupported-shape`, converted via `raw_fields={"Id": "spcnoid"}`)
+      12. `tests/test_production_checks_trace.py` `test_no_acceptance_section_passes_with_requirements_only` (`spec_content`, lines 493-499, `unsupported-shape`, converted via `raw_fields={"Id": "spcnoac"}`)
+      13. `tests/test_production_checks_trace.py` `test_optional_and_deferred_requirements` (`spec_content`, lines 517-529, `unsupported-shape`)
+      14. `tests/test_production_checks_trace.py` `test_unknown_reference_fails` (`spec_content`, lines 554-563, `unsupported-shape`)
+      15. `tests/test_production_checks_trace.py` `test_other_spec_mention_and_unqualified_token_ignored` (`spec_content`, lines 586-595, `unsupported-shape`)
+      16. `tests/test_production_checks_trace.py` `test_unqualified_citation_of_real_requirement_does_not_cover` (`spec_content`, lines 617-623, `unsupported-shape`)
+      17. `tests/test_production_checks_trace.py` `test_orchestrator_child_tracking_rows_contribute_no_failure` (`spec_content`, lines 644-653, `unsupported-shape`, converted via `raw_fields={"Id": "spcorch"}`)
+      18. `tests/test_production_checks_trace.py` `test_pooled_coverage_across_plans` (`spec_content`, lines 681-691, `unsupported-shape`, converted via `raw_fields={"Id": "spcpool"}`)
+      19. `tests/test_production_checks_trace.py` `test_executed_linked_plan_contributes_coverage` (`spec_content`, lines 716-723, `unsupported-shape`, converted via `raw_fields={"Id": "spcexec"}`)
+      20. `tests/test_production_checks_trace.py` `test_superseded_linked_plan_does_not_contribute_coverage` (`spec_content`, lines 752-759, `unsupported-shape`)
+      21. `tests/test_production_checks_trace.py` `test_subfield_citation_is_recognized` (`spec_content`, lines 789-795, `unsupported-shape`)
+      22. `tests/test_production_checks_trace.py` `TestSpecDeferredImplementedGate.setUp` (`self.spec_content`, lines 868-887, `unsupported-shape`, converted via `raw_fields={"Slug": "deferred-gate", "Graduated-To": "reqids"}`)
+    - E-09 helper census: before = 0 (`(none)`); after = 0 (`(none)`). Deleted helpers: none. Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G2b-zl2pki-1`, `G2b-zl2pki-2` against `.aw/state/59aiyh/zl2pki-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit zl2pki` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u .aw/state/59aiyh/zl2pki-union-before.txt .aw/state/59aiyh/zl2pki-union-after.txt`): empty output, exit code 0 (63 `PASSED` outcomes across all 7 modules, verified post-format).
+    - Bare `python3 -m pytest`: `2653 passed, 11 warnings in 83.59s (0:01:23)` (0 test failures; `CORE TIER BUDGET EXCEEDED` wall-time check triggered exit 1 solely from concurrent host 1-minute load average 6.79 on 12 CPUs across unrelated tests; none of `zl2pki`'s 7 modules appeared in top-10 slowest). Verified clean exit 0 via `aw suite`: `2653 passed, 11 warnings in 62.62s (0:01:02)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6857,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit zl2pki` (6 modified test Scope-Paths): `aw commit: committed 6 path(s): e609592cb35f2ad9eff4ecc3ac1444b61266c121` (`tests/test_check_ci_local_parity.py`, `tests/test_check_finding_path_relativity.py`, `tests/test_check_recovery_fidelity.py`, `tests/test_check_severity_tally.py`, `tests/test_decision_ref_resolution.py`, `tests/test_production_checks_trace.py`; `tests/test_production_baseline_same_commit.py` intentionally unmodified because both of its sites are `legacy-kept` `setter-byte assertion`s per `653ndz` F-30). Followed by the plan-evidence commit via `aw commit zl2pki -- .aw/records/plans/pending/20261109-metastore-181-zl2pki-move-backlog-release-gate-and-check-test-data-chunk-7-of-7-o.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 
