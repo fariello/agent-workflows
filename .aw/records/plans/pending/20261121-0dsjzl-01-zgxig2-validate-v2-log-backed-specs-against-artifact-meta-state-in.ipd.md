@@ -111,6 +111,7 @@ flowchart TD
 
 - Fixing fabricated `status: "draft"` on status-less `research` records (`m0001_convert` / `artifact_meta`): owned by sibling plan `s4utmv` (from backlog `fnabjy`).
   - Carrier: s4utmv
+  - Carrier-Evidence: .aw/records/plans/executed/20261121-fnabjy-01-s4utmv-support-status-less-research-records-with-id-only-mirrors-in.ipd.md
 - Re-running AC-42 corpus and clone verification in `tests/test_m0001_any_repo.py`: owned by pending plan `60mazt`.
   - Carrier: 60mazt
 
