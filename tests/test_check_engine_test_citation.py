@@ -21,6 +21,7 @@ import tempfile
 import unittest
 
 from agent_workflows import check_engine
+from tests.record_builder import RecordBuilder
 
 
 class TestCheckEngineTestCitation(unittest.TestCase):
@@ -34,37 +35,17 @@ class TestCheckEngineTestCitation(unittest.TestCase):
         (tmp_path / "tests").mkdir(parents=True, exist_ok=True)
         return tmp_path
 
-    def _write_spec(
-        self,
-        repo: pathlib.Path,
-        slug: str,
-        body: str,
-        history: str = "",
-    ) -> pathlib.Path:
-        spec_path = (
-            repo
-            / ".aw"
-            / "records"
-            / "specs"
-            / "approved"
-            / f"20261001-tst001-01-tst001-{slug}.spec.md"
-        )
-        content = (
-            f"# Spec: {slug}\n\n" "- Id: tst001\n" "- Status: approved\n\n" f"{body}\n"
-        )
-        if history:
-            content += f"\n## Workflow history\n{history}\n"
-        spec_path.write_text(content, encoding="utf-8")
-        return spec_path
-
     def test_body_citation_to_nonexistent_path_fires(self) -> None:
         """Case 1: A body citation to a nonexistent tests/test_*.py FIRES."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._create_fixture_repo(pathlib.Path(tmp))
-            self._write_spec(
-                repo,
-                "missing-guard",
-                "This behavior is guarded by `tests/test_missing_file.py`.",
+            RecordBuilder(repo).spec(
+                id6="tst001",
+                title="missing-guard",
+                status="approved",
+                when="2026-10-01",
+                slug="missing-guard",
+                body="This behavior is guarded by `tests/test_missing_file.py`.",
             )
 
             drifts = check_engine.check_spec_test_citations(repo)
@@ -81,10 +62,13 @@ class TestCheckEngineTestCitation(unittest.TestCase):
             real_test = repo / "tests" / "test_real_file.py"
             real_test.write_text("# test\n", encoding="utf-8")
 
-            self._write_spec(
-                repo,
-                "real-guard",
-                "This behavior is guarded by `tests/test_real_file.py`.",
+            RecordBuilder(repo).spec(
+                id6="tst001",
+                title="real-guard",
+                status="approved",
+                when="2026-10-01",
+                slug="real-guard",
+                body="This behavior is guarded by `tests/test_real_file.py`.",
             )
 
             drifts = check_engine.check_spec_test_citations(repo)
@@ -94,11 +78,16 @@ class TestCheckEngineTestCitation(unittest.TestCase):
         """Case 3: A ## Workflow history citation to a nonexistent tests/test_*.py is SILENT."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._create_fixture_repo(pathlib.Path(tmp))
-            self._write_spec(
-                repo,
-                "history-citation",
+            RecordBuilder(repo).spec(
+                id6="tst001",
+                title="history-citation",
+                status="approved",
+                when="2026-10-01",
+                slug="history-citation",
                 body="Normative body mentions no test file.",
-                history="- 2026-09-21 note: Verified tests/test_deleted_suite.py passes.",
+                history=[
+                    "- 2026-09-21 note: Verified tests/test_deleted_suite.py passes."
+                ],
             )
 
             drifts = check_engine.check_spec_test_citations(repo)
@@ -112,10 +101,13 @@ class TestCheckEngineTestCitation(unittest.TestCase):
         """Case 4: check_types(repo, ['specs']) end-to-end integration surfaces the rule."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._create_fixture_repo(pathlib.Path(tmp))
-            self._write_spec(
-                repo,
-                "e2e-missing",
-                "Guarded by `tests/test_e2e_nonexistent.py`.",
+            RecordBuilder(repo).spec(
+                id6="tst001",
+                title="e2e-missing",
+                status="approved",
+                when="2026-10-01",
+                slug="e2e-missing",
+                body="Guarded by `tests/test_e2e_nonexistent.py`.",
             )
 
             drifts = check_engine.check_types(repo, ["specs"])

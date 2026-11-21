@@ -18,6 +18,7 @@ from pathlib import Path
 
 from agent_workflows import check_engine
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 class CheckEngineStatusMetaTests(unittest.TestCase):
@@ -29,15 +30,19 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
         DISCRIMINATES: Fails pre-change (returns 'executed' and is_retired=True),
         passes after (returns None and is_retired=False).
         """
-        text_a = (
-            "# Plan: Unset Plan\n\n"
-            "- Id: ut0001\n"
-            "- Kind: child\n\n"
-            "## Goal\n\n"
-            "Here is a quoted status:\n"
-            "```\n"
-            "- Status: executed\n"
-            "```\n"
+        text_a = RecordBuilder().plan(
+            title="Unset Plan",
+            id6="ut0001",
+            plan_role="child",
+            body=(
+                "## Goal\n\n"
+                "Here is a quoted status:\n"
+                "```\n"
+                "- Status: executed\n"
+                "```"
+            ),
+            raw_fields={"Status": None},
+            text_only=True,
         )
         self.assertIsNone(check_engine._status_meta(text_a))
 
@@ -51,16 +56,19 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
 
         CONTROL: Expected to pass before AND after.
         """
-        text_b = (
-            "# Plan: Approved Plan\n\n"
-            "- Id: ut0002\n"
-            "- Status: approved\n"
-            "- Kind: child\n\n"
-            "## Goal\n\n"
-            "Here is a quoted status:\n"
-            "```\n"
-            "- Status: executed\n"
-            "```\n"
+        text_b = RecordBuilder().plan(
+            title="Approved Plan",
+            id6="ut0002",
+            status="approved",
+            plan_role="child",
+            body=(
+                "## Goal\n\n"
+                "Here is a quoted status:\n"
+                "```\n"
+                "- Status: executed\n"
+                "```"
+            ),
+            text_only=True,
         )
         self.assertEqual(check_engine._status_meta(text_b), "approved")
 
@@ -72,9 +80,16 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
         with no '##' heading, so only search's first-match semantics keep the answer
         right; this guards against a future last-match or findall rewrite.
         """
+        header = (
+            RecordBuilder()
+            .plan(id6="ut0003", status="approved", text_only=True)
+            .split("\n## ", 1)[0]
+        )
+        header_bullets = "\n".join(
+            line for line in header.splitlines() if line.startswith("- ")
+        )
         text_c = (
-            "- Status: approved\n"
-            "- Id: ut0003\n\n"
+            f"{header_bullets}\n\n"
             "Some body text quoting:\n"
             "```\n"
             "- Status: executed\n"
@@ -98,28 +113,45 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
             plan_dir.mkdir(parents=True, exist_ok=True)
             plan_file = plan_dir / "20260927-fencegate-01-tst001-plan.ipd.md"
 
-            initial_content = (
-                "# IPD: Test Plan tst001\n\n"
-                "- Date: 2026-09-27\n"
-                "- Kind: child\n"
-                "- Status: approved\n"
-                "- Work-Kind: chore\n"
-                "- Priority: medium\n"
-                "- Set: fencegate\n"
-                "- Order: 1\n"
-                "- Id: tst001\n\n"
-                "## Workflow history\n\n"
-                "- 2026-09-27 approved (author): initial approved plan.\n\n"
-                "## Goal\n\n"
-                "Test goal.\n"
+            initial_content = RecordBuilder().plan(
+                title="Test Plan tst001",
+                when="2026-09-27",
+                plan_role="child",
+                status="approved",
+                work_kind="chore",
+                priority="medium",
+                set="fencegate",
+                order=1,
+                id6="tst001",
+                history=["- 2026-09-27 approved (author): initial approved plan."],
+                body="## Goal\n\nTest goal.",
+                text_only=True,
             )
             plan_file.write_text(initial_content, encoding="utf-8")
             support.git(repo_root, "add", str(plan_file))
             support.git(repo_root, "commit", "-m", "add approved plan")
 
             # Stage an edit that ONLY adds a fenced quote in the body
-            edited_content = initial_content + (
-                "\nHere is a fenced quote:\n" "```\n" "- Status: executed\n" "```\n"
+            edited_content = RecordBuilder().plan(
+                title="Test Plan tst001",
+                when="2026-09-27",
+                plan_role="child",
+                status="approved",
+                work_kind="chore",
+                priority="medium",
+                set="fencegate",
+                order=1,
+                id6="tst001",
+                history=["- 2026-09-27 approved (author): initial approved plan."],
+                body=(
+                    "## Goal\n\n"
+                    "Test goal.\n\n"
+                    "Here is a fenced quote:\n"
+                    "```\n"
+                    "- Status: executed\n"
+                    "```"
+                ),
+                text_only=True,
             )
             plan_file.write_text(edited_content, encoding="utf-8")
             support.git(repo_root, "add", str(plan_file))
@@ -132,13 +164,12 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
 
         CONTROL: Expected to pass before AND after. Confirms real retirement signal still works.
         """
-        text_e = (
-            "# Plan: Executed Plan\n\n"
-            "- Id: ut0005\n"
-            "- Status: executed\n"
-            "- Kind: child\n\n"
-            "## Goal\n\n"
-            "All work completed.\n"
+        text_e = RecordBuilder().plan(
+            id6="ut0005",
+            status="executed",
+            plan_role="child",
+            body="## Goal\n\nAll work completed.",
+            text_only=True,
         )
         with tempfile.TemporaryDirectory(prefix="aw_test_active_") as tmp_dir:
             file_path = Path(tmp_dir) / "plan.ipd.md"

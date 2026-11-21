@@ -31,6 +31,7 @@ import pytest
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine
 from agent_workflows import ipd_lint
+from tests.record_builder import RecordBuilder
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -59,12 +60,13 @@ def _create_spec(
         / "approved"
         / f"20260901-{spec_id6}-01-{spec_id6}-test.spec.md"
     )
-    content = (
-        f"# Spec: Test {spec_id6}\n\n"
-        f"- Id: {spec_id6}\n"
-        "- Status: approved\n\n"
-        f"{heading}\n\n"
-        f"{criteria_lines}\n"
+    content = RecordBuilder().spec(
+        id6=spec_id6,
+        title=f"Test {spec_id6}",
+        status="approved",
+        when="2026-09-01",
+        body=f"{heading}\n\n{criteria_lines}",
+        text_only=True,
     )
     p.write_text(content, encoding="utf-8")
     return p
@@ -91,18 +93,31 @@ def _create_plan(
     v_section = ""
     if valid_lines:
         v_section = f"\n## Validation and cross-check (verify before reporting done)\n\n{valid_lines}\n"
-    content = (
-        f"# IPD: Test {plan_id6}\n\n"
-        f"- Id: {plan_id6}\n"
-        "- Status: approved\n"
-        f"- From-Spec: {from_spec}\n"
-        "- Set: set001\n"
-        "- Scope: Fix\n"
-        "- Scope-Paths: foo.py\n\n"
-        "## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 Work\n"
-        f"{req_section}"
-        f"{v_section}"
+    raw_fields: dict[str, str] = {}
+    eff_id6 = plan_id6
+    if not re.fullmatch(r"[a-z0-9]{6}", plan_id6):
+        eff_id6 = "pln001"
+        raw_fields["Id"] = plan_id6
+    extra_kwargs: dict[str, str] = {}
+    if re.fullmatch(r"[a-z0-9]{6}", from_spec):
+        extra_kwargs["from_spec"] = from_spec
+    else:
+        raw_fields["From-Spec"] = from_spec
+    content = RecordBuilder().plan(
+        title=f"Test {plan_id6}",
+        id6=eff_id6,
+        status="approved",
+        set="set001",
+        scope_paths="foo.py",
+        body=(
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [ ] E-01 Work\n"
+            f"{req_section}"
+            f"{v_section}"
+        ),
+        raw_fields=raw_fields or None,
+        text_only=True,
+        **extra_kwargs,
     )
     p.write_text(content, encoding="utf-8")
     return p
