@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_workflows import agent_schema, attention, leak_sanitizer
+from tests.record_builder import RecordBuilder
 
 
 def walk_and_assert_no_home_paths(record: Any, path: str = "root") -> None:
@@ -66,18 +67,20 @@ class SelectorEchoSanitizationTests(unittest.TestCase):
         plans_dir.mkdir(parents=True, exist_ok=True)
         sample_plan = plans_dir / "20261001-test-01-pln001-test-plan.ipd.md"
         sample_plan.write_text(
-            "# IPD: Test plan\n\n"
-            "- Date: 2026-10-01\n"
-            "- Kind: child\n"
-            "- Status: to-review\n"
-            "- Priority: medium\n"
-            "- Work-Kind: chore\n"
-            "- Set: test\n"
-            "- Order: 1\n"
-            "- Id: pln001\n"
-            "- Author: test\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 to-review (test): authored.\n",
+            RecordBuilder().plan(
+                title="Test plan",
+                when="2026-10-01",
+                plan_role="child",
+                status="to-review",
+                priority="medium",
+                work_kind="chore",
+                set="test",
+                order=1,
+                id6="pln001",
+                author="test",
+                history=["- 2026-10-01 to-review (test): authored."],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

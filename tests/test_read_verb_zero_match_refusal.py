@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_workflows import agent_schema, cli
+from tests.record_builder import RecordBuilder
 
 
 class ReadVerbZeroMatchRefusalTests(unittest.TestCase):
@@ -28,26 +29,28 @@ class ReadVerbZeroMatchRefusalTests(unittest.TestCase):
         plans_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"
         plans_dir.mkdir(parents=True, exist_ok=True)
         self.p1_path = plans_dir / "20261012-test-01-p10001-plan-one.ipd.md"
-        self.p1_content = (
-            "# IPD: Plan One\n\n"
-            "- Id: p10001\n"
-            "- Status: to-review\n"
-            "- Readiness: no-go\n"
-            "- Set: test\n"
-            "- Order: 1\n"
-            "- From-Backlog: b10001\n\n"
-            "## Open questions\nNone\n"
+        self.p1_content = RecordBuilder().plan(
+            title="Plan One",
+            id6="p10001",
+            status="to-review",
+            readiness="no-go",
+            set="test",
+            order=1,
+            from_backlog="b10001",
+            open_questions="None",
+            text_only=True,
         )
         self.p1_path.write_text(self.p1_content, encoding="utf-8")
 
         self.p2_path = plans_dir / "20261012-test-02-p20002-plan-two.ipd.md"
-        self.p2_content = (
-            "# IPD: Plan Two\n\n"
-            "- Id: p20002\n"
-            "- Status: to-review\n"
-            "- Set: test\n"
-            "- Order: 2\n\n"
-            "## Open questions\nNone\n"
+        self.p2_content = RecordBuilder().plan(
+            title="Plan Two",
+            id6="p20002",
+            status="to-review",
+            set="test",
+            order=2,
+            open_questions="None",
+            text_only=True,
         )
         self.p2_path.write_text(self.p2_content, encoding="utf-8")
 
@@ -55,11 +58,27 @@ class ReadVerbZeroMatchRefusalTests(unittest.TestCase):
         backlog_dir = self.repo_root / ".aw" / "records" / "backlog" / "open"
         backlog_dir.mkdir(parents=True, exist_ok=True)
         (backlog_dir / "20261012-test-01-b10001-item.backlog.md").write_text(
-            "# Backlog: Item One\n\n- Id: b10001\n- Status: open\n\nContent.\n",
+            RecordBuilder().backlog(
+                id6="b10001",
+                status="open",
+                set="test",
+                order=1,
+                summary="Item One",
+                body="Content.\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (backlog_dir / "20261012-test-02-b20002-item.backlog.md").write_text(
-            "# Backlog: Item Two\n\n- Id: b20002\n- Status: open\n\nNon-plan.\n",
+            RecordBuilder().backlog(
+                id6="b20002",
+                status="open",
+                set="test",
+                order=2,
+                summary="Item Two",
+                body="Non-plan.\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -67,19 +86,36 @@ class ReadVerbZeroMatchRefusalTests(unittest.TestCase):
         reviews_dir = self.repo_root / ".aw" / "records" / "reviews"
         reviews_dir.mkdir(parents=True, exist_ok=True)
         self.r1_path = reviews_dir / "20261012-test-01-p10001-plan-one.review.md"
-        self.r1_content = (
-            "# Review findings: plan p10001\n\n"
-            "- Subject-Id: p10001\n"
-            "- Subject-Type: ipd\n"
-            "- Reviewed-At: 2026-10-12\n"
-            "- Reviewer: test-agent\n"
-            "- Verdict: APPROVE\n\n"
-            "## Round 1\n\n"
-            "### Decisions\n\n"
-            "| ID | Question | Chosen | Alternatives considered | Basis | Reversible |\n"
-            "|----|----------|--------|-------------------------|-------|------------|\n"
-            "| D-1 | Question 1? | Yes | No | Reversible basis | yes |\n"
-            "| D-2 | Question 2? | No | Yes | Irreversible basis | no |\n"
+        self.r1_content = RecordBuilder().review(
+            "p10001",
+            subject_type="ipd",
+            reviewed_at="2026-10-12",
+            reviewer="test-agent",
+            verdict="APPROVE",
+            rounds=[
+                {
+                    "number": 1,
+                    "decisions": [
+                        {
+                            "id": "D-1",
+                            "question": "Question 1?",
+                            "chosen": "Yes",
+                            "alternatives": "No",
+                            "basis": "Reversible basis",
+                            "reversible": "yes",
+                        },
+                        {
+                            "id": "D-2",
+                            "question": "Question 2?",
+                            "chosen": "No",
+                            "alternatives": "Yes",
+                            "basis": "Irreversible basis",
+                            "reversible": "no",
+                        },
+                    ],
+                }
+            ],
+            text_only=True,
         )
         self.r1_path.write_text(self.r1_content, encoding="utf-8")
 

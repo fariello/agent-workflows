@@ -31,49 +31,45 @@ import unittest
 
 from agent_workflows.agent_schema import validate_agent_record
 from agent_workflows import engine, versioning
+from tests.record_builder import RecordBuilder
 
-_SPEC_CONTENT = """# Spec: Test Spec
+_SPEC_CONTENT = RecordBuilder().spec(
+    title="Test Spec",
+    when="2026-10-01",
+    status="approved",
+    author="tester",
+    id6="test01",
+    history=[
+        "- 2026-10-01 draft (tester): created.",
+        "- 2026-10-01 approved (tester): approved.",
+    ],
+    body="## Body\n\nprobe keyword for search",
+    text_only=True,
+)
 
-- Date: 2026-10-01
-- Status: approved
-- Author: tester
-- Id: test01
+_BACKLOG_CONTENT = RecordBuilder().backlog(
+    id6="b00001",
+    status="open",
+    set="testset",
+    priority="high",
+    work_kind="bug",
+    summary="probe keyword for search",
+    body="## Details\nprobe details",
+    text_only=True,
+)
 
-## Body
-
-probe keyword for search
-
-## Workflow history
-- 2026-10-01 draft (tester): created.
-- 2026-10-01 approved (tester): approved.
-"""
-
-_BACKLOG_CONTENT = """# Backlog: Test Item
-
-- Id: b00001
-- Status: open
-- Set: testset
-- Priority: high
-- Work-Kind: bug
-- Summary: probe keyword for search
-
-## Details
-probe details
-"""
-
-_PLAN_CONTENT = """# IPD: Test Plan
-
-- Date: 2026-10-01
-- Id: p00001
-- Status: pending
-- Priority: high
-- Work-Kind: bug
-- Set: testset
-- From-Backlog: b00001
-
-## Details
-Plan details
-"""
+_PLAN_CONTENT = RecordBuilder().plan(
+    title="Test Plan",
+    when="2026-10-01",
+    id6="p00001",
+    priority="high",
+    work_kind="bug",
+    set="testset",
+    from_backlog="b00001",
+    body="## Details\nPlan details",
+    raw_fields={"Status": "pending"},
+    text_only=True,
+)
 
 
 class ResolverBypassSitesClimbTests(unittest.TestCase):

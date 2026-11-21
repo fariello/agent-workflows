@@ -13,39 +13,32 @@ import pytest
 from agent_workflows import cli
 from agent_workflows import plans_index as pi
 from agent_workflows.term import Term
+from tests.record_builder import RecordBuilder
 
 
-PLAN_TEMPLATE = """# IPD: {title}
+PLAN_TEMPLATE = RecordBuilder().plan(
+    title="{title}",
+    when="2026-09-20",
+    plan_role="child",
+    set="{set_field}",
+    history=["- 2026-09-20 created"],
+    raw_fields={"Status": "{status}", "Order": "{order}", "Id": "{id6}"},
+    text_only=True,
+)
 
-- Date: 2026-09-20
-- Kind: child
-- Scope: test
-- Status: {status}
-- Set: {set_field}
-- Order: {order}
-- Id: {id6}
-
-## Workflow history
-- 2026-09-20 created
-"""
-
-RESEARCH_TEMPLATE = """---
-id: {id6}
-created: 20260920
-set: {set_id}
-order: {order}
-topic: []
-model:
-kind: findings
-status: {status}
-outcome: informational
-summary: {summary}
-consumed-by: []
----
-# {title}
-
-Body text for research doc.
-"""
+RESEARCH_TEMPLATE = RecordBuilder().research(
+    when="2026-09-20",
+    set="{set_id}",
+    topic=[],
+    model="",
+    research_kind="findings",
+    outcome="informational",
+    summary="{summary}",
+    consumed_by=[],
+    body="# {title}\n\nBody text for research doc.\n",
+    raw_fields={"id": "{id6}", "order": "{order}", "status": "{status}"},
+    text_only=True,
+)
 
 
 @pytest.fixture
