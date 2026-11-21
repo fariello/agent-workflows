@@ -15,6 +15,7 @@ import unittest
 from agent_workflows import attention
 from agent_workflows import attention_contract as A
 from agent_workflows import runner_shared as rs
+from tests.record_builder import RecordBuilder
 
 
 def _git(cwd: pathlib.Path, *args: str) -> str:
@@ -53,7 +54,10 @@ class AttentionLaneDetailBoundTests(unittest.TestCase):
             plan_dir = repo / ".aw" / "records" / "plans" / "executed"
             plan_dir.mkdir(parents=True, exist_ok=True)
             (plan_dir / "20260101-set-01-3brgb6-slug.ipd.md").write_text(
-                "# IPD: probe\n\n- Id: 3brgb6\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="probe", id6="3brgb6", status="executed", text_only=True
+                ),
+                encoding="utf-8",
             )
             subprocess.run(
                 ["git", "add", ".aw/records/plans/executed"], cwd=repo, check=True
@@ -158,7 +162,10 @@ class AttentionLaneDetailBoundTests(unittest.TestCase):
             plan_dir = repo / ".aw" / "records" / "plans" / "pending"
             plan_dir.mkdir(parents=True, exist_ok=True)
             (plan_dir / "20260101-set-01-dvonrn-slug.ipd.md").write_text(
-                "# IPD: probe\n\n- Id: dvonrn\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="probe", id6="dvonrn", status="approved", text_only=True
+                ),
+                encoding="utf-8",
             )
             subprocess.run(
                 ["git", "add", ".aw/records/plans/pending"], cwd=repo, check=True
@@ -251,7 +258,10 @@ class AttentionLaneDetailBoundTests(unittest.TestCase):
             plan_dir = repo / ".aw" / "records" / "plans" / "executed"
             plan_dir.mkdir(parents=True, exist_ok=True)
             (plan_dir / "20260101-set-01-abc123-slug.ipd.md").write_text(
-                "# IPD: probe\n\n- Id: abc123\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="probe", id6="abc123", status="executed", text_only=True
+                ),
+                encoding="utf-8",
             )
             subprocess.run(
                 ["git", "add", ".aw/records/plans/executed"], cwd=repo, check=True

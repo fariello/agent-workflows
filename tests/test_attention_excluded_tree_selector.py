@@ -17,6 +17,7 @@ from pathlib import Path
 from agent_workflows import agent_schema
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from tests.record_builder import RecordBuilder
 
 
 def _make_constructed_repo(root: Path) -> Path:
@@ -32,7 +33,13 @@ def _make_constructed_repo(root: Path) -> Path:
 
     # One tracked artifact: a pending IPD with id6 'pln001'
     (plans / "20260901-test-01-pln001-sample.ipd.md").write_text(
-        "# IPD: sample plan\n\n- Status: draft\n- Id: pln001\n\n## Workflow history\n- 2026-09-01 draft (t): created.\n",
+        RecordBuilder().plan(
+            title="sample plan",
+            status="draft",
+            id6="pln001",
+            history=["- 2026-09-01 draft (t): created."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

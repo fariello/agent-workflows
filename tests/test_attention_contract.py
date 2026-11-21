@@ -241,10 +241,15 @@ class HistoryTests(unittest.TestCase):
         """
         from agent_workflows import plan_readiness as PR
 
-        text = (
-            "# IPD: x\n\n## Workflow history\n"
-            "- 2026-09-03 approved (aw set): newest.\n"
-            "- 2026-09-01 draft (aw set): oldest.\n\n## Goal\n"
+        text = RecordBuilder().plan(
+            title="x",
+            status="approved",
+            history=[
+                "- 2026-09-03 approved (aw set): newest.",
+                "- 2026-09-01 draft (aw set): oldest.",
+            ],
+            body="## Goal\n",
+            text_only=True,
         )
         self.assertEqual(
             PR.extract_newest_history_entry(text),
@@ -486,27 +491,55 @@ class TrackedTreeReachabilityTests(unittest.TestCase):
     _FIXTURES: dict[str, tuple[str, str]] = {
         "specs": (
             ".aw/records/specs/20260101-s1-01-s1-test.spec.md",
-            "# Spec\n\n- Id: s1\n- Status: draft\n\n## Workflow history\n- 2026-01-01 draft (t): init\n",
+            RecordBuilder().spec(
+                status="draft",
+                history=["- 2026-01-01 draft (t): init"],
+                raw_fields={"Id": "s1"},
+                text_only=True,
+            ),
         ),
         "plans": (
             ".aw/records/plans/pending/20260101-set-01-p1-test.ipd.md",
-            "# Plan\n\n- Id: p1\n- Status: to-review\n- Set: set\n- Order: 1\n- Kind: primary\n",
+            RecordBuilder().plan(
+                title="Plan",
+                status="to-review",
+                set="set",
+                order=1,
+                raw_fields={"Id": "p1", "Kind": "primary"},
+                text_only=True,
+            ),
         ),
         "research": (
             ".aw/records/research/20260101-01-test.research.md",
-            "---\nid: r1\nstatus: todo\n---\n",
+            RecordBuilder().research(
+                status="todo", raw_fields={"id": "r1"}, text_only=True
+            ),
         ),
         "backlog": (
             ".aw/records/backlog/open/20260101-b1-01-b1-test.backlog.md",
-            "- Id: b1\n- Status: open\n- Priority: high\n- Work-Kind: feature\n- Summary: test\n",
+            RecordBuilder().backlog(
+                status="open",
+                priority="high",
+                work_kind="feature",
+                summary="test",
+                raw_fields={"Id": "b1"},
+                text_only=True,
+            ),
         ),
         "releases": (
             ".aw/records/releases/20260101-rel-01-rel-test.release.md",
-            "# Release\n\n- Id: rel1\n- Status: planned\n- Version: 1.0.0\n",
+            RecordBuilder().release(
+                status="planned",
+                version="1.0.0",
+                raw_fields={"Id": "rel1"},
+                text_only=True,
+            ),
         ),
         "prompts": (
             ".aw/records/prompts/pending/20260101-prm-01-test.prompt.md",
-            "# Prompt\n\n- Id: prm1\n- Status: pending\n",
+            RecordBuilder().prompt(
+                status="pending", raw_fields={"Id": "prm1"}, text_only=True
+            ),
         ),
     }
 
@@ -580,8 +613,13 @@ class ReleaseRecordsReachTheViewTests(unittest.TestCase):
             p = root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(
-                f"# Release 9.9.9\n\n- Status: {status}\n- Id: relr{status[0]}\n"
-                f"- Version: 9.9.9\n\n## Workflow history\n- 2026-01-01 {status} (r): n\n",
+                RecordBuilder().release(
+                    status=status,
+                    version="9.9.9",
+                    history=[f"- 2026-01-01 {status} (r): n"],
+                    raw_fields={"Id": f"relr{status[0]}"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             items, drift = ATT.scan(root)

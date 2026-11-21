@@ -20,6 +20,7 @@ from unittest import mock
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
 from agent_workflows import term as T
+from tests.record_builder import RecordBuilder
 
 
 def _make_item(
@@ -189,13 +190,23 @@ class AttentionOutputSafetyTests(unittest.TestCase):
             # F-1 plan
             p1 = tmp / "plan_f1.ipd.md"
             p1.write_text(
-                "# IPD: p1\n\n- Scope: a | b | c [link](http://x) ![img](http://y)\n- Status: approved\n",
+                RecordBuilder().plan(
+                    title="p1",
+                    status="approved",
+                    raw_fields={"Scope": "a | b | c [link](http://x) ![img](http://y)"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # F-3 plan
             p3 = tmp / "plan_f3.ipd.md"
             p3.write_text(
-                "# IPD: p3\n\n- Scope: red \x1b[31mANSI\x1b[0m \x07bell\n- Status: approved\n",
+                RecordBuilder().plan(
+                    title="p3",
+                    status="approved",
+                    raw_fields={"Scope": "red \x1b[31mANSI\x1b[0m \x07bell"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -233,7 +244,14 @@ class AttentionOutputSafetyTests(unittest.TestCase):
             plans_dir.mkdir(parents=True, exist_ok=True)
             plan_file = plans_dir / "20260808-test-01-abc123-p.ipd.md"
             plan_file.write_text(
-                "# IPD: p\n\n- Scope: a | b [link](http://x)\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+                RecordBuilder().plan(
+                    title="p",
+                    status="draft",
+                    id6="abc123",
+                    history=["- 2026-08-08 draft (t): created."],
+                    raw_fields={"Scope": "a | b [link](http://x)"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             args = argparse.Namespace(
@@ -259,7 +277,13 @@ class AttentionOutputSafetyTests(unittest.TestCase):
             plans_dir.mkdir(parents=True, exist_ok=True)
             plan_file = plans_dir / "20260808-test-01-abc123-p.ipd.md"
             plan_file.write_text(
-                "# IPD: p\n\n- Scope: Simple plan detail.\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+                RecordBuilder().plan(
+                    title="p",
+                    status="draft",
+                    id6="abc123",
+                    history=["- 2026-08-08 draft (t): created."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             args = argparse.Namespace(
