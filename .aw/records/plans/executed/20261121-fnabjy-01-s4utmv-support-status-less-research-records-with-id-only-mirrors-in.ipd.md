@@ -6,7 +6,7 @@
 - Scope: Implement Option A across metadata-v2 conversion, mirror rendering/parsing, round-trip verification, drift checking/repair, tests, and spec `4sd62s`: (1) stop `agent_workflows/migrations/m0001_convert.py::build_record_log` and `agent_workflows/migrations/m0001_verify.py::_legacy_field_pairs_for_record` from fabricating `status = "draft"` for status-less `research` records, leaving `status = None` and omitting `"status"` from checkpoint `fields`; (2) update `agent_workflows/artifact_meta.py::render_in_file_mirror`, `agent_workflows/artifact_meta.py::parse_artifact_mirror` (via an opt-in `allow_statusless: bool = False` keyword parameter so non-research types remain strict 2-key), `agent_workflows/migrations/chain.py::_is_v2_mirror_text` and `repo_has_legacy_records`, `agent_workflows/migrations/m0001_verify.py`, and `agent_workflows/meta_cli.py` (`_parse_log_backed_mirror`, `check_meta`, and `meta_repair`) to emit, parse, verify, and repair 1-key `id`-only front-matter mirrors for status-less `research` records while keeping 2-key `id`+`status` mirrors mandatory for status-bearing research and all non-walkthrough/non-roadmap types; (3) update `tests/test_m0001_review_conversion.py` (replacing the pinned `st2.status == "draft"` assertion on `rs5002` in `test_fields_research_yaml_and_nonleading_prompt_preserved` with `st2.status is None` and adding behavioral tests covering `id`-only mirrors, `m0001_verify.verify_round_trip`, `chain.repo_has_legacy_records`, `aw check meta`, `aw meta repair`, `aw attention`, and `aw find --agent` parity on both `research-prompt` and legacy status-less research fixtures alongside status-bearing research); and (4) document the Option A rule in `.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` Sections 4.1 and 4.6. EXCLUDES: migrated spec validation (`0dsjzl` / `zgxig2`), `aw find` missing-kind-facet fallback (`7mmhlp` / `vvxbbl`), and editing `tests/test_m0001_any_repo.py` (`60mazt`).
 - Scope-Paths: agent_workflows/migrations/m0001_convert.py, agent_workflows/artifact_meta.py, agent_workflows/migrations/m0001_verify.py, agent_workflows/migrations/chain.py, agent_workflows/meta_cli.py, tests/test_m0001_review_conversion.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, .aw/records/plans/pending/20261121-fnabjy-01-s4utmv-support-status-less-research-records-with-id-only-mirrors-in.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Omit fabricated draft status for status-less research records across m0001_convert, artifact_meta mirrors, m0001_verify, migrations/chain, meta_cli, and spec 4sd62s.
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: s4utmv verified (set fnabjy, attempt 2).
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261121-fnabjy-01-s4utmv-support-status-less-research-records-with-id-only-mirrors-in.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog fnabjy
