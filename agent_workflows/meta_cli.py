@@ -1113,7 +1113,13 @@ def check_meta(repo_root: Path) -> CommandResult:
         if log_format_repo:
             if has_log:
                 logged_p = latest_logged_path.get(st.id6)
-                if logged_p and (logged_p != st.path or not abs_p.is_file()):
+                if logged_p and not abs_p.is_file():
+                    _add(
+                        loc,
+                        "meta.path-drift",
+                        f"logged path {logged_p!r} does not exist on disk",
+                    )
+                elif logged_p and logged_p != st.path:
                     _add(
                         loc,
                         "meta.path-drift",
@@ -1768,6 +1774,39 @@ def meta_repair(
                     }
                 )
                 change_objs.append(Change(kind="rename", path=dest_loc, applied=False))
+            else:
+                return CommandResult(
+                    command="meta repair",
+                    status="cannot-run",
+                    exit_code=2,
+                    summary=(
+                        f"refused repair for {tok}: missing recovery source "
+                        f"(artifact file absent at {dest_loc})"
+                    ),
+                    diagnostics=[
+                        Diagnostic(
+                            location=dest_loc,
+                            rule="missing-recovery-source",
+                            detail=(
+                                f"artifact file absent at {dest_loc} and no pending "
+                                "move source or create journal exists"
+                            ),
+                            severity="error",
+                        )
+                    ],
+                    next_actions=[NextAction(command="aw check meta")],
+                    data={
+                        "id6": tok,
+                        "diverged": has_duplicate_seq,
+                        "field_changes": field_diffs,
+                        "planned_actions": planned_actions,
+                        "repaired": False,
+                    },
+                    verified=False,
+                    complete=False,
+                    applied=False,
+                    repo_root=ctx.repo_root,
+                )
 
         # Check in-file mirror diff against the file that exists (at dest_p or move source)
         inspect_p = (

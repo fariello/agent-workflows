@@ -528,6 +528,64 @@ def test_check_meta_agent_limit_and_schema_validity(tmp_path: Path) -> None:
     assert "--limit 2" in summary["next"]
 
 
+def test_duplicate_seq_log_never_passes_check_meta(tmp_path: Path) -> None:
+    """A duplicate seq in a metadata log always produces a meta.invalid-log finding (AC-17)."""
+    repo = _init_repo(tmp_path, "dup_seq")
+    rel = "plans/pending/20261109-dvset-01-dv0002-dup-seq.ipd.md"
+    p = repo / ".aw" / "records" / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "---\nid: dv0002\nstatus: draft\n---\n# Plan\n\nBody.\n",
+        encoding="utf-8",
+    )
+    _write_log(
+        repo,
+        "dv0002",
+        [
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-11-09T12:00:00Z",
+                "actor": {"tool": "test"},
+                "op": "create",
+                "path": rel,
+                "fields": {
+                    "id": "dv0002",
+                    "type": "ipd",
+                    "status": "draft",
+                    "set": "dvset",
+                    "order": 1,
+                },
+            },
+            {
+                "v": 1,
+                "seq": 2,
+                "append": 2,
+                "at": "2026-11-09T12:05:00Z",
+                "actor": {"tool": "test"},
+                "op": "transition",
+                "from": "draft",
+                "to": "to-review",
+            },
+            {
+                "v": 1,
+                "seq": 2,
+                "append": 2,
+                "at": "2026-11-09T12:06:00Z",
+                "actor": {"tool": "test"},
+                "op": "set",
+                "fields": {"priority": "high"},
+            },
+        ],
+    )
+
+    rc, out, _ = _run_check_meta(repo, "--agent")
+    recs = _parse_jsonl(out)
+    assert rc == 1
+    assert _finding_rules(recs) == ["meta.invalid-log"]
+
+
 def test_check_meta_outside_project_exits_two(tmp_path: Path) -> None:
     bare = (tmp_path / "bare").resolve()
     bare.mkdir()

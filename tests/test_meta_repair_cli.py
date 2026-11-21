@@ -374,6 +374,48 @@ def test_unknown_and_invalid_id6_exit_two(tmp_path: Path) -> None:
     assert rec_miss["outcome"] == "cannot-run"
 
 
+def test_orphan_log_missing_artifact_refuses_with_missing_recovery_source(
+    tmp_path: Path,
+) -> None:
+    """When a log exists but the artifact file is absent on disk with no journal or prior path, repair refuses with exit 2."""
+    repo = _init_repo(tmp_path, "missing_src")
+    id6 = "ms0001"
+    rel = f"plans/pending/20261109-msset-01-{id6}-missing.ipd.md"
+    _write_log(
+        repo,
+        id6,
+        [
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-11-09T12:00:00Z",
+                "actor": {"tool": "test"},
+                "op": "create",
+                "path": rel,
+                "fields": {
+                    "id": id6,
+                    "type": "ipd",
+                    "status": "draft",
+                    "set": "msset",
+                    "order": 1,
+                },
+            }
+        ],
+    )
+    _commit_all(repo)
+
+    rc, out, _ = _run_cli(["meta", "repair", id6, "--dir", str(repo), "--agent"])
+    assert rc == 2
+    rec = json.loads(out.strip().splitlines()[-1])
+    assert validate_agent_record(rec) == []
+    assert rec["outcome"] == "cannot-run"
+    assert any(
+        d.get("rule") == "missing-recovery-source" for d in rec.get("diagnostics", [])
+    )
+    assert _git(repo, "status", "--porcelain") == ""
+
+
 def test_meta_family_root_agent_conformance() -> None:
     rc, out, _ = _run_cli(["meta", "--agent"])
     assert rc == 2
