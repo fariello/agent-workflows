@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows.hooks import executed_transition_gate as GATE
+from tests.record_builder import RecordBuilder
 
 
 class ExecutedStatusUnitTests(unittest.TestCase):
@@ -25,52 +26,49 @@ class ExecutedStatusUnitTests(unittest.TestCase):
 
     def test_case_a_approved_with_fenced_executed_returns_false(self):
         """Case (a): metadata approved plus a fenced `- Status: executed` returns False."""
-        text = (
-            "# IPD: Example Plan\n\n"
-            "- Id: kecxnb\n"
-            "- Status: approved\n"
-            "- Author: test\n\n"
-            "## Goal\n\n"
-            "```text\n"
-            "- Status: executed\n"
-            "```\n"
+        text = RecordBuilder().plan(
+            title="Example Plan",
+            id6="kecxnb",
+            status="approved",
+            author="test",
+            body="## Goal\n\n```text\n- Status: executed\n```",
+            text_only=True,
         )
         self.assertFalse(GATE._has_executed_status(text))
 
     def test_case_b_metadata_executed_returns_true(self):
         """Case (b): metadata executed returns True."""
-        text = (
-            "# IPD: Example Plan\n\n"
-            "- Id: kecxnb\n"
-            "- Status: executed\n"
-            "- Author: test\n\n"
-            "## Goal\n\n"
-            "Some content.\n"
+        text = RecordBuilder().plan(
+            title="Example Plan",
+            id6="kecxnb",
+            status="executed",
+            author="test",
+            body="## Goal\n\nSome content.",
+            text_only=True,
         )
         self.assertTrue(GATE._has_executed_status(text))
 
     def test_case_c_metadata_done_returns_true(self):
         """Case (c): metadata done alias returns True."""
-        text = (
-            "# IPD: Example Plan\n\n"
-            "- Id: kecxnb\n"
-            "- Status: done\n"
-            "- Author: test\n\n"
-            "## Goal\n\n"
-            "Some content.\n"
+        text = RecordBuilder().plan(
+            title="Example Plan",
+            id6="kecxnb",
+            author="test",
+            body="## Goal\n\nSome content.",
+            raw_fields={"Status": "done"},
+            text_only=True,
         )
         self.assertTrue(GATE._has_executed_status(text))
 
     def test_case_d_metadata_executed_with_oq_open_below_returns_true(self):
         """Case (d): metadata executed with an OQ block's own `- Status: open` below returns True."""
-        text = (
-            "# IPD: Example Plan\n\n"
-            "- Id: kecxnb\n"
-            "- Status: executed\n"
-            "- Author: test\n\n"
-            "## Open questions\n\n"
-            "### OQ-01: Some question\n"
-            "- Status: open\n"
+        text = RecordBuilder().plan(
+            title="Example Plan",
+            id6="kecxnb",
+            status="executed",
+            author="test",
+            open_questions="### OQ-01: Some question\n- Status: open",
+            text_only=True,
         )
         self.assertTrue(GATE._has_executed_status(text))
 
@@ -91,18 +89,13 @@ class ExecutedStatusUnitTests(unittest.TestCase):
         """Pin of vnzm27's already-fixed reported shape: metadata approved plus a fenced grep transcript
         containing multiple '- Status: executed' lines returns False (this is a PIN, not a fix;
         already fixed by kecxnb)."""
-        text = (
-            "# IPD: Example Plan\n\n"
-            "- Id: 3v7wo6\n"
-            "- Status: approved\n"
-            "- Author: test\n\n"
-            "## Validation\n\n"
-            "```text\n"
-            "- Status: executed\n"
-            "- Status: executed\n"
-            "- Status: executed\n"
-            "- Status: executed\n"
-            "```\n"
+        text = RecordBuilder().plan(
+            title="Example Plan",
+            id6="3v7wo6",
+            status="approved",
+            author="test",
+            body="## Validation\n\n```text\n- Status: executed\n- Status: executed\n- Status: executed\n- Status: executed\n```",
+            text_only=True,
         )
         self.assertFalse(GATE._has_executed_status(text))
 
@@ -135,15 +128,12 @@ class ExecutedStatusUnitTests(unittest.TestCase):
             "## Goal\n\n"
             "Goal text.\n"
         )
-        body_text = (
-            "# IPD: Body Quote Plan\n\n"
-            "- Id: 3v7wo6\n"
-            "- Status: approved\n\n"
-            "## Goal\n\n"
-            "Body quote:\n"
-            "```text\n"
-            "- Id: bbbbbb\n"
-            "```\n"
+        body_text = RecordBuilder().plan(
+            title="Body Quote Plan",
+            id6="3v7wo6",
+            status="approved",
+            body="## Goal\n\nBody quote:\n```text\n- Id: bbbbbb\n```",
+            text_only=True,
         )
         self.assertEqual(GATE._plan_id_of(preamble_text), "3v7wo6")
         self.assertEqual(GATE._plan_id_of(body_text), "3v7wo6")
@@ -171,13 +161,13 @@ class ExecutedGateEndToEndTests(unittest.TestCase):
             plan_file = plan_dir / "20260925-fencegate-01-kecxnb-sample.ipd.md"
 
             # 1. Base commit: plan with Status: approved at HEAD
-            initial_content = (
-                "# IPD: Sample Plan\n\n"
-                "- Id: kecxnb\n"
-                "- Status: approved\n"
-                "- Author: test\n\n"
-                "## Goal\n\n"
-                "Initial goal.\n"
+            initial_content = RecordBuilder().plan(
+                title="Sample Plan",
+                id6="kecxnb",
+                status="approved",
+                author="test",
+                body="## Goal\n\nInitial goal.",
+                text_only=True,
             )
             plan_file.write_text(initial_content, encoding="utf-8")
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)
@@ -188,16 +178,13 @@ class ExecutedGateEndToEndTests(unittest.TestCase):
             )
 
             # 2. Stage a commit that adds a fenced `- Status: executed` quote
-            modified_content = (
-                "# IPD: Sample Plan\n\n"
-                "- Id: kecxnb\n"
-                "- Status: approved\n"
-                "- Author: test\n\n"
-                "## Goal\n\n"
-                "Initial goal.\n\n"
-                "```text\n"
-                "- Status: executed\n"
-                "```\n"
+            modified_content = RecordBuilder().plan(
+                title="Sample Plan",
+                id6="kecxnb",
+                status="approved",
+                author="test",
+                body="## Goal\n\nInitial goal.\n\n```text\n- Status: executed\n```",
+                text_only=True,
             )
             plan_file.write_text(modified_content, encoding="utf-8")
             subprocess.run(["git", "add", str(plan_file)], cwd=root, check=True)
@@ -361,12 +348,14 @@ class ExecutedGateEndToEndTests(unittest.TestCase):
             plan_name = "20260928-test-01-3v7wo6-sample.ipd.md"
             plan_pending = pending_dir / plan_name
             plan_pending.write_text(
-                "# IPD: Sample Plan\n\n"
-                "- Id: 3v7wo6\n"
-                "- Status: approved\n"
-                "- Author: test\n\n"
-                "## Goal\n\n"
-                "Initial goal.\n",
+                RecordBuilder().plan(
+                    title="Sample Plan",
+                    id6="3v7wo6",
+                    status="approved",
+                    author="test",
+                    body="## Goal\n\nInitial goal.",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)

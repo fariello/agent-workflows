@@ -43,6 +43,7 @@ from agent_workflows.runner_shared import (
     render_transient_dependency_waits,
     write_report,
 )
+from tests.record_builder import RecordBuilder
 
 
 def _diag_lines(table_text: str) -> list[str]:
@@ -195,7 +196,10 @@ def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
     pending = tmp_path / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True)
     (pending / "20260919-s-01-drn999-dep.ipd.md").write_text(
-        "# IPD: dep\n\n- Id: drn999\n- Status: approved\n", encoding="utf-8"
+        RecordBuilder().plan(
+            title="dep", id6="drn999", status="approved", text_only=True
+        ),
+        encoding="utf-8",
     )
 
     # Drain item: reasons derived via dependency_status_detailed
@@ -563,7 +567,10 @@ def test_dependency_reason_rendering_all_producer_shapes(
     if case_name == "case_i_drain_external":
         # (i) Drain/external shape from dependency_status_detailed against synthesized root
         (pending / "20260919-s-01-c1dep1-dep.ipd.md").write_text(
-            "# IPD: dep\n\n- Id: c1dep1\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="dep", id6="c1dep1", status="approved", text_only=True
+            ),
+            encoding="utf-8",
         )
         token = "executed:c1dep1"
         item = {
@@ -664,7 +671,10 @@ def test_dependency_reason_rendering_all_producer_shapes(
     elif case_name == "case_v_report_and_transient_waits":
         # (v) write_report and render_transient_dependency_waits for drain item
         (pending / "20260919-s-01-c5dep1-dep.ipd.md").write_text(
-            "# IPD: dep\n\n- Id: c5dep1\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="dep", id6="c5dep1", status="approved", text_only=True
+            ),
+            encoding="utf-8",
         )
         token = "executed:c5dep1"
         item = {
@@ -743,7 +753,10 @@ def test_dependency_reason_rendering_all_producer_shapes(
     elif case_name == "case_vii_declared_bare_id6":
         # (vii) Declared bare-id6 shape (F-11 / PR-001)
         (pending / "20260919-s-01-c7dep1-dep.ipd.md").write_text(
-            "# IPD: dep\n\n- Id: c7dep1\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="dep", id6="c7dep1", status="approved", text_only=True
+            ),
+            encoding="utf-8",
         )
         bare_token = "c7dep1"
         item = {
