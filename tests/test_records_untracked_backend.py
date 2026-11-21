@@ -528,6 +528,232 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         )
         self.assertIn("aw install", res_setup.stdout + res_setup.stderr)
 
+    def test_get_ignored_dirs_invalidates_on_inprocess_layout_transition(self):
+        """IPD dd48b5 E-02(1): In-process transition from ignored-only .aw/state/ to tracked .aw/records/
+
+        invalidates _cached_ignored_dirs automatically when .aw/.gitignore or .git/index changes,
+        without clearing the cache manually.
+        """
+        repo = Path(self.tmp_dir) / "repo_layout_transition"
+        self._init_git_repo(str(repo))
+
+        # Initial legacy .agents/ repository with root .gitignore ignoring .aw/state/
+        (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+        legacy_plan = repo / ".agents" / "plans" / "pending" / "legacy.md"
+        legacy_plan.parent.mkdir(parents=True, exist_ok=True)
+        legacy_plan.write_text("# Legacy Plan\n", encoding="utf-8")
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "add",
+                ".gitignore",
+                ".agents/plans/pending/legacy.md",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "initial legacy layout"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Dry-run creates an ignored file inside .aw/state/, making .aw an ignored-only directory
+        state_db = repo / ".aw" / "state" / "index.db"
+        state_db.parent.mkdir(parents=True, exist_ok=True)
+        state_db.write_text("dry-run-state\n", encoding="utf-8")
+
+        ignored_before = get_ignored_dirs(repo)
+        self.assertIn(".aw", ignored_before)
+
+        # Layout migration writes .aw/.gitignore and commits a tracked plan under .aw/records/
+        aw_gitignore = repo / ".aw" / ".gitignore"
+        aw_gitignore.write_text("state/\n", encoding="utf-8")
+        migrated_plan = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261121-test-01-abc123-migrated.ipd.md"
+        )
+        migrated_plan.parent.mkdir(parents=True, exist_ok=True)
+        migrated_plan.write_text(
+            "# Migrated Plan\n- Id: abc123\n- Status: approved\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "add",
+                ".aw/.gitignore",
+                ".aw/records/plans/pending/20261121-test-01-abc123-migrated.ipd.md",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "migrate records to .aw/records"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Without calling _cached_ignored_dirs.cache_clear(), .aw is no longer ignored
+        ignored_after = get_ignored_dirs(repo)
+        self.assertNotIn(".aw", ignored_after)
+
+        scanned = [p.resolve() for p in artifact_core.iter_scan_files(repo)]
+        self.assertIn(migrated_plan.resolve(), scanned)
+
+        # Updating only .aw/.gitignore invalidates the cache (including for subdirectory callers)
+        specs_dir = repo / ".aw" / "records" / "specs"
+        local_ignored_spec = (
+            specs_dir / "local_ignored" / "20261121-test-01-xyz789-hidden.spec.md"
+        )
+        local_ignored_spec.parent.mkdir(parents=True, exist_ok=True)
+        local_ignored_spec.write_text("# Local Ignored Spec\n", encoding="utf-8")
+
+        self.assertIn(
+            local_ignored_spec.resolve(),
+            [p.resolve() for p in artifact_core.iter_scan_files(repo)],
+        )
+        sub_ignored_before = get_ignored_dirs(specs_dir)
+        self.assertNotIn("local_ignored", sub_ignored_before)
+
+        aw_gitignore.write_text(
+            "state/\n/records/specs/local_ignored/\n", encoding="utf-8"
+        )
+        self.assertIn(".aw/records/specs/local_ignored", get_ignored_dirs(repo))
+        self.assertIn("local_ignored", get_ignored_dirs(specs_dir))
+        self.assertNotIn(
+            local_ignored_spec.resolve(),
+            [p.resolve() for p in artifact_core.iter_scan_files(repo)],
+        )
+
+    def test_get_ignored_dirs_invalidates_in_git_worktree(self):
+        """IPD dd48b5 E-02(2): In a real git worktree (.git pointer file + commondir),
+
+        get_ignored_dirs and iter_scan_files invalidate on both worktree index and commondir
+        info/exclude updates without clearing _cached_ignored_dirs manually.
+        """
+        main_repo = Path(self.tmp_dir) / "repo_wt_main"
+        self._init_git_repo(str(main_repo))
+
+        (main_repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+        (main_repo / "README.md").write_text("# Main Repo\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(main_repo), "add", ".gitignore", "README.md"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(main_repo), "commit", "-m", "initial commit"],
+            check=True,
+            capture_output=True,
+        )
+
+        worktree = Path(self.tmp_dir) / "repo_wt_checkout"
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(main_repo),
+                "worktree",
+                "add",
+                "-b",
+                "wt-branch",
+                str(worktree),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        self.assertTrue((worktree / ".git").is_file())
+
+        # Warm cache with .aw/state/index.db ignored so .aw is cached as ignored
+        wt_state_db = worktree / ".aw" / "state" / "index.db"
+        wt_state_db.parent.mkdir(parents=True, exist_ok=True)
+        wt_state_db.write_text("wt-state\n", encoding="utf-8")
+
+        self.assertIn(".aw", get_ignored_dirs(worktree))
+
+        # Commit a tracked plan under the worktree (updates only worktree gitdir/index)
+        wt_plan = (
+            worktree
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261121-test-01-def456-worktree.ipd.md"
+        )
+        wt_plan.parent.mkdir(parents=True, exist_ok=True)
+        wt_plan.write_text(
+            "# Worktree Plan\n- Id: def456\n- Status: approved\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(worktree),
+                "add",
+                ".aw/records/plans/pending/20261121-test-01-def456-worktree.ipd.md",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(worktree), "commit", "-m", "track worktree plan"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Without clearing cache, worktree index change invalidates .aw
+        self.assertNotIn(".aw", get_ignored_dirs(worktree))
+        self.assertIn(
+            wt_plan.resolve(),
+            [p.resolve() for p in artifact_core.iter_scan_files(worktree)],
+        )
+
+        # Create an untracked spec directory visible before updating commondir info/exclude
+        wt_scratch_spec = (
+            worktree
+            / ".aw"
+            / "records"
+            / "specs"
+            / "scratch_exclude"
+            / "20261121-test-01-ghi789-scratch.spec.md"
+        )
+        wt_scratch_spec.parent.mkdir(parents=True, exist_ok=True)
+        wt_scratch_spec.write_text("# Scratch Spec\n", encoding="utf-8")
+        self.assertIn(
+            wt_scratch_spec.resolve(),
+            [p.resolve() for p in artifact_core.iter_scan_files(worktree)],
+        )
+
+        # Update common_git_dir/info/exclude in-process; cache must invalidate via commondir
+        common_exclude = main_repo / ".git" / "info" / "exclude"
+        common_exclude.parent.mkdir(parents=True, exist_ok=True)
+        existing_exclude = (
+            common_exclude.read_text(encoding="utf-8")
+            if common_exclude.is_file()
+            else ""
+        )
+        common_exclude.write_text(
+            existing_exclude + "\n.aw/records/specs/scratch_exclude/\n",
+            encoding="utf-8",
+        )
+
+        self.assertIn(".aw/records/specs/scratch_exclude", get_ignored_dirs(worktree))
+        scanned_after_exclude = [
+            p.resolve() for p in artifact_core.iter_scan_files(worktree)
+        ]
+        self.assertNotIn(wt_scratch_spec.resolve(), scanned_after_exclude)
+        self.assertIn(wt_plan.resolve(), scanned_after_exclude)
+
 
 if __name__ == "__main__":
     unittest.main()
