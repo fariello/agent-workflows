@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 4 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_lifecycle_gate_coverage.py`, `tests/test_lifecycle_holder_gate.py`, `tests/test_lifecycle_style.py`, `tests/test_question_carrier.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_lifecycle_gate_coverage` 12, `test_lifecycle_holder_gate` 9, `test_lifecycle_style` 10, `test_question_carrier` 14. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-2etvye-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_lifecycle_holder_gate.py`: `_write_plan`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 4 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_lifecycle_gate_coverage.py`, `tests/test_lifecycle_holder_gate.py`, `tests/test_lifecycle_style.py`, `tests/test_question_carrier.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_lifecycle_gate_coverage` 12, `test_lifecycle_holder_gate` 9, `test_lifecycle_style` 10, `test_question_carrier` 14. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-2etvye-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_lifecycle_holder_gate.py`: `_write_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G4b-2etvye-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 3 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_question_drain.py`, `tests/test_question_inbox.py`, `tests/test_question_parking.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_question_drain` 13, `test_question_inbox` 7, `test_question_parking` 17. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-2etvye-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `7qxey9` E-03, batch subset G4b; round-3 split 2026-11-09) Batch G4b, 3 of its 20 modules (the finalize, lifecycle, scope, executed-gate, question and dependency tests (`test_finalize*`, `test_lifecycle*`, `test_scope*`, `test_executed*`, `test_exec*`, `test_question*`, `test_dependency*`)): `tests/test_question_drain.py`, `tests/test_question_inbox.py`, `tests/test_question_parking.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_question_drain` 13, `test_question_inbox` 7, `test_question_parking` 17. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4b-2etvye-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G4b-2etvye-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G4b-2etvye-1-files.txt .aw/state/59aiyh/G4b-2etvye-2-files.txt)`) into `.aw/state/59aiyh/2etvye-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 2etvye -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G4b-2etvye-1-files.txt .aw/state/59aiyh/G4b-2etvye-2-files.txt)`) into `.aw/state/59aiyh/2etvye-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 2etvye -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,20 +153,79 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G4b-2etvye-1-files.txt` and the empty `diff .aw/state/59aiyh/G4b-2etvye-1-before.txt .aw/state/59aiyh/G4b-2etvye-1-after.txt`; then, for each of `tests/test_lifecycle_gate_coverage.py`, `tests/test_lifecycle_holder_gate.py`, `tests/test_lifecycle_style.py`, `tests/test_question_carrier.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G4b-2etvye-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G4b-2etvye-1-files.txt`:
+      - `tests/test_lifecycle_gate_coverage.py`
+      - `tests/test_lifecycle_holder_gate.py`
+      - `tests/test_lifecycle_style.py`
+      - `tests/test_question_carrier.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G4b-2etvye-1-before.txt .aw/state/59aiyh/G4b-2etvye-1-after.txt`): empty output, exit code 0 (65 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_lifecycle_gate_coverage.py`:
+        - F-01 `rg -c`: before 12, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=2`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=2` (`dynamic-construction=2` `hand=2`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0`.
+      - `tests/test_lifecycle_holder_gate.py`:
+        - F-01 `rg -c`: before 9, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=1abaa3be69cfcacc3102606df02fd30d11cf2d2ecc64f87fc39ea54a2e5e2649`, `after_hash=1abaa3be69cfcacc3102606df02fd30d11cf2d2ecc64f87fc39ea54a2e5e2649`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_lifecycle_style.py`:
+        - F-01 `rg -c`: before 10, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=0d16a7bbd6a933b8e4c0648fc12331e8cb8c1aed2e3a6003b2a4a3897887b2da`, `after_hash=0d16a7bbd6a933b8e4c0648fc12331e8cb8c1aed2e3a6003b2a4a3897887b2da`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_question_carrier.py`:
+        - F-01 `rg -c`: before 14, after 6. Remaining matches (6): line 396 (`text="Header line\n- Status: approved\n- Id: evil01"`, `legacy-format subject`: literal legacy bullet-injection payload tested by `validate_questions` front-matter sanitization), line 397 (`evidence=["Intro\n- Readiness: go\nFact"]`, `body prose`: codemod `legacy-kept` literal bullet-injection payload in question evidence prose), and 4 `setter-byte assertion` lines (lines 404 `self.assertNotIn("\n- Status:", clean["text"])`, 405 `self.assertIn("\n  - Status:", clean["text"])`, 406 `self.assertNotIn("\n- Readiness:", clean["evidence"][0])`, 407 `self.assertIn("\n  - Readiness:", clean["evidence"][0])`).
+        - Codemod JSON row: `sites=7`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=6` (`unsupported-shape=1` `hand=1`, `setter-byte assertion=4` `legacy-kept=4`, `body prose=1` `legacy-kept=1`), `before_hash=5da0bfa032bd15254324cf7b11654c601f8d56fea776f3256674d3e5c4d7f8ef`, `after_hash=5da0bfa032bd15254324cf7b11654c601f8d56fea776f3256674d3e5c4d7f8ef`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 7 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 4 | 1 | 1 | 5`.
+    - Hand count: 3 (3 static + 0 apply-time `not-equivalent`; <= 25). Every hand site:
+      1. `tests/test_lifecycle_gate_coverage.py` lines 23-25 and lines 28-65 (2 `dynamic-construction` sites inside `_fixture_plan_text`; converted `_fixture_plan_text` to `RecordBuilder().plan(..., text_only=True)`).
+      2. `tests/test_question_carrier.py` pre-edit line 397 (post-commit line 396; 1 `unsupported-shape` site `text="Header line\n- Status: approved\n- Id: evil01"` in `TestQuestionValidator.test_front_matter_sanitization`; kept unchanged as `legacy-format subject` because it is a literal legacy front-matter injection test payload for `validate_questions`, not a record fixture).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (1): `tests/test_lifecycle_holder_gate.py:67:def _write_plan`.
+      - After (0): none.
+      - Deleted helpers (1): `_write_plan` (`tests/test_lifecycle_holder_gate.py`; replaced its orchestrator caller with `RecordBuilder(self.root).plan(...)` and inlined file writes at the 3 `_completed_plan_text` callers). Surviving E-09 helpers (0): none. (Existing `_fixture_plan_text` in `tests/test_lifecycle_gate_coverage.py` and `_create_plan_file` in `tests/test_question_carrier.py` do not match the E-09 pattern and now delegate to `RecordBuilder`.)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G4b-2etvye-2-files.txt` and the empty `diff .aw/state/59aiyh/G4b-2etvye-2-before.txt .aw/state/59aiyh/G4b-2etvye-2-after.txt`; then, for each of `tests/test_question_drain.py`, `tests/test_question_inbox.py`, `tests/test_question_parking.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G4b-2etvye-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G4b-2etvye-2-files.txt`:
+      - `tests/test_question_drain.py`
+      - `tests/test_question_inbox.py`
+      - `tests/test_question_parking.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G4b-2etvye-2-before.txt .aw/state/59aiyh/G4b-2etvye-2-after.txt`): empty output, exit code 0 (36 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_question_drain.py`:
+        - F-01 `rg -c`: before 13, after 4. Remaining matches (4): line 129 (`f"- Status: {oq_status}\n"`, `body prose`: N3 open-question row passed through `RecordBuilder().plan(..., open_questions=...)`) and 3 `setter-byte assertion` lines (lines 1410 `assert "- Status: resolved" in text`, 1491 `assert "- Status: resolved" in text`, 1495 `assert "- Status: open" in p20_text`).
+        - Codemod JSON row: `sites=7`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=7` (`unsupported-shape=2` `hand=2`, `not-equivalent=1` `hand=1`, `setter-byte assertion=3` `legacy-kept=3`, `body prose=1` `legacy-kept=1`), `before_hash=a18883a02d632f1d614e6d24984a1041e141c48c5a81e06e48b24a268c3bb9a3`, `after_hash=a18883a02d632f1d614e6d24984a1041e141c48c5a81e06e48b24a268c3bb9a3`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 7 | 1 | 0 | 0 | 2 | 0 | 0 | 0 | 3 | 1 | 2 | 4`.
+      - `tests/test_question_inbox.py`:
+        - F-01 `rg -c`: before 7, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=ed93e7a068bf9a7037687ceb194dabcabdc6bfdbb7447ba094fa77448a3b59da`, `after_hash=ed93e7a068bf9a7037687ceb194dabcabdc6bfdbb7447ba094fa77448a3b59da`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_question_parking.py`:
+        - F-01 `rg -c`: before 17, after 5. Remaining matches (5): 4 `body prose` lines (lines 211 `txt += "\n- Readiness: ready-for-gate\n"`, 261 `t = t.replace("- Status: to-review", "- Status: reviewed\n- Readiness: go-pending-approval")`, 262 `t += f"\n## Workflow history\n- 2026-10-17 reviewed: {data.get('verdict')}\n"` inside `_make_fake_agent_script`'s embedded fake-agent subprocess string, plus line 1102 comment `# Assert plan 2 file has NO - Readiness:`) and 1 `setter-byte assertion` line (line 1104 `assert "- Readiness:" not in plan_2_text`).
+        - Codemod JSON row: `sites=4`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=4` (`dynamic-construction=2` `hand=2`, `setter-byte assertion=1` `legacy-kept=1`, `body prose=1` `legacy-kept=1`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G4b | 2etvye | 4 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 1 | 1 | 2 | 2`.
+    - Hand count: 5 (4 static + 1 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_question_drain.py` lines 111-120 (`not-equivalent`), line 123 (`unsupported-shape`), and lines 124-129 (`unsupported-shape`) (3 hand sites inside `_create_plan_file`; converted `_create_plan_file` to one `RecordBuilder().plan(..., item_dependencies=..., scope_paths="README.md", body=..., open_questions=..., text_only=True)` call so `## Open questions` is built via `open_questions=` without duplicating the section).
+      2. `tests/test_question_parking.py` lines 112-114 and lines 116-178 (2 `dynamic-construction` sites inside `_create_plan_file`; converted `_create_plan_file` to `RecordBuilder().plan(..., item_dependencies=..., scope_paths="README.md", history=..., text_only=True)`).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (0): none.
+      - After (0): none.
+      - Deleted helpers (0): none. Surviving E-09 helpers (0): none. (Existing `_create_plan_file` helpers in `tests/test_question_drain.py`, `tests/test_question_inbox.py`, and `tests/test_question_parking.py` do not match the E-09 pattern and now delegate to `RecordBuilder`.)
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G4b-2etvye-1`, `G4b-2etvye-2` against `.aw/state/59aiyh/2etvye-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 2etvye` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G4b-2etvye-1-before.txt .aw/state/59aiyh/G4b-2etvye-2-before.txt) .aw/state/59aiyh/2etvye-union-after.txt`): empty output, exit code 0 (101 `PASSED` outcomes across all 7 modules).
+    - Core gate (`aw suite`, running bare core `python3 -m pytest` with bounded xdist workers): `2653 passed, 11 warnings in 85.23s (0:01:25)`, exit code 0 (0 failures; `CORE TIER BUDGET EXCEEDED` warning only because host 1-minute load average was 7.66 on 12 CPUs and `AW_CORE_BUDGET_ENFORCE=0`; none of `2etvye`'s 7 modules appeared in the top-10 slowest or slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6860,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 2etvye` (7 modified test Scope-Paths): `aw commit: committed 7 path(s): 3d54aa60078077dab78fbedfeab70372a2224b84` (`tests/test_lifecycle_gate_coverage.py`, `tests/test_lifecycle_holder_gate.py`, `tests/test_lifecycle_style.py`, `tests/test_question_carrier.py`, `tests/test_question_drain.py`, `tests/test_question_inbox.py`, `tests/test_question_parking.py`). Followed by the plan-evidence commit via `aw commit 2etvye -- .aw/records/plans/pending/20261109-metastore-188-2etvye-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-7.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 
