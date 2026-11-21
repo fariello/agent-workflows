@@ -1,15 +1,15 @@
 - Id: 66qh30
-- Status: open
+- Status: done
 - Set: 66qh30
 - Work-Kind: bug
 - Priority: high
 - Summary: set_plan_approved under --full-auto dirties main with --no-commit causing 100% fail-merge on verified lanes
 - Short-Description: set_plan_approved under --full-auto dirties main with --no-commit causing 100% fail-merge on verified lanes
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Fixed directly by commit 03a7dc3f5 (commits auto-approved under integration_lock; verified 3 passed in tests/test_runner_fullauto_and_sweep_fixes.py and live on pbdtss commit 53a698394)
 - 2026-11-21 created (aw backlog): set_plan_approved under --full-auto dirties main with --no-commit causing 100% fail-merge on verified lanes
 
 ## Problem
