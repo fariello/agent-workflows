@@ -461,10 +461,39 @@ def _analyze_open(args: argparse.Namespace) -> int:
     return _emit(result, args)
 
 
+def _validate_extra_runs_dirs(
+    raw_dirs: Sequence[str | Path], repo: Path
+) -> tuple[list[Path], str | None]:
+    """Validate explicit ``--runs-dir`` paths, failing closed on missing/non-dir/analytics paths."""
+    from agent_workflows import run_viewer
+
+    validated: list[Path] = []
+    seen: set[Path] = set()
+    for raw in raw_dirs:
+        text = str(raw).strip()
+        if not text:
+            continue
+        p = Path(text).expanduser()
+        if not p.exists():
+            return [], f"--runs-dir does not exist: {text}"
+        if not p.is_dir():
+            return [], f"--runs-dir is not a directory: {text}"
+        if run_viewer._is_in_any_analytics_tree(p, repo):
+            return [], f"--runs-dir points inside a reserved analytics tree: {text}"
+        canon = p.resolve()
+        if canon not in seen:
+            seen.add(canon)
+            validated.append(p)
+    return validated, None
+
+
 def _resolve_run_dirs(
-    args: argparse.Namespace, repo: Path
+    args: argparse.Namespace,
+    repo: Path,
+    *,
+    extra_runs_dirs: Sequence[Path] = (),
 ) -> tuple[list[Path], list[str]]:
-    """Resolve the requested targets to run directories, or ALL canonical runs by default.
+    """Resolve the requested targets to run directories, or ALL canonical + extra runs by default.
 
     Delegates to `run_viewer.resolve_target_runs_detailed`, which is the one resolver the viewer
     already uses, so `aw runs analyze <target>` selects exactly what `aw runs <target>` displays. It
@@ -475,7 +504,9 @@ def _resolve_run_dirs(
     from agent_workflows import run_viewer
 
     targets = list(getattr(args, "targets", None) or [])
-    return run_viewer.resolve_target_runs_detailed(targets, repo)
+    return run_viewer.resolve_target_runs_detailed(
+        targets, repo, extra_runs_dirs=extra_runs_dirs
+    )
 
 
 _RUN_STAMP_RE = re.compile(r"(\d{8})T(\d{6})")
@@ -686,17 +717,36 @@ def _startup_timings_for_analyzed_runs(
 ) -> dict[str, Any]:
     """Summarize startup latency across ``run_dirs`` from cached facts (falling back to run files)."""
     from agent_workflows import run_analytics
+    from agent_workflows import run_analytics_cache as cache_mod
+    from agent_workflows import run_analytics_privacy as privacy_mod
 
+    by_root_and_id: dict[tuple[str, str], dict[str, Any]] = {}
     by_run_id: dict[str, dict[str, Any]] = {}
     for entry in query_mod._cache_entries(repo):
         rid = str(entry.get("run_id") or "")
+        srid = str(entry.get("source_root_id") or "")
         if rid:
+            if srid:
+                by_root_and_id[(srid, rid)] = entry
             by_run_id[rid] = entry
+
+    salt: str | None = None
+    salt_path = cache_mod.cache_root(repo) / "salt"
+    if salt_path.is_file():
+        try:
+            salt = privacy_mod.load_or_create_salt(cache_mod.cache_root(repo))
+        except Exception:
+            salt = None
 
     records: list[Mapping[str, Any]] = []
     for run_dir in run_dirs:
         run_path = Path(run_dir)
-        cached = by_run_id.get(run_path.name)
+        cached = None
+        if salt is not None:
+            srid = cache_mod.source_root_id(run_path.parent, salt=salt)
+            cached = by_root_and_id.get((srid, run_path.name))
+        if cached is None:
+            cached = by_run_id.get(run_path.name)
         if cached is not None:
             records.append(cached)
             continue
@@ -809,7 +859,20 @@ def run_analyze(args: argparse.Namespace) -> int:
         if _latest_report_path(repo).exists():
             return _analyze_open(args)
 
-    run_dirs, unresolved = _resolve_run_dirs(args, repo)
+    extra_runs_dirs, runs_dir_err = _validate_extra_runs_dirs(
+        list(getattr(args, "runs_dirs", None) or []), repo
+    )
+    if runs_dir_err:
+        return _emit(
+            _cannot_run(
+                "runs analyze", runs_dir_err, next_cmd="aw runs analyze --help"
+            ),
+            args,
+        )
+
+    run_dirs, unresolved = _resolve_run_dirs(
+        args, repo, extra_runs_dirs=extra_runs_dirs
+    )
     if unresolved:
         from agent_workflows import run_viewer
 
@@ -1002,6 +1065,8 @@ def run_analyze(args: argparse.Namespace) -> int:
         "findings": skipped,
         "startup_timings": startup_summary,
     }
+    if extra_runs_dirs:
+        data["extra_runs_dirs"] = len(extra_runs_dirs)
     if window:
         data["window"] = dict(
             window, runs=len(run_dirs), undated_excluded=undated_excluded
@@ -1024,6 +1089,8 @@ def run_analyze(args: argparse.Namespace) -> int:
         Evidence("cache_hits", totals.get("hit", 0), "measured"),
         Evidence("skipped", skipped, "measured" if skipped else "verified"),
     ]
+    if extra_runs_dirs:
+        evidence.append(Evidence("extra_runs_dirs", len(extra_runs_dirs), "measured"))
     if startup_summary.get("runs_with_startup_timings", 0) > 0:
         evidence.append(
             Evidence(

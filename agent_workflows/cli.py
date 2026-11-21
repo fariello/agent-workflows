@@ -3561,6 +3561,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "EXAMPLES\n"
             "  aw runs analyze                  # analyze every run, update cache, publish report\n"
             "  aw runs analyze <run-id>         # analyze one run or Set\n"
+            "  aw runs analyze /path/to/runs    # analyze runs inside a runs directory\n"
+            "  aw runs analyze --runs-dir /ext/runs --runs-dir ../other-repo/.aw/records/runs\n"
             "  aw runs analyze --path           # print the latest report path; writes nothing\n"
             "  aw runs analyze --list           # list artifacts and the cache summary\n"
             "  aw runs analyze --rebuild        # ignore cached entries and recompute\n"
@@ -3579,7 +3581,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "targets",
         nargs="*",
         default=argparse.SUPPRESS,
-        help="Zero or more run IDs, directory paths, or set IDs (default: every canonical run).",
+        help=(
+            "Zero or more run IDs, run/runs directory paths, or set IDs "
+            "(default: every canonical run plus any --runs-dir directories)."
+        ),
     )
     # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _p_runs_analyze.add_argument(
@@ -3588,6 +3593,17 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="dir",
         default=argparse.SUPPRESS,
         help="Repo root directory (default: current directory).",
+    )
+    _p_runs_analyze.add_argument(
+        "--runs-dir",
+        action="append",
+        dest="runs_dirs",
+        default=[],
+        metavar="DIR",
+        help=(
+            "Include runs from DIR (a runs root containing run-* subdirectories, a single "
+            "run directory, or another repo root). May be repeated; works even outside a repo."
+        ),
     )
     # --path/--list are read-only reporting modes and are mutually exclusive with each other and with
     # the sweep-modifying flags, so a contradictory invocation is a NATIVE argparse usage error

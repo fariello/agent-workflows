@@ -708,8 +708,17 @@ def update_cache(
     root = cache_root(repo)
     if salt is None:
         salt = privacy.load_or_create_salt(root)
-    if root_id is None:
-        root_id = source_root_id(root.parent.parent, salt=salt)
+    root_id_by_parent: dict[Path, str] = {}
+
+    def _root_id_for(base: Path) -> str:
+        if root_id is not None:
+            return root_id
+        parent = base.parent.expanduser().resolve()
+        cached = root_id_by_parent.get(parent)
+        if cached is None:
+            cached = source_root_id(parent, salt=salt)
+            root_id_by_parent[parent] = cached
+        return cached
 
     run_dirs_list = list(run_dirs)
     total = len(run_dirs_list)
@@ -717,12 +726,13 @@ def update_cache(
     for idx, run_dir in enumerate(run_dirs_list, start=1):
         base = Path(run_dir)
         rid = base.name
+        entry_root_id = _root_id_for(base)
         if progress is not None:
             try:
                 progress(idx, total, rid)
             except Exception:
                 pass
-        decision, envelope = decide(base, root_id=root_id, repo=repo, run_id=rid)
+        decision, envelope = decide(base, root_id=entry_root_id, repo=repo, run_id=rid)
         if decision.verdict == "hit":
             decisions.append(decision)
             continue
@@ -741,7 +751,7 @@ def update_cache(
         try:
             envelope = build_entry(
                 run_id=rid,
-                root_id=root_id,
+                root_id=entry_root_id,
                 run_dir=base,
                 metric_facts=metric_facts,
                 event_facts=event_facts,

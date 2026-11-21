@@ -1583,9 +1583,86 @@ def _state_setids(run_dir: Path) -> set[str]:
     return found
 
 
+def _looks_like_analytics_dir(path: Path) -> bool:
+    if path.name != ANALYTICS_DIRNAME or not path.is_dir():
+        return False
+    return any(
+        (path / marker).exists()
+        for marker in ("cache", "snapshots", "versions", "manifest.json")
+    )
+
+
+def _is_in_any_analytics_tree(path: Path, repo_root: Path | None = None) -> bool:
+    if repo_root is not None and path_is_within_analytics(path, repo_root):
+        return True
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+    return any(
+        _looks_like_analytics_dir(cand) for cand in (resolved, *resolved.parents)
+    )
+
+
+def discover_runs_in_directory(
+    directory: Path | str,
+    *,
+    repo_root: Path | None = None,
+) -> list[Path]:
+    """Discover run directories contained in ``directory`` (including outside a repo).
+
+    Accepts:
+    - a single run directory (directly containing ``state.json`` or ``ledger.jsonl``),
+    - a runs container directory containing ``run-*`` subdirectories, or
+    - a repository/project root containing ``.aw/records/runs``, ``.aw/runs``, or ``.agents/runs``.
+
+    Always excludes the reserved ``analytics/`` tree.
+    """
+    p = Path(directory).expanduser()
+    if not p.is_dir():
+        return []
+    if _is_in_any_analytics_tree(p, repo_root):
+        return []
+
+    if (p / "state.json").is_file() or (p / "ledger.jsonl").is_file():
+        return [p]
+
+    found: list[Path] = []
+    seen: set[Path] = set()
+
+    def _collect_children(parent: Path) -> None:
+        if not parent.is_dir():
+            return
+        if _is_in_any_analytics_tree(parent, repo_root):
+            return
+        for child in sorted(parent.iterdir()):
+            if (
+                child.is_dir()
+                and child.name.startswith("run-")
+                and child.name != ANALYTICS_DIRNAME
+            ):
+                if _is_in_any_analytics_tree(child, repo_root):
+                    continue
+                canon = child.resolve()
+                if canon not in seen:
+                    seen.add(canon)
+                    found.append(child)
+
+    _collect_children(p)
+    for sub in (
+        p / ".aw" / "records" / "runs",
+        p / ".aw" / "runs",
+        p / ".agents" / "runs",
+    ):
+        _collect_children(sub)
+    return found
+
+
 def resolve_target_runs_detailed(
     targets: Sequence[str | Path] | None = None,
     repo_root: Path = Path("."),
+    *,
+    extra_runs_dirs: Sequence[str | Path] | None = None,
 ) -> tuple[list[Path], list[str]]:
     """Resolve targets to run directories AND report which requested tokens matched NOTHING.
 
@@ -1604,8 +1681,19 @@ def resolve_target_runs_detailed(
 
     A bare call (no tokens) returns ``(all_runs, [])``: asking for EVERYTHING and finding nothing
     is a legitimate empty repository, not a failed request.
+
+    ``extra_runs_dirs`` extends the discovered pool with runs from additional runs directories
+    (including directories outside ``repo_root``).
     """
     all_runs = discover_run_dirs(repo_root)
+    if extra_runs_dirs:
+        seen_all = {p.resolve() for p in all_runs}
+        for extra in extra_runs_dirs:
+            for run_p in discover_runs_in_directory(extra, repo_root=repo_root):
+                canon = run_p.resolve()
+                if canon not in seen_all:
+                    seen_all.add(canon)
+                    all_runs.append(run_p)
 
     if not targets:
         return all_runs, []
@@ -1619,7 +1707,7 @@ def resolve_target_runs_detailed(
         if not t_str:
             continue
 
-        p = Path(t_str)
+        p = Path(t_str).expanduser()
         if p.is_dir() and (
             (p / "state.json").is_file() or (p / "ledger.jsonl").is_file()
         ):
@@ -1631,6 +1719,18 @@ def resolve_target_runs_detailed(
                 seen.add(canon)
                 resolved.append(p)
             continue
+        elif p.is_dir():
+            if _is_in_any_analytics_tree(p, repo_root):
+                unresolved.append(t_str)
+                continue
+            contained = discover_runs_in_directory(p, repo_root=repo_root)
+            if contained:
+                for run_p in contained:
+                    canon = run_p.resolve()
+                    if canon not in seen:
+                        seen.add(canon)
+                        resolved.append(run_p)
+                continue
         elif (
             p.is_file()
             and p.parent.is_dir()
