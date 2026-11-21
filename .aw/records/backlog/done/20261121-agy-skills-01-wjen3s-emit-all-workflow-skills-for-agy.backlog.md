@@ -1,5 +1,5 @@
 - Id: wjen3s
-- Status: graduated
+- Status: done
 - Graduated-To: agy-skills
 - Set: agy-skills
 - Work-Kind: bug
@@ -11,5 +11,6 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw set): Closed via executed plan h1mouy (3e5201c0377d)
 - 2026-11-21 graduated (aw set): Graduated into review-ready plan h1mouy
 - 2026-11-21 created (aw backlog): Emit .agents/skills packages for all manifest workflows (including setup-repo), sync them in agent-workflows, and make aw att setup-repo reminder host-neutral
