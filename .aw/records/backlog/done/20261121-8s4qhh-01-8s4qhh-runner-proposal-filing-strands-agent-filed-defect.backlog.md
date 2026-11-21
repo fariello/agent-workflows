@@ -1,5 +1,5 @@
 - Id: 8s4qhh
-- Status: graduated
+- Status: done
 - Graduated-To: 8s4qhh
 - Set: 8s4qhh
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw backlog): closed by aw agy run: IPD 8h1q1k executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.ipd.md); evidence .aw/records/plans/executed/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.ipd.md
 - 2026-11-21 graduated (aw set): Graduated to review-ready plan 8h1q1k (set 8s4qhh)
 - 2026-11-21 created (aw backlog): runner proposal filing strands agent-filed defect backlog items on unmerged preserved lanes
 
