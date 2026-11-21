@@ -243,7 +243,7 @@ class FixtureCodemodDryRunAndIdempotenceTests(unittest.TestCase):
             self.assertEqual(first_proc.returncode, 0, first_proc.stderr)
             self.assertEqual(first_proc.stderr, "")
             assert first_report is not None
-            self.assertEqual(first_report["totals"]["rewrites"], 1)
+            self.assertEqual(first_report["totals"]["rewrites"], 1, first_report)
             self.assertTrue(first_report["modules"][0]["changed"])
             after_first_bytes = target.read_bytes()
 

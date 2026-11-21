@@ -31,6 +31,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
@@ -974,7 +975,11 @@ def _template_to_value_expr(
 
     pieces: list[str] = []
     pos = 0
-    for m, expr_part in zip(matches, expr_parts, strict=True):
+    if len(matches) != len(expr_parts):
+        raise ValueError(
+            f"placeholder/expression count mismatch ({len(matches)} != {len(expr_parts)})"
+        )
+    for m, expr_part in zip(matches, expr_parts):
         lit = seg[pos : m.start()]
         if lit:
             pieces.append(_escape_fstring_literal(lit, quote=quote))
@@ -1893,6 +1898,12 @@ def _pytest_workdir_and_env() -> tuple[Path, dict[str, str]]:
     else:
         run_root = REPO_ROOT
     env = dict(os.environ)
+    for k in (
+        "PYTEST_XDIST_WORKER",
+        "PYTEST_XDIST_WORKER_COUNT",
+        "PYTEST_CURRENT_TEST",
+    ):
+        env.pop(k, None)
     existing = env.get("PYTHONPATH", "")
     parts = [str(run_root)] + ([existing] if existing else [])
     env["PYTHONPATH"] = os.pathsep.join(parts)
@@ -1920,36 +1931,41 @@ def record_module_outcomes(module_path: Path) -> tuple[list[str], str]:
     """Run the batch-rule pytest command in-process and return (sorted outcomes, sha256)."""
     _purge_module_pyc(module_path)
     run_root, env = _pytest_workdir_and_env()
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "-o",
-        "addopts=",
-        "-m",
-        "",
-        "-p",
-        "no:randomly",
-        "-n",
-        "0",
-        "-rA",
-        str(module_path.resolve()),
-    ]
-    proc = subprocess.run(
-        cmd,
-        cwd=str(run_root),
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    with tempfile.TemporaryDirectory(prefix="aw-codemod-pytest-") as tmp_base:
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-o",
+            "addopts=",
+            "-m",
+            "",
+            "-p",
+            "no:randomly",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "no:xdist",
+            "--basetemp",
+            tmp_base,
+            "-rA",
+            str(module_path.resolve()),
+        ]
+        proc = subprocess.run(
+            cmd,
+            cwd=str(run_root),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     outcomes: list[str] = []
     for raw_line in proc.stdout.splitlines():
         if _OUTCOME_LINE_RE.match(raw_line):
             outcomes.append(re.sub(r" - .*", "", raw_line))
     outcomes.sort()
     # Guard against collection/syntax/import failures producing no outcome lines.
-    if proc.returncode in (2, 3, 4) and not any(
+    if proc.returncode not in (0, 1) and not any(
         line.startswith("ERROR ") for line in outcomes
     ):
         outcomes.append(f"__PYTEST_COLLECTION_ERROR_RC_{proc.returncode}__")
@@ -1991,7 +2007,7 @@ def apply_and_prove_module(module_path: Path) -> ModuleResult:
             module_path.write_bytes(original_bytes)
             return original_source
         new_src = apply_rewrites_to_source(original_source, tree, subset)
-        module_path.write_text(new_src, encoding="utf-8")
+        module_path.write_bytes(new_src.encode("utf-8"))
         return new_src
 
     try:
@@ -2018,12 +2034,22 @@ def apply_and_prove_module(module_path: Path) -> ModuleResult:
         last_verified_subset: tuple[int, ...] | None = ()
         last_verified_hash = before_hash
 
-        def _mark_not_equiv(site: SiteResult) -> None:
+        def _mark_not_equiv(
+            site: SiteResult, observed_outcomes: Sequence[str] | None = None
+        ) -> None:
             site.action = "refuse"
             site.rewrite_class = None
             site.reason = "not-equivalent"
             site.disposition = REASON_DISPOSITION["not-equivalent"]
-            site.detail = "rewriting this site altered the module pytest outcome list"
+            if observed_outcomes is not None:
+                site.detail = (
+                    f"rewriting this site altered the module pytest outcome list "
+                    f"(before={before_outcomes!r}, after={list(observed_outcomes)!r})"
+                )
+            else:
+                site.detail = (
+                    "rewriting this site altered the module pytest outcome list"
+                )
             not_equivalent.append(site)
 
         def _prove_subset(candidates: list[SiteResult]) -> None:
@@ -2039,14 +2065,14 @@ def apply_and_prove_module(module_path: Path) -> ModuleResult:
                 last_verified_hash = trial_hash
                 return
             if len(candidates) == 1:
-                _mark_not_equiv(candidates[0])
+                _mark_not_equiv(candidates[0], trial_outcomes)
                 return
             mid = len(candidates) // 2
             _prove_subset(candidates[:mid])
             _prove_subset(candidates[mid:])
 
         if len(planned) == 1:
-            _mark_not_equiv(planned[0])
+            _mark_not_equiv(planned[0], after_outcomes)
         else:
             mid = len(planned) // 2
             _prove_subset(planned[:mid])
