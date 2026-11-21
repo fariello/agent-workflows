@@ -5,8 +5,9 @@
 - Concern: companion-records-containment
 - Scope: `agent_workflows/storage.py`, `agent_workflows/placement_switch.py`, `agent_workflows/work_cmd.py`, `agent_workflows/engine.py`, `.aw/system/workflows/assess/assess.md`, `tests/test_storage.py`, `tests/test_companion_containment_and_storage.py`
 - Scope-Paths: agent_workflows/storage.py, agent_workflows/placement_switch.py, agent_workflows/work_cmd.py, agent_workflows/engine.py, .aw/system/workflows/assess/assess.md, tests/test_storage.py, tests/test_companion_containment_and_storage.py, .aw/records/plans/pending/20261121-companion-bugs-01-mnsbzt-companion-storage-layout-git-detection-target-containment-an.ipd.md
+- Scope-Exceeded: agent_workflows/cli.py (Skip auto-commit in _install_one during full placement-switch --relocate so updated companion AGENTS.md and .aw/.gitignore stay staged alongside relocation changes rather than auto-committing)
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Short-Description: Fix companion Git detection, remove empty companion .aw/records decoy dir, enforce target aw commit and .gitignore containment, and add companion AGENTS/assess guidance
@@ -24,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: mnsbzt verified (set companion-bugs, attempt 2). [Scope reconciliation - out-of-scope agent_workflows/cli.py: Skip auto-commit in _install_one during full placement-switch --relocate so updated companion AGENTS.md and .aw/.gitignore stay staged alongside relocation changes rather than auto-committing]
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED; review record .aw/records/reviews/20261121-companion-bugs-01-mnsbzt-companion-storage-layout-git-detection-target-containment-an.review.md
 - 2026-11-21 to-review (aw set): review-ready child plan Order 01 graduated from rvxmzz
