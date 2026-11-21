@@ -10,6 +10,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import unittest.mock
 from pathlib import Path
 
 import pytest
@@ -507,3 +508,324 @@ def test_stage_scratch_ignores_lock_files(
         scratch_dir / "repo" / ".aw" / "records" / "runs" / "integration.lock"
     ).exists()
     assert not (scratch_dir / "records" / "runs" / "integration.lock").exists()
+
+
+# --------------------------------------------------------------------------------------
+# Append-only ops-progress.jsonl streaming, crash recovery, and corruption refusal
+# --------------------------------------------------------------------------------------
+
+
+def _init_multi_record_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str,
+    extra_plans: int = 5,
+) -> Path:
+    """Create a committed fixture with >=10 planned apply operations and zero host spawns."""
+    repo = _init_repo(tmp_path, monkeypatch, name=name, with_sidecar=True)
+    plans_dir = repo / ".aw" / "records" / "plans" / "pending"
+    for idx in range(2, 2 + extra_plans):
+        pid = f"pl000{idx}"
+        (plans_dir / f"20261101-demo-{idx:02d}-{pid}-plan-{idx}.ipd.md").write_text(
+            f"# IPD: Plan {idx}\n\n"
+            f"- Id: {pid}\n"
+            "- Status: approved\n"
+            "- Set: demo\n"
+            f"- Order: {idx}\n"
+            f"- Short-Description: Synthetic plan {idx}\n",
+            encoding="utf-8",
+        )
+    _git(repo, "add", ".aw/records")
+    _git(repo, "commit", "-m", "add synthetic plans")
+    return repo
+
+
+def _simulate_hard_crash_progress(
+    repo: Path, journal_dir: Path
+) -> tuple[dict, Path, bytes]:
+    """Leave journal.json at status='applying' with empty lists and write a SIGKILL ops-progress.jsonl.
+
+    Applies op 0 completely (backup + applied), half-applies op 1 (backup written, target mutated,
+    applied absent), and appends a truncated trailing JSON line. Returns (journal_data, op1_bak_path, op1_orig_bytes).
+    """
+    jpath = journal_dir / "journal.json"
+    jdata = json.loads(jpath.read_text(encoding="utf-8"))
+    ops = jdata["operations"]
+    assert len(ops) >= 3
+    backups_dir = journal_dir / "backups"
+    scratch_dir = journal_dir / "scratch"
+    records_root = repo / ".aw" / "records"
+
+    # Choose first op (move_to_journal or write_from_scratch) as fully applied,
+    # and a subsequent write_from_scratch op on an existing file as half-completed.
+    op0 = ops[0]
+    op1 = next(
+        op
+        for op in ops[1:]
+        if op["kind"] == "write_from_scratch" and Path(op["target"]).is_file()
+    )
+
+    events: list[dict] = []
+    if op0["kind"] == "move_to_journal":
+        src0 = Path(op0["src"])
+        dst0 = Path(op0["dst"])
+        ex0, bak0, rk0, rp0 = m0001_metadata_v2._save_backup_bytes_keyed(
+            backups_dir,
+            op0["op_id"],
+            src0,
+            repo_path=repo,
+            records_root=records_root,
+        )
+        events.append(
+            {
+                "event": "backup",
+                "entry": {
+                    "op_id": op0["op_id"],
+                    "kind": "restore_moved",
+                    "root_kind": rk0,
+                    "relpath": rp0,
+                    "target": str(src0),
+                    "moved_to": str(dst0),
+                    "existed": ex0,
+                    "backup_file": bak0,
+                },
+            }
+        )
+        dst0.parent.mkdir(parents=True, exist_ok=True)
+        src0.rename(dst0)
+        events.append(
+            {
+                "event": "applied",
+                "entry": {
+                    "op_id": op0["op_id"],
+                    "kind": op0["kind"],
+                    "root_kind": rk0,
+                    "relpath": rp0,
+                    "path": str(src0),
+                    "dst": str(dst0),
+                },
+            }
+        )
+    else:
+        tgt0 = Path(op0["target"])
+        ex0, bak0, rk0, rp0 = m0001_metadata_v2._save_backup_bytes_keyed(
+            backups_dir,
+            op0["op_id"],
+            tgt0,
+            repo_path=repo,
+            records_root=records_root,
+        )
+        events.append(
+            {
+                "event": "backup",
+                "entry": {
+                    "op_id": op0["op_id"],
+                    "kind": "restore_bytes",
+                    "root_kind": rk0,
+                    "relpath": rp0,
+                    "target": str(tgt0),
+                    "existed": ex0,
+                    "backup_file": bak0,
+                },
+            }
+        )
+        tgt0.write_bytes((scratch_dir / op0["scratch_rel"]).read_bytes())
+        events.append(
+            {
+                "event": "applied",
+                "entry": {
+                    "op_id": op0["op_id"],
+                    "kind": op0["kind"],
+                    "root_kind": rk0,
+                    "relpath": rp0,
+                    "path": str(tgt0),
+                },
+            }
+        )
+
+    # Half-completed op1: backup saved and target mutated, but no `applied` event written.
+    tgt1 = Path(op1["target"])
+    op1_orig_bytes = tgt1.read_bytes()
+    ex1, bak1, rk1, rp1 = m0001_metadata_v2._save_backup_bytes_keyed(
+        backups_dir,
+        op1["op_id"],
+        tgt1,
+        repo_path=repo,
+        records_root=records_root,
+    )
+    assert ex1 is True and bak1 is not None
+    op1_bak_path = backups_dir / bak1
+    assert op1_bak_path.read_bytes() == op1_orig_bytes
+    events.append(
+        {
+            "event": "backup",
+            "entry": {
+                "op_id": op1["op_id"],
+                "kind": "restore_bytes",
+                "root_kind": rk1,
+                "relpath": rp1,
+                "target": str(tgt1),
+                "existed": ex1,
+                "backup_file": bak1,
+            },
+        }
+    )
+    tgt1.write_bytes(b"simulated-partial-mutation-before-sigkill\n")
+
+    jdata["status"] = "applying"
+    jdata["applied_files"] = []
+    jdata["backups"] = []
+    jpath.write_text(json.dumps(jdata, indent=2, sort_keys=True), encoding="utf-8")
+
+    progress_path = journal_dir / m0001_metadata_v2._OPS_PROGRESS_FILENAME
+    lines = [json.dumps(ev, ensure_ascii=False) for ev in events]
+    lines.append('{"event": "applied", "entry": {"op_id": "torn-trailing-write')
+    progress_path.write_text("\n".join(lines), encoding="utf-8")
+    return jdata, op1_bak_path, op1_orig_bytes
+
+
+def test_apply_streams_ops_progress_and_compacts_journal_saves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """_execute_planned_operations compacts once instead of saving journal.json per operation."""
+    repo = _init_multi_record_repo(
+        tmp_path, monkeypatch, name="compact_saves", extra_plans=5
+    )
+    orig_save = layout_migration.MigrationManager._save_transaction
+
+    with unittest.mock.patch.object(
+        layout_migration.MigrationManager,
+        "_save_transaction",
+        autospec=True,
+        wraps=orig_save,
+    ) as mock_save:
+        result = m0001_metadata_v2.run(repo, apply=True, commit=False)
+
+    assert result["status"] == "applied"
+    journal_dir = Path(result["journal_dir"])
+    journal = json.loads((journal_dir / "journal.json").read_text(encoding="utf-8"))
+    op_ids = [op["op_id"] for op in journal["operations"]]
+    assert len(op_ids) >= 10
+    assert mock_save.call_count < len(op_ids)
+    assert journal["status"] == "applied"
+    applied_ids = {entry["op_id"] for entry in journal["applied_files"]}
+    backup_ids = {entry["op_id"] for entry in journal["backups"]}
+    assert set(op_ids).issubset(applied_ids)
+    assert set(op_ids).issubset(backup_ids)
+    assert not (journal_dir / m0001_metadata_v2._OPS_PROGRESS_FILENAME).exists()
+
+
+def test_hard_crash_ops_progress_replay_for_peek_resume_and_rollback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Simulates SIGKILL mid-apply with torn final line and half-completed op; verifies peek, resume, and rollback."""
+    # Uninterrupted reference run
+    ref_repo = _init_repo(tmp_path, monkeypatch, name="crash_ref")
+    ref_res = m0001_metadata_v2.run(ref_repo, apply=True, commit=False)
+    assert ref_res["status"] == "applied"
+
+    def _tracked_snapshot(root: Path) -> dict[str, bytes]:
+        out: dict[str, bytes] = {}
+        for rel, data in _snapshot_tree(root).items():
+            if rel.startswith(".aw/state/") or rel.startswith(".aw/records/runs/"):
+                continue
+            out[rel] = data
+        return out
+
+    ref_snap = _tracked_snapshot(ref_repo)
+
+    # Crash fixture 1: _peek_journal + resume()
+    repo_res = _init_repo(tmp_path, monkeypatch, name="crash_resume")
+    dry_res = m0001_metadata_v2.run(repo_res, apply=False)
+    jdir_res = Path(dry_res["journal_dir"])
+    jdata_pre, op1_bak_path, op1_orig_bytes = _simulate_hard_crash_progress(
+        repo_res, jdir_res
+    )
+
+    peeked = m0001_metadata_v2._peek_journal(jdir_res)
+    assert peeked is not None
+    assert peeked["status"] == "applying"
+    assert len(peeked["applied_files"]) == 1
+    assert len(peeked["backups"]) == 2
+
+    resumed = m0001_metadata_v2.resume(repo_res, commit=False)
+    assert resumed["status"] == "applied"
+    assert resumed["resumed"] is True
+    assert not (jdir_res / m0001_metadata_v2._OPS_PROGRESS_FILENAME).exists()
+    # Original backup bytes for the half-completed op were preserved, never overwritten.
+    assert op1_bak_path.read_bytes() == op1_orig_bytes
+
+    compacted = json.loads((jdir_res / "journal.json").read_text(encoding="utf-8"))
+    assert compacted["status"] == "applied"
+    backup_op_ids = [entry["op_id"] for entry in compacted["backups"]]
+    assert len(backup_op_ids) == len(set(backup_op_ids))
+    planned_ids = {op["op_id"] for op in jdata_pre["operations"]}
+    assert planned_ids.issubset(
+        {entry["op_id"] for entry in compacted["applied_files"]}
+    )
+
+    def _normalize_snap(snap: dict[str, bytes]) -> dict[str, object]:
+        normalized: dict[str, object] = {}
+        for rel, data in snap.items():
+            if rel.startswith(".aw/records/meta/") and rel.endswith(".jsonl"):
+                events = []
+                for line in data.decode("utf-8").splitlines():
+                    obj = json.loads(line)
+                    obj.pop("at", None)
+                    events.append(obj)
+                normalized[rel] = events
+            else:
+                normalized[rel] = data
+        return normalized
+
+    assert _normalize_snap(_tracked_snapshot(repo_res)) == _normalize_snap(ref_snap)
+
+    # Crash fixture 2: rollback() restores both completed and half-completed ops byte-for-byte
+    repo_rb = _init_repo(tmp_path, monkeypatch, name="crash_rollback")
+    orig_rb_snap = _tracked_snapshot(repo_rb)
+    dry_rb = m0001_metadata_v2.run(repo_rb, apply=False)
+    jdir_rb = Path(dry_rb["journal_dir"])
+    _simulate_hard_crash_progress(repo_rb, jdir_rb)
+
+    rb = m0001_metadata_v2.rollback(repo_rb)
+    assert rb["status"] == "rolled_back"
+    assert rb["restored_count"] == 2
+    assert _tracked_snapshot(repo_rb) == orig_rb_snap
+    rb_journal = json.loads((jdir_rb / "journal.json").read_text(encoding="utf-8"))
+    assert rb_journal["status"] == "rolled_back"
+    assert not (jdir_rb / m0001_metadata_v2._OPS_PROGRESS_FILENAME).exists()
+
+
+def test_mid_file_corrupt_ops_progress_refuses_without_unlinking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed JSON on a non-final line of ops-progress.jsonl raises MigrationError and keeps the corrupt log."""
+    repo = _init_repo(tmp_path, monkeypatch, name="corrupt_progress")
+    dry = m0001_metadata_v2.run(repo, apply=False)
+    jdir = Path(dry["journal_dir"])
+    jpath = jdir / "journal.json"
+    jdata = json.loads(jpath.read_text(encoding="utf-8"))
+    jdata["status"] = "applying"
+    jpath.write_text(json.dumps(jdata, indent=2, sort_keys=True), encoding="utf-8")
+
+    progress_path = jdir / m0001_metadata_v2._OPS_PROGRESS_FILENAME
+    corrupt_payload = (
+        '{"event": "backup", "entry": {"op_id": "op0"}}\n'
+        "{not valid json mid-file\n"
+        '{"event": "applied", "entry": {"op_id": "op0"}}\n'
+    )
+    progress_path.write_text(corrupt_payload, encoding="utf-8")
+
+    with pytest.raises(layout_migration.MigrationError, match="Malformed JSON"):
+        m0001_metadata_v2._peek_journal(jdir)
+    assert progress_path.is_file()
+
+    with pytest.raises(layout_migration.MigrationError, match="Malformed JSON"):
+        m0001_metadata_v2.resume(repo, commit=False)
+    assert progress_path.is_file()
+
+    with pytest.raises(layout_migration.MigrationError, match="Malformed JSON"):
+        m0001_metadata_v2.rollback(repo)
+    assert progress_path.is_file()
+    assert progress_path.read_text(encoding="utf-8") == corrupt_payload

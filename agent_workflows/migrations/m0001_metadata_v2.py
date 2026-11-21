@@ -50,6 +50,7 @@ _INDEX_GITIGNORE_LINE_RE = re.compile(
 )
 _STEP5_INDEX_TREES = ("plans", "research", "prompts")
 _STEP5_INDEX_NAMES = ("INDEX.json", "INDEX.md")
+_OPS_PROGRESS_FILENAME = "ops-progress.jsonl"
 
 
 def _utc_now() -> str:
@@ -76,16 +77,97 @@ def _make_rebound_manager(
     return mgr
 
 
+def _replay_ops_progress(tx_data: Dict[str, Any], journal_dir: Path) -> Dict[str, Any]:
+    """Replay uncompacted ``ops-progress.jsonl`` events into ``tx_data``.
+
+    Merges ``backup`` and ``applied`` entries into ``tx_data['backups']`` and
+    ``tx_data['applied_files']`` deduplicated by ``op_id``. Ignores a truncated,
+    unparseable final non-empty line (torn write on abrupt termination), and
+    raises ``layout_migration.MigrationError`` if any earlier line is malformed
+    JSON or any parsed line is not a valid event object.
+    """
+    progress_path = journal_dir / _OPS_PROGRESS_FILENAME
+    if not progress_path.is_file():
+        return tx_data
+
+    raw_text = progress_path.read_text(encoding="utf-8")
+    non_empty: List[Tuple[int, str]] = [
+        (lineno, raw_line.strip())
+        for lineno, raw_line in enumerate(raw_text.splitlines(), start=1)
+        if raw_line.strip()
+    ]
+    if not non_empty:
+        return tx_data
+
+    parsed_events: List[Tuple[str, Dict[str, Any]]] = []
+    last_idx = len(non_empty) - 1
+    for idx, (lineno, line) in enumerate(non_empty):
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as exc:
+            if idx == last_idx:
+                break
+            raise layout_migration.MigrationError(
+                f"Malformed JSON in {progress_path} line {lineno}: {exc}"
+            ) from exc
+        if not isinstance(obj, dict):
+            raise layout_migration.MigrationError(
+                f"Expected JSON object in {progress_path} line {lineno}, got {type(obj).__name__}"
+            )
+        event = obj.get("event")
+        entry = obj.get("entry")
+        if event not in ("backup", "applied") or not isinstance(entry, dict):
+            raise layout_migration.MigrationError(
+                f"Invalid progress event in {progress_path} line {lineno}: {obj!r}"
+            )
+        parsed_events.append((event, entry))
+
+    backups = tx_data.setdefault("backups", [])
+    applied_files = tx_data.setdefault("applied_files", [])
+    seen_backup_ids: Set[str] = {
+        str(e["op_id"]) for e in backups if isinstance(e, dict) and e.get("op_id")
+    }
+    seen_applied_ids: Set[str] = {
+        str(e["op_id"]) for e in applied_files if isinstance(e, dict) and e.get("op_id")
+    }
+
+    for event, entry in parsed_events:
+        op_id = entry.get("op_id")
+        if event == "backup":
+            if not op_id or str(op_id) not in seen_backup_ids:
+                backups.append(entry)
+                if op_id:
+                    seen_backup_ids.add(str(op_id))
+        else:
+            if not op_id or str(op_id) not in seen_applied_ids:
+                applied_files.append(entry)
+                if op_id:
+                    seen_applied_ids.add(str(op_id))
+    return tx_data
+
+
+def _load_journal_with_progress(
+    mgr: layout_migration.MigrationManager, journal_dir: Path
+) -> Optional[Dict[str, Any]]:
+    """Load ``journal.json`` via ``mgr`` and replay any uncompacted ``ops-progress.jsonl``."""
+    tx_data = mgr._load_transaction()
+    if tx_data is None:
+        return None
+    return _replay_ops_progress(tx_data, journal_dir)
+
+
 def _peek_journal(journal_dir: Path) -> Optional[Dict[str, Any]]:
-    """Read ``journal.json`` without creating directories or locks, or return None."""
+    """Read ``journal.json`` and replay any uncompacted progress log, or return None."""
     tx_path = journal_dir / "journal.json"
     if not tx_path.is_file():
         return None
     try:
         data = json.loads(tx_path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
+    if not isinstance(data, dict):
+        return None
+    return _replay_ops_progress(data, journal_dir)
 
 
 def _filename_id6(filename: str) -> Optional[str]:
@@ -730,9 +812,22 @@ def _execute_planned_operations(
     fault_injection: Optional[str] = None,
 ) -> None:
     """Apply remaining operations from ``journal_dir / 'scratch'``, backing up each target."""
+    progress_path = journal_dir / _OPS_PROGRESS_FILENAME
+    if progress_path.is_file():
+        _replay_ops_progress(tx_data, journal_dir)
+        mgr._save_transaction(tx_data)
+        progress_path.unlink(missing_ok=True)
+
+    tx_data.setdefault("backups", [])
+    tx_data.setdefault("applied_files", [])
     done_ids = {
         entry.get("op_id")
-        for entry in (tx_data.get("applied_files") or [])
+        for entry in tx_data["applied_files"]
+        if isinstance(entry, dict) and entry.get("op_id")
+    }
+    backed_up_by_id: Dict[str, Dict[str, Any]] = {
+        str(entry["op_id"]): entry
+        for entry in tx_data["backups"]
         if isinstance(entry, dict) and entry.get("op_id")
     }
     backups_dir = journal_dir / "backups"
@@ -744,125 +839,181 @@ def _execute_planned_operations(
         else project_context.project_records_dir(eff_repo)
     )
 
-    for op in tx_data.get("operations") or []:
-        op_id = op["op_id"]
-        if op_id in done_ids:
-            continue
+    journal_dir.mkdir(parents=True, exist_ok=True)
 
-        kind = op["kind"]
-        if kind == "move_to_journal":
-            src = Path(op["src"])
-            dst = Path(op["dst"])
-            existed, backup_name, root_kind, relpath = _save_backup_bytes_keyed(
-                backups_dir,
-                op_id,
-                src,
-                repo_path=eff_repo,
-                records_root=eff_records,
-            )
-            tx_data["backups"].append(
-                {
-                    "op_id": op_id,
-                    "kind": "restore_moved",
-                    "root_kind": root_kind,
-                    "relpath": relpath,
-                    "target": str(src),
-                    "moved_to": str(dst),
-                    "existed": existed,
-                    "backup_file": backup_name,
-                }
-            )
-            if src.exists():
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(src), str(dst))
-            tx_data["applied_files"].append(
-                {
-                    "op_id": op_id,
-                    "kind": kind,
-                    "root_kind": root_kind,
-                    "relpath": relpath,
-                    "path": str(src),
-                    "dst": str(dst),
-                }
-            )
-        elif kind == "write_from_scratch":
-            target = Path(op["target"])
-            scratch_src = scratch_dir / op["scratch_rel"]
-            existed, backup_name, root_kind, relpath = _save_backup_bytes_keyed(
-                backups_dir,
-                op_id,
-                target,
-                repo_path=eff_repo,
-                records_root=eff_records,
-            )
-            tx_data["backups"].append(
-                {
-                    "op_id": op_id,
-                    "kind": "restore_bytes",
-                    "root_kind": root_kind,
-                    "relpath": relpath,
-                    "target": str(target),
-                    "existed": existed,
-                    "backup_file": backup_name,
-                }
-            )
-            _write_bytes_atomic(target, scratch_src.read_bytes())
-            tx_data["applied_files"].append(
-                {
-                    "op_id": op_id,
-                    "kind": kind,
-                    "root_kind": root_kind,
-                    "relpath": relpath,
-                    "path": str(target),
-                }
-            )
-        elif kind == "delete_file":
-            target = Path(op["target"])
-            existed, backup_name, root_kind, relpath = _save_backup_bytes_keyed(
-                backups_dir,
-                op_id,
-                target,
-                repo_path=eff_repo,
-                records_root=eff_records,
-            )
-            tx_data["backups"].append(
-                {
-                    "op_id": op_id,
-                    "kind": "restore_bytes",
-                    "root_kind": root_kind,
-                    "relpath": relpath,
-                    "target": str(target),
-                    "existed": existed,
-                    "backup_file": backup_name,
-                }
-            )
-            target.unlink(missing_ok=True)
-            tx_data["applied_files"].append(
-                {
-                    "op_id": op_id,
-                    "kind": kind,
-                    "root_kind": root_kind,
-                    "relpath": relpath,
-                    "path": str(target),
-                }
-            )
-        else:
-            raise layout_migration.MigrationError(
-                f"Unknown m0001 operation kind: {kind!r}"
-            )
+    try:
+        with open(progress_path, "a", encoding="utf-8") as fh:
 
+            def _append_progress(event: str, entry: Dict[str, Any]) -> None:
+                fh.write(
+                    json.dumps({"event": event, "entry": entry}, ensure_ascii=False)
+                    + "\n"
+                )
+                fh.flush()
+
+            for op in tx_data.get("operations") or []:
+                op_id = op["op_id"]
+                if op_id in done_ids:
+                    continue
+
+                kind = op["kind"]
+                existing_backup = backed_up_by_id.get(op_id)
+
+                if kind == "move_to_journal":
+                    src = Path(op["src"])
+                    dst = Path(op["dst"])
+                    if existing_backup is not None:
+                        root_kind = str(existing_backup.get("root_kind") or "")
+                        relpath = str(existing_backup.get("relpath") or "")
+                        if not root_kind:
+                            root_kind, relpath = _root_kind_and_rel(
+                                src, repo_path=eff_repo, records_root=eff_records
+                            )
+                    else:
+                        existed, backup_name, root_kind, relpath = (
+                            _save_backup_bytes_keyed(
+                                backups_dir,
+                                op_id,
+                                src,
+                                repo_path=eff_repo,
+                                records_root=eff_records,
+                            )
+                        )
+                        backup_entry: Dict[str, Any] = {
+                            "op_id": op_id,
+                            "kind": "restore_moved",
+                            "root_kind": root_kind,
+                            "relpath": relpath,
+                            "target": str(src),
+                            "moved_to": str(dst),
+                            "existed": existed,
+                            "backup_file": backup_name,
+                        }
+                        tx_data["backups"].append(backup_entry)
+                        backed_up_by_id[op_id] = backup_entry
+                        _append_progress("backup", backup_entry)
+                    if src.exists():
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.move(str(src), str(dst))
+                    applied_entry: Dict[str, Any] = {
+                        "op_id": op_id,
+                        "kind": kind,
+                        "root_kind": root_kind,
+                        "relpath": relpath,
+                        "path": str(src),
+                        "dst": str(dst),
+                    }
+                    tx_data["applied_files"].append(applied_entry)
+                    _append_progress("applied", applied_entry)
+                elif kind == "write_from_scratch":
+                    target = Path(op["target"])
+                    scratch_src = scratch_dir / op["scratch_rel"]
+                    if existing_backup is not None:
+                        root_kind = str(existing_backup.get("root_kind") or "")
+                        relpath = str(existing_backup.get("relpath") or "")
+                        if not root_kind:
+                            root_kind, relpath = _root_kind_and_rel(
+                                target, repo_path=eff_repo, records_root=eff_records
+                            )
+                    else:
+                        existed, backup_name, root_kind, relpath = (
+                            _save_backup_bytes_keyed(
+                                backups_dir,
+                                op_id,
+                                target,
+                                repo_path=eff_repo,
+                                records_root=eff_records,
+                            )
+                        )
+                        backup_entry = {
+                            "op_id": op_id,
+                            "kind": "restore_bytes",
+                            "root_kind": root_kind,
+                            "relpath": relpath,
+                            "target": str(target),
+                            "existed": existed,
+                            "backup_file": backup_name,
+                        }
+                        tx_data["backups"].append(backup_entry)
+                        backed_up_by_id[op_id] = backup_entry
+                        _append_progress("backup", backup_entry)
+                    _write_bytes_atomic(target, scratch_src.read_bytes())
+                    applied_entry = {
+                        "op_id": op_id,
+                        "kind": kind,
+                        "root_kind": root_kind,
+                        "relpath": relpath,
+                        "path": str(target),
+                    }
+                    tx_data["applied_files"].append(applied_entry)
+                    _append_progress("applied", applied_entry)
+                elif kind == "delete_file":
+                    target = Path(op["target"])
+                    if existing_backup is not None:
+                        root_kind = str(existing_backup.get("root_kind") or "")
+                        relpath = str(existing_backup.get("relpath") or "")
+                        if not root_kind:
+                            root_kind, relpath = _root_kind_and_rel(
+                                target, repo_path=eff_repo, records_root=eff_records
+                            )
+                    else:
+                        existed, backup_name, root_kind, relpath = (
+                            _save_backup_bytes_keyed(
+                                backups_dir,
+                                op_id,
+                                target,
+                                repo_path=eff_repo,
+                                records_root=eff_records,
+                            )
+                        )
+                        backup_entry = {
+                            "op_id": op_id,
+                            "kind": "restore_bytes",
+                            "root_kind": root_kind,
+                            "relpath": relpath,
+                            "target": str(target),
+                            "existed": existed,
+                            "backup_file": backup_name,
+                        }
+                        tx_data["backups"].append(backup_entry)
+                        backed_up_by_id[op_id] = backup_entry
+                        _append_progress("backup", backup_entry)
+                    target.unlink(missing_ok=True)
+                    applied_entry = {
+                        "op_id": op_id,
+                        "kind": kind,
+                        "root_kind": root_kind,
+                        "relpath": relpath,
+                        "path": str(target),
+                    }
+                    tx_data["applied_files"].append(applied_entry)
+                    _append_progress("applied", applied_entry)
+                else:
+                    raise layout_migration.MigrationError(
+                        f"Unknown m0001 operation kind: {kind!r}"
+                    )
+
+                done_ids.add(op_id)
+
+                if (
+                    fault_injection == "interrupt-mid-apply"
+                    and tx_data["applied_files"]
+                ):
+                    raise layout_migration.MigrationError(
+                        "Injected fault: interrupt-mid-apply"
+                    )
+                if fault_injection == "stage2-failure" and tx_data["applied_files"]:
+                    raise layout_migration.MigrationError(
+                        "Injected fault: stage2-failure"
+                    )
+
+            if fault_injection == "stage2-failure":
+                raise layout_migration.MigrationError("Injected fault: stage2-failure")
+
+            tx_data["status"] = "applied"
+    finally:
         mgr._save_transaction(tx_data)
-
-        if fault_injection == "interrupt-mid-apply" and tx_data["applied_files"]:
-            raise layout_migration.MigrationError("Injected fault: interrupt-mid-apply")
-        if fault_injection == "stage2-failure" and tx_data["applied_files"]:
-            raise layout_migration.MigrationError("Injected fault: stage2-failure")
-
-    if fault_injection == "stage2-failure":
-        raise layout_migration.MigrationError("Injected fault: stage2-failure")
-
-    tx_data["status"] = "applied"
-    mgr._save_transaction(tx_data)
+        progress_path.unlink(missing_ok=True)
 
 
 def _staged_paths_in_index(repo_path: Path) -> Set[str]:
@@ -1337,6 +1488,7 @@ def _rollback_all_locked(
     records_root: Optional[Path] = None,
 ) -> int:
     """Roll back stage two (`applied_files`/`backups` in reverse) and then embedded stage one."""
+    tx_data = _replay_ops_progress(tx_data, journal_dir)
     backups_dir = journal_dir / "backups"
     restored = 0
     for entry in reversed(tx_data.get("backups") or []):
@@ -1377,7 +1529,7 @@ def _rollback_all_locked(
 
     _cleanup_marker(journal_dir, repo=repo_path)
 
-    tx_data = mgr._load_transaction() or tx_data
+    tx_data = _load_journal_with_progress(mgr, journal_dir) or tx_data
     ls = tx_data.get("layout_stage")
     if isinstance(ls, dict) and ls.get("status") not in (
         None,
@@ -1386,13 +1538,14 @@ def _rollback_all_locked(
         "rolled_back",
     ):
         mgr.rollback_embedded_stage_one(tx_data, caller_holds_lock=True)
-        tx_data = mgr._load_transaction() or tx_data
+        tx_data = _load_journal_with_progress(mgr, journal_dir) or tx_data
 
     tx_data["staged_paths"] = []
     tx_data["companion_staged_paths"] = []
     tx_data["terminal_commit_marker"] = None
     tx_data["status"] = "rolled_back"
     mgr._save_transaction(tx_data)
+    (journal_dir / _OPS_PROGRESS_FILENAME).unlink(missing_ok=True)
     return restored
 
 
@@ -1456,6 +1609,7 @@ def _plan_and_apply_stage2_locked(
     layout_stage_report: Dict[str, Any],
     stage1_mgr: Optional[layout_migration.MigrationManager] = None,
     stage1_plan: Optional[Dict[str, Any]] = None,
+    clear_stale_progress: bool = False,
 ) -> Dict[str, Any]:
     """Plan stage 2 in scratch and, when ``apply=True``, execute and commit stage 2."""
     tracked_id6s = _collect_tracked_record_id6s(records_root)
@@ -1597,6 +1751,8 @@ def _plan_and_apply_stage2_locked(
         }
         tx_data["steps"]["round_trip"] = round_trip_skipped
         mgr._save_transaction(tx_data)
+        if clear_stale_progress:
+            (journal_dir / _OPS_PROGRESS_FILENAME).unlink(missing_ok=True)
         if not apply:
             return _format_run_report(tx_data, journal_dir, applied=False)
         m0001_verify.ensure_apply_gates_pass(census, round_trip_skipped)
@@ -1832,6 +1988,8 @@ def _plan_and_apply_stage2_locked(
 
     tx_data["operations"] = operations
     mgr._save_transaction(tx_data)
+    if clear_stale_progress:
+        (journal_dir / _OPS_PROGRESS_FILENAME).unlink(missing_ok=True)
 
     if not apply:
         return _format_run_report(tx_data, journal_dir, applied=False)
@@ -1879,7 +2037,7 @@ def _resume_applying_journal(
         skip_uncommitted=True,
     )
     mgr = _make_rebound_manager(repo_path, journal_dir)
-    existing = mgr._load_transaction()
+    existing = _load_journal_with_progress(mgr, journal_dir)
     if not existing or existing.get("status") != "applying":
         raise layout_migration.MigrationError(
             f"No applying m0001 migration journal found at {mgr.transaction_file}"
@@ -1894,7 +2052,7 @@ def _resume_applying_journal(
     ):
         mgr._acquire_lock(tx_id)
         try:
-            tx_data = mgr._load_transaction()
+            tx_data = _load_journal_with_progress(mgr, journal_dir)
             if not tx_data or tx_data.get("status") != "applying":
                 raise layout_migration.MigrationError(
                     f"Journal at {mgr.transaction_file} is no longer in 'applying' state."
@@ -1983,7 +2141,7 @@ def _resume_applying_journal(
                 _rollback_all_locked(
                     repo_path,
                     mgr,
-                    mgr._load_transaction() or tx_data,
+                    _load_journal_with_progress(mgr, journal_dir) or tx_data,
                     journal_dir,
                     records_root=eff_records,
                 )
@@ -2105,6 +2263,7 @@ def run(
         mgr._acquire_lock(tx_id)
         try:
             prior_tx = mgr._load_transaction() or {}
+            can_clear_stale_progress = prior_tx.get("status") != "applying"
             now_utc = _utc_now()
             sidecar_base: Dict[str, Any] = {
                 "present": sidecar_present,
@@ -2155,6 +2314,8 @@ def run(
                 else:
                     tx_data["status"] = "applying"
                     mgr._save_transaction(tx_data)
+                    if can_clear_stale_progress:
+                        (journal_dir / _OPS_PROGRESS_FILENAME).unlink(missing_ok=True)
                     try:
                         ls_done = mgr.apply_embedded_stage_one(
                             tx_data,
@@ -2173,7 +2334,7 @@ def run(
                         _rollback_all_locked(
                             repo_path,
                             mgr,
-                            mgr._load_transaction() or tx_data,
+                            _load_journal_with_progress(mgr, journal_dir) or tx_data,
                             journal_dir,
                             records_root=eff_records,
                         )
@@ -2204,6 +2365,7 @@ def run(
                     layout_stage_report=layout_stage_report,
                     stage1_mgr=stage1_mgr,
                     stage1_plan=stage1_plan,
+                    clear_stale_progress=can_clear_stale_progress,
                 )
             except Exception as exc:
                 if not apply:
@@ -2217,7 +2379,7 @@ def run(
                 _rollback_all_locked(
                     repo_path,
                     mgr,
-                    mgr._load_transaction() or tx_data,
+                    _load_journal_with_progress(mgr, journal_dir) or tx_data,
                     journal_dir,
                     records_root=eff_records,
                 )
@@ -2261,7 +2423,7 @@ def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
 
     mgr._acquire_lock(tx_id)
     try:
-        tx_data = mgr._load_transaction()
+        tx_data = _load_journal_with_progress(mgr, journal_dir)
         if tx_data is None:
             raise layout_migration.MigrationError(
                 f"No m0001 migration journal found at {mgr.transaction_file}"

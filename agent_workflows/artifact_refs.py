@@ -264,6 +264,57 @@ def _index_records_facetless_stems(repo_root: Path) -> Dict[str, List[str]]:
     return index
 
 
+def _index_records_stems(
+    repo_root: Path,
+) -> Tuple[Dict[str, int], Dict[str, List[str]]]:
+    """Walk records once to count legacy prefixes and index facet-less stems."""
+    from agent_workflows.project_context import project_records_dir
+
+    records_dir = project_records_dir(repo_root)
+    if not records_dir.is_dir():
+        records_dir = repo_root / ".agents"
+        if not records_dir.is_dir():
+            return {}, {}
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    legacy_counts: Dict[str, int] = {}
+    facetless_index: Dict[str, List[str]] = {}
+    for p in records_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        if p.name in _SKIP_NAMES:
+            continue
+        rel_parts = p.relative_to(records_dir).parts
+        if any(
+            part == "comms"
+            or part in layout.RECORD_SCAN_EXCLUDED_DIRS
+            or part.endswith(".data")
+            for part in rel_parts[:-1]
+        ):
+            continue
+        if _core.is_ignored_path(p, repo_root, ignored_dirs):
+            continue
+        leg_prefix = _legacy_prefix_stem(p.name)
+        if leg_prefix is not None:
+            legacy_counts[leg_prefix] = legacy_counts.get(leg_prefix, 0) + 1
+        stem = _facetless_stem(p.name)
+        if stem is not None:
+            facetless_index.setdefault(stem, []).append(p.name)
+    return legacy_counts, facetless_index
+
+
+def _compile_prefilter(tokens: Iterable[str]) -> Optional[re.Pattern[str]]:
+    """Compile one minimal escaped literal alternation regex over ``tokens``."""
+    ordered = sorted({t for t in tokens if t}, key=lambda t: (len(t), t))
+    kept: List[str] = []
+    for token in ordered:
+        if any(prev in token for prev in kept):
+            continue
+        kept.append(token)
+    if not kept:
+        return None
+    return re.compile("|".join(re.escape(t) for t in kept))
+
+
 def plan_reference_rewrites_with_warnings(
     repo_root: Path,
     name_map: Dict[str, str],
@@ -274,23 +325,29 @@ def plan_reference_rewrites_with_warnings(
 
     Returns (edits, warnings).
     """
+    active_name_pairs: List[Tuple[str, str]] = [
+        (o, n) for o, n in name_map.items() if o and o != n
+    ]
     whole_stem_map: Dict[str, str] = {}
     legacy_stem_map: Dict[str, str] = {}
     facetless_stem_map: Dict[str, str] = {}
     shared_facetless_stems: Dict[str, int] = {}
     warnings: List[str] = []
 
+    records_legacy_counts: Optional[Dict[str, int]] = None
     records_facetless_index: Optional[Dict[str, List[str]]] = None
 
-    for old_name, new_name in name_map.items():
-        if old_name == new_name:
-            continue
+    for old_name, new_name in active_name_pairs:
         o_whole, n_whole = _whole_stem(old_name), _whole_stem(new_name)
         if o_whole != old_name and len(o_whole) >= 6 and o_whole != n_whole:
             whole_stem_map[o_whole] = n_whole
         o_leg = _legacy_prefix_stem(old_name)
         if o_leg is not None:
-            rec_count = count_legacy_prefix_records(repo_root, o_leg)
+            if records_legacy_counts is None or records_facetless_index is None:
+                records_legacy_counts, records_facetless_index = _index_records_stems(
+                    repo_root
+                )
+            rec_count = records_legacy_counts.get(o_leg, 0)
             if rec_count > 1:
                 warn_msg = (
                     f"--- WARNING: legacy prefix '{o_leg}' is shared by {rec_count} artifacts; "
@@ -315,8 +372,10 @@ def plan_reference_rewrites_with_warnings(
             and o_facet not in facetless_stem_map
             and o_facet not in shared_facetless_stems
         ):
-            if records_facetless_index is None:
-                records_facetless_index = _index_records_facetless_stems(repo_root)
+            if records_legacy_counts is None or records_facetless_index is None:
+                records_legacy_counts, records_facetless_index = _index_records_stems(
+                    repo_root
+                )
             sibling_names = [
                 name
                 for name in records_facetless_index.get(o_facet, [])
@@ -327,6 +386,36 @@ def plan_reference_rewrites_with_warnings(
                 shared_facetless_stems[o_facet] = rec_count
             else:
                 facetless_stem_map[o_facet] = n_facet
+
+    compiled_bare: List[Tuple[str, str, re.Pattern[str]]] = [
+        (old_stem, new_stem, _boundaried(old_stem))
+        for stem_map in (whole_stem_map, legacy_stem_map)
+        for old_stem, new_stem in stem_map.items()
+    ]
+    compiled_facetless: List[Tuple[str, str, re.Pattern[str]]] = [
+        (old_stem, new_stem, _facetless_boundaried(old_stem))
+        for old_stem, new_stem in facetless_stem_map.items()
+    ]
+    compiled_shared_facetless: List[Tuple[str, int, re.Pattern[str]]] = [
+        (old_stem, count, _facetless_boundaried(old_stem))
+        for old_stem, count in shared_facetless_stems.items()
+    ]
+
+    if not (
+        active_name_pairs
+        or compiled_bare
+        or compiled_facetless
+        or compiled_shared_facetless
+    ):
+        return [], warnings
+
+    prefilter_tokens: List[str] = [old_name for old_name, _ in active_name_pairs]
+    prefilter_tokens.extend(old_stem for old_stem, _, _ in compiled_bare)
+    prefilter_tokens.extend(old_stem for old_stem, _, _ in compiled_facetless)
+    prefilter_tokens.extend(old_stem for old_stem, _, _ in compiled_shared_facetless)
+    prefilter_re = _compile_prefilter(prefilter_tokens)
+    if prefilter_re is None:
+        return [], warnings
 
     edits: List[RefEdit] = []
     for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
@@ -343,32 +432,37 @@ def plan_reference_rewrites_with_warnings(
         if f.name in _GENERATED_MANIFEST_NAMES:
             continue
         try:
-            text = f.read_text(encoding="utf-8")
+            raw_text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        text, _restore_fenced = _mask_fenced_code(text)
+        if not prefilter_re.search(raw_text):
+            continue
+        text, _restore_fenced = _mask_fenced_code(raw_text)
         text, _restore_permalinks = _mask_permalinks(text)
+        if not prefilter_re.search(text):
+            continue
         # (a) full filename.
-        for old_name, new_name in name_map.items():
-            if old_name != new_name and old_name in text:
+        for old_name, new_name in active_name_pairs:
+            if old_name in text:
                 edits.append(
                     RefEdit(f, FULL_NAME, old_name, new_name, text.count(old_name))
                 )
         # (b) whole stem (covers range shorthand); (c) legacy prefix stem. Both map-driven,
         # hyphen-boundaried. Merge so a stem is emitted once per (stem->new) mapping.
-        for stem_map in (whole_stem_map, legacy_stem_map):
-            for old_stem, new_stem in stem_map.items():
-                n = len(_boundaried(old_stem).findall(text))
+        for old_stem, new_stem, pat in compiled_bare:
+            if old_stem in text:
+                n = len(pat.findall(text))
                 if n:
                     edits.append(RefEdit(f, BARE_STEM, old_stem, new_stem, n))
         # (d) facet-less stem. Map-driven, strict lookahead refusing following facet/md.
-        for old_stem, new_stem in facetless_stem_map.items():
-            n = len(_facetless_boundaried(old_stem).findall(text))
-            if n:
-                edits.append(RefEdit(f, FACETLESS_STEM, old_stem, new_stem, n))
+        for old_stem, new_stem, pat in compiled_facetless:
+            if old_stem in text:
+                n = len(pat.findall(text))
+                if n:
+                    edits.append(RefEdit(f, FACETLESS_STEM, old_stem, new_stem, n))
         # Sibling collision guard: emit warning only if a facet-less occurrence was found.
-        for old_stem, count in shared_facetless_stems.items():
-            if _facetless_boundaried(old_stem).search(text):
+        for old_stem, count, pat in compiled_shared_facetless:
+            if old_stem in text and pat.search(text):
                 warn_msg = (
                     f"--- WARNING: stem '{old_stem}' is shared by {count} other artifact(s); "
                     f"facet-less citations of it were NOT rewritten ---"
