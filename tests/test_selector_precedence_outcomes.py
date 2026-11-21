@@ -26,6 +26,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import selectors
+from tests.record_builder import RecordBuilder
 
 
 class SelectorPrecedenceOutcomesTests(unittest.TestCase):
@@ -40,17 +41,35 @@ class SelectorPrecedenceOutcomesTests(unittest.TestCase):
         # Several plans declaring `- Set: demo`
         self.demo_plan_1 = self.pend / "20260101-demo-01-aa0001-first-demo-plan.ipd.md"
         self.demo_plan_1.write_text(
-            "# Plan 1\n\n- Id: aa0001\n- Status: draft\n- Set: demo\n\n## Goal\nDemo 1\n",
+            RecordBuilder().plan(
+                id6="aa0001",
+                status="draft",
+                set="demo",
+                body="## Goal\nDemo 1",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.demo_plan_2 = self.pend / "20260101-demo-02-aa0002-second-demo-plan.ipd.md"
         self.demo_plan_2.write_text(
-            "# Plan 2\n\n- Id: aa0002\n- Status: draft\n- Set: demo\n\n## Goal\nDemo 2\n",
+            RecordBuilder().plan(
+                id6="aa0002",
+                status="draft",
+                set="demo",
+                body="## Goal\nDemo 2",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.demo_plan_3 = self.pend / "20260101-demo-03-aa0003-third-demo-plan.ipd.md"
         self.demo_plan_3.write_text(
-            "# Plan 3\n\n- Id: aa0003\n- Status: approved\n- Set: demo\n\n## Goal\nDemo 3\n",
+            RecordBuilder().plan(
+                id6="aa0003",
+                status="approved",
+                set="demo",
+                body="## Goal\nDemo 3",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.demo_plans = [self.demo_plan_1, self.demo_plan_2, self.demo_plan_3]
@@ -60,7 +79,13 @@ class SelectorPrecedenceOutcomesTests(unittest.TestCase):
             self.pend / "20260101-other-01-dd0001-demo-colliding-plan.ipd.md"
         )
         self.setid_collide_plan.write_text(
-            "# Set Collision Plan\n\n- Id: dd0001\n- Status: draft\n- Set: other\n\n## Goal\nCollide setid\n",
+            RecordBuilder().plan(
+                id6="dd0001",
+                status="draft",
+                set="other",
+                body="## Goal\nCollide setid",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -69,7 +94,13 @@ class SelectorPrecedenceOutcomesTests(unittest.TestCase):
             self.pend / "20260101-other-02-dd0002-approved-naming-check.ipd.md"
         )
         self.status_collide_plan.write_text(
-            "# Status Collision Plan\n\n- Id: dd0002\n- Status: draft\n- Set: other\n\n## Goal\nCollide status\n",
+            RecordBuilder().plan(
+                id6="dd0002",
+                status="draft",
+                set="other",
+                body="## Goal\nCollide status",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -78,7 +109,13 @@ class SelectorPrecedenceOutcomesTests(unittest.TestCase):
             self.pend / "20260101-other-03-dd0003-unique-substring-fallback.ipd.md"
         )
         self.fallthrough_plan.write_text(
-            "# Fallthrough Plan\n\n- Id: dd0003\n- Status: draft\n- Set: other\n\n## Goal\nFallthrough substring\n",
+            RecordBuilder().plan(
+                id6="dd0003",
+                status="draft",
+                set="other",
+                body="## Goal\nFallthrough substring",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

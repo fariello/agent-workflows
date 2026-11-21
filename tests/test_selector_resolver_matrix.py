@@ -26,6 +26,7 @@ from pathlib import Path
 from agent_workflows import artifact_rename as AR
 from agent_workflows import selectors
 from agent_workflows import status_set as SS
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -38,12 +39,26 @@ class ResolverMatrixTests(unittest.TestCase):
         pend.mkdir(parents=True)
         self.A = pend / "20260101-demo-01-aaa111-alpha.ipd.md"
         self.A.write_text(
-            "# IPD: alpha\n\n- Id: aaa111\n- Status: approved\n- Set: demo\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="alpha",
+                id6="aaa111",
+                status="approved",
+                set="demo",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.B = pend / "20260101-other-01-bbb222-beta.ipd.md"
         self.B.write_text(
-            "# IPD: beta\n\n- Id: bbb222\n- Status: draft\n- Set: other\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="beta",
+                id6="bbb222",
+                status="draft",
+                set="other",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -161,12 +176,26 @@ class UnifiedResolveTests(unittest.TestCase):
         pend.mkdir(parents=True)
         self.A = pend / "20260101-demo-01-aaa111-alpha.ipd.md"
         self.A.write_text(
-            "# IPD: alpha\n\n- Id: aaa111\n- Status: approved\n- Set: demo\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="alpha",
+                id6="aaa111",
+                status="approved",
+                set="demo",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self.B = pend / "20260101-other-01-bbb222-beta.ipd.md"
         self.B.write_text(
-            "# IPD: beta\n\n- Id: bbb222\n- Status: draft\n- Set: other\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="beta",
+                id6="bbb222",
+                status="draft",
+                set="other",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -250,22 +279,39 @@ class OtherCatchAllDoesNotClaimTypedTreesTests(unittest.TestCase):
         # A plan and ITS review record, sharing the id6 exactly as the real trees do.
         self.plan = pend / "20260101-demo-01-aaa111-alpha.ipd.md"
         self.plan.write_text(
-            "# IPD: alpha\n\n- Id: aaa111\n- Status: reviewed\n- Set: demo\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="alpha",
+                id6="aaa111",
+                status="reviewed",
+                set="demo",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         reviews = recs / "reviews"
         reviews.mkdir(parents=True)
         self.review = reviews / "20260101-demo-01-aaa111-alpha.review.md"
         self.review.write_text(
-            "# Review: alpha\n\n- Subject-Id: aaa111\n- Subject-Type: ipd\n"
-            "- Verdict: APPROVE\n\n## Round 1\n\nx\n",
+            RecordBuilder().review(
+                subject="aaa111", subject_type="ipd", verdict="APPROVE", text_only=True
+            ),
             encoding="utf-8",
         )
         # A genuinely UNOWNED tree, which `other` legitimately still owns.
         misc = recs / "prompt-library"
         misc.mkdir(parents=True)
         self.misc = misc / "20260101-demo-01-ccc333-gamma.md"
-        self.misc.write_text("# gamma\n\n- Id: ccc333\n", encoding="utf-8")
+        self.misc.write_text(
+            RecordBuilder().walkthrough(
+                id6="ccc333",
+                target_id="ccc333",
+                set="demo",
+                body="# gamma\n",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
 
     def tearDown(self) -> None:
         self._tmp.cleanup()

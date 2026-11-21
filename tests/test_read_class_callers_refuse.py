@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 from agent_workflows import agent_schema
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -95,12 +96,14 @@ def seeded_fixture(tmp_path_factory):
     rel_dir = repo_dir / ".aw" / "records" / "releases"
     rel_dir.mkdir(parents=True, exist_ok=True)
     (rel_dir / "20261001-01-rel001-v100.release.md").write_text(
-        "# Release: v1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Version: 1.0.0\n"
-        "- Status: planned\n"
-        "- Summary: First release\n\n"
-        "## Summary\nFirst release.\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="First release",
+            body="# Release: 1.0.0\n\n## Summary\nFirst release.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -108,19 +111,19 @@ def seeded_fixture(tmp_path_factory):
     res_dir = repo_dir / ".aw" / "records" / "research"
     res_dir.mkdir(parents=True, exist_ok=True)
     (res_dir / "20261001-res001-01-res001-active-doc.research-report.md").write_text(
-        "---\n"
-        "id: res001\n"
-        "created: 20261001\n"
-        "set: res001\n"
-        "order: 01\n"
-        "topic: [test]\n"
-        "kind: research-report\n"
-        "status: active\n"
-        "outcome: none-yet\n"
-        "summary: Active research doc\n"
-        "---\n\n"
-        "# Research: Active Doc\n\n"
-        "Active doc body.\n",
+        RecordBuilder().research(
+            id6="res001",
+            when="2026-10-01",
+            set="res001",
+            order=1,
+            topic=["test"],
+            research_kind="research-report",
+            status="active",
+            outcome="none-yet",
+            summary="Active research doc",
+            body="\n# Research: Active Doc\n\nActive doc body.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -128,19 +131,19 @@ def seeded_fixture(tmp_path_factory):
     arc_dir = res_dir / "archive" / "202610"
     arc_dir.mkdir(parents=True, exist_ok=True)
     (arc_dir / "20261001-arc001-01-arc001-archived-doc.research-report.md").write_text(
-        "---\n"
-        "id: arc001\n"
-        "created: 20261001\n"
-        "set: arc001\n"
-        "order: 01\n"
-        "topic: [test]\n"
-        "kind: research-report\n"
-        "status: archive\n"
-        "outcome: none-yet\n"
-        "summary: Archived research doc\n"
-        "---\n\n"
-        "# Research: Archived Doc\n\n"
-        "Archived content.\n",
+        RecordBuilder().research(
+            id6="arc001",
+            when="2026-10-01",
+            set="arc001",
+            order=1,
+            topic=["test"],
+            research_kind="research-report",
+            status="archive",
+            outcome="none-yet",
+            summary="Archived research doc",
+            body="\n# Research: Archived Doc\n\nArchived content.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -148,12 +151,15 @@ def seeded_fixture(tmp_path_factory):
     plan_dir = repo_dir / ".aw" / "records" / "plans" / "pending"
     plan_dir.mkdir(parents=True, exist_ok=True)
     (plan_dir / "20261001-plan01-01-pln001-test-plan.ipd.md").write_text(
-        "# IPD: Test Plan\n\n"
-        "- Id: pln001\n"
-        "- Status: pending\n"
-        "- Set: plan01\n"
-        "- Order: 01\n\n"
-        "Cites RSCH-arc001 and RSCH-dng999.\n",
+        RecordBuilder().plan(
+            title="Test Plan",
+            id6="pln001",
+            status="draft",
+            set="plan01",
+            order=1,
+            body="Cites RSCH-arc001 and RSCH-dng999.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
