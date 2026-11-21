@@ -30,6 +30,7 @@ from unittest import mock
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine, cli, ipd_schema, releases, runner_shared
 from agent_workflows.term import Term
+from tests.record_builder import RecordBuilder
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -52,11 +53,13 @@ def _create_minimal_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel_file.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return root
@@ -86,12 +89,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live ungated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live ungated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -112,13 +118,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -137,12 +146,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-sec001-01-sec001-sec-defect.backlog.md"
             )
             sec_file.write_text(
-                "- Id: sec001\n"
-                "- Status: open\n"
-                "- Set: sec001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: security\n"
-                "- Summary: Live ungated security item\n",
+                RecordBuilder().backlog(
+                    id6="sec001",
+                    status="open",
+                    set="sec001",
+                    priority="medium",
+                    work_kind="security",
+                    summary="Live ungated security item",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -167,12 +179,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-sec001-01-sec001-sec-defect.backlog.md"
             )
             sec_file.write_text(
-                "- Id: sec001\n"
-                "- Status: open\n"
-                "- Set: sec001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: security\n"
-                "- Summary: Live ungated security item\n",
+                RecordBuilder().backlog(
+                    id6="sec001",
+                    status="open",
+                    set="sec001",
+                    priority="medium",
+                    work_kind="security",
+                    summary="Live ungated security item",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -198,12 +213,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live ungated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live ungated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -222,12 +240,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live handed-off bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live handed-off bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -239,14 +260,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -264,7 +287,13 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "releases"
                 / "20260902-rel002-01-rel002-v2.release.md"
             ).write_text(
-                "- Id: rel002\n- Status: planned\n- Version: 2.0.0\n- Summary: R2\n",
+                RecordBuilder().release(
+                    id6="rel002",
+                    status="planned",
+                    version="2.0.0",
+                    summary="R2",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             bug_file = (
@@ -276,13 +305,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="rel001",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -294,14 +326,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel002\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="rel002",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -321,13 +355,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: nonexist\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Dangling release gate\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="nonexist",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Dangling release gate",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -347,14 +384,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: noitem\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="noitem",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -382,13 +421,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed without gate handoff\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed without gate handoff",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
@@ -408,9 +450,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             git("init", "-q")
             git("config", "user.name", "Test")
             git("config", "user.email", "test@test.com")
-            body = (
-                "- Id: item02\n- Status: done\n- Blocks-Release: next\n- Set: item02\n"
-                "- Priority: medium\n- Work-Kind: feature\n- Summary: old close\n"
+            body = RecordBuilder().backlog(
+                id6="item02",
+                status="done",
+                blocks_release="next",
+                set="item02",
+                priority="medium",
+                work_kind="feature",
+                summary="old close",
+                text_only=True,
             )
             done = repo / ".aw" / "records" / "backlog" / "done"
             old = done / "20260920-item02-01-item02-old-slug-.backlog.md"
@@ -462,14 +510,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: item01\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="item01",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             done_file = (
@@ -481,13 +531,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed with pending carrier\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed with pending carrier",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
@@ -516,14 +569,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: item01\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="executed",
+                    from_backlog="item01",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             done_file = (
@@ -535,13 +590,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed with executed carrier\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed with executed carrier",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
@@ -587,7 +645,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             )
             ill_file.parent.mkdir(parents=True, exist_ok=True)
             ill_file.write_text(
-                "- Id: ill001\n- Status: done\n- Set: ill001\n- Priority: low\n- Work-Kind: chore\n- Summary: Test\n",
+                RecordBuilder().backlog(
+                    id6="ill001",
+                    status="done",
+                    set="ill001",
+                    priority="low",
+                    work_kind="chore",
+                    summary="Test",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
@@ -604,7 +670,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 check=True,
             )
             parked_file.write_text(
-                "- Id: ill001\n- Status: parked\n- Set: ill001\n- Priority: low\n- Work-Kind: chore\n- Summary: Test\n",
+                RecordBuilder().backlog(
+                    id6="ill001",
+                    status="parked",
+                    set="ill001",
+                    priority="low",
+                    work_kind="chore",
+                    summary="Test",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -618,7 +692,13 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-p01-01-p01-test.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test\n\n- Id: p01\n- Status: approved\n- Set: p01\n",
+                RecordBuilder().plan(
+                    title="Test",
+                    status="approved",
+                    set="p01",
+                    raw_fields={"Id": "p01"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 2. Staged done gated item with pending carrier -> triggers check.blocking-item-closed-without-gate
@@ -631,7 +711,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n- Status: done\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n- Summary: Done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Done",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 3. An open bug with blocks-release that triggers check.live-bug-ungated in full check_release_gates,
@@ -645,7 +734,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug01-01-bug01-bug.backlog.md"
             )
             open_bug.write_text(
-                "- Id: bug01\n- Status: open\n- Blocks-Release: next\n- Set: bug01\n- Priority: high\n- Work-Kind: bug\n- Summary: Bug\n",
+                RecordBuilder().backlog(
+                    status="open",
+                    blocks_release="next",
+                    set="bug01",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Bug",
+                    raw_fields={"Id": "bug01"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
@@ -679,12 +777,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live ungated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live ungated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             gate_findings = check_engine.check_release_gates(repo)
@@ -715,12 +816,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "open"
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             ).write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live ungated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live ungated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             args = argparse.Namespace(
@@ -784,13 +888,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -802,14 +909,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="rel001",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -831,13 +940,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -849,14 +961,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="executed",
+                    from_backlog="bug001",
+                    blocks_release="rel001",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             verdict = check_engine.evaluate_blocking_close(repo, bug_file, "done")
@@ -878,7 +992,13 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "releases"
                 / "20260902-rel002-01-rel002-v2.release.md"
             ).write_text(
-                "- Id: rel002\n- Status: planned\n- Version: 2.0.0\n- Summary: R2\n",
+                RecordBuilder().release(
+                    id6="rel002",
+                    status="planned",
+                    version="2.0.0",
+                    summary="R2",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             bug_file = (
@@ -890,13 +1010,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="rel001",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -908,14 +1031,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel002\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="rel002",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -941,7 +1066,13 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "releases"
                 / "20260902-rel002-01-rel002-v2.release.md"
             ).write_text(
-                "- Id: rel002\n- Status: planned\n- Version: 2.0.0\n- Summary: R2\n",
+                RecordBuilder().release(
+                    id6="rel002",
+                    status="planned",
+                    version="2.0.0",
+                    summary="R2",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             bug_file = (
@@ -953,13 +1084,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_file = (
@@ -971,14 +1105,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="rel001",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -1006,25 +1142,28 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_name = "20260920-plan01-01-plan01-fix-bug.ipd.md"
-            plan_content = (
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n"
+            plan_content = RecordBuilder().plan(
+                title="Fix bug",
+                id6="plan01",
+                status="executed",
+                from_backlog="bug001",
+                blocks_release="rel001",
+                set="plan01",
+                scope_paths="foo.py",
+                text_only=True,
             )
             (
                 main_repo / ".aw" / "records" / "plans" / "executed" / plan_name
@@ -1067,25 +1206,28 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_name = "20260920-plan01-01-plan01-fix-bug.ipd.md"
-            plan_content = (
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n"
+            plan_content = RecordBuilder().plan(
+                title="Fix bug",
+                id6="plan01",
+                status="executed",
+                from_backlog="bug001",
+                blocks_release="rel001",
+                set="plan01",
+                scope_paths="foo.py",
+                text_only=True,
             )
             (repo / ".aw" / "records" / "plans" / "executed" / plan_name).write_text(
                 plan_content, encoding="utf-8"
@@ -1154,13 +1296,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             pending_plan = (
@@ -1172,14 +1317,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             pending_plan.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 1. With pending plan: warning remedies using graduated
@@ -1200,14 +1347,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             exec_plan.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="executed",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 2. With executed plan: warning remedies using --status done
@@ -1230,13 +1379,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             exec_plan = (
@@ -1248,14 +1400,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             exec_plan.write_text(
-                "# IPD: Fix bug 1\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug 1",
+                    id6="plan01",
+                    status="executed",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             pend_plan = (
@@ -1267,14 +1421,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan02-01-plan02-fix-bug.ipd.md"
             )
             pend_plan.write_text(
-                "# IPD: Fix bug 2\n\n"
-                "- Id: plan02\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan02\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: bar.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug 2",
+                    id6="plan02",
+                    status="approved",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan02",
+                    scope_paths="bar.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1298,14 +1454,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan02-01-plan02-fix-bug.ipd.md"
             )
             exec_plan2.write_text(
-                "# IPD: Fix bug 2\n\n"
-                "- Id: plan02\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan02\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: bar.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug 2",
+                    id6="plan02",
+                    status="executed",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan02",
+                    scope_paths="bar.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             warns2 = check_engine.release_gate_warnings(repo)
@@ -1328,13 +1486,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug001-01-bug001-test-defect.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug001\n"
-                "- Status: open\n"
-                "- Blocks-Release: next\n"
-                "- Set: bug001\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Gated bug\n",
+                RecordBuilder().backlog(
+                    id6="bug001",
+                    status="open",
+                    blocks_release="next",
+                    set="bug001",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Gated bug",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             exec_plan = (
@@ -1346,14 +1507,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             exec_plan.write_text(
-                "# IPD: Fix bug 1\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- From-Backlog: bug001\n"
-                "- Blocks-Release: next\n"
-                "- Set: plan01\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug 1",
+                    id6="plan01",
+                    status="executed",
+                    from_backlog="bug001",
+                    blocks_release="next",
+                    set="plan01",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             pend_plan = (
@@ -1365,13 +1528,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan02-01-plan02-fix-bug.ipd.md"
             )
             pend_plan.write_text(
-                "# IPD: Fix bug 2\n\n"
-                "- Id: plan02\n"
-                "- Status: approved\n"
-                "- From-Backlog: bug001\n"
-                "- Set: plan02\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: bar.py\n",
+                RecordBuilder().plan(
+                    title="Fix bug 2",
+                    id6="plan02",
+                    status="approved",
+                    from_backlog="bug001",
+                    set="plan02",
+                    scope_paths="bar.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1389,14 +1554,14 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             with self.subTest(sentinel=sentinel):
                 with TemporaryDirectory() as tmp:
                     repo = _create_minimal_repo(Path(tmp))
-                    plan_text = (
-                        f"# IPD: Test\n\n"
-                        f"- Id: pln001\n"
-                        f"- Status: approved\n"
-                        f"- From-Backlog: {sentinel}\n"
-                        f"- Set: pln001\n"
-                        f"- Scope: Fix\n"
-                        f"- Scope-Paths: foo.py\n"
+                    plan_text = RecordBuilder().plan(
+                        title="Test",
+                        id6="pln001",
+                        status="approved",
+                        from_backlog=sentinel,
+                        set="pln001",
+                        scope_paths="foo.py",
+                        text_only=True,
                     )
                     plan_file = (
                         repo
@@ -1446,7 +1611,9 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                         / "20260901-spc001-01-spc001-v1.spec.md"
                     )
                     spec_file.write_text(
-                        "# Spec\n\n- Id: spc001\n- Status: approved\n",
+                        RecordBuilder().spec(
+                            id6="spc001", status="approved", text_only=True
+                        ),
                         encoding="utf-8",
                     )
                     plan_file = (
@@ -1458,13 +1625,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                         / "20260901-pln001-01-pln001-test.ipd.md"
                     )
                     plan_file.write_text(
-                        f"# IPD: Test\n\n"
-                        f"- Id: pln001\n"
-                        f"- Status: approved\n"
-                        f"- From-Spec: {sentinel}\n"
-                        f"- Set: pln001\n"
-                        f"- Scope: Fix\n"
-                        f"- Scope-Paths: foo.py\n",
+                        RecordBuilder().plan(
+                            title="Test",
+                            id6="pln001",
+                            status="approved",
+                            from_spec=sentinel,
+                            set="pln001",
+                            scope_paths="foo.py",
+                            text_only=True,
+                        ),
                         encoding="utf-8",
                     )
                     findings = check_engine.check_from_spec_dangling(repo)
@@ -1487,13 +1656,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260901-pln001-01-pln001-test.ipd.md"
             )
             plan_file.write_text(
-                "# IPD: Test\n\n"
-                "- Id: pln001\n"
-                "- Status: approved\n"
-                "- From-Backlog: zz9zz9\n"
-                "- Set: pln001\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Test",
+                    id6="pln001",
+                    status="approved",
+                    from_backlog="zz9zz9",
+                    set="pln001",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -1510,7 +1681,7 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260901-spc001-01-spc001-v1.spec.md"
             )
             spec_file.write_text(
-                "# Spec\n\n- Id: spc001\n- Status: approved\n",
+                RecordBuilder().spec(id6="spc001", status="approved", text_only=True),
                 encoding="utf-8",
             )
             plan_file2 = (
@@ -1522,13 +1693,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260901-pln002-01-pln002-test.ipd.md"
             )
             plan_file2.write_text(
-                "# IPD: Test\n\n"
-                "- Id: pln002\n"
-                "- Status: approved\n"
-                "- From-Spec: zz9zz9\n"
-                "- Set: pln002\n"
-                "- Scope: Fix\n"
-                "- Scope-Paths: foo.py\n",
+                RecordBuilder().plan(
+                    title="Test",
+                    id6="pln002",
+                    status="approved",
+                    from_spec="zz9zz9",
+                    set="pln002",
+                    scope_paths="foo.py",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spec_findings = check_engine.check_from_spec_dangling(repo)
@@ -1555,17 +1728,19 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                     / "20260901-spc001-01-spc001-v1.spec.md"
                 )
                 spec_file.write_text(
-                    "# Spec\n\n- Id: spc001\n- Status: approved\n",
+                    RecordBuilder().spec(
+                        id6="spc001", status="approved", text_only=True
+                    ),
                     encoding="utf-8",
                 )
-                plan_bkl_text = (
-                    f"# IPD: Test\n\n"
-                    f"- Id: plnbkl\n"
-                    f"- Status: approved\n"
-                    f"- From-Backlog: {sentinel}\n"
-                    f"- Set: plnbkl\n"
-                    f"- Scope: Fix\n"
-                    f"- Scope-Paths: foo.py\n"
+                plan_bkl_text = RecordBuilder().plan(
+                    title="Test",
+                    id6="plnbkl",
+                    status="approved",
+                    from_backlog=sentinel,
+                    set="plnbkl",
+                    scope_paths="foo.py",
+                    text_only=True,
                 )
                 plan_bkl_file = (
                     repo
@@ -1586,13 +1761,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                     / "20260901-plnspc-01-plnspc-test.ipd.md"
                 )
                 plan_spc_file.write_text(
-                    f"# IPD: Test\n\n"
-                    f"- Id: plnspc\n"
-                    f"- Status: approved\n"
-                    f"- From-Spec: {sentinel}\n"
-                    f"- Set: plnspc\n"
-                    f"- Scope: Fix\n"
-                    f"- Scope-Paths: foo.py\n",
+                    RecordBuilder().plan(
+                        title="Test",
+                        id6="plnspc",
+                        status="approved",
+                        from_spec=sentinel,
+                        set="plnspc",
+                        scope_paths="foo.py",
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 
@@ -1690,14 +1867,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug002-01-bug002-exempt-bug.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug002\n"
-                "- Status: open\n"
-                "- Set: bug002\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live exempt bug\n"
-                "- Release-Exempt-Kind: decision\n"
-                "- Release-Exempt-Ref: D42\n",
+                RecordBuilder().backlog(
+                    id6="bug002",
+                    status="open",
+                    set="bug002",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live exempt bug",
+                    release_exempt_kind="decision",
+                    release_exempt_ref="D42",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -1718,14 +1898,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug003-01-bug003-bad-exempt-bug.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug003\n"
-                "- Status: open\n"
-                "- Set: bug003\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live bad exempt bug\n"
-                "- Release-Exempt-Kind: decision\n"
-                "- Release-Exempt-Ref: garbage\n",
+                RecordBuilder().backlog(
+                    id6="bug003",
+                    status="open",
+                    set="bug003",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live bad exempt bug",
+                    release_exempt_kind="decision",
+                    release_exempt_ref="garbage",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -1745,13 +1928,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-bug004-01-bug004-dash-bug.backlog.md"
             )
             bug_file.write_text(
-                "- Id: bug004\n"
-                "- Status: open\n"
-                "- Set: bug004\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Live dash bug\n"
-                "- Blocks-Release: -\n",
+                RecordBuilder().backlog(
+                    id6="bug004",
+                    status="open",
+                    set="bug004",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Live dash bug",
+                    blocks_release="-",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)
@@ -1785,15 +1971,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261001-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed without gate handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed without gate handoff",
+                    history=["- 2026-10-01 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -1832,15 +2020,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed without gate handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-09-30 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed without gate handoff",
+                    history=["- 2026-09-30 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -1873,15 +2063,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261001-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed without gate handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed without gate handoff",
+                    history=["- 2026-10-01 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -1920,15 +2112,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261001-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed with gate handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed with gate handoff",
+                    history=["- 2026-10-01 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             carrier_file = (
@@ -1940,12 +2134,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261001-plan01-01-plan01-fix-bug.ipd.md"
             )
             carrier_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Blocks-Release: next\n"
-                "- From-Backlog: item01\n"
-                "- Set: item01\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="executed",
+                    blocks_release="next",
+                    from_backlog="item01",
+                    set="item01",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -1995,15 +2192,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261001-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed without gate handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed without gate handoff",
+                    history=["- 2026-10-01 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2076,15 +2275,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261001-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Closed without gate handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-10-01 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Closed without gate handoff",
+                    history=["- 2026-10-01 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # Item is on disk and also STAGED in git index
@@ -2132,15 +2333,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Pre-cutover close without handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Pre-cutover close without handoff",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2184,15 +2387,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Pre-cutover close without handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Pre-cutover close without handoff",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2238,15 +2443,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20261005-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Post-cutover close without handoff\n\n"
-                "## Workflow history\n"
-                "- 2026-10-05 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Post-cutover close without handoff",
+                    history=["- 2026-10-05 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2286,15 +2493,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Undatable close\n\n"
-                "## Workflow history\n"
-                "- done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Undatable close",
+                    history=["- done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2339,14 +2548,16 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-feat.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Summary: Ungated feature\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    set="item01",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="Ungated feature",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2384,15 +2595,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Pre-cutover bug with executed carrier\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Pre-cutover bug with executed carrier",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             carrier_file = (
@@ -2404,12 +2617,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-fix-bug.ipd.md"
             )
             carrier_file.write_text(
-                "# IPD: Fix bug\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Blocks-Release: next\n"
-                "- From-Backlog: item01\n"
-                "- Set: item01\n",
+                RecordBuilder().plan(
+                    title="Fix bug",
+                    id6="plan01",
+                    status="executed",
+                    blocks_release="next",
+                    from_backlog="item01",
+                    set="item01",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2455,15 +2671,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Pre-cutover bug staged in commit\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Pre-cutover bug staged in commit",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # Item is staged in git index
@@ -2502,15 +2720,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-no-carrier.backlog.md"
             )
             done_a.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: No carrier\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="No carrier",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # Item B: carrier present but pending (not executed)
@@ -2523,15 +2743,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260921-item02-01-item02-pending-carrier.backlog.md"
             )
             done_b.write_text(
-                "- Id: item02\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item02\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Pending carrier\n\n"
-                "## Workflow history\n"
-                "- 2026-09-21 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item02",
+                    status="done",
+                    blocks_release="next",
+                    set="item02",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Pending carrier",
+                    history=["- 2026-09-21 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             carrier_b = (
@@ -2543,12 +2765,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260921-plan02-01-plan02-pending.ipd.md"
             )
             carrier_b.write_text(
-                "# IPD: Pending carrier\n\n"
-                "- Id: plan02\n"
-                "- Status: pending\n"
-                "- Blocks-Release: next\n"
-                "- From-Backlog: item02\n"
-                "- Set: item02\n",
+                RecordBuilder().plan(
+                    title="Pending carrier",
+                    id6="plan02",
+                    blocks_release="next",
+                    from_backlog="item02",
+                    set="item02",
+                    raw_fields={"Status": "pending"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2612,15 +2837,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-sibling-carrier.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Sibling carrier item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Sibling carrier item",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             carrier_exec = (
@@ -2632,12 +2859,15 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-plan01-01-plan01-executed.ipd.md"
             )
             carrier_exec.write_text(
-                "# IPD: Executed carrier\n\n"
-                "- Id: plan01\n"
-                "- Status: executed\n"
-                "- Blocks-Release: next\n"
-                "- From-Backlog: item01\n"
-                "- Set: item01\n",
+                RecordBuilder().plan(
+                    title="Executed carrier",
+                    id6="plan01",
+                    status="executed",
+                    blocks_release="next",
+                    from_backlog="item01",
+                    set="item01",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             carrier_pend = (
@@ -2649,11 +2879,14 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260921-plan02-01-plan02-pending.ipd.md"
             )
             carrier_pend.write_text(
-                "# IPD: Pending carrier\n\n"
-                "- Id: plan02\n"
-                "- Status: pending\n"
-                "- From-Backlog: item01\n"
-                "- Set: item01\n",
+                RecordBuilder().plan(
+                    title="Pending carrier",
+                    id6="plan02",
+                    from_backlog="item01",
+                    set="item01",
+                    raw_fields={"Status": "pending"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2699,15 +2932,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: No cutover configured\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="No cutover configured",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)
@@ -2748,15 +2983,17 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 / "20260920-item01-01-item01-done-bug.backlog.md"
             )
             done_file.write_text(
-                "- Id: item01\n"
-                "- Status: done\n"
-                "- Blocks-Release: next\n"
-                "- Set: item01\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Parity test item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-20 done (aw set): status set to done\n",
+                RecordBuilder().backlog(
+                    id6="item01",
+                    status="done",
+                    blocks_release="next",
+                    set="item01",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="Parity test item",
+                    history=["- 2026-09-20 done (aw set): status set to done"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "--", "."], check=True)

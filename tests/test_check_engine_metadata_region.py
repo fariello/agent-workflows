@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import check_engine as ce
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -35,16 +36,13 @@ def fixture_dep_tree(tmp_path: Path):
 
     research_file = research_dir / "20260901-test-01-eee555-report.research-report.md"
     research_file.write_text(
-        "---\n"
-        "id: eee555\n"
-        "status: active\n"
-        "set: fxset\n"
-        "---\n\n"
-        "# Research Report\n\n"
-        "This document quotes another plan's metadata block:\n"
-        "- Id: ddd444\n"
-        "- Status: approved\n"
-        "- Set: fxset\n",
+        RecordBuilder().research(
+            id6="eee555",
+            status="active",
+            set="fxset",
+            body="\n# Research Report\n\nThis document quotes another plan's metadata block:\n- Id: ddd444\n- Status: approved\n- Set: fxset\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

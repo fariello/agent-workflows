@@ -39,6 +39,7 @@ from pathlib import Path
 from agent_workflows import attention_contract, check_engine as ce, ipd_lint
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -227,7 +228,9 @@ class NameGrammarTests(unittest.TestCase):
             "a legacy YYYYMMDD-HHMM-NN-<slug> plan name",
             "plans",
             "20260101-1357-01-assess-bugs.ipd.md",
-            "# IPD\n\n- Id: wvlk84\n- Status: draft\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                id6="wvlk84", status="draft", body="## Goal\n\nx", text_only=True
+            ),
             (),
             (),
             "PRE-CUTOVER NAMES ARE GRANDFATHERED, so this must be clean WITHOUT the flag too. That "
@@ -239,7 +242,12 @@ class NameGrammarTests(unittest.TestCase):
             "a legacy YYYYMMDD-HHMM-NN-<slug> spec name",
             "specs",
             "20260101-1200-01-x.spec.md",
-            "# Spec: x\n\n- Status: draft\n\n## Workflow history\n\n- 2026-01-01 note (human): x\n",
+            RecordBuilder().spec(
+                title="x",
+                status="draft",
+                history=["- 2026-01-01 note (human): x"],
+                text_only=True,
+            ),
             (),
             (),
             "THE TYPE IS A COLUMN: specs carry the id6 in the filename GOING FORWARD while "
@@ -250,7 +258,9 @@ class NameGrammarTests(unittest.TestCase):
             "a hyphenated-date legacy plan name",
             "plans",
             "2026-01-01-old-hyphenated.md",
-            "# IPD\n\n- Id: aaa111\n- Status: draft\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                id6="aaa111", status="draft", body="## Goal\n\nx", text_only=True
+            ),
             (NONCONFORMANT,),
             (),
             "THE ROW THE `legacy` FLAG EXISTS FOR, and the only one that differs between the two "
@@ -262,7 +272,13 @@ class NameGrammarTests(unittest.TestCase):
             "a plan filename matching no grammar at all",
             "plans",
             "not-a-grammar.md",
-            "# IPD: bad\n\n- Id: bbb222\n- Status: draft\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="bad",
+                id6="bbb222",
+                status="draft",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             (NONCONFORMANT,),
             (NONCONFORMANT,),
             "JUNK IS REFUSED IN BOTH MODES, which is what makes `legacy=True` a WIDENING rather than "
@@ -273,7 +289,12 @@ class NameGrammarTests(unittest.TestCase):
             "a spec filename matching no grammar at all",
             "specs",
             "junk.spec.md",
-            "# Spec: x\n\n- Status: draft\n\n## Workflow history\n\n- 2026-01-01 note (human): x\n",
+            RecordBuilder().spec(
+                title="x",
+                status="draft",
+                history=["- 2026-01-01 note (human): x"],
+                text_only=True,
+            ),
             (NONCONFORMANT,),
             (NONCONFORMANT,),
             "the per-type twin of the row above, so `--legacy` is shown not to be an off switch for "
@@ -1224,7 +1245,14 @@ class SetidLengthTests(unittest.TestCase):
     def _plan(self, setid, date):
         return (
             f"{date.replace('-', '')}-{setid}-01-abc123-x.ipd.md",
-            f"# IPD: x\n\n- Date: {date}\n- Id: abc123\n- Set: {setid} (topic)\n- Order: 1\n",
+            RecordBuilder().plan(
+                title="x",
+                when=date,
+                id6="abc123",
+                set=f"{setid} (topic)",
+                order=1,
+                text_only=True,
+            ),
         )
 
     def _rules(self, drift):
@@ -1307,7 +1335,10 @@ class SetidLengthTests(unittest.TestCase):
             root = self._tree(d, files=[])
             pend = root / ".aw" / "records" / "plans" / "pending"
             (pend / "20260923-2147-01-a-legacy-plan.ipd.md").write_text(
-                "# IPD: x\n\n- Date: 2026-09-23\n- Id: abc124\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="x", when="2026-09-23", id6="abc124", text_only=True
+                ),
+                encoding="utf-8",
             )
             self.assertEqual(ce.check_setid_length(root), [])
 
@@ -1583,7 +1614,14 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "a badly-named plan in executed/",
             ".aw/records/plans/executed/bad-name-executed.md",
-            "# IPD: executed\n\n- Id: eee111\n- Status: executed\n- Set: demo\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="executed",
+                id6="eee111",
+                status="executed",
+                set="demo",
+                body="## Goal\n\nx",
+                text_only=True,
+            ),
             True,
             "RETIREMENT BY DIRECTORY SEGMENT. This is the load-bearing case for the whole feature: "
             "AGENTS.md FORBIDS editing a plan already in `executed/`, so flagging its filename would "
@@ -1602,7 +1640,9 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "a spec whose Status is `implemented`",
             f"{SPECS}/20260101-1200-02-done.spec.md",
-            "# Spec: done\n- Status: implemented\n\n## Body\n\nx\n",
+            RecordBuilder().spec(
+                title="done", status="implemented", body="## Body\n\nx", text_only=True
+            ),
             True,
             "RETIREMENT BY FRONTMATTER STATUS, the SECOND and independent mechanism. It is what "
             "covers a flat tree, and `implemented` is a spec-only spelling that appears in no "
@@ -1731,13 +1771,22 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
                 # Invalid files in an ignored top-level directory.
                 (
                     "tmp/bad-nonconformant.ipd.md",
-                    "# IPD\n\n- Id: aaa111\n- Status: draft\n\n## Goal\n\nx\n",
+                    RecordBuilder().plan(
+                        id6="aaa111",
+                        status="draft",
+                        body="## Goal\n\nx",
+                        text_only=True,
+                    ),
                 ),
                 ("tmp/bad-spec.spec.md", "# Spec: bad\n\nno frontmatter\n"),
                 # An invalid file in an ignored subdirectory UNDER a records tree.
                 (
                     ".aw/records/plans/tmp/bad-sub-tmp.ipd.md",
-                    "# IPD\n\n- Id: ccc333\n- Status: invalid-status\n",
+                    RecordBuilder().plan(
+                        id6="ccc333",
+                        raw_fields={"Status": "invalid-status"},
+                        text_only=True,
+                    ),
                 ),
                 # A valid conformant plan that must still be seen. Built with `_plan_text` rather than
                 # inline, because "conformant" now has to be TRUE: `check.ipd-lint-diagnostic`
@@ -1786,14 +1835,14 @@ class DynamicCutoverCheckEngineTests(unittest.TestCase):
             specs_dir.mkdir(parents=True)
             # 20260828 would be flagged under static cutover, but under dynamic 2026-09-10 it is grandfathered
             (specs_dir / "20260828-1200-01-legacy.spec.md").write_text(
-                "# Spec\n\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().spec(status="draft", text_only=True), encoding="utf-8"
             )
             drift = ce.check_names(root, "specs")
             self.assertEqual(drift, [])
 
             # A spec at or after the dynamic cutover date is flagged
             (specs_dir / "20260910-1200-01-post.spec.md").write_text(
-                "# Spec\n\n- Status: draft\n", encoding="utf-8"
+                RecordBuilder().spec(status="draft", text_only=True), encoding="utf-8"
             )
             drift2 = ce.check_names(root, "specs")
             self.assertEqual(len(drift2), 1)
@@ -1804,7 +1853,7 @@ class DynamicCutoverCheckEngineTests(unittest.TestCase):
             root = Path(d)
             cfg_dir = root / ".aw" / "config"
             cfg_dir.mkdir(parents=True)
-            plan_text = "# IPD\n\n- Date: 2026-09-15\n"
+            plan_text = RecordBuilder().plan(when="2026-09-15", text_only=True)
 
             # When dynamic cutover is 2026-09-18, plan is grandfathered -> info
             (cfg_dir / "project.json").write_text(
@@ -1838,21 +1887,39 @@ class CheckIpdLintReachTerminalTreeTests(unittest.TestCase):
             # Post-cutover plan with mismatched status (to-review in executed/)
             post_offender = exec_dir / "20260925-sample-01-abc123-bad.ipd.md"
             post_offender.write_text(
-                "# IPD: Bad\n\n- Date: 2026-09-25\n- Status: to-review\n- Id: abc123\n",
+                RecordBuilder().plan(
+                    title="Bad",
+                    when="2026-09-25",
+                    status="to-review",
+                    id6="abc123",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             # Pre-cutover plan (suppressed by cutover gate)
             pre_legacy = exec_dir / "20260701-sample-01-def456-leg.ipd.md"
             pre_legacy.write_text(
-                "# IPD: Leg\n\n- Date: 2026-07-01\n- Status: EXECUTED\n- Id: def456\n",
+                RecordBuilder().plan(
+                    title="Leg",
+                    when="2026-07-01",
+                    id6="def456",
+                    raw_fields={"Status": "EXECUTED"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
             # Matching post-cutover plan (clean)
             post_clean = exec_dir / "20260925-sample-01-ghi789-clean.ipd.md"
             post_clean.write_text(
-                "# IPD: Clean\n\n- Date: 2026-09-25\n- Status: executed\n- Id: ghi789\n",
+                RecordBuilder().plan(
+                    title="Clean",
+                    when="2026-09-25",
+                    status="executed",
+                    id6="ghi789",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1943,33 +2010,45 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
         bk_dir = root / ".aw" / "records" / "backlog" / "done"
         bk_dir.mkdir(parents=True, exist_ok=True)
         (bk_dir / "20260101-backlog-01-bk0001-sample.backlog.md").write_text(
-            "# Backlog\n\n- Id: bk0001\n- Status: done\n- Priority: medium\n- Work-Kind: chore\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="done",
+                priority="medium",
+                work_kind="chore",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         pl_exec_dir = root / ".aw" / "records" / "plans" / "executed"
         pl_exec_dir.mkdir(parents=True, exist_ok=True)
         (pl_exec_dir / "20260101-plans-01-pl0001-sample.ipd.md").write_text(
-            "# IPD\n\n- Id: pl0001\n- Status: executed\n",
+            RecordBuilder().plan(id6="pl0001", status="executed", text_only=True),
             encoding="utf-8",
         )
 
         pl_sup_dir = root / ".aw" / "records" / "plans" / "superseded"
         pl_sup_dir.mkdir(parents=True, exist_ok=True)
         (pl_sup_dir / "20260101-plans-01-pl0002-sample.ipd.md").write_text(
-            "# IPD\n\n- Id: pl0002\n- Status: superseded\n",
+            RecordBuilder().plan(id6="pl0002", status="superseded", text_only=True),
             encoding="utf-8",
         )
 
         # Shared id6: one done backlog and one live to-review plan
         (bk_dir / "20260101-backlog-01-sh0001-shared.backlog.md").write_text(
-            "# Backlog\n\n- Id: sh0001\n- Status: done\n- Priority: medium\n- Work-Kind: chore\n",
+            RecordBuilder().backlog(
+                id6="sh0001",
+                status="done",
+                priority="medium",
+                work_kind="chore",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         pl_pend_dir = root / ".aw" / "records" / "plans" / "pending"
         pl_pend_dir.mkdir(parents=True, exist_ok=True)
         (pl_pend_dir / "20260101-plans-01-sh0001-shared.ipd.md").write_text(
-            "# IPD\n\n- Id: sh0001\n- Status: to-review\n",
+            RecordBuilder().plan(id6="sh0001", status="to-review", text_only=True),
             encoding="utf-8",
         )
         return root
@@ -2104,14 +2183,13 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = self._setup_scratch_repo(td)
             carrier_index = ce._carrier_index(root)
-            plan_text = (
-                "# IPD: Test\n\n"
-                "- Date: 2026-09-26\n"
-                "- Id: pl9999\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Obligation 1\n"
-                "  - Carrier: pl0001\n"
+            plan_text = RecordBuilder().plan(
+                title="Test",
+                when="2026-09-26",
+                id6="pl9999",
+                body="## Deferred / out of scope (with reason)\n- Obligation 1\n  - Carrier: pl0001",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path = (
                 root
@@ -2154,19 +2232,21 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
             comp_plans = Path(f"{repo.resolve()}.aw") / "records" / "plans" / "executed"
             comp_plans.mkdir(parents=True)
             (comp_plans / "20260101-plans-01-pl0001-sample.ipd.md").write_text(
-                "# IPD\n\n- Id: pl0001\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(id6="pl0001", status="executed", text_only=True),
+                encoding="utf-8",
             )
             pend_dir = repo / ".aw" / "records" / "plans" / "pending"
             pend_dir.mkdir(parents=True)
             plan_path = pend_dir / "20260926-sample-01-pl9999-sample.ipd.md"
             plan_path.write_text(
-                "# IPD: Test\n\n"
-                "- Date: 2026-09-26\n"
-                "- Id: pl9999\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Obligation 1\n"
-                "  - Carrier: pl0001\n",
+                RecordBuilder().plan(
+                    title="Test",
+                    when="2026-09-26",
+                    id6="pl9999",
+                    body="## Deferred / out of scope (with reason)\n- Obligation 1\n  - Carrier: pl0001",
+                    raw_fields={"Status": "pending"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             from agent_workflows import selectors
@@ -2208,16 +2288,13 @@ class CarrierDischargedRemedyTests(unittest.TestCase):
                 / "pending"
                 / "20260926-sample-01-pl9999-sample.ipd.md"
             )
-            plan_text = (
-                "# IPD: Mixed\n\n"
-                "- Date: 2026-09-26\n"
-                "- Id: pl9999\n"
-                "- Status: pending\n\n"
-                "## Deferred / out of scope (with reason)\n"
-                "- Row 1 finished\n"
-                "  - Carrier: pl0001\n"
-                "- Row 2 uncarried\n"
-                "  - Carrier: pl0002\n"
+            plan_text = RecordBuilder().plan(
+                title="Mixed",
+                when="2026-09-26",
+                id6="pl9999",
+                body="## Deferred / out of scope (with reason)\n- Row 1 finished\n  - Carrier: pl0001\n- Row 2 uncarried\n  - Carrier: pl0002",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_path.write_text(plan_text, encoding="utf-8")
             carrier_index = ce._carrier_index(root)
@@ -2327,14 +2404,18 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root
                 / ".aw/records/plans/pending/20261011-test01-01-pdrf01-draft.ipd.md"
             )
-            p_drf.write_text("# IPD\n- Id: pdrf01\n- Status: draft\n", encoding="utf-8")
+            p_drf.write_text(
+                RecordBuilder().plan(id6="pdrf01", status="draft", text_only=True),
+                encoding="utf-8",
+            )
 
             p_rev = (
                 root
                 / ".aw/records/plans/pending/20261011-test01-01-prev01-toreview.ipd.md"
             )
             p_rev.write_text(
-                "# IPD\n- Id: prev01\n- Status: to-review\n", encoding="utf-8"
+                RecordBuilder().plan(id6="prev01", status="to-review", text_only=True),
+                encoding="utf-8",
             )
 
             p_not = (
@@ -2342,7 +2423,10 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/plans/not-executed/20261011-test01-01-pnot01-notexecuted.ipd.md"
             )
             p_not.write_text(
-                "# IPD\n- Id: pnot01\n- Status: not-executed\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    id6="pnot01", status="not-executed", text_only=True
+                ),
+                encoding="utf-8",
             )
 
             p_sup = (
@@ -2350,7 +2434,8 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/plans/superseded/20261011-test01-01-psup01-superseded.ipd.md"
             )
             p_sup.write_text(
-                "# IPD\n- Id: psup01\n- Status: superseded\n", encoding="utf-8"
+                RecordBuilder().plan(id6="psup01", status="superseded", text_only=True),
+                encoding="utf-8",
             )
 
             p_reu = (
@@ -2358,7 +2443,8 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/plans/reusable/20261011-test01-01-preu01-reusable.ipd.md"
             )
             p_reu.write_text(
-                "# IPD\n- Id: preu01\n- Status: reusable\n", encoding="utf-8"
+                RecordBuilder().plan(id6="preu01", status="reusable", text_only=True),
+                encoding="utf-8",
             )
 
             p_dir = root / ".aw/records/plans"
@@ -2459,7 +2545,12 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/specs/approved/20261011-spmis1-01-spmis1-test.spec.md"
             )
             p_mis1.write_text(
-                "# Spec\n- Id: spmis1\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                RecordBuilder().spec(
+                    id6="spmis1",
+                    status="implemented",
+                    history=["- 2026-10-11 implemented: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rel_mis1 = str(p_mis1.relative_to(root)).replace("\\", "/")
@@ -2480,7 +2571,12 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/specs/implemented/20261011-spmis2-01-spmis2-test.spec.md"
             )
             p_mis2.write_text(
-                "# Spec\n- Id: spmis2\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                RecordBuilder().spec(
+                    id6="spmis2",
+                    status="approved",
+                    history=["- 2026-10-11 approved: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rel_mis2 = str(p_mis2.relative_to(root)).replace("\\", "/")
@@ -2503,14 +2599,26 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root / ".aw/records/plans/pending/20261011-test01-01-car001-live.ipd.md"
             )
             car_path.write_text(
-                "# IPD\n- Id: car001\n- Status: to-review\n- Set: test01\n- Order: 1\n",
+                RecordBuilder().plan(
+                    id6="car001",
+                    status="to-review",
+                    set="test01",
+                    order=1,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             pnd_path = (
                 root / ".aw/records/plans/pending/20261011-test01-01-pnd001-test.ipd.md"
             )
             pnd_path.write_text(
-                "# IPD\n- Id: pnd001\n- Status: to-review\n- Set: test01\n- Order: 2\n",
+                RecordBuilder().plan(
+                    id6="pnd001",
+                    status="to-review",
+                    set="test01",
+                    order=2,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spc_path = (
@@ -2518,7 +2626,12 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/specs/approved/20261011-spc001-01-spc001-test.spec.md"
             )
             spc_path.write_text(
-                "# Spec\n- Id: spc001\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                RecordBuilder().spec(
+                    id6="spc001",
+                    status="approved",
+                    history=["- 2026-10-11 approved: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -2548,7 +2661,13 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root / ".aw/records/plans/pending/20261011-test01-01-pnd001-test.ipd.md"
             )
             pnd_path.write_text(
-                "# IPD\n- Id: pnd001\n- Status: to-review\n- Set: test01\n- Order: 1\n",
+                RecordBuilder().plan(
+                    id6="pnd001",
+                    status="to-review",
+                    set="test01",
+                    order=1,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             spc_path = (
@@ -2556,7 +2675,12 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/specs/approved/20261011-spc001-01-spc001-test.spec.md"
             )
             spc_path.write_text(
-                "# Spec\n- Id: spc001\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                RecordBuilder().spec(
+                    id6="spc001",
+                    status="approved",
+                    history=["- 2026-10-11 approved: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -2588,7 +2712,8 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/plans/executed/20261011-test01-01-pexc01-test.ipd.md"
             )
             p_exc.write_text(
-                "# IPD\n- Id: pexc01\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(id6="pexc01", status="executed", text_only=True),
+                encoding="utf-8",
             )
             # 2. Sharded executed plan
             (root / ".aw/records/plans/executed/202610").mkdir(
@@ -2599,14 +2724,16 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/plans/executed/202610/20261011-test01-01-pshd01-test.ipd.md"
             )
             p_shd.write_text(
-                "# IPD\n- Id: pshd01\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(id6="pshd01", status="executed", text_only=True),
+                encoding="utf-8",
             )
             # 3. Legacy executed plan
             p_leg = (
                 root / ".agents/plans/executed/20261011-test01-01-pleg01-test.ipd.md"
             )
             p_leg.write_text(
-                "# IPD\n- Id: pleg01\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(id6="pleg01", status="executed", text_only=True),
+                encoding="utf-8",
             )
             # 4. Implemented spec
             s_imp = (
@@ -2614,7 +2741,12 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/specs/implemented/20261011-simp01-01-simp01-test.spec.md"
             )
             s_imp.write_text(
-                "# Spec\n- Id: simp01\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                RecordBuilder().spec(
+                    id6="simp01",
+                    status="implemented",
+                    history=["- 2026-10-11 implemented: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 5. Sharded implemented spec
@@ -2626,13 +2758,23 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/specs/implemented/202610/20261011-sshd01-01-sshd01-test.spec.md"
             )
             s_shd.write_text(
-                "# Spec\n- Id: sshd01\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                RecordBuilder().spec(
+                    id6="sshd01",
+                    status="implemented",
+                    history=["- 2026-10-11 implemented: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 6. Legacy flat implemented spec
             s_leg = root / ".agents/docs/specs/20261011-sleg01-01-sleg01-test.spec.md"
             s_leg.write_text(
-                "# Spec\n- Id: sleg01\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                RecordBuilder().spec(
+                    id6="sleg01",
+                    status="implemented",
+                    history=["- 2026-10-11 implemented: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # 7. Backlog done
@@ -2641,7 +2783,8 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/backlog/done/20261011-bdon01-01-bdon01-test.backlog.md"
             )
             b_don.write_text(
-                "# Backlog\n- Id: bdon01\n- Status: done\n", encoding="utf-8"
+                RecordBuilder().backlog(id6="bdon01", status="done", text_only=True),
+                encoding="utf-8",
             )
             # 8. Backlog open
             b_opn = (
@@ -2649,7 +2792,8 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 / ".aw/records/backlog/open/20261011-bopn01-01-bopn01-test.backlog.md"
             )
             b_opn.write_text(
-                "# Backlog\n- Id: bopn01\n- Status: open\n", encoding="utf-8"
+                RecordBuilder().backlog(id6="bopn01", status="open", text_only=True),
+                encoding="utf-8",
             )
             # 9. Research
             res = root / ".aw/records/research/20261011-res001-test.research.md"
@@ -2660,7 +2804,8 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
             # 11. Release
             rel = root / ".aw/records/releases/20261011-rel001-test.release.md"
             rel.write_text(
-                "# Release\n- Id: rel001\n- Status: planned\n", encoding="utf-8"
+                RecordBuilder().release(id6="rel001", status="planned", text_only=True),
+                encoding="utf-8",
             )
 
             accepted_artifacts = [
@@ -2706,7 +2851,9 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
             self.assertEqual(len(path_plan_136), 136)
             (root / path_plan_136).parent.mkdir(parents=True, exist_ok=True)
             (root / path_plan_136).write_text(
-                "# IPD: Target\n\n- Id: pln123\n- Status: to-review\n",
+                RecordBuilder().plan(
+                    title="Target", id6="pln123", status="to-review", text_only=True
+                ),
                 encoding="utf-8",
             )
 
@@ -2719,7 +2866,13 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
             self.assertEqual(len(path_spec_136), 136)
             (root / path_spec_136).parent.mkdir(parents=True, exist_ok=True)
             (root / path_spec_136).write_text(
-                "# Spec: Target\n\n- Id: spc123\n- Status: approved\n\n## Workflow history\n- 2026-10-14 approved: ok\n",
+                RecordBuilder().spec(
+                    title="Target",
+                    id6="spc123",
+                    status="approved",
+                    history=["- 2026-10-14 approved: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -2728,31 +2881,18 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root
                 / ".aw/records/plans/pending/20261014-testset-01-plntst-test.ipd.md"
             )
-            plan_text_plan = (
-                "# IPD: Test Plan\n\n"
-                "- Date: 2026-10-14\n"
-                "- Id: plntst\n"
-                "- Status: pending\n"
-                "- Set: testset\n"
-                "- Order: 1\n"
-                "- Highest E allocated: 01\n"
-                "- Readiness: go-pending-approval\n\n"
-                "## Detailed Implementation Checklist (TODO)\n\n"
-                "- [ ] E-01 Item 1\n"
-                "  - Execution state: performed\n\n"
-                "## Validation and cross-check (verify before reporting done)\n\n"
-                "- [ ] V-01 validates E-01\n"
-                "  - Result: pass\n\n"
-                "## Deferred / out of scope (with reason)\n\n"
-                "- Row 1\n"
-                f"  - Carrier-Evidence: {path_plan_136}\n"
-                "- Row 2\n"
-                f"  - Carrier-Evidence: {path_plan_136}\n"
-                "- Row 3\n"
-                f"  - Carrier-Evidence: {path_plan_136}\n\n"
-                "## Open questions\n\n"
-                "### OQ-01: Question\n\n"
-                f"- Carrier-Evidence: {path_plan_136}\n"
+            plan_text_plan = RecordBuilder().plan(
+                title="Test Plan",
+                when="2026-10-14",
+                id6="plntst",
+                set="testset",
+                order=1,
+                highest_e_allocated="01",
+                readiness="go-pending-approval",
+                open_questions=f"### OQ-01: Question\n\n- Carrier-Evidence: {path_plan_136}",
+                body=f"## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Item 1\n  - Execution state: performed\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Result: pass\n\n## Deferred / out of scope (with reason)\n\n- Row 1\n  - Carrier-Evidence: {path_plan_136}\n- Row 2\n  - Carrier-Evidence: {path_plan_136}\n- Row 3\n  - Carrier-Evidence: {path_plan_136}",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             plan_file.write_text(plan_text_plan, encoding="utf-8")
 
@@ -2783,31 +2923,18 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root
                 / ".aw/records/plans/pending/20261014-testset-02-spctst-test.ipd.md"
             )
-            plan_text_spec = (
-                "# IPD: Test Spec\n\n"
-                "- Date: 2026-10-14\n"
-                "- Id: spctst\n"
-                "- Status: pending\n"
-                "- Set: testset\n"
-                "- Order: 2\n"
-                "- Highest E allocated: 01\n"
-                "- Readiness: go-pending-approval\n\n"
-                "## Detailed Implementation Checklist (TODO)\n\n"
-                "- [ ] E-01 Item 1\n"
-                "  - Execution state: performed\n\n"
-                "## Validation and cross-check (verify before reporting done)\n\n"
-                "- [ ] V-01 validates E-01\n"
-                "  - Result: pass\n\n"
-                "## Deferred / out of scope (with reason)\n\n"
-                "- Row 1\n"
-                f"  - Carrier-Evidence: {path_spec_136}\n"
-                "- Row 2\n"
-                f"  - Carrier-Evidence: {path_spec_136}\n"
-                "- Row 3\n"
-                f"  - Carrier-Evidence: {path_spec_136}\n\n"
-                "## Open questions\n\n"
-                "### OQ-01: Question\n\n"
-                f"- Carrier-Evidence: {path_spec_136}\n"
+            plan_text_spec = RecordBuilder().plan(
+                title="Test Spec",
+                when="2026-10-14",
+                id6="spctst",
+                set="testset",
+                order=2,
+                highest_e_allocated="01",
+                readiness="go-pending-approval",
+                open_questions=f"### OQ-01: Question\n\n- Carrier-Evidence: {path_spec_136}",
+                body=f"## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Item 1\n  - Execution state: performed\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Result: pass\n\n## Deferred / out of scope (with reason)\n\n- Row 1\n  - Carrier-Evidence: {path_spec_136}\n- Row 2\n  - Carrier-Evidence: {path_spec_136}\n- Row 3\n  - Carrier-Evidence: {path_spec_136}",
+                raw_fields={"Status": "pending"},
+                text_only=True,
             )
             spec_file.write_text(plan_text_spec, encoding="utf-8")
 
@@ -2845,14 +2972,20 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root / ".aw/records/plans/pending/20261011-test01-01-ppnd01-test.ipd.md"
             )
             p_pend.write_text(
-                "# IPD\n- Id: ppnd01\n- Status: to-review\n", encoding="utf-8"
+                RecordBuilder().plan(id6="ppnd01", status="to-review", text_only=True),
+                encoding="utf-8",
             )
             s_app = (
                 root
                 / ".aw/records/specs/approved/20261011-sapp01-01-sapp01-test.spec.md"
             )
             s_app.write_text(
-                "# Spec\n- Id: sapp01\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                RecordBuilder().spec(
+                    id6="sapp01",
+                    status="approved",
+                    history=["- 2026-10-11 approved: ok"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rel_p = str(p_pend.relative_to(root)).replace("\\", "/")
@@ -2862,15 +2995,14 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                 root / ".aw/records/plans/executed/20261001-test01-01-plnold-old.ipd.md"
             )
             p_old.write_text(
-                f"# IPD: Old Plan\n\n"
-                f"- Date: 2026-10-01\n"
-                f"- Id: plnold\n"
-                f"- Status: executed\n\n"
-                f"## Deferred / out of scope (with reason)\n\n"
-                f"- Row 1\n"
-                f"  - Carrier-Evidence: {rel_p}\n"
-                f"- Row 2\n"
-                f"  - Carrier-Evidence: {rel_s}\n",
+                RecordBuilder().plan(
+                    title="Old Plan",
+                    when="2026-10-01",
+                    id6="plnold",
+                    status="executed",
+                    body=f"## Deferred / out of scope (with reason)\n\n- Row 1\n  - Carrier-Evidence: {rel_p}\n- Row 2\n  - Carrier-Evidence: {rel_s}",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
