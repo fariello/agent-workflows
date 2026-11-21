@@ -28,6 +28,7 @@ from agent_workflows import (
     run_viewer,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -58,11 +59,6 @@ def _write_spec(
     acceptance: list[str] | None = None,
 ) -> Path:
     bucket = "approved" if status == "approved" else status
-    specs_dir = repo / ".aw" / "records" / "specs" / bucket
-    specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"{filename_date}-{id6}-01-{id6}-{slug}.spec.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
     req_section = ""
     if requirements:
         req_lines = "\n".join(f"- {r}" for r in requirements)
@@ -72,25 +68,44 @@ def _write_spec(
         ac_lines = "\n".join(f"- {a}" for a in acceptance)
         ac_section = f"\n## 3. Acceptance Criteria\n{ac_lines}\n"
 
-    content = f"""# SPEC: {title}
-
-- Date: {spec_date}
-- Status: {status}
-- Title: {title}
-- Slug: {slug}
-- Id: {id6}
-{gate_line}
-## Workflow history
-- {spec_date} {status} (tester): set status
-
-## 1. Overview
-Overview of spec {id6}.
-{req_section}{ac_section}"""
+    body = f"## 1. Overview\nOverview of spec {id6}.\n{req_section}{ac_section}"
+    extra: dict[str, str] = {}
+    if gate:
+        extra["blocks_release"] = gate
+    if filename_date == spec_date.replace("-", ""):
+        return RecordBuilder(repo).spec(
+            id6=id6,
+            status=status,
+            title=title,
+            slug=slug,
+            when=spec_date,
+            disposition=bucket,
+            author="tester",
+            history=[f"- {spec_date} {status} (tester): set status"],
+            body=body,
+            **extra,
+        )
+    specs_dir = repo / ".aw" / "records" / "specs" / bucket
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    file_path = specs_dir / f"{filename_date}-{id6}-01-{id6}-{slug}.spec.md"
+    content = RecordBuilder().spec(
+        id6=id6,
+        status=status,
+        title=title,
+        slug=slug,
+        when=spec_date,
+        author="tester",
+        history=[f"- {spec_date} {status} (tester): set status"],
+        body=body,
+        text_only=True,
+        **extra,
+    )
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
 
-def _write_plan_content(
+def _write_conforming_plan(
+    repo: Path,
     *,
     id6: str,
     spec_id6: str | None = "spc001",
@@ -100,11 +115,11 @@ def _write_plan_content(
     gate: str | None = None,
     scope_paths: str = "README.md",
     dependencies: str = "none",
+    bucket: str = "pending",
+    filename_date: str = "20260927",
     e_items: list[str] | None = None,
     v_items: list[str] | None = None,
-) -> str:
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
+) -> Path:
     highest_e = f"{len(e_items):02d}" if e_items else "01"
 
     if e_items:
@@ -138,27 +153,7 @@ def _write_plan_content(
   - Observed evidence:
   - Result: pending"""
 
-    return f"""# IPD: Test Plan {id6}
-
-- Date: 2026-09-27
-- Kind: child
-- Concern: Test concern for plan {id6}.
-- Scope: Test scope for plan {id6}.
-- Scope-Paths: {scope_paths}
-- Status: {status}
-{spec_line}{gate_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: {highest_e}
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: {dependencies}
-
-## Workflow history
-- 2026-09-27 {status} (test): created.
-
-## Goal
+    body = f"""## Goal
 Test goal for plan {id6}.
 
 ## Detailed Implementation Checklist (TODO)
@@ -194,43 +189,32 @@ None.
 
 ## Approval and execution gate
 - Size assessment: standard
-- Cohesion rationale: not required
-"""
+- Cohesion rationale: not required"""
 
-
-def _write_conforming_plan(
-    repo: Path,
-    *,
-    id6: str,
-    spec_id6: str | None = "spc001",
-    setid: str = "demo",
-    order: int = 1,
-    status: str = "to-review",
-    gate: str | None = None,
-    scope_paths: str = "README.md",
-    dependencies: str = "none",
-    bucket: str = "pending",
-    filename_date: str = "20260927",
-    e_items: list[str] | None = None,
-    v_items: list[str] | None = None,
-) -> Path:
-    dir_path = repo / ".aw" / "records" / "plans" / bucket
-    dir_path.mkdir(parents=True, exist_ok=True)
-    file_path = dir_path / f"{filename_date}-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
-    content = _write_plan_content(
+    when_iso = f"{filename_date[:4]}-{filename_date[4:6]}-{filename_date[6:8]}"
+    extra: dict[str, str] = {"highest_e_allocated": highest_e}
+    if spec_id6:
+        extra["from_spec"] = spec_id6
+    if gate:
+        extra["blocks_release"] = gate
+    return RecordBuilder(repo).plan(
         id6=id6,
-        spec_id6=spec_id6,
-        setid=setid,
+        title=f"Test Plan {id6}",
+        when=when_iso,
+        set=setid,
         order=order,
         status=status,
-        gate=gate,
         scope_paths=scope_paths,
-        dependencies=dependencies,
-        e_items=e_items,
-        v_items=v_items,
+        item_dependencies=dependencies,
+        priority="medium",
+        work_kind="feature",
+        author="test",
+        disposition=bucket,
+        slug="test-plan",
+        history=[f"- 2026-09-27 {status} (test): created."],
+        body=body,
+        **extra,
     )
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
 
 
 def _patch_host_agent(module, agent_fn):
@@ -647,8 +631,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -661,9 +646,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -779,8 +765,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -791,9 +778,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -841,8 +829,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -855,9 +844,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -903,8 +893,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -919,9 +910,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -971,8 +963,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -987,9 +980,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1038,8 +1032,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1054,9 +1049,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent_omit):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1086,8 +1082,9 @@ class TestSpecProductionE08(unittest.TestCase):
                         "--no-isolate-worktree",
                     ]
                     args2 = mod.build_parser().parse_args(cmd2)
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir2 = mod.initialize_run(args2)
 
@@ -1102,9 +1099,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent_match):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir2, retry_incomplete=False)
 
                     state2 = json.loads(
@@ -1151,8 +1149,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1175,9 +1174,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1226,8 +1226,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1247,9 +1248,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1298,8 +1300,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1319,9 +1322,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1364,8 +1368,9 @@ class TestSpecProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1385,9 +1390,10 @@ class TestSpecProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1431,8 +1437,9 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1483,9 +1490,10 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                             create=True,
                         ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1518,8 +1526,9 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1532,9 +1541,10 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1586,8 +1596,9 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1598,9 +1609,10 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1641,8 +1653,9 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1660,9 +1673,10 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state_after = json.loads(
@@ -1711,9 +1725,10 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                         )
 
                     with _patch_host_agent(mod, fail_on_spawn):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             res_rc = mod.main(
                                 ["resume", str(run_dir), "--repo", str(repo)]
                             )
@@ -1746,8 +1761,9 @@ class TestActionPlanEnforcementE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
                     self.assertTrue(Path(run_dir).is_dir())
@@ -1776,9 +1792,10 @@ class TestActionPlanEnforcementE07(unittest.TestCase):
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
                     with self.assertRaises(runner_shared.DriverError) as cm:
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.initialize_run(args)
 
                     msg = str(cm.exception)
@@ -1873,8 +1890,9 @@ class TestSpecProductionDeferredAndTracePrompt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1894,9 +1912,10 @@ class TestSpecProductionDeferredAndTracePrompt(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1959,8 +1978,9 @@ class TestSpecProductionDeferredAndTracePrompt(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1980,9 +2000,10 @@ class TestSpecProductionDeferredAndTracePrompt(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     events = [

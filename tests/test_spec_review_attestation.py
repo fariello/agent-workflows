@@ -39,6 +39,7 @@ from agent_workflows import review_findings as rf
 from agent_workflows import run_selection_policy as policy
 from agent_workflows import runner_shared as rs
 from agent_workflows import specs, status_set
+from tests.record_builder import RecordBuilder
 
 REPO = Path(__file__).resolve().parent.parent
 WORKFLOWS = REPO / ".aw" / "system" / "workflows"
@@ -75,24 +76,29 @@ def _set_args(path: Path, status: str, **kw) -> argparse.Namespace:
 
 
 def _spec_text(id6: str, status: str, *, title: str = "fixture") -> str:
-    return (
-        f"# Spec: {title}\n\n"
-        f"- Date: 2026-09-06\n"
-        f"- Status: {status}\n"
-        f"- Id: {id6}\n"
-        f"- Author: fixture\n\n"
-        "## 1. Purpose\n\nA fixture spec.\n\n"
-        "## Workflow history\n"
-        f"- 2026-09-06 {status} (fixture): created.\n"
+    return RecordBuilder().spec(
+        title=title,
+        when="2026-09-06",
+        status=status,
+        id6=id6,
+        author="fixture",
+        history=[f"- 2026-09-06 {status} (fixture): created."],
+        body="## 1. Purpose\n\nA fixture spec.",
+        text_only=True,
     )
 
 
 def _write_spec(root: Path, id6: str, status: str, slug: str = "fixture-spec") -> Path:
-    d = root / ".aw" / "records" / "specs" / status
-    d.mkdir(parents=True, exist_ok=True)
-    p = d / f"20260906-{id6}-01-{id6}-{slug}.spec.md"
-    p.write_text(_spec_text(id6, status), encoding="utf-8")
-    return p
+    return RecordBuilder(root).spec(
+        id6=id6,
+        status=status,
+        title="fixture",
+        author="fixture",
+        when="2026-09-06",
+        slug=slug,
+        history=[f"- 2026-09-06 {status} (fixture): created."],
+        body="## 1. Purpose\n\nA fixture spec.",
+    )
 
 
 def _write_record(
@@ -122,25 +128,17 @@ def _write_record(
         ),
         decisions=(),
     )
-    p = (
-        root
-        / ".aw"
-        / "records"
-        / "reviews"
-        / rf.build_review_name(
-            date="20260906", set_id="fixt", order=1, subject_id6=subject_id, slug=slug
-        )
-    )
-    rf.write_review(
-        p,
-        subject_id=subject_id,
+    return RecordBuilder(root).review(
+        subject_id,
+        set="fixt",
+        order=1,
         subject_type=subject_type,
         reviewed_at="2026-09-06",
         reviewer="opencode fixture",
         verdict=verdict,
+        slug=slug,
         rounds=[rnd],
     )
-    return p
 
 
 def _break_record(path: Path) -> None:
@@ -1570,8 +1568,14 @@ class SpecDiscoveryTests(unittest.TestCase):
                     / "specs"
                     / "20260706-0000-01-legacy.spec.md"
                 ).write_text(
-                    "# Spec: legacy\n\n- Date: 2026-07-06\n- Status: implemented\n\n"
-                    "## Workflow history\n- 2026-07-06 implemented (x): y.\n",
+                    RecordBuilder().spec(
+                        title="legacy",
+                        when="2026-07-06",
+                        status="implemented",
+                        history=["- 2026-07-06 implemented (x): y."],
+                        raw_fields={"Id": None},
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 ),
             ),

@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import agent_schema, check_engine, cli, spec_citations
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -24,28 +25,30 @@ def temp_spec_repo(tmp_path: Path) -> Path:
     specs_dir = repo_root / ".aw" / "records" / "specs" / "approved"
     specs_dir.mkdir(parents=True)
 
-    spec_text = (
-        "# Spec: Sample Protocol\n"
-        "\n"
-        "- Id: smpl01\n"
-        "- Status: approved\n"
-        "\n"
-        "## Workflow history\n"
-        "- 2026-09-01 approved\n"
-        "\n"
-        "### 1.1 Normative Roles\n"
-        "\n"
-        "Line 11: Normative content here.\n"
-        "Line 12: More normative text.\n"
-        "\n"
-        "```\n"
-        "Line 15: code fence content\n"
-        "Line 16: more code fence\n"
-        "```\n"
-        "\n"
-        "### 2.1 Execution Grammar\n"
-        "\n"
-        "Line 21: Grammar rules here.\n"
+    spec_text = RecordBuilder().spec(
+        id6="smpl01",
+        title="Sample Protocol",
+        status="approved",
+        when="2026-09-01",
+        history=["- 2026-09-01 approved"],
+        body=(
+            "Overview.\n"
+            "\n"
+            "### 1.1 Normative Roles\n"
+            "\n"
+            "Line 11: Normative content here.\n"
+            "Line 12: More normative text.\n"
+            "\n"
+            "```\n"
+            "Line 15: code fence content\n"
+            "Line 16: more code fence\n"
+            "```\n"
+            "\n"
+            "### 2.1 Execution Grammar\n"
+            "\n"
+            "Line 21: Grammar rules here."
+        ),
+        text_only=True,
     )
     spec_path = specs_dir / "20260901-smpl01-01-smpl01-sample.spec.md"
     spec_path.write_text(spec_text, encoding="utf-8")
@@ -237,14 +240,21 @@ def test_a_table_row_anchor_key_cell_in_block_produces_no_finding(
         / "approved"
         / "20260901-tbl001-01-tbl001-table.spec.md"
     )
-    spec_path.write_text(
-        "# Spec: Table\n\n- Id: tbl001\n- Status: approved\n\n## 1. Catalog\n\n| I-07 | Release-gate preservation |\n",
-        encoding="utf-8",
+    spec_text = RecordBuilder().spec(
+        id6="tbl001",
+        title="Table",
+        status="approved",
+        body="## 1. Catalog\n\n| I-07 | Release-gate preservation |",
+        text_only=True,
+    )
+    spec_path.write_text(spec_text, encoding="utf-8")
+    row_line = next(
+        i for i, ln in enumerate(spec_text.splitlines(), 1) if "| I-07 |" in ln
     )
     src_file = temp_spec_repo / "agent_workflows" / "mod_tbl_a.py"
     src_file.write_text(
         "# I-07 invariant verified here:\n"
-        "# as documented in spec tbl001 :8\n"
+        f"# as documented in spec tbl001 :{row_line}\n"
         "# I-07 preservation confirmed.\n",
         encoding="utf-8",
     )
@@ -264,21 +274,28 @@ def test_b_table_row_anchor_key_cell_absent_produces_one_finding(
         / "approved"
         / "20260901-tbl001-01-tbl001-table.spec.md"
     )
-    spec_path.write_text(
-        "# Spec: Table\n\n- Id: tbl001\n- Status: approved\n\n## 1. Catalog\n\n| I-07 | Release-gate preservation |\n",
-        encoding="utf-8",
+    spec_text = RecordBuilder().spec(
+        id6="tbl001",
+        title="Table",
+        status="approved",
+        body="## 1. Catalog\n\n| I-07 | Release-gate preservation |",
+        text_only=True,
+    )
+    spec_path.write_text(spec_text, encoding="utf-8")
+    row_line = next(
+        i for i, ln in enumerate(spec_text.splitlines(), 1) if "| I-07 |" in ln
     )
     src_file = temp_spec_repo / "agent_workflows" / "mod_tbl_b.py"
     src_file.write_text(
         "# Some general comments with key cell absent:\n"
-        "# as documented in spec tbl001 :8\n"
+        f"# as documented in spec tbl001 :{row_line}\n"
         "# without mentioning the key cell.\n",
         encoding="utf-8",
     )
     findings = spec_citations.stale_spec_anchors(temp_spec_repo, [src_file])
     assert len(findings) == 1
     assert findings[0].id6 == "tbl001"
-    assert findings[0].offset == 8
+    assert findings[0].offset == row_line
     assert findings[0].enclosing_heading == "## 1. Catalog"
     assert findings[0].validity == "valid"
 
@@ -307,7 +324,7 @@ def test_d_bare_backtick_offset_without_spec_word_produces_no_finding(
     """(d) A line citing a colon offset with no 'spec' word produces no finding."""
     src_file = temp_spec_repo / "agent_workflows" / "mod_nospec.py"
     src_file.write_text(
-        "# Generic self-reference:\n" "# see the comment at `:11` for details.\n",
+        "# Generic self-reference:\n# see the comment at `:11` for details.\n",
         encoding="utf-8",
     )
     findings = spec_citations.stale_spec_anchors(temp_spec_repo, [src_file])

@@ -24,6 +24,7 @@ from contextlib import redirect_stderr, redirect_stdout
 
 from agent_workflows import cli
 from agent_workflows import specs
+from tests.record_builder import RecordBuilder
 
 
 class _ContainmentRepoTestCase(unittest.TestCase):
@@ -325,8 +326,16 @@ class TestFabricatedDatesAndNonRegressions(_ContainmentRepoTestCase):
         """
         bad_file = self.draft_dir / "notadate-u6o1sr-01-u6o1sr-x.spec.md"
         bad_file.write_text(
-            "# Spec: T\n\n- Date: notadate\n- Status: draft\n- Id: u6o1sr\n- Author: aw specs new\n- Scope: s\n\n"
-            "## Workflow history\n\n- notadate created (aw specs): s\n",
+            RecordBuilder().spec(
+                id6="u6o1sr",
+                title="T",
+                status="draft",
+                author="aw specs new",
+                history=["- notadate created (aw specs): s"],
+                raw_fields={"Date": "notadate", "Scope": "s"},
+                body="",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         # 1. aw specs check --dir <repo> --agent
@@ -408,17 +417,16 @@ class TestFabricatedDatesAndNonRegressions(_ContainmentRepoTestCase):
         Driven at the function: a malformed date writes to the history record without traversing,
         and creates no files.
         """
-        spec_path = self.draft_dir / "20260929-fn0101-01-fn0101-test.spec.md"
-        spec_path.write_text(
-            "# Spec: Test\n\n"
-            "- Date: 2026-09-29\n"
-            "- Status: draft\n"
-            "- Id: fn0101\n"
-            "- Author: me\n"
-            "- Scope: test\n\n"
-            "## Workflow history\n\n"
-            "- 2026-09-29 created (aw specs): initial\n",
-            encoding="utf-8",
+        spec_path = RecordBuilder(self.repo_dir).spec(
+            id6="fn0101",
+            title="Test",
+            slug="test",
+            when="2026-09-29",
+            status="draft",
+            author="me",
+            history=["- 2026-09-29 created (aw specs): initial"],
+            raw_fields={"Scope": "test"},
+            body="",
         )
 
         # 1. run_note
@@ -516,8 +524,9 @@ class TestE02ContainmentBypassAndLegacyLayout(_ContainmentRepoTestCase):
         class _FakeDateTime:
             date = _FakeDate
 
-        with patch("re.match", side_effect=bypass_match), patch.object(
-            specs, "_dt", _FakeDateTime
+        with (
+            patch("re.match", side_effect=bypass_match),
+            patch.object(specs, "_dt", _FakeDateTime),
         ):
             # 1. With apply
             rc_apply, out_apply, err_apply = self._run(

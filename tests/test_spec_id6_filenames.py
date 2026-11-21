@@ -22,6 +22,7 @@ from agent_workflows import check_engine as ce
 from agent_workflows import cli
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -135,16 +136,18 @@ class TestSpecProducer(_RepoTestCase):
 class TestCheckGrandfatherCutover(_RepoTestCase):
     """E-03 / V-03: aw check specs grandfathers pre-cutover, enforces post-cutover."""
 
-    def _write_spec(self, name):
-        (self.specs / name).write_text(
-            "# Spec: X\n\n- Date: 2026-01-01\n- Status: reviewed\n\n"
-            "## Workflow history\n\n- 2026-01-01 created (aw specs): x\n",
-            encoding="utf-8",
-        )
-
     def test_pre_cutover_legacy_grandfathered(self):
         # A spec dated the day BEFORE the cutover keeps its legacy name conformant.
-        self._write_spec("20260827-1200-01-pre-cutover.spec.md")
+        (self.specs / "20260827-1200-01-pre-cutover.spec.md").write_text(
+            RecordBuilder().spec(
+                title="X",
+                when="2026-01-01",
+                status="reviewed",
+                history=["- 2026-01-01 created (aw specs): x"],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         rc, out = self._run(["check", "specs", "names"])
         self.assertEqual(rc, 0, out)
 
@@ -156,7 +159,16 @@ class TestCheckGrandfatherCutover(_RepoTestCase):
         self.assertTrue(ce._spec_requires_id6(at))
 
     def test_post_cutover_legacy_flagged_with_recovery(self):
-        self._write_spec("20260828-1200-01-post-cutover.spec.md")
+        (self.specs / "20260828-1200-01-post-cutover.spec.md").write_text(
+            RecordBuilder().spec(
+                title="X",
+                when="2026-01-01",
+                status="reviewed",
+                history=["- 2026-01-01 created (aw specs): x"],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         rc, out = self._run(["check", "specs", "names"])
         self.assertEqual(rc, 1, out)
         # The engine-level drift carries the id6-minting recovery command (the human/agent
@@ -168,8 +180,14 @@ class TestCheckGrandfatherCutover(_RepoTestCase):
 
     def test_post_cutover_clustered_ok(self):
         (self.specs / "20260828-abc123-01-abc123-post.spec.md").write_text(
-            "# Spec: X\n\n- Date: 2026-08-28\n- Status: reviewed\n- Id: abc123\n\n"
-            "## Workflow history\n\n- 2026-08-28 created (aw specs): x\n",
+            RecordBuilder().spec(
+                title="X",
+                when="2026-08-28",
+                status="reviewed",
+                id6="abc123",
+                history=["- 2026-08-28 created (aw specs): x"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rc, out = self._run(["check", "specs", "names"])
@@ -181,13 +199,31 @@ class TestCheckGrandfatherCutover(_RepoTestCase):
             '{"cutovers": {"spec_id6": "2026-09-10"}}',
             encoding="utf-8",
         )
-        self._write_spec("20260828-1200-01-post-legacy.spec.md")
+        (self.specs / "20260828-1200-01-post-legacy.spec.md").write_text(
+            RecordBuilder().spec(
+                title="X",
+                when="2026-01-01",
+                status="reviewed",
+                history=["- 2026-01-01 created (aw specs): x"],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         # 20260828 is now grandfathered under dynamic 2026-09-10 cutover
         drift = ce.check_names(self.tmp, "specs")
         self.assertEqual(len(drift), 0, drift)
 
         # But a spec dated 20260910 is flagged
-        self._write_spec("20260910-1200-01-post-dynamic.spec.md")
+        (self.specs / "20260910-1200-01-post-dynamic.spec.md").write_text(
+            RecordBuilder().spec(
+                title="X",
+                when="2026-01-01",
+                status="reviewed",
+                history=["- 2026-01-01 created (aw specs): x"],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         drift = ce.check_names(self.tmp, "specs")
         self.assertEqual(len(drift), 1, drift)
         self.assertIn("--to-id6", drift[0].detail)
@@ -195,11 +231,29 @@ class TestCheckGrandfatherCutover(_RepoTestCase):
     def test_fallback_to_constant_when_unconfigured(self):
         (self.config_dir / "project.json").unlink()
         # Pre-fallback date is grandfathered
-        self._write_spec("20260827-1200-01-pre-cutover.spec.md")
+        (self.specs / "20260827-1200-01-pre-cutover.spec.md").write_text(
+            RecordBuilder().spec(
+                title="X",
+                when="2026-01-01",
+                status="reviewed",
+                history=["- 2026-01-01 created (aw specs): x"],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         drift = ce.check_names(self.tmp, "specs")
         self.assertEqual(len(drift), 0, "pre-cutover grandfathered under fallback")
         # Cutover date itself is flagged under fallback
-        self._write_spec("20260828-1200-01-at-cutover.spec.md")
+        (self.specs / "20260828-1200-01-at-cutover.spec.md").write_text(
+            RecordBuilder().spec(
+                title="X",
+                when="2026-01-01",
+                status="reviewed",
+                history=["- 2026-01-01 created (aw specs): x"],
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
         drift = ce.check_names(self.tmp, "specs")
         self.assertEqual(len(drift), 1, "cutover flagged under fallback")
 
@@ -209,8 +263,15 @@ class TestToId6Rename(_RepoTestCase):
 
     def _write_legacy(self, name="20260701-1200-01-legacy.spec.md"):
         (self.specs / name).write_text(
-            "# Spec: Legacy\n\n- Date: 2026-07-01\n- Status: reviewed\n- Author: a\n\n"
-            "## Workflow history\n\n- 2026-07-01 created (aw specs): legacy\n",
+            RecordBuilder().spec(
+                title="Legacy",
+                when="2026-07-01",
+                status="reviewed",
+                author="a",
+                history=["- 2026-07-01 created (aw specs): legacy"],
+                raw_fields={"Id": None},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return self.specs / name
@@ -258,8 +319,14 @@ class TestToId6Rename(_RepoTestCase):
         # A spec that already carries `- Id:` and a clustered name reuses its id6, no re-mint/rename.
         name = "20260701-o3bq8p-01-o3bq8p-legacy.spec.md"
         (self.specs / name).write_text(
-            "# Spec: Legacy\n\n- Date: 2026-07-01\n- Status: reviewed\n- Id: o3bq8p\n\n"
-            "## Workflow history\n\n- 2026-07-01 created (aw specs): legacy\n",
+            RecordBuilder().spec(
+                title="Legacy",
+                when="2026-07-01",
+                status="reviewed",
+                id6="o3bq8p",
+                history=["- 2026-07-01 created (aw specs): legacy"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self._commit()
@@ -315,7 +382,19 @@ class TestToId6DatedLegacyNames(_RepoTestCase):
     ):
         src = self.wt / "20260821-probe-rescope-walkthrough.walkthrough.md"
         src.write_text(
-            "# Probe\n\n- Date: 2026-08-21\n- Author: a\n\n## Why\n\nx\n",
+            RecordBuilder().walkthrough(
+                when="2026-08-21",
+                body="# Probe\n\n## Why\n\nx\n",
+                raw_fields={
+                    "Id": None,
+                    "Set": None,
+                    "Order": None,
+                    "Target-Id": None,
+                    "Date": "2026-08-21",
+                    "Author": "a",
+                },
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self._commit()
@@ -351,7 +430,10 @@ class TestToId6DatedLegacyNames(_RepoTestCase):
 
     def test_set_or_order_without_to_id6_is_refused_not_a_silent_success(self):
         src = self.wt / "20260823-probe-decisions.walkthrough.md"
-        src.write_text("# x\n\n- Date: 2026-08-23\n", encoding="utf-8")
+        src.write_text(
+            RecordBuilder().walkthrough(when="2026-08-23", text_only=True),
+            encoding="utf-8",
+        )
         self._commit()
         rc, out = self._run(
             ["rename", "walkthroughs", str(src), "--set", "demo", "--order", "1"]
@@ -377,7 +459,14 @@ class TestToId6DatedLegacyNames(_RepoTestCase):
 
         p = self.specs / "x.spec.md"
         p.write_text(
-            "# Spec\n\n- Date: 2026-07-01\n- Status: draft\n", encoding="utf-8"
+            RecordBuilder().spec(
+                title="Spec",
+                when="2026-07-01",
+                status="draft",
+                raw_fields={"Id": None, "Date": "2026-07-01", "Author": None},
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         ar._update_frontmatter_metadata(p, id6="abc123", artifact_type="specs")
         self.assertIn("- Status: draft\n- Id: abc123\n", p.read_text(encoding="utf-8"))

@@ -24,6 +24,7 @@ import unittest
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class SpecEditAckGateTests(unittest.TestCase):
@@ -51,28 +52,21 @@ class SpecEditAckGateTests(unittest.TestCase):
         plan_filename = f"20260924-{setid}-01-{id6}-test-plan.ipd.md"
         plan_rel = f".aw/records/plans/pending/{plan_filename}"
         plan_path = self.repo / plan_rel
-        plan_content = f"""# IPD: Test plan for spec ack gate
-
-- Date: 2026-09-24
-- Kind: child
-- Concern: test.
-- Scope: test.
-- Scope-Paths: {scope_paths}
-- Item-Dependencies: none
-- Status: approved
-- Set: {setid}
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: {id6}
-
-## Goal
-Test.
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Do test
-  - Execution state: pending
-"""
+        plan_content = RecordBuilder().plan(
+            title="Test plan for spec ack gate",
+            when="2026-09-24",
+            plan_role="child",
+            scope_paths=scope_paths,
+            item_dependencies="none",
+            status="approved",
+            set=setid,
+            order=1,
+            highest_e_allocated="01",
+            author="test",
+            id6=id6,
+            body="## Goal\nTest.\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Do test\n  - Execution state: pending",
+            text_only=True,
+        )
         plan_path.write_text(plan_content, encoding="utf-8")
 
         run_id = "run-20260925T000000Z-111111"
@@ -286,27 +280,21 @@ Test.
             ".aw/records/plans/pending/20260924-testset-01-tst001-test-plan.ipd.md"
         )
         plan_path = self.repo / plan_rel
-        plan_content = """# IPD: Test plan for spec ack gate
-- Date: 2026-09-24
-- Kind: child
-- Concern: test.
-- Scope: test.
-- Scope-Paths: x.spec.md
-- Item-Dependencies: none
-- Status: approved
-- Set: testset
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: tst001
-
-## Goal
-Test.
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Do test
-  - Execution state: pending
-"""
+        plan_content = RecordBuilder().plan(
+            title="Test plan for spec ack gate",
+            when="2026-09-24",
+            plan_role="child",
+            scope_paths="x.spec.md",
+            item_dependencies="none",
+            status="approved",
+            set="testset",
+            order=1,
+            highest_e_allocated="01",
+            author="test",
+            id6="tst001",
+            body="## Goal\nTest.\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Do test\n  - Execution state: pending",
+            text_only=True,
+        )
         plan_path.write_text(plan_content, encoding="utf-8")
 
         for host_mod in (oc_runipd, agy_runipd):

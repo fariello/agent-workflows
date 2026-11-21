@@ -18,6 +18,7 @@ import pytest
 
 from agent_workflows import cli
 from agent_workflows import review_findings as rf
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -25,11 +26,15 @@ SPEC_ID = "gk0001"
 
 
 def _spec_text(status: str) -> str:
-    return (
-        "# Spec: Gate kind fixture\n\n"
-        f"- Date: 2026-01-01\n- Status: {status}\n- Id: {SPEC_ID}\n- Author: tester\n\n"
-        "## Workflow history\n\n- 2026-01-01 to-review (tester): created\n\n"
-        "## Goal\n\nA fixture spec.\n"
+    return RecordBuilder().spec(
+        title="Gate kind fixture",
+        when="2026-01-01",
+        status=status,
+        id6=SPEC_ID,
+        author="tester",
+        history=["- 2026-01-01 to-review (tester): created"],
+        body="## Goal\n\nA fixture spec.",
+        text_only=True,
     )
 
 

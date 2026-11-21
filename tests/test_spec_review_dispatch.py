@@ -30,6 +30,7 @@ from agent_workflows import (
     runner_shared,
 )
 from agent_workflows.runner_shared import queue_artifact_path
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -68,155 +69,6 @@ def _make_test_repo(path: Path) -> Path:
     return path
 
 
-def _write_plan(
-    repo: Path,
-    *,
-    id6: str,
-    setid: str = "demo",
-    order: int = 1,
-    status: str = "to-review",
-    slug: str = "test-plan",
-) -> Path:
-    bucket = "pending"
-    dir_path = repo / ".aw" / "records" / "plans" / bucket
-    dir_path.mkdir(parents=True, exist_ok=True)
-    file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-{slug}.ipd.md"
-    approval_line = "- Approval: 2026-09-27, test\n" if status == "approved" else ""
-    content = f"""# IPD: Test {id6}
-
-- Date: 2026-09-27
-- Kind: child
-- Concern: test
-- Scope: test
-- Scope-Paths: README.md
-- Status: {status}
-- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: tester
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-{approval_line}
-## Workflow history
-- 2026-09-27 {status} (tester): {status}
-
-## Goal
-Test plan.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-None.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-None.
-
-## Required tests / validation
-None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: check
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
-def _write_spec(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "to-review",
-    title: str = "Test Spec",
-    slug: str = "test-spec",
-    legacy_name: bool = False,
-) -> Path:
-    bucket = (
-        "to-review"
-        if status == "to-review"
-        else ("reviewed" if status == "reviewed" else "")
-    )
-    if bucket:
-        specs_dir = repo / ".aw" / "records" / "specs" / bucket
-    else:
-        specs_dir = repo / ".aw" / "records" / "specs"
-    specs_dir.mkdir(parents=True, exist_ok=True)
-
-    if legacy_name:
-        fname = f"20260827-1514-01-{slug}.spec.md"
-    else:
-        fname = f"20260927-{id6}-01-{id6}-{slug}.spec.md"
-    file_path = specs_dir / fname
-
-    content = f"""# SPEC: {title}
-
-- Date: 2026-09-27
-- Status: {status}
-- Title: {title}
-- Slug: {slug}
-- Id: {id6}
-
-## Workflow history
-- 2026-09-27 {status} (tester): set status
-
-## 1. Overview
-Overview of spec {id6}.
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
-def _write_review_record(
-    repo: Path,
-    *,
-    subject_id6: str,
-    subject_type: str = "spec",
-    verdict: str = "APPROVE",
-) -> Path:
-    rev_dir = repo / ".aw" / "records" / "reviews"
-    rev_dir.mkdir(parents=True, exist_ok=True)
-    rev_path = rev_dir / f"20260927-s1-01-{subject_id6}-review.review.md"
-    rev_content = f"""# Review: Test Review
-- Subject-Id: {subject_id6}
-- Subject-Type: {subject_type}
-- Reviewed-At: 2026-09-27
-- Reviewer: test-agent
-- Verdict: {verdict}
-
-## Round 1
-Conforming review notes.
-"""
-    rev_path.write_text(rev_content, encoding="utf-8")
-    return rev_path
-
-
 def _patch_host_agent(module, agent_fn):
     if module is oc_runipd:
         return mock.patch.object(oc_runipd, "run_opencode", agent_fn)
@@ -243,8 +95,29 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="to-review")
-                    _write_plan(repo, id6="pln001", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="to-review",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-09-27",
+                        author="tester",
+                    )
+                    RecordBuilder(repo).plan(
+                        id6="pln001",
+                        title="Test pln001",
+                        when="2026-09-27",
+                        set="demo",
+                        order=1,
+                        status="to-review",
+                        scope_paths="README.md",
+                        author="tester",
+                        priority="medium",
+                        work_kind="feature",
+                        slug="test-plan",
+                        highest_e_allocated="01",
+                        history=["- 2026-09-27 to-review (tester): to-review"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-m", "init"], cwd=repo, check=True
@@ -264,8 +137,9 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -281,9 +155,10 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -338,7 +213,14 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    spec_path = _write_spec(repo, id6="spc002", status="to-review")
+                    spec_path = RecordBuilder(repo).spec(
+                        id6="spc002",
+                        status="to-review",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-09-27",
+                        author="tester",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-m", "init"], cwd=repo, check=True
@@ -358,24 +240,32 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
                     def fake_agent(
                         state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
                     ):
-                        _write_review_record(
-                            repo, subject_id6="spc002", subject_type="spec"
+                        RecordBuilder(repo).review(
+                            subject="spc002",
+                            set="s1",
+                            order=1,
+                            subject_type="spec",
+                            reviewed_at="2026-09-27",
+                            reviewer="test-agent",
+                            verdict="APPROVE",
                         )
                         _set_spec_status(plan_path, repo)
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                     self.assertEqual(rc, 0)
@@ -404,7 +294,14 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    spec_path = _write_spec(repo, id6="spc003", status="to-review")
+                    spec_path = RecordBuilder(repo).spec(
+                        id6="spc003",
+                        status="to-review",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-09-27",
+                        author="tester",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-m", "init"], cwd=repo, check=True
@@ -424,8 +321,9 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -436,9 +334,10 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                     self.assertNotEqual(rc, 0)
@@ -464,7 +363,14 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc004", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc004",
+                        status="to-review",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-09-27",
+                        author="tester",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-m", "init"], cwd=repo, check=True
@@ -484,8 +390,9 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -493,17 +400,26 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
                         state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
                     ):
                         # Hand-edit status without creating a review record
-                        text = plan_path.read_text(encoding="utf-8")
                         plan_path.write_text(
-                            text.replace("- Status: to-review", "- Status: reviewed"),
+                            RecordBuilder().spec(
+                                id6="spc004",
+                                status="reviewed",
+                                title="Test Spec",
+                                slug="test-spec",
+                                when="2026-09-27",
+                                author="tester",
+                                history=["- 2026-09-27 to-review (tester): set status"],
+                                text_only=True,
+                            ),
                             encoding="utf-8",
                         )
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                     self.assertNotEqual(rc, 0)
@@ -534,7 +450,14 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc005", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc005",
+                        status="to-review",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-09-27",
+                        author="tester",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-m", "init"], cwd=repo, check=True
@@ -555,27 +478,38 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
                     def fake_agent(
                         state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
                     ):
-                        _write_review_record(
-                            repo, subject_id6="spc005", subject_type="spec"
+                        RecordBuilder(repo).review(
+                            subject="spc005",
+                            set="s1",
+                            order=1,
+                            subject_type="spec",
+                            reviewed_at="2026-09-27",
+                            reviewer="test-agent",
+                            verdict="APPROVE",
                         )
                         _set_spec_status(plan_path, repo)
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     mock_set_plan_approved = mock.MagicMock()
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        mod, "set_plan_approved", mock_set_plan_approved
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            mod, "set_plan_approved", mock_set_plan_approved
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             rc = mod.run_queue(run_dir, retry_incomplete=False)
 
                     self.assertEqual(rc, 0)
@@ -596,7 +530,14 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc006", status="to-review")
+                    RecordBuilder(repo).spec(
+                        id6="spc006",
+                        status="to-review",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-09-27",
+                        author="tester",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-m", "init"], cwd=repo, check=True
@@ -616,24 +557,32 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
                     def fake_agent(
                         state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
                     ):
-                        _write_review_record(
-                            repo, subject_id6="spc006", subject_type="spec"
+                        RecordBuilder(repo).review(
+                            subject="spc006",
+                            set="s1",
+                            order=1,
+                            subject_type="spec",
+                            reviewed_at="2026-09-27",
+                            reviewer="test-agent",
+                            verdict="APPROVE",
                         )
                         _set_spec_status(plan_path, repo)
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -659,8 +608,20 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
                     # Write legacy-named spec lacking id6 in filename
-                    spec_path = _write_spec(
-                        repo, id6="4w7d6s", status="to-review", legacy_name=True
+                    specs_dir = repo / ".aw" / "records" / "specs" / "to-review"
+                    specs_dir.mkdir(parents=True, exist_ok=True)
+                    spec_path = specs_dir / "20260827-1514-01-test-spec.spec.md"
+                    spec_path.write_text(
+                        RecordBuilder().spec(
+                            id6="4w7d6s",
+                            status="to-review",
+                            title="Test Spec",
+                            slug="test-spec",
+                            when="2026-09-27",
+                            author="tester",
+                            text_only=True,
+                        ),
+                        encoding="utf-8",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -681,8 +642,9 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -691,8 +653,14 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                     def fake_agent(
                         state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
                     ):
-                        _write_review_record(
-                            repo, subject_id6="4w7d6s", subject_type="spec"
+                        RecordBuilder(repo).review(
+                            subject="4w7d6s",
+                            set="s1",
+                            order=1,
+                            subject_type="spec",
+                            reviewed_at="2026-09-27",
+                            reviewer="test-agent",
+                            verdict="APPROVE",
                         )
                         # Advance spec via setter
                         _set_spec_status(plan_path, repo)
@@ -701,9 +669,10 @@ class TestSpecReviewApprovalAndScopeE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
