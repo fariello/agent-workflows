@@ -46,6 +46,7 @@ from unittest import mock
 import pytest
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from support import REPO_ROOT, load_module  # noqa: E402
@@ -320,8 +321,15 @@ class DiscoverPlansRecordTypeTests(unittest.TestCase):
         plans = tmp / ".aw" / "records" / "plans" / "pending"
         plans.mkdir(parents=True)
         (plans / "20260101-setaaa-01-aaaaaa-a-plan.ipd.md").write_text(
-            "# IPD: a plan\n\n- Id: aaaaaa\n- Status: approved\n- Set: setaaa\n"
-            "- Order: 1\n- Kind: child\n",
+            RecordBuilder().plan(
+                title="a plan",
+                id6="aaaaaa",
+                status="approved",
+                set="setaaa",
+                order=1,
+                plan_role="child",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return tmp
@@ -556,26 +564,28 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         """A review lane that authors an invalid plan (e.g. blocking open question) is refused."""
         import tempfile
 
-        invalid_plan = (
-            "# IPD: Invalid Plan\n\n"
-            "- Date: 2026-10-18\n"
-            "- Id: inv001\n"
-            "- Status: reviewed\n"
-            "- Scope: test scope\n"
-            "- Scope-Paths: none\n"
-            "- Item-Dependencies: none\n"
-            "- Readiness: no-go\n"
-            "- Work-Kind: bug\n"
-            "- Priority: high\n"
-            "- Blocks-Release: none\n"
-            "- Set: invset\n"
-            "- Order: 1\n"
-            "- Highest E allocated: 01\n"
-            "- Author: test\n\n"
-            "### OQ-01: Blocking open question\n"
-            "- Blocking: yes\n"
-            "- Status: open\n"
-            "- Resolution or deferral rationale: open\n"
+        invalid_plan = RecordBuilder().plan(
+            title="Invalid Plan",
+            when="2026-10-18",
+            id6="inv001",
+            status="reviewed",
+            scope_paths="none",
+            item_dependencies="none",
+            readiness="no-go",
+            work_kind="bug",
+            priority="high",
+            blocks_release="none",
+            set="invset",
+            order=1,
+            author="test",
+            open_questions=(
+                "### OQ-01: Blocking open question\n"
+                "- Blocking: yes\n"
+                "- Status: open\n"
+                "- Resolution or deferral rationale: open"
+            ),
+            raw_fields={"Scope": "test scope"},
+            text_only=True,
         )
         plan_rel = (
             ".aw/records/plans/pending/20261018-invset-01-inv001-invalid-plan.ipd.md"
@@ -601,66 +611,68 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         """A review lane with a conforming plan integrates cleanly without errors."""
         import tempfile
 
-        conforming_plan = (
-            "# IPD: Conforming Plan\n\n"
-            "- Date: 2026-10-18\n"
-            "- Kind: child\n"
-            "- Concern: test concern\n"
-            "- Scope: test scope\n"
-            "- Scope-Paths: none\n"
-            "- Item-Dependencies: none\n"
-            "- Status: reviewed\n"
-            "- Readiness: go-pending-approval\n"
-            "- Work-Kind: bug\n"
-            "- Priority: high\n"
-            "- Blocks-Release: none\n"
-            "- Set: cnfset\n"
-            "- Order: 1\n"
-            "- Highest E allocated: 01\n"
-            "- Author: test\n"
-            "- Id: cnf001\n\n"
-            "## Workflow history\n"
-            "- 2026-10-18 reviewed (test): /plan-review: APPROVE\n"
-            "- 2026-10-18 to-review (test): authored\n\n"
-            "## Goal\n\nTest goal.\n\n"
-            "## Detailed Implementation Checklist (TODO)\n\n"
-            "### Task group 1: Do work\n\n"
-            "- [ ] E-01 Do work\n"
-            "  - Depends on: none\n"
-            "  - Expected outcome: done\n"
-            "  - Execution state: pending\n\n"
-            "## Project conventions discovered (Step 0)\n\n"
-            "- test convention\n\n"
-            "## Findings\n\n"
-            "| # | Finding | Evidence |\n"
-            "|---|---|---|\n"
-            "| F1 | test | test |\n\n"
-            "## Proposed changes (ordered, validatable)\n\n"
-            "1. E-01\n\n"
-            "## Deferred / out of scope (with reason)\n\n"
-            "- Out of scope work\n"
-            "  - Carrier-Declined: not needed for this change\n\n"
-            "## Scope check\n\n"
-            "- Over-scope: none\n"
-            "- Under-scope: none\n\n"
-            "## Required tests / validation\n\n"
-            "- test passes\n\n"
-            "## Spec / documentation sync\n\n"
-            "N/A\n\n"
-            "## Open questions\n\n"
-            "### OQ-01: Sample question\n\n"
-            "- Blocking: no\n"
-            "- Status: resolved\n"
-            "- Owner: executor\n"
-            "- Resolution or deferral rationale: resolved\n\n"
-            "## Validation and cross-check (verify before reporting done)\n\n"
-            "- [ ] V-01 validates E-01\n"
-            "  - Required evidence: output\n"
-            "  - Observed evidence:\n"
-            "  - Result: pending\n\n"
-            "## Approval and execution gate\n\n"
-            "- Size assessment: standard\n"
-            "- Cohesion rationale: not required\n"
+        conforming_plan = RecordBuilder().plan(
+            title="Conforming Plan",
+            when="2026-10-18",
+            plan_role="child",
+            scope_paths="none",
+            item_dependencies="none",
+            status="reviewed",
+            readiness="go-pending-approval",
+            work_kind="bug",
+            priority="high",
+            blocks_release="none",
+            set="cnfset",
+            order=1,
+            author="test",
+            id6="cnf001",
+            history=[
+                "- 2026-10-18 reviewed (test): /plan-review: APPROVE",
+                "- 2026-10-18 to-review (test): authored",
+            ],
+            body=(
+                "## Goal\n\nTest goal.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "### Task group 1: Do work\n\n"
+                "- [ ] E-01 Do work\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n\n"
+                "- test convention\n\n"
+                "## Findings\n\n"
+                "| # | Finding | Evidence |\n"
+                "|---|---|---|\n"
+                "| F1 | test | test |\n\n"
+                "## Proposed changes (ordered, validatable)\n\n"
+                "1. E-01\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                "- Out of scope work\n"
+                "  - Carrier-Declined: not needed for this change\n\n"
+                "## Scope check\n\n"
+                "- Over-scope: none\n"
+                "- Under-scope: none\n\n"
+                "## Required tests / validation\n\n"
+                "- test passes\n\n"
+                "## Spec / documentation sync\n\n"
+                "N/A\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: Sample question\n\n"
+                "- Blocking: no\n"
+                "- Status: resolved\n"
+                "- Owner: executor\n"
+                "- Resolution or deferral rationale: resolved\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: output\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required"
+            ),
+            raw_fields={"Concern": "test concern", "Scope": "test scope"},
+            text_only=True,
         )
         plan_rel = (
             ".aw/records/plans/pending/20261018-cnfset-01-cnf001-conforming-plan.ipd.md"
@@ -683,18 +695,21 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         """A review lane that graduates a backlog item with no handoff plan is refused."""
         import tempfile
 
-        backlog_text = (
-            "- Id: bkl001\n"
-            "- Status: graduated\n"
-            "- Graduated-To: bklset\n"
-            "- Blocks-Release: none\n"
-            "- Set: bklset\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: test incomplete graduation\n\n"
-            "## Workflow history\n"
-            "- 2026-10-18 graduated (test): graduated\n"
-            "- 2026-10-18 created (test): created\n"
+        backlog_text = RecordBuilder().backlog(
+            id6="bkl001",
+            status="graduated",
+            graduated_to="bklset",
+            blocks_release="none",
+            set="bklset",
+            priority="high",
+            work_kind="bug",
+            summary="test incomplete graduation",
+            when="2026-10-18",
+            history=[
+                "- 2026-10-18 graduated (test): graduated",
+                "- 2026-10-18 created (test): created",
+            ],
+            text_only=True,
         )
         bkl_rel = (
             ".aw/records/backlog/graduated/20261018-bkl001-01-bkl001-test.backlog.md"
@@ -862,7 +877,21 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
             lane_containment.parse_porcelain_entries = original_parser
 
     _SPEC = ".aw/records/specs/approved/x.spec.md"
-    _SPEC_BASE = "# Spec\n\nBody.\n\n## Workflow history\n\n- 2026-09-26 note (aw specs): older\n"
+    _OLD_HISTORY_LINE = "- 2026-09-26 note (aw specs): older"
+
+    @classmethod
+    def _spec_text(cls, history: list[str]) -> str:
+        text = RecordBuilder().spec(
+            id6="sp0001",
+            title="Spec",
+            status="approved",
+            when="2026-09-26",
+            body="Body.",
+            history=history,
+            text_only=True,
+        )
+        assert isinstance(text, str)
+        return text
 
     def _history_race(
         self, repo: pathlib.Path, id6: str, *, lane_line: str, main_line: str
@@ -870,18 +899,17 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         """Main and a lane each add ONE history line at the top of the same spec's history."""
         spec = repo / self._SPEC
         spec.parent.mkdir(parents=True, exist_ok=True)
-        spec.write_text(self._SPEC_BASE, encoding="utf-8")
+        spec.write_text(self._spec_text([self._OLD_HISTORY_LINE]), encoding="utf-8")
         self._git(repo, "add", self._SPEC)
         self._git(repo, "commit", "-qm", "add spec")
-        top = "## Workflow history\n\n"
         handle = self._lane(
             repo,
             id6,
             path=self._SPEC,
-            body=self._SPEC_BASE.replace(top, top + lane_line + "\n"),
+            body=self._spec_text([lane_line, self._OLD_HISTORY_LINE]),
         )
         spec.write_text(
-            self._SPEC_BASE.replace(top, top + main_line + "\n"), encoding="utf-8"
+            self._spec_text([main_line, self._OLD_HISTORY_LINE]), encoding="utf-8"
         )
         self._git(repo, "add", self._SPEC)
         self._git(repo, "commit", "-qm", "main adds a history line")
@@ -927,22 +955,21 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 repo = self._repo(pathlib.Path(tmp))
                 spec = repo / self._SPEC
                 spec.parent.mkdir(parents=True, exist_ok=True)
-                spec.write_text(self._SPEC_BASE, encoding="utf-8")
+                spec.write_text(
+                    self._spec_text([self._OLD_HISTORY_LINE]), encoding="utf-8"
+                )
                 self._git(repo, "add", self._SPEC)
                 self._git(repo, "commit", "-qm", "add spec")
-                old = "- 2026-09-26 note (aw specs): older"
                 handle = self._lane(
                     repo,
                     "hhh222",
                     path=self._SPEC,
-                    body=self._SPEC_BASE.replace(
-                        old, "- 2026-09-26 note (aw specs): lane rewrote"
+                    body=self._spec_text(
+                        ["- 2026-09-26 note (aw specs): lane rewrote"]
                     ),
                 )
                 spec.write_text(
-                    self._SPEC_BASE.replace(
-                        old, "- 2026-09-26 note (aw specs): main rewrote"
-                    ),
+                    self._spec_text(["- 2026-09-26 note (aw specs): main rewrote"]),
                     encoding="utf-8",
                 )
                 self._git(repo, "commit", "-qam", "main rewrites the line")
@@ -1004,8 +1031,12 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         plan_filename = "20260928-test-01-xxxxxx-sample.ipd.md"
         pending_path = f".aw/records/plans/pending/{plan_filename}"
         executed_path = f".aw/records/plans/executed/{plan_filename}"
-        pending_content = "# IPD: Sample\n\n- Status: to-review\n"
-        executed_content = "# IPD: Sample\n\n- Status: executed\n"
+        pending_content = RecordBuilder().plan(
+            title="Sample", status="to-review", text_only=True
+        )
+        executed_content = RecordBuilder().plan(
+            title="Sample", status="executed", text_only=True
+        )
 
         for runner in BOTH:
             with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
@@ -1122,7 +1153,9 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     f = repo / p
                     f.parent.mkdir(parents=True, exist_ok=True)
                     f.write_text(
-                        "# IPD: Pre-existing\n\n- Status: draft\n",
+                        RecordBuilder().plan(
+                            title="Pre-existing", status="draft", text_only=True
+                        ),
                         encoding="utf-8",
                     )
                 self._git(repo, "add", ".aw")
@@ -2105,72 +2138,6 @@ class VerificationPolarityTests(unittest.TestCase):
     consumed it.
     """
 
-    PLAN = """# IPD: polarity probe
-
-- Date: 2026-09-13
-- Kind: child
-- Concern: fixture
-- Scope: fixture
-- Scope-Paths: README.md
-- Status: approved
-- Set: polarity
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Approval: 2026-09-13, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-- 2026-09-13 reviewed (test): APPROVE; no blocking findings.
-
-## Goal
-Goal.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Step 1
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-None.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-None.
-
-## Required tests / validation
-None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: done
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
-
     def make_repo(self, root: pathlib.Path, id6: str = "pol001"):
         import subprocess
 
@@ -2179,7 +2146,52 @@ None.
         pending = repo / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
         (pending / f"20260913-polarity-01-{id6}-probe.ipd.md").write_text(
-            self.PLAN.format(id6=id6), encoding="utf-8"
+            RecordBuilder().plan(
+                title="polarity probe",
+                when="2026-09-13",
+                plan_role="child",
+                scope_paths="README.md",
+                status="approved",
+                set="polarity",
+                order=1,
+                author="test",
+                priority="medium",
+                work_kind="feature",
+                id6=id6,
+                approval="2026-09-13, fixture",
+                readiness="go-pending-approval",
+                history=[
+                    "- 2026-09-13 reviewed (test): APPROVE; no blocking findings."
+                ],
+                body=(
+                    "## Goal\nGoal.\n\n"
+                    "## Detailed Implementation Checklist (TODO)\n"
+                    "### Task group 1: work\n"
+                    "- [ ] E-01 Step 1\n"
+                    "  - Depends on: none\n"
+                    "  - Expected outcome: done\n"
+                    "  - Execution state: pending\n\n"
+                    "## Project conventions discovered (Step 0)\nNone.\n\n"
+                    "## Findings\nNone.\n\n"
+                    "## Proposed changes (ordered, validatable)\nNone.\n\n"
+                    "## Deferred / out of scope (with reason)\nNone.\n\n"
+                    "## Scope check\nNone.\n\n"
+                    "## Required tests / validation\nNone.\n\n"
+                    "## Spec / documentation sync\nNone.\n\n"
+                    "## Open questions\nNone.\n\n"
+                    "## Validation and cross-check (verify before reporting done)\n"
+                    "- [ ] V-01 validates E-01\n"
+                    "  - Required evidence: done\n"
+                    "  - Observed evidence:\n"
+                    "  - Result: pending\n\n"
+                    "## Approval and execution gate\n"
+                    "- Size assessment: standard\n"
+                    "- Cohesion rationale: not required"
+                ),
+                raw_fields={"Concern": "fixture", "Scope": "fixture"},
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
@@ -3777,7 +3789,9 @@ class SupersededLaneTests(unittest.TestCase):
         d = repo / ".aw" / "records" / "plans" / bucket
         d.mkdir(parents=True, exist_ok=True)
         (d / "20260101-set-01-{0}-slug.ipd.md".format(id6)).write_text(
-            "# IPD: probe\n\n- Id: {0}\n- Status: executed\n".format(id6),
+            RecordBuilder().plan(
+                title="probe", id6=id6, status="executed", text_only=True
+            ),
             encoding="utf-8",
         )
         _git(repo, "add", "-A")
@@ -3872,7 +3886,7 @@ class SupersededLaneTests(unittest.TestCase):
                 bdir = repo / ".aw" / "records" / "backlog" / status_dir
                 bdir.mkdir(parents=True, exist_ok=True)
                 (bdir / f"20261120-set-01-{id6}-slug.backlog.md").write_text(
-                    f"# Backlog: {id6}\n\n- Id: {id6}\n- Status: {status_dir}\n",
+                    RecordBuilder().backlog(id6=id6, status=status_dir, text_only=True),
                     encoding="utf-8",
                 )
             self.assertIs(
@@ -4462,7 +4476,8 @@ def _repo_with_pending_plan(root: pathlib.Path, id6: str) -> pathlib.Path:
     pending = repo / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True, exist_ok=True)
     (pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)).write_text(
-        "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6), encoding="utf-8"
+        RecordBuilder().plan(title="demo", id6=id6, status="approved", text_only=True),
+        encoding="utf-8",
     )
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
@@ -4476,7 +4491,8 @@ def _add_pending_plan(repo: pathlib.Path, id6: str) -> None:
     pending = repo / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True, exist_ok=True)
     (pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)).write_text(
-        "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6), encoding="utf-8"
+        RecordBuilder().plan(title="demo", id6=id6, status="approved", text_only=True),
+        encoding="utf-8",
     )
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(
@@ -5080,7 +5096,9 @@ class MeasuredIncidentsAreSurvivedTests(unittest.TestCase):
                     (
                         pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)
                     ).write_text(
-                        "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6),
+                        RecordBuilder().plan(
+                            title="demo", id6=id6, status="approved", text_only=True
+                        ),
                         encoding="utf-8",
                     )
                 import subprocess
@@ -5201,7 +5219,17 @@ class PathSelectorKindTests(unittest.TestCase):
             plan_dir.mkdir(parents=True, exist_ok=True)
             plan_file = plan_dir / "20260908-orch-01-abc123-orchestrator.ipd.md"
             plan_file.write_text(
-                "# IPD: orchestrator\n\n- Date: 2026-09-08\n- Kind: orchestrator\n- Status: approved\n- Set: orch\n- Order: 1\n- Id: abc123\n\n## Goal\nOrchestrate.\n",
+                RecordBuilder().plan(
+                    title="orchestrator",
+                    when="2026-09-08",
+                    plan_role="orchestrator",
+                    status="approved",
+                    set="orch",
+                    order=1,
+                    id6="abc123",
+                    body="## Goal\nOrchestrate.",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
@@ -5389,7 +5417,10 @@ class LegacySpecEditsStateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td)
             plan = repo / "plan.ipd.md"
-            plan.write_text("- Scope-Paths: docs/A.spec.md\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(scope_paths="docs/A.spec.md", text_only=True),
+                encoding="utf-8",
+            )
 
             item = {
                 "id6": "leg001",

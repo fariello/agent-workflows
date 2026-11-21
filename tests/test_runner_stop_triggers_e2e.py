@@ -13,7 +13,6 @@ except ImportError:  # pragma: no cover - Windows
     fcntl = None  # type: ignore[assignment]
 import json
 import os
-import re
 import signal
 import subprocess
 import sys
@@ -25,8 +24,8 @@ from tempfile import TemporaryDirectory
 
 from agent_workflows import oc_runipd as oc
 from agent_workflows import runner_shutdown, runner_stop
+from tests.record_builder import RecordBuilder
 from tests.support import REPO_ROOT
-from tests.test_oc_runipd import _CONFORMING_PLAN
 
 _DRIVER_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
 
@@ -171,18 +170,20 @@ def _make_repo(root: Path, items: list[tuple[str, str]]) -> Path:
     (repo / ".gitignore").write_text(
         ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
     )
-    pending = repo / ".aw" / "records" / "plans" / "pending"
-    pending.mkdir(parents=True)
     for order, (setid, id6) in enumerate(items, start=1):
-        name = f"20260830-{setid}-{order:02d}-{id6}-plan.ipd.md"
-        plan_text = _CONFORMING_PLAN.format(id6=id6)
-        plan_text = re.sub(
-            r"^- Set:\s*.*$", f"- Set: {setid}", plan_text, flags=re.MULTILINE
+        RecordBuilder(repo).plan(
+            id6=id6,
+            set_name=setid,
+            order=order,
+            when="2026-08-30",
+            slug="plan",
+            title="Demo self-finalize",
+            status="approved",
+            scope_paths="src/",
+            author="test",
+            readiness="go-pending-approval",
+            approval="2026-08-28, recorded via aw ipd set: status set to approved",
         )
-        plan_text = re.sub(
-            r"^- Order:\s*.*$", f"- Order: {order}", plan_text, flags=re.MULTILINE
-        )
-        (pending / name).write_text(plan_text, encoding="utf-8")
     (repo / "README").write_text("triggers\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "initial")

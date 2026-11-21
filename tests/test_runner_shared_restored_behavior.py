@@ -18,20 +18,21 @@ import pytest
 from agent_workflows import oc_runipd as OC
 from agent_workflows import runner_shared
 from agent_workflows import worktree_lease as WL
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
-PLAN = """\
-# IPD: demo
-
-- Date: 2026-09-07
-- Kind: child
-- Scope-Paths: {scope}
-- Status: approved
-- Set: demo
-- Order: 1
-- Id: {id6}
-"""
+PLAN = RecordBuilder().plan(
+    title="demo",
+    when="2026-09-07",
+    plan_role="child",
+    scope_paths="{scope}",
+    status="approved",
+    set="demo",
+    order=1,
+    raw_fields={"Id": "{id6}"},
+    text_only=True,
+)
 
 
 def _plan(root: Path, id6: str, scope: str) -> Path:
