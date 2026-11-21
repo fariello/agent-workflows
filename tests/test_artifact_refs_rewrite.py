@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import artifact_refs, cli
+from tests.record_builder import RecordBuilder
 
 
 class _RepoTestCase(unittest.TestCase):
@@ -55,7 +56,9 @@ class _RepoTestCase(unittest.TestCase):
         self.spec_name = "20260701-1200-01-legacy.spec.md"
         self.spec_file = self.specs / self.spec_name
         self.spec_file.write_text(
-            "# Spec: Legacy\n\n- Date: 2026-07-01\n- Status: draft\n",
+            RecordBuilder().spec(
+                title="Legacy", when="2026-07-01", status="draft", text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -153,7 +156,11 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     def test_e_shared_legacy_prefix_skipped_and_warned(self):
         other_prompt = self.prompts / "20260701-1200-01-other.prompt.md"
         other_prompt.write_text(
-            "<!-- aw-prompt: kind=task -->\nPrompt text\n",
+            RecordBuilder().prompt(
+                id6="pr1001",
+                body="Prompt text\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         plan_file = self.plans / "20260701-testset-01-abcdef-my-plan.ipd.md"
@@ -204,7 +211,9 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     def test_call_site_group_generic_rewrites_tests_and_reviews(self):
         spec2 = self.specs / "20260701-grp-01-s11111-my-spec.spec.md"
         spec2.write_text(
-            "# Spec\n\n- Date: 2026-07-01\n- Id: s11111\n- Status: draft\n",
+            RecordBuilder().spec(
+                when="2026-07-01", id6="s11111", status="draft", text_only=True
+            ),
             encoding="utf-8",
         )
         rev = self.reviews / "20260701-rev-01-r11111-rev.review.md"
@@ -233,7 +242,15 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         # Shared prefix with self.spec_name (20260701-1200-01)
         plan = self.plans / "20260701-1200-01-legacy.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p11111\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p11111",
+                set="p11111",
+                order=0,
+                kind="orchestrator",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rev = self.reviews / "20260701-rev-02-r22222-rev.review.md"
@@ -290,7 +307,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     def test_facetless_1_backlog_prose_rewritten_and_preview_shows_kind(self):
         plan = self.plans / "20260701-testset-01-p11111-old-slug.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p11111\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p11111",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         backlog_dir = self.tmp / ".aw" / "records" / "backlog" / "open"
@@ -327,7 +350,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     def test_facetless_2_all_three_forms_rewritten_no_doubled_suffix(self):
         plan = self.plans / "20260701-testset-01-p22222-old-slug.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p22222\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p22222",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rev = self.reviews / "20260701-rev-02-r22222-rev.review.md"
@@ -360,7 +389,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     def test_facetless_3_sibling_shared_stem_skipped_and_warned(self):
         plan = self.plans / "20260701-testset-01-p33333-plan-slug.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p33333\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p33333",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         sibling = self.reviews / "20260701-testset-01-p33333-plan-slug.review.md"
@@ -399,7 +434,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     ):
         plan = self.plans / "20260701-testset-01-p44444-my-plan.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p44444\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p44444",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         citing_file = self.reviews / "20260701-rev-04-r44444-rev.review.md"
@@ -434,7 +475,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     def test_facetless_5_sibling_without_citation_does_not_warn(self):
         plan = self.plans / "20260701-testset-01-p55555-plan-five.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p55555\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p55555",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         sibling = self.reviews / "20260701-testset-01-p55555-plan-five.review.md"
@@ -460,7 +507,12 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         prompt_dir.mkdir(parents=True, exist_ok=True)
         prompt_file = prompt_dir / "fix-bar.prompt.md"
         prompt_file.write_text(
-            "<!-- aw-prompt: kind=task -->\nPrompt\n", encoding="utf-8"
+            RecordBuilder().prompt(
+                id6="pr1001",
+                body="Prompt\n",
+                text_only=True,
+            ),
+            encoding="utf-8",
         )
 
         citing_file = self.plans / "20260701-testset-01-p66666-cite.ipd.md"
@@ -479,7 +531,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     ):
         plan = self.plans / "20260701-testset-01-p10001-old-plan.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p10001\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p10001",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         bundle_dir = self.tmp / ".aw" / "records" / "research" / "20260701-0001-bundle"
@@ -520,7 +578,12 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         bundle_dir.mkdir(parents=True, exist_ok=True)
         rsch = bundle_dir / "20260701-seta-01-r10002-old-rep.research-report.md"
         rsch.write_text(
-            "# Report\n- Date: 2026-07-01\n- Id: r10002\n- Status: draft\n",
+            RecordBuilder().research(
+                when="2026-07-01",
+                id6="r10002",
+                raw_fields={"Status": "draft"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         records_readme = self.tmp / ".aw" / "records" / "research" / "README.md"
@@ -567,7 +630,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
     ):
         plan = self.plans / "20260701-testset-01-p10003-my-plan.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p10003\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p10003",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         root_readme = self.tmp / "README.md"
@@ -637,7 +706,13 @@ class TestArtifactRefsRewrite(_RepoTestCase):
 
         plan = self.plans / "20260701-testset-01-p10005-plan-five.ipd.md"
         plan.write_text(
-            "# Plan\n\n- Date: 2026-07-01\n- Id: p10005\n- Set: testset\n- Status: draft\n",
+            RecordBuilder().plan(
+                when="2026-07-01",
+                id6="p10005",
+                set="testset",
+                status="draft",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         plans_dir = self.tmp / ".aw" / "records" / "plans"
@@ -698,14 +773,17 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
         )
 
         plan_file = self.plans / "20261001-test-01-pl0001-plan.ipd.md"
-        plan_content = (
-            f"# IPD: Test Plan\n"
-            f"- Id: pl0001\n"
-            f"- Scope-Paths: {old_p}, other.py\n\n"
-            f"Prose citation: {old_p} in analysis.\n\n"
-            f"```\n"
-            f"fenced code: {old_p}\n"
-            f"```\n"
+        plan_content = RecordBuilder().plan(
+            title="Test Plan",
+            id6="pl0001",
+            scope_paths=f"{old_p}, other.py",
+            body=(
+                f"Prose citation: {old_p} in analysis.\n\n"
+                f"```\n"
+                f"fenced code: {old_p}\n"
+                f"```\n"
+            ),
+            text_only=True,
         )
         plan_file.write_text(plan_content, encoding="utf-8")
 
@@ -726,7 +804,12 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
         name = "20261001-bk0001-01-bk0001-item.backlog.md"
         plan_file = self.plans / "20261001-test-01-pl0001-plan.ipd.md"
         plan_file.write_text(
-            f"# IPD: Test\n- Id: pl0001\n- Scope-Paths: .aw/records/backlog/open/{name}\n",
+            RecordBuilder().plan(
+                title="Test",
+                id6="pl0001",
+                scope_paths=f".aw/records/backlog/open/{name}",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -747,7 +830,9 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
         exec_dir = self.tmp / ".aw" / "records" / "plans" / "executed"
         exec_dir.mkdir(parents=True, exist_ok=True)
         exec_plan = exec_dir / "20261001-test-01-ex0001-exec.ipd.md"
-        exec_orig = f"# IPD: Executed\n- Id: ex0001\n- Scope-Paths: {old_p}\n"
+        exec_orig = RecordBuilder().plan(
+            title="Executed", id6="ex0001", scope_paths=old_p, text_only=True
+        )
         exec_plan.write_text(exec_orig, encoding="utf-8")
 
         test_file = self.tests_dir / "test_exec.py"
@@ -769,8 +854,11 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
         new_p = ".aw/records/specs/implementing/20261001-sp0001-01-sp0001-spec.spec.md"
 
         plan_file = self.plans / "20261001-test-01-fwd001-forward.ipd.md"
-        plan_orig = (
-            f"# IPD: Forward Declaring\n- Id: fwd001\n- Scope-Paths: {old_p}, {new_p}\n"
+        plan_orig = RecordBuilder().plan(
+            title="Forward Declaring",
+            id6="fwd001",
+            scope_paths=f"{old_p}, {new_p}",
+            text_only=True,
         )
         plan_file.write_text(plan_orig, encoding="utf-8")
 
@@ -790,12 +878,14 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
 
         p_no_receipt = self.plans / "20261001-test-01-no0001-noreceipt.ipd.md"
         p_no_receipt.write_text(
-            "# IPD\n- Id: no0001\n- Scope-Paths: foo.py\n", encoding="utf-8"
+            RecordBuilder().plan(id6="no0001", scope_paths="foo.py", text_only=True),
+            encoding="utf-8",
         )
 
         p_with_receipt = self.plans / "20261001-test-01-rc0001-withreceipt.ipd.md"
         p_with_receipt.write_text(
-            "# IPD\n- Id: rc0001\n- Scope-Paths: foo.py\n", encoding="utf-8"
+            RecordBuilder().plan(id6="rc0001", scope_paths="foo.py", text_only=True),
+            encoding="utf-8",
         )
         rcpt1 = ipd_lifecycle.receipt_path_for(self.tmp, "rc0001")
         rcpt1.parent.mkdir(parents=True, exist_ok=True)
@@ -803,14 +893,22 @@ class TestScopePathCitationRewriteHelper(_RepoTestCase):
 
         p_corrupt_receipt = self.plans / "20261001-test-01-bad001-corrupt.ipd.md"
         p_corrupt_receipt.write_text(
-            "# IPD\n- Id: bad001\n- Scope-Paths: foo.py\n", encoding="utf-8"
+            RecordBuilder().plan(id6="bad001", scope_paths="foo.py", text_only=True),
+            encoding="utf-8",
         )
         rcpt2 = ipd_lifecycle.receipt_path_for(self.tmp, "bad001")
         rcpt2.parent.mkdir(parents=True, exist_ok=True)
         rcpt2.write_text("{corrupt-json", encoding="utf-8")
 
         p_no_id = self.plans / "20261001-test-01-noid01-missingid.ipd.md"
-        p_no_id.write_text("# IPD\n- Scope-Paths: foo.py\n", encoding="utf-8")
+        p_no_id.write_text(
+            RecordBuilder().plan(
+                scope_paths="foo.py",
+                raw_fields={"Id": None},
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
 
         candidates = [p_no_receipt, p_with_receipt, p_corrupt_receipt, p_no_id]
         rewritable, must_skip = artifact_refs.classify_citing_plans_for_rewrite(

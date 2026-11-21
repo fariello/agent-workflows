@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import attention, check_engine, plan_readiness
+from tests.record_builder import RecordBuilder
 
 
 class TestHistoryConsumersSharedReader(unittest.TestCase):
@@ -24,18 +25,19 @@ class TestHistoryConsumersSharedReader(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             plan_path = Path(td) / "20261012-testset-01-tst001-test-plan.ipd.md"
-            plan_text = (
-                "# IPD: Test Plan\n\n"
-                "- Date: 2026-10-12\n"
-                "- Status: reviewed\n"
-                "- Readiness: go-pending-approval\n"
-                "- Id: tst001\n\n"
-                "## Workflow history\n"
-                "- 2026-10-12 to-review (aw set): authored\n\n"
-                "Here is a column-zero prose note explaining background.\n\n"
-                "    - 2026-10-12 reviewed (aw set): /plan-review (x): APPROVE; none\n\n"
-                "## Goal\n\n"
-                "Describe goal here.\n"
+            plan_text = RecordBuilder().plan(
+                title="Test Plan",
+                when="2026-10-12",
+                status="reviewed",
+                id6="tst001",
+                raw_fields={"Readiness": "go-pending-approval"},
+                history=[
+                    "- 2026-10-12 to-review (aw set): authored\n\n"
+                    "Here is a column-zero prose note explaining background.\n\n"
+                    "    - 2026-10-12 reviewed (aw set): /plan-review (x): APPROVE; none"
+                ],
+                body="## Goal\n\nDescribe goal here.\n",
+                text_only=True,
             )
             plan_path.write_text(plan_text, encoding="utf-8")
 
@@ -52,18 +54,19 @@ class TestHistoryConsumersSharedReader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             plan_path = Path(td) / "20261012-testset-01-tst002-test-plan-reject.ipd.md"
             reject_line = "- 2026-10-12 reviewed (aw set): /plan-review (x): REJECT - NEEDS REPLAN; major findings"
-            plan_text = (
-                "# IPD: Test Plan\n\n"
-                "- Date: 2026-10-12\n"
-                "- Status: reviewed\n"
-                "- Readiness: go-pending-approval\n"
-                "- Id: tst002\n\n"
-                "## Workflow history\n"
-                f"{reject_line}\n\n"
-                "Here is a column-zero prose note explaining background.\n\n"
-                "    - 2026-10-12 reviewed (aw set): /plan-review (x): APPROVE; none\n\n"
-                "## Goal\n\n"
-                "Describe goal here.\n"
+            plan_text = RecordBuilder().plan(
+                title="Test Plan",
+                when="2026-10-12",
+                status="reviewed",
+                id6="tst002",
+                raw_fields={"Readiness": "go-pending-approval"},
+                history=[
+                    f"{reject_line}\n\n"
+                    "Here is a column-zero prose note explaining background.\n\n"
+                    "    - 2026-10-12 reviewed (aw set): /plan-review (x): APPROVE; none"
+                ],
+                body="## Goal\n\nDescribe goal here.\n",
+                text_only=True,
             )
             plan_path.write_text(plan_text, encoding="utf-8")
 
@@ -82,14 +85,17 @@ class TestHistoryConsumersSharedReader(unittest.TestCase):
             bdir.mkdir(parents=True)
             item_path = bdir / "20261012-testset-01-tst003-indented.backlog.md"
             item_path.write_text(
-                "- Id: tst003\n"
-                "- Status: open\n"
-                "- Set: testset\n"
-                "- Priority: low\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Test backlog item with indented history\n\n"
-                "## Workflow history\n"
-                "    - 2026-10-12 created: indented line\n",
+                RecordBuilder().backlog(
+                    id6="tst003",
+                    status="open",
+                    set="testset",
+                    priority="low",
+                    work_kind="bug",
+                    summary="Test backlog item with indented history",
+                    history=[],
+                    body="    - 2026-10-12 created: indented line",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             items, _ = attention.scan(root)
@@ -104,26 +110,33 @@ class TestHistoryConsumersSharedReader(unittest.TestCase):
         None for _item_close_date and _item_graduated_date. A spec of the same shape with an
         implementing line yields None for _spec_implementing_date.
         """
-        b_text = (
-            "- Id: tst004\n"
-            "- Status: done\n"
-            "- Set: testset\n"
-            "- Priority: low\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Test item\n\n"
-            "## Workflow history\n"
-            "Some prose\n"
-            "- 2026-10-12 done (aw set): finished\n"
-            "- 2026-10-11 graduated (aw set): graduated to plan\n"
+        b_text = RecordBuilder().backlog(
+            id6="tst004",
+            status="done",
+            set="testset",
+            priority="low",
+            work_kind="bug",
+            summary="Test item",
+            history=[],
+            body=(
+                "Some prose\n"
+                "- 2026-10-12 done (aw set): finished\n"
+                "- 2026-10-11 graduated (aw set): graduated to plan"
+            ),
+            text_only=True,
         )
         s_text = (
-            "# Spec: Test Spec\n\n"
-            "- Id: tst005\n"
-            "- Status: implementing\n"
-            "- Set: testset\n\n"
-            "## Workflow history\n"
-            "Some prose\n"
-            "- 2026-10-12 implementing (aw set): start implementation\n"
+            RecordBuilder().spec(
+                title="Test Spec",
+                id6="tst005",
+                status="implementing",
+                set="testset",
+                body="",
+                history=[],
+                text_only=True,
+            )
+            + "Some prose\n"
+            + "- 2026-10-12 implementing (aw set): start implementation\n"
         )
 
         self.assertIsNone(check_engine._item_close_date(b_text))
@@ -138,18 +151,18 @@ class TestHistoryConsumersSharedReader(unittest.TestCase):
         history_has_review_record sees the review record placed third.
         """
         first_record = "- 2026-10-12 to-review (aw set): first line of record"
-        plan_text = (
-            "# IPD: Test Multi-line Plan\n\n"
-            "- Date: 2026-10-12\n"
-            "- Status: reviewed\n"
-            "- Id: tst006\n\n"
-            "## Workflow history\n"
-            f"{first_record}\n"
-            "    indented continuation line\n"
-            "- 2026-10-11 draft (aw set): created draft\n"
-            "- 2026-10-10 reviewed (aw set): /plan-review (x): APPROVE; initial review\n\n"
-            "## Goal\n\n"
-            "Goal text\n"
+        plan_text = RecordBuilder().plan(
+            title="Test Multi-line Plan",
+            when="2026-10-12",
+            status="reviewed",
+            id6="tst006",
+            history=[
+                f"{first_record}\n    indented continuation line",
+                "- 2026-10-11 draft (aw set): created draft",
+                "- 2026-10-10 reviewed (aw set): /plan-review (x): APPROVE; initial review",
+            ],
+            body="## Goal\n\nGoal text\n",
+            text_only=True,
         )
 
         self.assertEqual(

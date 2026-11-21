@@ -29,6 +29,7 @@ import time
 import unittest
 
 from agent_workflows import command_surface
+from tests.record_builder import RecordBuilder
 
 TIMEZONES = ["Pacific/Kiritimati", "Pacific/Honolulu"]
 if os.environ.get("AW_TEST_SWAP_TZ") == "1":
@@ -244,8 +245,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-bkf{z_idx}-{zone.replace('/', '_')}.backlog.md"
                 )
                 bk_flag.write_text(
-                    f"- Id: bkf{z_idx}01\n- Status: open\n- Set: bkf\n- Priority: high\n- Work-Kind: bug\n- Summary: b\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6=f"bkf{z_idx}01",
+                        status="open",
+                        set="bkf",
+                        priority="high",
+                        work_kind="bug",
+                        summary="b",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -287,8 +296,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-bkp{z_idx}-{zone.replace('/', '_')}.backlog.md"
                 )
                 bk_pos.write_text(
-                    f"- Id: bkp{z_idx}01\n- Status: open\n- Set: bkp\n- Priority: high\n- Work-Kind: bug\n- Summary: b\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6=f"bkp{z_idx}01",
+                        status="open",
+                        set="bkp",
+                        priority="high",
+                        work_kind="bug",
+                        summary="b",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -330,8 +347,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-bkn{z_idx}-{zone.replace('/', '_')}.backlog.md"
                 )
                 bk_note.write_text(
-                    f"- Id: bkn{z_idx}01\n- Status: open\n- Set: bkn\n- Priority: high\n- Work-Kind: bug\n- Summary: b\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6=f"bkn{z_idx}01",
+                        status="open",
+                        set="bkn",
+                        priority="high",
+                        work_kind="bug",
+                        summary="b",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -368,8 +393,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-spf{z_idx}-{zone.replace('/', '_')}.spec.md"
                 )
                 sp_flag.write_text(
-                    f"# Spec: SPF\n- Date: 2026-10-01\n- Status: draft\n- Id: spf{z_idx}01\n- Author: test\n- Scope: test\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="SPF",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"spf{z_idx}01",
+                        author="test",
+                        summary="test",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -414,8 +447,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-spp{z_idx}-{zone.replace('/', '_')}.spec.md"
                 )
                 sp_pos.write_text(
-                    f"# Spec: SPP\n- Date: 2026-10-01\n- Status: draft\n- Id: spp{z_idx}01\n- Author: test\n- Scope: test\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="SPP",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"spp{z_idx}01",
+                        author="test",
+                        summary="test",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -460,8 +501,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-spn{z_idx}-{zone.replace('/', '_')}.spec.md"
                 )
                 sp_note.write_text(
-                    f"# Spec: SPN\n- Date: 2026-10-01\n- Status: draft\n- Id: spn{z_idx}01\n- Author: test\n- Scope: test\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="SPN",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"spn{z_idx}01",
+                        author="test",
+                        summary="test",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -498,8 +547,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-spb{z_idx}-{zone.replace('/', '_')}.spec.md"
                 )
                 sp_bare.write_text(
-                    f"# Spec: SPB\n- Date: 2026-10-01\n- Status: draft\n- Id: spb{z_idx}01\n- Author: test\n- Scope: test\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="SPB",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"spb{z_idx}01",
+                        author="test",
+                        summary="test",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -543,22 +600,38 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-demo-01-pl{z_idx}01-{zone.replace('/', '_')}.ipd.md"
                 )
                 ipd_file.write_text(
-                    f"# Plan\n- Id: pl{z_idx}01\n- Status: draft\n- Set: demo\n- Highest E allocated: 01\n"
-                    "- Author: test\n- Scope-Paths: README.md\n- Concern: c\n- Scope: s\n- Work-Kind: chore\n"
-                    "- Priority: medium\n- Item-Dependencies: none\n\n"
-                    "## Workflow history\n- 2026-09-01 draft (test): init\n\n"
-                    "## Goal\ng\n\n"
-                    "## Detailed Implementation Checklist (TODO)\n- [ ] E-01 e\n  - Depends on: none\n  - Expected outcome: o\n  - Execution state: pending\n\n"
-                    "## Project conventions discovered (Step 0)\nnone\n\n"
-                    "## Findings\nnone\n\n"
-                    "## Proposed changes (ordered, validatable)\n1. e\n\n"
-                    "## Deferred / out of scope (with reason)\n- none\n\n"
-                    "## Scope check\n- none\n\n"
-                    "## Required tests / validation\n- none\n\n"
-                    "## Spec / documentation sync\n- none\n\n"
-                    "## Open questions\n- none\n\n"
-                    "## Validation and cross-check (verify before reporting done)\n- [ ] V-01 v\n  - Required evidence: r\n  - Observed evidence:\n  - Result: pending\n\n"
-                    "## Approval and execution gate\n- Size assessment: standard\n",
+                    RecordBuilder().plan(
+                        id6=f"pl0{z_idx}01",
+                        status="draft",
+                        set="demo",
+                        author="test",
+                        scope_paths="README.md",
+                        work_kind="chore",
+                        priority="medium",
+                        item_dependencies="none",
+                        history=["- 2026-09-01 draft (test): init"],
+                        raw_fields={
+                            "Id": f"pl{z_idx}01",
+                            "Concern": "c",
+                            "Scope": "s",
+                            "Highest E allocated": "01",
+                        },
+                        body=(
+                            "## Goal\ng\n\n"
+                            "## Detailed Implementation Checklist (TODO)\n- [ ] E-01 e\n  - Depends on: none\n  - Expected outcome: o\n  - Execution state: pending\n\n"
+                            "## Project conventions discovered (Step 0)\nnone\n\n"
+                            "## Findings\nnone\n\n"
+                            "## Proposed changes (ordered, validatable)\n1. e\n\n"
+                            "## Deferred / out of scope (with reason)\n- none\n\n"
+                            "## Scope check\n- none\n\n"
+                            "## Required tests / validation\n- none\n\n"
+                            "## Spec / documentation sync\n- none\n\n"
+                            "## Open questions\n- none\n\n"
+                            "## Validation and cross-check (verify before reporting done)\n- [ ] V-01 v\n  - Required evidence: r\n  - Observed evidence:\n  - Result: pending\n\n"
+                            "## Approval and execution gate\n- Size assessment: standard\n"
+                        ),
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -600,7 +673,12 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-pr{z_idx}01-{zone.replace('/', '_')}.prompt.md"
                 )
                 pr_file.write_text(
-                    f"# Prompt\n- Id: pr{z_idx}01\n- Status: pending\n\n## Workflow history\n- 2026-09-01 pending (test): init\n",
+                    RecordBuilder().prompt(
+                        id6=f"pr0{z_idx}01",
+                        status="pending",
+                        raw_fields={"Id": f"pr{z_idx}01"},
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 res = self._run_aw(
@@ -657,8 +735,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-agr{z_idx}1-{zone.replace('/', '_')}.backlog.md"
                 )
                 f1.write_text(
-                    f"- Id: agr{z_idx}01\n- Status: open\n- Set: agr\n- Priority: high\n- Work-Kind: bug\n- Summary: item 1\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6=f"agr{z_idx}01",
+                        status="open",
+                        set="agr",
+                        priority="high",
+                        work_kind="bug",
+                        summary="item 1",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 # Item 2: positional spelling
@@ -671,8 +757,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-agr{z_idx}2-{zone.replace('/', '_')}.backlog.md"
                 )
                 f2.write_text(
-                    f"- Id: agr{z_idx}02\n- Status: open\n- Set: agr\n- Priority: high\n- Work-Kind: bug\n- Summary: item 2\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().backlog(
+                        id6=f"agr{z_idx}02",
+                        status="open",
+                        set="agr",
+                        priority="high",
+                        work_kind="bug",
+                        summary="item 2",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 
@@ -742,8 +836,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-agrs{z_idx}1-{zone.replace('/', '_')}.spec.md"
                 )
                 s1.write_text(
-                    f"# Spec: 1\n- Date: 2026-10-01\n- Status: draft\n- Id: ags{z_idx}01\n- Author: test\n- Scope: s\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="1",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"ags{z_idx}01",
+                        author="test",
+                        summary="s",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 # Spec 2: positional spelling (aw specs set to-review ...)
@@ -756,8 +858,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-agrs{z_idx}2-{zone.replace('/', '_')}.spec.md"
                 )
                 s2.write_text(
-                    f"# Spec: 2\n- Date: 2026-10-01\n- Status: draft\n- Id: ags{z_idx}02\n- Author: test\n- Scope: s\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="2",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"ags{z_idx}02",
+                        author="test",
+                        summary="s",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 # Spec 3: bare set spelling (aw set to-review ...)
@@ -770,8 +880,16 @@ class HistoryDateClockParityTests(unittest.TestCase):
                     / f"20261001-agrs{z_idx}3-{zone.replace('/', '_')}.spec.md"
                 )
                 s3.write_text(
-                    f"# Spec: 3\n- Date: 2026-10-01\n- Status: draft\n- Id: ags{z_idx}03\n- Author: test\n- Scope: s\n\n"
-                    "## Workflow history\n- 2026-09-01 created (test): init\n",
+                    RecordBuilder().spec(
+                        title="3",
+                        when="2026-10-01",
+                        status="draft",
+                        id6=f"ags{z_idx}03",
+                        author="test",
+                        summary="s",
+                        history=["- 2026-09-01 created (test): init"],
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
 
