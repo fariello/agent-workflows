@@ -135,6 +135,7 @@ flowchart TD
 
 - Moved to jutivt (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G3b (items E-01; F-41 names each module).
   - Carrier: jutivt
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-182-jutivt-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-1.ipd.md
 - Moved to 52rpc1 (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G3b (items E-01; F-41 names each module).
   - Carrier: 52rpc1
 - Moved to 2zo3g5 (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subsets G3b, G4a (items E-01, E-02; F-41 names each module).
