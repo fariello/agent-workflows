@@ -117,6 +117,7 @@ flowchart TD
   - Carrier: n0li9v
 - The tool itself.
   - Carrier: y3uowx
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.ipd.md
 
 ## Scope check
 

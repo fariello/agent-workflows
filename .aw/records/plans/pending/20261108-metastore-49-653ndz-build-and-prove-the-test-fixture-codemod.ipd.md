@@ -99,6 +99,7 @@ flowchart TD
 
 - Moved to y3uowx (round-3 split 2026-11-09 per research nj8zdp guidance): E-01 (detector and dry run), E-02 (rewriter), E-03 (equivalence proof).
   - Carrier: y3uowx
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.ipd.md
 - Moved to j2xjtt (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 test cases (a), (b), (c), (e), (f), (g), (h) and the 10 s bound.
   - Carrier: j2xjtt
 - Moved to n0li9v (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 test case (d), one fixture per refusal reason code.
