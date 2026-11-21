@@ -816,3 +816,168 @@ def test_evaluate_ipd_dependencies_overlay_states_missing_respects_date_cutover(
     ]
     assert str(post_path.resolve()) in missing_locs
     assert str(pre_path.resolve()) not in missing_locs
+
+
+# --------------------------------------------------------------------------------------
+# iqhzse E-02: setter HEAD-status pinning test (-k setter_head)
+# --------------------------------------------------------------------------------------
+
+
+def test_setter_head_status_differs_from_working_tree(tmp_path: Path) -> None:
+    """aw ipd set compares working-tree status against HEAD status via read_at.
+
+    When a plan was committed at HEAD as `to-review` and hand-edited in the working tree to
+    `reviewed`, `aw ipd set reviewed` detects the HEAD mismatch (writing a `reviewed` history
+    token and clearing `check.status-untooled`) instead of treating it as `same-status`; when
+    HEAD matches the working tree (`reviewed`), it writes `same-status`.
+    """
+    from agent_workflows import ipd_lint
+
+    _init_repo(tmp_path)
+    rel_diff = ".aw/records/plans/pending/20261101-demo-01-sh0001-diff.ipd.md"
+    rel_same = ".aw/records/plans/pending/20261101-demo-02-sh0002-same.ipd.md"
+    (tmp_path / rel_diff).write_text(
+        _plan_text(
+            id6="sh0001",
+            status="to-review",
+            order=1,
+            history_lines=("- 2026-11-01 to-review (author): ready",),
+            extra_bullets=("- Work-Kind: chore", "- Priority: medium"),
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / rel_same).write_text(
+        _plan_text(
+            id6="sh0002",
+            status="reviewed",
+            order=2,
+            history_lines=("- 2026-11-01 reviewed (author): reviewed",),
+            extra_bullets=("- Work-Kind: chore", "- Priority: medium"),
+        ),
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "seed setter_head plans")
+
+    # Hand-edit sh0001 in working tree: HEAD is `to-review`, working tree is `reviewed`.
+    plan_diff = tmp_path / rel_diff
+    plan_diff.write_text(
+        plan_diff.read_text(encoding="utf-8").replace(
+            "- Status: to-review", "- Status: reviewed"
+        ),
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", rel_diff)
+    assert [d.rule for d in check_engine.check_status_untooled(tmp_path)] == [
+        "check.status-untooled"
+    ]
+
+    res_diff = _run_aw_cli(
+        tmp_path, "ipd", "set", "reviewed", "sh0001", "--yes", "--no-commit"
+    )
+    assert res_diff.returncode == 0, res_diff.stdout + res_diff.stderr
+    _git(tmp_path, "add", rel_diff)
+    assert check_engine.check_status_untooled(tmp_path) == []
+
+    doc_diff = ipd_lint.parse(plan_diff.read_text(encoding="utf-8"))
+    tokens_diff = [
+        m.group(1).rstrip(":").lower()
+        for _ln, line in doc_diff.history_lines
+        if (m := ipd_lint._HISTORY_LINE_RE.match(line.strip()))
+    ]
+    assert tokens_diff[0] == "reviewed"
+
+    # Contrast: sh0002 has HEAD == working tree (`reviewed`), so setter records `same-status`.
+    res_same = _run_aw_cli(
+        tmp_path,
+        "ipd",
+        "set",
+        "reviewed",
+        "sh0002",
+        "--yes",
+        "--no-commit",
+        "--message",
+        "note",
+    )
+    assert res_same.returncode == 0, res_same.stdout + res_same.stderr
+    doc_same = ipd_lint.parse((tmp_path / rel_same).read_text(encoding="utf-8"))
+    tokens_same = [
+        m.group(1).rstrip(":").lower()
+        for _ln, line in doc_same.history_lines
+        if (m := ipd_lint._HISTORY_LINE_RE.match(line.strip()))
+    ]
+    assert tokens_same[0] == "same-status"
+
+
+def test_read_at_merge_stages_and_predicted_tree(tmp_path: Path) -> None:
+    """artifact_meta.read_at supports merge-stage revisions (:1:/:2:/:3:) and predicted merge trees."""
+    from agent_workflows import artifact_meta as meta
+
+    _init_repo(tmp_path)
+    rel_plan = ".aw/records/plans/pending/20261101-demo-01-mg0001-stage.ipd.md"
+    (tmp_path / rel_plan).write_text(
+        _plan_text(id6="mg0001", status="approved"), encoding="utf-8"
+    )
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+
+    # Branch: change status to reviewed
+    _git(tmp_path, "checkout", "-q", "-b", "lane-stage")
+    (tmp_path / rel_plan).write_text(
+        _plan_text(id6="mg0001", status="reviewed"), encoding="utf-8"
+    )
+    _git(tmp_path, "commit", "-q", "-am", "lane reviewed")
+
+    # Main: change status to executed (creates a genuine 3-way conflict at rel_plan)
+    _git(tmp_path, "checkout", "-q", "main")
+    (tmp_path / rel_plan).write_text(
+        _plan_text(id6="mg0001", status="executed"), encoding="utf-8"
+    )
+    _git(tmp_path, "commit", "-q", "-am", "main executed")
+
+    # Predicted tree check on HEAD^{tree} vs blob SHA (blob must still be invalid-revision)
+    ctx = check_engine._git_read_at_context(tmp_path, rel_path=rel_plan)
+    tree_sha = _git(tmp_path, "rev-parse", "HEAD^{tree}").stdout.strip()
+    blob_sha = _git(tmp_path, "rev-parse", f"HEAD:{rel_plan}").stdout.strip()
+    with meta.ephemeral_if_uninitialized():
+        r_tree = meta.read_at(
+            "mg0001", tree_sha, project_context=ctx, path_hint=rel_plan
+        )
+        assert r_tree.kind == "ok" and r_tree.state is not None
+        assert r_tree.state.status == "executed"
+        assert (
+            meta.read_at("mg0001", blob_sha, project_context=ctx).kind
+            == "invalid-revision"
+        )
+
+    # Trigger in-progress merge conflict so stages :1:, :2:, :3: populate the index
+    merge_proc = subprocess.run(
+        ["git", "merge", "--no-ff", "--no-edit", "lane-stage"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert merge_proc.returncode != 0
+    try:
+        with meta.ephemeral_if_uninitialized():
+            r1 = meta.read_at("mg0001", ":1:", project_context=ctx, path_hint=rel_plan)
+            r2 = meta.read_at("mg0001", ":2:", project_context=ctx)
+            r3 = meta.read_at("mg0001", ":3:", project_context=ctx, path_hint=rel_plan)
+            assert (
+                r1.kind == "ok"
+                and r1.state is not None
+                and r1.state.status == "approved"
+            )
+            assert (
+                r2.kind == "ok"
+                and r2.state is not None
+                and r2.state.status == "executed"
+            )
+            assert (
+                r3.kind == "ok"
+                and r3.state is not None
+                and r3.state.status == "reviewed"
+            )
+    finally:
+        _git(tmp_path, "merge", "--abort")

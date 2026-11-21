@@ -1472,9 +1472,15 @@ def review_staleness_index(
     Never raises: any git error or non-git environment yields an empty dict.
     """
     try:
+        from agent_workflows import artifact_core as _core
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import check_engine as _ce
+
         repo_root_path = Path(repo_root).resolve()
         results: Dict[str, ReviewStaleness] = {}
-        candidate_map: Dict[str, Tuple[Path, str, Tuple[Path, str, int]]] = {}
+        candidate_map: Dict[
+            str, Tuple[Path, str, Tuple[Path, str, int], Optional[str]]
+        ] = {}
         for raw_path in plan_paths:
             p = Path(raw_path)
             abs_path = (
@@ -1500,10 +1506,15 @@ def review_staleness_index(
                 text = abs_path.read_text(encoding="utf-8")
             except OSError:
                 continue
-            m = _STATUS_RE.search(text)
-            status = m.group(1).strip().lower() if m else None
+            cur_state = _meta.read_text(text, record_type="ipd")
+            status = _ce._plan_status_from_state(cur_state)
             if status in ("reviewed", "approved", "auto-approved"):
-                candidate_map[rel_posix] = (abs_path, text, cache_key)
+                cur_id6 = (
+                    cur_state.id6
+                    if (cur_state.id6 and _core.ID6_RE.fullmatch(cur_state.id6))
+                    else None
+                )
+                candidate_map[rel_posix] = (abs_path, text, cache_key, cur_id6)
             else:
                 _STALENESS_CACHE[cache_key] = None
 
@@ -1546,12 +1557,25 @@ def review_staleness_index(
             if len(candidate_reviewed_commits) == len(candidate_map):
                 break
 
-        for rel, (_, _, cache_key) in candidate_map.items():
+        for rel, (_, _, cache_key, _) in candidate_map.items():
             if rel not in candidate_reviewed_commits:
                 _STALENESS_CACHE[cache_key] = None
 
         if not candidate_reviewed_commits:
             return results
+
+        # Read plan metadata at the latest `plan-review:` commit through `artifact_meta.read_at`
+        # (spec 4sd62s 4.4 / D-3); the batched `git cat-file --batch` below reads body prose for
+        # open-question blocks and `frozen_region_digest` (N3).
+        with _meta.ephemeral_if_uninitialized():
+            for rel, sha in candidate_reviewed_commits.items():
+                _abs_p, _cur_text, _cache_key, cur_id6 = candidate_map[rel]
+                ctx = _ce._git_read_at_context(repo_root_path, rel_path=rel)
+                rev_id6 = cur_id6 or _meta.resolve_id_at(rel, sha, project_context=ctx)
+                if rev_id6:
+                    _meta.read_at(rev_id6, sha, project_context=ctx, path_hint=rel)
+                else:
+                    _meta.read_path_at(rel, sha, project_context=ctx)
 
         batch_input_str = "".join(
             f"{sha}:{rel}\n" for rel, sha in candidate_reviewed_commits.items()
@@ -1570,7 +1594,7 @@ def review_staleness_index(
         stream = stdout_bytes
         idx = 0
         for rel, sha in candidate_reviewed_commits.items():
-            abs_p, current_text, cache_key = candidate_map[rel]
+            abs_p, current_text, cache_key, _cur_id6 = candidate_map[rel]
             newline_pos = stream.find(b"\n", idx)
             if newline_pos == -1:
                 _STALENESS_CACHE[cache_key] = None

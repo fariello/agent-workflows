@@ -3238,12 +3238,19 @@ def derive_baseline(
             if status in ("A", "M") and len(parts) == 2 and parts[1] == current:
                 touching.append((sha, current))
                 break
-    for sha, path_at in reversed(
-        touching
-    ):  # oldest-first: the FIRST approved version wins
-        text = _show(sha, path_at)
-        if text is not None and _STATUS_APPROVED_RE.search(text):
-            return DerivedBaseline(sha, _date(sha), text, path_at)
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
+    with _meta.ephemeral_if_uninitialized():
+        for sha, path_at in reversed(
+            touching
+        ):  # oldest-first: the FIRST approved version wins
+            st, _hist, _decl_id = _ce._read_plan_state_at(repo_root, sha, path_at)
+            st_status = _ce._plan_status_from_state(st)
+            if st_status in ("approved", "auto-approved"):
+                text = _show(sha, path_at)
+                if text is not None:
+                    return DerivedBaseline(sha, _date(sha), text, path_at)
     return None
 
 
