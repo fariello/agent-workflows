@@ -5,8 +5,9 @@
 - Concern: Split from `h58z9n` (Order 33) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 5 E-items, 8 work Scope-Paths, about 8 named units per item): `h58z9n` declared 11 work Scope-Paths and its E-01 and E-04 named 9 and 11 units. Spec `4sd62s` 4.4 requires every reader of a HEAD, staged or branch revision to call `artifact_meta.read_at` instead of parsing git content, and C5a requires every gate and hook to read metadata through the cache. Measured 2026-11-07 at `ac76110f4`: `check_engine._blob_text` (`git show <ref>:<path>`, `:0:<path>`) has 12 call sites in 6 functions, `check_engine._status_meta` has 35 call sites in 13 functions, and `hooks/executed_transition_gate` reads blobs with its own `_blob_at`.
 - Scope: (a) Save the split-wide `aw check all --agent` baseline that must precede every code edit of the `t4gl15` family (formerly part of `h58z9n` E-01) and record it as table F-10 here. (b) The 4.4 search rows for `check_engine` and the two blob-reading hooks (the rest of `h58z9n` E-01's file subset goes to `iqhzse`). (c) `h58z9n` E-02: the `check_engine` git-content readers. (d) `h58z9n` E-03: the four hooks. EXCLUDES: the setter, staleness, lifecycle and runner merge-path readers (`iqhzse`, Order 146); the residual audit (kept in `h58z9n`); everything else of `t4gl15`.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/hooks/status_untooled_gate.py, agent_workflows/hooks/backlog_blocking_close_gate.py, tests/test_readers_read_at_gates.py, .aw/records/plans/pending/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-83kkzh-01-83kkzh-read-at-v2-rev-mirrors-join.backlog.md (Defect backlog item filed during snh19k execution per defect_report contract for read_at v2 rev_mirrors join gap); agent_workflows/artifact_meta.py (Commit rev_mirrors/rev_log_states cache writes and handle variable-length Markdown fences in read_at required by snh19k)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +19,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snh19k
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: snh19k verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-83kkzh-01-83kkzh-read-at-v2-rev-mirrors-join.backlog.md: Defect backlog item filed during snh19k execution per defect_report contract for read_at v2 rev_mirrors join gap; out-of-scope agent_workflows/artifact_meta.py: Commit rev_mirrors/rev_log_states cache writes and handle variable-length Markdown fences in read_at required by snh19k; in-scope-unmodified agent_workflows/hooks/backlog_blocking_close_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/hooks/status_untooled_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
