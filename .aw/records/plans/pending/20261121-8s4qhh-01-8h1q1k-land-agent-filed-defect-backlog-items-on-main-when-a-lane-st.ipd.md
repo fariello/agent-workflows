@@ -39,16 +39,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Harvest newly added defect backlog files from proposal lanes
 
-- [ ] E-01 Add a helper in `agent_workflows/runner_shared.py` (for example `_collect_lane_added_open_backlogs(repo: Path, lane_branch: str | None, base_commit: str | None, *, max_bytes: int = 500 * 1024) -> tuple[list[tuple[str, bytes]], list[tuple[str, str]]]`) that:
+- [x] E-01 Add a helper in `agent_workflows/runner_shared.py` (for example `_collect_lane_added_open_backlogs(repo: Path, lane_branch: str | None, base_commit: str | None, *, max_bytes: int = 500 * 1024) -> tuple[list[tuple[str, bytes]], list[tuple[str, str]]]`) that:
   1. Returns `([], [])` cleanly when `lane_branch` or `base_commit` is empty/absent, or when git cannot resolve the range (fail-safe so non-isolated runs and direct unit calls without a lane branch are unaffected).
   2. Queries `git diff --raw -z --diff-filter=A <base_commit>..<lane_branch> -- .aw/records/backlog/open .agents/backlog/open` so only newly added entries are inspected (never modified or deleted backlog files and never any non-backlog path).
   3. Parses each NUL-delimited `--raw` record: records a skip reason and rejects any entry whose destination mode is not a regular file (`100644` or `100755`, blocking symlinks `120000` and submodules `160000`), whose path is absolute, contains `..`, NUL, or control characters, is not a direct child of `.aw/records/backlog/open` or `.agents/backlog/open` (`Path(rel_path).parent.as_posix() in (".aw/records/backlog/open", ".agents/backlog/open")`), or does not end with `.backlog.md`.
   4. Checks blob size against `max_bytes` (`500 * 1024` bytes, matching `.pre-commit-config.yaml` `check-added-large-files`) before reading blob content (`git cat-file -s` / `git show <lane_branch>:<rel_path>`), recording oversized blobs in the skipped list instead of loading them.
   - Depends on: none
   - Expected outcome: A pure, bounded helper collects only newly added regular-file open `.backlog.md` blobs directly under `.aw/records/backlog/open/` or `.agents/backlog/open/` from `base_commit..lane_branch`, returning both candidate blobs and pre-validation skip reasons.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire `_collect_lane_added_open_backlogs` into `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` and its call site in `agent_workflows/runner_shared.py::execute_item`:
+- [x] E-02 Wire `_collect_lane_added_open_backlogs` into `agent_workflows/runner_shared.py::perform_coordinator_proposal_file` and its call site in `agent_workflows/runner_shared.py::execute_item`:
   1. Add optional keyword parameters `lane_branch: str | None = None` and `lane_base_commit: str | None = None` to `perform_coordinator_proposal_file`. At the `execute_item` call site, pass `lane_branch=wt_handle.branch` and `lane_base_commit=wt_handle.base_commit` when `wt_handle is not None` (fixing attempt-scoped branch names such as `aw/lane/<id6>_attempt2` that `item.get("lane_branch") or f"aw/lane/{item_id6}"` misses). Run lane backlog collection only when both `effective_lane_branch` and `lane_base_commit` are non-empty.
   2. Inside `agent_workflows/commit_lock.py::coordinator_worktree` on each race-retry iteration, FIRST complete the existing proposal creation or `PROPOSAL_KIND_NEEDS_ATTENDED` marking so `new_record_rel` and `record_id6` are resolved before writing any recovered lane backlog file into `coord.path` (avoiding the `st_mtime`-based file-selection hazard in `perform_coordinator_proposal_file` after `aw backlog new`).
   3. Validate each collected `(rel_path, blob_bytes)` against the fresh `coord.path` tree (re-evaluated on every `RECONCILED_RACED` retry against the new `cur_base`):
@@ -65,9 +65,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   6. Append backward-compatible defaulted fields to `agent_workflows/runner_shared.py::ProposalFilingResult`: `recovered_backlog_paths: tuple[str, ...] = ()` and `skipped_backlog_reasons: tuple[tuple[str, str], ...] = ()`. At the `execute_item` call site, propagate `recovered_backlog_paths` (list) and `skipped_backlog_reasons` (dict) into `prop_rec` (`item["proposal_record"]` and `attempt["proposal_record"]`) and into the `events.jsonl` event (`agent-proposal-filed` / `agent-proposal-refused`).
   - Depends on: E-01
   - Expected outcome: Valid newly added defect backlog items from a blocked proposal lane land atomically with the proposal record on `main`; invalid or hook-rejected files are skipped fail-closed and recorded without blocking proposal landing; non-backlog lane edits remain solely on the preserved lane branch.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add behavioral tests in `tests/test_run_proposal_channel.py` driving real git repos, `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`, and full `execute_item` proposal handling (strictly behavioral, zero source-code inspection via `inspect`/`ast`/regex/`read_text` per `GUIDING_PRINCIPLES` P16) to verify:
+- [x] E-03 Add behavioral tests in `tests/test_run_proposal_channel.py` driving real git repos, `agent_workflows/runner_shared.py::perform_coordinator_proposal_file`, and full `execute_item` proposal handling (strictly behavioral, zero source-code inspection via `inspect`/`ast`/regex/`read_text` per `GUIDING_PRINCIPLES` P16) to verify:
   1. End-to-end across both `"oc"` and `"agy"` hosts (`@pytest.mark.parametrize("runner_name", ["oc", "agy"])`) with isolated lane worktrees (`isolate_worktree=True`): when a lane commits a conformant open defect backlog item (`Work-Kind: bug`, `Blocks-Release: next`) AND a failing test file edit on its lane branch, and exits with a material proposal, both the proposal backlog item and the lane's defect backlog item exist on `main` after landing, the failing test edit is NOT on `main` (preserved only on the lane branch), and both `item["proposal_record"]` and the `agent-proposal-filed` event list the recovered backlog path.
   2. Fail-closed validation and containment via `perform_coordinator_proposal_file`: malformed open backlog (missing required fields), ungated `Work-Kind: bug` when a planned release exists (contrast with a bug carrying a valid `Release-Exempt-Kind`/`Release-Exempt-Ref`, which DOES land), dangling `- Blocks-Release:`, `id6` collision with an existing record on `main`, symlink (`120000`) and nested-subdirectory paths under `.aw/records/backlog/open/`, and attempt-scoped lane branch (`aw/lane/<id6>_attempt2`) are all handled accurately while the proposal record still lands cleanly.
   3. When a lane modifies an existing backlog file on `main` rather than adding a new one, the modification is NOT copied to `main`.
@@ -76,7 +76,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Depends on: E-02
   - Expected outcome: All new and existing proposal-channel tests, `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition`, and `aw sanitize --agent` pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -147,20 +147,25 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result (which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff agent_workflows/runner_shared.py` summary showing `_collect_lane_added_open_backlogs` uses `git diff --raw -z --diff-filter=A`, restricts to regular-file (`100644`/`100755`) direct children of `.aw/records/backlog/open` or `.agents/backlog/open` ending in `.backlog.md`, enforces the `max_bytes` bound, and returns `([], [])` cleanly when `lane_branch` or `base_commit` is absent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff --stat agent_workflows/runner_shared.py` shows `agent_workflows/runner_shared.py | 427 ++++++++++++++++++++++--`. Added `_LANE_BACKLOG_OPEN_PARENTS = (".aw/records/backlog/open", ".agents/backlog/open")`, `_LANE_BACKLOG_REGULAR_MODES = frozenset(("100644", "100755"))`, and `_collect_lane_added_open_backlogs(repo, lane_branch, base_commit, *, max_bytes=500 * 1024)` which returns `([], [])` when either ref is empty, option-like, contains control characters, or unresolvable; queries `git diff --raw -z --diff-filter=A <base_ref>..<branch_ref> -- .aw/records/backlog/open .agents/backlog/open`; rejects non-regular modes (`non-regular-file-mode:<mode>`), unsafe paths (`unsafe-path`), non-direct children (`not-direct-open-child`), and non-`.backlog.md` names (`not-backlog-filename`); and checks `git cat-file -s` and loaded byte count against `max_bytes` (`blob-too-large:<size>><max_bytes>`) before returning sorted `(rel_path, blob_bytes)` candidates and `skipped` reasons.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff agent_workflows/runner_shared.py` summary showing `lane_branch`/`lane_base_commit` threading from `wt_handle`, post-proposal write ordering, full conformance/collision/release-gate validation, `PROPOSAL_KIND_NEEDS_ATTENDED` handling, atomic coordinator commit with proposal-only fallback on hook rejection, defaulted `ProposalFilingResult` fields, and `proposal_record` + `events.jsonl` propagation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` confirms: (1) `execute_item_core` passes `lane_branch=(wt_handle.branch if wt_handle is not None else None)` and `lane_base_commit=(wt_handle.base_commit if wt_handle is not None else None)` into `perform_coordinator_proposal_file`, and propagates `recovered_backlog_paths` (list) and `skipped_backlog_reasons` (dict) into `item["proposal_record"]`, `attempt["proposal_record"]`, and `events.jsonl` (`agent-proposal-filed` / `agent-proposal-refused`); (2) `ProposalFilingResult` appends backward-compatible defaulted fields `recovered_backlog_paths: tuple[str, ...] = ()` and `skipped_backlog_reasons: tuple[tuple[str, str], ...] = ()`; (3) `perform_coordinator_proposal_file` accepts `lane_branch` / `lane_base_commit`, resolves `new_record_rel` and `record_id6` first inside each `coordinator_worktree` iteration, then runs `_stage_validated_lane_backlogs(coord.path, record_id6)` checking `exists()`, strict UTF-8 decode, `backlog.parse_item` + `backlog.validate_item`, clustered/fallback filename-to-id6 agreement (`artifact_naming.parse_clustered` + `id6` equality), `artifact_core.global_id6s` + `record_id6` + batch collision, `config.validate_setid_length_for_authoring`, and release-gate/exemption conformance (`config.release_gate_work_kinds`, `releases.resolve_release`, `attention_contract.GATE_KINDS` + `validate_gate_ref`), writing valid items via `artifact_core.atomic_write`; (4) `PROPOSAL_KIND_NEEDS_ATTENDED` with `marked == target_text` returns early only when `not recovered_paths` and otherwise commits `recovered_paths` (returning `filed=True` with `commit-hook-rejected` skip reasons if `offer_commit` rejects); and (5) all other branches commit `[new_record_rel, *recovered_paths]` atomically under `integration_lock` / `RECONCILED_RACED` retry, cleaning up recovered files, recording `commit-hook-rejected`, and retrying `[new_record_rel]` alone on hook failure.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste actual output from `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py` (showing new behavioral tests passing across both `oc` and `agy` hosts and unit paths, with zero source-code inspection), `aw suite`, `make typecheck`, `aw ipd lint --phase pre-transition` on this plan, and `aw sanitize --agent`.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_run_proposal_channel.py`: `33 passed in 16.76s` (`0 unlisted slow tests`; includes `test_proposal_lane_recovers_defect_backlog_and_isolates_code_edits[oc]`, `test_proposal_lane_recovers_defect_backlog_and_isolates_code_edits[agy]`, `test_proposal_lane_recovery_fail_closed_validation_and_attempt_branch`, `test_proposal_lane_recovery_ignores_modified_existing_backlog`, `test_proposal_lane_recovery_commit_hook_rejection_falls_back_to_proposal_only`, `test_needs_attended_already_marked_still_recovers_lane_defect_backlog`, and `test_collect_lane_added_open_backlogs_bounds_legacy_and_noop`, all strictly behavioral with zero source-code inspection).
+    - `aw suite`: `2653 passed, 11 warnings in 92.05s (0:01:32)` (exit 0).
+    - `make typecheck`: `python3 -m mypy agent_workflows` -> `Success: no issues found in 228 source files` (exit 0).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6854,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw ipd lint --phase pre-transition --agent .aw/records/plans/pending/20261121-8s4qhh-01-8h1q1k-land-agent-filed-defect-backlog-items-on-main-when-a-lane-st.ipd.md`: `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd lint","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["plans-lint"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 

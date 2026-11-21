@@ -1194,3 +1194,691 @@ sys.exit(0)
         if line.strip()
     ]
     assert not any(e.get("event") == "agent-proposal-filed" for e in events)
+
+
+def _valid_open_backlog_text(
+    id6: str,
+    *,
+    setid: str | None = None,
+    work_kind: str = "bug",
+    priority: str = "high",
+    summary: str = "Lane discovered defect",
+    blocks_release: str | None = "next",
+    release_exempt_kind: str | None = None,
+    release_exempt_ref: str | None = None,
+    body: str = "## Problem\n\nObserved defect during lane execution.\n",
+) -> str:
+    """Build a conformant open backlog document for behavioral recovery tests."""
+    lines = [
+        f"- Id: {id6}",
+        "- Status: open",
+        f"- Set: {setid or id6}",
+        f"- Work-Kind: {work_kind}",
+        f"- Priority: {priority}",
+        f"- Summary: {summary}",
+    ]
+    if blocks_release is not None:
+        lines.append(f"- Blocks-Release: {blocks_release}")
+    if release_exempt_kind is not None:
+        lines.append(f"- Release-Exempt-Kind: {release_exempt_kind}")
+    if release_exempt_ref is not None:
+        lines.append(f"- Release-Exempt-Ref: {release_exempt_ref}")
+    lines.extend(
+        [
+            "",
+            "## Workflow history",
+            f"- 2026-11-21 created (aw backlog): {summary}",
+            "",
+            body.rstrip(),
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _commit_on_lane_branch(
+    repo: Path,
+    tmp_path: Path,
+    branch: str,
+    mutator: Any,
+    *,
+    commit_message: str = "lane work",
+) -> str:
+    """Cut `branch` from main HEAD in a temporary worktree, run `mutator(wt_path)`, commit, and return base SHA."""
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    wt_path = tmp_path / f"wt-{branch.replace('/', '_')}"
+    subprocess.run(
+        ["git", "worktree", "add", "-b", branch, str(wt_path), base_sha],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    try:
+        mutator(wt_path)
+        subprocess.run(["git", "add", "-A"], cwd=wt_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", commit_message], cwd=wt_path, check=True
+        )
+    finally:
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(wt_path)],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    return base_sha
+
+
+@pytest.mark.parametrize("runner_name", ["oc", "agy"])
+def test_proposal_lane_recovers_defect_backlog_and_isolates_code_edits(
+    tmp_path: Path, runner_name: str
+) -> None:
+    """E-01..E-03: Isolated lane defect backlog lands on main with the proposal while lane code edits stay off main."""
+    from tests import support
+
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "rec001", priority="high", work_kind="bug")
+
+    defect_id6 = "def001"
+    defect_rel = f".aw/records/backlog/open/20261121-{defect_id6}-01-{defect_id6}-lane-defect.backlog.md"
+    defect_content = _valid_open_backlog_text(
+        defect_id6,
+        summary="Tool parser fails on multiline input",
+        blocks_release="next",
+    )
+
+    fake_agent = support.make_fake_executable(
+        tmp_path / f"fake_lane_agent_{runner_name}",
+        """#!/usr/bin/env python3
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+all_text = ""
+for arg in sys.argv[1:]:
+    if "Required JSON outcome:" in arg:
+        all_text = arg
+        break
+    if Path(arg).is_file():
+        try:
+            txt = Path(arg).read_text(encoding="utf-8")
+            if "Required JSON outcome:" in txt:
+                all_text = txt
+                break
+        except Exception:
+            pass
+
+# Host preflight probes (--version, debug config) pass no turn prompt: exit cleanly without touching git.
+if not all_text:
+    if "--version" in sys.argv[1:]:
+        print("fake-agent 1.0.0", flush=True)
+    elif "debug" in sys.argv[1:]:
+        print("{}", flush=True)
+    sys.exit(0)
+
+print(json.dumps({"event": "init", "conversation_id": "ses-rec", "init": {"model": "test-model"}}), flush=True)
+print(json.dumps({"type": "text", "sessionID": "ses-rec", "part": {"text": "filing defect and proposing"}}), flush=True)
+
+defect_rel = os.environ["FAKE_DEFECT_REL"]
+defect_text = os.environ["FAKE_DEFECT_TEXT"]
+cwd = Path.cwd()
+
+# Commit BOTH a conformant defect backlog item AND a failing test edit on the lane branch
+defect_path = cwd / defect_rel
+defect_path.parent.mkdir(parents=True, exist_ok=True)
+defect_path.write_text(defect_text, encoding="utf-8")
+
+failing_test = cwd / "tests" / "test_broken_lane_edit.py"
+failing_test.parent.mkdir(parents=True, exist_ok=True)
+failing_test.write_text("def test_broken():\\n    assert False\\n", encoding="utf-8")
+
+subprocess.run(["git", "add", defect_rel, "tests/test_broken_lane_edit.py"], cwd=cwd, check=True)
+subprocess.run(["git", "commit", "-qm", "lane defect backlog and failing test edit"], cwd=cwd, check=True)
+
+payload = os.environ["FAKE_PAYLOAD_JSON"]
+m = re.search(r"Required JSON outcome: (\\S+)", all_text)
+if m:
+    out_p = Path(m.group(1))
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+    out_p.write_text(payload, encoding="utf-8")
+sys.exit(0)
+""",
+    )
+
+    run_id = f"run-rec-{runner_name}"
+    run_dir = repo / ".aw" / "records" / "runs" / run_id
+    (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+    (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+    outcome_payload = {
+        "disposition": "blocked",
+        "defect_report": {
+            "state": "found",
+            "findings": [
+                {
+                    "what": "Tool parser fails on multiline input (filed def001)",
+                    "where": "agent_workflows/check_engine.py",
+                }
+            ],
+        },
+        "proposal": {
+            "kind": "tool-defect",
+            "blocked_by": "tool parser failed; see defect backlog def001",
+            "why": "parser change is outside this plan scope",
+            "proposed_change": "fix multiline parser handling per def001",
+            "paths": ["agent_workflows/check_engine.py"],
+            "size": "material",
+        },
+        "pushed": False,
+    }
+
+    item: dict[str, Any] = {
+        "id6": "rec001",
+        "setid": "testset",
+        "position": 1,
+        "action": "execute",
+        "status": "queued",
+        "configured_file": str(plan_file.relative_to(repo)),
+        "attempts": [],
+    }
+    state: dict[str, Any] = {
+        "repo": str(repo),
+        "run_id": run_id,
+        "queue": [item],
+        "options": {
+            "no_verify": True,
+            "validate": False,
+            "no_audit": True,
+            "self_finalize": True,
+            "isolate_worktree": True,
+            "allow_dirty_base": True,
+            "output_mode": "quiet",
+        },
+    }
+    if runner_name == "oc":
+        state["options"]["opencode"] = str(fake_agent)
+        driver_module = oc_runipd
+    else:
+        state["options"]["agy"] = str(fake_agent)
+        driver_module = agy_runipd
+
+    runner_shared.save_state(run_dir, state)
+
+    env_patch = {
+        "FAKE_PAYLOAD_JSON": json.dumps(outcome_payload),
+        "FAKE_DEFECT_REL": defect_rel,
+        "FAKE_DEFECT_TEXT": defect_content,
+    }
+    with (
+        mock.patch.dict(os.environ, env_patch),
+        mock.patch.object(driver_module, "driver_begin", return_value=(0, "ok")),
+        coordinator_role(),
+    ):
+        driver_module.execute_item(run_dir, state, item, recovery=False)
+
+    assert item["status"] == "fail-gate"
+    assert item["proposal_record"]["filed"] is True
+    assert item["proposal_record"]["recovered_backlog_paths"] == [defect_rel]
+    assert item["proposal_record"]["skipped_backlog_reasons"] == {}
+    assert item["attempts"][-1]["proposal_record"]["recovered_backlog_paths"] == [
+        defect_rel
+    ]
+
+    # Both the coordinator proposal backlog and the lane defect backlog landed on main
+    open_backlogs = sorted(
+        p.relative_to(repo).as_posix()
+        for p in (repo / ".aw" / "records" / "backlog" / "open").glob("*.backlog.md")
+    )
+    assert len(open_backlogs) == 2
+    assert defect_rel in open_backlogs
+    assert item["proposal_record"]["record_path"] in open_backlogs
+
+    # The failing test edit MUST NOT be on main, and MUST remain preserved on the lane branch
+    assert not (repo / "tests" / "test_broken_lane_edit.py").exists()
+    main_tree = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert defect_rel in main_tree
+    assert "tests/test_broken_lane_edit.py" not in main_tree
+
+    preserved_branch = item.get("preserved_branch") or item["attempts"][-1].get(
+        "worktree_branch"
+    )
+    assert preserved_branch
+    lane_test = subprocess.run(
+        ["git", "show", f"{preserved_branch}:tests/test_broken_lane_edit.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "assert False" in lane_test
+
+    # events.jsonl records recovered_backlog_paths on agent-proposal-filed
+    events = [
+        json.loads(line)
+        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    filed_events = [e for e in events if e.get("event") == "agent-proposal-filed"]
+    assert len(filed_events) == 1
+    assert filed_events[0]["recovered_backlog_paths"] == [defect_rel]
+    assert filed_events[0]["skipped_backlog_reasons"] == {}
+
+
+def test_proposal_lane_recovery_fail_closed_validation_and_attempt_branch(
+    tmp_path: Path,
+) -> None:
+    """E-01..E-03: Invalid/unsafe lane backlogs are rejected fail-closed while valid exempt bug and proposal land from an attempt-scoped branch."""
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "val001", priority="high", work_kind="bug")
+    run_dir = repo / ".aw" / "records" / "runs" / "run-val-closed"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    attempt_branch = "aw/lane/val001_attempt2"
+    exempt_rel = (
+        ".aw/records/backlog/open/20261121-exm001-01-exm001-exempt-bug.backlog.md"
+    )
+    malformed_rel = (
+        ".aw/records/backlog/open/20261121-bad001-01-bad001-malformed.backlog.md"
+    )
+    ungated_rel = (
+        ".aw/records/backlog/open/20261121-ung001-01-ung001-ungated-bug.backlog.md"
+    )
+    dangling_rel = (
+        ".aw/records/backlog/open/20261121-dng001-01-dng001-dangling-rel.backlog.md"
+    )
+    collision_rel = (
+        ".aw/records/backlog/open/20261121-val001-01-val001-id-collision.backlog.md"
+    )
+    longset_rel = (
+        ".aw/records/backlog/open/20261121-lng001-01-lng001-long-setid.backlog.md"
+    )
+    mismatch_rel = (
+        ".aw/records/backlog/open/20261121-mis001-01-other9-mismatch.backlog.md"
+    )
+    symlink_rel = (
+        ".aw/records/backlog/open/20261121-sym001-01-sym001-symlink.backlog.md"
+    )
+    nested_rel = (
+        ".aw/records/backlog/open/nested/20261121-nst001-01-nst001-nested.backlog.md"
+    )
+
+    def _populate_lane(wt: Path) -> None:
+        # 1. Valid bug carrying typed release exemption (NO Blocks-Release) -> MUST land
+        (wt / exempt_rel).write_text(
+            _valid_open_backlog_text(
+                "exm001",
+                summary="Exempted bug from lane",
+                blocks_release=None,
+                release_exempt_kind="decision",
+                release_exempt_ref="D42",
+            ),
+            encoding="utf-8",
+        )
+        # 2. Malformed open backlog (missing Summary and Workflow history)
+        (wt / malformed_rel).write_text(
+            "- Id: bad001\n- Status: open\n- Set: bad001\n- Work-Kind: bug\n- Priority: high\n",
+            encoding="utf-8",
+        )
+        # 3. Ungated bug when planned release exists (no Blocks-Release, no Release-Exempt)
+        (wt / ungated_rel).write_text(
+            _valid_open_backlog_text(
+                "ung001",
+                summary="Ungated live bug",
+                blocks_release=None,
+            ),
+            encoding="utf-8",
+        )
+        # 4. Dangling Blocks-Release
+        (wt / dangling_rel).write_text(
+            _valid_open_backlog_text(
+                "dng001",
+                summary="Dangling release gate",
+                blocks_release="zzz999",
+            ),
+            encoding="utf-8",
+        )
+        # 5. id6 collision with existing plan val001 on main
+        (wt / collision_rel).write_text(
+            _valid_open_backlog_text(
+                "val001",
+                summary="Colliding id6",
+                blocks_release="next",
+            ),
+            encoding="utf-8",
+        )
+        # 6. Over-length setid (> 24 chars)
+        (wt / longset_rel).write_text(
+            _valid_open_backlog_text(
+                "lng001",
+                setid="setid_that_is_way_over_24_chars",
+                summary="Overlength setid",
+                blocks_release="next",
+            ),
+            encoding="utf-8",
+        )
+        # 7. Filename id6 mismatch
+        (wt / mismatch_rel).write_text(
+            _valid_open_backlog_text(
+                "mis001",
+                summary="Filename mismatch",
+                blocks_release="next",
+            ),
+            encoding="utf-8",
+        )
+        # 8. Symlink (mode 120000) under open/
+        os.symlink(str(wt / exempt_rel), wt / symlink_rel)
+        # 9. Nested subdirectory path under open/
+        (wt / nested_rel).parent.mkdir(parents=True, exist_ok=True)
+        (wt / nested_rel).write_text(
+            _valid_open_backlog_text(
+                "nst001",
+                summary="Nested path backlog",
+                blocks_release="next",
+            ),
+            encoding="utf-8",
+        )
+
+    base_sha = _commit_on_lane_branch(repo, tmp_path, attempt_branch, _populate_lane)
+
+    proposal = {
+        "kind": "tool-defect",
+        "blocked_by": "blocked on validator edge case",
+        "why": "requires coordinator decision",
+        "proposed_change": "update validator",
+        "paths": ["agent_workflows/backlog.py"],
+        "size": "material",
+    }
+    item = {"id6": "val001", "configured_file": str(plan_file)}
+    state = {"repo": str(repo), "run_id": "run-val-closed"}
+
+    with coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            proposal=proposal,
+            lane_branch=attempt_branch,
+            lane_base_commit=base_sha,
+        )
+
+    assert res.filed is True
+    assert res.recovered_backlog_paths == (exempt_rel,)
+
+    skipped = dict(res.skipped_backlog_reasons)
+    assert skipped[malformed_rel].startswith("backlog-validation-failed:")
+    assert skipped[ungated_rel] == "live-bug-ungated"
+    assert skipped[dangling_rel] == "blocks-release-dangling"
+    assert skipped[collision_rel] == "id6-collision"
+    assert skipped[longset_rel].startswith("setid-length-error:")
+    assert skipped[mismatch_rel] == "filename-id-mismatch"
+    assert skipped[symlink_rel] == "non-regular-file-mode:120000"
+    assert skipped[nested_rel] == "not-direct-open-child"
+
+    # Only the proposal record and the valid exempted bug landed on main
+    assert (repo / exempt_rel).is_file()
+    for rejected in (
+        malformed_rel,
+        ungated_rel,
+        dangling_rel,
+        collision_rel,
+        longset_rel,
+        mismatch_rel,
+        symlink_rel,
+        nested_rel,
+    ):
+        assert not (repo / rejected).exists()
+
+    # Proposal record names the attempt-scoped lane branch
+    proposal_text = (repo / res.record_path).read_text(encoding="utf-8")
+    assert f"- Lane-Branch: {attempt_branch}" in proposal_text
+
+
+def test_proposal_lane_recovery_ignores_modified_existing_backlog(
+    tmp_path: Path,
+) -> None:
+    """E-01..E-03: Modifying an existing backlog file on the lane never overwrites main."""
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "mod001", priority="medium", work_kind="bug")
+    run_dir = repo / ".aw" / "records" / "runs" / "run-mod-existing"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    existing_rel = (
+        ".aw/records/backlog/open/20261121-ext001-01-ext001-existing.backlog.md"
+    )
+    original_text = _valid_open_backlog_text(
+        "ext001",
+        summary="Original backlog on main",
+        body="## Problem\n\nOriginal content on main.\n",
+    )
+    (repo / existing_rel).write_text(original_text, encoding="utf-8")
+    subprocess.run(["git", "add", existing_rel], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-qm", "add existing backlog"], cwd=repo, check=True
+    )
+
+    def _modify_existing(wt: Path) -> None:
+        (wt / existing_rel).write_text(
+            original_text.replace("Original content on main.", "Mutated inside lane."),
+            encoding="utf-8",
+        )
+
+    base_sha = _commit_on_lane_branch(
+        repo, tmp_path, "aw/lane/mod001", _modify_existing
+    )
+
+    with coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state={"repo": str(repo), "run_id": "run-mod-existing"},
+            item={"id6": "mod001", "configured_file": str(plan_file)},
+            proposal={
+                "kind": "tool-defect",
+                "blocked_by": "existing tool defect",
+                "why": "cannot fix in scope",
+                "proposed_change": "fix tool",
+                "paths": ["agent_workflows/cli.py"],
+                "size": "material",
+            },
+            lane_branch="aw/lane/mod001",
+            lane_base_commit=base_sha,
+        )
+
+    assert res.filed is True
+    assert res.recovered_backlog_paths == ()
+    assert res.skipped_backlog_reasons == ()
+    main_content = (repo / existing_rel).read_text(encoding="utf-8")
+    assert "Original content on main." in main_content
+    assert "Mutated inside lane." not in main_content
+
+
+def test_proposal_lane_recovery_commit_hook_rejection_falls_back_to_proposal_only(
+    tmp_path: Path,
+) -> None:
+    """E-02 / E-03: Hook rejection on combined commit cleans up recovered files and retries proposal-only."""
+    from agent_workflows import git_commit_helper as _gch
+
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "hok001", priority="high", work_kind="bug")
+    run_dir = repo / ".aw" / "records" / "runs" / "run-hook-fallback"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    defect_rel = (
+        ".aw/records/backlog/open/20261121-hkd001-01-hkd001-hook-defect.backlog.md"
+    )
+
+    def _add_defect(wt: Path) -> None:
+        (wt / defect_rel).write_text(
+            _valid_open_backlog_text(
+                "hkd001",
+                summary="Defect triggering hook on combined commit",
+            ),
+            encoding="utf-8",
+        )
+
+    base_sha = _commit_on_lane_branch(repo, tmp_path, "aw/lane/hok001", _add_defect)
+
+    orig_offer = _gch.offer_commit
+    seen_calls: list[list[str]] = []
+
+    def _flaky_offer_commit(
+        repo_root: Path, paths: list[str], *args: Any, **kwargs: Any
+    ) -> Any:
+        seen_calls.append(list(paths))
+        if len(paths) > 1:
+            return _gch.CommitOutcome(
+                _gch.STATUS_ERROR,
+                None,
+                (),
+                "pre-commit hook local-leaks rejected combined commit",
+            )
+        return orig_offer(repo_root, paths, *args, **kwargs)
+
+    with (
+        mock.patch(
+            "agent_workflows.git_commit_helper.offer_commit",
+            side_effect=_flaky_offer_commit,
+        ),
+        coordinator_role(),
+    ):
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state={"repo": str(repo), "run_id": "run-hook-fallback"},
+            item={"id6": "hok001", "configured_file": str(plan_file)},
+            proposal={
+                "kind": "tool-defect",
+                "blocked_by": "blocked by defect",
+                "why": "out of scope",
+                "proposed_change": "fix tool",
+                "paths": ["agent_workflows/cli.py"],
+                "size": "material",
+            },
+            lane_branch="aw/lane/hok001",
+            lane_base_commit=base_sha,
+        )
+
+    assert res.filed is True
+    assert res.recovered_backlog_paths == ()
+    assert dict(res.skipped_backlog_reasons) == {defect_rel: "commit-hook-rejected"}
+    assert len(seen_calls) == 2
+    assert defect_rel in seen_calls[0]
+    assert seen_calls[1] == [res.record_path]
+    assert (repo / res.record_path).is_file()
+    assert not (repo / defect_rel).exists()
+
+
+def test_needs_attended_already_marked_still_recovers_lane_defect_backlog(
+    tmp_path: Path,
+) -> None:
+    """E-02 / E-03: Already-marked `Attended: required` plan still commits and lands recovered lane defect backlogs."""
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "att099", priority="medium", work_kind="bug")
+    plan_file.write_text(
+        plan_file.read_text(encoding="utf-8").replace(
+            "- Scope-Paths: README.md\n",
+            "- Scope-Paths: README.md\n- Attended: required\n",
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", str(plan_file)], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-qm", "mark att099 already attended"], cwd=repo, check=True
+    )
+
+    run_dir = repo / ".aw" / "records" / "runs" / "run-att-recover"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    defect_rel = (
+        ".aw/records/backlog/open/20261121-atd099-01-atd099-attended-defect.backlog.md"
+    )
+
+    def _add_defect(wt: Path) -> None:
+        (wt / defect_rel).write_text(
+            _valid_open_backlog_text(
+                "atd099",
+                summary="Defect discovered before stopping needs-attended",
+            ),
+            encoding="utf-8",
+        )
+
+    base_sha = _commit_on_lane_branch(repo, tmp_path, "aw/lane/att099", _add_defect)
+
+    with coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state={"repo": str(repo), "run_id": "run-att-recover"},
+            item={"id6": "att099", "configured_file": str(plan_file)},
+            proposal={
+                "kind": runner_shared.PROPOSAL_KIND_NEEDS_ATTENDED,
+                "blocked_by": "needs maintainer live input",
+                "why": "cannot run unattended",
+                "proposed_change": "run in attended session",
+                "paths": [str(plan_file.relative_to(repo))],
+                "size": "small",
+            },
+            lane_branch="aw/lane/att099",
+            lane_base_commit=base_sha,
+        )
+
+    assert res.filed is True
+    assert res.commit is not None
+    assert res.recovered_backlog_paths == (defect_rel,)
+    assert res.skipped_backlog_reasons == ()
+    assert (repo / defect_rel).is_file()
+    committed = subprocess.run(
+        ["git", "show", f"main:{defect_rel}"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "- Id: atd099" in committed
+
+
+def test_collect_lane_added_open_backlogs_bounds_legacy_and_noop(
+    tmp_path: Path,
+) -> None:
+    """E-01: Helper returns cleanly on absent/invalid refs, enforces max_bytes, and supports legacy .agents/backlog/open."""
+    repo = _create_test_repo(tmp_path)
+
+    assert runner_shared._collect_lane_added_open_backlogs(repo, None, None) == ([], [])
+    assert runner_shared._collect_lane_added_open_backlogs(repo, "aw/lane/x", "") == (
+        [],
+        [],
+    )
+    assert runner_shared._collect_lane_added_open_backlogs(
+        repo, "refs/heads/nonexistent", "HEAD"
+    ) == ([], [])
+
+    legacy_rel = ".agents/backlog/open/20261121-leg001-01-leg001-legacy.backlog.md"
+    huge_rel = ".aw/records/backlog/open/20261121-big001-01-big001-oversized.backlog.md"
+
+    def _add_files(wt: Path) -> None:
+        (wt / legacy_rel).parent.mkdir(parents=True, exist_ok=True)
+        (wt / legacy_rel).write_text(
+            _valid_open_backlog_text("leg001", summary="Legacy layout backlog"),
+            encoding="utf-8",
+        )
+        (wt / huge_rel).write_text("x" * 2048, encoding="utf-8")
+
+    base_sha = _commit_on_lane_branch(repo, tmp_path, "aw/lane/bnd001", _add_files)
+
+    candidates, skipped = runner_shared._collect_lane_added_open_backlogs(
+        repo, "aw/lane/bnd001", base_sha, max_bytes=1024
+    )
+    assert [rel for rel, _blob in candidates] == [legacy_rel]
+    skipped_map = dict(skipped)
+    assert huge_rel in skipped_map
+    assert skipped_map[huge_rel].startswith("blob-too-large:")
