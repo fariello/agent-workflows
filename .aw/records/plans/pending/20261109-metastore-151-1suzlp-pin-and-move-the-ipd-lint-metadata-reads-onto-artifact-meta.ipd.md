@@ -43,20 +43,20 @@ Commit through `aw commit 1suzlp -- <each changed path>`, one commit per item al
 
 ### Task group 1: ipd_lint
 
-- [ ] E-01 (carried from `dqutt8` E-03, pin step) Before any `ipd_lint` edit, pin the current verdicts in the new `tests/test_readers_ipd_lint.py`: one conforming and one refused fixture each for `IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113` and `IPD-M105`. Ensure directory `.aw/state/ffceq0/` exists (`mkdir -p .aw/state/ffceq0`), save the outcome list of `tests/test_ipd_lint.py`, `tests/test_readiness_absence_invariant.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_priority_required.py` to `.aw/state/ffceq0/E-09-before.txt`, and save `aw ipd lint --all --agent` (every plan under `.aw/records/plans`, not only pending; per-plan disposition and rule ids, sorted) to `.aw/state/ffceq0/lint-before.jsonl`.
+- [x] E-01 (carried from `dqutt8` E-03, pin step) Before any `ipd_lint` edit, pin the current verdicts in the new `tests/test_readers_ipd_lint.py`: one conforming and one refused fixture each for `IPD-S405`, `IPD-M107`, `IPD-M112`, `IPD-M113` and `IPD-M105`. Ensure directory `.aw/state/ffceq0/` exists (`mkdir -p .aw/state/ffceq0`), save the outcome list of `tests/test_ipd_lint.py`, `tests/test_readiness_absence_invariant.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_priority_required.py` to `.aw/state/ffceq0/E-09-before.txt`, and save `aw ipd lint --all --agent` (every plan under `.aw/records/plans`, not only pending; per-plan disposition and rule ids, sorted) to `.aw/state/ffceq0/lint-before.jsonl`.
   - Depends on: none
   - Expected outcome: the new module passes on the unmodified code; both baselines are saved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `dqutt8` E-03, input step) Change how `ipd_lint` gets plan metadata: `ipd_lint.parse` takes `meta_fields`/`meta_errors` from `artifact_meta` for a tracked plan (the `ipd_schema.parse_metadata_block` grammar now runs only inside the legacy loader), and `ipd_lint.lint_text(text, *, state=None)` gains a `state` argument that carries the plan's `State` from `artifact_meta.read`, `artifact_meta.read_at` or `artifact_meta.read_text`, using `artifact_meta.read_text(text)` when the caller passes none. The `state=None` default keeps the string callers in `review_sequence`, the runner and the 58 test call sites working, so none of them is edited and no second parser exists.
+- [x] E-02 (carried from `dqutt8` E-03, input step) Change how `ipd_lint` gets plan metadata: `ipd_lint.parse` takes `meta_fields`/`meta_errors` from `artifact_meta` for a tracked plan (the `ipd_schema.parse_metadata_block` grammar now runs only inside the legacy loader), and `ipd_lint.lint_text(text, *, state=None)` gains a `state` argument that carries the plan's `State` from `artifact_meta.read`, `artifact_meta.read_at` or `artifact_meta.read_text`, using `artifact_meta.read_text(text)` when the caller passes none. The `state=None` default keeps the string callers in `review_sequence`, the runner and the 58 test call sites working, so none of them is edited and no second parser exists.
   - Depends on: E-01
   - Expected outcome: the E-01 module and the four baseline modules pass unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (carried from `dqutt8` E-03, rule step) Move the `ipd_lint` rule readers onto the `State` that E-02 supplies: `IPD-S405` reads `artifact_meta.history` (4.4 bullet "Gate IPD-S405"); `IPD-M107`, `IPD-M113` and `IPD-M112` read cached `readiness`, `approval` and `coverage` fields and their history (their meaning is unchanged; the event-ownership form is Order 06's AC-15); the `run_lint` row status, priority and `blocks_release` read cached fields; `_CITATION_PLAN_DATE_RE` reads cached `date`; `plans.read_status` is the shared status for `IPD-M105`. `_LEAF_RE` (the E-leaf grammar) stays, per N3. (The original's E-09 -> E-07 edge, on the check_engine move, is carried by this plan's `- Item-Dependencies:` edges on Orders 29 to 32.)
+- [x] E-03 (carried from `dqutt8` E-03, rule step) Move the `ipd_lint` rule readers onto the `State` that E-02 supplies: `IPD-S405` reads `artifact_meta.history` (4.4 bullet "Gate IPD-S405"); `IPD-M107`, `IPD-M113` and `IPD-M112` read cached `readiness`, `approval` and `coverage` fields and their history (their meaning is unchanged; the event-ownership form is Order 06's AC-15); the `run_lint` row status, priority and `blocks_release` read cached fields; `_CITATION_PLAN_DATE_RE` reads cached `date`; `plans.read_status` is the shared status for `IPD-M105`. `_LEAF_RE` (the E-leaf grammar) stays, per N3. (The original's E-09 -> E-07 edge, on the check_engine move, is carried by this plan's `- Item-Dependencies:` edges on Orders 29 to 32.)
   - Depends on: E-02
   - Expected outcome: every test of E-01 passes with an empty outcome-list diff; `aw ipd lint --all --agent` reports the same per-plan disposition and rule ids as `.aw/state/ffceq0/lint-before.jsonl` (pasted sorted diff, empty).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -129,20 +129,34 @@ N/A: no spec text changes; this part implements `4sd62s` 4.4 (the bullet "Gate I
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py` empty; `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` with ten named tests PASSED (one conforming and one refused each for IPD-S405, IPD-M107, IPD-M112, IPD-M113 and IPD-M105); `wc -l .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/lint-before.jsonl`.
   - Observed evidence:
-  - Result: pending
+    - `git diff --stat agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py`: empty (no output; commit `d7fcd69eeec1e5b47af4456cb45ccd72a0b68487` added only `tests/test_readers_ipd_lint.py`).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` on unmodified code: `10 passed in 0.26s` (`test_ipd_s405_conforming`, `test_ipd_s405_refused`, `test_ipd_m107_conforming`, `test_ipd_m107_refused`, `test_ipd_m112_conforming`, `test_ipd_m112_refused`, `test_ipd_m113_conforming`, `test_ipd_m113_refused`, `test_ipd_m105_conforming`, `test_ipd_m105_refused` all PASSED).
+    - `wc -l .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/lint-before.jsonl`: `138 .aw/state/ffceq0/E-09-before.txt`, `1 .aw/state/ffceq0/lint-before.jsonl`, `139 total` (all 138 baseline outcomes `PASSED`; `aw ipd lint --all --agent` exited 0 with `outcome: "clean"`, `findings: 29`, `error: 0`, `warning: 0`, `info: 29`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `ipd_lint.lint_text`'s signature showing the new `state=None` keyword; `rg -n "parse_metadata_block\(" agent_workflows` listing where the grammar is now called (inside the legacy loader, plus any caller named with its reason); `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` all PASSED; and `git diff --stat tests/` showing no `lint_text(` caller edited.
   - Observed evidence:
-  - Result: pending
+    - `ipd_lint.lint_text` signature diff (commit `bb43dc78a7cf73a7b8755f11f984eb44425e1053`): added `state: Optional[Any] = None` keyword parameter with default `artifact_meta.read_text(text, record_type="ipd")`, while `ipd_lint._lint_file_impl` resolves the tracked plan's cached `State` from `artifact_meta.query` via `ipd_lint._lookup_tracked_state` and overlays it in `ipd_lint.parse`.
+    - `rg -n "parse_metadata_block\(" agent_workflows`: `agent_workflows/ipd_schema.py` (`def parse_metadata_block(`) and one unified call site in `agent_workflows/ipd_lint.py::_parse_metadata_slice` (`return S.parse_metadata_block(meta_slice)`), retained in Phase B solely for line-level duplicate/unknown `meta_errors` (`IPD-M102`/`IPD-M103`) and non-registry schema fields (`Date`, `Concern`, `Scope`, `Quarantine*`, `Highest E allocated`) until Order 287 (`ad86ym`) moves `parse_metadata_block` into `agent_workflows/artifact_meta.py` (outside `1suzlp`'s Scope-Paths; `agent_workflows/ipd_schema.py` left unmodified).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py`: `10 passed in 0.97s` (plus 4 baseline modules and `tests/test_startup_preflight_perf_behavior.py`: `134 passed in 11.26s`).
+    - `git diff --stat tests/`: empty at E-02 (no existing `lint_text(` caller edited).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `diff .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/E-09-after.txt` (outcome lists of `tests/test_ipd_lint.py tests/test_readiness_absence_invariant.py tests/test_orchestrator_readiness.py tests/test_plan_priority_required.py`) printing nothing; the sorted `diff` of `.aw/state/ffceq0/lint-before.jsonl` against a fresh `aw ipd lint --all --agent` printing nothing; `rg -n "re\.(compile|search|match)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/ipd_lint.py` listing only `_LEAF_RE`; and `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py` all PASSED.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/ffceq0/E-09-before.txt .aw/state/ffceq0/E-09-after.txt`: empty (`138` lines before, `138` lines after, `E09_DIFF_EMPTY`; commit `32a0a44e7709fd85a315ec90e1188397ad94119d`).
+    - Sorted `diff` of `.aw/state/ffceq0/lint-before.jsonl` against fresh `python3 -m agent_workflows ipd lint --all --agent | sort`: empty (`lint_rc=0`, `1` line, `LINT_DIFF_EMPTY`).
+    - `rg -n "re\.(compile|search|match)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/ipd_lint.py`: single match `ipd_lint._LEAF_RE` (`_LEAF_RE = re.compile(r"^- \[([ x])\]\s+(.*)$")`).
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_ipd_lint.py`: `10 passed in 0.84s`.
+    - `python3 -m pytest -o addopts="" tests/test_status_set.py -k untooled`: `5 passed, 105 deselected in 5.79s` (verifying Phase-B `_LegacyHistoryLineMatcher` shim for `check_engine._has_matching_history_line`).
+    - Full core suite (`aw suite`): `2562 passed, 11 warnings in 87.48s (0:01:27)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6799,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
