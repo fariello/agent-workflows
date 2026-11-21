@@ -1,0 +1,11 @@
+"""Fixture: refusal reason body prose (legacy-kept)."""
+
+
+def test_body_prose_open_question_block() -> None:
+    oq_block = (
+        "### OQ-01: Which format applies?\n\n"
+        "- Blocking: yes\n"
+        "- Status: open\n"
+        "- Owner: maintainer\n"
+    )
+    assert "OQ-01" in oq_block

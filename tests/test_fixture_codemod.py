@@ -1,9 +1,9 @@
-"""Behavioral tests for ``tools/fixture_codemod.py`` (IPD ``j2xjtt``).
+"""Behavioral tests for ``tools/fixture_codemod.py`` (IPDs ``j2xjtt`` and ``n0li9v``).
 
 Drives ``tools/fixture_codemod.py`` as a subprocess on copies of fixture modules
 inside temporary git repositories initialized with ``tests/support.py``
 ``init_repo``, asserting on exit codes, stdout/stderr, JSON reports, and
-rewritten file contents.
+rewritten or untouched file contents.
 """
 
 from __future__ import annotations
@@ -259,6 +259,124 @@ class FixtureCodemodDryRunAndIdempotenceTests(unittest.TestCase):
             self.assertEqual(second_report["modules"][0]["proof"]["pytest_runs"], 0)
             self.assertTrue(second_report["modules"][0]["proof"]["equivalent"])
             self.assertEqual(target.read_bytes(), after_first_bytes)
+
+
+class FixtureCodemodRefusalTests(unittest.TestCase):
+    """E-11 and E-12: one fixture and test per static refusal reason code."""
+
+    def _assert_static_refusal(
+        self,
+        fixture_name: str,
+        dest_name: str,
+        expected_reason: str,
+        expected_disposition: str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo, target = _stage_fixture_in_temp_repo(
+                Path(td), fixture_name, dest_name
+            )
+            rel_target = target.relative_to(repo).as_posix()
+            before_bytes = target.read_bytes()
+
+            dry_proc, dry_report = _run_codemod(
+                repo, "--dry-run", "--format", "json", rel_target
+            )
+            self.assertEqual(dry_proc.returncode, 0, dry_proc.stderr)
+            self.assertEqual(dry_proc.stderr, "")
+            self.assertIsNotNone(dry_report)
+            assert dry_report is not None
+            self.assertEqual(dry_report["mode"], "dry-run")
+            self.assertEqual(dry_report["totals"]["sites"], 1)
+            self.assertEqual(dry_report["totals"]["rewrites"], 0)
+            self.assertEqual(dry_report["totals"]["refusals"], 1)
+            self.assertEqual(dry_report["totals"]["by_reason"][expected_reason], 1)
+            self.assertEqual(
+                dry_report["totals"]["by_disposition"][expected_disposition], 1
+            )
+            dry_mod = dry_report["modules"][0]
+            self.assertFalse(dry_mod["applied"])
+            self.assertFalse(dry_mod["changed"])
+            self.assertEqual(len(dry_mod["sites"]), 1)
+            dry_site = dry_mod["sites"][0]
+            self.assertEqual(dry_site["action"], "refuse")
+            self.assertEqual(dry_site["reason"], expected_reason)
+            self.assertEqual(dry_site["disposition"], expected_disposition)
+            self.assertEqual(target.read_bytes(), before_bytes)
+
+            apply_proc, apply_report = _run_codemod(
+                repo, "--apply", "--format", "json", rel_target
+            )
+            self.assertEqual(apply_proc.returncode, 0, apply_proc.stderr)
+            self.assertEqual(apply_proc.stderr, "")
+            self.assertIsNotNone(apply_report)
+            assert apply_report is not None
+            self.assertEqual(apply_report["mode"], "apply")
+            self.assertEqual(apply_report["totals"]["sites"], 1)
+            self.assertEqual(apply_report["totals"]["rewrites"], 0)
+            self.assertEqual(apply_report["totals"]["refusals"], 1)
+            apply_mod = apply_report["modules"][0]
+            self.assertTrue(apply_mod["applied"])
+            self.assertFalse(apply_mod["changed"])
+            self.assertEqual(len(apply_mod["sites"]), 1)
+            apply_site = apply_mod["sites"][0]
+            self.assertEqual(apply_site["action"], "refuse")
+            self.assertEqual(apply_site["reason"], expected_reason)
+            self.assertEqual(apply_site["disposition"], expected_disposition)
+            self.assertEqual(target.read_bytes(), before_bytes)
+
+    def test_refuse_dynamic_construction(self) -> None:
+        """E-11: dynamic-construction (hand) leaves the module byte-identical."""
+        self._assert_static_refusal(
+            "refuse_dynamic_construction.py.txt",
+            "test_refuse_dynamic_construction.py",
+            "dynamic-construction",
+            "hand",
+        )
+
+    def test_refuse_unsupported_shape(self) -> None:
+        """E-11: unsupported-shape (hand) leaves the module byte-identical."""
+        self._assert_static_refusal(
+            "refuse_unsupported_shape.py.txt",
+            "test_refuse_unsupported_shape.py",
+            "unsupported-shape",
+            "hand",
+        )
+
+    def test_refuse_legacy_format_subject(self) -> None:
+        """E-11: legacy-format subject (legacy-kept) leaves the module byte-identical."""
+        self._assert_static_refusal(
+            "refuse_legacy_format_subject.py.txt",
+            "test_legacy_subject_fixture.py",
+            "legacy-format subject",
+            "legacy-kept",
+        )
+
+    def test_refuse_displayed_output_assertion(self) -> None:
+        """E-12: displayed-output assertion (legacy-kept) leaves the module byte-identical."""
+        self._assert_static_refusal(
+            "refuse_displayed_output_assertion.py.txt",
+            "test_refuse_displayed_output_assertion.py",
+            "displayed-output assertion",
+            "legacy-kept",
+        )
+
+    def test_refuse_setter_byte_assertion(self) -> None:
+        """E-12: setter-byte assertion (legacy-kept) leaves the module byte-identical."""
+        self._assert_static_refusal(
+            "refuse_setter_byte_assertion.py.txt",
+            "test_refuse_setter_byte_assertion.py",
+            "setter-byte assertion",
+            "legacy-kept",
+        )
+
+    def test_refuse_body_prose(self) -> None:
+        """E-12: body prose (legacy-kept) leaves the module byte-identical."""
+        self._assert_static_refusal(
+            "refuse_body_prose.py.txt",
+            "test_refuse_body_prose.py",
+            "body prose",
+            "legacy-kept",
+        )
 
 
 if __name__ == "__main__":

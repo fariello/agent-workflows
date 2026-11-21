@@ -1,0 +1,20 @@
+"""Fixture: refusal reason setter-byte assertion (legacy-kept)."""
+
+from pathlib import Path
+
+from tests.record_builder import RecordBuilder
+
+
+def test_setter_byte_assertion(tmp_path: Path) -> None:
+    record_path = tmp_path / "demo.spec.md"
+    record_path.write_text(
+        RecordBuilder().spec(
+            title="Setter Byte",
+            id6="sb1001",
+            status="approved",
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
+    file_text = record_path.read_text(encoding="utf-8")
+    assert "- Status: approved" in file_text

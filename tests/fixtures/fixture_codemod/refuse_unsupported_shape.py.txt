@@ -1,0 +1,15 @@
+"""Fixture: refusal reason unsupported-shape (hand)."""
+
+from agent_workflows import artifact_meta
+
+
+def test_unsupported_shape_unknown_field() -> None:
+    text = (
+        "# IPD: Unknown Field Plan\n\n"
+        "- Id: us1001\n"
+        "- Status: approved\n"
+        "- Custom-Unknown-Field: mystery\n"
+    )
+    st = artifact_meta.read_text(text, record_type="ipd")
+    assert st.id6 == "us1001"
+    assert st.status == "approved"

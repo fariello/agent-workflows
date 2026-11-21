@@ -1,0 +1,15 @@
+"""Fixture: refusal reason displayed-output assertion (legacy-kept)."""
+
+from tests.record_builder import RecordBuilder
+
+
+def test_displayed_output_assertion(capsys) -> None:
+    rendered = RecordBuilder().spec(
+        title="Displayed Output",
+        id6="do1001",
+        status="approved",
+        text_only=True,
+    )
+    print(rendered)
+    stdout = capsys.readouterr().out
+    assert "- Status: approved" in stdout

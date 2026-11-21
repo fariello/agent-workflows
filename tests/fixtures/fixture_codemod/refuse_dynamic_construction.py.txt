@@ -1,0 +1,18 @@
+"""Fixture: refusal reason dynamic-construction (hand)."""
+
+from agent_workflows import artifact_meta
+
+
+def _build_plan_text(extra_line: str) -> str:
+    return (
+        "# IPD: Dynamic Construction Plan\n\n"
+        "- Id: dy1001\n"
+        "- Status: approved\n" + extra_line
+    )
+
+
+def test_dynamic_construction_plan() -> None:
+    text = _build_plan_text("")
+    st = artifact_meta.read_text(text, record_type="ipd")
+    assert st.id6 == "dy1001"
+    assert st.status == "approved"
