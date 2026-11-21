@@ -21,6 +21,7 @@ from agent_workflows import cli
 from agent_workflows import ipd_authoring as auth
 from agent_workflows import ipd_lint as lint
 from agent_workflows import ipd_schema as schema
+from tests.record_builder import RecordBuilder
 
 
 def _build_test_plan(
@@ -557,8 +558,13 @@ class ScaffoldRequiresDecidedValuesTests(unittest.TestCase):
         rel = root / ".aw" / "records" / "releases"
         rel.mkdir(parents=True)
         (rel / "20260924-rel001-01-rel001-next.release.md").write_text(
-            "# Release next\n\n- Id: rel001\n- Status: planned\n- Version: next\n"
-            "- Summary: next release\n",
+            RecordBuilder().release(
+                id6="rel001",
+                status="planned",
+                version="next",
+                summary="next release",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         item_id = self._file_item(
