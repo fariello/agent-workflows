@@ -697,7 +697,9 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 stripped,
             )
             self.assertTrue(
-                stripped.endswith("TODO: Run `/aw setup-repo` to set up this repo.\n")
+                stripped.endswith(
+                    'TODO: Run `/aw setup-repo` (or ask your agent to "run setup-repo") to set up this repo.\n'
+                )
             )
 
 

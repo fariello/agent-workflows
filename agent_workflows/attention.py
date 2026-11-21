@@ -5415,7 +5415,9 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
         needs_setup = setup_needed(repo_root)
         if needs_setup:
             # The --all hint lives on the count line now; do not repeat it here.
-            footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
+            footer_lines.append(
+                'TODO: Run `/aw setup-repo` (or ask your agent to "run setup-repo") to set up this repo.'
+            )
 
         if footer_lines:
             board = board.rstrip("\n") + "\n" + "\n".join(footer_lines) + "\n"

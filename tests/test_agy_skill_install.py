@@ -111,6 +111,47 @@ class AgySkillInstallTests(unittest.TestCase):
             host_adapters.guard_skill_package_collision(packages)
         self.assertIn("aw", str(ctx.exception))
 
+    def test_install_emits_skill_for_every_manifest_workflow(self) -> None:
+        """Install emits .agents/skills/<cmd>/SKILL.md for every workflow (including setup-repo)."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td))
+            engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
+
+            workflows = engine.parse_manifest(SOURCE_WORKFLOWS)
+            expected_core = {
+                "setup-repo",
+                "verify",
+                "plan-review",
+                "spec",
+                "release-review",
+                "scaffold",
+                "aw",
+            }
+            for cmd in expected_core:
+                skill_md = repo / ".agents" / "skills" / cmd / "SKILL.md"
+                self.assertTrue(
+                    skill_md.is_file(), f"Expected skill package missing: {skill_md}"
+                )
+
+            bundle = host_adapters.generate_adapter_bundle(
+                workflows, SOURCE_WORKFLOWS, HostCapabilityRegistry()
+            )
+            host_adapters.guard_skill_package_collision(bundle.skill_packages)
+            emitted_names = {pkg.name for pkg in bundle.skill_packages}
+            for w in workflows:
+                self.assertIn(w.command, emitted_names)
+                skill_md = repo / ".agents" / "skills" / w.command / "SKILL.md"
+                self.assertTrue(
+                    skill_md.is_file(), f"Missing installed skill for {w.command}"
+                )
+            for pkg in bundle.skill_packages:
+                self.assertEqual(
+                    host_adapters.validate_skill_package(pkg),
+                    [],
+                    f"Skill package {pkg.name} failed validation",
+                )
+                self.assertTrue(pkg.within_budget(), f"{pkg.name} exceeded budget")
+
     def test_antigravity_host_mapping(self) -> None:
         """Unit test: verify E-04 antigravity mapping to router and v1 hosts."""
         registry = HostCapabilityRegistry()

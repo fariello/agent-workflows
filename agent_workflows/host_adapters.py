@@ -593,11 +593,15 @@ def validate_skill_package(package: SkillPackage) -> List[str]:
     if "Do not use" not in package.trigger_description:
         findings.append("trigger description lacks negative 'Do not use' clause")
 
-    # Every referenced resource path must resolve to a real package file.
+    # Every referenced relative package resource path must resolve to a real package file.
     declared = {r.relative_path for r in package.resources}
     for rel in re.findall(r"`([^`]+)`", text):
-        # Skip the digest backtick and any non-path token.
-        if "/" in rel and not rel.startswith(("http", "@")):
+        # Skip URLs, @-mentions, slash commands, prose commands with spaces, and canonical repo paths.
+        if (
+            "/" in rel
+            and " " not in rel
+            and not rel.startswith(("http", "@", "/", ".aw/", ".agents/"))
+        ):
             if rel not in declared and rel != package.semantic_digest:
                 findings.append(f"router references resource '{rel}' not in package")
 
@@ -804,11 +808,13 @@ def generate_adapter_bundle(
     # REUSE engine.py's shim generator - do not fork.
     shims = generate_shim_members(workflows, source_root, target_layout=target_layout)
 
+    # Emit a skill package for EVERY manifest workflow (not just those classified as complex by
+    # `classify_discovery_policy`) so skill-based hosts like Antigravity (`agy`), which do not
+    # load `.claude/commands/` or `.opencode/commands/` shims, can discover `setup-repo`,
+    # `verify`, `plan-review`, `spec`, `release-review`, and every other workflow natively.
     skill_packages = [
         build_skill_package(w, skill_dir=skill_dir, target_layout=target_layout)
         for w in workflows
-        if classify_discovery_policy(w, target_layout=target_layout)
-        == POLICY_SKILL_ENTRY_POINT
     ]
     skill_packages.append(
         build_aw_router_skill_package(
