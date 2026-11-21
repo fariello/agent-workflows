@@ -100,6 +100,7 @@ Measured 2026-11-08 at `ac76110f4`; carried from `653ndz`.
 
 - The other test cases and the 10 s bound.
   - Carrier: j2xjtt
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-173-j2xjtt-test-the-fixture-codemod-rewrite-invalid-input-dry-run-idemp.ipd.md
 
 ## Scope check
 

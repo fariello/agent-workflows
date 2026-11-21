@@ -102,6 +102,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-172-y3uowx-build-the-fixture-codemod-detector-rewriter-and-equivalence.ipd.md
 - Moved to j2xjtt (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 test cases (a), (b), (c), (e), (f), (g), (h) and the 10 s bound.
   - Carrier: j2xjtt
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-173-j2xjtt-test-the-fixture-codemod-rewrite-invalid-input-dry-run-idemp.ipd.md
 - Moved to n0li9v (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 test case (d), one fixture per refusal reason code.
   - Carrier: n0li9v
 - Converting the batch modules on `main`: the batch plans run this tool.
