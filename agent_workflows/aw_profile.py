@@ -24,6 +24,7 @@ import hashlib
 import hmac
 import io
 import json
+import locale
 import math
 import os
 import platform
@@ -31,6 +32,7 @@ import re
 import secrets
 import shutil
 import socket
+import statistics
 import subprocess
 import sys
 import tarfile
@@ -495,6 +497,7 @@ def scan_runs_dirs(
     *,
     max_depth: int = 7,
     on_step: Callable[[int, int], None] | None = None,
+    on_detail: Callable[[int, int, int, int], None] | None = None,
 ) -> list[Path]:
     """Recursively discover verified `aw` run directories under ``root``.
 
@@ -513,23 +516,32 @@ def scan_runs_dirs(
     if _is_run_dir(root_real):
         if on_step is not None:
             on_step(1, 1)
+        if on_detail is not None:
+            on_detail(1, 0, 1, 1)
         return [root_real]
 
     found: list[Path] = []
     seen: set[Path] = set()
+    runs_roots: set[Path] = set()
     root_depth = len(root_real.parts)
     dirs_walked = 0
+    files_scanned = 0
 
-    for dirpath, dirnames, _filenames in os.walk(root_real, followlinks=False):
+    for dirpath, dirnames, filenames in os.walk(root_real, followlinks=False):
         dirs_walked += 1
+        files_scanned += len(filenames)
         cur = Path(dirpath)
         depth = len(cur.parts) - root_depth
         if depth >= max_depth:
             dirnames[:] = []
-            if on_step is not None and dirs_walked % 25 == 0:
-                on_step(dirs_walked, len(found))
+            if dirs_walked % 25 == 0:
+                if on_step is not None:
+                    on_step(dirs_walked, len(found))
+                if on_detail is not None:
+                    on_detail(dirs_walked, files_scanned, len(runs_roots), len(found))
             continue
         kept: list[str] = []
+        found_here = False
         for name in sorted(dirnames):
             if name in _PRUNE_SCAN_DIRS:
                 continue
@@ -539,14 +551,21 @@ def scan_runs_dirs(
                 if canon not in seen:
                     seen.add(canon)
                     found.append(child)
+                    runs_roots.add(canon.parent)
+                    found_here = True
                 # Never descend inside a run directory.
                 continue
             kept.append(name)
         dirnames[:] = kept
-        if on_step is not None and (dirs_walked % 25 == 0 or len(found) > 0):
-            on_step(dirs_walked, len(found))
+        if dirs_walked % 25 == 0 or found_here:
+            if on_step is not None:
+                on_step(dirs_walked, len(found))
+            if on_detail is not None:
+                on_detail(dirs_walked, files_scanned, len(runs_roots), len(found))
     if on_step is not None:
         on_step(dirs_walked, len(found))
+    if on_detail is not None:
+        on_detail(dirs_walked, files_scanned, len(runs_roots), len(found))
     return found
 
 
@@ -2143,6 +2162,274 @@ def _entry_key_for(
     return f"{run_id}@{suffix}"
 
 
+_OK_ITEM_STATUSES: frozenset[str] = frozenset(
+    {
+        "executed",
+        "reviewed",
+        "auto-approved",
+        "done",
+        "completed",
+        "succeeded",
+        "passed",
+        "ok",
+        "retired",
+    }
+)
+_FAIL_ITEM_STATUSES: frozenset[str] = frozenset(
+    {
+        "failed",
+        "error",
+        "errored",
+        "refused",
+        "aborted",
+        "runaway",
+        "timed-out",
+        "timeout",
+        "stalled",
+    }
+)
+
+
+def _summarize_trace_for_index(trace: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract compact, strictly de-identified numeric/enum summary fields for `index.json`."""
+    run_rec = trace.get("run") if isinstance(trace.get("run"), Mapping) else {}
+    items = trace.get("items") if isinstance(trace.get("items"), list) else []
+    attempts = trace.get("attempts") if isinstance(trace.get("attempts"), list) else []
+    steps = trace.get("steps") if isinstance(trace.get("steps"), list) else []
+    tool_calls = (
+        trace.get("tool_calls") if isinstance(trace.get("tool_calls"), list) else []
+    )
+    driver_events = (
+        trace.get("driver_events")
+        if isinstance(trace.get("driver_events"), list)
+        else []
+    )
+
+    items_ok = 0
+    items_failed = 0
+    for it in items:
+        if not isinstance(it, Mapping):
+            continue
+        st = str(it.get("status") or "").strip().lower()
+        if st in _OK_ITEM_STATUSES:
+            items_ok += 1
+        elif st in _FAIL_ITEM_STATUSES:
+            items_failed += 1
+
+    is_terminal = bool(run_rec.get("is_terminal", False))
+    exit_cls = str(run_rec.get("exit_reason_class") or "").strip().lower()
+    if exit_cls in ("error", "runaway"):
+        run_outcome = "failed"
+    elif items_failed > 0 and items_ok == 0:
+        run_outcome = "failed"
+    elif items_failed > 0 and items_ok > 0:
+        run_outcome = "partial"
+    elif is_terminal and (items_ok > 0 or exit_cls == "completed"):
+        run_outcome = "succeeded"
+    elif not is_terminal:
+        run_outcome = "incomplete"
+    else:
+        run_outcome = "succeeded" if items_ok > 0 else "incomplete"
+
+    tokens_sum = 0
+    has_tokens = False
+    cost_sum = 0.0
+    has_cost = False
+    for att in attempts:
+        if not isinstance(att, Mapping):
+            continue
+        tok = att.get("tokens_total")
+        if isinstance(tok, int) and not isinstance(tok, bool) and tok >= 0:
+            tokens_sum += tok
+            has_tokens = True
+        cost = _finite_nonneg(att.get("cost_usd"))
+        if cost is not None:
+            cost_sum += cost
+            has_cost = True
+
+    host = str(run_rec.get("host") or "unknown").strip().lower() or "unknown"
+    wall_s = _finite_nonneg(run_rec.get("wall_seconds"))
+
+    return {
+        "host": host,
+        "wall_seconds": round(wall_s, 3) if wall_s is not None else None,
+        "exit_reason_class": exit_cls or None,
+        "run_outcome": run_outcome,
+        "items_count": len(items),
+        "items_succeeded": items_ok,
+        "items_failed": items_failed,
+        "attempts_count": len(attempts),
+        "steps_count": len(steps),
+        "tool_calls_count": len(tool_calls),
+        "driver_events_count": len(driver_events),
+        "tokens_total": tokens_sum if has_tokens else None,
+        "cost_usd": round(cost_sum, 6) if has_cost else None,
+    }
+
+
+def _ensure_entry_summary(cache_dir: Path, entry: dict[str, Any]) -> bool:
+    """Backfill summary metadata on legacy `index.json` entries from their cached trace once."""
+    if "items_count" in entry and "run_outcome" in entry and "host" in entry:
+        return False
+    fname = str(entry.get("file") or "")
+    if not fname:
+        return False
+    fpath = cache_dir / "runs" / fname
+    if not fpath.is_file():
+        return False
+    try:
+        raw = zstd_decompress(fpath.read_bytes())
+        doc = json.loads(raw.decode("utf-8"))
+        if isinstance(doc, Mapping):
+            entry.update(_summarize_trace_for_index(doc))
+            return True
+    except (OSError, ValueError, ZstdUnavailableError):
+        return False
+    return False
+
+
+def _entry_timestamp_str(entry: Mapping[str, Any]) -> str | None:
+    created = entry.get("created_at")
+    if isinstance(created, str) and created.strip():
+        return created.strip()
+    rid = str(entry.get("run_id") or "")
+    m = _STAMP_RE.search(rid)
+    if m:
+        d, t = m.group(1), m.group(2)
+        return f"{d[:4]}-{d[4:6]}-{d[6:8]}T{t[:2]}:{t[2:4]}:{t[4:6]}Z"
+    return None
+
+
+def _accumulate_entry_counters(stats: dict[str, Any], entry: Mapping[str, Any]) -> None:
+    hosts = stats["hosts"]
+    host = str(entry.get("host") or "unknown").strip().lower()
+    if host == "agy":
+        hosts["agy"] += 1
+    elif host == "oc":
+        hosts["oc"] += 1
+    else:
+        hosts["other"] += 1
+    stats["items_processed"] += int(entry.get("items_count") or 0)
+    stats["attempts_processed"] += int(entry.get("attempts_count") or 0)
+    stats["steps_processed"] += int(entry.get("steps_count") or 0)
+    stats["tool_calls_processed"] += int(entry.get("tool_calls_count") or 0)
+
+
+def _compute_corpus_metrics(entries: Mapping[str, Any]) -> dict[str, Any]:
+    """Compute aggregate run/item/timing/date-range/size metrics across index entries."""
+    hosts = {"agy": 0, "oc": 0, "other": 0}
+    runs_succeeded = 0
+    runs_partial = 0
+    runs_failed = 0
+    runs_incomplete = 0
+    items_total = 0
+    items_succeeded = 0
+    items_failed = 0
+    attempts_total = 0
+    steps_total = 0
+    tool_calls_total = 0
+    driver_events_total = 0
+    compressed_bytes = 0
+    raw_bytes = 0
+    tokens_total = 0
+    cost_usd_total = 0.0
+    wall_values: list[float] = []
+    oldest: tuple[float, str, str] | None = None
+    newest: tuple[float, str, str] | None = None
+
+    for meta in entries.values():
+        if not isinstance(meta, Mapping):
+            continue
+        host = str(meta.get("host") or "unknown").strip().lower()
+        if host == "agy":
+            hosts["agy"] += 1
+        elif host == "oc":
+            hosts["oc"] += 1
+        else:
+            hosts["other"] += 1
+
+        outcome = str(meta.get("run_outcome") or "").strip().lower()
+        if outcome == "succeeded":
+            runs_succeeded += 1
+        elif outcome == "partial":
+            runs_partial += 1
+        elif outcome == "failed":
+            runs_failed += 1
+        elif outcome == "incomplete":
+            runs_incomplete += 1
+        elif bool(meta.get("is_terminal")):
+            runs_succeeded += 1
+        else:
+            runs_incomplete += 1
+
+        items_total += int(meta.get("items_count") or 0)
+        items_succeeded += int(meta.get("items_succeeded") or 0)
+        items_failed += int(meta.get("items_failed") or 0)
+        attempts_total += int(meta.get("attempts_count") or 0)
+        steps_total += int(meta.get("steps_count") or 0)
+        tool_calls_total += int(meta.get("tool_calls_count") or 0)
+        driver_events_total += int(meta.get("driver_events_count") or 0)
+        compressed_bytes += int(meta.get("compressed_bytes") or 0)
+        raw_bytes += int(meta.get("raw_bytes") or 0)
+        tok = meta.get("tokens_total")
+        if isinstance(tok, int) and not isinstance(tok, bool) and tok > 0:
+            tokens_total += tok
+        cost = _finite_nonneg(meta.get("cost_usd"))
+        if cost is not None:
+            cost_usd_total += cost
+        wall = _finite_nonneg(meta.get("wall_seconds"))
+        if wall is not None:
+            wall_values.append(wall)
+
+        ts_str = _entry_timestamp_str(meta)
+        if ts_str:
+            ep = _parse_iso_epoch(ts_str)
+            if ep is not None:
+                rid = str(meta.get("run_id") or "")
+                cand = (ep, ts_str, rid)
+                if oldest is None or cand[0] < oldest[0]:
+                    oldest = cand
+                if newest is None or cand[0] > newest[0]:
+                    newest = cand
+
+    wall_count = len(wall_values)
+    wall_total = round(sum(wall_values), 3) if wall_count else 0.0
+    wall_avg = round(wall_total / wall_count, 3) if wall_count else None
+    wall_median = (
+        round(float(statistics.median(wall_values)), 3) if wall_count else None
+    )
+    wall_min = round(min(wall_values), 3) if wall_count else None
+    wall_max = round(max(wall_values), 3) if wall_count else None
+
+    return {
+        "traces": len(entries),
+        "compressed_bytes": compressed_bytes,
+        "raw_bytes": raw_bytes,
+        "hosts": hosts,
+        "runs_succeeded": runs_succeeded,
+        "runs_partial": runs_partial,
+        "runs_failed": runs_failed,
+        "runs_incomplete": runs_incomplete,
+        "items_total": items_total,
+        "items_succeeded": items_succeeded,
+        "items_failed": items_failed,
+        "attempts_total": attempts_total,
+        "steps_total": steps_total,
+        "tool_calls_total": tool_calls_total,
+        "driver_events_total": driver_events_total,
+        "tokens_total": tokens_total,
+        "cost_usd_total": round(cost_usd_total, 4),
+        "wall_seconds_count": wall_count,
+        "wall_seconds_total": wall_total,
+        "wall_seconds_avg": wall_avg,
+        "wall_seconds_median": wall_median,
+        "wall_seconds_min": wall_min,
+        "wall_seconds_max": wall_max,
+        "oldest_run": {"run_id": oldest[2], "at": oldest[1]} if oldest else None,
+        "newest_run": {"run_id": newest[2], "at": newest[1]} if newest else None,
+    }
+
+
 def _write_cached_trace(
     cache_dir: Path,
     index: dict[str, Any],
@@ -2159,7 +2446,7 @@ def _write_cached_trace(
     raw_json = json.dumps(trace, separators=(",", ":"), sort_keys=True).encode("utf-8")
     compressed = zstd_compress(raw_json, level=level)
     _atomic_write_bytes(target, compressed)
-    entries[key] = {
+    entry: dict[str, Any] = {
         "run_id": run_id,
         "source_id": source_id,
         "file": fname,
@@ -2172,7 +2459,32 @@ def _write_cached_trace(
         "raw_bytes": len(raw_json),
         "source_batch": trace.get("source_batch"),
     }
+    entry.update(_summarize_trace_for_index(trace))
+    entries[key] = entry
     return key, target, len(compressed)
+
+
+def _count_direct_entries(p: Path) -> tuple[int, int]:
+    """Count top-level dirs and files inspected for a non-recursive `--runs-dir` target."""
+    dirs_seen = 1
+    files_seen = 0
+    candidates = [p]
+    for sub in (
+        p / ".aw" / "records" / "runs",
+        p / ".aw" / "runs",
+        p / ".agents" / "runs",
+    ):
+        if sub.is_dir():
+            candidates.append(sub)
+            dirs_seen += 1
+    for cand in candidates:
+        try:
+            for child in cand.iterdir():
+                if child.is_file():
+                    files_seen += 1
+        except OSError:
+            continue
+    return dirs_seen, files_seen
 
 
 # --------------------------------------------------------------------------------------
@@ -2190,6 +2502,7 @@ def collect_runs(
     scan_max_depth: int = 7,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
     on_scan: Callable[[str, str, int, int], None] | None = None,
+    on_scan_detail: Callable[[str, str, Mapping[str, int]], None] | None = None,
     on_discovered: Callable[[int], None] | None = None,
     on_progress: Callable[[int, int, str, Mapping[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
@@ -2202,6 +2515,9 @@ def collect_runs(
 
     discovered: list[Path] = []
     seen_paths: set[Path] = set()
+    runs_roots_all: set[Path] = set()
+    total_dirs_scanned = 0
+    total_files_scanned = 0
 
     for rdir in runs_dirs:
         p = Path(rdir).expanduser()
@@ -2209,15 +2525,38 @@ def collect_runs(
             raise ValueError(f"--runs-dir is not an existing directory: {rdir}")
         if on_scan is not None:
             on_scan("runs-dir", str(rdir), 0, len(discovered))
+        if on_scan_detail is not None:
+            on_scan_detail(
+                "runs-dir",
+                str(rdir),
+                {"dirs": 0, "files": 0, "runs_dirs": 0, "runs": len(discovered)},
+            )
+        d_cnt, f_cnt = _count_direct_entries(p)
+        total_dirs_scanned += d_cnt
+        total_files_scanned += f_cnt
         added_here = 0
+        local_roots: set[Path] = set()
         for run_p in discover_runs_from_runs_dir(p):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
                 discovered.append(run_p)
+                local_roots.add(canon.parent)
+                runs_roots_all.add(canon.parent)
                 added_here += 1
         if on_scan is not None:
-            on_scan("runs-dir-done", str(rdir), 1, added_here)
+            on_scan("runs-dir-done", str(rdir), d_cnt, added_here)
+        if on_scan_detail is not None:
+            on_scan_detail(
+                "runs-dir-done",
+                str(rdir),
+                {
+                    "dirs": d_cnt,
+                    "files": f_cnt,
+                    "runs_dirs": len(local_roots),
+                    "runs": added_here,
+                },
+            )
 
     for sdir in scan_dirs:
         p = Path(sdir).expanduser()
@@ -2225,35 +2564,95 @@ def collect_runs(
             raise ValueError(f"--scan path is not an existing directory: {sdir}")
         if on_scan is not None:
             on_scan("scan", str(sdir), 0, 0)
+        if on_scan_detail is not None:
+            on_scan_detail(
+                "scan",
+                str(sdir),
+                {"dirs": 0, "files": 0, "runs_dirs": 0, "runs": 0},
+            )
 
-        def _scan_cb(
-            dirs_walked: int, found_so_far: int, _label: str = str(sdir)
+        last_scan = {"dirs": 0, "files": 0, "runs_dirs": 0, "runs": 0}
+
+        def _scan_detail_cb(
+            dirs_walked: int,
+            files_seen: int,
+            roots_cnt: int,
+            found_so_far: int,
+            _label: str = str(sdir),
+            _last: dict[str, int] = last_scan,
         ) -> None:
+            _last["dirs"] = dirs_walked
+            _last["files"] = files_seen
+            _last["runs_dirs"] = roots_cnt
+            _last["runs"] = found_so_far
             if on_scan is not None:
                 on_scan("scan", _label, dirs_walked, found_so_far)
+            if on_scan_detail is not None:
+                on_scan_detail("scan", _label, _last)
 
         added_here = 0
-        for run_p in scan_runs_dirs(p, max_depth=scan_max_depth, on_step=_scan_cb):
+        local_roots = set()
+        for run_p in scan_runs_dirs(
+            p, max_depth=scan_max_depth, on_detail=_scan_detail_cb
+        ):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
                 discovered.append(run_p)
+                local_roots.add(canon.parent)
+                runs_roots_all.add(canon.parent)
                 added_here += 1
+        total_dirs_scanned += last_scan["dirs"]
+        total_files_scanned += last_scan["files"]
         if on_scan is not None:
-            on_scan("scan-done", str(sdir), 0, added_here)
+            on_scan("scan-done", str(sdir), last_scan["dirs"], added_here)
+        if on_scan_detail is not None:
+            on_scan_detail(
+                "scan-done",
+                str(sdir),
+                {
+                    "dirs": last_scan["dirs"],
+                    "files": last_scan["files"],
+                    "runs_dirs": len(local_roots),
+                    "runs": added_here,
+                },
+            )
 
     if not runs_dirs and not scan_dirs:
         if on_scan is not None:
             on_scan("runs-dir", ".", 0, 0)
+        if on_scan_detail is not None:
+            on_scan_detail(
+                "runs-dir",
+                ".",
+                {"dirs": 0, "files": 0, "runs_dirs": 0, "runs": 0},
+            )
+        d_cnt, f_cnt = _count_direct_entries(Path.cwd())
+        total_dirs_scanned += d_cnt
+        total_files_scanned += f_cnt
         added_here = 0
+        local_roots = set()
         for run_p in discover_runs_from_runs_dir(Path.cwd()):
             canon = run_p.resolve()
             if canon not in seen_paths:
                 seen_paths.add(canon)
                 discovered.append(run_p)
+                local_roots.add(canon.parent)
+                runs_roots_all.add(canon.parent)
                 added_here += 1
         if on_scan is not None:
-            on_scan("runs-dir-done", ".", 1, added_here)
+            on_scan("runs-dir-done", ".", d_cnt, added_here)
+        if on_scan_detail is not None:
+            on_scan_detail(
+                "runs-dir-done",
+                ".",
+                {
+                    "dirs": d_cnt,
+                    "files": f_cnt,
+                    "runs_dirs": len(local_roots),
+                    "runs": added_here,
+                },
+            )
 
     if on_discovered is not None:
         on_discovered(len(discovered))
@@ -2262,12 +2661,20 @@ def collect_runs(
     error_details: list[dict[str, Any]] = []
     stats: dict[str, Any] = {
         "discovered": len(discovered),
+        "dirs_scanned": total_dirs_scanned,
+        "files_scanned": total_files_scanned,
+        "runs_roots_found": len(runs_roots_all),
         "extracted": 0,
         "updated": 0,
         "cached_hits": 0,
         "skipped_active": 0,
         "errors": 0,
         "compressed_bytes_written": 0,
+        "hosts": {"agy": 0, "oc": 0, "other": 0},
+        "items_processed": 0,
+        "attempts_processed": 0,
+        "steps_processed": 0,
+        "tool_calls_processed": 0,
         "error_details": error_details,
     }
 
@@ -2289,11 +2696,13 @@ def collect_runs(
         prev = entries.get(key)
         if (
             not rebuild
-            and isinstance(prev, Mapping)
+            and isinstance(prev, dict)
             and prev.get("watermark") == wm
             and (cdir / "runs" / str(prev.get("file", ""))).is_file()
         ):
+            _ensure_entry_summary(cdir, prev)
             stats["cached_hits"] += 1
+            _accumulate_entry_counters(stats, prev)
             if on_progress is not None:
                 on_progress(idx, total_runs, run_id, stats)
             continue
@@ -2310,7 +2719,7 @@ def collect_runs(
                     on_progress(idx, total_runs, run_id, stats)
                 continue
             was_existing = key in entries
-            _k, _path, cbytes = _write_cached_trace(
+            written_key, _path, cbytes = _write_cached_trace(
                 cdir, index, trace, level=zstd_level
             )
             stats["compressed_bytes_written"] += cbytes
@@ -2318,6 +2727,7 @@ def collect_runs(
                 stats["updated"] += 1
             else:
                 stats["extracted"] += 1
+            _accumulate_entry_counters(stats, entries[written_key])
         except Exception as exc:
             stats["errors"] += 1
             stats["error_details"].append(
@@ -2326,8 +2736,19 @@ def collect_runs(
         if on_progress is not None:
             on_progress(idx, total_runs, run_id, stats)
 
+    # Backfill any older cache entries not touched during this collect so corpus metrics are complete.
+    for meta in entries.values():
+        if isinstance(meta, dict):
+            _ensure_entry_summary(cdir, meta)
+
     _save_index(cdir, index)
+    metrics = _compute_corpus_metrics(entries)
     stats["total_cached"] = len(entries)
+    stats["total_cache_bytes"] = metrics["compressed_bytes"]
+    stats["cache_dir"] = str(cdir)
+    stats["runs_cache_dir"] = str(cdir / "runs")
+    stats["index_path"] = str(cdir / "index.json")
+    stats["metrics"] = metrics
     return stats
 
 
@@ -2544,6 +2965,11 @@ def ingest_bundles(
         "skipped_same_or_older": 0,
         "rejected": 0,
         "dry_run": dry_run,
+        "hosts": {"agy": 0, "oc": 0, "other": 0},
+        "items_processed": 0,
+        "attempts_processed": 0,
+        "steps_processed": 0,
+        "tool_calls_processed": 0,
         "rejections": [],
     }
 
@@ -2578,6 +3004,7 @@ def ingest_bundles(
                     on_progress(idx, total_p, member_name, stats)
                 continue
 
+            doc_summary = _summarize_trace_for_index(doc)
             run_id = str(doc["run"]["run_id"])
             source_id = str(doc["run"].get("source_id") or "")
             key = _entry_key_for(run_id, source_id, entries)
@@ -2593,6 +3020,7 @@ def ingest_bundles(
                     inc_latest == prev_latest and inc_ev <= prev_ev
                 ):
                     stats["skipped_same_or_older"] += 1
+                    _accumulate_entry_counters(stats, doc_summary)
                     if on_progress is not None:
                         on_progress(idx, total_p, run_id, stats)
                     continue
@@ -2603,18 +3031,82 @@ def ingest_bundles(
                 if not dry_run:
                     _write_cached_trace(cdir, index, doc, level=zstd_level)
                 stats["added"] += 1
+            _accumulate_entry_counters(stats, doc_summary)
             if on_progress is not None:
                 on_progress(idx, total_p, run_id, stats)
 
     if not dry_run:
+        for meta in entries.values():
+            if isinstance(meta, dict):
+                _ensure_entry_summary(cdir, meta)
         _save_index(cdir, index)
+    metrics = _compute_corpus_metrics(entries)
     stats["total_cached"] = len(entries)
+    stats["total_cache_bytes"] = metrics["compressed_bytes"]
+    stats["cache_dir"] = str(cdir)
+    stats["runs_cache_dir"] = str(cdir / "runs")
+    stats["index_path"] = str(cdir / "index.json")
+    stats["metrics"] = metrics
     return stats
 
 
 # --------------------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------------------
+
+
+def _init_numeric_locale() -> None:
+    try:
+        locale.setlocale(locale.LC_NUMERIC, "")
+    except locale.Error:
+        pass
+
+
+def _fmt_int(value: int) -> str:
+    """Format an integer with locale thousands grouping, falling back to ','."""
+    n = int(value)
+    try:
+        conv = locale.localeconv()
+        sep = conv.get("thousands_sep")
+        if isinstance(sep, str) and sep:
+            return locale.format_string("%d", n, grouping=True)
+    except (locale.Error, ValueError):
+        pass
+    return f"{n:,}"
+
+
+def _fmt_float(value: float, decimals: int = 1) -> str:
+    """Format a float with locale numeric grouping, falling back to ',.'."""
+    v = float(value)
+    try:
+        conv = locale.localeconv()
+        sep = conv.get("thousands_sep")
+        if isinstance(sep, str) and sep:
+            return locale.format_string(f"%.{decimals}f", v, grouping=True)
+    except (locale.Error, ValueError):
+        pass
+    return f"{v:,.{decimals}f}"
+
+
+def _display_path(path: Path | str) -> str:
+    """Display a path with `~/` contraction when under the user's home directory."""
+    p = Path(path).expanduser()
+    try:
+        resolved = p.resolve()
+        home = Path.home().resolve()
+        rel = resolved.relative_to(home)
+        return f"~/{rel}" if str(rel) != "." else "~"
+    except (OSError, ValueError):
+        return str(p)
+
+
+def _fmt_date_short(ts: str | None) -> str:
+    if not ts:
+        return "?"
+    s = ts.strip()
+    if len(s) >= 16 and s[10] in ("T", " "):
+        return f"{s[:10]} {s[11:16]}Z"
+    return s[:10]
 
 
 def _add_color_flags(subparser: argparse.ArgumentParser) -> None:
@@ -2637,18 +3129,31 @@ def _fmt_bytes(num_bytes: int) -> str:
     val = float(max(0, num_bytes))
     for unit in ("B", "KB", "MB", "GB"):
         if val < 1024.0 or unit == "GB":
-            return f"{val:.1f} {unit}" if unit != "B" else f"{int(val)} B"
+            return (
+                f"{_fmt_float(val, 1)} {unit}"
+                if unit != "B"
+                else f"{_fmt_int(int(val))} B"
+            )
         val /= 1024.0
-    return f"{val:.1f} GB"
+    return f"{_fmt_float(val, 1)} GB"
+
+
+def _fmt_duration(seconds: float) -> str:
+    secs = max(0.0, float(seconds))
+    if secs < 1.0:
+        return f"{_fmt_int(int(round(secs * 1000.0)))}ms"
+    if secs < 60.0:
+        return f"{_fmt_float(secs, 1)}s"
+    if secs < 3600.0:
+        mins, rem = divmod(int(round(secs)), 60)
+        return f"{mins}m {rem:02d}s"
+    hours, rem_s = divmod(int(round(secs)), 3600)
+    mins = rem_s // 60
+    return f"{_fmt_int(hours)}h {mins:02d}m"
 
 
 def _fmt_elapsed(seconds: float) -> str:
-    if seconds < 1.0:
-        return f"{seconds * 1000.0:.0f}ms"
-    if seconds < 60.0:
-        return f"{seconds:.1f}s"
-    mins, rem = divmod(int(round(seconds)), 60)
-    return f"{mins}m {rem:02d}s"
+    return _fmt_duration(seconds)
 
 
 class _ProfileProgress:
@@ -2665,7 +3170,7 @@ class _ProfileProgress:
         self._has_inline = False
         self._started = time.monotonic()
 
-    def _bar(self, idx: int, total: int, width: int = 16) -> str:
+    def _bar(self, idx: int, total: int, width: int = 12) -> str:
         if total <= 0:
             return ""
         frac = min(1.0, max(0.0, idx / total))
@@ -2678,6 +3183,13 @@ class _ProfileProgress:
         pct = f"{int(round(frac * 100)):3d}%"
         return f"[{inner}] {self.term.colorize(pct, 'bold')}"
 
+    def _terminal_cols(self) -> int:
+        try:
+            cols = shutil.get_terminal_size((120, 24)).columns
+        except OSError:
+            cols = 120
+        return max(32, cols - 1)
+
     def inline(self, text: str, *, force: bool = False) -> None:
         if not self.enabled or not self.is_tty:
             return
@@ -2686,7 +3198,35 @@ class _ProfileProgress:
             return
         self._last_draw = now
         label = self.term.severity_label("info")
-        self.stream.write(f"\r\033[2K{label} {text}")
+        rendered = _term_mod.truncate_visible(
+            f"{label} {text}", self._terminal_cols(), ellipsis=""
+        )
+        self.stream.write(f"\r\033[2K{rendered}")
+        self.stream.flush()
+        self._has_inline = True
+
+    def inline_parts(self, parts: Sequence[str], *, force: bool = False) -> None:
+        """Render as many complete segments as fit on one terminal line without mid-token clipping."""
+        if not self.enabled or not self.is_tty:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_draw) < 0.08:
+            return
+        self._last_draw = now
+        label = self.term.severity_label("info")
+        max_cols = self._terminal_cols()
+        line = label
+        for idx, part in enumerate(parts):
+            sep = " " if idx == 0 else "  "
+            candidate = f"{line}{sep}{part}"
+            if _term_mod.visible_width(candidate) <= max_cols:
+                line = candidate
+            elif idx == 0:
+                line = _term_mod.truncate_visible(candidate, max_cols, ellipsis="")
+                break
+            else:
+                break
+        self.stream.write(f"\r\033[2K{line}")
         self.stream.flush()
         self._has_inline = True
 
@@ -2703,31 +3243,66 @@ class _ProfileProgress:
         self.term.step_cue(message, stream=self.stream)
 
     def on_scan(self, phase: str, label: str, dirs_walked: int, count: int) -> None:
+        self.on_scan_detail(
+            phase,
+            label,
+            {"dirs": dirs_walked, "files": 0, "runs_dirs": 0, "runs": count},
+        )
+
+    def on_scan_detail(self, phase: str, label: str, counts: Mapping[str, int]) -> None:
         if not self.enabled:
             return
-        styled_label = self.term.colorize(label, "cyan")
+        styled_label = self.term.colorize(
+            _display_path(label) if label != "." else ".", "cyan"
+        )
+        dirs_n = int(counts.get("dirs", 0))
+        files_n = int(counts.get("files", 0))
+        roots_n = int(counts.get("runs_dirs", 0))
+        runs_n = int(counts.get("runs", 0))
+        runs_s = (
+            self.term.colorize(_fmt_int(runs_n), "green", "bold") if runs_n else "0"
+        )
         if phase == "scan":
-            if dirs_walked == 0:
+            if dirs_n == 0:
                 if self.is_tty:
                     self.inline(f"Scanning {styled_label}...", force=True)
                 else:
                     self.step(f"Scanning {styled_label}...")
             else:
-                runs_s = (
-                    self.term.colorize(str(count), "green", "bold") if count else "0"
+                parts = [
+                    f"Scanning {styled_label}",
+                    self.term.colorize(f"dirs {_fmt_int(dirs_n)}", "dim"),
+                    self.term.colorize(f"files {_fmt_int(files_n)}", "dim"),
+                ]
+                if roots_n:
+                    parts.append(
+                        self.term.colorize(f"runs-dirs {_fmt_int(roots_n)}", "cyan")
+                    )
+                parts.append(f"runs {runs_s}")
+                parts.append(
+                    self.term.colorize(
+                        _fmt_elapsed(time.monotonic() - self._started), "dim"
+                    )
                 )
-                self.inline(
-                    f"Scanning {styled_label}... {self.term.colorize(f'{dirs_walked} dirs', 'dim')} · {runs_s} run(s) found"
-                )
+                self.inline_parts(parts)
         elif phase == "scan-done":
-            runs_s = self.term.colorize(str(count), "green", "bold") if count else "0"
-            self.step(f"Scanned {styled_label}: {runs_s} run(s) discovered.")
+            where = (
+                f" in {self.term.colorize(_fmt_int(roots_n), 'cyan')} runs-dir(s)"
+                if roots_n
+                else ""
+            )
+            self.step(
+                f"Scanned {styled_label}: {runs_s} run(s){where} "
+                f"({self.term.colorize(f'{_fmt_int(dirs_n)} dirs, {_fmt_int(files_n)} files', 'dim')})."
+            )
         elif phase == "runs-dir":
             if self.is_tty:
                 self.inline(f"Checking {styled_label}...", force=True)
         elif phase == "runs-dir-done":
-            runs_s = self.term.colorize(str(count), "green", "bold") if count else "0"
-            self.step(f"Checked {styled_label}: {runs_s} run(s) discovered.")
+            self.step(
+                f"Checked {styled_label}: {runs_s} run(s) "
+                f"({self.term.colorize(f'{_fmt_int(dirs_n)} dirs, {_fmt_int(files_n)} files', 'dim')})."
+            )
 
     def on_discovered(self, total: int) -> None:
         if not self.enabled:
@@ -2735,7 +3310,9 @@ class _ProfileProgress:
         if total == 0:
             self.step("No verified aw run directories discovered.")
         else:
-            self.step(f"Processing {self.term.colorize(str(total), 'bold')} run(s)...")
+            self.step(
+                f"Processing {self.term.colorize(_fmt_int(total), 'bold')} run(s)..."
+            )
 
     def on_collect_progress(
         self, idx: int, total: int, run_id: str, stats: Mapping[str, Any]
@@ -2743,6 +3320,12 @@ class _ProfileProgress:
         if not self.enabled or total <= 0:
             return
         force = idx == total
+        hosts = stats.get("hosts") if isinstance(stats.get("hosts"), Mapping) else {}
+        agy_n = int(hosts.get("agy", 0))
+        oc_n = int(hosts.get("oc", 0))
+        items_n = int(stats.get("items_processed", 0))
+        steps_n = int(stats.get("steps_processed", 0))
+        tools_n = int(stats.get("tool_calls_processed", 0))
         if self.is_tty:
             bar = self._bar(idx, total)
             ext = int(stats.get("extracted", 0))
@@ -2751,17 +3334,29 @@ class _ProfileProgress:
             act = int(stats.get("skipped_active", 0))
             errs = int(stats.get("errors", 0))
             zbytes = int(stats.get("compressed_bytes_written", 0))
-            parts = [f"{bar} {idx}/{total}"]
+            parts = [f"{bar} {_fmt_int(idx)}/{_fmt_int(total)}"]
             if ext:
-                parts.append(self.term.colorize(f"+{ext} new", "green"))
+                parts.append(self.term.colorize(f"+{_fmt_int(ext)} new", "green"))
             if upd:
-                parts.append(self.term.colorize(f"~{upd} updated", "cyan"))
+                parts.append(self.term.colorize(f"~{_fmt_int(upd)} upd", "cyan"))
             if hits:
-                parts.append(self.term.colorize(f"{hits} cached", "dim"))
+                parts.append(self.term.colorize(f"{_fmt_int(hits)} cached", "dim"))
             if act:
-                parts.append(self.term.colorize(f"{act} active", "yellow"))
+                parts.append(self.term.colorize(f"{_fmt_int(act)} active", "yellow"))
             if errs:
-                parts.append(self.term.colorize(f"{errs} err", "red", "bold"))
+                parts.append(self.term.colorize(f"{_fmt_int(errs)} err", "red", "bold"))
+            if agy_n or oc_n:
+                parts.append(
+                    self.term.colorize(
+                        f"agy {_fmt_int(agy_n)}/oc {_fmt_int(oc_n)}", "cyan"
+                    )
+                )
+            if items_n:
+                parts.append(self.term.colorize(f"items {_fmt_int(items_n)}", "dim"))
+            if steps_n:
+                parts.append(self.term.colorize(f"steps {_fmt_int(steps_n)}", "dim"))
+            if tools_n:
+                parts.append(self.term.colorize(f"tools {_fmt_int(tools_n)}", "dim"))
             if zbytes:
                 parts.append(self.term.colorize(_fmt_bytes(zbytes), "cyan"))
             parts.append(
@@ -2769,16 +3364,19 @@ class _ProfileProgress:
                     _fmt_elapsed(time.monotonic() - self._started), "dim"
                 )
             )
-            parts.append(self.term.colorize(run_id[:32], "dim"))
-            self.inline("  ".join(parts), force=force)
+            self.inline_parts(parts, force=force)
             if force:
                 self.stream.write("\n")
                 self.stream.flush()
                 self._has_inline = False
         elif idx % 50 == 0 or force:
             self.step(
-                f"Collected {idx}/{total} (new={stats.get('extracted', 0)}, "
-                f"updated={stats.get('updated', 0)}, cached={stats.get('cached_hits', 0)})"
+                f"Collected {_fmt_int(idx)}/{_fmt_int(total)} "
+                f"(new={_fmt_int(int(stats.get('extracted', 0)))}, "
+                f"updated={_fmt_int(int(stats.get('updated', 0)))}, "
+                f"cached={_fmt_int(int(stats.get('cached_hits', 0)))}, "
+                f"agy={_fmt_int(agy_n)}, oc={_fmt_int(oc_n)}, "
+                f"items={_fmt_int(items_n)}, steps={_fmt_int(steps_n)}, tools={_fmt_int(tools_n)})"
             )
 
     def on_pack_progress(self, idx: int, total: int, run_id: str) -> None:
@@ -2788,7 +3386,8 @@ class _ProfileProgress:
         if self.is_tty:
             bar = self._bar(idx, total)
             self.inline(
-                f"Packing {bar} {idx}/{total}  {self.term.colorize(run_id[:32], 'dim')}",
+                f"Packing {bar} {_fmt_int(idx)}/{_fmt_int(total)}  "
+                f"{self.term.colorize(run_id[:32], 'dim')}",
                 force=force,
             )
             if force:
@@ -2796,14 +3395,14 @@ class _ProfileProgress:
                 self.stream.flush()
                 self._has_inline = False
         elif idx % 50 == 0 or force:
-            self.step(f"Packed {idx}/{total} trace(s)...")
+            self.step(f"Packed {_fmt_int(idx)}/{_fmt_int(total)} trace(s)...")
 
     def on_ingest_source(self, source_name: str, total: int) -> None:
         if not self.enabled:
             return
         self.step(
             f"Ingesting {self.term.colorize(source_name, 'cyan')} "
-            f"({self.term.colorize(str(total), 'bold')} trace(s))..."
+            f"({self.term.colorize(_fmt_int(total), 'bold')} trace(s))..."
         )
 
     def on_ingest_progress(
@@ -2812,30 +3411,58 @@ class _ProfileProgress:
         if not self.enabled or total <= 0:
             return
         force = idx == total
+        hosts = stats.get("hosts") if isinstance(stats.get("hosts"), Mapping) else {}
+        agy_n = int(hosts.get("agy", 0))
+        oc_n = int(hosts.get("oc", 0))
+        steps_n = int(stats.get("steps_processed", 0))
+        tools_n = int(stats.get("tool_calls_processed", 0))
         if self.is_tty:
             bar = self._bar(idx, total)
             parts = [
-                f"{bar} {idx}/{total}",
-                self.term.colorize(f"+{stats.get('added', 0)} added", "green"),
-                self.term.colorize(f"~{stats.get('upgraded', 0)} upgraded", "cyan"),
+                f"{bar} {_fmt_int(idx)}/{_fmt_int(total)}",
                 self.term.colorize(
-                    f"{stats.get('skipped_same_or_older', 0)} skipped", "dim"
+                    f"+{_fmt_int(int(stats.get('added', 0)))} added", "green"
+                ),
+                self.term.colorize(
+                    f"~{_fmt_int(int(stats.get('upgraded', 0)))} upd", "cyan"
+                ),
+                self.term.colorize(
+                    f"{_fmt_int(int(stats.get('skipped_same_or_older', 0)))} skipped",
+                    "dim",
                 ),
             ]
             if stats.get("rejected", 0):
                 parts.append(
-                    self.term.colorize(f"{stats['rejected']} rejected", "red", "bold")
+                    self.term.colorize(
+                        f"{_fmt_int(int(stats['rejected']))} rejected", "red", "bold"
+                    )
                 )
-            parts.append(self.term.colorize(label[:30], "dim"))
-            self.inline("  ".join(parts), force=force)
+            if agy_n or oc_n:
+                parts.append(
+                    self.term.colorize(
+                        f"agy {_fmt_int(agy_n)}/oc {_fmt_int(oc_n)}", "cyan"
+                    )
+                )
+            if steps_n:
+                parts.append(self.term.colorize(f"steps {_fmt_int(steps_n)}", "dim"))
+            if tools_n:
+                parts.append(self.term.colorize(f"tools {_fmt_int(tools_n)}", "dim"))
+            parts.append(
+                self.term.colorize(
+                    _fmt_elapsed(time.monotonic() - self._started), "dim"
+                )
+            )
+            self.inline_parts(parts, force=force)
             if force:
                 self.stream.write("\n")
                 self.stream.flush()
                 self._has_inline = False
         elif idx % 50 == 0 or force:
             self.step(
-                f"Ingested {idx}/{total} (added={stats.get('added', 0)}, "
-                f"upgraded={stats.get('upgraded', 0)}, rejected={stats.get('rejected', 0)})"
+                f"Ingested {_fmt_int(idx)}/{_fmt_int(total)} "
+                f"(added={_fmt_int(int(stats.get('added', 0)))}, "
+                f"upgraded={_fmt_int(int(stats.get('upgraded', 0)))}, "
+                f"rejected={_fmt_int(int(stats.get('rejected', 0)))})"
             )
 
 
@@ -3142,7 +3769,158 @@ def _resolve_color_choice(args: argparse.Namespace, stream: Any) -> bool:
     return _term_mod.should_color(stream)
 
 
+def _render_corpus_and_cache_summary(
+    out_term: _term_mod.Term,
+    res: Mapping[str, Any],
+    *,
+    fallback_cache_dir: str,
+    show_scan: bool = False,
+) -> None:
+    """Render preserved scan counts, corpus metrics, and explicit cache locations."""
+    if show_scan:
+        dirs_n = int(res.get("dirs_scanned", 0))
+        files_n = int(res.get("files_scanned", 0))
+        roots_n = int(res.get("runs_roots_found", 0))
+        scan_val = (
+            f"{out_term.colorize(_fmt_int(dirs_n), 'bold')} dirs, "
+            f"{out_term.colorize(_fmt_int(files_n), 'bold')} files"
+        )
+        if roots_n:
+            scan_val += (
+                f" across {out_term.colorize(_fmt_int(roots_n), 'cyan')} runs-dir(s)"
+            )
+        out_term.kv("scanned", scan_val)
+
+    metrics = res.get("metrics") if isinstance(res.get("metrics"), Mapping) else {}
+    total_traces = int(metrics.get("traces", res.get("total_cached", 0)))
+    if total_traces > 0:
+        hosts = (
+            metrics.get("hosts") if isinstance(metrics.get("hosts"), Mapping) else {}
+        )
+        host_bits: list[str] = []
+        for hkey in ("agy", "oc", "other"):
+            hv = int(hosts.get(hkey, 0))
+            if hv:
+                host_bits.append(f"{hkey} {out_term.colorize(_fmt_int(hv), 'cyan')}")
+        host_str = f" ({', '.join(host_bits)})" if host_bits else ""
+
+        outcome_bits: list[str] = []
+        r_ok = int(metrics.get("runs_succeeded", 0))
+        r_part = int(metrics.get("runs_partial", 0))
+        r_fail = int(metrics.get("runs_failed", 0))
+        r_inc = int(metrics.get("runs_incomplete", 0))
+        if r_ok:
+            outcome_bits.append(
+                f"{out_term.colorize(_fmt_int(r_ok), 'green', 'bold')} succeeded"
+            )
+        if r_part:
+            outcome_bits.append(
+                f"{out_term.colorize(_fmt_int(r_part), 'yellow', 'bold')} partial"
+            )
+        if r_fail:
+            outcome_bits.append(
+                f"{out_term.colorize(_fmt_int(r_fail), 'red', 'bold')} failed"
+            )
+        if r_inc:
+            outcome_bits.append(
+                f"{out_term.colorize(_fmt_int(r_inc), 'dim')} incomplete"
+            )
+        runs_val = (
+            f"{out_term.colorize(_fmt_int(total_traces), 'bold')} total{host_str}"
+        )
+        if outcome_bits:
+            runs_val += " | " + ", ".join(outcome_bits)
+        out_term.kv("runs", runs_val)
+
+        items_tot = int(metrics.get("items_total", 0))
+        items_ok = int(metrics.get("items_succeeded", 0))
+        items_fail = int(metrics.get("items_failed", 0))
+        att_tot = int(metrics.get("attempts_total", 0))
+        steps_tot = int(metrics.get("steps_total", 0))
+        tools_tot = int(metrics.get("tool_calls_total", 0))
+        if items_tot or att_tot or steps_tot or tools_tot:
+            item_bits: list[str] = []
+            if items_ok:
+                item_bits.append(f"{out_term.colorize(_fmt_int(items_ok), 'green')} ok")
+            if items_fail:
+                item_bits.append(
+                    f"{out_term.colorize(_fmt_int(items_fail), 'red')} failed"
+                )
+            item_detail = f" ({', '.join(item_bits)})" if item_bits else ""
+            out_term.kv(
+                "items",
+                f"{out_term.colorize(_fmt_int(items_tot), 'bold')} items{item_detail} | "
+                f"{out_term.colorize(_fmt_int(att_tot), 'bold')} attempts | "
+                f"{out_term.colorize(_fmt_int(steps_tot), 'bold')} steps | "
+                f"{out_term.colorize(_fmt_int(tools_tot), 'bold')} tool calls",
+            )
+
+        wall_cnt = int(metrics.get("wall_seconds_count", 0))
+        if wall_cnt > 0:
+            w_avg = float(metrics["wall_seconds_avg"])
+            w_med = float(metrics["wall_seconds_median"])
+            w_min = float(metrics["wall_seconds_min"])
+            w_max = float(metrics["wall_seconds_max"])
+            out_term.kv(
+                "run time",
+                f"avg {out_term.colorize(_fmt_duration(w_avg), 'cyan', 'bold')} | "
+                f"median {out_term.colorize(_fmt_duration(w_med), 'cyan')} | "
+                f"min {_fmt_duration(w_min)} | max {_fmt_duration(w_max)} "
+                f"({out_term.colorize(f'{_fmt_int(wall_cnt)} timed', 'dim')})",
+            )
+
+        oldest = metrics.get("oldest_run")
+        newest = metrics.get("newest_run")
+        if isinstance(oldest, Mapping) and isinstance(newest, Mapping):
+            old_at = _fmt_date_short(str(oldest.get("at") or ""))
+            new_at = _fmt_date_short(str(newest.get("at") or ""))
+            out_term.kv(
+                "date range",
+                f"{out_term.colorize(old_at, 'cyan')} to {out_term.colorize(new_at, 'cyan')} "
+                f"{out_term.colorize('(oldest to newest)', 'dim')}",
+            )
+
+        tok_tot = int(metrics.get("tokens_total", 0))
+        cost_tot = float(metrics.get("cost_usd_total", 0.0))
+        if tok_tot or cost_tot > 0:
+            usage_bits: list[str] = []
+            if tok_tot:
+                usage_bits.append(
+                    f"{out_term.colorize(_fmt_int(tok_tot), 'bold')} tokens"
+                )
+            if cost_tot > 0:
+                usage_bits.append(
+                    f"${out_term.colorize(_fmt_float(cost_tot, 2), 'cyan', 'bold')} recorded cost"
+                )
+            out_term.kv("usage", " | ".join(usage_bits))
+
+    cbytes = int(res.get("total_cache_bytes", metrics.get("compressed_bytes", 0)))
+    rbytes = int(metrics.get("raw_bytes", 0))
+    zwritten = int(res.get("compressed_bytes_written", 0))
+    cache_line = f"{out_term.colorize(_fmt_int(int(res.get('total_cached', 0))), 'bold')} trace(s)"
+    if cbytes:
+        cache_line += (
+            f", {out_term.colorize(_fmt_bytes(cbytes), 'cyan', 'bold')} on disk"
+        )
+        if rbytes > 0:
+            ratio = rbytes / cbytes
+            cache_line += f" ({_fmt_bytes(rbytes)} raw, {_fmt_float(ratio, 1)}x zstd)"
+    if zwritten:
+        cache_line += (
+            f" | {out_term.colorize(_fmt_bytes(zwritten), 'green')} written this pass"
+        )
+    out_term.kv("cache", cache_line)
+
+    cdir_str = str(res.get("cache_dir") or fallback_cache_dir)
+    runs_dir_str = str(res.get("runs_cache_dir") or (Path(cdir_str) / "runs"))
+    idx_str = str(res.get("index_path") or (Path(cdir_str) / "index.json"))
+    out_term.kv("cache dir", out_term.colorize(_display_path(cdir_str), "cyan", "bold"))
+    out_term.kv("traces dir", out_term.colorize(_display_path(runs_dir_str), "cyan"))
+    out_term.kv("index file", out_term.colorize(_display_path(idx_str), "cyan"))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _init_numeric_locale()
     _term_mod.ensure_encodable_stdio()
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -3173,7 +3951,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 rebuild=args.rebuild,
                 scan_max_depth=args.max_depth,
                 zstd_level=args.level,
-                on_scan=prog.on_scan,
+                on_scan_detail=prog.on_scan_detail,
                 on_discovered=prog.on_discovered,
                 on_progress=prog.on_collect_progress,
             )
@@ -3184,28 +3962,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 elapsed = _fmt_elapsed(time.monotonic() - started)
                 status_kind = "warn" if res["errors"] > 0 else "ok"
                 headline = (
-                    f"{res['discovered']} discovered, "
-                    f"{out_term.colorize(str(res['extracted']), 'green', 'bold')} new, "
-                    f"{out_term.colorize(str(res['updated']), 'cyan', 'bold')} updated, "
-                    f"{out_term.colorize(str(res['cached_hits']), 'dim')} cached"
+                    f"{_fmt_int(res['discovered'])} discovered, "
+                    f"{out_term.colorize(_fmt_int(res['extracted']), 'green', 'bold')} new, "
+                    f"{out_term.colorize(_fmt_int(res['updated']), 'cyan', 'bold')} updated, "
+                    f"{out_term.colorize(_fmt_int(res['cached_hits']), 'dim')} cached"
                 )
                 if res["skipped_active"]:
-                    headline += f", {out_term.colorize(str(res['skipped_active']), 'yellow', 'bold')} active skipped"
+                    headline += (
+                        f", {out_term.colorize(_fmt_int(res['skipped_active']), 'yellow', 'bold')} "
+                        "active skipped"
+                    )
                 if res["errors"]:
-                    headline += f", {out_term.colorize(str(res['errors']), 'red', 'bold')} error(s)"
+                    headline += f", {out_term.colorize(_fmt_int(res['errors']), 'red', 'bold')} error(s)"
                 out_term.outcome(
                     status_kind, f"aw-profile collect ({elapsed}): {headline}"
                 )
-                zwritten = int(res.get("compressed_bytes_written", 0))
-                out_term.kv(
-                    "cache",
-                    f"{out_term.colorize(str(res['total_cached']), 'bold')} trace(s) in "
-                    f"{out_term.colorize(str(args.cache_dir), 'cyan')}"
-                    + (
-                        f" ({out_term.colorize(_fmt_bytes(zwritten), 'cyan')} written)"
-                        if zwritten
-                        else ""
-                    ),
+                _render_corpus_and_cache_summary(
+                    out_term,
+                    res,
+                    fallback_cache_dir=str(args.cache_dir),
+                    show_scan=True,
                 )
                 for detail in list(res.get("error_details") or [])[:5]:
                     rid = detail.get("run_id", "?")
@@ -3224,7 +4000,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "pack":
             if not args.inspect and not is_json:
                 prog.step(
-                    f"Preparing traces from {err_term.colorize(str(args.cache_dir), 'cyan')}..."
+                    f"Preparing traces from {err_term.colorize(_display_path(args.cache_dir), 'cyan')}..."
                 )
             res = pack_traces(
                 cache_dir=args.cache_dir,
@@ -3251,11 +4027,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 out_term.outcome(
                     "ok",
                     f"aw-profile pack ({elapsed}): "
-                    f"{out_term.colorize(str(res['traces_packed']), 'green', 'bold')} trace(s) -> "
+                    f"{out_term.colorize(_fmt_int(res['traces_packed']), 'green', 'bold')} trace(s) -> "
                     f"{out_term.colorize(_fmt_bytes(res['compressed_bytes']), 'cyan', 'bold')} "
-                    f"({ratio:.1f}x from {_fmt_bytes(res['uncompressed_bytes'])})",
+                    f"({_fmt_float(ratio, 1)}x from {_fmt_bytes(res['uncompressed_bytes'])})",
                 )
-                out_term.kv("bundle", out_term.colorize(str(res["out"]), "cyan"))
+                out_term.kv(
+                    "cache dir",
+                    out_term.colorize(_display_path(args.cache_dir), "cyan"),
+                )
+                out_term.kv(
+                    "bundle",
+                    out_term.colorize(_display_path(res["out"]), "cyan", "bold"),
+                )
             return 0
 
         if args.command == "ingest":
@@ -3276,20 +4059,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 prefix = "[dry-run] " if res["dry_run"] else ""
                 status_kind = "warn" if res["rejected"] > 0 else "ok"
                 headline = (
-                    f"{out_term.colorize(str(res['added']), 'green', 'bold')} added, "
-                    f"{out_term.colorize(str(res['upgraded']), 'cyan', 'bold')} upgraded, "
-                    f"{out_term.colorize(str(res['skipped_same_or_older']), 'dim')} skipped"
+                    f"{out_term.colorize(_fmt_int(res['added']), 'green', 'bold')} added, "
+                    f"{out_term.colorize(_fmt_int(res['upgraded']), 'cyan', 'bold')} upgraded, "
+                    f"{out_term.colorize(_fmt_int(res['skipped_same_or_older']), 'dim')} skipped"
                 )
                 if res["rejected"]:
-                    headline += f", {out_term.colorize(str(res['rejected']), 'red', 'bold')} rejected"
+                    headline += f", {out_term.colorize(_fmt_int(res['rejected']), 'red', 'bold')} rejected"
                 out_term.outcome(
                     status_kind,
                     f"{prefix}aw-profile ingest ({elapsed}): {headline}",
                 )
-                out_term.kv(
-                    "cache",
-                    f"{out_term.colorize(str(res['total_cached']), 'bold')} trace(s) in "
-                    f"{out_term.colorize(str(args.cache_dir), 'cyan')}",
+                _render_corpus_and_cache_summary(
+                    out_term,
+                    res,
+                    fallback_cache_dir=str(args.cache_dir),
+                    show_scan=False,
                 )
                 for rej in list(res.get("rejections") or [])[:5]:
                     member = rej.get("member", "?")

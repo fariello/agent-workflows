@@ -768,12 +768,26 @@ class AwProfileTests(unittest.TestCase):
         import re
 
         runs_dir = self.root / "runs-ux"
-        _write_oc_run(runs_dir, "run-20261120T100000Z-7001")
+        _write_oc_run(
+            runs_dir,
+            "run-20261118T080000Z-7001",
+            created_at="2026-11-18T08:00:00Z",
+            status="executed",
+        )
         _write_agy_run(runs_dir, "run-20261120T110000Z-7002")
+        # Add one failed oc run to verify failure metrics & date range
+        _write_oc_run(
+            runs_dir,
+            "run-20261120T150000Z-7003",
+            created_at="2026-11-20T15:00:00Z",
+            status="failed",
+        )
+        # Add extra files in scanned tree so scanned file count > 0
+        (runs_dir / "README.txt").write_text("notes\n", encoding="utf-8")
         cache_dir = self.root / "cache-ux"
         ansi_re = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
-        # 1. Human mode with --color emits ANSI color and progress cues on stderr
+        # 1. Human mode with --color emits ANSI color, scan counts, corpus metrics, and cache location
         out_c, err_c, rc_c = _run_cli(
             [
                 "collect",
@@ -788,9 +802,31 @@ class AwProfileTests(unittest.TestCase):
         self.assertIsNotNone(ansi_re.search(out_c))
         self.assertIn("Scanning", err_c)
         self.assertIn("Processing", err_c)
-        self.assertIn("aw-profile collect", out_c)
+        plain_c = ansi_re.sub("", out_c)
+        self.assertIn("aw-profile collect", plain_c)
+        self.assertIn("scanned:", plain_c)
+        self.assertIn("dirs,", plain_c)
+        self.assertIn("files", plain_c)
+        self.assertIn("runs:", plain_c)
+        self.assertIn("agy 1", plain_c)
+        self.assertIn("oc 2", plain_c)
+        self.assertIn("2 succeeded", plain_c)
+        self.assertIn("1 failed", plain_c)
+        self.assertIn("items:", plain_c)
+        self.assertIn("steps", plain_c)
+        self.assertIn("tool calls", plain_c)
+        self.assertIn("run time:", plain_c)
+        self.assertIn("avg ", plain_c)
+        self.assertIn("median ", plain_c)
+        self.assertIn("date range:", plain_c)
+        self.assertIn("2026-11-18", plain_c)
+        self.assertIn("2026-11-20", plain_c)
+        self.assertIn("cache dir:", plain_c)
+        self.assertIn("traces dir:", plain_c)
+        self.assertIn("index file:", plain_c)
+        self.assertIn(str(cache_dir.resolve()), plain_c)
 
-        # 2. Human mode with --no-color emits readable narration with zero ANSI escapes
+        # 2. Human mode with --no-color on 100% cache hit still shows full metrics & zero ANSI escapes
         out_nc, err_nc, rc_nc = _run_cli(
             [
                 "collect",
@@ -804,9 +840,41 @@ class AwProfileTests(unittest.TestCase):
         self.assertEqual(rc_nc, 0, out_nc + err_nc)
         self.assertIsNone(ansi_re.search(out_nc))
         self.assertIsNone(ansi_re.search(err_nc))
-        self.assertIn("2 cached", out_nc)
+        self.assertIn("3 cached", out_nc)
+        self.assertIn("scanned:", out_nc)
+        self.assertIn("2 succeeded", out_nc)
+        self.assertIn("1 failed", out_nc)
+        self.assertIn("cache dir:", out_nc)
 
-        # 3. TTY stderr renders inline progress bar smoothly
+        # 2b. Legacy index.json missing summary fields is lazily backfilled on cache hit!
+        idx_path = cache_dir / "index.json"
+        idx_doc = json.loads(idx_path.read_text(encoding="utf-8"))
+        for entry in idx_doc["entries"].values():
+            for key in (
+                "host",
+                "run_outcome",
+                "items_count",
+                "steps_count",
+                "wall_seconds",
+            ):
+                entry.pop(key, None)
+        idx_path.write_text(json.dumps(idx_doc), encoding="utf-8")
+        out_bf, err_bf, rc_bf = _run_cli(
+            [
+                "collect",
+                "--scan",
+                str(runs_dir),
+                "--cache-dir",
+                str(cache_dir),
+                "--no-color",
+            ]
+        )
+        self.assertEqual(rc_bf, 0, out_bf + err_bf)
+        self.assertIn("3 cached", out_bf)
+        self.assertIn("agy 1, oc 2", out_bf)
+        self.assertIn("2 succeeded, 1 failed", out_bf)
+
+        # 3. TTY stderr renders inline single-line counters smoothly
         class _FakeTTY(io.StringIO):
             def isatty(self) -> bool:
                 return True
@@ -829,10 +897,20 @@ class AwProfileTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(rc_t, 0)
-        self.assertIn("100%", tty_err.getvalue())
+        err_plain = ansi_re.sub("", tty_err.getvalue())
+        self.assertIn("100%", err_plain)
         self.assertIn("\r\033[2K", tty_err.getvalue())
+        self.assertIn("agy 1/oc 2", err_plain)
+        self.assertIn("items ", err_plain)
+        self.assertIn("steps ", err_plain)
+        self.assertIn("tools ", err_plain)
 
-        # 4. --json mode stays completely silent on stderr and ANSI-free on stdout
+        # 4. Localized number formatting inserts thousands separators reliably
+        formatted_big = aw_profile._fmt_int(1234567)
+        self.assertNotEqual(formatted_big, "1234567")
+        self.assertRegex(formatted_big, r"^1[,.\s\u202f]234[,.\s\u202f]567$")
+
+        # 5. --json mode stays completely silent on stderr, ANSI-free on stdout, and exposes rich metrics
         out_j, err_j, rc_j = _run_cli(
             [
                 "collect",
@@ -846,7 +924,24 @@ class AwProfileTests(unittest.TestCase):
         self.assertEqual(rc_j, 0, out_j + err_j)
         self.assertEqual(err_j, "")
         self.assertIsNone(ansi_re.search(out_j))
-        self.assertEqual(json.loads(out_j)["cached_hits"], 2)
+        payload = json.loads(out_j)
+        self.assertEqual(payload["cached_hits"], 3)
+        self.assertGreaterEqual(payload["dirs_scanned"], 1)
+        self.assertGreaterEqual(payload["files_scanned"], 1)
+        self.assertEqual(payload["runs_roots_found"], 1)
+        self.assertEqual(payload["cache_dir"], str(cache_dir.resolve()))
+        self.assertEqual(payload["runs_cache_dir"], str((cache_dir / "runs").resolve()))
+        self.assertEqual(
+            payload["index_path"], str((cache_dir / "index.json").resolve())
+        )
+        self.assertGreater(payload["total_cache_bytes"], 0)
+        self.assertEqual(payload["hosts"], {"agy": 1, "oc": 2, "other": 0})
+        metrics = payload["metrics"]
+        self.assertEqual(metrics["runs_succeeded"], 2)
+        self.assertEqual(metrics["runs_failed"], 1)
+        self.assertIsNotNone(metrics["wall_seconds_avg"])
+        self.assertEqual(metrics["oldest_run"]["run_id"], "run-20261118T080000Z-7001")
+        self.assertEqual(metrics["newest_run"]["run_id"], "run-20261120T150000Z-7003")
 
 
 if __name__ == "__main__":
