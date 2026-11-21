@@ -1092,8 +1092,8 @@ def build_record_log(
             toks = status_raw.strip().split()
             if toks:
                 status = toks[0].lower()
-        if not status:
-            status = "draft" if is_research else record_path.parent.name
+        if not status and not is_research:
+            status = record_path.parent.name
 
     fields: Dict[str, Any] = {
         "id": id6,

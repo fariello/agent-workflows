@@ -1,5 +1,5 @@
 - Id: fnabjy
-- Status: graduated
+- Status: done
 - Graduated-To: fnabjy
 - Set: fnabjy
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw backlog): closed by aw agy run: IPD s4utmv executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-fnabjy-01-s4utmv-support-status-less-research-records-with-id-only-mirrors-in.ipd.md); evidence .aw/records/plans/executed/20261121-fnabjy-01-s4utmv-support-status-less-research-records-with-id-only-mirrors-in.ipd.md
 - 2026-11-21 graduated (aw set): Graduated to review-ready plan s4utmv (set fnabjy)
 - 2026-11-21 created (aw backlog): m0001_convert fabricates status draft for status-less research-prompt and legacy research records causing attention.unknown-status and aw find status drift
 

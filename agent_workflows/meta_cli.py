@@ -722,7 +722,9 @@ def _parse_log_backed_mirror(
         elif art_type in ("walkthrough", "roadmap"):
             m = _meta.parse_walkthrough_mirror(text)
         else:
-            m = _meta.parse_artifact_mirror(text)
+            m = _meta.parse_artifact_mirror(
+                text, allow_statusless=(art_type == "research")
+            )
         return m.get("id"), m.get("status"), None
     except ValueError as exc:
         fb = _meta.read_text(text, record_type=art_type)
