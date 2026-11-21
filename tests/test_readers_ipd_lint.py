@@ -377,3 +377,58 @@ def test_ipd_m105_refused(tmp_path: Path) -> None:
     assert L.C_META_PATH in _codes(res_file)
     assert res_text.disposition == S.DISPOSITION_ERROR
     assert L.C_META_PATH in _codes(res_text)
+
+
+def test_run_lint_reuses_single_metadata_scan_across_multiple_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_lint over explicit/default paths must share one artifact_meta scan, not N per file."""
+    import argparse
+    from agent_workflows import artifact_meta as _meta
+
+    paths = []
+    for idx in range(5):
+        id6 = f"scn00{idx}"
+        text = _build_plan_text(id6=id6, date="2026-10-01", status="to-review")
+        paths.append(
+            str(
+                _write_tracked_plan(
+                    tmp_path,
+                    subdir="pending",
+                    id6=id6,
+                    slug=f"scan-{idx}",
+                    text=text,
+                )
+            )
+        )
+
+    orig_query = _meta.query
+    query_calls = 0
+
+    def _counting_query(*args, **kwargs):
+        nonlocal query_calls
+        query_calls += 1
+        return orig_query(*args, **kwargs)
+
+    monkeypatch.setattr(_meta, "query", _counting_query)
+
+    args = argparse.Namespace(
+        path=paths,
+        phase="author",
+        legacy=False,
+        detail=False,
+        long=False,
+        citation_anchors=False,
+        no_color=True,
+        all=False,
+        json=False,
+        agent=False,
+        human=True,
+    )
+    rc = L.run_lint(args)
+    assert rc == 0
+    # Must scan at most once for ipd metadata (plus at most once for set memberships),
+    # never O(N) queries across 5 plans.
+    assert (
+        query_calls <= 2
+    ), f"expected <=2 artifact_meta.query calls, got {query_calls}"

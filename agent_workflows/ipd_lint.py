@@ -4105,82 +4105,89 @@ def run_lint(args: argparse.Namespace) -> int:
         any_error = False
         all_diags = []
         membership_cache = None
-        if paths:
-            try:
-                from agent_workflows import orchestrator_readiness as _orch_readiness
+        from agent_workflows import artifact_meta as _meta
 
-                repo_root = _plan_repo_root(paths[0])
-                membership_cache = _orch_readiness.resolve_all_set_memberships(
-                    repo_root
-                )
-            except Exception:
-                pass
-        for path in paths:
-            if not path.is_file():
-                err_msg = f"not a file: {path}"
-                if ctx.is_agent or ctx.is_json:
-                    res = CommandResult(
-                        command="ipd lint",
-                        status="cannot-run",
-                        exit_code=2,
-                        summary=err_msg,
+        with _sel.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+            if paths:
+                try:
+                    from agent_workflows import (
+                        orchestrator_readiness as _orch_readiness,
                     )
-                    return get_renderer(ctx).emit(res, ctx)
-                print(f"error: {err_msg}")
-                return 2
-            res = lint_file(
-                path,
-                checkpoint=checkpoint,
-                legacy=legacy,
-                citation_anchors=citation_anchors,
-                membership_cache=membership_cache,
-            )
-            diags, disp = _with_name_check(res, path, legacy)
-            if disp == S.DISPOSITION_ERROR:
-                any_error = True
-            for d in diags:
-                all_diags.append(
-                    OutDiag(
-                        location=str(path),
-                        rule=d.code,
-                        detail=d.message,
-                        severity="error" if disp == S.DISPOSITION_ERROR else "warning",
+
+                    repo_root = _plan_repo_root(paths[0])
+                    membership_cache = _orch_readiness.resolve_all_set_memberships(
+                        repo_root
                     )
-                )
-            for a in getattr(res, "advisories", []):
-                all_diags.append(
-                    OutDiag(
-                        location=str(path),
-                        rule=a.code,
-                        detail=a.message,
-                        severity="info",
-                    )
-                )
-            if not (ctx.is_agent or ctx.is_json):
-                has_adv = bool(getattr(res, "advisories", []))
-                term.line(_format_lint_line(path, disp, has_advisories=has_adv))
-                if diags:
-                    for d in diags:
-                        loc_str = f"line {d.line}" if d.line else ""
-                        rule_str = f"{d.code} ({loc_str})" if loc_str else d.code
-                        diag_txt = (
-                            term.color256(f"     ! {rule_str}: {d.message}", 196)
-                            if getattr(term, "color", False)
-                            else f"     ! {rule_str}: {d.message}"
+                except Exception:
+                    pass
+            for path in paths:
+                if not path.is_file():
+                    err_msg = f"not a file: {path}"
+                    if ctx.is_agent or ctx.is_json:
+                        res = CommandResult(
+                            command="ipd lint",
+                            status="cannot-run",
+                            exit_code=2,
+                            summary=err_msg,
                         )
-                        term.line(diag_txt)
-                if has_adv:
-                    for a in _visible_advisories(res.advisories, detail):
-                        loc_str = f"line {a.line}" if a.line else ""
-                        rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
-                        adv_txt = (
-                            term.color256(
-                                f"     ? advisory: {rule_str}: {a.message}", 214
+                        return get_renderer(ctx).emit(res, ctx)
+                    print(f"error: {err_msg}")
+                    return 2
+                res = lint_file(
+                    path,
+                    checkpoint=checkpoint,
+                    legacy=legacy,
+                    citation_anchors=citation_anchors,
+                    membership_cache=membership_cache,
+                )
+                diags, disp = _with_name_check(res, path, legacy)
+                if disp == S.DISPOSITION_ERROR:
+                    any_error = True
+                for d in diags:
+                    all_diags.append(
+                        OutDiag(
+                            location=str(path),
+                            rule=d.code,
+                            detail=d.message,
+                            severity="error"
+                            if disp == S.DISPOSITION_ERROR
+                            else "warning",
+                        )
+                    )
+                for a in getattr(res, "advisories", []):
+                    all_diags.append(
+                        OutDiag(
+                            location=str(path),
+                            rule=a.code,
+                            detail=a.message,
+                            severity="info",
+                        )
+                    )
+                if not (ctx.is_agent or ctx.is_json):
+                    has_adv = bool(getattr(res, "advisories", []))
+                    term.line(_format_lint_line(path, disp, has_advisories=has_adv))
+                    if diags:
+                        for d in diags:
+                            loc_str = f"line {d.line}" if d.line else ""
+                            rule_str = f"{d.code} ({loc_str})" if loc_str else d.code
+                            diag_txt = (
+                                term.color256(f"     ! {rule_str}: {d.message}", 196)
+                                if getattr(term, "color", False)
+                                else f"     ! {rule_str}: {d.message}"
                             )
-                            if getattr(term, "color", False)
-                            else f"     ? advisory: {rule_str}: {a.message}"
-                        )
-                        term.line(adv_txt)
+                            term.line(diag_txt)
+                    if has_adv:
+                        for a in _visible_advisories(res.advisories, detail):
+                            loc_str = f"line {a.line}" if a.line else ""
+                            rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
+                            adv_txt = (
+                                term.color256(
+                                    f"     ? advisory: {rule_str}: {a.message}", 214
+                                )
+                                if getattr(term, "color", False)
+                                else f"     ? advisory: {rule_str}: {a.message}"
+                            )
+                            term.line(adv_txt)
 
         exit_code = 1 if any_error else 0
         if ctx.is_agent or ctx.is_json:

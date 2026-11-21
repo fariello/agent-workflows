@@ -279,6 +279,15 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "status": FieldDef("status", "closed enum", "transition-owned"),
         "work_kind": FieldDef("work_kind", "string", "generic"),
         "priority": FieldDef("priority", "string", "generic"),
+        "dependency_declaration": FieldDef(
+            "dependency_declaration",
+            "closed enum",
+            "generic",
+            frozenset(("listed", "none", "unresolved")),
+        ),
+        "item_dependencies": FieldDef(
+            "item_dependencies", "structured dependency list", "generic"
+        ),
         "blocks_release": FieldDef("blocks_release", "reference", "generic"),
         "from_backlog": FieldDef("from_backlog", "reference", "generic"),
         "from_spec": FieldDef("from_spec", "reference", "generic"),
@@ -296,6 +305,15 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "status": FieldDef("status", "closed enum", "transition-owned"),
         "priority": FieldDef("priority", "string", "generic"),
         "work_kind": FieldDef("work_kind", "string", "generic"),
+        "dependency_declaration": FieldDef(
+            "dependency_declaration",
+            "closed enum",
+            "generic",
+            frozenset(("listed", "none", "unresolved")),
+        ),
+        "item_dependencies": FieldDef(
+            "item_dependencies", "structured dependency list", "generic"
+        ),
         "summary": FieldDef("summary", "string", "migration-only"),
         "close_evidence": FieldDef("close_evidence", "string", "transition-owned"),
         "release_exempt_kind": FieldDef("release_exempt_kind", "string", "generic"),
@@ -314,6 +332,15 @@ REGISTRY: Dict[str, Dict[str, FieldDef]] = {
         "research_kind": FieldDef("research_kind", "string", "generic"),
         "outcome": FieldDef("outcome", "string", "generic"),
         "priority": FieldDef("priority", "string", "generic"),
+        "dependency_declaration": FieldDef(
+            "dependency_declaration",
+            "closed enum",
+            "generic",
+            frozenset(("listed", "none", "unresolved")),
+        ),
+        "item_dependencies": FieldDef(
+            "item_dependencies", "structured dependency list", "generic"
+        ),
         "blocks_release": FieldDef("blocks_release", "reference", "generic"),
         "consumed_by": FieldDef("consumed_by", "string list", "generic"),
         "topic": FieldDef("topic", "string list", "generic"),
@@ -2059,7 +2086,8 @@ LAYOUT_VERSION = "layout_v1"
 #: "legacy_v7" (2026-11-18, r81uvz): map legacy backlog `- Kind:` bullets to `work_kind` when `- Work-Kind:` is absent.
 #: "legacy_v8" (2026-11-19, xxdzcq): map prompt `Kind`/`kind` to `prompt_kind` and `Created`/`created` to `created_day`, and set `artifact_row["created_day"]` for prompts.
 #: "legacy_v9" (2026-11-21, dqutt8): extract workflow history via `attention_contract.history_block` for both bullet and YAML records (fixing indented-line leaks and YAML research history), and register `blocks_release` on `research`.
-LEGACY_LOADER_VERSION = "legacy_v9"
+#: "legacy_v10" (2026-11-21): register `item_dependencies` and `dependency_declaration` on `backlog`, `spec`, and `research` so non-IPD dependency edges reach the cache and `attention.scan()`.
+LEGACY_LOADER_VERSION = "legacy_v10"
 
 # The 4.5a Table Set as listed in E-08: exactly 26 tables
 CACHE_TABLES_4_5A: Tuple[str, ...] = (

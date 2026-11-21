@@ -676,3 +676,56 @@ def test_log_format_record_history_via_artifact_meta(tmp_path: Path) -> None:
     assert it.priority == "high"
     assert it.last_history_at == "2026-10-19"
     assert it.detail_text == "Log-backed plan summary."
+
+
+def test_item_dependencies_preserved_for_backlog_and_spec(tmp_path: Path) -> None:
+    """`attention.scan` preserves Item-Dependencies on backlog and spec records via artifact_meta."""
+    repo = _init_repo(tmp_path)
+    bkl_dir = repo / ".aw" / "records" / "backlog" / "open"
+    spec_dir = repo / ".aw" / "records" / "specs"
+    bkl_dir.mkdir(parents=True)
+    spec_dir.mkdir(parents=True)
+
+    bkl1_rel = ".aw/records/backlog/open/20261010-bkl001-01-bkl001-root.backlog.md"
+    (repo / bkl1_rel).write_text(
+        "# Backlog Root\n\n"
+        "- Id: bkl001\n"
+        "- Status: open\n"
+        "- Priority: high\n"
+        "- Item-Dependencies: none\n\n"
+        "## Workflow history\n"
+        "- 2026-10-10 created (tester): root.\n",
+        encoding="utf-8",
+    )
+
+    bkl2_rel = ".aw/records/backlog/open/20261011-bkl002-01-bkl002-child.backlog.md"
+    (repo / bkl2_rel).write_text(
+        "# Backlog Child\n\n"
+        "- Id: bkl002\n"
+        "- Status: open\n"
+        "- Priority: medium\n"
+        "- Item-Dependencies: exists:backlog:bkl001\n\n"
+        "## Workflow history\n"
+        "- 2026-10-11 created (tester): child.\n",
+        encoding="utf-8",
+    )
+
+    spec_rel = ".aw/records/specs/20261012-spc001-01-spc001-dependent.spec.md"
+    (repo / spec_rel).write_text(
+        "# Spec Dependent\n\n"
+        "- Id: spc001\n"
+        "- Status: draft\n"
+        "- Item-Dependencies: exists:backlog:bkl002\n\n"
+        "## Workflow history\n"
+        "- 2026-10-12 created (tester): spec.\n",
+        encoding="utf-8",
+    )
+
+    items, drift = att.scan(repo)
+    assert drift == []
+    bkl1 = _item_by_path(items, bkl1_rel)
+    bkl2 = _item_by_path(items, bkl2_rel)
+    spc1 = _item_by_path(items, spec_rel)
+    assert bkl1.item_dependencies == ()
+    assert bkl2.item_dependencies == ("exists:backlog:bkl001",)
+    assert spc1.item_dependencies == ("exists:backlog:bkl002",)

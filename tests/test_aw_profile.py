@@ -5,9 +5,9 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tarfile
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -391,8 +391,7 @@ class AwProfileTests(unittest.TestCase):
         self.assertEqual(res2["updated"], 0)
         self.assertEqual(res2["cached_hits"], 2)
 
-        # 3. Simulate `resume` appending a new session file & touching state.json on r1
-        time.sleep(0.01)
+        # 3. Simulate `resume` appending a new session file & advancing mtime on r1
         s2 = r1 / "sessions" / "01-ab1234-attempt-2.jsonl"
         s2.write_text(
             json.dumps(
@@ -406,6 +405,8 @@ class AwProfileTests(unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
+        s2_stat = s2.stat()
+        os.utime(s2, ns=(s2_stat.st_atime_ns, s2_stat.st_mtime_ns + 1_000_000_000))
         res3 = aw_profile.collect_runs(runs_dirs=[runs_dir], cache_dir=cache_dir)
         self.assertEqual(res3["updated"], 1)
         self.assertEqual(res3["cached_hits"], 1)
@@ -519,9 +520,10 @@ class AwProfileTests(unittest.TestCase):
         self.assertEqual(i2["skipped_same_or_older"], 1)
 
         # Simulate resume on server A -> re-collect -> re-pack -> ingest upgrades!
-        time.sleep(0.02)
-        (r_a / "events.jsonl").write_text(
-            (r_a / "events.jsonl").read_text(encoding="utf-8")
+        ev_path = r_a / "events.jsonl"
+        prev_ev_stat = ev_path.stat()
+        ev_path.write_text(
+            ev_path.read_text(encoding="utf-8")
             + json.dumps(
                 {
                     "at": "2026-11-20T12:00:00Z",
@@ -531,6 +533,10 @@ class AwProfileTests(unittest.TestCase):
             )
             + "\n",
             encoding="utf-8",
+        )
+        os.utime(
+            ev_path,
+            ns=(prev_ev_stat.st_atime_ns, prev_ev_stat.st_mtime_ns + 1_000_000_000),
         )
         aw_profile.collect_runs(runs_dirs=[server_a_runs], cache_dir=cache_a)
         bundle2 = self.root / "server-a-v2.tar.zst"
