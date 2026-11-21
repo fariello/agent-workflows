@@ -48,22 +48,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `7qxey9` E-02, batch subset G4a; round-3 split 2026-11-09) Batch G4a, 4 of its 21 modules (the plan, lint and IPD tests (`test_ipd*`, `test_plan*`, `test_plans*`)): `tests/test_plans_archive_selectors.py`, `tests/test_plans_board.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_index.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_plans_archive_selectors` 9, `test_plans_board` 3, `test_plans_group_order_preservation` 22, `test_plans_index` 6. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4a-xxiou0-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_plans_archive_selectors.py`: `_make_plan`; `tests/test_plans_group_order_preservation.py`: `_seed_plan_record`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `7qxey9` E-02, batch subset G4a; round-3 split 2026-11-09) Batch G4a, 4 of its 21 modules (the plan, lint and IPD tests (`test_ipd*`, `test_plan*`, `test_plans*`)): `tests/test_plans_archive_selectors.py`, `tests/test_plans_board.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_index.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_plans_archive_selectors` 9, `test_plans_board` 3, `test_plans_group_order_preservation` 22, `test_plans_index` 6. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4a-xxiou0-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_plans_archive_selectors.py`: `_make_plan`; `tests/test_plans_group_order_preservation.py`: `_seed_plan_record`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G4a-xxiou0-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `7qxey9` E-02, batch subset G4a; round-3 split 2026-11-09) Batch G4a, 3 of its 21 modules (the plan, lint and IPD tests (`test_ipd*`, `test_plan*`, `test_plans*`)): `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_status.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_plans_order_grammar` 23, `test_plans_rename_selectors` 27, `test_plan_status` 5. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4a-xxiou0-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_plan_status.py`: `_write_plan`); a surviving helper is listed with its reason.
+- [x] E-02 (carried from `7qxey9` E-02, batch subset G4a; round-3 split 2026-11-09) Batch G4a, 3 of its 21 modules (the plan, lint and IPD tests (`test_ipd*`, `test_plan*`, `test_plans*`)): `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_status.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_plans_order_grammar` 23, `test_plans_rename_selectors` 27, `test_plan_status` 5. Run the codemod on these modules and apply the batch rule with `<batch>` = `G4a-xxiou0-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Open-question rows (`- Blocking:`, `- Status: open`, `- Carrier:`) are body prose (N3) and are written through the builder's `body=` or `open_questions=` argument, never as metadata. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_plan_status.py`: `_write_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G4a-xxiou0-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G4a-xxiou0-1-files.txt .aw/state/59aiyh/G4a-xxiou0-2-files.txt)`) into `.aw/state/59aiyh/xxiou0-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit xxiou0 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G4a-xxiou0-1-files.txt .aw/state/59aiyh/G4a-xxiou0-2-files.txt)`) into `.aw/state/59aiyh/xxiou0-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit xxiou0 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -162,20 +162,85 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G4a-xxiou0-1-files.txt` and the empty `diff .aw/state/59aiyh/G4a-xxiou0-1-before.txt .aw/state/59aiyh/G4a-xxiou0-1-after.txt`; then, for each of `tests/test_plans_archive_selectors.py`, `tests/test_plans_board.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_index.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G4a-xxiou0-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G4a-xxiou0-1-files.txt`:
+      - `tests/test_plans_archive_selectors.py`
+      - `tests/test_plans_board.py`
+      - `tests/test_plans_group_order_preservation.py`
+      - `tests/test_plans_index.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G4a-xxiou0-1-before.txt .aw/state/59aiyh/G4a-xxiou0-1-after.txt`): empty output, exit code 0 (50 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_plans_archive_selectors.py`:
+        - F-01 `rg -c`: before 9, after 2. Remaining matches (2): line 133 (`"""aw archive plans <terse-setid> must target plans whose - Set: has a parenthetical."""`, `body prose`), line 176 (`"""aw archive plans <bare-setid> must keep matching bare - Set: entries."""`, `body prose`).
+        - Codemod JSON row: `sites=7`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=6` (`unsupported-shape=6` `hand=6`, `legacy-kept=0`), `before_hash=fc42b87dcec9f9e69132242549942ad76be410921992c85e9947dab59a31fdda`, `after_hash=fc42b87dcec9f9e69132242549942ad76be410921992c85e9947dab59a31fdda`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 7 | 1 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 6 | 0`.
+      - `tests/test_plans_board.py`:
+        - F-01 `rg -c`: before 3, after 0. Remaining matches: none. (Deliberately invalid/legacy inputs `EXECUTED`, `DONE`, `GHESTALT`, `Bad_ID` and omitted `Status`/`Set`/`Order` are passed via `RecordBuilder().plan(..., raw_fields=..., text_only=True)`, reason class `invalid-input`.)
+        - Codemod JSON row: `sites=3`, `rewrites=0`, `refusals=3` (`unsupported-shape=3` `hand=3`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 3 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 3 | 0`.
+      - `tests/test_plans_group_order_preservation.py`:
+        - F-01 `rg -c`: before 22, after 16. Remaining matches (16): 5 `body prose` docstrings (lines 31, 162, 179, 218, 231) and 11 `setter-byte assertion` lines (lines 169 `assert "- Order: 1" in text`, 187 `assert "- Set: metaset" in text`, 188 `assert "- Order: 1" in text`, 212 `assert "- Order: 1" in first.read_text(...)`, 214 `assert "- Order: 2" in second.read_text(...)`, 220 `assert "- Order:" not in seeded.read_text(...)`, 227 `assert "- Order: 4" in moved.read_text(...)`, 238 `assert "- Order: 0" in moved.read_text(...)`, 255 `assert "- Order: 0" in moved.read_text(...)`, 295 `assert "- Order: 3" in text`, 296 `assert "- Date: 20260810" in text`).
+        - Codemod JSON row: `sites=17`, `rewrites=0`, `refusals=17` (`unsupported-shape=6` `hand=6`, `setter-byte assertion=11` `legacy-kept=11`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 17 | 0 | 0 | 0 | 6 | 0 | 0 | 0 | 11 | 0 | 6 | 11`.
+      - `tests/test_plans_index.py`:
+        - F-01 `rg -c`: before 6, after 0. Remaining matches: none. (Omitted `Id`/`Set`/`Order` and `YYYYMMDD` `Date` values are passed via `RecordBuilder().plan(..., raw_fields=..., text_only=True)`, reason class `invalid-input`.)
+        - Codemod JSON row: `sites=6`, `rewrites=0`, `refusals=6` (`unsupported-shape=6` `hand=6`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 6 | 0 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 6 | 0`.
+    - Hand count: 21 (21 static + 0 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_plans_archive_selectors.py` lines 58, 59, 62, 64, 67, 69 (6 `unsupported-shape` sites inside `_make_plan`; deleted `_make_plan` and converted all 12 callers to `RecordBuilder(repo).plan(...)` and `RecordBuilder().plan(..., text_only=True)` for the already-sharded plan, using `raw_fields={"Set": "demoset (a descriptive label)"}` for the parenthetical set test).
+      2. `tests/test_plans_board.py` lines 30, 32, 34 (3 `unsupported-shape` sites inside `_write`; converted `_write` to `RecordBuilder().plan(..., raw_fields=..., text_only=True)`).
+      3. `tests/test_plans_group_order_preservation.py` lines 41, 44, 45, 47, 49, 51 (6 `unsupported-shape` sites inside `_seed_plan_record`; deleted `_seed_plan_record` and converted all 5 callers to `RecordBuilder(tmp_path).plan(...)` and `RecordBuilder().plan(..., text_only=True)` for the legacy `.md` fixture, using `raw_fields` for parenthetical `Set`, `Date` `YYYYMMDD`, and omitted `Order`).
+      4. `tests/test_plans_index.py` lines 38, 39, 42, 46, 48, 49 (6 `unsupported-shape` sites inside `_plan`; converted `_plan` to `RecordBuilder().plan(..., raw_fields=..., text_only=True)`).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (2): `tests/test_plans_archive_selectors.py:39:def _make_plan`, `tests/test_plans_group_order_preservation.py:22:def _seed_plan_record`.
+      - After (0): none.
+      - Deleted helpers (2): `_make_plan` (`tests/test_plans_archive_selectors.py`), `_seed_plan_record` (`tests/test_plans_group_order_preservation.py`). Surviving E-09 helpers (0): none. (Existing `_write` in `tests/test_plans_board.py` and `_plan` in `tests/test_plans_index.py` do not match the E-09 pattern and now delegate to `RecordBuilder`.)
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G4a-xxiou0-2-files.txt` and the empty `diff .aw/state/59aiyh/G4a-xxiou0-2-before.txt .aw/state/59aiyh/G4a-xxiou0-2-after.txt`; then, for each of `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_status.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G4a-xxiou0-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G4a-xxiou0-2-files.txt`:
+      - `tests/test_plans_order_grammar.py`
+      - `tests/test_plans_rename_selectors.py`
+      - `tests/test_plan_status.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G4a-xxiou0-2-before.txt .aw/state/59aiyh/G4a-xxiou0-2-after.txt`): empty output, exit code 0 (37 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_plans_order_grammar.py`:
+        - F-01 `rg -c`: before 20, after 12. Remaining matches (12): 2 `body prose` docstrings (lines 7, 421) and 10 `setter-byte assertion` lines (lines 283 `assert "- Order: 100" in p_100.read_text(...)`, 301 `assert "- Order: 999" in p_999.read_text(...)`, 370 `assert "- Order: 998" in p1_new.read_text(...)`, 371 `assert "- Order: 999" in p2_new.read_text(...)`, 407 `order_lines = [line for line in text.splitlines() if line.startswith("- Order:")]`, 408 `assert order_lines == ["- Order: 0"]`, 431 `order_lines = [line for line in updated.splitlines() if line.startswith("- Order:")]`, 432 `assert order_lines == ["- Order: 5"]`, 433 `assert "- Set: newset" in updated`, 446 `with pytest.raises(ValueError, match="expected exactly one '- Order:' line"):`). Deliberately invalid order inputs (`-1`, `x1`, `x2`) and omitted `Kind` are written via `RecordBuilder(..., raw_fields=...)` (`invalid-input`).
+        - Codemod JSON row: `sites=23`, `rewrites=2` (`standard=0`, `invalid-input=2`), `refusals=21` (`unsupported-shape=13` `hand=13`, `setter-byte assertion=8` `legacy-kept=8`), `before_hash=c4a97731f141d64739c70536663f2a599f378f108e8faf8302552c9f53d68d48`, `after_hash=c4a97731f141d64739c70536663f2a599f378f108e8faf8302552c9f53d68d48`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 23 | 2 | 2 | 0 | 13 | 0 | 0 | 0 | 8 | 0 | 13 | 8`.
+      - `tests/test_plans_rename_selectors.py`:
+        - F-01 `rg -c`: before 27, after 5. Remaining matches (5): 2 `body prose` (line 273 comment, line 303 docstring) and 3 `setter-byte assertion` lines (lines 296 `assert "- Order: 6" in text`, 297 `assert "- Set: newgrp" in text`, 323 `assert "- Order: 6" in text`). Legacy `Status: pending` and set-less `Set: None` inputs are written via `RecordBuilder().plan(..., raw_fields=..., text_only=True)` (`invalid-input`).
+        - Codemod JSON row: `sites=11`, `rewrites=6` (`standard=0`, `invalid-input=6`), `refusals=5` (`unsupported-shape=1` `hand=1`, `not-equivalent=1` `hand=1`, `setter-byte assertion=3` `legacy-kept=3`), `before_hash=f21e921ba9d1d8a0ab7748a6ffdf7a3c4eb3a32915b21521f3a9ca68b48be57b`, `after_hash=f21e921ba9d1d8a0ab7748a6ffdf7a3c4eb3a32915b21521f3a9ca68b48be57b`, `equivalent=true`, `pytest_runs=8`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 11 | 7 | 7 | 0 | 1 | 0 | 0 | 0 | 3 | 0 | 1 | 3`.
+      - `tests/test_plan_status.py`:
+        - F-01 `rg -c`: before 5, after 0. Remaining matches: none. (Legacy `DONE`, typo `aproved`, and missing status are written via `RecordBuilder().plan(..., raw_fields={"Status": ...}, text_only=True)`, reason class `invalid-input`.)
+        - Codemod JSON row: `sites=1`, `rewrites=0`, `refusals=1` (`unsupported-shape=1` `hand=1`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G4a | xxiou0 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0`.
+    - Hand count: 16 (15 static + 1 apply-time `not-equivalent`; <= 25). Every hand site:
+      1. `tests/test_plans_order_grammar.py` lines 69 (2 sites), 70 (2 sites), 71 (2 sites), 74 (1 site), 76 (2 sites) (9 `unsupported-shape` sites inside `_seed_conforming_plan`; converted `_seed_conforming_plan` to `RecordBuilder(repo).plan(...)` with `raw_fields={"Kind": None}` when `kind is None` and removed unused `_conforming_child` import).
+      2. `tests/test_plans_order_grammar.py` line 441 (2 `unsupported-shape` sites in `p2.read_text(...).replace("- Order: 2", "- Order: x2")`; replaced with `_seed_conforming_plan(order_repo, "atc002", order=2, raw_fields={"Order": "x2"})`, reason class `invalid-input`).
+      3. `tests/test_plans_order_grammar.py` lines 404 and 421 (2 `unsupported-shape` sites in codemod output because `line.startswith("- Order:")` sits in a list comprehension feeding `assert order_lines == ["- Order: 0"]` and `assert order_lines == ["- Order: 5"]`; kept unchanged as `setter-byte assertion` so assertions are not weakened).
+      4. `tests/test_plans_rename_selectors.py` lines 62-67 (1 `not-equivalent` site `p_standalone`, which failed `test_corruption_pin_setless_plan_uses_declared_id6_as_setid` when the codemod defaulted `set="demo"`; hand-converted to `RecordBuilder().plan(..., raw_fields={"Status": "pending", "Set": None}, text_only=True)`, reason class `invalid-input`).
+      5. `tests/test_plans_rename_selectors.py` line 397 (1 `unsupported-shape` site `spec_content` with unknown spec field `Kind`; hand-converted to `RecordBuilder().spec(title="Demo Spec", when="2026-09-29", status="draft", id6="sp1111", set="demospec", text_only=True)`).
+      6. `tests/test_plan_status.py` line 66 (1 `unsupported-shape` site inside `_write_plan`; deleted `_write_plan` and converted all 7 test methods to `RecordBuilder().plan(..., text_only=True)`).
+    - E-09 helper census (`rg -n -o 'def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*'`):
+      - Before (1): `tests/test_plan_status.py:62:def _write_plan`.
+      - After (0): none.
+      - Deleted helpers (1): `_write_plan` (`tests/test_plan_status.py`). Surviving E-09 helpers (0): none. (Existing `_seed_conforming_plan` in `tests/test_plans_order_grammar.py` does not match the E-09 pattern and now delegates to `RecordBuilder`.)
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G4a-xxiou0-1`, `G4a-xxiou0-2` against `.aw/state/59aiyh/xxiou0-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit xxiou0` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G4a-xxiou0-1-before.txt .aw/state/59aiyh/G4a-xxiou0-2-before.txt) .aw/state/59aiyh/xxiou0-union-after.txt`): empty output, exit code 0 (87 `PASSED` outcomes across all 7 modules).
+    - Core gate (`aw suite`, running bare core `python3 -m pytest` with bounded xdist workers): `2653 passed, 11 warnings in 93.02s (0:01:33)`, exit code 0 (0 failures; `CORE TIER BUDGET EXCEEDED` warning only because host 1-minute load average was 6.95 on 12 CPUs and `AW_CORE_BUDGET_ENFORCE=0`; none of `xxiou0`'s 7 modules appeared in the top-10 slowest or slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6859,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit xxiou0` (7 modified test Scope-Paths): `aw commit: committed 7 path(s): ee99364a923e088d8d9f82b66d9f4ee0c31fd67f` (`tests/test_plan_status.py`, `tests/test_plans_archive_selectors.py`, `tests/test_plans_board.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_index.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`). Followed by the plan-evidence commit via `aw commit xxiou0 -- .aw/records/plans/pending/20261109-metastore-186-xxiou0-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-5.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 
