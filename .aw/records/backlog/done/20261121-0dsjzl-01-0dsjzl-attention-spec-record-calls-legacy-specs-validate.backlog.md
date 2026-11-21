@@ -1,5 +1,5 @@
 - Id: 0dsjzl
-- Status: graduated
+- Status: done
 - Graduated-To: 0dsjzl
 - Set: 0dsjzl
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 done (aw backlog): closed by aw agy run: IPD zgxig2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.ipd.md); evidence .aw/records/plans/executed/20261121-0dsjzl-01-zgxig2-validate-v2-log-backed-specs-against-artifact-meta-state-in.ipd.md
 - 2026-11-21 graduated (aw set): Graduated to review-ready plan zgxig2 (set 0dsjzl)
 - 2026-11-21 created (aw backlog): attention._spec_record calls legacy specs.validate_spec on v2 log-format specs causing false missing-status and history-missing violations
 
