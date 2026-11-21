@@ -71,7 +71,7 @@ class AgentChildEnvNonInteractiveTests(unittest.TestCase):
                 "from agent_workflows import git_commit_helper as g; "
                 "assert sys.stdin.isatty() and sys.stdout.isatty(), 'expected PTY'; "
                 "res = g.offer_commit(Path('.'), ['sample.txt'], message='update sample'); "
-                "print('OUTCOME=' + res.status)"
+                "print('OUTCOME=' + res.status, flush=True)"
             )
             master_fd, slave_fd = pty.openpty()
             try:
@@ -87,17 +87,42 @@ class AgentChildEnvNonInteractiveTests(unittest.TestCase):
             finally:
                 os.close(slave_fd)
 
+            import select
+            import time
+
             chunks: list[bytes] = []
+            deadline = time.monotonic() + 10.0
             try:
-                proc.wait(timeout=10.0)
-                while True:
-                    try:
-                        data = os.read(master_fd, 4096)
-                    except OSError:
+                # Drain master_fd while the child runs: on macOS (BSD PTYs), waiting
+                # for exit before reading can return EOF/EIO with empty output once
+                # slave_fd closes.
+                while time.monotonic() < deadline:
+                    remaining = max(0.0, deadline - time.monotonic())
+                    ready, _, _ = select.select(
+                        [master_fd], [], [], min(0.1, remaining)
+                    )
+                    if ready:
+                        try:
+                            data = os.read(master_fd, 4096)
+                        except OSError:
+                            break
+                        if not data:
+                            break
+                        chunks.append(data)
+                    elif proc.poll() is not None:
+                        while True:
+                            r2, _, _ = select.select([master_fd], [], [], 0.0)
+                            if not r2:
+                                break
+                            try:
+                                data = os.read(master_fd, 4096)
+                            except OSError:
+                                break
+                            if not data:
+                                break
+                            chunks.append(data)
                         break
-                    if not data:
-                        break
-                    chunks.append(data)
+                proc.wait(timeout=max(0.1, deadline - time.monotonic()))
             finally:
                 os.close(master_fd)
 

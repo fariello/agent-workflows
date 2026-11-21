@@ -32,7 +32,9 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -223,7 +225,17 @@ class TestTurnFixIt(unittest.TestCase):
     def tearDown(self) -> None:
         for p in reversed(self.suite_patchers):
             p.stop()
-        self.temp_dir.cleanup()
+        if sys.platform == "win32":
+            for attempt in range(10):
+                try:
+                    self.temp_dir.cleanup()
+                    break
+                except PermissionError:
+                    if attempt == 9:
+                        raise
+                    time.sleep(0.1 * (attempt + 1))
+        else:
+            self.temp_dir.cleanup()
 
     def _setup_run(
         self,
