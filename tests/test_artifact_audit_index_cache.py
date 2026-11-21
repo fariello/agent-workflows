@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_audit as _audit
+from tests.record_builder import RecordBuilder
 
 
 class TestArtifactAuditIndexCache(unittest.TestCase):
@@ -36,14 +37,18 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
             pending_dir.mkdir(parents=True)
 
             art_a = pending_dir / "20260901-set1-01-aaaaaa-plan-a.ipd.md"
-            art_a.write_text("# Plan A\n- Id: aaaaaa\n- Status: draft\n")
+            art_a.write_text(
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True)
+            )
 
             lookup_a = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(lookup_a.path)
 
             stat_before = pending_dir.stat()
             art_b = pending_dir / "20260901-set1-02-bbbbbb-plan-b.ipd.md"
-            art_b.write_text("# Plan B\n- Id: bbbbbb\n- Status: draft\n")
+            art_b.write_text(
+                RecordBuilder().plan(id6="bbbbbb", status="draft", text_only=True)
+            )
             os.utime(pending_dir, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns))
 
             lookup_b = _audit.find_artifact(root, "bbbbbb")
@@ -58,13 +63,33 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
             prompts_dir.mkdir(parents=True)
 
             art_a = prompts_dir / "20260901-set2-01-aaaaaa-prompt-a.md"
-            art_a.write_text("# Prompt A\n- Id: aaaaaa\n- Status: draft\n")
+            art_a.write_text(
+                RecordBuilder().plan(
+                    title="Prompt A",
+                    id6="aaaaaa",
+                    status="draft",
+                    set="set2",
+                    order=1,
+                    when="2026-09-01",
+                    text_only=True,
+                )
+            )
 
             lookup_a = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(lookup_a.path)
 
             art_b = prompts_dir / "20260901-set2-02-bbbbbb-prompt-b.md"
-            art_b.write_text("# Prompt B\n- Id: bbbbbb\n- Status: draft\n")
+            art_b.write_text(
+                RecordBuilder().plan(
+                    title="Prompt B",
+                    id6="bbbbbb",
+                    status="draft",
+                    set="set2",
+                    order=2,
+                    when="2026-09-01",
+                    text_only=True,
+                )
+            )
 
             lookup_b = _audit.find_artifact(root, "bbbbbb")
             self.assertIsNotNone(lookup_b.path)
@@ -80,13 +105,21 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
             deep_dir.mkdir(parents=True)
 
             art_a = deep_dir / "20260901-set3-01-aaaaaa-research-a.md"
-            art_a.write_text("# Research A\n- Id: aaaaaa\n- Status: draft\n")
+            art_a.write_text(
+                RecordBuilder().research(
+                    id6="aaaaaa", raw_fields={"Status": "draft"}, text_only=True
+                )
+            )
 
             lookup_a = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(lookup_a.path)
 
             art_b = deep_dir / "20260901-set3-02-bbbbbb-research-b.md"
-            art_b.write_text("# Research B\n- Id: bbbbbb\n- Status: draft\n")
+            art_b.write_text(
+                RecordBuilder().research(
+                    id6="bbbbbb", raw_fields={"Status": "draft"}, text_only=True
+                )
+            )
 
             lookup_b = _audit.find_artifact(root, "bbbbbb")
             self.assertIsNotNone(lookup_b.path)
@@ -100,7 +133,9 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
             pending_dir.mkdir(parents=True)
 
             art_a = pending_dir / "20260901-set1-01-aaaaaa-plan-a.ipd.md"
-            art_a.write_text("# Plan A\n- Id: aaaaaa\n- Status: draft\n")
+            art_a.write_text(
+                RecordBuilder().plan(id6="aaaaaa", status="draft", text_only=True)
+            )
 
             traversal_count = 0
             orig_iter = _audit._sel._iter_paths
@@ -130,7 +165,9 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
 
                 # Add artifact B: tree changes
                 art_b = pending_dir / "20260901-set1-02-bbbbbb-plan-b.ipd.md"
-                art_b.write_text("# Plan B\n- Id: bbbbbb\n- Status: draft\n")
+                art_b.write_text(
+                    RecordBuilder().plan(id6="bbbbbb", status="draft", text_only=True)
+                )
 
                 # Third lookup: cache invalidated, traversal runs, returned index differs
                 lookup_3 = _audit.find_artifact(root, "bbbbbb")
@@ -152,14 +189,34 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
             prompts_dir.mkdir(parents=True)
 
             art_a = prompts_dir / "20260901-set2-01-aaaaaa-prompt-a.md"
-            art_a.write_text("# Prompt A\n- Id: aaaaaa\n- Status: draft\n")
+            art_a.write_text(
+                RecordBuilder().plan(
+                    title="Prompt A",
+                    id6="aaaaaa",
+                    status="draft",
+                    set="set2",
+                    order=1,
+                    when="2026-09-01",
+                    text_only=True,
+                )
+            )
 
             lookup_a = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(lookup_a.path)
 
             stat_before = prompts_dir.stat()
             art_b = prompts_dir / "20260901-set2-02-bbbbbb-prompt-b.md"
-            art_b.write_text("# Prompt B\n- Id: bbbbbb\n- Status: draft\n")
+            art_b.write_text(
+                RecordBuilder().plan(
+                    title="Prompt B",
+                    id6="bbbbbb",
+                    status="draft",
+                    set="set2",
+                    order=2,
+                    when="2026-09-01",
+                    text_only=True,
+                )
+            )
             os.utime(prompts_dir, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns))
 
             lookup_b = _audit.find_artifact(root, "bbbbbb")
@@ -176,14 +233,22 @@ class TestArtifactAuditIndexCache(unittest.TestCase):
             deep_dir.mkdir(parents=True)
 
             art_a = deep_dir / "20260901-set3-01-aaaaaa-research-a.md"
-            art_a.write_text("# Research A\n- Id: aaaaaa\n- Status: draft\n")
+            art_a.write_text(
+                RecordBuilder().research(
+                    id6="aaaaaa", raw_fields={"Status": "draft"}, text_only=True
+                )
+            )
 
             lookup_a = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(lookup_a.path)
 
             stat_before = deep_dir.stat()
             art_b = deep_dir / "20260901-set3-02-bbbbbb-research-b.md"
-            art_b.write_text("# Research B\n- Id: bbbbbb\n- Status: draft\n")
+            art_b.write_text(
+                RecordBuilder().research(
+                    id6="bbbbbb", raw_fields={"Status": "draft"}, text_only=True
+                )
+            )
             os.utime(deep_dir, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns))
 
             lookup_b = _audit.find_artifact(root, "bbbbbb")

@@ -15,6 +15,7 @@ import subprocess
 import pytest
 
 from agent_workflows import cli, selectors, status_set
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -39,13 +40,14 @@ def test_cross_type_rename_refuses_foreign_path_and_leaves_file_untouched(
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / "20260929-demo-01-ab12cd-a-demo-plan.ipd.md"
-    plan_content = (
-        "# IPD: A demo plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: ab12cd\n"
-        "- Set: demo\n"
+    plan_content = RecordBuilder().plan(
+        title="A demo plan",
+        when="2026-09-29",
+        plan_role="child",
+        id6="ab12cd",
+        set="demo",
+        raw_fields={"Status": "pending"},
+        text_only=True,
     )
     plan_path.write_text(plan_content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -94,25 +96,28 @@ def test_cross_type_rename_does_not_rewrite_citations_of_foreign_artifact(
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / "20260929-demo-01-ab12cd-a-demo-plan.ipd.md"
-    plan_content = (
-        "# IPD: A demo plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: ab12cd\n"
-        "- Set: demo\n"
+    plan_content = RecordBuilder().plan(
+        title="A demo plan",
+        when="2026-09-29",
+        plan_role="child",
+        id6="ab12cd",
+        set="demo",
+        raw_fields={"Status": "pending"},
+        text_only=True,
     )
     plan_path.write_text(plan_content, encoding="utf-8")
 
     backlog_dir = repo / ".aw" / "records" / "backlog"
     backlog_dir.mkdir(parents=True, exist_ok=True)
     citing_path = backlog_dir / "20260929-demo-01-c1t301-citing-item.backlog.md"
-    citing_content = (
-        "# Backlog: Citing item\n\n"
-        "- Date: 2026-09-29\n"
-        "- Status: open\n"
-        "- Id: c1t301\n\n"
-        "See plan 20260929-demo-01-ab12cd-a-demo-plan.ipd.md for implementation details.\n"
+    citing_content = RecordBuilder().backlog(
+        id6="c1t301",
+        summary="Citing item",
+        status="open",
+        when="2026-09-29",
+        set="demo",
+        body="See plan 20260929-demo-01-ab12cd-a-demo-plan.ipd.md for implementation details.\n",
+        text_only=True,
     )
     citing_path.write_text(citing_content, encoding="utf-8")
     citing_bytes_before = citing_path.read_bytes()
@@ -150,13 +155,14 @@ def test_cross_type_rename_refusal_cannot_be_overridden_by_force(temp_git_repo: 
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / "20260929-demo-01-ab12cd-a-demo-plan.ipd.md"
-    plan_content = (
-        "# IPD: A demo plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: ab12cd\n"
-        "- Set: demo\n"
+    plan_content = RecordBuilder().plan(
+        title="A demo plan",
+        when="2026-09-29",
+        plan_role="child",
+        id6="ab12cd",
+        set="demo",
+        raw_fields={"Status": "pending"},
+        text_only=True,
     )
     plan_path.write_text(plan_content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -196,13 +202,14 @@ def test_fail_closed_when_record_dirs_empty(temp_git_repo: Path):
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / "20260929-demo-01-ab12cd-a-demo-plan.ipd.md"
-    plan_content = (
-        "# IPD: A demo plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: ab12cd\n"
-        "- Set: demo\n"
+    plan_content = RecordBuilder().plan(
+        title="A demo plan",
+        when="2026-09-29",
+        plan_role="child",
+        id6="ab12cd",
+        set="demo",
+        raw_fields={"Status": "pending"},
+        text_only=True,
     )
     plan_path.write_text(plan_content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -246,13 +253,14 @@ def test_six_type_refusal_matrix(temp_git_repo: Path):
     plans_dir = repo / ".aw" / "records" / "plans" / "pending"
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / "20260929-demo-01-ab12cd-a-demo-plan.ipd.md"
-    plan_content = (
-        "# IPD: A demo plan\n\n"
-        "- Date: 2026-09-29\n"
-        "- Kind: child\n"
-        "- Status: pending\n"
-        "- Id: ab12cd\n"
-        "- Set: demo\n"
+    plan_content = RecordBuilder().plan(
+        title="A demo plan",
+        when="2026-09-29",
+        plan_role="child",
+        id6="ab12cd",
+        set="demo",
+        raw_fields={"Status": "pending"},
+        text_only=True,
     )
     plan_path.write_text(plan_content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -306,7 +314,13 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
     sdir.mkdir(parents=True, exist_ok=True)
     spec = sdir / "20260929-sp0001-01-sp0001-test-spec.spec.md"
     spec.write_text(
-        "# Spec: Test\n\n- Date: 2026-09-29\n- Status: draft\n- Id: sp0001\n",
+        RecordBuilder().spec(
+            title="Test",
+            when="2026-09-29",
+            status="draft",
+            id6="sp0001",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -315,7 +329,9 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
     bdir.mkdir(parents=True, exist_ok=True)
     backlog = bdir / "20260929-bk0001-01-bk0001-test-item.backlog.md"
     backlog.write_text(
-        "# Backlog: Test\n\n- Date: 2026-09-29\n- Status: open\n- Id: bk0001\n",
+        RecordBuilder().backlog(
+            when="2026-09-29", status="open", id6="bk0001", text_only=True
+        ),
         encoding="utf-8",
     )
 
@@ -324,7 +340,10 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
     rdir.mkdir(parents=True, exist_ok=True)
     research = rdir / "20260929-demoset-01-rs0001-test-research.findings.md"
     research.write_text(
-        "---\nid: rs0001\nstatus: todo\n---\n# Research\n", encoding="utf-8"
+        RecordBuilder().research(
+            id6="rs0001", status="todo", body="# Research\n", text_only=True
+        ),
+        encoding="utf-8",
     )
 
     # 4. Plans
@@ -332,7 +351,14 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
     pdir.mkdir(parents=True, exist_ok=True)
     plan = pdir / "20260929-pl0001-01-pl0001-test-plan.ipd.md"
     plan.write_text(
-        "# IPD: Test\n\n- Date: 2026-09-29\n- Status: pending\n- Id: pl0001\n- Set: pl0001\n",
+        RecordBuilder().plan(
+            title="Test",
+            when="2026-09-29",
+            id6="pl0001",
+            set="pl0001",
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -401,11 +427,12 @@ def test_effzzi_research_roadmap_facet_resolves_by_id6(temp_git_repo: Path):
     rdir.mkdir(parents=True, exist_ok=True)
     doc = rdir / "20260821-awoptimize-03-effzzi-optimal-arch.roadmap.md"
     doc.write_text(
-        "---\n"
-        "id: effzzi\n"
-        "status: reference\n"
-        "---\n"
-        "# Research doc with roadmap facet\n",
+        RecordBuilder().research(
+            id6="effzzi",
+            status="reference",
+            body="# Research doc with roadmap facet\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -452,12 +479,28 @@ def test_setid_multi_target_resolves_all_members_without_force(temp_git_repo: Pa
     sdir.mkdir(parents=True, exist_ok=True)
     spec1 = sdir / "20260929-demoset-01-sp0001-spec-one.spec.md"
     spec1.write_text(
-        "# Spec: One\n\n- Date: 2026-09-29\n- Status: draft\n- Id: sp0001\n- Set: demoset\n",
+        RecordBuilder().spec(
+            title="One",
+            when="2026-09-29",
+            status="draft",
+            id6="sp0001",
+            set="demoset",
+            raw_fields={"Set": "demoset"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     spec2 = sdir / "20260929-demoset-02-sp0002-spec-two.spec.md"
     spec2.write_text(
-        "# Spec: Two\n\n- Date: 2026-09-29\n- Status: draft\n- Id: sp0002\n- Set: demoset\n",
+        RecordBuilder().spec(
+            title="Two",
+            when="2026-09-29",
+            status="draft",
+            id6="sp0002",
+            set="demoset",
+            raw_fields={"Set": "demoset"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -503,7 +546,14 @@ def test_read_side_resolve_and_find_unperturbed(temp_git_repo: Path):
     pdir.mkdir(parents=True, exist_ok=True)
     plan = pdir / "20260929-demo-01-ab12cd-a-demo-plan.ipd.md"
     plan.write_text(
-        "# IPD: Demo\n\n- Date: 2026-09-29\n- Status: pending\n- Id: ab12cd\n- Set: demo\n",
+        RecordBuilder().plan(
+            title="Demo",
+            when="2026-09-29",
+            id6="ab12cd",
+            set="demo",
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)

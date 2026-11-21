@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_audit
+from tests.record_builder import RecordBuilder
 
 
 class ArtifactAuditVerdictTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class ArtifactAuditVerdictTests(unittest.TestCase):
 
             # CLEAN: executed plan in executed/ under run status executed
             (ex / "20260908-v-01-vcl001-x.ipd.md").write_text(
-                "- Id: vcl001\n- Status: executed\n",
+                RecordBuilder().plan(id6="vcl001", status="executed", text_only=True),
                 encoding="utf-8",
             )
             clean = artifact_audit.audit_artifact(root, "vcl001", status="executed")
@@ -40,7 +41,7 @@ class ArtifactAuditVerdictTests(unittest.TestCase):
 
             # LOCATION-ONLY: executed plan in pending/ under run status executed
             (pend / "20260908-v-02-vlc002-x.ipd.md").write_text(
-                "- Id: vlc002\n- Status: executed\n",
+                RecordBuilder().plan(id6="vlc002", status="executed", text_only=True),
                 encoding="utf-8",
             )
             loc = artifact_audit.audit_artifact(root, "vlc002", status="executed")
@@ -51,7 +52,7 @@ class ArtifactAuditVerdictTests(unittest.TestCase):
 
             # STATUS-ONLY: approved plan in executed/ under run status executed
             (ex / "20260908-v-03-vst003-x.ipd.md").write_text(
-                "- Id: vst003\n- Status: approved\n",
+                RecordBuilder().plan(id6="vst003", status="approved", text_only=True),
                 encoding="utf-8",
             )
             st = artifact_audit.audit_artifact(root, "vst003", status="executed")
@@ -73,7 +74,7 @@ class ArtifactAuditVerdictTests(unittest.TestCase):
             pend = root / ".aw" / "records" / "plans" / "pending"
             pend.mkdir(parents=True)
             (pend / "20260908-lv-01-lvv001-x.ipd.md").write_text(
-                "- Id: lvv001\n- Status: approved\n",
+                RecordBuilder().plan(id6="lvv001", status="approved", text_only=True),
                 encoding="utf-8",
             )
             live = artifact_audit.audit_artifact(
@@ -108,12 +109,20 @@ class ArtifactAuditVerdictTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             f = Path(td) / "x.md"
             f.write_text(
-                "- Id: mww001\n- Status: EXECUTED (approved by maintainer)\n",
+                RecordBuilder().plan(
+                    id6="mww001",
+                    body="",
+                    raw_fields={"Status": "EXECUTED (approved by maintainer)"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             self.assertIsNone(artifact_audit.read_declared_status(f))
 
             # Positive control: single-token status returns the declared value
             f_ok = Path(td) / "ok.md"
-            f_ok.write_text("- Id: mww002\n- Status: executed\n", encoding="utf-8")
+            f_ok.write_text(
+                RecordBuilder().plan(id6="mww002", status="executed", text_only=True),
+                encoding="utf-8",
+            )
             self.assertEqual(artifact_audit.read_declared_status(f_ok), "executed")
