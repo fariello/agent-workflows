@@ -3558,6 +3558,8 @@ def acquire_review_sweep_lane(
         record["last_refresh_refreshed"] = refresh.refreshed
         if refresh.head:
             record["head"] = refresh.head
+            if refresh.refreshed:
+                record["base_commit"] = refresh.head
         state[REVIEW_SWEEP_LANE_KEY] = record
         save_state(run_dir, state)
         append_jsonl(
@@ -3572,7 +3574,7 @@ def acquire_review_sweep_lane(
                 "head": refresh.head,
             },
         )
-        return existing, refresh
+        return (review_sweep_lane_handle(state) or existing), refresh
 
     handle = allocate_review_sweep_worktree(repo, str(state.get("run_id") or ""))
     state[REVIEW_SWEEP_LANE_KEY] = {
@@ -8274,6 +8276,23 @@ def _filter_lifecycle_record_paths(paths: Iterable[str]) -> list[str]:
     return filtered
 
 
+def _review_incoming_changed_files(
+    repo: Path, handle: Any, *, fallback: Sequence[str]
+) -> list[str]:
+    """Return paths introduced by `handle.branch` relative to its merge-base with `HEAD`.
+
+    Uses Git's three-dot diff (`HEAD...<branch>`) so commits that landed on `main` after a shared
+    review-sweep lane was allocated are never misattributed to the incoming review branch. Falls
+    back to `fallback` when no real Git branch is present (for example in mocked unit tests).
+    """
+    branch = str(getattr(handle, "branch", "") or "").strip()
+    if branch:
+        rc, out, _ = _run_git(repo, ["diff", "--name-only", f"HEAD...{branch}"])
+        if rc == 0:
+            return [line.strip() for line in out.splitlines() if line.strip()]
+    return list(fallback)
+
+
 def check_review_lane_artifacts(
     repo: Path,
     handle: Any,
@@ -8813,11 +8832,15 @@ def integrate_lane_branch(
                 INTEGRATION_REFUSAL_CONFLICT,
             )
     elif action_kind == INTEGRATION_ACTION_REVIEW:
-        # Check artifact contracts on incoming review/plan artifacts before merging to main.
-        # This prevents invalid plans/backlogs (e.g. uncarried obligations, open blocking questions,
-        # incomplete graduations) from polluting main and breaking CI.
+        # Check artifact contracts ONLY on paths introduced by THIS review branch since its
+        # merge-base with current HEAD (three-dot diff), NOT `lane.changed_files` (which diffs
+        # against the sweep lane's frozen allocation base and falsely blames unrelated commits
+        # that landed on main after the sweep started).
+        review_changed = _review_incoming_changed_files(
+            repo, handle, fallback=lane.changed_files
+        )
         artifact_ok, artifact_reason = check_review_lane_artifacts(
-            repo, handle, lane.changed_files
+            repo, handle, review_changed
         )
         if not artifact_ok:
             return (
@@ -17353,8 +17376,9 @@ RUN_POLICY_FLAGS: tuple = (
         implemented=True,
         owner="plan_readiness.is_plan_review_approved",
         help=(
-            "Clear a plan that is already 'Status: reviewed' to 'auto-approved' and execute it "
-            "immediately. The decision reads the plan's structured '- Readiness:' field "
+            "Drive plans automatically through review -> auto-approved -> execute in one run "
+            "(and clear any plan already 'Status: reviewed' to 'auto-approved' and execute it). "
+            "The decision reads the plan's structured '- Readiness:' field "
             "(go|go-pending-approval clears; no-go, an unrecognized value, or an absent field with "
             "no approving review verdict does not). This records an AUTOMATED clear, NOT human "
             "approval: no --by-human attestation is asserted. Implies --unattended"
@@ -38892,6 +38916,17 @@ def set_plan_approved(
     rather than silently using an unpinned one.
     """
     # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
+    # Commit the auto-approved transition on real Git repositories (serialized under the repository
+    # integration lock) so `--full-auto` never leaves the plan file dirty on `main` and sabotages
+    # its own execute-lane merge with `main tree has un-owned dirty paths overlapping the incoming
+    # change`.
+    is_git_repo = (Path(repo) / ".git").exists()
+    commit_flag = "--commit" if is_git_repo else "--no-commit"
+    lock_cm: Any = (
+        integration_lock(repo, holder_label=labels.full_auto_actor)
+        if is_git_repo
+        else contextlib.nullcontext(None)
+    )
     cmd = argv_builder(
         [
             "set",
@@ -38900,49 +38935,55 @@ def set_plan_approved(
             "--actor",
             labels.full_auto_actor,
             "--yes",
-            "--no-commit",
+            commit_flag,
             "--dir",
             str(repo),
             "-m",
             message,
         ]
     )
-    try:
-        run_checked(cmd, cwd=repo)
-        return
-    except (FileNotFoundError, OSError):
-        pass
-    # lanetruth Order 01 (af7i6p) E-06: CONSOLE-SCRIPT FALLBACK, and it is deliberately NOT
-    # rewritten. A bare `aw` argv can carry no interpreter flag, so the suppressing half of the
-    # pin cannot be expressed here -- but it is not needed: a console script puts its OWN
-    # directory, not the cwd, at the head of `sys.path`. MEASURED: from a cwd containing a decoy
-    # `agent_workflows/`, `aw --version` reported the real installed version while
-    # `python3 -m agent_workflows` from that same cwd imported the decoy. So this site is
-    # genuinely IMMUNE to the lane-shadowing defect. It still routes through `run_checked`, which
-    # supplies the pinned env (E-05), giving defence in depth for free. DO NOT delete this
-    # fallback believing it is the hijack vector -- it is not; the `-m` form was.
-    if shutil.which("aw"):
-        run_checked(
-            [
-                "aw",
-                "set",
-                "auto-approved",
-                id6,
-                "--actor",
-                labels.full_auto_actor,
-                "--yes",
-                "--no-commit",
-                "--dir",
-                str(repo),
-                "-m",
-                message,
-            ],
-            cwd=repo,
-        )
-    else:
-        raise DriverError(
-            f"Unable to run 'aw set auto-approved {id6}': aw command not available"
-        )
+    with lock_cm as lock_outcome:
+        if lock_outcome is not None and not getattr(lock_outcome, "acquired", True):
+            raise DriverError(
+                f"Unable to acquire repository integration lock before auto-approving {id6}: "
+                f"held by {getattr(lock_outcome, 'holder', '') or 'another process'}"
+            )
+        try:
+            run_checked(cmd, cwd=repo)
+            return
+        except (FileNotFoundError, OSError):
+            pass
+        # lanetruth Order 01 (af7i6p) E-06: CONSOLE-SCRIPT FALLBACK, and it is deliberately NOT
+        # rewritten. A bare `aw` argv can carry no interpreter flag, so the suppressing half of the
+        # pin cannot be expressed here -- but it is not needed: a console script puts its OWN
+        # directory, not the cwd, at the head of `sys.path`. MEASURED: from a cwd containing a decoy
+        # `agent_workflows/`, `aw --version` reported the real installed version while
+        # `python3 -m agent_workflows` from that same cwd imported the decoy. So this site is
+        # genuinely IMMUNE to the lane-shadowing defect. It still routes through `run_checked`, which
+        # supplies the pinned env (E-05), giving defence in depth for free. DO NOT delete this
+        # fallback believing it is the hijack vector -- it is not; the `-m` form was.
+        if shutil.which("aw"):
+            run_checked(
+                [
+                    "aw",
+                    "set",
+                    "auto-approved",
+                    id6,
+                    "--actor",
+                    labels.full_auto_actor,
+                    "--yes",
+                    commit_flag,
+                    "--dir",
+                    str(repo),
+                    "-m",
+                    message,
+                ],
+                cwd=repo,
+            )
+        else:
+            raise DriverError(
+                f"Unable to run 'aw set auto-approved {id6}': aw command not available"
+            )
 
 
 class StallWatchdog:
