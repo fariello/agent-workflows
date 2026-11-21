@@ -6,7 +6,7 @@
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance): the pilot and the census tables F-30 and F-31 (E-05) and the README section, gates and commit (E-06). The tool moved to `y3uowx`, its tests to `j2xjtt` and `n0li9v`. Before the round-3 split: A standalone tool `tools/fixture_codemod.py` with a static site detector, a dry run, an apply mode that rewrites only sites whose module outcome list it proved unchanged, its behavioral test module and fixtures, a throwaway pilot on three real modules, and a census over all 318 batch modules recorded as tracked Findings tables F-30 (per module) and F-31 (per batch subset) that the batch plans cite. EXCLUDES: converting any test module on `main` (the batch plans Orders 38 to 40, 50, and `59aiyh` E-09); the builder itself (`9rgn2w`); setter-byte assertion conversion (`iog3cw`, `w13bkp`, Orders 59 to 62); production code under `agent_workflows/`.
 - Scope-Paths: tools/README.md, .aw/records/plans/pending/20261108-metastore-49-653ndz-build-and-prove-the-test-fixture-codemod.ipd.md
 - Item-Dependencies: executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:y3uowx, executed:j2xjtt, executed:n0li9v
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 653ndz
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: 653ndz verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
