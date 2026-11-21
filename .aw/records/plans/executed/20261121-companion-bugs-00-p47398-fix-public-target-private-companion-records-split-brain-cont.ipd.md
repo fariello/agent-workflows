@@ -5,8 +5,9 @@
 - Concern: companion-records-split-brain
 - Scope: Companion storage layout (`agent_workflows/storage.py`, `agent_workflows/placement_switch.py`), target containment (`agent_workflows/work_cmd.py`, `agent_workflows/engine.py`, `.aw/.gitignore`, `AGENTS.md`, `.aw/system/workflows/assess/assess.md`), unified resolution (`agent_workflows/project_context.py`, `agent_workflows/doctor.py`, `agent_workflows/check_engine.py`, `agent_workflows/artifact_core.py`), and companion-safe runner integration (`agent_workflows/runner_shared.py`, `agent_workflows/lane_containment.py`) for backlog item `rvxmzz`
 - Scope-Paths: .aw/records/plans/pending/20261121-companion-bugs-00-p47398-fix-public-target-private-companion-records-split-brain-cont.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-diobl2-01-diobl2-full-auto-orchestrator-dispatched-as-execute.backlog.md (Backlog carrier diobl2 filed per defect-report contract for runner_shared.py --full-auto orchestrator dispatch bug)
 - Item-Dependencies: executed:mnsbzt, executed:pbdtss, executed:v8tqje
-- Status: auto-approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -27,6 +28,7 @@
 
 ## Workflow history
 
+- 2026-11-21 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: p47398 verified (set companion-bugs, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-diobl2-01-diobl2-full-auto-orchestrator-dispatched-as-execute.backlog.md: Backlog carrier diobl2 filed per defect-report contract for runner_shared.py --full-auto orchestrator dispatch bug]
 - 2026-11-21 auto-approved (aw agy run --full-auto): auto-approved by --full-auto: review readiness cleared (not human approval)
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 FIXED; review record .aw/records/reviews/20261121-companion-bugs-00-p47398-fix-public-target-private-companion-records-split-brain-cont.review.md
