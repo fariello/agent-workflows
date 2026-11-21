@@ -47,22 +47,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `nbfg7w` E-02, batch subset G6a; round-3 split 2026-11-09) Batch G6a, 4 of its 25 modules (the find, attention, CLI, selector, front-matter, read and resolver tests (`test_find*`, `test_attention*`, `test_cli*`, `test_selector*`, `test_front_matter*`, `test_read*`, `test_resolver*`)): `tests/test_cli_find.py`, `tests/test_cli.py`, `tests/test_cli_search.py`, `tests/test_cli_show.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_cli_find` 4, `test_cli` 1, `test_cli_search` 16, `test_cli_show` 8. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6a-jjvnhb-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-01 (carried from `nbfg7w` E-02, batch subset G6a; round-3 split 2026-11-09) Batch G6a, 4 of its 25 modules (the find, attention, CLI, selector, front-matter, read and resolver tests (`test_find*`, `test_attention*`, `test_cli*`, `test_selector*`, `test_front_matter*`, `test_read*`, `test_resolver*`)): `tests/test_cli_find.py`, `tests/test_cli.py`, `tests/test_cli_search.py`, `tests/test_cli_show.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_cli_find` 4, `test_cli` 1, `test_cli_search` 16, `test_cli_show` 8. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6a-jjvnhb-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G6a-jjvnhb-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `nbfg7w` E-02, batch subset G6a; round-3 split 2026-11-09) Batch G6a, 4 of its 25 modules (the find, attention, CLI, selector, front-matter, read and resolver tests (`test_find*`, `test_attention*`, `test_cli*`, `test_selector*`, `test_front_matter*`, `test_read*`, `test_resolver*`)): `tests/test_find_agent_stream.py`, `tests/test_find_filters.py`, `tests/test_find_human_limit.py`, `tests/test_find_prompts_lane_status.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_find_agent_stream` 9, `test_find_filters` 10, `test_find_human_limit` 9, `test_find_prompts_lane_status` 7. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6a-jjvnhb-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `nbfg7w` E-02, batch subset G6a; round-3 split 2026-11-09) Batch G6a, 4 of its 25 modules (the find, attention, CLI, selector, front-matter, read and resolver tests (`test_find*`, `test_attention*`, `test_cli*`, `test_selector*`, `test_front_matter*`, `test_read*`, `test_resolver*`)): `tests/test_find_agent_stream.py`, `tests/test_find_filters.py`, `tests/test_find_human_limit.py`, `tests/test_find_prompts_lane_status.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_find_agent_stream` 9, `test_find_filters` 10, `test_find_human_limit` 9, `test_find_prompts_lane_status` 7. Run the codemod on these modules and apply the batch rule with `<batch>` = `G6a-jjvnhb-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 25, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. The `aw-prompt` comment tests use `prompt(...)`. Tests whose subject is the legacy grammar itself (`test_front_matter_loose_whitespace.py`, `test_history_block_bounding.py`, the quoted-example cases of `test_selector_two_dialect_readers.py`) keep their literal input and are listed as `legacy-format subject`. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G6a-jjvnhb-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 25) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G6a-jjvnhb-1-files.txt .aw/state/59aiyh/G6a-jjvnhb-2-files.txt)`) into `.aw/state/59aiyh/jjvnhb-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit jjvnhb -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G6a-jjvnhb-1-files.txt .aw/state/59aiyh/G6a-jjvnhb-2-files.txt)`) into `.aw/state/59aiyh/jjvnhb-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit jjvnhb -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,20 +152,92 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G6a-jjvnhb-1-files.txt` and the empty `diff .aw/state/59aiyh/G6a-jjvnhb-1-before.txt .aw/state/59aiyh/G6a-jjvnhb-1-after.txt`; then, for each of `tests/test_cli_find.py`, `tests/test_cli.py`, `tests/test_cli_search.py`, `tests/test_cli_show.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6a-jjvnhb-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the `59aiyh` V-09 `rg` pattern (`rg -n "(def _(plan|review|backlog|spec|research)[a-z_]*\()|(def (write|ready)_(plan|review)[a-z_]*\()"`) over these modules with each deleted and surviving helper and its reason (F-40 records none at the split).
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G6a-jjvnhb-1-files.txt`:
+      - `tests/test_cli_find.py`
+      - `tests/test_cli.py`
+      - `tests/test_cli_search.py`
+      - `tests/test_cli_show.py`
+    - Step-1 partition report (G6a modules matching F-01 at HEAD `054235071` that no plan names, NOT added here and deferred to `nbfg7w` E-06): `tests/test_readers_attention.py`, `tests/test_readers_cache_parity.py`, `tests/test_readers_check_engine.py`, `tests/test_readers_ipd_lint.py`, `tests/test_readers_offline.py`, `tests/test_readers_read_at_gates.py`, `tests/test_readers_selectors_find.py`, `tests/test_selector_scan_once.py`.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G6a-jjvnhb-1-before.txt .aw/state/59aiyh/G6a-jjvnhb-1-after.txt`): empty output, exit code 0 (101 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_cli_find.py`:
+        - F-01 `rg -c`: before 4, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=4`, `rewrites=4` (`standard=4`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=5c97d49aaf174ecb98a468534d40499eb64e2d6754fa9980e7add14399665c95`, `after_hash=5c97d49aaf174ecb98a468534d40499eb64e2d6754fa9980e7add14399665c95`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_cli.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=d24d3be413eef5be029d50194ced6565d970d0991e9eb3d1049da765fab614e4`, `after_hash=d24d3be413eef5be029d50194ced6565d970d0991e9eb3d1049da765fab614e4`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_cli_search.py`:
+        - F-01 `rg -c`: before 16, after 0. Remaining matches: none (prompt fixture uses `raw_fields={"Status": "reviewed"}`, `invalid-input`).
+        - Codemod JSON row: `sites=8`, `rewrites=5` (`standard=5`, `invalid-input=0`), `refusals=3` (`not-equivalent=3`, `hand=3`, `legacy-kept=0`), `before_hash=dad0d8c147dde451ffe40ea0e71603614f8017887d7c494279274e7fe5c306a8`, `after_hash=dad0d8c147dde451ffe40ea0e71603614f8017887d7c494279274e7fe5c306a8`, `equivalent=true`, `pytest_runs=10`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 8 | 8 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_cli_show.py`:
+        - F-01 `rg -c`: before 8, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=4`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=4` (`dynamic-construction=1`, `unsupported-shape=3`, `hand=4`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 4 | 0 | 0 | 1 | 3 | 0 | 0 | 0 | 0 | 0 | 4 | 0`.
+    - Hand count: 7 (4 static + 3 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_cli_search.py` pre-edit lines 91-95 (`not-equivalent`; codemod dropped H1 title `Sample Backlog Title ALPHA_SECRET`, filed as backlog `e0wwtc`; converted to `RecordBuilder().backlog(id6="bkl001", status="open", summary="Sample Backlog Title ALPHA_SECRET", body="## Details\n\nBacklog body text containing BETA_BODY.", text_only=True)`).
+      2. `tests/test_cli_search.py` pre-edit lines 101-105 (`not-equivalent`; codemod dropped H1 title `Done Backlog Title ALPHA_SECRET`, filed as backlog `e0wwtc`; converted to `RecordBuilder().backlog(id6="bkl002", status="done", summary="Done Backlog Title ALPHA_SECRET", body="## Details\n\nDone body text containing BETA_BODY.", text_only=True)`).
+      3. `tests/test_cli_search.py` pre-edit lines 126-130 (`not-equivalent`; codemod dropped H1 title `Sample Prompt ALPHA_SECRET`, filed as backlog `e0wwtc`; converted to `RecordBuilder().prompt(id6="prm001", short_description="Sample Prompt ALPHA_SECRET", body="# Prompt: Sample Prompt ALPHA_SECRET\n\n## Prompt\n\nPrompt body containing BETA_BODY.\n", raw_fields={"Status": "reviewed"}, text_only=True)`, `invalid-input` for non-prompt status `reviewed`).
+      4. `tests/test_cli_show.py` pre-edit lines 33-38 (`unsupported-shape`; converted `self.p1_content` to `RecordBuilder().plan(title="Sample Plan", id6="p99001", status="to-review", set="showtest", order=1, body="Plan details.\n", text_only=True)`).
+      5. `tests/test_cli_show.py` pre-edit lines 49-52 (`unsupported-shape`; converted `self.b1_content` to `RecordBuilder().backlog(id6="b99001", status="open", set="showtest", summary="Sample Item", body="Item details.\n", text_only=True)`).
+      6. `tests/test_cli_show.py` pre-edit line 64 (`unsupported-shape`; converted `self.rel_content` to `RecordBuilder().release(id6=self.rel_id6, version="1.0.0", status="shipped", body="# Release: 1.0.0\n\nRelease body.\n", text_only=True)`).
+      7. `tests/test_cli_show.py` pre-edit lines 280-282 (`dynamic-construction`; converted history write in `test_history_flag_prints_one_row_per_history_line` to `RecordBuilder().plan(title="Sample Plan", id6="p99001", status="to-review", set="showtest", order=1, body="Plan details.\n", history=["- 2026-11-02 to-review (aw set): ready", "- 2026-11-01 draft (author): created"], text_only=True)`).
+    - `59aiyh` V-09 helper census (`rg -n "(def _(plan|review|backlog|spec|research)[a-z_]*\()|(def (write|ready)_(plan|review)[a-z_]*\()"`):
+      - Before (1): `tests/test_cli.py` line 454 (`def _plans_repo(self, plan_name):`).
+      - After (1): `tests/test_cli.py` line 455 (`def _plans_repo(self, plan_name):`).
+      - Deleted helpers (0): none.
+      - Surviving helpers (1): `tests/test_cli.py`: `PlanNamesVerbTests._plans_repo` — repo-setup wrapper with 2 active callers (`test_check_reports_nonconforming`, `test_conformant_repo_exit_0`) creating arbitrary filenames under `.agents/plans/pending/`; now writes plan text via `RecordBuilder().plan(status="draft", text_only=True)` with zero legacy strings of its own.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G6a-jjvnhb-2-files.txt` and the empty `diff .aw/state/59aiyh/G6a-jjvnhb-2-before.txt .aw/state/59aiyh/G6a-jjvnhb-2-after.txt`; then, for each of `tests/test_find_agent_stream.py`, `tests/test_find_filters.py`, `tests/test_find_human_limit.py`, `tests/test_find_prompts_lane_status.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G6a-jjvnhb-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the `59aiyh` V-09 `rg` pattern (`rg -n "(def _(plan|review|backlog|spec|research)[a-z_]*\()|(def (write|ready)_(plan|review)[a-z_]*\()"`) over these modules with each deleted and surviving helper and its reason (F-40 records none at the split).
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G6a-jjvnhb-2-files.txt`:
+      - `tests/test_find_agent_stream.py`
+      - `tests/test_find_filters.py`
+      - `tests/test_find_human_limit.py`
+      - `tests/test_find_prompts_lane_status.py`
+    - Outcome diff (`diff -u .aw/state/59aiyh/G6a-jjvnhb-2-before.txt .aw/state/59aiyh/G6a-jjvnhb-2-after.txt`): empty output, exit code 0 (54 `PASSED` outcomes).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_find_agent_stream.py`:
+        - F-01 `rg -c`: before 9, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=9`, `rewrites=9` (`standard=9`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=7e2ed72259cf5b08b33f13554be34f1b0f72fb38b1187754eaa7b88ce26c95aa`, `after_hash=7e2ed72259cf5b08b33f13554be34f1b0f72fb38b1187754eaa7b88ce26c95aa`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_find_filters.py`:
+        - F-01 `rg -c`: before 10, after 2. Remaining matches (2): line 186 (`# 6. Walkthrough in .aw/records/walkthroughs/ (no readable - Status:)`, `body prose`, comment); line 294 (`# All walkthrough records lack a readable \`- Status:\`, so filtering on status returns zero rows.`, `body prose`, comment).
+        - Codemod JSON row: `sites=8`, `rewrites=8` (`standard=8`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=081c514cf373bf7df6749bfab372665832862c243e381133a3b3af669867a00e`, `after_hash=081c514cf373bf7df6749bfab372665832862c243e381133a3b3af669867a00e`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_find_human_limit.py`:
+        - F-01 `rg -c`: before 9, after 0. Remaining matches: none.
+        - Codemod JSON row: `sites=9`, `rewrites=9` (`standard=9`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=6b4026e8e904211985d430fbd4b436faf1fcac194d04818e20d8021a6f68c1cc`, `after_hash=6b4026e8e904211985d430fbd4b436faf1fcac194d04818e20d8021a6f68c1cc`, `equivalent=true`, `pytest_runs=2`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_find_prompts_lane_status.py`:
+        - F-01 `rg -c`: before 7, after 6. Remaining matches (6): line 62 (`# Divergent prompt in pending lane that carries an explicit - Status: superseded bullet`, `body prose`, comment); line 72 (`body="# Divergent Prompt\n\n- Status: superseded\n\nPrompt body text with explicit diverging bullet."` inside `RecordBuilder().prompt(...)`, `body prose`, intentional body bullet tested for bullet-over-lane precedence); line 126 (`"""(b) A prompt carrying an explicit - Status: bullet that disagrees with its lane renders the bullet value."""`, `body prose`, docstring); line 304 (`(d) comment Id (pr0004) and Set (set004) whose body quotes - Id: bogus1 and - Set: bogus2`, `body prose`, docstring); line 345 (`# (d) comment Id and Set, body quotes - Id: and - Set: bullets above first ## heading`, `body prose`, comment); line 354 (`body="# Quoted Bullets Prompt\n\n- Id: bogus1\n- Set: bogus2\n\n## Real Section\n\nBody content after heading."` inside `RecordBuilder().prompt(...)`, `body prose`, intentional quoted bullets in prompt body). The `lane == "not-executed"` case (`id6 == "prnot-"`) uses `raw_fields={"Id": id6, "Set": None}` (`invalid-input`).
+        - Codemod JSON row: `sites=6`, `rewrites=5` (`standard=5`, `invalid-input=0`), `refusals=1` (`not-equivalent=1`, `hand=1`, `legacy-kept=0`), `before_hash=e3f54002e02dea9672df8ea7313c8aedf54a8ef13eaad12ab13bc10e778e249b`, `after_hash=e3f54002e02dea9672df8ea7313c8aedf54a8ef13eaad12ab13bc10e778e249b`, `equivalent=true`, `pytest_runs=6`.
+        - `653ndz` F-30 row: `G6a | jjvnhb | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 1 (0 static + 1 apply-time `not-equivalent`; <= 25). Every hand-converted site:
+      1. `tests/test_find_prompts_lane_status.py` pre-edit lines 46-47 (`not-equivalent`; loop builds `id6 = f"pr{lane[:4]}"` which evaluates to invalid hyphenated `"prnot-"` for `lane == "not-executed"`, intentionally rejected by `validate_id6`; converted to `RecordBuilder().prompt(...)` with `id6=id6` for valid lanes and `raw_fields={"Id": id6, "Set": None}` for `"prnot-"`, `invalid-input`).
+    - `59aiyh` V-09 helper census (`rg -n "(def _(plan|review|backlog|spec|research)[a-z_]*\()|(def (write|ready)_(plan|review)[a-z_]*\()"`):
+      - Before (0): none.
+      - After (0): none.
+      - Deleted helpers (0): none.
+      - Surviving helpers (0): none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G6a-jjvnhb-1`, `G6a-jjvnhb-2` against `.aw/state/59aiyh/jjvnhb-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit jjvnhb` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u <(sort .aw/state/59aiyh/G6a-jjvnhb-1-before.txt .aw/state/59aiyh/G6a-jjvnhb-2-before.txt) .aw/state/59aiyh/jjvnhb-union-after.txt`): empty output, exit code 0 (155 `PASSED` outcomes across all 8 modules).
+    - Post-edit codemod dry-run over all 8 modules (`python3 tools/fixture_codemod.py --dry-run --format json`): `modules=8`, `sites=0`, `rewrites=0`, `refusals=0`, `hand=0`, `legacy-kept=0`.
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with bounded xdist workers): `2661 passed, 11 warnings in 107.36s (0:01:47)`, exit code 0 (0 failures; none of `jjvnhb`'s 8 modules appeared in the top-10 slowest or unlisted slow-tests report).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6875,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit jjvnhb` (all 8 modified test Scope-Paths): `aw commit: committed 8 path(s): 28be046cf2698f13ced1764beb0822bf03cc9772` (`tests/test_cli_find.py`, `tests/test_cli.py`, `tests/test_cli_search.py`, `tests/test_cli_show.py`, `tests/test_find_agent_stream.py`, `tests/test_find_filters.py`, `tests/test_find_human_limit.py`, `tests/test_find_prompts_lane_status.py`). Followed by the plan-evidence commit via `aw commit jjvnhb -- .aw/records/plans/pending/20261109-metastore-196-jjvnhb-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md` (and defect-report backlog carrier `.aw/records/backlog/open/20261121-e0wwtc-01-e0wwtc-fixture-codemod-drops-h1-heading-title-on-backlog.backlog.md` committed via `aw commit --no-plan` with `--scope-reason` recorded).
+  - Result: pass
 
 ## Approval and execution gate
 
