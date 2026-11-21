@@ -1,5 +1,6 @@
 - Id: b0en28
-- Status: open
+- Status: graduated
+- Graduated-To: b0en28
 - Set: b0en28
 - Work-Kind: bug
 - Priority: medium
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-21 graduated (aw backlog): graduated by run run-20261121T164611Z-3890369: feol8w
 - 2026-11-21 created (aw backlog): full-auto overwrites reviewed queue item to execute/queued hiding completed review in run summary and causing false drift in aw runs
 
 ## Problem
