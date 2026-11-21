@@ -25,6 +25,7 @@ from agent_workflows import agent_schema, cli, run_viewer, runner_shared
 from agent_workflows.run_ledger_schema import LEDGER_SCHEMA_VERSION
 from agent_workflows.run_ledger_store import RunLedgerStore
 from agent_workflows.term import Term, strip_ansi
+from tests.record_builder import RecordBuilder
 
 # --------------------------------------------------------------------------------------------------
 # Live-runs isolation: no test in this module may read the checkout's live runs tree.
@@ -268,7 +269,9 @@ class RunViewerTests(TestCase):
         d = root / ".aw" / "records" / "plans" / bucket
         d.mkdir(parents=True, exist_ok=True)
         (d / "20260908-intr-01-intr01-a-slug.ipd.md").write_text(
-            f"# IPD: a slug\n\n- Id: intr01\n- Status: {file_status}\n"
+            RecordBuilder().plan(
+                title="a slug", id6="intr01", status=file_status, text_only=True
+            )
         )
         step = run_viewer.StepSummary(
             position=1,
@@ -1065,9 +1068,13 @@ class RunViewerTests(TestCase):
             executed_dir.mkdir(parents=True)
 
             p1 = pending_dir / "20260829-test-01-item01.ipd.md"
-            p1.write_text("- Id: item01\n- Status: approved\n")
+            p1.write_text(
+                RecordBuilder().plan(id6="item01", status="approved", text_only=True)
+            )
             p2 = executed_dir / "20260829-test-02-item02.ipd.md"
-            p2.write_text("- Id: item02\n- Status: executed\n")
+            p2.write_text(
+                RecordBuilder().plan(id6="item02", status="executed", text_only=True)
+            )
 
             st1 = run_viewer.StepSummary(
                 position=1,
@@ -1170,8 +1177,25 @@ class RunViewerTests(TestCase):
                 "queued",
                 "running",
             ):
+                is_plan_status = fstatus in (
+                    "approved",
+                    "to-review",
+                    "draft",
+                    "reviewed",
+                )
                 (d / "20260908-intr-02-intr02-a-slug.ipd.md").write_text(
-                    f"# IPD: a slug\n\n- Id: intr02\n- Status: {fstatus}\n"
+                    str(
+                        RecordBuilder().plan(
+                            title="a slug",
+                            id6="intr02",
+                            set="intr",
+                            order=2,
+                            when="2026-09-08",
+                            status=fstatus if is_plan_status else "draft",
+                            raw_fields=None if is_plan_status else {"Status": fstatus},
+                            text_only=True,
+                        )
+                    )
                 )
                 step = run_viewer.StepSummary(
                     position=1,
@@ -1325,7 +1349,9 @@ class RunViewerTests(TestCase):
             pending_dir = root / ".aw" / "records" / "plans" / "pending"
             pending_dir.mkdir(parents=True)
             p1 = pending_dir / "20260829-test-01-item01.ipd.md"
-            p1.write_text("- Id: item01\n- Status: approved\n")
+            p1.write_text(
+                RecordBuilder().plan(id6="item01", status="approved", text_only=True)
+            )
 
             run_dir = root / ".aw" / "records" / "runs" / "run-20260829T000000Z-111111"
             run_dir.mkdir(parents=True)
@@ -1380,7 +1406,8 @@ class RunViewerTests(TestCase):
             executed_dir = root / ".aw" / "records" / "plans" / "executed"
             executed_dir.mkdir(parents=True)
             (executed_dir / "20260829-test-01-item01.ipd.md").write_text(
-                "- Id: item01\n- Status: executed\n", encoding="utf-8"
+                RecordBuilder().plan(id6="item01", status="executed", text_only=True),
+                encoding="utf-8",
             )
 
             run_dir = root / ".aw" / "records" / "runs" / "run-20260829T000000Z-111111"
@@ -2178,10 +2205,10 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
             pending = root / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             (pending / "20260902-e32j35-01-item01-a.ipd.md").write_text(
-                "- Id: item01\n- Status: approved\n"
+                RecordBuilder().plan(id6="item01", status="approved", text_only=True)
             )
             (pending / "20260902-e32j35-02-item02-b.ipd.md").write_text(
-                "- Id: item02\n- Status: approved\n"
+                RecordBuilder().plan(id6="item02", status="approved", text_only=True)
             )
 
             run_dir = root / ".aw" / "records" / "runs" / "run-20260902T010000Z-100000"
@@ -2265,10 +2292,10 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
             pending = root / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             (pending / "20260902-e32j35-01-item01-a.ipd.md").write_text(
-                "- Id: item01\n- Status: approved\n"
+                RecordBuilder().plan(id6="item01", status="approved", text_only=True)
             )
             (pending / "20260902-e32j35-02-item02-b.ipd.md").write_text(
-                "- Id: item02\n- Status: approved\n"
+                RecordBuilder().plan(id6="item02", status="approved", text_only=True)
             )
 
             run_dir = root / ".aw" / "records" / "runs" / "run-20260902T010000Z-100000"
@@ -2494,7 +2521,12 @@ class TestTypedQueueAuditViewer(TestCase):
             bk_dir = root / ".aw" / "records" / "backlog" / "graduated"
             bk_dir.mkdir(parents=True)
             bk_file = bk_dir / "20260928-test-01-item01.backlog.md"
-            bk_file.write_text("- Id: item01\n- Status: graduated\n", encoding="utf-8")
+            bk_file.write_text(
+                RecordBuilder().backlog(
+                    id6="item01", status="graduated", text_only=True
+                ),
+                encoding="utf-8",
+            )
 
             step = run_viewer.StepSummary(
                 position=1,
@@ -3106,10 +3138,16 @@ class RunsAgentStreamAndRefusalTests(TestCase):
         pending_dir = root / ".aw" / "records" / "plans" / "pending"
         pending_dir.mkdir(parents=True, exist_ok=True)
         p1 = pending_dir / "20260829-test-01-item01.ipd.md"
-        p1.write_text("- Id: item01\n- Status: approved\n", encoding="utf-8")
+        p1.write_text(
+            RecordBuilder().plan(id6="item01", status="approved", text_only=True),
+            encoding="utf-8",
+        )
         if collision:
             p2 = pending_dir / "20260829-test-02-item01.ipd.md"
-            p2.write_text("- Id: item01\n- Status: approved\n", encoding="utf-8")
+            p2.write_text(
+                RecordBuilder().plan(id6="item01", status="approved", text_only=True),
+                encoding="utf-8",
+            )
 
         runs_dir = root / ".aw" / "records" / "runs"
         r1 = runs_dir / "run-20260829T000000Z-111111"
@@ -3134,7 +3172,10 @@ class RunsAgentStreamAndRefusalTests(TestCase):
         r2 = runs_dir / "run-20260829T000001Z-222222"
         r2.mkdir(parents=True, exist_ok=True)
         p3 = pending_dir / "20260829-test-01-item02.ipd.md"
-        p3.write_text("- Id: item02\n- Status: approved\n", encoding="utf-8")
+        p3.write_text(
+            RecordBuilder().plan(id6="item02", status="approved", text_only=True),
+            encoding="utf-8",
+        )
         state2 = {
             "run_id": r2.name,
             "created_at": "2026-08-29T00:00:01+00:00",
