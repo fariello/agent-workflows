@@ -141,6 +141,7 @@ flowchart TD
   - Carrier: isj48z
 - Moved to dg43sc (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G1b (items E-02; F-41 names each module).
   - Carrier: dg43sc
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-178-dg43sc-move-backlog-release-gate-and-check-test-data-chunk-4-of-7-o.ipd.md
 - Moved to wirc2e (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subsets G1b, G2a (items E-02, E-03; F-41 names each module).
   - Carrier: wirc2e
 - Moved to 872zd9 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G2a (items E-03; F-41 names each module).
