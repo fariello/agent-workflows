@@ -26,6 +26,7 @@ from typing import Optional
 from agent_workflows import check_engine
 from agent_workflows import cli
 from agent_workflows import runner_shared
+from tests.record_builder import RecordBuilder
 
 
 def _make_scratch_repo(root: Path) -> Path:
@@ -61,11 +62,13 @@ def _make_scratch_repo(root: Path) -> Path:
         / "20260901-rel001-01-rel001-v1.release.md"
     )
     rel_file.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -870,16 +873,17 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             blocks_release="next",
         )
         done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
-        content = (
-            "- Id: item01\n"
-            "- Status: done\n"
-            "- Blocks-Release: next\n"
-            "- Close-Evidence: .aw/records/plans/nonexistent.ipd.md\n"
-            "- Set: testset\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Test item item01\n\n"
-            "## Summary\nTest item.\n"
+        content = RecordBuilder().backlog(
+            id6="item01",
+            status="done",
+            blocks_release="next",
+            close_evidence=".aw/records/plans/nonexistent.ipd.md",
+            set="testset",
+            priority="high",
+            work_kind="bug",
+            summary="Test item item01",
+            body="## Summary\nTest item.",
+            text_only=True,
         )
         done_path.write_text(content, encoding="utf-8")
         item_path.unlink()
@@ -1143,17 +1147,16 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         rel_ev = ev_file.relative_to(self.repo).as_posix()
 
         # 1. Item with body-quoted bullet only
-        body_quoted_text = (
-            "- Id: item01\n"
-            "- Status: done\n"
-            "- Blocks-Release: next\n"
-            "- Set: testset\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Test item item01\n\n"
-            "## Summary\n"
-            "Quoting an example bullet:\n"
-            f"- Close-Evidence: {rel_ev}\n"
+        body_quoted_text = RecordBuilder().backlog(
+            id6="item01",
+            status="done",
+            blocks_release="next",
+            set="testset",
+            priority="high",
+            work_kind="bug",
+            summary="Test item item01",
+            body=f"## Summary\nQuoting an example bullet:\n- Close-Evidence: {rel_ev}",
+            text_only=True,
         )
         p1 = (
             self.repo
@@ -1170,17 +1173,17 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertEqual(verdict_body.severity, "error")
 
         # 2. Item with front-matter bullet
-        fm_text = (
-            "- Id: item02\n"
-            "- Status: done\n"
-            "- Blocks-Release: next\n"
-            f"- Close-Evidence: {rel_ev}\n"
-            "- Set: testset\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Test item item02\n\n"
-            "## Summary\n"
-            "Clean item.\n"
+        fm_text = RecordBuilder().backlog(
+            id6="item02",
+            status="done",
+            blocks_release="next",
+            close_evidence=rel_ev,
+            set="testset",
+            priority="high",
+            work_kind="bug",
+            summary="Test item item02",
+            body="## Summary\nClean item.",
+            text_only=True,
         )
         p2 = (
             self.repo
@@ -1969,7 +1972,14 @@ class BacklogGateDirSplitTests(unittest.TestCase):
             / "20260901-testset-01-ext001-gate-doc.ipd.md"
         )
         gate_doc.write_text(
-            "# IPD: Gate doc\n\n- Id: ext001\n- Status: executed\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n",
+            RecordBuilder().plan(
+                title="Gate doc",
+                id6="ext001",
+                status="executed",
+                set="testset",
+                scope_paths="x",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(gate_doc)], cwd=self.main_repo, check=True)
@@ -1991,7 +2001,14 @@ class BacklogGateDirSplitTests(unittest.TestCase):
             / "20260901-testset-01-ext002-lane-doc.ipd.md"
         )
         lane_doc.write_text(
-            "# IPD: Lane doc\n\n- Id: ext002\n- Status: executed\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n",
+            RecordBuilder().plan(
+                title="Lane doc",
+                id6="ext002",
+                status="executed",
+                set="testset",
+                scope_paths="x",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(lane_doc)], cwd=self.lane_repo, check=True)
@@ -2133,7 +2150,17 @@ class BacklogGateDirSplitTests(unittest.TestCase):
             / "20260926-testset-01-plan01-test-plan.ipd.md"
         )
         plan_exec.write_text(
-            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            RecordBuilder().plan(
+                title="Test plan plan01",
+                id6="plan01",
+                status="executed",
+                from_backlog="item01",
+                blocks_release="next",
+                set="testset",
+                scope_paths="x",
+                body="## Goal\nTest",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
@@ -2193,7 +2220,17 @@ class BacklogGateDirSplitTests(unittest.TestCase):
             / "20260926-testset-01-plan01-test-plan.ipd.md"
         )
         plan_exec.write_text(
-            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            RecordBuilder().plan(
+                title="Test plan plan01",
+                id6="plan01",
+                status="executed",
+                from_backlog="item01",
+                blocks_release="next",
+                set="testset",
+                scope_paths="x",
+                body="## Goal\nTest",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
@@ -2256,7 +2293,17 @@ class BacklogGateDirSplitTests(unittest.TestCase):
             / "20260926-testset-01-plan01-test-plan.ipd.md"
         )
         plan_exec.write_text(
-            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            RecordBuilder().plan(
+                title="Test plan plan01",
+                id6="plan01",
+                status="executed",
+                from_backlog="item01",
+                blocks_release="next",
+                set="testset",
+                scope_paths="x",
+                body="## Goal\nTest",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
@@ -2315,7 +2362,17 @@ class BacklogGateDirSplitTests(unittest.TestCase):
             / "20260926-testset-01-plan01-test-plan.ipd.md"
         )
         plan_exec.write_text(
-            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            RecordBuilder().plan(
+                title="Test plan plan01",
+                id6="plan01",
+                status="executed",
+                from_backlog="item01",
+                blocks_release="next",
+                set="testset",
+                scope_paths="x",
+                body="## Goal\nTest",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
