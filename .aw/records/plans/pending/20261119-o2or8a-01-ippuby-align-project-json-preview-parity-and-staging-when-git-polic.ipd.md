@@ -6,7 +6,9 @@
 - Scope: Extract side-effect-free `.aw/config/project.json` update planners in `agent_workflows/migrations/chain.py` and `agent_workflows/config.py`; compose them in a new `engine.plan_project_json_update` helper shared with `engine.run`'s `--diff` preview via `engine.show_install_diffs`; run `chain.write_metadata_schema` before `config.sync_cutovers_on_install` inside `engine.install_into_repo` so fresh installs write both `metadata_schema` and `cutovers` in the first pass; update `engine.stage_tracked_policy_files` to resolve missing `git_policies` entries through `project_context.resolve_project_context`; add behavioral parity and staging tests in `tests/test_installer_scaffold_preview_parity.py` and `tests/test_installer.py` without weakening existing assertions; and add one `- Fixed:` entry to `CHANGELOG.md`. EXCLUDES: adding `.aw/config/project.json` to `allowed_residual_fixed`, adding `.aw/config/project.json` to `collect_scaffold_members`, adding a `--diff` flag to `aw install`, modifying `install_wizard.persist_project_policy`, and changing `--diff` behavior for `.aw/.gitignore`, `AGENTS.md`, root `.gitignore`, `layout.json`, or `managed-sections.json`.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/migrations/chain.py, agent_workflows/engine.py, tests/test_installer_scaffold_preview_parity.py, tests/test_installer.py, CHANGELOG.md, .aw/records/plans/pending/20261119-o2or8a-01-ippuby-align-project-json-preview-parity-and-staging-when-git-polic.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
+- Review-Depth: standard
 - Short-Description: Preview .aw/config/project.json in --diff alongside install_into_repo and resolve missing git_policies when staging
 - Work-Kind: bug
 - Priority: medium
@@ -22,6 +24,8 @@
 
 ## Workflow history
 
+- 2026-11-21 reviewed (aw set): REJECT - NEEDS REPLAN; PR-001 REPLAN, PR-002 FIXED
+- 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): REJECT - NEEDS REPLAN; PR-001, PR-002
 - 2026-11-20 to-review (antigravity/gemini): Authored review-ready plan graduated from backlog o2or8a.
 - 2026-11-20 draft (antigravity/gemini): created.
 
@@ -189,4 +193,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`- Status: approved`). Commit only files modified for this plan, limited to `- Scope-Paths:`, through `aw commit ippuby -- <paths>` (never `git add -A`, `git commit -a`, or `--no-verify`, and never push without explicit human direction). Finalize through `aw ipd finalize ippuby` (performed by the runner when dispatched via `aw oc run` or `aw agy run`), and close backlog item `o2or8a` via `aw backlog set done o2or8a --carrier-evidence ...` once verified.
+- **Preconditions**: Do not execute in current form (`- Readiness: no-go`, `REJECT - NEEDS REPLAN`; see `.aw/records/reviews/20261121-o2or8a-01-ippuby-align-project-json-preview-parity-and-staging-when-git-polic.review.md`, as `E-01..E-04` already landed in commit `2c0a0fe21`). Execute any replacement plan only after human approval (`- Status: approved`) and with all blocking open questions resolved.
+- **Scope fence**: Intended edits are declared in `- Scope-Paths:`. Do not stop over a scope variance; if execution requires editing an undeclared path or leaving a declared path unmodified, complete the work and supply `--scope-reason` per out-of-scope path or `--scope-ack` per unmodified path at finalization.
+- **Honesty rule**: You MUST paste the actual runner output for every test, lint, typecheck, and verification claim in `Observed evidence:`. Never claim a check passed without running it.
+- **Shared-checkout safety and commit**: Never revert, stage, commit, discard, reformat, or clean up another party's uncommitted changes or untracked files. Verify staged paths and commit only files modified for this plan through `aw commit ippuby -- <paths>` (never `git add -A`, `git commit -a`, or `--no-verify`, and never push without explicit human direction).
+- **Lifecycle transition**: When dispatched by `aw oc run` or `aw agy run`, leave terminal finalization to the runner; when executed directly by hand, run `aw ipd finalize ippuby` after all `E-*` items are `performed` and all `V-*` items are `pass` (never hand-roll `git mv` to `executed/`). After finalization and verification, close backlog item `o2or8a` via `aw backlog set done o2or8a --carrier-evidence ...` as a separate post-finalization step (outside this plan's `- Scope-Paths:`).
