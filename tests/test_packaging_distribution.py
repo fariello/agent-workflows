@@ -226,6 +226,7 @@ class WheelPackagingDistributionTests(unittest.TestCase):
             "agent-workflows": "agent_workflows.cli:main",
             "agentwf": "agent_workflows.cli:main",
             "aw": "agent_workflows.cli:main",
+            "aw-profile": "agent_workflows.aw_profile:main",
         }
         self.assertEqual(
             mapping,

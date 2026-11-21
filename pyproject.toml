@@ -141,6 +141,7 @@ Changelog = "https://github.com/fariello/agent-workflows/releases"
 agent-workflows = "agent_workflows.cli:main"
 aw = "agent_workflows.cli:main"
 agentwf = "agent_workflows.cli:main"
+aw-profile = "agent_workflows.aw_profile:main"
 
 # Version comes from our own git-tag-driven resolver via a custom hatch version source
 # (hatch_build.py), NOT hatch-vcs - single source of versioning truth, no extra build dep.
