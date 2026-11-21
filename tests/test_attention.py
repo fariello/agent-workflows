@@ -25,6 +25,7 @@ from agent_workflows import attention_contract as A
 from agent_workflows import agent_schema
 from agent_workflows import backlog as backlog_mod
 from agent_workflows.artifact_core import Drift as core_Drift
+from tests.record_builder import RecordBuilder
 
 # This repository's own root, for the few cases that legitimately measure the REAL corpus (the E-08
 # parity assertion). Derived from this file's location so it is correct in a worktree/lane too.
@@ -40,15 +41,35 @@ def _mk_repo(tmp: Path):
     for d in (specs, research, plans):
         d.mkdir(parents=True, exist_ok=True)
     (specs / "s.md").write_text(
-        "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Author: t\n\n## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        RecordBuilder().spec(
+            title="s",
+            when="2026-08-08",
+            status="approved",
+            author="t",
+            history=["- 2026-08-08 draft (t): created."],
+            body="## Body\n\nx",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (plans / "20260808-x-01-abc123-p.md").write_text(
-        "# IPD: p\n\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        RecordBuilder().plan(
+            title="p",
+            status="draft",
+            id6="abc123",
+            history=["- 2026-08-08 draft (t): created."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (research / "20260808-r-00-def456-r.survey.md").write_text(
-        "---\nid: def456\nstatus: active\nkind: survey\n---\n\n# r\n\n## Workflow history\n- 2026-08-08 draft (t): x.\n",
+        RecordBuilder().research(
+            id6="def456",
+            status="active",
+            research_kind="survey",
+            body="\n# r\n\n## Workflow history\n- 2026-08-08 draft (t): x.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return tmp
@@ -99,7 +120,12 @@ class ScanTests(unittest.TestCase):
 
             # unclassified and violations
             (root / ".agents" / "docs" / "specs" / "bad.md").write_text(
-                "# Spec: bad\n\n- Status: frobnicated\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
+                RecordBuilder().spec(
+                    title="bad",
+                    history=["- 2026-08-08 x (t): y."],
+                    raw_fields={"Status": "frobnicated"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             odd = root / ".agents" / "docs" / "weird"
@@ -128,7 +154,12 @@ class ScanTests(unittest.TestCase):
                 self.assertEqual(att.run(args), 0)
 
             (root / ".agents" / "docs" / "specs" / "bad.md").write_text(
-                "# Spec: bad\n\n- Status: deferred\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
+                RecordBuilder().spec(
+                    title="bad",
+                    status="deferred",
+                    history=["- 2026-08-08 x (t): y."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             args_bad = argparse.Namespace(
@@ -141,7 +172,12 @@ class ScanTests(unittest.TestCase):
 
             # board hides done/parked by default
             (root / ".agents" / "docs" / "specs" / "done.md").write_text(
-                "# Spec: done\n\n- Status: implemented\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
+                RecordBuilder().spec(
+                    title="done",
+                    status="implemented",
+                    history=["- 2026-08-08 x (t): y."],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             items_d, drift_d = att.scan(root)
@@ -188,125 +224,135 @@ class ScanTests(unittest.TestCase):
 class StaleResearchReclassifyTests(unittest.TestCase):
     """IPD h40usm E-02: attention no longer files finished/cited intake research under `ready`."""
 
-    def _write_research(self, root, *, set_id, order, id6, slug, status, kind):
-        from agent_workflows import research_cmd as C
-        from agent_workflows import research_contract as R
-
-        rroot = root / ".agents" / "docs" / "research"
-        rroot.mkdir(parents=True, exist_ok=True)
-        name = R.format_name(
-            R.ResearchName(
-                date="20260801",
-                set_id=set_id,
-                order=f"{order:02d}",
-                id6=id6,
-                slug=slug,
-                model=None,
-                kind=kind,
-            )
-        )
-        content = C.build_frontmatter(
-            id6=id6,
-            created="20260801",
-            set_id=set_id,
-            order=f"{order:02d}",
-            topic=["t"],
-            model=None,
-            kind=kind,
-            status=status,
-            outcome="none-yet",
-            summary="s",
-        )
-        (rroot / name).write_text(
-            content + "\n## Workflow history\n- 2026-08-01 draft (t): x.\n",
-            encoding="utf-8",
-        )
-
     def test_stale_research_reclassification_and_class_of(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
+            builder = RecordBuilder(root)
             # RUN prompt-set: intake report in synthesized set -> stale/parked
-            self._write_research(
-                root,
-                set_id="runset",
+            builder.research(
+                set="runset",
                 order=0,
                 id6="prmpt2",
                 slug="ask",
                 status="reference",
-                kind="research-prompt",
+                research_kind="research-prompt",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
-            self._write_research(
-                root,
-                set_id="runset",
-                order=1,
-                id6="recon01",
-                slug="recon",
-                status="reference",
-                kind="reconciliation-report",
+            (
+                root
+                / ".aw"
+                / "records"
+                / "research"
+                / "20260801-runset-01-recon01-recon.reconciliation-report.md"
+            ).write_text(
+                RecordBuilder().research(
+                    set="runset",
+                    order=1,
+                    slug="recon",
+                    status="reference",
+                    research_kind="reconciliation-report",
+                    outcome="none-yet",
+                    when="2026-08-01",
+                    topic=["t"],
+                    summary="s",
+                    raw_fields={"id": "recon01"},
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
-            self._write_research(
-                root,
-                set_id="runset",
+            builder.research(
+                set="runset",
                 order=2,
                 id6="rprt01",
                 slug="ans",
-                status="intake",
-                kind="research-report",
+                status="todo",
+                research_kind="research-report",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
+                raw_fields={"status": "intake"},
             )
             # UNRUN prompt: statusless prompt -> ready
-            self._write_research(
-                root,
-                set_id="unrunset",
+            builder.research(
+                set="unrunset",
                 order=0,
                 id6="prmpt9",
                 slug="ask",
                 status=None,
-                kind="research-prompt",
+                research_kind="research-prompt",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
             # active doc -> active
-            self._write_research(
-                root,
-                set_id="liveset",
+            builder.research(
+                set="liveset",
                 order=0,
                 id6="live01",
                 slug="w",
                 status="active",
-                kind="notes",
+                research_kind="notes",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
             # cited by executed plan -> parked
-            self._write_research(
-                root,
-                set_id="solo",
+            builder.research(
+                set="solo",
                 order=0,
                 id6="solo11",
                 slug="s",
-                status="intake",
-                kind="notes",
+                status="todo",
+                research_kind="notes",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
+                raw_fields={"status": "intake"},
             )
-            pl = root / ".aw" / "records" / "plans" / "executed"
-            pl.mkdir(parents=True, exist_ok=True)
-            (pl / "20260801-set-01-plnexe-x.ipd.md").write_text(
-                "# Plan\n\n- Id: plnexe\n\nAdopts RSCH-solo11.\n", encoding="utf-8"
+            builder.plan(
+                id6="plnexe",
+                set="set",
+                order=1,
+                title="Plan",
+                when="2026-08-01",
+                status="executed",
+                disposition="executed",
+                slug="x",
+                body="Adopts RSCH-solo11.",
             )
 
             # legacy intake vs todo
-            self._write_research(
-                root,
-                set_id="s1",
+            builder.research(
+                set="s1",
                 order=0,
                 id6="todo01",
                 slug="a",
                 status="todo",
-                kind="notes",
+                research_kind="notes",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
-            self._write_research(
-                root,
-                set_id="s2",
+            builder.research(
+                set="s2",
                 order=0,
                 id6="oldik0",
                 slug="b",
-                status="intake",
-                kind="notes",
+                status="todo",
+                research_kind="notes",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
+                raw_fields={"status": "intake"},
             )
 
             items, drift = att.scan(root)
@@ -331,55 +377,71 @@ class StaleResearchReclassifyTests(unittest.TestCase):
         """IPD 5e3nj2 E-08: unrun statusless -> READY, partial statusless -> ACTIVE, archive in partial set -> PARKED."""
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
+            builder = RecordBuilder(root)
             # 1. Unrun statusless prompt -> READY
-            self._write_research(
-                root,
-                set_id="unrunset",
+            builder.research(
+                set="unrunset",
                 order=0,
                 id6="prm001",
                 slug="ask-unrun",
                 status=None,
-                kind="research-prompt",
+                research_kind="research-prompt",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
 
             # 2. Partial statusless prompt -> ACTIVE
-            self._write_research(
-                root,
-                set_id="partset",
+            builder.research(
+                set="partset",
                 order=0,
                 id6="prm002",
                 slug="ask-partial",
                 status=None,
-                kind="research-prompt",
+                research_kind="research-prompt",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
-            self._write_research(
-                root,
-                set_id="partset",
+            builder.research(
+                set="partset",
                 order=1,
                 id6="rpt002",
                 slug="ans-partial",
                 status="todo",
-                kind="research-report",
+                research_kind="research-report",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
 
             # 3. Archive prompt in a partial set -> PARKED (shelf outranks position, regression guard for F-9)
-            self._write_research(
-                root,
-                set_id="archset",
+            builder.research(
+                set="archset",
                 order=0,
                 id6="prm003",
                 slug="ask-archive",
                 status="archive",
-                kind="research-prompt",
+                research_kind="research-prompt",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
-            self._write_research(
-                root,
-                set_id="archset",
+            builder.research(
+                set="archset",
                 order=1,
                 id6="rpt003",
                 slug="ans-archive",
                 status="todo",
-                kind="research-report",
+                research_kind="research-report",
+                outcome="none-yet",
+                when="2026-08-01",
+                topic=["t"],
+                summary="s",
             )
 
             items, drift = att.scan(root)
@@ -450,7 +512,9 @@ class StaleResearchReclassifyTests(unittest.TestCase):
         )
         txt5 = "# Doc\n\n- Title: Explicit doc title\n"
         self.assertEqual(att._extract_detail(txt5), ("title", "Explicit doc title"))
-        txt6 = "# Spec: Fallback Specification Header\n\n- Status: draft\n"
+        txt6 = RecordBuilder().spec(
+            title="Fallback Specification Header", status="draft", text_only=True
+        )
         self.assertEqual(
             att._extract_detail(txt6), ("title", "Fallback Specification Header")
         )
@@ -486,7 +550,14 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             (
                 root / ".agents" / "plans" / "pending" / "20260808-x-01-abc123-p.md"
             ).write_text(
-                "# IPD: p\n\n- Scope: Build test subsystem.\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+                RecordBuilder().plan(
+                    title="p",
+                    status="draft",
+                    id6="abc123",
+                    history=["- 2026-08-08 draft (t): created."],
+                    raw_fields={"Scope": "Build test subsystem."},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             args = argparse.Namespace(
@@ -559,11 +630,26 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             rel_dir = root / ".aw" / "records" / "releases"
             rel_dir.mkdir(parents=True, exist_ok=True)
             (rel_dir / "20260830-rel001-01-rel001-release.release.md").write_text(
-                "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n- Summary: Test\n",
+                RecordBuilder().release(
+                    version="1.0.0",
+                    id6="rel001",
+                    status="planned",
+                    summary="Test",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (root / ".agents" / "docs" / "specs" / "s.md").write_text(
-                "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Blocks-Release: next\n- Author: t\n\n## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+                RecordBuilder().spec(
+                    title="s",
+                    when="2026-08-08",
+                    status="approved",
+                    blocks_release="next",
+                    author="t",
+                    history=["- 2026-08-08 draft (t): created."],
+                    body="## Body\n\nx",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             args = argparse.Namespace(
@@ -748,23 +834,12 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         )
 
         # OQ counting and rendering in table
-        text_with_oqs = """# IPD: test
-- Status: to-review
-
-## Open questions
-
-### OQ-01: First
-- Status: open
-- Blocking: yes
-
-### OQ-02: Second
-- Status: resolved
-- Blocking: no
-
-### OQ-03: Third
-- Status: deferred
-- Blocking: no
-"""
+        text_with_oqs = RecordBuilder().plan(
+            title="test",
+            status="to-review",
+            open_questions="### OQ-01: First\n- Status: open\n- Blocking: yes\n\n### OQ-02: Second\n- Status: resolved\n- Blocking: no\n\n### OQ-03: Third\n- Status: deferred\n- Blocking: no",
+            text_only=True,
+        )
         self.assertEqual(att.count_unresolved_open_questions(text_with_oqs), 2)
         self.assertEqual(att.count_resolved_questions(text_with_oqs), 1)
         self.assertEqual(att.count_question_stats(text_with_oqs), (2, 1))
@@ -1165,19 +1240,43 @@ class AttentionFilteringTests(unittest.TestCase):
 
             p1 = plans_dir / "20260901-test-01-aaaaaa-has-oq.ipd.md"
             p1.write_text(
-                "# IPD: has oq\n- Status: to-review\n- Set: test\n- Order: 01\n- Id: aaaaaa\n\n## Open questions\n\n### OQ-01: Open\n- Status: open\n",
+                RecordBuilder().plan(
+                    title="has oq",
+                    status="to-review",
+                    set="test",
+                    order=1,
+                    id6="aaaaaa",
+                    open_questions="### OQ-01: Open\n- Status: open",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             p2 = plans_dir / "20260901-test-02-bbbbbb-resolved-oq.ipd.md"
             p2.write_text(
-                "# IPD: resolved oq\n- Status: to-review\n- Set: test\n- Order: 02\n- Id: bbbbbb\n\n## Open questions\n\n### OQ-01: Resolved\n- Status: resolved\n",
+                RecordBuilder().plan(
+                    title="resolved oq",
+                    status="to-review",
+                    set="test",
+                    order=2,
+                    id6="bbbbbb",
+                    open_questions="### OQ-01: Resolved\n- Status: resolved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             executed_dir = root / ".aw" / "records" / "plans" / "executed"
             executed_dir.mkdir(parents=True)
             p3 = executed_dir / "20260901-test-03-cccccc-executed-with-oq.ipd.md"
             p3.write_text(
-                "# IPD: executed with oq\n- Status: executed\n- Set: test\n- Order: 03\n- Id: cccccc\n\n## Open questions\n\n### OQ-01: Still open in old plan\n- Status: open\n",
+                RecordBuilder().plan(
+                    title="executed with oq",
+                    status="executed",
+                    set="test",
+                    order=3,
+                    id6="cccccc",
+                    open_questions="### OQ-01: Still open in old plan\n- Status: open",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1236,15 +1335,32 @@ class AttentionFilteringTests(unittest.TestCase):
             releases_dir = root / ".aw" / "records" / "releases"
             releases_dir.mkdir(parents=True)
             (releases_dir / "20260901-rel001-01-rel001-1-0-0.release.md").write_text(
-                "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n\n## Summary\n\nfixture release.\n",
+                RecordBuilder().release(
+                    version="1.0.0",
+                    id6="rel001",
+                    status="planned",
+                    body="# Release: 1.0.0\n\n## Summary\n\nfixture release.",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (research_dir / "20260901-test-01-res001-real.md").write_text(
-                "---\nid: res001\nstatus: todo\nblocks-release: next\n---\n\n# Real research blocker\n",
+                RecordBuilder().research(
+                    id6="res001",
+                    status="todo",
+                    body="\n# Real research blocker\n",
+                    raw_fields={"blocks-release": "next"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (research_dir / "20260901-test-02-res002-quote.md").write_text(
-                "---\nid: res002\nstatus: todo\n---\n\n# Prompt quoting an IPD\n\n```markdown\n- Blocks-Release: next\n```\n",
+                RecordBuilder().research(
+                    id6="res002",
+                    status="todo",
+                    body="\n# Prompt quoting an IPD\n\n```markdown\n- Blocks-Release: next\n```\n",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -2359,29 +2475,19 @@ class StrandedLaneViewTests(unittest.TestCase):
                 self.assertEqual(mock_inspect.call_count, 0)
 
     def test_count_question_stats(self):
-        doc = """# Test IPD
-
-- Status: approved
-
-## 1. Context
-Some content
-
-## Open questions
-
-### OQ-01 First question
-- Status: open
-- Blocking: yes
-
-### RQ-02 Resolved question
-- Status: resolved
-
-### OQ-03 Closed by rationale
-- Status: closed
-
-## Next Section
-### OQ-99 Not in open questions
-- Status: open
-"""
+        doc = RecordBuilder().plan(
+            title="Test IPD",
+            status="approved",
+            body=(
+                "## 1. Context\nSome content\n\n"
+                "## Open questions\n\n"
+                "### OQ-01 First question\n- Status: open\n- Blocking: yes\n\n"
+                "### RQ-02 Resolved question\n- Status: resolved\n\n"
+                "### OQ-03 Closed by rationale\n- Status: closed\n\n"
+                "## Next Section\n### OQ-99 Not in open questions\n- Status: open\n"
+            ),
+            text_only=True,
+        )
         unresolved, resolved = att.count_question_stats(doc)
         self.assertEqual(unresolved, 1)
         self.assertEqual(resolved, 2)
@@ -2583,8 +2689,14 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
         specs = tmp / ".aw" / "records" / "specs"
         specs.mkdir(parents=True, exist_ok=True)
         (specs / "20260101-cccccc-01-cccccc-s.spec.md").write_text(
-            "# Spec: s\n\n- Status: approved\n- Id: cccccc\n\n## Body\n\nx\n\n"
-            "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+            RecordBuilder().spec(
+                title="s",
+                status="approved",
+                id6="cccccc",
+                history=["- 2026-01-01 draft (t): created."],
+                body="## Body\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return tmp
@@ -2623,7 +2735,13 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
                 / "specs"
                 / "20260101-dddddd-01-dddddd-bad.spec.md"
             ).write_text(
-                "# Spec: bad\n\n- Status: frobnicated\n- Id: dddddd\n\n## Workflow history\n- 2026-01-01 draft (t): created.\n",
+                RecordBuilder().spec(
+                    title="bad",
+                    id6="dddddd",
+                    history=["- 2026-01-01 draft (t): created."],
+                    raw_fields={"Status": "frobnicated"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             rc_p, out_p = self._run_check(root, types=["plans"])
@@ -2645,9 +2763,12 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
 
 
 class SpecDriftLocationIsRepoRelativeTests(unittest.TestCase):
-    _SPEC_BODY = (
-        "# Spec: bad\n\n- Status: frobnicated\n- Id: aaaaaa\n\n"
-        "## Workflow history\n- 2026-01-01 draft (t): created.\n"
+    _SPEC_BODY = RecordBuilder().spec(
+        title="bad",
+        id6="aaaaaa",
+        history=["- 2026-01-01 draft (t): created."],
+        raw_fields={"Status": "frobnicated"},
+        text_only=True,
     )
 
     def test_spec_drift_location_is_repo_relative(self):
@@ -2705,11 +2826,23 @@ class BlockingNextResolvesAgainstThePlannedReleaseTests(unittest.TestCase):
         releases = tmp / ".aw" / "records" / "releases"
         releases.mkdir(parents=True)
         (releases / "20260101-pppppp-01-pppppp-1-0-0.release.md").write_text(
-            f"# Release: 1.0.0\n\n- Id: pppppp\n- Version: 1.0.0\n- Status: {'planned' if planned else 'shipped'}\n\n## Summary\n\nx.\n",
+            RecordBuilder().release(
+                version="1.0.0",
+                id6="pppppp",
+                status="planned" if planned else "shipped",
+                body="# Release: 1.0.0\n\n## Summary\n\nx.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (releases / "20251201-ssssss-01-ssssss-0-9-0.release.md").write_text(
-            "# Release: 0.9.0\n\n- Id: ssssss\n- Version: 0.9.0\n- Status: shipped\n\n## Summary\n\nx.\n",
+            RecordBuilder().release(
+                version="0.9.0",
+                id6="ssssss",
+                status="shipped",
+                body="# Release: 0.9.0\n\n## Summary\n\nx.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         backlog = tmp / ".aw" / "records" / "backlog" / "open"
@@ -2720,7 +2853,17 @@ class BlockingNextResolvesAgainstThePlannedReleaseTests(unittest.TestCase):
             ("03", "cccccc", "pppppp"),
         ):
             (backlog / f"20260101-b-{order}-{id6}-gate.backlog.md").write_text(
-                f"- Id: {id6}\n- Status: open\n- Set: b\n- Priority: high\n- Work-Kind: chore\n- Blocks-Release: {gate}\n- Summary: fixture\n\n## Workflow history\n- 2026-01-01 created (aw backlog): fixture\n",
+                RecordBuilder().backlog(
+                    id6=id6,
+                    status="open",
+                    set="b",
+                    priority="high",
+                    work_kind="chore",
+                    blocks_release=gate,
+                    summary="fixture",
+                    history=["- 2026-01-01 created (aw backlog): fixture"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
         return tmp
@@ -2759,9 +2902,12 @@ class BlockingNextResolvesAgainstThePlannedReleaseTests(unittest.TestCase):
 
 
 class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
-    _TERMINAL_MISMATCH = (
-        "# IPD: mismatch\n\n- Status: superseded\n- Id: {id6}\n\n"
-        "## Workflow history\n- 2026-01-01 draft (t): created.\n"
+    _TERMINAL_MISMATCH = RecordBuilder().plan(
+        title="mismatch",
+        status="superseded",
+        history=["- 2026-01-01 draft (t): created."],
+        raw_fields={"Id": "{id6}"},
+        text_only=True,
     )
 
     def _rules_for(self, root: Path):
@@ -2936,20 +3082,43 @@ class BlocksReleaseDashSortsAsAbsentTests(unittest.TestCase):
 
 class UnbulletedFrontmatterDetailTests(unittest.TestCase):
     def test_unbulleted_frontmatter_detail(self):
-        text = "---\nid: aaaaaa\nstatus: todo\nsummary: The real summary.\n---\n\n# Research: a title\n"
+        text = RecordBuilder().research(
+            id6="aaaaaa",
+            status="todo",
+            summary="The real summary.",
+            body="\n# Research: a title\n",
+            text_only=True,
+        )
         self.assertEqual(att._extract_detail(text), ("summary", "The real summary."))
 
-        text_noh1 = "---\nid: aaaaaa\nstatus: todo\nsummary: Only the summary exists.\n---\n\nbody text\n"
+        text_noh1 = RecordBuilder().research(
+            id6="aaaaaa",
+            status="todo",
+            summary="Only the summary exists.",
+            body="\nbody text\n",
+            text_only=True,
+        )
         self.assertEqual(
             att._extract_detail(text_noh1), ("summary", "Only the summary exists.")
         )
 
-        text_body = "---\nid: aaaaaa\nstatus: todo\n---\n\n# Real Title\n\n```yaml\nsummary: THIS IS QUOTED PROSE\n```\n"
+        text_body = RecordBuilder().research(
+            id6="aaaaaa",
+            status="todo",
+            body="\n# Real Title\n\n```yaml\nsummary: THIS IS QUOTED PROSE\n```\n",
+            text_only=True,
+        )
         kind, val = att._extract_detail(text_body)
         self.assertEqual((kind, val), ("title", "Real Title"))
         self.assertNotIn("QUOTED PROSE", val or "")
 
-        plan = "# IPD: p\n\n- Status: to-review\n- Scope: the declared scope\n- Id: aaaaaa\n"
+        plan = RecordBuilder().plan(
+            title="p",
+            status="to-review",
+            id6="aaaaaa",
+            raw_fields={"Scope": "the declared scope"},
+            text_only=True,
+        )
         self.assertEqual(att._extract_detail(plan), ("scope", "the declared scope"))
         both = "---\nid: aaaaaa\nsummary: the frontmatter one\n---\n\n# T\n\n- Summary: the bulleted one\n"
         self.assertEqual(att._extract_detail(both), ("summary", "the bulleted one"))
@@ -3116,19 +3285,49 @@ def _attsel_repo(tmp: Path) -> Path:
     for d in (specs, research, plans, backlog):
         d.mkdir(parents=True, exist_ok=True)
     (specs / "20260808-s-01-spc001-s.spec.md").write_text(
-        "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Id: spc001\n- Author: t\n\n## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        RecordBuilder().spec(
+            title="s",
+            when="2026-08-08",
+            status="approved",
+            id6="spc001",
+            author="t",
+            history=["- 2026-08-08 draft (t): created."],
+            body="## Body\n\nx",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (plans / "20260808-x-01-abc123-p.ipd.md").write_text(
-        "# IPD: p\n\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        RecordBuilder().plan(
+            title="p",
+            status="draft",
+            id6="abc123",
+            history=["- 2026-08-08 draft (t): created."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (research / "20260808-r-00-def456-r.survey.md").write_text(
-        "---\nid: def456\nstatus: active\nkind: survey\n---\n\n# r\n\n## Workflow history\n- 2026-08-08 draft (t): x.\n",
+        RecordBuilder().research(
+            id6="def456",
+            status="active",
+            research_kind="survey",
+            body="\n# r\n\n## Workflow history\n- 2026-08-08 draft (t): x.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (backlog / "20260808-b-01-prk001-b.backlog.md").write_text(
-        "- Id: prk001\n- Status: parked\n- Set: b\n- Priority: medium\n- Work-Kind: chore\n- Summary: a parked maybe\n\n## Workflow history\n- 2026-08-08 parked (t): created.\n",
+        RecordBuilder().backlog(
+            id6="prk001",
+            status="parked",
+            set="b",
+            priority="medium",
+            work_kind="chore",
+            summary="a parked maybe",
+            history=["- 2026-08-08 parked (t): created."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return tmp
@@ -3456,8 +3655,15 @@ class AttentionMatchingArtifactsCountTests(unittest.TestCase):
 
     def _add_done_spec(self, root):
         (root / ".agents" / "docs" / "specs" / "done.md").write_text(
-            "# Spec: done\n\n- Date: 2026-08-08\n- Status: implemented\n- Author: t\n\n"
-            "## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+            RecordBuilder().spec(
+                title="done",
+                when="2026-08-08",
+                status="implemented",
+                author="t",
+                history=["- 2026-08-08 draft (t): created."],
+                body="## Body\n\nx",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -3503,9 +3709,15 @@ class PlansIdWindowTests(unittest.TestCase):
     """
 
     def _text_with_id_at(self, offset: int, id6: str) -> str:
-        head = "# IPD: p\n\n"
-        pad = "- Concern: " + "x" * (offset - len(head) - len("- Concern: ") - 1) + "\n"
-        text = head + pad + f"- Id: {id6}\n\n## Workflow history\n"
+        builder = RecordBuilder()
+        base = builder.plan(
+            title="p", id6=id6, raw_fields={"Concern": ""}, text_only=True
+        )
+        id_line_start = base.rfind("\n", 0, base.index(id6)) + 1
+        pad = "x" * (offset - id_line_start)
+        text = builder.plan(
+            title="p", id6=id6, raw_fields={"Concern": pad}, text_only=True
+        )
         self.assertEqual(text.index(f"- Id: {id6}"), offset)
         return text
 
@@ -3586,7 +3798,9 @@ class InboxWaitingCountTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             box = self._inbox(root)
-            (box / "a.md").write_text("- Id: abc123\n", encoding="utf-8")
+            (box / "a.md").write_text(
+                RecordBuilder().plan(id6="abc123", text_only=True), encoding="utf-8"
+            )
             (box / "b.txt").write_text("x", encoding="utf-8")
             (box / ".c.md").write_text("x", encoding="utf-8")
 

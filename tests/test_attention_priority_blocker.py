@@ -15,6 +15,7 @@ import pytest
 
 from agent_workflows import attention
 from agent_workflows import term as T
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -120,25 +121,25 @@ class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
     """IPD 7mw7m5 E-02: a plan carrying Blocks-Release surfaces in the release-blocker set AND its
     Item.blocks_release is populated by the plans reader (display parity with specs/backlog)."""
 
-    def _mk_plan(self, root, br_value):
-        import pathlib
-
-        pdir = pathlib.Path(root) / ".aw" / "records" / "plans" / "pending"
-        pdir.mkdir(parents=True, exist_ok=True)
-        (pdir / "20260101-demo-01-pl0001-x.ipd.md").write_text(
-            "# IPD: pl0001\n\n- Date: 2026-08-22\n- Kind: child\n- Status: draft\n"
-            f"- Set: demo\n- Order: 1\n- Id: pl0001\n- Blocks-Release: {br_value}\n\n"
-            "## Workflow history\n- 2026-08-22 draft (t): x.\n\n## Goal\nx\n",
-            encoding="utf-8",
-        )
-
     def test_plans_reader_populates_blocks_release_and_surfaces(self):
         import tempfile
         from pathlib import Path
 
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            self._mk_plan(root, "next")
+            RecordBuilder(root).plan(
+                id6="pl0001",
+                set="demo",
+                order=1,
+                title="pl0001",
+                when="2026-08-22",
+                plan_role="child",
+                status="draft",
+                blocks_release="next",
+                slug="x",
+                history=["- 2026-08-22 draft (t): x."],
+                body="## Goal\nx",
+            )
             items, _drift = attention.scan(root)
             plan_items = [it for it in items if it.tree == "plans"]
             self.assertEqual(len(plan_items), 1)
@@ -178,26 +179,26 @@ class RetiredPlanIsNotAReleaseBlockerTests(unittest.TestCase):
     outstanding release blocker: nobody is going to do it. `release_blockers` previously skipped only
     the DONE class, so a plan retired to `superseded/` kept appearing in the release-blocker list."""
 
-    def _mk_plan(self, root, disposition, status):
-        import pathlib
-
-        pdir = pathlib.Path(root) / ".aw" / "records" / "plans" / disposition
-        pdir.mkdir(parents=True, exist_ok=True)
-        (pdir / "20260101-demo-01-pl0002-x.ipd.md").write_text(
-            "# IPD: pl0002\n\n- Date: 2026-08-22\n- Kind: child\n"
-            f"- Status: {status}\n"
-            "- Set: demo\n- Order: 1\n- Id: pl0002\n- Blocks-Release: next\n\n"
-            "## Workflow history\n- 2026-08-22 draft (t): x.\n\n## Goal\nx\n",
-            encoding="utf-8",
-        )
-
     def _blockers(self, disposition, status):
         import tempfile
         from pathlib import Path
 
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            self._mk_plan(root, disposition, status)
+            RecordBuilder(root).plan(
+                id6="pl0002",
+                set="demo",
+                order=1,
+                title="pl0002",
+                when="2026-08-22",
+                plan_role="child",
+                status=status,
+                disposition=disposition,
+                blocks_release="next",
+                slug="x",
+                history=["- 2026-08-22 draft (t): x."],
+                body="## Goal\nx",
+            )
             items, _drift = attention.scan(root)
             return (
                 [it.id for it in attention.release_blockers(items, root)],
@@ -261,7 +262,7 @@ class ReadinessReaderTests(unittest.TestCase):
         from agent_workflows import ipd_schema
 
         for value in ("go", "no-go", "GO - PENDING HUMAN APPROVAL", "banana", ""):
-            text = f"- Readiness: {value}\n"
+            text = RecordBuilder().plan(raw_fields={"Readiness": value}, text_only=True)
             self.assertEqual(
                 attention.read_readiness(text),
                 ipd_schema.read_readiness(text),

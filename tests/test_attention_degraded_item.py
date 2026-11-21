@@ -30,6 +30,7 @@ from pathlib import Path
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
 from agent_workflows import run_selection_policy as rsp
+from tests.record_builder import RecordBuilder
 
 
 class AttentionDegradedItemTests(unittest.TestCase):
@@ -57,20 +58,19 @@ class AttentionDegradedItemTests(unittest.TestCase):
         # 1. Malformed plan: no - Status: bullet (id6: ab12cd)
         self.malformed_plan = self.plans_dir / "20260929-set-01-ab12cd-malformed.ipd.md"
         self.malformed_plan.write_text(
-            """# IPD: Malformed plan
-
-- Date: 2026-09-29
-- Kind: child
-- Scope: none
-- Scope-Paths: none
-- Item-Dependencies: none
-- Set: set
-- Order: 01
-- Id: ab12cd
-
-## Goal
-Test malformed.
-""",
+            RecordBuilder().plan(
+                title="Malformed plan",
+                when="2026-09-29",
+                plan_role="child",
+                scope_paths="none",
+                item_dependencies="none",
+                set="set",
+                order=1,
+                id6="ab12cd",
+                body="## Goal\nTest malformed.",
+                raw_fields={"Status": None},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -79,21 +79,19 @@ Test malformed.
             self.plans_dir / "20260929-set-02-ef34gh-wellformed.ipd.md"
         )
         self.wellformed_plan.write_text(
-            """# IPD: Wellformed plan
-
-- Date: 2026-09-29
-- Kind: child
-- Scope: none
-- Scope-Paths: none
-- Item-Dependencies: none
-- Status: to-review
-- Set: set
-- Order: 02
-- Id: ef34gh
-
-## Goal
-Test wellformed.
-""",
+            RecordBuilder().plan(
+                title="Wellformed plan",
+                when="2026-09-29",
+                plan_role="child",
+                scope_paths="none",
+                item_dependencies="none",
+                status="to-review",
+                set="set",
+                order=2,
+                id6="ef34gh",
+                body="## Goal\nTest wellformed.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -219,21 +217,19 @@ Test wellformed.
         """Confirm fatal status rule attention.unknown-status also produces degraded Item."""
         unknown_plan = self.plans_dir / "20260929-set-03-cd56ef-unknown.ipd.md"
         unknown_plan.write_text(
-            """# IPD: Unknown status plan
-
-- Date: 2026-09-29
-- Kind: child
-- Scope: none
-- Scope-Paths: none
-- Item-Dependencies: none
-- Status: completely-bogus-status
-- Set: set
-- Order: 03
-- Id: cd56ef
-
-## Goal
-Test unknown status.
-""",
+            RecordBuilder().plan(
+                title="Unknown status plan",
+                when="2026-09-29",
+                plan_role="child",
+                scope_paths="none",
+                item_dependencies="none",
+                set="set",
+                order=3,
+                id6="cd56ef",
+                body="## Goal\nTest unknown status.",
+                raw_fields={"Status": "completely-bogus-status"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         items, drift = att.scan(self.root)
