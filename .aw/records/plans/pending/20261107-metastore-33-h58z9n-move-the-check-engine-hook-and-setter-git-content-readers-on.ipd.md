@@ -104,6 +104,7 @@ flowchart TD
 
 - E-01 (the split-wide `aw check` baseline and table F-10, and the 4.4 search rows for `check_engine` and the two blob-reading hooks), E-02 (the `check_engine` git readers) and E-03 (the four hooks). Moved to snh19k (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: snh19k
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
 - E-01 (the 4.4 search rows for `plan_readiness`, `ipd_lifecycle`, `artifact_meta` and `status_set`) and E-04 (the setter, staleness, lifecycle and runner merge-path readers). Moved to iqhzse (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: iqhzse
 - The 4.4 search rows for `runner_shared`/`oc_runipd`/`agy_runipd`, the runner selection and execution reads, the own-log finalize scope, and the runner residual rows.

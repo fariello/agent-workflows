@@ -121,6 +121,7 @@ flowchart TD
 
 - The `check_engine` git readers, the hooks and the split-wide baseline.
   - Carrier: snh19k
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-145-snh19k-save-the-read-at-split-baseline-and-move-the-check-engine-an.ipd.md
 - The residual audit of the hook, readiness and lifecycle modules.
   - Carrier: h58z9n
 - The other runner reads and the runner residual rows.
