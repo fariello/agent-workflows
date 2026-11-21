@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` AC-42 items (4) and (5) require `aw find`, `aw attention --format json`, and before/after `aw find` parity (legacy readers before migration matching log readers after migration by mapped path and status) across all five C12 corpus shapes (`legacy_agents_layout`, `mixed_layout`, `idless_prose`, `no_sidecar`, `companion_backend`) and on a fresh `git clone --no-hardlinks` of this repository. Executed plan `g5hpbb` excluded moving readers onto `artifact_meta` ("EXCLUDES: moving any reader or writer onto the cache (Orders 07 to 11)"), while `cdglt1` (Order 142, executed), `r81uvz` (Order 27, executed), `dqutt8` (Order 28, pending), and `ffceq0` (Order 08, pending) depended on `executed:g5hpbb`, and running `agent_workflows/migrations/m0001_metadata_v2.py::run` on a clone of this repository took ~51.5 minutes (`435.34s` dry run + `2656.37s` apply, `dcerjg` V-15, graduated backlog `e49gzt` with child plan `n2bfd4`). Per maintainer direction on `g5hpbb` question `g5hpbb-ac42-order08-circular-dependency` (2026-11-17), those deferred AC-42 assertions and the `this_repository` clone test move here, gated on `executed:ffceq0`, `executed:g5hpbb`, and `state:backlog:done:e49gzt`, to run before `5qyba0` and `cxxmyv`.
 - Scope: Extend `tests/test_m0001_any_repo.py` after Order 08 (`ffceq0`) and `e49gzt` (`n2bfd4`) land to: (1) assert spec `4sd62s` AC-42 item (4) (`aw find` and `aw attention --format json` / `--all --format json` on migrated records) and item (5) (before/after `aw find --agent` parity by mapped path and normalized status) across all five `tests/migration_corpus.py` shapes; (2) add the `this_repository` (`git clone --no-hardlinks`) test marked `@pytest.mark.slow`, `@pytest.mark.livecorpus`, and `@pytest.mark.timeout(...)` (excluded from `@pytest.mark.core`) and allowlisted in `tests/slow_allowlist.txt`; and (3) record one `CHANGELOG.md` entry and run all validation gates. EXCLUDES: AC-42 items (1)-(3), (6), (7), `aw show --history`/`--format json`, and `agent_workflows/status_set.py::inventory_all_artifacts`-vs-`agent_workflows/artifact_meta.py::query` parity on the five corpus shapes (already delivered by `g5hpbb`); modifying production readers (`ffceq0` and its split parts); and optimizing `m0001` runtime (`e49gzt` / `n2bfd4`).
 - Scope-Paths: tests/test_m0001_any_repo.py, tests/slow_allowlist.txt, CHANGELOG.md, .aw/records/plans/pending/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-735ium-01-735ium-proposal-from-60mazt-create-and-execute-a-sco.backlog.md (Runner-filed proposal from 60mazt first attempt during run-20261121T014040Z-2638602 before defect carriers 0dsjzl, fnabjy, xl9xrm, and 7mmhlp landed)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, state:backlog:done:e49gzt
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Verify AC-42 items (4), (5), and the this-repository clone migration in tests/test_m0001_any_repo.py after ffceq0 and e49gzt.
@@ -20,12 +21,12 @@
 - Highest E allocated: 03
 - Author: antigravity/gemini
 - Id: 60mazt
-- Approval: 2026-11-20, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-21 executed (antigravity/gemini): Salvage, complete E-03, and finalize verified 60mazt on current main [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-735ium-01-735ium-proposal-from-60mazt-create-and-execute-a-sco.backlog.md: Runner-filed proposal from 60mazt first attempt during run-20261121T014040Z-2638602 before defect carriers 0dsjzl, fnabjy, xl9xrm, and 7mmhlp landed] [Scope attribution - 13 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: .aw/records/backlog/graduated/20261121-companion-bugs-01-rvxmzz-companion-records-split-brain.backlog.md, .aw/records/backlog/open/20261121-66qh30-01-66qh30-set-plan-approved-under-full-auto-dirties-main-wit.backlog.md, agent_workflows/artifact_meta.py, agent_workflows/aw_profile.py, agent_workflows/orchestrator_readiness.py (... and 8 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-11-20 approved (aw set): status set to approved
 - 2026-11-20 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-20 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED; review record .aw/records/reviews/20261117-mzw0kk-01-60mazt-verify-ac-42-aw-find-aw-attention-parity-and-clone-migration.review.md
