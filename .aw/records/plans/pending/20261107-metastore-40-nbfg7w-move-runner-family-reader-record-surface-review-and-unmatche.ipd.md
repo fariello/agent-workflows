@@ -148,6 +148,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-194-hp6ydi-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Moved to lf0fe4 (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subsets G5b, G6a (items E-01, E-02; F-41 names each module).
   - Carrier: lf0fe4
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-195-lf0fe4-move-runner-family-reader-record-and-review-test-data-chunk.ipd.md
 - Moved to jjvnhb (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G6a (items E-02; F-41 names each module).
   - Carrier: jjvnhb
 - Moved to f8jntm (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G6a (items E-02; F-41 names each module).
