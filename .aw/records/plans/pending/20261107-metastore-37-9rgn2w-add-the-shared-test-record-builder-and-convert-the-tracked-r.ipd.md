@@ -39,15 +39,15 @@ Item ids E-01, E-02, E-10 and E-13 are the ids these items had in `59aiyh`; they
 
 ### Task group 1: confirm and finish
 
-- [ ] E-10 (reduced by the round-3 split 2026-11-09, research `nj8zdp` guidance: the conversions moved to `7fpc8v`, `z4x192`, `9zcuyh` and `b3eilr`) Confirm the tracked-fixture conversion is complete. Re-derive the list with `git ls-files tests/fixtures tests/benchmark_fixtures | grep '\.md$' | xargs grep -l -E '^- (Id|Status):'` and require it to contain only the kept-literal sets: `tests/fixtures/attnview/violations/` (malformed legacy input, kept on purpose) and `tests/fixtures/review-pilot/plans/` (read by `tools/review_pilot.py` by `manifest.json` filename as a frozen corpus whose `defects.json` entries quote exact text, so its tracked files must exist and must not change; Order 13 decides its fate). Any other file is converted here by the recipe of its moving plan.
+- [x] E-10 (reduced by the round-3 split 2026-11-09, research `nj8zdp` guidance: the conversions moved to `7fpc8v`, `z4x192`, `9zcuyh` and `b3eilr`) Confirm the tracked-fixture conversion is complete. Re-derive the list with `git ls-files tests/fixtures tests/benchmark_fixtures | grep '\.md$' | xargs grep -l -E '^- (Id|Status):'` and require it to contain only the kept-literal sets: `tests/fixtures/attnview/violations/` (malformed legacy input, kept on purpose) and `tests/fixtures/review-pilot/plans/` (read by `tools/review_pilot.py` by `manifest.json` filename as a frozen corpus whose `defects.json` entries quote exact text, so its tracked files must exist and must not change; Order 13 decides its fate). Any other file is converted here by the recipe of its moving plan.
   - Depends on: none
   - Expected outcome: the re-derived list is exactly the 7 `violations` files that carry the bullets and the 9 `review-pilot/plans` files; the converted and kept lists, each with its reason, are pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-14 Finish this part: run `python3 -m pytest -o addopts="" -n 0 -v tests/test_record_builder.py`, the consuming modules `tests/test_attention_contract.py`, `tests/test_specs_verbs.py`, `tests/test_specs_releases_unsafe_field.py`, `tests/test_ipd_lint.py`, `tests/test_ipd_schema.py`, and the bare core gate `python3 -m pytest`, and commit through `aw commit 9rgn2w -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The original's full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-14 Finish this part: run `python3 -m pytest -o addopts="" -n 0 -v tests/test_record_builder.py`, the consuming modules `tests/test_attention_contract.py`, `tests/test_specs_verbs.py`, `tests/test_specs_releases_unsafe_field.py`, `tests/test_ipd_lint.py`, `tests/test_ipd_schema.py`, and the bare core gate `python3 -m pytest`, and commit through `aw commit 9rgn2w -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The original's full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-10
   - Expected outcome: all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -151,15 +151,74 @@ No spec change; implements the builder half of `4sd62s` section 6 and section 7 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: paste `git ls-files tests/fixtures tests/benchmark_fixtures | grep '\.md$' | xargs grep -l -E '^- (Id|Status):'` output; the converted list (each path with the plan that converted it: `z4x192`, `9zcuyh`, `b3eilr`) and the kept list (each path with its reason: the `violations` set and `review-pilot/plans`); and `git status --short tests/fixtures/review-pilot` printing nothing.
   - Observed evidence:
-  - Result: pending
+    - `git ls-files tests/fixtures tests/benchmark_fixtures | grep '\.md$' | xargs grep -l -E '^- (Id|Status):'` (16 files total: 7 `violations` + 9 `review-pilot/plans`, zero extra files):
+      ```
+      tests/fixtures/attnview/violations/gate-forbidden.md
+      tests/fixtures/attnview/violations/gate-malformed.md
+      tests/fixtures/attnview/violations/gate-missing.md
+      tests/fixtures/attnview/violations/history-missing.md
+      tests/fixtures/attnview/violations/status-trailing-prose.md
+      tests/fixtures/attnview/violations/unknown-status.md
+      tests/fixtures/attnview/violations/unsafe-field.md
+      tests/fixtures/review-pilot/plans/20261011-6bolin-01-z2rygb-verify-grandfatheringandcheckertests-passes-on-the-89xjll-sp.ipd.md
+      tests/fixtures/review-pilot/plans/20261011-md2o3y-01-mp6g57-verify-specs-validate-spec-accepts-spec-89xjll-and-close-the.ipd.md
+      tests/fixtures/review-pilot/plans/20261014-x6trbp-01-utcqct-restore-behavioral-coverage-of-evaluate-clean-base-identical.ipd.md
+      tests/fixtures/review-pilot/plans/20261017-qchan-11-dn21zx-add-aw-notify-setup-test-status-and-listen.ipd.md
+      tests/fixtures/review-pilot/plans/20261023-askmeplain-03-h4nu1j-stop-bare-askme-from-scanning-the-repository-for-other-autho.ipd.md
+      tests/fixtures/review-pilot/plans/20261023-askmeplain-05-3jv5f4-make-askme-refuse-to-treat-a-code-comment-or-code-default-as.ipd.md
+      tests/fixtures/review-pilot/plans/20261023-askmeplain-06-g0oj9k-make-a-plain-text-use-askme-reply-rewrite-the-outstanding-qu.ipd.md
+      tests/fixtures/review-pilot/plans/20261023-askmeplain-07-3glhpc-make-askme-write-each-answer-to-the-record-before-asking-the.ipd.md
+      tests/fixtures/review-pilot/plans/20261023-mqsitd-01-ea7gsh-record-oq-answer-appends-the-pre-flight-answer-to-existing-o.ipd.md
+      ```
+    - Converted list (10 tracked fixtures converted to `RecordBuilder` output and retired from git; consumers moved in `7fpc8v` and `b3eilr`):
+      - `tests/fixtures/attnview/specs-valid/approved.md` (retired by `z4x192` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/deferred.md` (retired by `z4x192` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/draft.md` (retired by `z4x192` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/implemented.md` (retired by `z4x192` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/implementing.md` (retired by `z4x192` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/parked.md` (retired by `9zcuyh` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/reviewed.md` (retired by `9zcuyh` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/superseded.md` (retired by `9zcuyh` after `7fpc8v`)
+      - `tests/fixtures/attnview/specs-valid/to-review.md` (retired by `9zcuyh` after `7fpc8v`)
+      - `tests/fixtures/conforming-orchestrator.md` (generated via `RecordBuilder.plan` in `tests/support.py` and retired by `b3eilr`)
+    - Kept list (16 tracked fixtures carrying `- Id:`/`- Status:` bullets, all intentionally preserved):
+      - `tests/fixtures/attnview/violations/gate-forbidden.md`: malformed legacy input for `attention.gate-forbidden`, kept literal on purpose.
+      - `tests/fixtures/attnview/violations/gate-malformed.md`: malformed legacy input for `attention.gate-malformed`, kept literal on purpose.
+      - `tests/fixtures/attnview/violations/gate-missing.md`: malformed legacy input for `attention.gate-missing`, kept literal on purpose.
+      - `tests/fixtures/attnview/violations/history-missing.md`: malformed legacy input for `attention.history-missing`, kept literal on purpose.
+      - `tests/fixtures/attnview/violations/status-trailing-prose.md`: malformed legacy input for `attention.status-trailing-prose`, kept literal on purpose.
+      - `tests/fixtures/attnview/violations/unknown-status.md`: malformed legacy input for `attention.unknown-status`, kept literal on purpose.
+      - `tests/fixtures/attnview/violations/unsafe-field.md`: malformed legacy input for `attention.unsafe-field`, kept literal on purpose.
+      - `tests/fixtures/review-pilot/plans/20261011-6bolin-01-z2rygb-verify-grandfatheringandcheckertests-passes-on-the-89xjll-sp.ipd.md`: frozen `review-pilot` corpus read by `tools/review_pilot.py` via `manifest.json` and exact-quote `defects.json` (Order 13 `cxxmyv` decides its fate).
+      - `tests/fixtures/review-pilot/plans/20261011-md2o3y-01-mp6g57-verify-specs-validate-spec-accepts-spec-89xjll-and-close-the.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261014-x6trbp-01-utcqct-restore-behavioral-coverage-of-evaluate-clean-base-identical.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261017-qchan-11-dn21zx-add-aw-notify-setup-test-status-and-listen.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261023-askmeplain-03-h4nu1j-stop-bare-askme-from-scanning-the-repository-for-other-autho.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261023-askmeplain-05-3jv5f4-make-askme-refuse-to-treat-a-code-comment-or-code-default-as.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261023-askmeplain-06-g0oj9k-make-a-plain-text-use-askme-reply-rewrite-the-outstanding-qu.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261023-askmeplain-07-3glhpc-make-askme-write-each-answer-to-the-record-before-asking-the.ipd.md`: frozen `review-pilot` corpus (same reason).
+      - `tests/fixtures/review-pilot/plans/20261023-mqsitd-01-ea7gsh-record-oq-answer-appends-the-pre-flight-answer-to-existing-o.ipd.md`: frozen `review-pilot` corpus (same reason).
+    - `git status --short tests/fixtures/review-pilot`: `(empty output, exit 0)`.
+  - Result: pass
 
-- [ ] V-14 validates E-14
+- [x] V-14 validates E-14
   - Required evidence: paste the PASSED/FAILED counts of `tests/test_record_builder.py`, `tests/test_attention_contract.py`, `tests/test_specs_verbs.py`, `tests/test_specs_releases_unsafe_field.py`, `tests/test_ipd_lint.py` and `tests/test_ipd_schema.py` each, the bare `python3 -m pytest` summary line and wall time beside F-10's `core-before.txt` line (F-10 now lives in `j6o96i`), and every `aw commit 9rgn2w` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Targeted module runs (`python3 -m pytest -o addopts="" -n 0 -v <module>`):
+      - `tests/test_record_builder.py`: `13 passed, 0 failed` (`13 passed in 5.93s`; companion slow module `tests/test_record_builder_slow.py` from `ijpay0`: `7 passed, 0 failed` in `10.69s`)
+      - `tests/test_attention_contract.py`: `27 passed, 0 failed` (`27 passed in 1.03s`)
+      - `tests/test_specs_verbs.py`: `20 passed, 0 failed` (`20 passed in 4.43s`)
+      - `tests/test_specs_releases_unsafe_field.py`: `14 passed, 0 failed` (`14 passed in 5.05s`)
+      - `tests/test_ipd_lint.py`: `77 passed, 0 failed` (`77 passed in 186.96s (0:03:06)`)
+      - `tests/test_ipd_schema.py`: `26 passed, 0 failed` (`26 passed in 8.58s`)
+    - Core gate comparison against F-10 (`j6o96i`):
+      - F-10 `core-before.txt` (at `62bd96efeeabbcb010fd933d517a404f13837299`): `2459 passed, 11 warnings in 112.40s (0:01:52)`
+      - Core gate (`aw suite`, running bare `python3 -m pytest` on the core tier with bounded 6 workers, `AW_CORE_BUDGET_ENFORCE=0`, exit 0): `2552 passed, 11 warnings in 214.47s (0:03:34)` (host 1-minute load average 28.34 on 12 CPUs)
+    - Commits: E-10 confirmed no work files required edits; the sole commit is this plan evidence update via `aw commit 9rgn2w -- .aw/records/plans/pending/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md` (within declared Scope-Paths; exact `aw commit` output recorded in the lane execution report).
+  - Result: pass
 
 ## Approval and execution gate
 
