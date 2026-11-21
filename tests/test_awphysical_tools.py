@@ -30,6 +30,7 @@ from agent_workflows.layout_migration import (
 )
 from agent_workflows.project_schema import DurabilityState
 from agent_workflows.record_producers import resolve_record_routing
+from tests.record_builder import RecordBuilder
 
 
 TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools" / "awphysical"
@@ -241,7 +242,12 @@ class InventoryTests(unittest.TestCase):
         (agents / "workflows" / "index.md").write_text("wf\n", encoding="utf-8")
         (agents / "backlog" / "open").mkdir(parents=True)
         item = agents / "backlog" / "open" / "20260815-x-01-x-thing.md"
-        item.write_text("- Id: x\n- Status: open\n", encoding="utf-8")
+        item.write_text(
+            RecordBuilder().backlog(
+                status="open", raw_fields={"Id": "x"}, text_only=True
+            ),
+            encoding="utf-8",
+        )
         git(self.repo, "add", "-A")
 
         result = INVENTORY.inventory(

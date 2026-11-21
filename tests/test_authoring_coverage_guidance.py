@@ -20,6 +20,7 @@ from pathlib import Path
 
 from agent_workflows import engine, ipd_authoring, ipd_schema, runner_shared
 from tests.support import init_repo, run_installer
+from tests.record_builder import RecordBuilder
 
 
 class ProductionPromptCoverageGuidanceTests(unittest.TestCase):
@@ -37,7 +38,9 @@ class ProductionPromptCoverageGuidanceTests(unittest.TestCase):
                 / "20261001-demo-01-demo-test.spec.md"
             )
             spec_path.parent.mkdir(parents=True, exist_ok=True)
-            spec_path.write_text("# Spec\n- Id: demo01\n", encoding="utf-8")
+            spec_path.write_text(
+                RecordBuilder().spec(id6="demo01", text_only=True), encoding="utf-8"
+            )
             backlog_path = (
                 repo
                 / ".aw"
@@ -47,7 +50,9 @@ class ProductionPromptCoverageGuidanceTests(unittest.TestCase):
                 / "20261001-bkl01-01-bkl01-test.backlog.md"
             )
             backlog_path.parent.mkdir(parents=True, exist_ok=True)
-            backlog_path.write_text("# Backlog\n- Id: bkl001\n", encoding="utf-8")
+            backlog_path.write_text(
+                RecordBuilder().backlog(id6="bkl001", text_only=True), encoding="utf-8"
+            )
 
             state = {"repo": str(repo)}
             spec_item = {"id6": "demo01"}

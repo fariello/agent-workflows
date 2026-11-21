@@ -33,6 +33,7 @@ from agent_workflows.layout_migration import (
 )
 from agent_workflows.project_registry import register_or_update_project
 from agent_workflows.project_schema import DeliveryMode, RecordsBackend
+from tests.record_builder import RecordBuilder
 
 
 class FacetResolutionTests(unittest.TestCase):
@@ -161,8 +162,12 @@ class _MigrationFixture(unittest.TestCase):
         # Seed legacy .agents records: a plan, a spec, a comms message, a research doc.
         repo = Path(self.target_repo)
         seeds = {
-            ".agents/plans/pending/20260101-0001-01-a.md": "# IPD: a\n\n- Status: approved\n",
-            ".agents/docs/specs/20260101-1200-01-x.md": "# Spec\n\n- Status: draft\n",
+            ".agents/plans/pending/20260101-0001-01-a.md": RecordBuilder().plan(
+                title="a", status="approved", text_only=True
+            ),
+            ".agents/docs/specs/20260101-1200-01-x.md": RecordBuilder().spec(
+                status="draft", text_only=True
+            ),
             ".agents/docs/research/20260101-1300-01-note.gpt.analysis.md": "# research\n",
             ".agents/comms/shared/sent/20260101-1400-01-a.agent--to--b.agent-fyi-x.md": "# msg\n",
         }

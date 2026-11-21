@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -39,7 +40,13 @@ class MutationVerbsTests(unittest.TestCase):
         self.plan_a = self.pend / "20260101-demo-01-aaa111-original.ipd.md"
         _write(
             self.plan_a,
-            "# IPD\n\n- Id: aaa111\n- Set: demo (demo)\n- Status: draft\n\n## Workflow history\n- 2026-01-01 draft (t): x\n",
+            RecordBuilder().plan(
+                id6="aaa111",
+                set="demo (demo)",
+                status="draft",
+                history=["- 2026-01-01 draft (t): x"],
+                text_only=True,
+            ),
         )
         self.doc_b = self.root / ".agents" / "docs" / "ref.md"
         _write(self.doc_b, "citing 20260101-demo-01-aaa111-original.ipd.md here\n")
