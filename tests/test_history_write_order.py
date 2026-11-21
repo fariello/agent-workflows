@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _skip_if_root() -> None:
@@ -82,14 +83,16 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         item = open_dir / "20261001-demo01-01-bk0001-open-item.backlog.md"
         item.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: feature\n"
-            "- Set: demo01\n"
-            "- Summary: test open item\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                priority="medium",
+                work_kind="feature",
+                set="demo01",
+                summary="test open item",
+                history=["- 2026-10-01 created (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -131,14 +134,16 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         item = open_dir / "20261001-demo01-01-bk0001-open-item.backlog.md"
         item.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: feature\n"
-            "- Set: demo01\n"
-            "- Summary: test open item\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                priority="medium",
+                work_kind="feature",
+                set="demo01",
+                summary="test open item",
+                history=["- 2026-10-01 created (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -194,14 +199,16 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         item = open_dir / "20261001-demo01-01-bk0002-open-item.backlog.md"
         item.write_text(
-            "- Id: bk0002\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: feature\n"
-            "- Set: demo01\n"
-            "- Summary: test note item\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                priority="medium",
+                work_kind="feature",
+                set="demo01",
+                summary="test note item",
+                history=["- 2026-10-01 created (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -240,14 +247,16 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         item = open_dir / "20261001-demo01-01-bk0002-open-item.backlog.md"
         item.write_text(
-            "- Id: bk0002\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: feature\n"
-            "- Set: demo01\n"
-            "- Summary: test note item\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                priority="medium",
+                work_kind="feature",
+                set="demo01",
+                summary="test note item",
+                history=["- 2026-10-01 created (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -302,13 +311,15 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         spec = draft_dir / "20261001-sp0001-01-sp0001-spec.spec.md"
         spec.write_text(
-            "# Spec: Spec One\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Id: sp0001\n"
-            "- Author: tester\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 draft (tester): initial\n",
+            RecordBuilder().spec(
+                title="Spec One",
+                when="2026-10-01",
+                status="draft",
+                id6="sp0001",
+                author="tester",
+                history=["- 2026-10-01 draft (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -351,13 +362,15 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         spec = draft_dir / "20261001-sp0001-01-sp0001-spec.spec.md"
         spec.write_text(
-            "# Spec: Spec One\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Id: sp0001\n"
-            "- Author: tester\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 draft (tester): initial\n",
+            RecordBuilder().spec(
+                title="Spec One",
+                when="2026-10-01",
+                status="draft",
+                id6="sp0001",
+                author="tester",
+                history=["- 2026-10-01 draft (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -415,13 +428,15 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         spec = draft_dir / "20261001-sp0002-01-sp0002-spec.spec.md"
         spec.write_text(
-            "# Spec: Spec Two\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Id: sp0002\n"
-            "- Author: tester\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 draft (tester): initial\n",
+            RecordBuilder().spec(
+                title="Spec Two",
+                when="2026-10-01",
+                status="draft",
+                id6="sp0002",
+                author="tester",
+                history=["- 2026-10-01 draft (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(
@@ -458,13 +473,15 @@ class HistoryWriteOrderTests(unittest.TestCase):
 
         spec = draft_dir / "20261001-sp0002-01-sp0002-spec.spec.md"
         spec.write_text(
-            "# Spec: Spec Two\n\n"
-            "- Date: 2026-10-01\n"
-            "- Status: draft\n"
-            "- Id: sp0002\n"
-            "- Author: tester\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 draft (tester): initial\n",
+            RecordBuilder().spec(
+                title="Spec Two",
+                when="2026-10-01",
+                status="draft",
+                id6="sp0002",
+                author="tester",
+                history=["- 2026-10-01 draft (tester): initial"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(

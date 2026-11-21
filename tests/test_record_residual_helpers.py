@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import agent_schema, artifact_core, artifact_rename, doctor
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -82,9 +83,11 @@ class TestExistingTypeId6s:
         pending_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
         pending_dir.mkdir(parents=True, exist_ok=True)
         (pending_dir / "20261001-sx-01-abc123-x.ipd.md").write_text(
-            "- Id: abc123\n", encoding="utf-8"
+            RecordBuilder().plan(id6="abc123", text_only=True), encoding="utf-8"
         )
-        (pending_dir / "legacy.md").write_text("- Id: zzz999\n", encoding="utf-8")
+        (pending_dir / "legacy.md").write_text(
+            RecordBuilder().plan(id6="zzz999", text_only=True), encoding="utf-8"
+        )
         assert artifact_rename._existing_type_id6s(tmp_path, "plans") == {
             "abc123",
             "zzz999",

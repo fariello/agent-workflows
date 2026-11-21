@@ -18,6 +18,7 @@ from pathlib import Path
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
 from agent_workflows import cli, record_history
+from tests.record_builder import RecordBuilder
 
 
 class HistoryProvenanceRoutingTests(unittest.TestCase):
@@ -34,12 +35,20 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         """(d) aw backlog set --status on a legacy multi-record item preserves every prior record."""
         item = self.dir / "20260101-demo-01-lg0001-x.backlog.md"
         item.write_text(
-            "- Id: lg0001\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n"
-            "- Set: demo\n- Summary: x\n\n"
-            "## Workflow history\n"
-            "- 2026-03-03 set (aw backlog): third\n"
-            "- 2026-02-02 set (aw backlog): second\n"
-            "- 2026-01-01 created (aw backlog): first\n",
+            RecordBuilder().backlog(
+                id6="lg0001",
+                status="open",
+                priority="medium",
+                work_kind="chore",
+                set="demo",
+                summary="x",
+                history=[
+                    "- 2026-03-03 set (aw backlog): third",
+                    "- 2026-02-02 set (aw backlog): second",
+                    "- 2026-01-01 created (aw backlog): first",
+                ],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         before = [
@@ -85,8 +94,14 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         specs_dir.mkdir(parents=True)
         spec = specs_dir / "20260101-aaa333-01-aaa333-demo.spec.md"
         spec.write_text(
-            "# Spec: demo\n\n- Date: 2026-01-01\n- Status: draft\n- Id: aaa333\n\n"
-            "## Workflow history\n- 2026-01-02 to-review (t): b\n- 2026-01-01 draft (t): a\n",
+            RecordBuilder().spec(
+                title="demo",
+                when="2026-01-01",
+                status="draft",
+                id6="aaa333",
+                history=["- 2026-01-02 to-review (t): b", "- 2026-01-01 draft (t): a"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
@@ -136,8 +151,19 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         """(g) Spec AC1 pin: aw backlog set --status appends exactly one sidecar line and prepends exactly one inline record leaving priors in place."""
         item = self.dir / "20260101-demo-01-aaa111-x.backlog.md"
         item.write_text(
-            "- Id: aaa111\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n- Set: demo\n- Summary: x\n\n"
-            "## Workflow history\n- 2026-01-02 set (aw backlog): newer\n- 2026-01-01 created (aw backlog): x\n",
+            RecordBuilder().backlog(
+                id6="aaa111",
+                status="open",
+                priority="medium",
+                work_kind="chore",
+                set="demo",
+                summary="x",
+                history=[
+                    "- 2026-01-02 set (aw backlog): newer",
+                    "- 2026-01-01 created (aw backlog): x",
+                ],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
@@ -227,9 +253,16 @@ class SidecarFailureIsReportedTests(unittest.TestCase):
         d.mkdir(parents=True)
         item = d / "20260101-demo-01-aaa222-x.backlog.md"
         item.write_text(
-            "- Id: aaa222\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n"
-            "- Set: demo\n- Summary: x\n\n"
-            "## Workflow history\n- 2026-01-01 created (aw backlog): x\n",
+            RecordBuilder().backlog(
+                id6="aaa222",
+                status="open",
+                priority="medium",
+                work_kind="chore",
+                set="demo",
+                summary="x",
+                history=["- 2026-01-01 created (aw backlog): x"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self._break_the_sidecar()
@@ -262,8 +295,14 @@ class SidecarFailureIsReportedTests(unittest.TestCase):
         d.mkdir(parents=True)
         spec = d / "20260101-aaa333-01-aaa333-demo.spec.md"
         spec.write_text(
-            "# Spec: demo\n\n- Date: 2026-01-01\n- Status: draft\n- Id: aaa333\n\n"
-            "## Workflow history\n- 2026-01-01 draft (aw specs): created.\n",
+            RecordBuilder().spec(
+                title="demo",
+                when="2026-01-01",
+                status="draft",
+                id6="aaa333",
+                history=["- 2026-01-01 draft (aw specs): created."],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         self._break_the_sidecar()

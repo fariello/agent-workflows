@@ -83,14 +83,18 @@ def test_coverage_record_write_records_utc_date(zone: str) -> None:
     _check_and_select_skew(zone)
 
     with tempfile.TemporaryDirectory() as td:
+        from tests.record_builder import RecordBuilder
+
         plan_path = pathlib.Path(td) / "test.ipd.md"
         plan_path.write_text(
-            "# IPD: Test\n\n"
-            "- Status: approved\n"
-            "- Readiness: go\n\n"
-            "## Workflow history\n"
-            "- 2026-10-01 draft: init\n\n"
-            "## Validation and cross-check\n",
+            RecordBuilder().plan(
+                title="Test",
+                status="approved",
+                readiness="go",
+                history=["- 2026-10-01 draft: init"],
+                body="## Validation and cross-check",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
