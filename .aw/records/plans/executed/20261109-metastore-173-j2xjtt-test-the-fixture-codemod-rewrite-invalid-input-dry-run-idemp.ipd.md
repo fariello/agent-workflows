@@ -5,8 +5,9 @@
 - Concern: The codemod (`tools/fixture_codemod.py`, Order 172) rewrites hundreds of test fixtures, so its behavior must be proved by its own behavioral tests before any batch plan runs it. `653ndz` E-04 held eight test groups in one item; research `nj8zdp` guidance (about 8 named units per item) splits them.
 - Scope: Part 2 of the round-3 split of `653ndz` (2026-11-09, research `nj8zdp` guidance): `653ndz` E-04 cases (a), (b), (c) as E-04, (e), (f) as E-08, (g), (h) as E-09, plus the finishing item E-10. Case (d), one fixture per refusal reason code, is Order 216 (`n0li9v`). EXCLUDES: the tool (`y3uowx`); the pilot and census (`653ndz`); production code.
 - Scope-Paths: tests/test_fixture_codemod.py, tests/fixtures/fixture_codemod/**, tests/slow_allowlist.txt, .aw/records/plans/pending/20261109-metastore-173-j2xjtt-test-the-fixture-codemod-rewrite-invalid-input-dry-run-idemp.ipd.md
+- Scope-Exceeded: tests/test_fixture_codemod_slow.py (E-09 >10s fallback: combined serial run under -n 0 measured 10.68s, so subprocess equivalence cases g and h moved to tests/test_fixture_codemod_slow.py per E-09 and review D-2)
 - Item-Dependencies: executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:y3uowx
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,13 +17,13 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: j2xjtt
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-21 executed (aw agy run model=gemini-4-neon-high): aw agy run self-finalize: j2xjtt verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_fixture_codemod_slow.py: E-09 >10s fallback: combined serial run under -n 0 measured 10.68s, so subprocess equivalence cases (g) and (h) moved to tests/test_fixture_codemod_slow.py per E-09 and review D-2]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
