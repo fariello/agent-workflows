@@ -152,6 +152,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
 - The fixture codemod and its census (F-30, F-31).
   - Carrier: 653ndz
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-49-653ndz-build-and-prove-the-test-fixture-codemod.ipd.md
 - The remaining subsets, the switch-point proof, the F-06 census and the full-suite comparison.
   - Carrier: 59aiyh
 - Adding `RECORD_FORMAT = "log"` and converting setter-byte assertions (cutover commit).

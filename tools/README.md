@@ -504,3 +504,62 @@ python3 -m tools.regen_agents_block
 # Run against a specific repository root directory:
 python3 -m tools.regen_agents_block --dir /path/to/repo --check
 ```
+
+## `fixture_codemod.py`
+
+`tools/fixture_codemod.py` is a standalone maintenance tool that converts inline legacy metadata fixtures in Python test modules into calls to the shared record builder (`tests/record_builder.py::RecordBuilder(..., text_only=True)`).
+
+### Purpose
+
+During Phase B of the metadata-store migration (spec `4sd62s`, section 6), test fixtures must be produced by one shared record builder so that switching the on-disk record format later requires changing only the builder. Manually editing hundreds of test modules is slow and error-prone. `tools/fixture_codemod.py` parses Python test modules with `ast`, locates string-literal sites matching the F-01 legacy metadata pattern (bullet fields such as `- Id:` and `- Status:`, `## Workflow history`, `aw-prompt` comments, and YAML research headers), classifies every site as either a planned rewrite or a refusal with a disposition (`hand` or `legacy-kept`), and rewrites planned sites in place without altering surrounding source bytes.
+
+Deliberately invalid metadata values (for example `- Status: EXECUTED` or `- Priority: bogus`) are not refused. The tool routes them through `RecordBuilder`'s `raw_fields=` argument and classifies those rewrites as `invalid-input`.
+
+### Modes
+
+The tool requires one of three mutually exclusive mode flags:
+
+1. **Dry run (`--dry-run [--format table|json] <paths...>`)**:
+   Parses each target module or directory of `.py` files, plans rewrites and refusals, and prints either a human-readable table (default) or a JSON report. Writes nothing to disk.
+2. **Apply (`--apply [--format table|json] <paths...>`)**:
+   Rewrites each planned site in place using exact AST byte offsets, inserts `from tests.record_builder import RecordBuilder` once if absent, proves per-module behavioral equivalence, and emits the report with before and after outcome-list hashes per module. Running `--apply` a second time over already-rewritten modules makes zero changes (idempotent).
+3. **Census Markdown (`--census-markdown <paths...>`)**:
+   Runs static dry-run analysis over the target modules and prints a Markdown summary table with one row per module and a totals row, counting sites, rewrites, `invalid-input` rewrites, each refusal reason code, `hand` totals, and `legacy-kept` totals.
+
+```bash
+# Inspect planned rewrites and refusals without modifying files:
+python3 tools/fixture_codemod.py --dry-run --format table tests/test_backlog_handoff_close.py
+
+# Emit machine-readable JSON dry-run output:
+python3 tools/fixture_codemod.py --dry-run --format json tests/test_backlog_handoff_close.py
+
+# Apply rewrites with mandatory per-module equivalence proof:
+python3 tools/fixture_codemod.py --apply --format json tests/test_backlog_handoff_close.py
+
+# Generate a Markdown census table across multiple test modules:
+python3 tools/fixture_codemod.py --census-markdown tests/test_backlog_handoff_close.py tests/test_check_engine.py
+```
+
+### Refusal Reason Codes
+
+Every site the tool leaves untouched receives one of seven reason codes and one disposition (`hand` for manual conversion in a batch item, or `legacy-kept` for sites that stay in legacy form on purpose):
+
+| Reason code | Disposition | Meaning |
+|---|---|---|
+| `dynamic-construction` | `hand` | The text is built by concatenation, a conditional expression, formatting, `.join(...)`, or an f-string placeholder that holds a whole line (for example `f"{br_line}"`), so no field-by-field mapping is statically known. |
+| `unsupported-shape` | `hand` | The record type cannot be inferred from the heading or written path, a field is unknown to the registry, or the builder call requires a repository root not bound by a simple name in scope. |
+| `not-equivalent` | `hand` | Apply mode rewrote the site and the module's pytest outcome list changed, so the tool reverted the site during equivalence bisection. |
+| `legacy-format subject` | `legacy-kept` | The module or test function exercises legacy grammar directly (the F-03 excluded list, `*legacy*`, `*m0001*`, `*migrat*`, `test_front_matter_loose*`, `test_selector_two_dialect*`, or `test_history_block_bounding*`). |
+| `displayed-output assertion` | `legacy-kept` | The site is the expected text in an assertion over command output (such as `stdout`, `stderr`, or captured CLI output). |
+| `setter-byte assertion` | `legacy-kept` | The site is the expected text in an assertion over a record file's on-disk bytes. |
+| `body prose` | `legacy-kept` | The matching bullets appear in body prose rather than record metadata (for example open-question `- Status: open` rows). |
+
+### Mandatory Equivalence Proof in `--apply` Mode
+
+The equivalence proof in `--apply` mode is always enabled and cannot be turned off. For each module with at least one planned rewrite, `--apply` enforces the following rule:
+
+1. Before editing the file, run pytest deterministically with the batch-rule flags (`python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA <module>`), extract and sort every per-test outcome line (`PASSED`, `FAILED`, `ERROR`, `SKIPPED`, `XFAIL`, `XPASS`, stripping trailing failure summaries), and compute its SHA-256 hash.
+2. Apply all planned rewrites to the module and run the same pytest command again.
+3. If the sorted outcome list matches the baseline, keep the rewrites and record identical `before_hash` and `after_hash` values.
+4. If the sorted outcome list differs, restore the original file bytes and bisect the planned rewrites by halving. Keep only subsets that preserve the exact baseline outcome list, isolate each breaking site, revert it, and classify it as `not-equivalent` (`hand`).
+5. Fail closed: if an unexpected error or interruption occurs, or if a final verification pass does not match the baseline, restore the original file bytes so no unproved edit remains on disk.
