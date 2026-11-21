@@ -13,6 +13,7 @@ import sys
 import pytest
 
 from agent_workflows import project_context
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -544,17 +545,15 @@ def test_home_records_find_attention_check(home_records_env):
     ext_rec = rec_dirs[0]
     pending_dir = ext_rec / "plans" / "pending"
     pending_dir.mkdir(parents=True, exist_ok=True)
-    plan_content = """# IPD 20261015-test-01-abcdef-my-plan
-
-- Id: abcdef
-- Set: test (Test)
-- Order: 01
-- Kind: child
-- Status: pending
-
-## Summary
-Test plan.
-"""
+    plan_content = RecordBuilder().plan(
+        id6="abcdef",
+        set="test (Test)",
+        order=1,
+        plan_role="child",
+        body="## Summary\nTest plan.",
+        raw_fields={"Status": "pending"},
+        text_only=True,
+    )
     plan_file = pending_dir / "20261015-test-01-abcdef-my-plan.ipd.md"
     plan_file.write_text(plan_content, encoding="utf-8")
 
@@ -622,83 +621,64 @@ Test plan.
     assert "missing-tree" not in res_check.stdout
 
 
-_DISCOVERY_FIXTURE_PLAN = """# IPD: Fixture plan for runner discovery test
-
-- Date: 2026-01-01
-- Kind: child
-- Concern: Runner discovery fixture concern.
-- Scope: Runner discovery fixture scope.
-- Scope-Paths: tests/test_records_root_accessor.py
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Approval: 2026-01-01, recorded via aw ipd set: status set to approved
-- Work-Kind: chore
-- Priority: low
-- Set: fixtset
-- Order: 1
-- Highest E allocated: 01
-- Author: pytest
-- Id: zq9fx1
-
-## Workflow history
-- 2026-01-01 /plan-review (tester test/model): APPROVE; none
-- 2026-01-01 approved (aw set): status set to approved
-
-## Goal
-
-Synthetic fixture plan for home records runner discovery tests.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Synthetic execution step.
-  - Depends on: none
-  - Expected outcome: synthetic step complete.
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-
-- Fixture convention.
-
-## Findings
-
-- Fixture finding.
-
-## Proposed changes (ordered, validatable)
-
-1. Fixture change.
-
-## Deferred / out of scope (with reason)
-
-- None.
-
-## Scope check
-
-- In scope.
-
-## Required tests / validation
-
-- Fixture validation.
-
-## Spec / documentation sync
-
-- None.
-
-## Open questions
-
-- None.
-
-## Validation and cross-check (verify before reporting done)
-
-- [ ] V-01 validates E-01
-  - Required evidence: fixture evidence.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-
-- Gate info.
-"""
+_DISCOVERY_FIXTURE_PLAN = RecordBuilder().plan(
+    title="Fixture plan for runner discovery test",
+    when="2026-01-01",
+    plan_role="child",
+    scope_paths="tests/test_records_root_accessor.py",
+    item_dependencies="none",
+    status="approved",
+    readiness="go-pending-approval",
+    approval="2026-01-01, recorded via aw ipd set: status set to approved",
+    work_kind="chore",
+    priority="low",
+    set="fixtset",
+    order=1,
+    highest_e_allocated="01",
+    author="pytest",
+    id6="zq9fx1",
+    history=[
+        "- 2026-01-01 /plan-review (tester test/model): APPROVE; none",
+        "- 2026-01-01 approved (aw set): status set to approved",
+    ],
+    raw_fields={
+        "Concern": "Runner discovery fixture concern.",
+        "Scope": "Runner discovery fixture scope.",
+    },
+    body=(
+        "## Goal\n\n"
+        "Synthetic fixture plan for home records runner discovery tests.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "- [ ] E-01 Synthetic execution step.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: synthetic step complete.\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n\n"
+        "- Fixture convention.\n\n"
+        "## Findings\n\n"
+        "- Fixture finding.\n\n"
+        "## Proposed changes (ordered, validatable)\n\n"
+        "1. Fixture change.\n\n"
+        "## Deferred / out of scope (with reason)\n\n"
+        "- None.\n\n"
+        "## Scope check\n\n"
+        "- In scope.\n\n"
+        "## Required tests / validation\n\n"
+        "- Fixture validation.\n\n"
+        "## Spec / documentation sync\n\n"
+        "- None.\n\n"
+        "## Open questions\n\n"
+        "- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: fixture evidence.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n\n"
+        "- Gate info."
+    ),
+    text_only=True,
+)
 
 
 def test_home_records_runner_discovery(home_records_env):

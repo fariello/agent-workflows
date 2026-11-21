@@ -26,6 +26,7 @@ import pytest
 from pathlib import Path
 
 from agent_workflows import record_history as RH
+from tests.record_builder import RecordBuilder
 
 
 class AppendRenameUnitTests(unittest.TestCase):
@@ -229,8 +230,17 @@ class CliEmissionTests(unittest.TestCase):
         pend.mkdir(parents=True)
         self.plan = pend / "20260101-demo-01-aaa111-old-slug.ipd.md"
         self.plan.write_text(
-            "# IPD: x\n\n- Date: 20260101\n- Kind: child\n- Status: approved\n"
-            "- Set: demo (demo)\n- Order: 1\n- Id: aaa111\n\n## Goal\n\nx\n",
+            RecordBuilder().plan(
+                title="x",
+                plan_role="child",
+                status="approved",
+                set="demo (demo)",
+                order=1,
+                id6="aaa111",
+                body="## Goal\n\nx",
+                raw_fields={"Date": "20260101"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "-A"], cwd=str(self.root), check=True)
