@@ -465,6 +465,7 @@ def perform_checkup(
     widened_limit: int = 100,
     gh_timeout: float = 15.0,
     slow_check_timeout: float = 30.0,
+    preserve_failing_on_unknown: bool = False,
 ) -> Dict[str, Any]:
     """Execute CI read and slow checks, and atomically persist the record."""
     root = Path(repo_root)
@@ -513,6 +514,18 @@ def perform_checkup(
         "ci": ci_res.to_dict(),
         "slow_checks": slow_res.to_dict(),
     }
+
+    if preserve_failing_on_unknown and ci_res.status == "UNKNOWN":
+        prev_rec = read_checkup_record(root)
+        if isinstance(prev_rec, dict):
+            prev_ci = prev_rec.get("ci") if isinstance(prev_rec.get("ci"), dict) else {}
+            prev_status = (
+                str(prev_ci.get("status") or prev_ci.get("health") or "")
+                .strip()
+                .upper()
+            )
+            if prev_status == "FAILING":
+                return prev_rec
 
     write_checkup_record(root, record)
     return record
@@ -623,6 +636,10 @@ def _is_checkup_due(repo: Path, branch: str, interval: int) -> bool:
 
     count = _count_commits_since(repo, rec_commit, branch)
     if count is None:
+        return True
+    ci = rec.get("ci") if isinstance(rec.get("ci"), dict) else {}
+    ci_status = str(ci.get("status") or ci.get("health") or "").strip().upper()
+    if ci_status == "FAILING" and count > 0:
         return True
     return count >= interval
 
@@ -777,7 +794,9 @@ def run_start_checkup(
             return format_checkup_line(rec, repo_root=repo_path)
 
         try:
-            rec = perform_checkup(repo_path, branch=branch)
+            rec = perform_checkup(
+                repo_path, branch=branch, preserve_failing_on_unknown=True
+            )
             append_jsonl(
                 ev_path,
                 {

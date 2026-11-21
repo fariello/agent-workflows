@@ -430,6 +430,85 @@ def test_interval_check(tmp_path):
     assert not checkup.is_checkup_due(repo, interval=0, branch="main")
 
 
+def test_is_checkup_due_refreshes_failing_record_after_any_new_commit(tmp_path):
+    """A cached FAILING checkup becomes due after 1 new commit rather than waiting `interval` commits."""
+    from unittest import mock
+
+    repo = _init_repo(tmp_path / "repo")
+    c0 = _run_git(repo, "rev-parse", "HEAD")
+
+    failing_rec = {
+        "schema_version": 1,
+        "commit": c0,
+        "time": "2026-11-18T14:15:56Z",
+        "ci": {
+            "status": "FAILING",
+            "health": "FAILING",
+            "last_passing_commit": c0,
+            "commits_since_last_pass": 300,
+        },
+        "slow_checks": {"status": "PASSING", "finding_counts": {}, "total_findings": 0},
+    }
+    checkup.save_checkup_record(failing_rec, repo)
+
+    # At the exact same commit (0 commits ahead), do not redundantly re-query.
+    assert not checkup.is_checkup_due(repo, interval=250, branch="main")
+
+    # Once a single new commit lands, re-query even though 1 < 250.
+    (repo / "fix.txt").write_text("ci fix\n", encoding="utf-8")
+    _run_git(repo, "add", "fix.txt")
+    _run_git(repo, "commit", "-qm", "fix ci")
+    assert checkup.is_checkup_due(repo, interval=250, branch="main")
+    # Interval 0 still disables periodic checkup.
+    assert not checkup.is_checkup_due(repo, interval=0, branch="main")
+
+    # If a run-start refresh hits UNKNOWN (e.g. offline/no gh auth), preserve the prior FAILING record.
+    ev_path = tmp_path / "events_offline.jsonl"
+    with mock.patch.object(
+        checkup,
+        "read_ci_status",
+        return_value=checkup.CIRunResult(status="UNKNOWN", reason="gh offline"),
+    ), mock.patch.object(
+        checkup,
+        "run_slow_checks",
+        return_value=checkup.SlowChecksResult(status="PASSING"),
+    ):
+        checkup.run_start_checkup(
+            repo, events_path=ev_path, config={"ci_checkup_interval_commits": 250}
+        )
+    preserved = checkup.read_checkup_record(repo)
+    assert preserved is not None
+    assert preserved["ci"]["status"] == "FAILING"
+    assert preserved["ci"]["commits_since_last_pass"] == 300
+
+    # Once GitHub reports PASSING, run_start_checkup refreshes last.json to PASSING immediately.
+    c1 = _run_git(repo, "rev-parse", "HEAD")
+    ev_path_ok = tmp_path / "events_passing.jsonl"
+    with mock.patch.object(
+        checkup,
+        "read_ci_status",
+        return_value=checkup.CIRunResult(
+            status="PASSING",
+            conclusion="success",
+            latest_commit=c1,
+            last_passing_commit=c1,
+            commits_since_last_pass=0,
+        ),
+    ), mock.patch.object(
+        checkup,
+        "run_slow_checks",
+        return_value=checkup.SlowChecksResult(status="PASSING"),
+    ):
+        line = checkup.run_start_checkup(
+            repo, events_path=ev_path_ok, config={"ci_checkup_interval_commits": 250}
+        )
+    refreshed = checkup.read_checkup_record(repo)
+    assert refreshed is not None
+    assert refreshed["ci"]["status"] == "PASSING"
+    assert refreshed["ci"]["commits_since_last_pass"] == 0
+    assert line is not None and "CI PASSING" in line
+
+
 def test_config_interval_fallbacks(tmp_path):
     repo = _init_repo(tmp_path / "repo")
     aw_cfg = repo / ".aw" / "config"
