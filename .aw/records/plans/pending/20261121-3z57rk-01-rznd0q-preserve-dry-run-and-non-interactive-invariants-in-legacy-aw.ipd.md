@@ -6,7 +6,7 @@
 - Scope: IN: (1) update `agent_workflows/install_wizard.py::collect_policy_interactive` to honor `agent_workflows/term.py` interactivity precedence (`--no-interactive` > `AW_NONINTERACTIVE`/`CI` > `--interactive` > stream detection, without allowing `io.StringIO` to override forced non-interactive mode) and add keyword-only `dry_run: bool = False` so dry-run calls with an existing policy resolve non-interactively without prompting `AW Policy Update Checkpoint`; (2) update `agent_workflows/cli.py` to introduce `_is_attended_stdin()` for `_ask_policy`, `_confirm_install`, `_confirm_relocation`, and `_install_leftover_disposition`, read `dry_run` safely via `getattr(args, "dry_run", False) is True` (avoiding truthy unset `MagicMock` attributes), forward `dry_run` in `_ask_policy` (no prompt and no user-config write), `_install_leftover_disposition`, `_handle_legacy_migration`, `_split_brain_guard`, and `_run_install` (`collect_policy_interactive` and the `kept_legacy` dry-run confirmation bypass), emit dry-run preview messages instead of claiming live migration or leftover removal, short-circuit `_diagnostics_ok` on `dry_run` (preventing `git fetch`, interactive prompts, or `git pull --rebase` during `--dry-run`), guard `record_install_history` and `engine.write_setup_marker` in `_install_one` against `dry_run`, short-circuit `_configure_completion` on `dry_run`, and bypass batch `_confirm` in `_install_all` on `dry_run`; (3) update all four exact-keyword `execute_migration.assert_called_once_with(...)` assertions in `tests/test_installer.py` (`SplitBrainLayoutGuardTests.test_guard_clean_shapes_description_and_migration`, `InstallLeftoverDispositionThreadingTests.test_migration_paths_thread_requested_disposition`, and `InstallLeftoverDispositionThreadingTests.test_legacy_migration_fail_soft_on_preflight_gate_error`) to verify `dry_run=False` forwarding and add a `dry_run=True` subtest; and (4) add fast (< 2s per test) behavioral regression tests in `tests/test_install_dry_run_noninteractive.py` covering the exact `3z57rk` reproduction and every dry-run and non-interactive matrix case. OUT: modifying `agent_workflows/layout_migration.py::MigrationManager.execute_migration` or `plan_migration` (already read-only under `dry_run=True`), changing `agent_workflows/term.py::is_interactive`, modifying `agent_workflows/engine.py::install_into_repo` or `run_git_diagnostics`, or changing `aw migrate-layout` behavior.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, tests/test_installer.py, tests/test_install_dry_run_noninteractive.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Forward dry_run through install-time layout migration, honor --no-interactive and --dry-run in install_wizard and install helpers, and guard dry-run side effects
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini-4-neon-high
 - Id: rznd0q
+- Approval: 2026-11-22, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-22 approved (aw set): status set to approved
 - 2026-11-22 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-11-21 to-review (antigravity/gemini-4-neon-high): authored review-ready child plan graduated from backlog 3z57rk.

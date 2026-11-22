@@ -6,7 +6,7 @@
 - Scope: IN: (1) reclassify `label == "workflow-artifacts"` in `agent_workflows/layout_inventory.py` (`classify_item`, `_legacy_class`, and `build_migration_map`) to `ownership: "state-runtime"`, `lifecycle_class: "state-runtime"`, `expected_destination_class: "workflow-artifacts"`, `disposition: "migrate"`, `destination_relpath: "workflow-artifacts"` or `"workflow-artifacts/<source_relpath>"`, and `track_ignore_expectation: "untracked"`; (2) update `agent_workflows/layout_migration.py::MigrationManager` so `destination_root_class == "workflow-artifacts"` files move to `.aw/workflow-artifacts/` as untracked files (removing tracked legacy sources from the git index via `git rm --cached` without staging the destination), omit `destination_untracked` destinations from `commit_paths`, reverse untracked-destination moves cleanly in `rollback_migration` and `rollback_embedded_stage_one`, and track and prune `self.workflow_artifacts_dir` in embedded stage-one `pre_existing_dirs` and `prune_roots`; (3) add behavioral regression tests in `tests/test_layout_inventory.py` covering inventory classification, migration mapping, `aw migrate-layout --yes`, immediate `aw att` / `aw attention --check` validity, git index untracking and `.aw/.gitignore` attribution, pre-existing `.aw/workflow-artifacts/` non-colliding merge and fail-closed non-identical collision refusal, configured `home` backend placement (confirming records move to `AW_HOME` while `workflow-artifacts/` stays repo-local), `--rename-to-grammar`, and `rollback_migration` (including legacy root `.gitignore` fallback); and (4) add behavioral regression tests in `tests/test_m0001_layout_stage.py` covering embedded stage-one planning, scratch projection, `m0001_metadata_v2.run(apply=True, commit=True)`, post-migration `aw attention --check` validity, untracked `.aw/workflow-artifacts/` with clean `git status`, and `stage2-failure` rollback. OUT: changing `agent_workflows/engine.py::migrate_root_workflow_artifacts`, modifying `agent_workflows/attention.py` or `agent_workflows/attention_contract.py`, adding workflow-artifacts cleanup to `agent_workflows/migrations/m0001_discover.py::_compute_layout_stage_needed`, or creating two-commit `git mv` + untrack histories inside `MigrationManager`.
 - Scope-Paths: agent_workflows/layout_inventory.py, agent_workflows/layout_migration.py, tests/test_layout_inventory.py, tests/test_m0001_layout_stage.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Reclassify legacy workflow-artifacts in layout_inventory and untrack-on-relocate into .aw/workflow-artifacts in layout_migration
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini-4-neon-high
 - Id: 0hdqbw
+- Approval: 2026-11-22, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-22 approved (aw set): status set to approved
 - 2026-11-22 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog 2biutm
