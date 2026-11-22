@@ -20,7 +20,7 @@ from agent_workflows import coverage_record
 from agent_workflows import orchestrator_readiness as readiness
 from agent_workflows import runner_shared as rs
 from tests import support
-from tests.test_ipd_lint import _conforming_child, _executed_child
+from tests.record_builder import RecordBuilder
 
 
 def _init_repo(tmp_dir: Path) -> Path:
@@ -50,9 +50,6 @@ def _make_orchestrator(
     child_rows: list[tuple[str, str, str]] | None = None,
     checklist_item: str = "- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending",
 ) -> Path:
-    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
-    orch_path = pending_dir / f"20261004-{setid}-00-{id6}-test.ipd.md"
-
     if child_rows is None:
         child_rows = [
             (
@@ -62,91 +59,84 @@ def _make_orchestrator(
             )
         ]
 
-    lines = [
-        f"# IPD: Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        "- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: test concern.",
-        "- Scope: test scope.",
-        "- Scope-Paths: none",
-        "- Item-Dependencies: none",
-    ]
-    if status == "approved":
-        lines.append("- Approval: 2026-10-04, test approved")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            "",
-            f"- 2026-10-04 {status} (test): created.",
-            "",
-            "## Goal",
-            "",
-            "Test orchestrator goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "",
-            checklist_item,
-            "",
-            "## Child IPDs, sequence, and dependencies",
-            "",
-            "| Order | Id | Status | Plan | Depends on |",
-            "|---|---|---|---|---|",
-        ]
+    table_rows = "\n".join(
+        f"| {ord_tok} | {c_id6} | pending | {c_path} | none |"
+        for ord_tok, c_id6, c_path in child_rows
     )
-    for ord_tok, c_id6, c_path in child_rows:
-        lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-    lines.extend(
-        [
-            "",
-            "## Completion criteria (the whole Set is done only when)",
-            "",
-            "- None.",
-            "",
-            "## Cross-IPD validation",
-            "",
-            "- None.",
-            "",
-            "## Deferred / out of scope (with reason)",
-            "",
-            "- None.",
-            "",
-            "## Scope check",
-            "",
-            "- None.",
-            "",
-            "## Required tests / validation",
-            "",
-            "- None.",
-            "",
-            "## Open questions",
-            "",
-            "- None.",
-            "",
-            "## Validation and cross-check (verify before reporting the Set complete)",
-            "",
-            "- [ ] V-01 validates E-01",
-            "  - Required evidence: check.",
-            "  - Observed evidence:",
-            "  - Result: pending",
-            "",
-            "## Approval and execution gate",
-            "",
-            "- None.",
-            "",
-        ]
+    body = f"""## Goal
+
+Test orchestrator goal.
+
+## Detailed Implementation Checklist (TODO)
+
+{checklist_item}
+
+## Child IPDs, sequence, and dependencies
+
+| Order | Id | Status | Plan | Depends on |
+|---|---|---|---|---|
+{table_rows}
+
+## Completion criteria (the whole Set is done only when)
+
+- None.
+
+## Cross-IPD validation
+
+- None.
+
+## Deferred / out of scope (with reason)
+
+- None.
+
+## Scope check
+
+- None.
+
+## Required tests / validation
+
+- None.
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting the Set complete)
+
+- [ ] V-01 validates E-01
+  - Required evidence: check.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- None."""
+    return Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            plan_role="orchestrator",
+            title=f"Orchestrator {id6}",
+            slug="test",
+            when="2026-10-04",
+            set=setid,
+            order=0,
+            status=status,
+            disposition="pending",
+            priority="medium",
+            work_kind="chore",
+            author="test",
+            scope_paths="none",
+            item_dependencies="none",
+            approval="2026-10-04, test approved" if status == "approved" else None,
+            history=[f"- 2026-10-04 {status} (test): created."],
+            raw_fields={
+                "Concern": "test concern.",
+                "Scope": "test scope.",
+                "Highest E allocated": "01",
+            },
+            body=body,
+        )
     )
-    orch_path.write_text("\n".join(lines), encoding="utf-8")
-    return orch_path
 
 
 def _make_child(
@@ -158,27 +148,119 @@ def _make_child(
     status: str = "to-review",
     directory: str = "pending",
 ) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / directory
-    p_dir.mkdir(parents=True, exist_ok=True)
-    child_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test.ipd.md"
-
-    if directory == "executed" or status == "executed":
-        text = (
-            _executed_child()
-            .replace("- Set: x", f"- Set: {setid}")
-            .replace("- Order: 1", f"- Order: {order}")
-            .replace("- Id: abc123", f"- Id: {id6}")
+    is_executed = directory == "executed" or status == "executed"
+    eff_status = "executed" if is_executed else status
+    if is_executed:
+        e_block = (
+            "- [x] E-01 do a thing.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: the thing exists.\n"
+            "  - Execution state: performed"
         )
+        v_block = (
+            "- [x] V-01 validates E-01\n"
+            "  - Required evidence: the thing is present at path X.\n"
+            "  - Observed evidence: verified at path X.\n"
+            "  - Result: pass"
+        )
+        history = [
+            "- 2026-10-04 to-review (tester): created.",
+            "- 2026-10-04 executed (tester): executed.",
+        ]
     else:
-        text = (
-            _conforming_child()
-            .replace("- Set: x", f"- Set: {setid}")
-            .replace("- Order: 1", f"- Order: {order}")
-            .replace("- Id: abc123", f"- Id: {id6}")
-            .replace("- Status: to-review", f"- Status: {status}")
+        e_block = (
+            "- [ ] E-01 do a thing.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: the thing exists.\n"
+            "  - Execution state: pending"
         )
-    child_path.write_text(text, encoding="utf-8")
-    return child_path
+        v_block = (
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: the thing is present at path X.\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending"
+        )
+        history = [f"- 2026-10-04 {eff_status} (tester): created."]
+
+    body = f"""## Goal
+
+Sample goal.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark performed only after doing it.
+
+### Task group 1: t
+
+{e_block}
+
+## Project conventions discovered (Step 0)
+
+- x
+
+## Findings
+
+- x
+
+## Proposed changes (ordered, validatable)
+
+- x
+
+## Deferred / out of scope (with reason)
+
+- x
+
+## Scope check
+
+- x
+
+## Required tests / validation
+
+- x
+
+## Spec / documentation sync
+
+- x
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence separately.
+
+{v_block}
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required"""
+    return Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            plan_role="child",
+            title=f"Child {id6}",
+            slug="test",
+            when="2026-10-04",
+            set=setid,
+            order=order,
+            status=eff_status,
+            disposition=directory,
+            priority="medium",
+            work_kind="chore",
+            author="tester",
+            scope_paths="agent_workflows/demo.py",
+            item_dependencies="none",
+            history=history,
+            raw_fields={
+                "Concern": "sample.",
+                "Scope": "sample.",
+                "Highest E allocated": "01",
+            },
+            body=body,
+        )
+    )
 
 
 class TestOrchestratorChildRetired(unittest.TestCase):
@@ -422,9 +504,22 @@ class TestOrchestratorChildRetired(unittest.TestCase):
             pending_dir = repo / ".aw" / "records" / "plans" / "pending"
             standalone = pending_dir / "20261004-pl0099-plan.ipd.md"
             standalone.write_text(
-                "# IPD: Standalone\n\n- Id: pl0099\n- Date: 2026-10-04\n- Status: to-review\n"
-                "- Priority: medium\n- Work-Kind: chore\n- Scope-Paths: none\n- Item-Dependencies: none\n\n"
-                "## Workflow history\n\n- 2026-10-04 to-review (test): init\n",
+                str(
+                    RecordBuilder().plan(
+                        id6="pl0099",
+                        title="Standalone",
+                        when="2026-10-04",
+                        status="to-review",
+                        priority="medium",
+                        work_kind="chore",
+                        scope_paths="none",
+                        item_dependencies="none",
+                        history=["- 2026-10-04 to-review (test): init"],
+                        raw_fields={"Set": None},
+                        body="## Goal\n\nStandalone.\n",
+                        text_only=True,
+                    )
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)

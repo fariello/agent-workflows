@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import oc_runipd, render_stream, runner_shared
+from agent_workflows import oc_runipd, plans, render_stream, runner_shared
 from tests.record_builder import RecordBuilder
 
 
@@ -40,9 +40,24 @@ class TestOrchestratorNotApprovedReason(unittest.TestCase):
             encoding="utf-8",
         )
         for idx, (cid, st) in enumerate(child_specs, start=1):
-            status_line = f"- Status: {st}\n" if st is not None else ""
+            if st is not None and st in plans.RECOGNIZED:
+                plan_kwargs: dict = {"status": st}
+            else:
+                plan_kwargs = {"status": "draft", "raw_fields": {"Status": st}}
             (pending / f"20260908-finalback-{idx:02d}-{cid}-child.ipd.md").write_text(
-                f"# IPD: child\n\n- Id: {cid}\n- Set: finalback\n- Order: {idx}\n- Kind: child\n{status_line}",
+                str(
+                    RecordBuilder().plan(
+                        title="child",
+                        id6=cid,
+                        set="finalback",
+                        order=idx,
+                        plan_role="child",
+                        when="2026-09-08",
+                        body="## Goal\n\nChild.\n",
+                        text_only=True,
+                        **plan_kwargs,
+                    )
+                ),
                 encoding="utf-8",
             )
         return repo
