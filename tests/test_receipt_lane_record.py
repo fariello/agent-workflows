@@ -20,6 +20,7 @@ from agent_workflows import (
     worktree_lease,
 )
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 class TestReceiptLaneRecord(unittest.TestCase):
@@ -435,7 +436,15 @@ class TestReceiptLaneRecord(unittest.TestCase):
                     plan_dir.mkdir(parents=True)
                     plan_p = plan_dir / f"20261001-demo-01-{plan_id}-demo.ipd.md"
                     plan_p.write_text(
-                        f"# IPD: Demo\n\n- Id: {plan_id}\n- Set: demo\n- Status: approved\n- Scope-Paths: src/demo.py\n\n## Goal\nDemo\n",
+                        RecordBuilder().plan(
+                            title="Demo",
+                            id6=plan_id,
+                            set="demo",
+                            status="approved",
+                            scope_paths="src/demo.py",
+                            body="## Goal\nDemo",
+                            text_only=True,
+                        ),
                         encoding="utf-8",
                     )
                     subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
@@ -636,7 +645,15 @@ class TestReceiptLaneRecord(unittest.TestCase):
             plan_dir.mkdir(parents=True)
             plan_p = plan_dir / f"20261001-demo-01-{plan_id}-demo.ipd.md"
             plan_p.write_text(
-                f"# IPD: Demo\n\n- Id: {plan_id}\n- Set: demo\n- Status: approved\n- Scope-Paths: src/demo.py\n\n## Goal\nDemo\n",
+                RecordBuilder().plan(
+                    title="Demo",
+                    id6=plan_id,
+                    set="demo",
+                    status="approved",
+                    scope_paths="src/demo.py",
+                    body="## Goal\nDemo",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             subprocess.run(["git", "-C", str(repo), "add", "."], check=True)

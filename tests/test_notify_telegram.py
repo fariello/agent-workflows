@@ -49,6 +49,7 @@ from agent_workflows.notify.telegram import (
 )
 from tests.fake_telegram import run_fake_telegram
 from tests.support import coordinator_role
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -84,7 +85,14 @@ def _create_test_repo(root: Path) -> Path:
         / "releases"
         / "20261009-rel001-01-rel001-v1.release.md"
     ).write_text(
-        "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n- Set: rel001 (1.0.0)\n- Order: 01\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            set="rel001 (1.0.0)",
+            order=1,
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (repo / ".aw" / "records" / "plans" / "pending" / ".gitkeep").write_text(
@@ -120,19 +128,16 @@ def _create_plan_file(
         / "pending"
         / f"20261017-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
     )
-    plan_content = f"""# Test Plan: {id6}
-
-- Id: {id6}
-- Set: {setid}
-- Order: {order}
-- Status: {status}
-- Priority: {priority}
-- Work-Kind: {work_kind}
-
-## Goal
-
-Test plan {id6}.
-"""
+    plan_content = RecordBuilder().plan(
+        id6=id6,
+        set=setid,
+        order=order,
+        status=status,
+        priority=priority,
+        work_kind=work_kind,
+        body=f"## Goal\n\nTest plan {id6}.",
+        text_only=True,
+    )
     plan_path.write_text(plan_content, encoding="utf-8")
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", f"add plan {id6}"], cwd=repo, check=True)
@@ -393,7 +398,9 @@ def test_inbound_routing_and_replays(
         run_dir = tmp_path / "test_run"
         run_dir.mkdir(parents=True, exist_ok=True)
         plan1 = tmp_path / "20261017-qchan-09-it0001-test.ipd.md"
-        plan1.write_text("# Plan it0001\n- Id: it0001\n", encoding="utf-8")
+        plan1.write_text(
+            RecordBuilder().plan(id6="it0001", text_only=True), encoding="utf-8"
+        )
         item1 = {
             "position": 1,
             "id6": "it0001",
@@ -454,7 +461,9 @@ def test_inbound_routing_and_replays(
 
         # Case 3: Threaded text reply to a new question
         plan2 = tmp_path / "20261017-qchan-09-it0002-test.ipd.md"
-        plan2.write_text("# Plan it0002\n- Id: it0002\n", encoding="utf-8")
+        plan2.write_text(
+            RecordBuilder().plan(id6="it0002", text_only=True), encoding="utf-8"
+        )
         item2 = {
             "position": 2,
             "id6": "it0002",
@@ -778,7 +787,9 @@ def test_receiver_start_of_run_drain(
         run_dir = tmp_path / "run_drain"
         run_dir.mkdir(parents=True, exist_ok=True)
         plan_drain = tmp_path / "20261017-qchan-09-drn001-test.ipd.md"
-        plan_drain.write_text("# Plan drn001\n- Id: drn001\n", encoding="utf-8")
+        plan_drain.write_text(
+            RecordBuilder().plan(id6="drn001", text_only=True), encoding="utf-8"
+        )
         item_drain = {
             "position": 1,
             "id6": "drn001",

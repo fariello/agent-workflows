@@ -22,45 +22,43 @@ import unittest
 
 from agent_workflows.agent_schema import validate_agent_record
 from agent_workflows import engine, versioning
+from tests.record_builder import RecordBuilder
 
-_PLAN_CONTENT = """# IPD: Test Plan
+_PLAN_CONTENT = RecordBuilder().plan(
+    title="Test Plan",
+    when="2026-10-01",
+    id6="p00001",
+    priority="high",
+    work_kind="bug",
+    set="testset",
+    body="## Details\nPlan details.",
+    raw_fields={"Status": "pending"},
+    text_only=True,
+)
 
-- Date: 2026-10-01
-- Id: p00001
-- Status: pending
-- Priority: high
-- Work-Kind: bug
-- Set: testset
+_PLAN_SECOND_CONTENT = RecordBuilder().plan(
+    title="Second Plan",
+    when="2026-10-01",
+    id6="p00002",
+    priority="high",
+    work_kind="bug",
+    set="testset",
+    body="## Details\nSecond plan details.",
+    raw_fields={"Status": "pending"},
+    text_only=True,
+)
 
-## Details
-Plan details.
-"""
-
-_PLAN_SECOND_CONTENT = """# IPD: Second Plan
-
-- Date: 2026-10-01
-- Id: p00002
-- Status: pending
-- Priority: high
-- Work-Kind: bug
-- Set: testset
-
-## Details
-Second plan details.
-"""
-
-_PLAN_DONE_CONTENT = """# IPD: Done Plan
-
-- Date: 2026-10-01
-- Id: p00003
-- Status: executed
-- Priority: high
-- Work-Kind: bug
-- Set: testset
-
-## Details
-Done plan details.
-"""
+_PLAN_DONE_CONTENT = RecordBuilder().plan(
+    title="Done Plan",
+    when="2026-10-01",
+    id6="p00003",
+    status="executed",
+    priority="high",
+    work_kind="bug",
+    set="testset",
+    body="## Details\nDone plan details.",
+    text_only=True,
+)
 
 
 def _snapshot_tree(root: Path) -> dict[str, tuple[bytes, int, int]]:

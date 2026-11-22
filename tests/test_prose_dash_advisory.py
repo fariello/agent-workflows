@@ -17,6 +17,7 @@ from agent_workflows import (
 )
 from tests.test_ipd_lint import _conforming_child
 from tests import support
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -24,37 +25,20 @@ pytestmark = pytest.mark.core
 # Base fixture templates for the three artifact types
 # --------------------------------------------------------------------------------------
 
-_SPEC_TEMPLATE = """# Spec: Test Spec
-- Date: 2026-10-25{meta_dash}
-- Status: draft
-- Id: spc001
-
-## Workflow history
-- 2026-10-25 draft (test): created.
-
-## 1. Goal
-{body}
-"""
-
-_BACKLOG_TEMPLATE = """- Id: bkl001
-- Status: open{meta_dash}
-- Set: writestd
-- Priority: high
-- Work-Kind: feature
-- Summary: Test summary
-
-## Workflow history
-- 2026-10-25 created (test): created.
-
-## Problem
-{body}
-"""
+_SPEC_TEMPLATE = RecordBuilder().spec(
+    title="Test Spec",
+    status="draft",
+    id6="spc001",
+    history=["- 2026-10-25 draft (test): created."],
+    body="## 1. Goal\n{body}",
+    raw_fields={"Date": "2026-10-25{meta_dash}"},
+    text_only=True,
+)
 
 
-def _make_ipd(body: str, meta_dash: str = "") -> str:
-    plan = _conforming_child()
-    if meta_dash:
-        plan = plan.replace("- Concern: a concern", f"- Concern: a concern{meta_dash}")
+def _make_ipd(body: str, meta_dash: str = "", *, status: str = "to-review") -> str:
+    raw_fields = {"Concern": f"sample.{meta_dash}"} if meta_dash else None
+    plan = _conforming_child(status=status, raw_fields=raw_fields)
     return plan.replace("Sample goal.", body)
 
 
@@ -63,7 +47,22 @@ def _make_spec(body: str, meta_dash: str = "") -> str:
 
 
 def _make_backlog(body: str, meta_dash: str = "") -> str:
-    return _BACKLOG_TEMPLATE.format(body=body, meta_dash=meta_dash)
+    raw_fields = {"status": f"open{meta_dash}"} if meta_dash else None
+    return str(
+        RecordBuilder().backlog(
+            id6="bkl001",
+            set="writestd",
+            priority="high",
+            work_kind="feature",
+            summary="Test summary",
+            status="open",
+            when="2026-10-25",
+            history=["- 2026-10-25 created (test): created."],
+            body=f"## Problem\n{body}",
+            raw_fields=raw_fields,
+            text_only=True,
+        )
+    )
 
 
 # Table-driven test cases across the 6 regions
@@ -294,8 +293,10 @@ class TestRequiredInvariants:
 
     def test_d_executed_plan_gets_no_c802(self):
         """(d) a dash-bearing plan under an executed/ directory gets no IPD-C802."""
-        dash_plan = _make_ipd("Sample goal with em dash \u2014 and en dash \u2013.")
-        dash_plan = dash_plan.replace("- Status: to-review", "- Status: executed")
+        dash_plan = _make_ipd(
+            "Sample goal with em dash \u2014 and en dash \u2013.",
+            status="executed",
+        )
         res = ipd_lint.lint_text(dash_plan, directory="executed")
         assert not any(d.code == ipd_lint.C_PROSE_DASH for d in res.advisories)
         assert not any(d.code == ipd_lint.C_PROSE_DASH for d in res.diagnostics)
