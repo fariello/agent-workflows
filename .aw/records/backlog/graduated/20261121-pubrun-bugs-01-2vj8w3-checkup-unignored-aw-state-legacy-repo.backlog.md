@@ -1,5 +1,6 @@
 - Id: 2vj8w3
-- Status: open
+- Status: graduated
+- Graduated-To: 2vj8w3
 - Set: pubrun-bugs
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 graduated (aw backlog): graduated by run run-20261122T002647Z-1444530: 53z4se
 - 2026-11-22 created (aw backlog): Do not write unignored .aw/state/checkup/last.json into legacy .agents/ or Backend:home repos without .aw/.gitignore
 
 
