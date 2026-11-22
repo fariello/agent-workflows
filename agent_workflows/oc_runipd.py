@@ -5273,7 +5273,18 @@ LAUNCH IDENTITY (model / variant / agent):
         help="Override maximum consecutive non-isolated turns per session before starting a fresh session",
     )
     resume.add_argument(
+        "--opencode",
+        default=None,
+        help="Override OpenCode executable name/path for resumed turns",
+    )
+    resume.add_argument(
+        "--model",
+        default=None,
+        help="Override provider/model identifier for resumed OpenCode turns (clears incompatible saved sessions)",
+    )
+    resume.add_argument(
         "--variant",
+        default=None,
         help="Override model variant / reasoning effort for OpenCode",
     )
     # runprofile-06 (`kgpptv`) E-02: registered with `default=None` so an OMITTED flag can never
@@ -5955,6 +5966,7 @@ def main(argv: list[str] | None = None) -> int:
             # refusing, so the spec's two sentences disagree and converting a shipped flag's behavior
             # is out of this plan's fence. The divergence is recorded, not papered over.
             runner_shared.refuse_frozen_flags_on_resume(args)
+            runner_shared.validate_resume_model_override(args)
             # runprofile-06 (`kgpptv`) E-02: REFUSE `--verify-with` on resume, before any state is
             # loaded or written, for exactly the reason `as <profile>` is refused: the flag names a
             # PROFILE, honoring it would require re-reading `runner-profiles.json`, and `3cm15q`
@@ -6004,17 +6016,35 @@ def main(argv: list[str] | None = None) -> int:
                             args.stall_timeout
                         )
                         save_state(run_dir, state)
-                    # runprofile-03 (`3cm15q`) E-04: an EXPLICIT `--variant` on resume still overrides, which
-                    # is the shipped behavior of plan `429f30` and is preserved deliberately (DECISION
-                    # 18-3cm15q-D1). What must NEVER happen is resume RE-RESOLVING the profile: nothing here
-                    # calls `runner_profiles.load()`, so editing, deleting, or repointing the profile after run
-                    # creation cannot alter this run. The frozen `options.launch_profile` snapshot is left
-                    # untouched on purpose, so it keeps recording what CREATED the run; an operator override
-                    # is visible as a divergence between it and the live `options.variant`.
-                    if getattr(args, "variant", None) is not None:
-                        state = load_state(run_dir)
-                        state.setdefault("options", {})["variant"] = args.variant
+                    # runprofile-03 (`3cm15q`) E-04 & `c9v6ie`: explicit `--model`, `--variant`,
+                    # and `--opencode` overrides on resume (plus cross-host `agy -> oc` handoff)
+                    # are applied without ever calling `runner_profiles.load()`. The frozen
+                    # `options.launch_profile` snapshot is left untouched so creation provenance
+                    # stays intact; operator overrides are recorded in live `options` and
+                    # `state["resume_handoffs"]`.
+                    state = load_state(run_dir)
+                    switched, switch_notice = (
+                        runner_shared.apply_resume_host_and_model_switch(
+                            state,
+                            args,
+                            target_host="oc",
+                            target_labels=runner_shared.OC_HOST_LABELS,
+                            driver_path=Path(__file__),
+                            default_host_options={
+                                "opencode": getattr(args, "opencode", None)
+                                or "opencode",
+                                "auto": True,
+                                "variant": None,
+                                "agent": None,
+                                "validate": False,
+                                "no_audit": True,
+                            },
+                        )
+                    )
+                    if switched:
                         save_state(run_dir, state)
+                        if switch_notice:
+                            print(f"runipd: {switch_notice}", file=sys.stderr)
                     if getattr(args, "session", None):
                         state = load_state(run_dir)
                         state["session_id"] = args.session

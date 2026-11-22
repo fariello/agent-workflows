@@ -4377,6 +4377,16 @@ RED-CI GATE:
         help="Path to agy executable",
     )
     resume.add_argument(
+        "--model",
+        default=None,
+        help="Override Antigravity model for resumed turns (clears incompatible saved sessions)",
+    )
+    resume.add_argument(
+        "--effort",
+        default=None,
+        help="Override reasoning effort (low|medium|high) for resumed turns",
+    )
+    resume.add_argument(
         "--session", help="Override or attach Antigravity session ID for resuming turns"
     )
     resume.add_argument(
@@ -4734,6 +4744,7 @@ def main(argv: list[str] | None = None) -> int:
             # hand-written `--full-auto` block that was here, preserving its shipped
             # overwrite-when-passed behavior exactly.
             runner_shared.refuse_frozen_flags_on_resume(args)
+            runner_shared.validate_resume_model_override(args)
             with runner_shared.track_startup_timings(
                 invocation_kind="resume",
                 start_mono=script_start_mono,
@@ -4747,6 +4758,27 @@ def main(argv: list[str] | None = None) -> int:
                         save_state(run_dir, state)
                     if runner_shared.apply_run_policy_flags_on_resume(state, args):
                         save_state(run_dir, state)
+                    switched, switch_notice = (
+                        runner_shared.apply_resume_host_and_model_switch(
+                            state,
+                            args,
+                            target_host="agy",
+                            target_labels=runner_shared.AGY_HOST_LABELS,
+                            driver_path=Path(__file__),
+                            default_model_resolver=agy_models.resolve_agy_default_model,
+                            default_host_options={
+                                "agy_executable": getattr(args, "agy_executable", None),
+                                "timeout": DEFAULT_TIMEOUT,
+                                "new_session": False,
+                                "dangerously_skip_permissions": True,
+                                "no_verify": True,
+                            },
+                        )
+                    )
+                    if switched:
+                        save_state(run_dir, state)
+                        if switch_notice:
+                            print(f"runagy: {switch_notice}", file=sys.stderr)
                     if getattr(args, "stall_timeout", None) is not None:
                         state = load_state(run_dir)
                         state.setdefault("options", {})["stall_timeout"] = (

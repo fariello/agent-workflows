@@ -22504,6 +22504,209 @@ def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
     return changed
 
 
+def validate_resume_model_override(args: Any) -> str | None:
+    """Validate an optional ``--model`` override supplied to ``resume`` before loading state."""
+    raw = getattr(args, "model", None)
+    if raw is None:
+        return None
+    cleaned = str(raw).strip()
+    if not cleaned:
+        raise DriverError("--model on resume must be a non-empty model identifier.")
+    return cleaned
+
+
+def _detect_state_host(state: Mapping[str, Any]) -> str | None:
+    """Return the normalized host key (``"agy"`` or ``"oc"``) recorded in ``state``, or ``None``."""
+    driver = state.get("driver")
+    driver_id = driver.get("id") if isinstance(driver, Mapping) else None
+    labels = host_labels_for_driver_id(driver_id)
+    if labels is AGY_HOST_LABELS:
+        return "agy"
+    if labels is OC_HOST_LABELS:
+        return "oc"
+    options = state.get("options")
+    if isinstance(options, Mapping):
+        if "agy_executable" in options or "effort" in options:
+            return "agy"
+        if "opencode" in options or "launch_profile" in options:
+            return "oc"
+    return None
+
+
+def _clear_saved_sessions_for_switch(state: dict[str, Any]) -> None:
+    """Clear host/model-bound session IDs so resumed turns start clean on the new host or model."""
+    state["session_id"] = None
+    state["set_sessions"] = {}
+    state.setdefault("options", {})["session"] = None
+    if "session_item_count" in state:
+        state["session_item_count"] = 0
+    for it in state.get("queue") or []:
+        if not isinstance(it, dict):
+            continue
+        it.pop("question_resume_session", None)
+        for att in it.get("attempts") or []:
+            if not isinstance(att, dict):
+                continue
+            rsteps = att.get("review_steps")
+            if isinstance(rsteps, list):
+                for step in rsteps:
+                    if isinstance(step, dict) and "session_id" in step:
+                        step["session_id"] = None
+
+
+def apply_resume_host_and_model_switch(
+    state: dict[str, Any],
+    args: Any,
+    *,
+    target_host: str,
+    target_labels: HostLabels,
+    driver_path: Path | None = None,
+    default_model_resolver: Callable[[], tuple[str | None, str]] | None = None,
+    default_host_options: Mapping[str, Any] | None = None,
+) -> tuple[bool, str | None]:
+    """Apply explicit model/effort/variant/opencode overrides or a cross-host handoff on ``resume``.
+
+    Returns ``(changed, notice)`` where ``notice`` is a concise human-readable summary when a host
+    or model/knob switch occurred, or ``None`` for a silent no-op. Leaves ``options.launch_profile``
+    untouched (preserving creation provenance per ``3cm15q`` E-04).
+    """
+    cli_model = validate_resume_model_override(args)
+    cli_effort = getattr(args, "effort", None)
+    cli_variant = getattr(args, "variant", None)
+    cli_opencode = getattr(args, "opencode", None)
+    cli_session = getattr(args, "session", None)
+
+    prior_host = _detect_state_host(state)
+    switching_host = prior_host is not None and prior_host != target_host
+
+    if (
+        not switching_host
+        and cli_model is None
+        and cli_effort is None
+        and cli_variant is None
+        and cli_opencode is None
+    ):
+        return False, None
+
+    options = state.setdefault("options", {})
+    prior_model = options.get("model")
+    changed = False
+    model_changed = False
+    notice_parts: list[str] = []
+
+    if switching_host:
+        state["driver"] = {
+            "id": target_labels.id,
+            "path": str(driver_path.resolve()) if driver_path is not None else None,
+            "sha256": (
+                sha256_file(driver_path)
+                if (driver_path is not None and Path(driver_path).is_file())
+                else None
+            ),
+        }
+        if target_host == "oc" and "validate" not in options and "no_verify" in options:
+            val = not bool(options["no_verify"])
+            options["validate"] = val
+            options["no_audit"] = not val
+        elif (
+            target_host == "agy"
+            and "no_verify" not in options
+            and "validate" in options
+        ):
+            options["no_verify"] = not bool(options["validate"])
+        for key, default_val in (default_host_options or {}).items():
+            options.setdefault(key, default_val)
+
+        if cli_model is not None:
+            new_model: str | None = cli_model
+            new_source = "cli-resume"
+        elif default_model_resolver is not None:
+            new_model, new_source = default_model_resolver()
+        else:
+            new_model, new_source = None, "host-default"
+
+        options["model"] = new_model
+        if target_host == "agy":
+            options["explicit_model"] = cli_model
+            options["effort"] = cli_effort
+        else:
+            options["variant"] = cli_variant
+            options["agent"] = None
+            if cli_opencode is not None:
+                options["opencode"] = cli_opencode
+
+        options[COST_ATTRIBUTION_KEY] = cost_attribution_record(
+            host=target_host,
+            model=new_model,
+            model_source=new_source,
+            agent=options.get("agent") if target_host == "oc" else None,
+            resolve_card=(target_host == "oc"),
+        )
+        changed = True
+        model_changed = True
+        notice_parts.append(f"host {prior_host} -> {target_host}")
+        notice_parts.append(
+            f"model {prior_model or '<default>'} -> {new_model or '<host-default>'}"
+        )
+    else:
+        if cli_model is not None:
+            options["model"] = cli_model
+            if target_host == "agy":
+                options["explicit_model"] = cli_model
+            options[COST_ATTRIBUTION_KEY] = cost_attribution_record(
+                host=target_host,
+                model=cli_model,
+                model_source="cli-resume",
+                agent=options.get("agent") if target_host == "oc" else None,
+                resolve_card=(target_host == "oc"),
+            )
+            if cli_model != prior_model:
+                model_changed = True
+                notice_parts.append(
+                    f"model {prior_model or '<default>'} -> {cli_model}"
+                )
+            changed = True
+        if target_host == "agy" and cli_effort is not None:
+            if options.get("effort") != cli_effort:
+                options["effort"] = cli_effort
+                changed = True
+                notice_parts.append(f"effort -> {cli_effort}")
+        if target_host == "oc" and cli_variant is not None:
+            if options.get("variant") != cli_variant:
+                options["variant"] = cli_variant
+                changed = True
+                notice_parts.append(f"variant -> {cli_variant}")
+        if target_host == "oc" and cli_opencode is not None:
+            if options.get("opencode") != cli_opencode:
+                options["opencode"] = cli_opencode
+                changed = True
+
+    if (switching_host or model_changed) and not cli_session:
+        _clear_saved_sessions_for_switch(state)
+
+    if switching_host or model_changed:
+        handoffs = state.setdefault("resume_handoffs", [])
+        if isinstance(handoffs, list):
+            handoffs.append(
+                {
+                    "at": utc_now(),
+                    "from_host": prior_host or target_host,
+                    "to_host": target_host,
+                    "from_model": prior_model,
+                    "to_model": options.get("model"),
+                    "reason": (
+                        "host-and-model-switch"
+                        if (switching_host and cli_model is not None)
+                        else ("host-switch" if switching_host else "model-switch")
+                    ),
+                    "sessions_cleared": not bool(cli_session),
+                }
+            )
+
+    notice = f"resume switch: {', '.join(notice_parts)}" if notice_parts else None
+    return changed, notice
+
+
 # ==================================================================================================
 # orchretire-01 (`5942n7`): THE SHARED ON-DISK SET-COMPLETENESS DECISION PREDICATE
 # (spec `77tr3o` R-1, R-2, R-3, R-9, R-10)
