@@ -604,16 +604,22 @@ def declared_spec_paths(text: str) -> list[str]:
     directory, so a spec is still recognized if the records tree is relocated. `grandfathered` and an
     empty value yield `[]`.
     """
-    m = re.search(r"^- Scope-Paths:[ \t]*(.+)$", text, re.M)
-    if not m:
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type="ipd")
+    raw_val = (getattr(st, "fields", None) or {}).get("scope_paths")
+    if not raw_val:
         return []
-    raw = m.group(1).strip()
-    if not raw or raw.lower() in ("grandfathered", "none"):
-        return []
+    if isinstance(raw_val, (list, tuple)):
+        parts = [str(x).strip() for x in raw_val]
+    else:
+        raw = str(raw_val).strip()
+        if not raw or raw.lower() in ("grandfathered", "none"):
+            return []
+        parts = [part.strip() for part in raw.split(",")]
     out: list[str] = []
-    for part in raw.split(","):
-        p = part.strip()
-        if p.endswith(".spec.md"):
+    for p in parts:
+        if p and p.lower() not in ("grandfathered", "none") and p.endswith(".spec.md"):
             out.append(p)
     return out
 
@@ -1001,23 +1007,20 @@ def backlog_item_paths_for_id(repo: Path, item_id6: str) -> list[str]:
     a filename whose slug disagrees with its `- Id:` must still be found, because that disagreement is
     exactly one of the shapes this check exists to notice.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
 
     hits: list[str] = []
     root = Path(repo)
-    for path in _backlog._iter_items(root):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _backlog.parse_item(text).id != item_id6:
-            continue
-        try:
-            hits.append(path.relative_to(root).as_posix())
-        except (
-            ValueError
-        ):  # pragma: no cover - a path outside the repo cannot be reported relatively
-            hits.append(path.name)
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        for path in _backlog._iter_items(root):
+            st, _raw = _read_state_for_path(root, path, record_type="backlog")
+            if st is None or getattr(st, "id_derived", False) or st.id6 != item_id6:
+                continue
+            try:
+                hits.append(path.relative_to(root).as_posix())
+            except ValueError:  # pragma: no cover - a path outside the repo cannot be reported relatively
+                hits.append(path.name)
     return sorted(hits)
 
 
@@ -16888,6 +16891,50 @@ def _read_plan_status(repo: Path, path: Path, *, id6: str | None = None) -> str 
     return status
 
 
+def _readiness_from_state(st: Any) -> str | None:
+    """Return normalized ``Readiness`` enum value from ``artifact_meta.State``, or None."""
+    if st is None:
+        return None
+    from agent_workflows import ipd_schema as _schema
+
+    raw = (getattr(st, "fields", None) or {}).get("readiness")
+    if not raw:
+        return None
+    val = str(raw).strip().lower()
+    return val if val in _schema.READINESS_VALUES else None
+
+
+def _read_plan_readiness(
+    repo: Path, path: Path, *, id6: str | None = None
+) -> str | None:
+    """Read a plan's normalized ``- Readiness:`` value through ``artifact_meta``."""
+    st, raw_text = _read_state_for_path(repo, path, record_type="ipd", id6=id6)
+    if st is None:
+        return None
+    val = _readiness_from_state(st)
+    if val is None and raw_text is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        val = _readiness_from_state(_read_text_with_loose(text, record_type="ipd"))
+    return val
+
+
+def _set_id_from_state(st: Any) -> str | None:
+    """Return the first Set token from ``artifact_meta.State``, or None."""
+    if st is None:
+        return None
+    raw_set = getattr(st, "legacy_raw_set", None) or getattr(st, "set_id", None)
+    if not raw_set:
+        return None
+    tok = str(raw_set).split("(")[0].strip().split()
+    if not tok:
+        return None
+    cleaned = tok[0].strip("\"'").strip()
+    return cleaned or None
+
+
 def _plan_record_from_state(
     st: Any,
     path: Path,
@@ -17159,31 +17206,79 @@ def populate_manifest_specs(manifest: dict[str, Any], repo: Path) -> dict[str, A
 
 
 def populate_manifest_backlog(manifest: dict[str, Any], repo: Path) -> dict[str, Any]:
-    """Populate manifest['backlog'] lazily from backlog._iter_items + parse_item (artdispatch 8l8dgb E-03)."""
+    """Populate manifest['backlog'] lazily from ``artifact_meta.query(type="backlog")`` (artdispatch 8l8dgb E-03)."""
     if "backlog" in manifest:
         return manifest["backlog"]
     backlog_dict: dict[str, Any] = {}
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
+    from agent_workflows import project_context as _proj_ctx
 
-    root = repo.resolve()
-    for p in _backlog._iter_items(root):
+    root = Path(repo).resolve()
+    ctx = _meta_context_for_repo(repo, _meta, _proj_ctx)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+    backlog_roots = [
+        (records_root_res / "backlog").resolve(),
+        (_proj_ctx.project_records_dir(repo).resolve() / "backlog"),
+        (root / ".aw" / "records" / "backlog").resolve(),
+        (root / ".agents" / "backlog").resolve(),
+    ]
+    seen_paths: set[Path] = set()
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
         try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item = _backlog.parse_item(text)
-        if not item or not item.id:
-            continue
-        try:
-            rel = str(p.resolve().relative_to(root)).replace("\\", "/")
-        except (ValueError, OSError):
-            rel = p.name
-        backlog_dict[item.id] = {
-            "file": rel,
-            "status": item.status or "",
-            "set": item.set or "",
-            "blocks_release": item.blocks_release,
-        }
+            res = _meta.query(type="backlog", project_context=ctx, include_fields=True)
+            for st in res.rows:
+                if not st.path or not st.id6 or getattr(st, "id_derived", False):
+                    continue
+                abs_p = _resolve_meta_abs_path(
+                    st.path, records_root_res, scan_repo_res, _meta
+                )
+                if abs_p is None:
+                    continue
+                resolved = abs_p.resolve()
+                if not resolved.is_file() or resolved.name == "README.md":
+                    continue
+                if not any(
+                    br == resolved or br in resolved.parents for br in backlog_roots
+                ):
+                    continue
+                if resolved.parent.name not in _backlog.STATUS_DIRS:
+                    continue
+                seen_paths.add(resolved)
+                try:
+                    rel = str(resolved.relative_to(root)).replace("\\", "/")
+                except (ValueError, OSError):
+                    rel = resolved.name
+                br = (getattr(st, "fields", None) or {}).get("blocks_release")
+                backlog_dict[st.id6] = {
+                    "file": rel,
+                    "status": _non_plan_status_from_state(st) or "",
+                    "set": _set_id_from_state(st) or "",
+                    "blocks_release": str(br).strip() if br else None,
+                }
+        except Exception:
+            pass
+        for p in _backlog._iter_items(root):
+            resolved = p.resolve()
+            if resolved in seen_paths:
+                continue
+            st, _raw = _read_state_for_path(repo, resolved, record_type="backlog")
+            if st is None or not st.id6 or getattr(st, "id_derived", False):
+                continue
+            try:
+                rel = str(resolved.relative_to(root)).replace("\\", "/")
+            except (ValueError, OSError):
+                rel = resolved.name
+            br = (getattr(st, "fields", None) or {}).get("blocks_release")
+            backlog_dict[st.id6] = {
+                "file": rel,
+                "status": _non_plan_status_from_state(st) or "",
+                "set": _set_id_from_state(st) or "",
+                "blocks_release": str(br).strip() if br else None,
+            }
     manifest["backlog"] = backlog_dict
     return backlog_dict
 
@@ -21597,9 +21692,22 @@ def enforce_no_active_runner_conflict(
     id_to_path: dict[str, Path] = {}
     for p in selected_plan_paths:
         try:
-            text = p.read_text(encoding="utf-8")
-            m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
-            rec_id = m.group(1) if m else None
+            rtype = (
+                "spec"
+                if p.name.endswith(".spec.md")
+                else ("backlog" if p.name.endswith(".backlog.md") else "ipd")
+            )
+            st, _raw = _read_state_for_path(repo, p, record_type=rtype)
+            rec_id = (
+                st.id6
+                if (
+                    st is not None
+                    and st.id6
+                    and not getattr(st, "id_derived", False)
+                    and ID6_RE.fullmatch(st.id6)
+                )
+                else None
+            )
             if rec_id:
                 id_to_path[rec_id] = p
         except Exception:
@@ -32479,7 +32587,6 @@ def handle_review_orchestrator_readiness(
     if queue_entry_type(item) != "ipd":
         return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
-    from agent_workflows import ipd_lint as _lint
     from agent_workflows import orchestrator_readiness as _orch_readiness
 
     repo = Path(state.get("repo", "."))
@@ -32505,11 +32612,16 @@ def handle_review_orchestrator_readiness(
         return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
     try:
-        doc = _lint.parse(plan_file.read_text(encoding="utf-8"))
+        st_init, _raw_init = _read_state_for_path(
+            tree, plan_file, record_type="ipd", id6=item.get("id6")
+        )
     except Exception:
         return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
+    if st_init is None:
+        return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
-    kind = (doc.meta_fields.get("Kind") or "").strip()
+    raw_kind = (getattr(st_init, "fields", None) or {}).get("plan_role")
+    kind = str(raw_kind).strip().lower() if raw_kind else ""
     if kind != "orchestrator":
         return ReviewOrchestratorResult(disposition, evaluated=False, refused=False)
 
@@ -32525,9 +32637,8 @@ def handle_review_orchestrator_readiness(
             host=host_name,
             retry_budget=frozen_retry_budget(state),
         )
-        # Re-read plan status from disk
-        doc_after = _lint.parse(plan_file.read_text(encoding="utf-8"))
-        p_status = (doc_after.meta_fields.get("Status") or "").strip()
+        # Re-read plan status via artifact_meta
+        p_status = _read_plan_status(tree, plan_file, id6=item.get("id6")) or ""
 
         # Outcome (a): ready and plan reads reviewed or later
         if readiness.ready and p_status in (
@@ -33962,8 +34073,9 @@ def run_review_sequence(
         k += 1
 
     # End of sequence outcomes (spec Section 9.1)
-    final_plan_text = plan_file.read_text(encoding="utf-8")
-    final_readiness = ipd_schema.read_readiness(final_plan_text)
+    final_readiness = _read_plan_readiness(
+        target_root, plan_file, id6=str(item.get("id6") or "") or None
+    )
     review_text = _get_review_text()
     if final_readiness in ("go", "go-pending-approval"):
         attempt["review_outcome"] = "completed-pass"
@@ -44143,10 +44255,12 @@ def _promote_reviewed_plan(
     rides in the review's lane commit. Returns `"reviewed"` on success; None on any refusal, leaving
     the file as it was.
     """
-    from agent_workflows import ipd_schema as _schema
     from agent_workflows import plan_readiness as _pr
 
-    if not text or _schema.read_readiness(text) is None:
+    if (
+        not text
+        or _readiness_from_state(_read_text_with_loose(text, record_type="ipd")) is None
+    ):
         return None
     if not _pr.history_has_review_record(text):
         return None
@@ -44174,9 +44288,7 @@ def _promote_reviewed_plan(
         return None
     try:
         after = resolve_plan_path(tree, item.get("configured_file", ""), id6)
-        from agent_workflows.selectors import read_front_matter_status as _rfs
-
-        if _rfs(after.read_text(encoding="utf-8")) == "reviewed":
+        if _read_plan_status(tree, after, id6=id6) == "reviewed":
             return "reviewed"
     except Exception:
         return None
@@ -46027,11 +46139,15 @@ def execute_item_core(
     continued_plan_ids: set[str] = set()
     existing_before: list[Any] = []
     if is_backlog_production:
-        from agent_workflows import backlog as _backlog
-
         try:
-            b_text = plan_path.read_text(encoding="utf-8")
-            status_before = _backlog.parse_item(b_text).status
+            b_state, _b_raw = _read_state_for_path(
+                repo, plan_path, record_type="backlog", id6=item.get("id6")
+            )
+            status_before = (
+                _non_plan_status_from_state(b_state)
+                if b_state is not None
+                else item.get("status")
+            )
         except Exception:
             status_before = item.get("status")
     attempt_no = len(item.get("attempts", [])) + 1
@@ -48148,8 +48264,6 @@ def execute_item_core(
                 pass
 
         if is_review and queue_entry_type(item) == "ipd":
-            from agent_workflows import ipd_schema as _schema
-
             try:
                 _read_root = Path(work_dir) if work_dir else repo
                 _plan_p = queue_artifact_path(_read_root, item)
@@ -48159,8 +48273,8 @@ def execute_item_core(
                     )
                     if _staged_p is not None and _staged_p.is_file():
                         _plan_p = _staged_p
-                attempt["review_readiness"] = _schema.read_readiness(
-                    _plan_p.read_text(encoding="utf-8")
+                attempt["review_readiness"] = _read_plan_readiness(
+                    _read_root, _plan_p, id6=item.get("id6")
                 )
             except (OSError, UnicodeDecodeError, DriverError):
                 attempt["review_readiness"] = None
@@ -51104,7 +51218,6 @@ def execute_item_core(
             target_tree = Path(work_dir) if work_dir else repo
             from agent_workflows import check_engine as _ce
             from agent_workflows import production_checks as _pc
-            from agent_workflows import backlog as _backlog
 
             prod_commit, prod_committed_paths, prod_out_of_scope = (
                 commit_backlog_production_output(
@@ -51530,8 +51643,13 @@ def execute_item_core(
                 curr_status = None
                 if curr_item_path and curr_item_path.is_file():
                     try:
-                        b_text = curr_item_path.read_text(encoding="utf-8")
-                        curr_status = _backlog.parse_item(b_text).status
+                        b_state, _b_raw = _read_state_for_path(
+                            target_tree,
+                            curr_item_path,
+                            record_type="backlog",
+                            id6=item.get("id6"),
+                        )
+                        curr_status = _non_plan_status_from_state(b_state)
                     except Exception:
                         curr_status = None
 
@@ -51613,12 +51731,12 @@ def execute_item_core(
                     produced_sets = set()
                     for _pid, p in all_verified_plans:
                         try:
-                            txt = p.read_text(encoding="utf-8")
-                            m_s = re.search(r"(?m)^-[ \t]*Set:[ \t]*(\S+)", txt)
-                            if m_s:
-                                s_val = m_s.group(1).strip()
-                                if s_val:
-                                    produced_sets.add(s_val)
+                            p_state, _p_raw = _read_state_for_path(
+                                target_tree, p, record_type="ipd", id6=_pid
+                            )
+                            s_val = _set_id_from_state(p_state)
+                            if s_val:
+                                produced_sets.add(s_val)
                         except Exception:
                             pass
                     if len(produced_sets) == 1:
@@ -51755,9 +51873,16 @@ def execute_item_core(
                                 current_disp = "unknown"
                                 if check_bkl:
                                     try:
-                                        current_disp = _backlog.parse_item(
-                                            check_bkl.read_text(encoding="utf-8")
-                                        ).status
+                                        b_state, _b_raw = _read_state_for_path(
+                                            target_tree,
+                                            check_bkl,
+                                            record_type="backlog",
+                                            id6=item.get("id6"),
+                                        )
+                                        if b_state is not None:
+                                            current_disp = _non_plan_status_from_state(
+                                                b_state
+                                            )
                                     except Exception:
                                         pass
                                 contain_msg = (
@@ -56059,17 +56184,60 @@ class BacklogCloseVerdict(NamedTuple):
 def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
     """The backlog item file whose `- Id:` is ``item_id6``, or None.
 
-    Reuses `backlog._iter_items` + `backlog.parse_item` (the tree walker and metadata reader the
-    backlog verbs themselves use) rather than globbing for the id6, so a renamed file or a
-    filename/`Id:` mismatch cannot make the runner miss an item the setter would find."""
+    Queries ``artifact_meta.query(type="backlog", id6=item_id6)`` so a renamed file or a
+    filename/`Id:` mismatch resolves by declared identity; falls back to scanning
+    ``backlog._iter_items`` through ``_read_state_for_path`` for any unindexed legacy `.md` file."""
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
+    from agent_workflows import project_context as _proj_ctx
 
-    for path in _backlog._iter_items(Path(repo)):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _backlog.parse_item(text).id == item_id6:
+    root = Path(repo)
+    root_res = root.resolve()
+    backlog_roots = [
+        (_proj_ctx.project_records_dir(root).resolve() / "backlog"),
+        (root_res / ".aw" / "records" / "backlog").resolve(),
+        (root_res / ".agents" / "backlog").resolve(),
+    ]
+    try:
+        ctx = _meta_context_for_repo(root, _meta, _proj_ctx)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _meta._scan_repo_root(ctx, records_root)
+        records_root_res = records_root.resolve()
+        scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+        backlog_roots.insert(0, (records_root_res / "backlog").resolve())
+        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+            res = _meta.query(
+                type="backlog",
+                id6=item_id6,
+                project_context=ctx,
+                include_fields=False,
+            )
+            for st in res.rows:
+                if not st.path or getattr(st, "id_derived", False):
+                    continue
+                abs_p = _resolve_meta_abs_path(
+                    st.path, records_root_res, scan_repo_res, _meta
+                )
+                if abs_p is None:
+                    continue
+                resolved = abs_p.resolve()
+                if (
+                    resolved.is_file()
+                    and resolved.parent.name in _backlog.STATUS_DIRS
+                    and any(
+                        br == resolved or br in resolved.parents for br in backlog_roots
+                    )
+                ):
+                    return resolved
+    except Exception:
+        pass
+    for path in _backlog._iter_items(root):
+        st, _raw = _read_state_for_path(root, path, record_type="backlog")
+        if (
+            st is not None
+            and not getattr(st, "id_derived", False)
+            and st.id6 == item_id6
+        ):
             return path
     return None
 
