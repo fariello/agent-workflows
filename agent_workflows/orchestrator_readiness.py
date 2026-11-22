@@ -133,49 +133,144 @@ class ReviewReadiness(NamedTuple):
     notes: tuple[str, ...] = ()
 
 
-_BATCH_META_RE = re.compile(r"^- (Id|Set|Order|Kind|Status):\s*([^\n]+)", re.MULTILINE)
+def _first_set_token(raw: Any) -> str:
+    """Return the terse set-id before any parenthetical description."""
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    head = s.split("(", 1)[0].strip()
+    parts = head.split()
+    return parts[0] if parts else ""
+
+
+def _state_plan_status(st: Any) -> str:
+    """Return canonical plan status from an artifact_meta.State (D-1)."""
+    from agent_workflows import plans as _plans
+
+    raw = getattr(st, "legacy_raw_status", None) or getattr(st, "status", None)
+    if not raw:
+        raw = getattr(st, "loose_status", None)
+    if not raw:
+        return ""
+    toks = str(raw).strip().split()
+    if not toks:
+        return ""
+    if len(toks) > 1:
+        return _plans.normalize_status(toks[0]) or ""
+    low = toks[0].lower()
+    if low in _plans.RECOGNIZED:
+        return low
+    return toks[0]
+
+
+def _read_plan_state(repo_path: Path, path: Path, text: str | None = None) -> Any:
+    """Read plan metadata via artifact_meta.resolve/read, falling back to read_text (D-3)."""
+    from agent_workflows import artifact_meta as _am
+    from agent_workflows import artifact_naming as _an
+
+    resolved = path.resolve()
+    ctx = _am.legacy_context(repo_path)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _am._scan_repo_root(ctx, records_root) or Path(repo_path).resolve()
+
+    try:
+        stored = _am.stored_path(resolved, records_root, scan_repo)
+    except ValueError:
+        stored = None
+
+    if stored is not None:
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            try:
+                canonical_stored = _am.resolve(stored, project_context=ctx)
+            except Exception:
+                canonical_stored = None
+            if canonical_stored:
+                cand_id6: str | None = None
+                parts = _an.identity_parts(resolved.name)
+                if parts and parts[3]:
+                    cand_id6 = parts[3]
+                if cand_id6:
+                    try:
+                        if (
+                            _am.resolve(cand_id6, project_context=ctx)
+                            == canonical_stored
+                        ):
+                            return _am.read(cand_id6, project_context=ctx)
+                    except Exception:
+                        pass
+                try:
+                    rows = _am.query(
+                        type="ipd", path=canonical_stored, project_context=ctx
+                    )
+                    for row in rows.rows:
+                        if row.id6 and row.path == canonical_stored:
+                            return _am.read(row.id6, project_context=ctx)
+                except Exception:
+                    pass
+
+    raw_text = (
+        text
+        if text is not None
+        else resolved.read_text(encoding="utf-8", errors="replace")
+    )
+    return _am.read_text(raw_text, record_type="ipd")
 
 
 def resolve_all_set_memberships(repo: Path | str) -> dict[str, Any]:
-    """Scan the plans tree once and return {setid: SetMembership} for fast batch lookups."""
+    """Query the plans metadata cache once and return {setid: SetMembership} for batch lookups."""
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import runner_shared as _rs
 
     root = Path(repo)
-    candidates: list[Path] = []
-    from agent_workflows.project_context import project_records_dir
+    ctx = _am.legacy_context(root)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _am._scan_repo_root(ctx, records_root) or root.resolve()
 
-    for base in (project_records_dir(root) / "plans", root / ".agents" / "plans"):
-        if base.is_dir():
-            for p in sorted(base.rglob("*.ipd.md")):
-                if p.name not in ("README.md", "INDEX.md", "STATUS.md"):
-                    candidates.append(p)
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        rows = _am.query(type="ipd", project_context=ctx, include_fields=True)
 
-    from agent_workflows import selectors as _sel
+    resolved_entries: list[tuple[Path, Any]] = []
+    for st in rows.rows:
+        if getattr(st, "id_derived", False):
+            continue
+        id6 = (st.id6 or "").strip()
+        if not id6 or not st.path:
+            continue
+        try:
+            path = _am.source_path(st.path, records_root, scan_repo)
+        except ValueError:
+            continue
+        if path.name in ("README.md", "INDEX.md", "STATUS.md"):
+            continue
+        resolved_entries.append((path, st))
+
+    resolved_entries.sort(key=lambda item: item[0])
 
     grouped: dict[str, list[_rs.SetMember]] = {}
-    for path in sorted(candidates):
-        hdr = _sel._read_header(path)
-        if hdr is None:
-            continue
-        region = _sel.metadata_region(hdr)
-        meta = dict(_BATCH_META_RE.findall(region))
-        id6 = (meta.get("Id") or "").strip()
-        if not id6:
-            continue
-        raw_set = (meta.get("Set") or "").strip()
-        setid = raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+    for path, st in resolved_entries:
+        st_fields = st.fields or {}
+        setid = (
+            (st.set_id or "").strip()
+            or _first_set_token(getattr(st, "legacy_raw_set", None))
+            or _first_set_token(st_fields.get("set"))
+        )
         if not setid:
             continue
-        raw_order = (meta.get("Order") or "").strip()
+        raw_order = st_fields.get("order")
+        if raw_order is None:
+            raw_order = getattr(st, "order_nn", None)
         try:
-            order: int | None = int(raw_order)
-        except ValueError:
+            order: int | None = (
+                int(str(raw_order).strip()) if raw_order is not None else None
+            )
+        except (ValueError, TypeError):
             order = None
+        raw_kind = st_fields.get("plan_role")
         member = _rs.SetMember(
-            id6=id6,
+            id6=(st.id6 or "").strip(),
             order=order,
-            kind=(meta.get("Kind") or "").strip(),
-            status=(meta.get("Status") or "").strip(),
+            kind=(str(raw_kind) if raw_kind is not None else "").strip(),
+            status=_state_plan_status(st),
             path=path,
         )
         grouped.setdefault(setid, []).append(member)
@@ -245,16 +340,26 @@ def review_readiness(
             ),
         )
 
-    doc = _ipd_lint.parse(text)
-    kind = (doc.meta_fields.get("Kind") or "").strip()
-    id6 = (doc.meta_fields.get("Id") or "").strip()
-    raw_set = (doc.meta_fields.get("Set") or "").strip()
-    setid = raw_set.split("(")[0].strip().split()[0].strip() if raw_set else ""
+    plan_state = _read_plan_state(repo_path, path, text=text)
+    plan_fields = getattr(plan_state, "fields", None) or {}
+    kind = str(plan_fields.get("plan_role") or "").strip()
+    id6 = (
+        ""
+        if getattr(plan_state, "id_derived", False)
+        else (getattr(plan_state, "id6", None) or "").strip()
+    )
+    setid = (
+        (getattr(plan_state, "set_id", None) or "").strip()
+        or _first_set_token(getattr(plan_state, "legacy_raw_set", None))
+        or _first_set_token(plan_fields.get("set"))
+    )
 
     if kind != "orchestrator":
         return ReviewReadiness(
             applies=False, ready=True, findings=(), id6=id6, setid=setid
         )
+
+    doc = _ipd_lint.parse(text)
 
     findings: list[Finding] = []
 
@@ -722,7 +827,7 @@ def run_coverage(
 ) -> int:
     """CLI implementation of `aw ipd coverage <id6|setid|path>...`."""
     from agent_workflows import agent_schema as _as
-    from agent_workflows import ipd_lint as _ipd_lint
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import runner_profiles as _rp
     from agent_workflows import selectors as _sel
     from agent_workflows.result_types import select_output
@@ -879,15 +984,23 @@ def run_coverage(
     # Filter to orchestrator plans
     orchestrator_plans: list[Path] = []
     non_orchestrator_plans: list[Path] = []
-    for p in plan_paths:
-        try:
-            doc = _ipd_lint.parse(p.read_text(encoding="utf-8", errors="replace"))
-            if doc.meta_fields.get("Kind") == "orchestrator":
+    orch_setids: dict[Path, str] = {}
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        for p in plan_paths:
+            try:
+                st = _read_plan_state(repo_root, p)
+            except OSError:
+                continue
+            st_fields = getattr(st, "fields", None) or {}
+            if str(st_fields.get("plan_role") or "").strip() == "orchestrator":
                 orchestrator_plans.append(p)
+                orch_setids[p] = (
+                    (getattr(st, "set_id", None) or "").strip()
+                    or _first_set_token(getattr(st, "legacy_raw_set", None))
+                    or _first_set_token(st_fields.get("set"))
+                )
             else:
                 non_orchestrator_plans.append(p)
-        except OSError:
-            pass
 
     if not orchestrator_plans:
         err_msg = "no orchestrator plans selected among targets"
@@ -919,14 +1032,7 @@ def run_coverage(
             model=resolved_model,
             host=resolved_host,
             state=state,
-            membership=memberships.get(
-                _ipd_lint.parse(orch_path.read_text(encoding="utf-8", errors="replace"))
-                .meta_fields.get("Set", "")
-                .split("(")[0]
-                .strip()
-                .split()[0]
-                .strip()
-            ),
+            membership=memberships.get(orch_setids.get(orch_path, "")),
             suppress_commit=no_commit,
         )
         results.append(res)

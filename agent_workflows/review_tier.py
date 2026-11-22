@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping, MutableMapping
 
-from agent_workflows import ipd_lint, ipd_schema
+from agent_workflows import artifact_meta, ipd_lint, ipd_schema
 
 VALID_TIER_SOURCES = frozenset(("agent", "orchestrator", "raised"))
 
@@ -31,6 +31,7 @@ def tier_facts(plan_text: str) -> dict[str, Any]:
     """
     try:
         parsed = ipd_lint.parse(plan_text or "")
+        state = artifact_meta.read_text(plan_text or "", record_type="ipd")
     except Exception:
         return {
             "kind": None,
@@ -42,12 +43,13 @@ def tier_facts(plan_text: str) -> dict[str, Any]:
             "in_set": False,
         }
 
-    kind = parsed.meta_fields.get("Kind")
+    fields = state.fields or {}
+    kind = fields.get("plan_role")
 
-    raw_sp = parsed.meta_fields.get(ipd_schema.META_SCOPE_PATHS)
+    raw_sp = fields.get("scope_paths")
     scope_paths: list[str] | None = None
     if raw_sp is not None:
-        trimmed = raw_sp.strip()
+        trimmed = str(raw_sp).strip()
         if not (
             trimmed == "TODO"
             or trimmed.startswith("TODO ")
@@ -61,7 +63,7 @@ def tier_facts(plan_text: str) -> dict[str, Any]:
     e_items = sum(1 for lf in parsed.exec_leaves if lf.kind == "E")
     task_groups = parsed.exec_task_groups
     exceeds_size = ipd_schema.size_warning(task_groups, e_items)
-    in_set = bool(parsed.meta_fields.get("Set"))
+    in_set = bool(state.set_id or fields.get("set"))
 
     return {
         "kind": kind,
