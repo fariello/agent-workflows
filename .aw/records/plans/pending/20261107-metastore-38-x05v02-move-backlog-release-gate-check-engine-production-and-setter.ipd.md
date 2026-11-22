@@ -135,6 +135,7 @@ flowchart TD
 
 - Moved to id2pdx (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G1a (items E-01; F-41 names each module).
   - Carrier: id2pdx
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-175-id2pdx-move-backlog-release-gate-and-check-test-data-chunk-1-of-7-o.ipd.md
 - Moved to 2fn0vd (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subset G1a (items E-01; F-41 names each module).
   - Carrier: 2fn0vd
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-176-2fn0vd-move-backlog-release-gate-and-check-test-data-chunk-2-of-7-o.ipd.md

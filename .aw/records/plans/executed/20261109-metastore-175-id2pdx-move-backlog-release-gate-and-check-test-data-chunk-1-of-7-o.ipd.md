@@ -6,7 +6,7 @@
 - Scope: Chunk 1 of 7 of `x05v02` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `x05v02`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_backlog_already_complete.py, tests/test_backlog_close_evidence_plan_disposition.py, tests/test_backlog_close_host_label.py, tests/test_backlog_descriptive_safety.py, tests/test_backlog_duplicate_guard.py, tests/test_backlog_gate_follows_status.py, tests/test_backlog_handoff_close.py, tests/test_backlog_history_dedup_parity.py, .aw/records/plans/pending/20261109-metastore-175-id2pdx-move-backlog-release-gate-and-check-test-data-chunk-1-of-7-o.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: id2pdx
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: id2pdx verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_backlog_already_complete.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_backlog_close_evidence_plan_disposition.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_backlog_close_host_label.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_backlog_descriptive_safety.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-21 cap-update (maintainer decision): raised Batch rule step 4 hand-refusal cap from 25 to 100 (raw site count over-counts list elements and .replace() pairs); completed sibling E-item and Step-3 commits from run-20261121T014040Z-2638602 were salvaged onto main, so modules already at 0 rewrites and 0 hand refusals remain unmodified and are acknowledged via --scope-ack at finalize.
 - 2026-11-16 approved (aw set): status set to approved
 
@@ -49,22 +49,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `x05v02` E-01, batch subset G1a; round-3 split 2026-11-09) Batch G1a, 4 of its 17 modules (the backlog tests (`test_backlog*`)): `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py`, `tests/test_backlog_close_host_label.py`, `tests/test_backlog_descriptive_safety.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_backlog_already_complete` 6, `test_backlog_close_evidence_plan_disposition` 21, `test_backlog_close_host_label` 2, `test_backlog_descriptive_safety` 14. Run the codemod on these modules and apply the batch rule with `<batch>` = `G1a-id2pdx-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 100, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_backlog_already_complete.py`: `_write_spec_item`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `x05v02` E-01, batch subset G1a; round-3 split 2026-11-09) Batch G1a, 4 of its 17 modules (the backlog tests (`test_backlog*`)): `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py`, `tests/test_backlog_close_host_label.py`, `tests/test_backlog_descriptive_safety.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_backlog_already_complete` 6, `test_backlog_close_evidence_plan_disposition` 21, `test_backlog_close_host_label` 2, `test_backlog_descriptive_safety` 14. Run the codemod on these modules and apply the batch rule with `<batch>` = `G1a-id2pdx-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 100, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_backlog_already_complete.py`: `_write_spec_item`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G1a-id2pdx-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 100) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `x05v02` E-01, batch subset G1a; round-3 split 2026-11-09) Batch G1a, 4 of its 17 modules (the backlog tests (`test_backlog*`)): `tests/test_backlog_duplicate_guard.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_backlog_handoff_close.py`, `tests/test_backlog_history_dedup_parity.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_backlog_duplicate_guard` 87, `test_backlog_gate_follows_status` 36, `test_backlog_handoff_close` 64, `test_backlog_history_dedup_parity` 36. Run the codemod on these modules and apply the batch rule with `<batch>` = `G1a-id2pdx-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 100, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_backlog_handoff_close.py`: `_write_backlog_item`, `_write_plan`, `_write_spec`); a surviving helper is listed with its reason.
+- [x] E-02 (carried from `x05v02` E-01, batch subset G1a; round-3 split 2026-11-09) Batch G1a, 4 of its 17 modules (the backlog tests (`test_backlog*`)): `tests/test_backlog_duplicate_guard.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_backlog_handoff_close.py`, `tests/test_backlog_history_dedup_parity.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_backlog_duplicate_guard` 87, `test_backlog_gate_follows_status` 36, `test_backlog_handoff_close` 64, `test_backlog_history_dedup_parity` 36. Run the codemod on these modules and apply the batch rule with `<batch>` = `G1a-id2pdx-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 100, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_backlog_handoff_close.py`: `_write_backlog_item`, `_write_plan`, `_write_spec`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G1a-id2pdx-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 100) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G1a-id2pdx-1-files.txt .aw/state/59aiyh/G1a-id2pdx-2-files.txt)`) into `.aw/state/59aiyh/id2pdx-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit id2pdx -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G1a-id2pdx-1-files.txt .aw/state/59aiyh/G1a-id2pdx-2-files.txt)`) into `.aw/state/59aiyh/id2pdx-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit id2pdx -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -157,20 +157,80 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G1a-id2pdx-1-files.txt` and the empty `diff .aw/state/59aiyh/G1a-id2pdx-1-before.txt .aw/state/59aiyh/G1a-id2pdx-1-after.txt`; then, for each of `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py`, `tests/test_backlog_close_host_label.py`, `tests/test_backlog_descriptive_safety.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G1a-id2pdx-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G1a-id2pdx-1-files.txt`: `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py`, `tests/test_backlog_descriptive_safety.py`. (`tests/test_backlog_close_host_label.py` no longer matches F-01 at starting HEAD `3f626bbf6` after salvaged commit `308bbf865`, so per Batch rule step 1 it is reported and skipped; verified `3` `PASSED` outcomes directly. Late G1a partition check: none; all F-01-matching `tests/test_backlog*.py` modules at HEAD are owned by `id2pdx`, `2fn0vd`, or `isj48z`.)
+    - `diff .aw/state/59aiyh/G1a-id2pdx-1-before.txt .aw/state/59aiyh/G1a-id2pdx-1-after.txt`: empty output, exit code 0 (`59` `PASSED` outcomes before and after across the 3 F-01-matching modules; plus `3` `PASSED` in skipped `tests/test_backlog_close_host_label.py` = `62` total).
+    - Note on salvaged E-01 commit: commit `308bbf865` (salvaged onto `main` from `run-20261121T014040Z-2638602`) already converted all 4 E-01 modules onto `RecordBuilder` and deleted `_write_spec_item` in `tests/test_backlog_already_complete.py`. At starting HEAD `3f626bbf6`, all 4 modules sit at 0 rewrites and 0 hand refusals, so they remain unmodified and are acknowledged via `--scope-ack` at finalize per the 2026-11-21 `cap-update` workflow history entry.
+    - `tests/test_backlog_already_complete.py`:
+      - F-01 `rg -c`: 1 before (at `3f626bbf6`; 6 at split `3d0ddb845`) -> 1 after.
+      - Remaining 1 F-01 match: line 362 `self.assertIn("- Status: done", bkl_files[0].read_text("utf-8"))` (`setter-byte assertion`).
+      - `G1a-id2pdx-1-codemod.json`: sites=1, rewrites=0 (standard=0, invalid-input=0), refusals=1 (`setter-byte assertion`=1 `legacy-kept`), before_hash=None, after_hash=None, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_already_complete.py | G1a | id2pdx | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 1 | 0 | 3 | 1 |`.
+    - `tests/test_backlog_close_evidence_plan_disposition.py`:
+      - F-01 `rg -c`: 5 before (at `3f626bbf6`; 21 at split `3d0ddb845`) -> 5 after.
+      - Remaining 5 F-01 matches: line 5 module docstring, lines 108 and 134 function docstrings, lines 932 and 943 comments (all 5 `body prose`).
+      - `G1a-id2pdx-1-codemod.json`: sites=0, rewrites=0 (standard=0, invalid-input=0), refusals=0, before_hash=None, after_hash=None, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_close_evidence_plan_disposition.py | G1a | id2pdx | 10 | 2 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |`.
+    - `tests/test_backlog_close_host_label.py`:
+      - F-01 `rg -c`: 0 before (at `3f626bbf6`; 2 at split `3d0ddb845`) -> 0 after (skipped in step 1; verified `3` `PASSED` outcomes).
+      - Remaining F-01 matches: none (0).
+      - `G1a-id2pdx-1-codemod.json`: skipped from `G1a-id2pdx-1-files.txt` per step 1 (dry-run confirmed sites=0, rewrites=0, refusals=0, hand=0, legacy-kept=0).
+      - `653ndz` F-30 row: `| tests/test_backlog_close_host_label.py | G1a | id2pdx | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |`.
+    - `tests/test_backlog_descriptive_safety.py`:
+      - F-01 `rg -c`: 6 before (at `3f626bbf6`; 14 at split `3d0ddb845`) -> 6 after.
+      - Remaining 6 F-01 matches: lines 241, 250, 266, 285, 305, 324 (newline-injection payload strings carrying `- Blocks-Release: next`, all 6 `body prose`).
+      - `G1a-id2pdx-1-codemod.json`: sites=6, rewrites=0 (standard=0, invalid-input=0), refusals=6 (`body prose`=6 `legacy-kept`), before_hash=None, after_hash=None, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_descriptive_safety.py | G1a | id2pdx | 7 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 6 | 1 | 6 |`.
+    - Hand count: 0 in this turn (the 12 static hand refusals in `653ndz` F-30 were already hand-converted in salvaged commit `308bbf865`: 3 `dynamic-construction` in `tests/test_backlog_already_complete.py`, 8 `unsupported-shape` in `tests/test_backlog_close_evidence_plan_disposition.py`, 1 `unsupported-shape` in `tests/test_backlog_descriptive_safety.py`; 0 apply-time `not-equivalent`; <= 100).
+    - E-09 helper census (`rg -n -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`): before at `3f626bbf6` = 0 (1 at split `3d0ddb845`: `def _write_spec_item` in `tests/test_backlog_already_complete.py`, deleted in salvaged commit `308bbf865`); after = 0 (`(none)`). Surviving helpers: none.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G1a-id2pdx-2-files.txt` and the empty `diff .aw/state/59aiyh/G1a-id2pdx-2-before.txt .aw/state/59aiyh/G1a-id2pdx-2-after.txt`; then, for each of `tests/test_backlog_duplicate_guard.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_backlog_handoff_close.py`, `tests/test_backlog_history_dedup_parity.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G1a-id2pdx-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G1a-id2pdx-2-files.txt`: `tests/test_backlog_duplicate_guard.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_backlog_handoff_close.py`, `tests/test_backlog_history_dedup_parity.py`.
+    - `diff -u .aw/state/59aiyh/G1a-id2pdx-2-before.txt .aw/state/59aiyh/G1a-id2pdx-2-after.txt`: empty output, exit code 0 (`73` `PASSED` outcomes before and after).
+    - Note on salvaged Step 3 commit: commit `18dae86b8` (salvaged onto `main` from `run-20261121T014040Z-2638602`) had already applied the 11 proved codemod rewrites for E-02 (1 in `tests/test_backlog_gate_follows_status.py`, 10 in `tests/test_backlog_handoff_close.py`), so the fresh Step 3 run at `3f626bbf6` applied 0 further rewrites and isolated the 44 remaining hand refusals (42 static in F-30 + 2 apply-time `not-equivalent`).
+    - `tests/test_backlog_duplicate_guard.py`:
+      - F-01 `rg -c`: 87 before (at `3f626bbf6` and split `3d0ddb845`) -> 0 after.
+      - Remaining F-01 matches: none (0).
+      - `G1a-id2pdx-2-codemod.json`: sites=14, rewrites=0 (standard=0, invalid-input=0), refusals=14 (`unsupported-shape`=14 `hand`), before_hash=None, after_hash=None, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_duplicate_guard.py | G1a | id2pdx | 14 | 0 | 0 | 0 | 14 | 0 | 0 | 0 | 0 | 0 | 14 | 0 |`.
+    - `tests/test_backlog_gate_follows_status.py`:
+      - F-01 `rg -c`: 34 before (at `3f626bbf6`; 36 at split `3d0ddb845`) -> 15 after.
+      - Remaining 15 F-01 matches (post-format): line 12 module docstring (1 `body prose`); lines 206, 234, 267, 294, 326, 352, 384, 410, 446, 476, 579, 580, 613, 614 (14 `setter-byte assertion`).
+      - `G1a-id2pdx-2-codemod.json`: sites=22, rewrites=0 (standard=0, invalid-input=0), refusals=22 (`unsupported-shape`=7 `hand`, `not-equivalent`=1 `hand`, `setter-byte assertion`=14 `legacy-kept`), before_hash=`752620a0bce3d5b29af7f829d186a3ed4c5c7ea032e7b0e35ccc56900730a3ba`, after_hash=`752620a0bce3d5b29af7f829d186a3ed4c5c7ea032e7b0e35ccc56900730a3ba`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_gate_follows_status.py | G1a | id2pdx | 23 | 2 | 0 | 0 | 7 | 0 | 0 | 0 | 14 | 0 | 7 | 14 |`.
+    - `tests/test_backlog_handoff_close.py`:
+      - F-01 `rg -c`: 38 before (at `3f626bbf6`; 64 at split `3d0ddb845`) -> 5 after.
+      - Remaining 5 F-01 matches (post-format): lines 325, 403, 442, 1323, 1361 (all 5 test docstrings, `body prose`).
+      - `G1a-id2pdx-2-codemod.json`: sites=13, rewrites=0 (standard=0, invalid-input=0), refusals=13 (`dynamic-construction`=10 `hand`, `unsupported-shape`=3 `hand`), before_hash=None, after_hash=None, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_handoff_close.py | G1a | id2pdx | 23 | 10 | 0 | 10 | 3 | 0 | 0 | 0 | 0 | 0 | 13 | 0 |`.
+    - `tests/test_backlog_history_dedup_parity.py`:
+      - F-01 `rg -c`: 36 before (at `3f626bbf6` and split `3d0ddb845`) -> 0 after.
+      - Remaining F-01 matches: none (0).
+      - `G1a-id2pdx-2-codemod.json`: sites=9, rewrites=0 (standard=0, invalid-input=0), refusals=9 (`dynamic-construction`=8 `hand`, `not-equivalent`=1 `hand`), before_hash=`e6fe7e1d4f42bedcabeec42439cb38b35de22fd58b27d5aa386969a5f95df1d3`, after_hash=`e6fe7e1d4f42bedcabeec42439cb38b35de22fd58b27d5aa386969a5f95df1d3`, equivalent=True.
+      - `653ndz` F-30 row: `| tests/test_backlog_history_dedup_parity.py | G1a | id2pdx | 9 | 1 | 0 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |`.
+    - Hand count: 44 (42 static in `653ndz` F-30 + 2 apply-time `not-equivalent`; <= 100). Hand-converted sites (pre-edit lines at `3f626bbf6`):
+      1-14. `tests/test_backlog_duplicate_guard.py`: L45-51, L53-64, L72-78, L80-91, L97-102, L104-114, L120-126, L128-139, L146-152, L154-166, L172-177, L179-189, L195-201, L203-214 (14 `unsupported-shape`; all 7 `FIXTURE_*` pairs consolidated onto `RecordBuilder().backlog(..., text_only=True)`).
+      15-22. `tests/test_backlog_gate_follows_status.py`: L63, L64, L67, L70, L71, L72, L75 (7 `unsupported-shape` in `_create_item`, converted to `RecordBuilder().backlog(..., text_only=True)`); L114-163 (1 `not-equivalent` in `_write_conforming_plan`, converted to `RecordBuilder().plan(..., raw_fields={"Concern": "Test concern.", "Scope": "Test scope."}, text_only=True)`).
+      23-35. `tests/test_backlog_handoff_close.py`: L85, L95-102 (2 `dynamic-construction` in `_write_backlog_item`, converted to `RecordBuilder().backlog(..., text_only=True)`); L122, L123, L124, L126, L138-190 (5 `dynamic-construction` in `_write_plan`, converted to `RecordBuilder().plan(..., raw_fields={"Concern": "Test concern.", "Scope": "Test"}, text_only=True)`); L210, L211, L221-226 (3 `dynamic-construction` in `_write_spec`, converted to `RecordBuilder().spec(..., text_only=True)`); L664 x2 (2 `unsupported-shape`, `.replace("- Status: approved", "- Status: implemented")` replaced with `RecordBuilder().spec(..., status="implemented", text_only=True)`); L1064-1072 (1 `unsupported-shape`, replaced with `RecordBuilder().backlog(..., text_only=True)`).
+      36-44. `tests/test_backlog_history_dedup_parity.py`: L76-125 (1 `not-equivalent` in `_write_conforming_plan`, converted to `RecordBuilder().plan(..., raw_fields={"Concern": "Test concern.", "Scope": "Test scope."}, text_only=True)`); L161-170, L173-182, L285-286, L290-291, L378-379, L424-425, L498-501 (with `history=[]` and indented history line in `body=`), L548-549 (8 `dynamic-construction`, converted to `RecordBuilder().backlog(..., text_only=True)`).
+    - E-09 helper census: before = 3 (`tests/test_backlog_handoff_close.py`: `def _write_backlog_item` line 79, `def _write_plan` line 114, `def _write_spec` line 202); after = 3 (`tests/test_backlog_handoff_close.py`: `def _write_backlog_item` line 79, `def _write_plan` line 120, `def _write_spec` line 215). Deleted: none. Surviving helpers (all 3 now backed solely by `RecordBuilder` with zero legacy strings): `_write_backlog_item`, `_write_plan`, and `_write_spec` in `tests/test_backlog_handoff_close.py` are imported by out-of-scope module `tests/test_outer_close_spec_carrier.py` (verified `6 passed in 3.44s`) and shared as git-committing fixture helpers across 40 tests in `tests/test_backlog_handoff_close.py`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G1a-id2pdx-1`, `G1a-id2pdx-2` against `.aw/state/59aiyh/id2pdx-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit id2pdx` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union diff (`diff -u .aw/state/59aiyh/id2pdx-union-before.txt .aw/state/59aiyh/id2pdx-union-after.txt`): empty output, exit code 0 (`132` `PASSED` outcomes across the 7 F-01-matching modules; plus `3` `PASSED` in skipped `tests/test_backlog_close_host_label.py` = `135` total).
+    - Bare `python3 -m pytest`: `2665 passed, 1 skipped, 11 warnings in 168.98s (0:02:48)` (exit code 0).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7046,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit id2pdx` outputs (all paths within `Scope-Paths`; E-01's 4 modules were already converted in salvaged commit `308bbf865` and remain unmodified at 0 rewrites / 0 hand refusals for `--scope-ack` at finalize):
+      - E-02 (4 Scope-Paths): `aw commit: committed 4 path(s): 4d3fc40e0d4807f8219510ab4fd3ce9bc54ba10d` (`tests/test_backlog_duplicate_guard.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_backlog_handoff_close.py`, `tests/test_backlog_history_dedup_parity.py`).
+      - Followed by the plan-evidence commit via `aw commit id2pdx -- .aw/records/plans/pending/20261109-metastore-175-id2pdx-move-backlog-release-gate-and-check-test-data-chunk-1-of-7-o.ipd.md` (recorded in the lane execution report and outcome JSON).
+  - Result: pass
 
 ## Approval and execution gate
 

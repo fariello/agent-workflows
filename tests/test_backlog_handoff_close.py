@@ -82,7 +82,9 @@ def _write_backlog_item(
     status: str = "graduated",
     blocks_release: Optional[str] = "next",
 ) -> Path:
-    br_line = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
+    extra: dict[str, str] = {}
+    if blocks_release:
+        extra["blocks_release"] = blocks_release
     item_path = (
         repo
         / ".aw"
@@ -92,14 +94,18 @@ def _write_backlog_item(
         / f"20260920-{item_id}-01-{item_id}-test-item.backlog.md"
     )
     item_path.write_text(
-        f"- Id: {item_id}\n"
-        f"- Status: {status}\n"
-        f"{br_line}"
-        f"- Set: testset\n"
-        f"- Priority: high\n"
-        f"- Work-Kind: bug\n"
-        f"- Summary: Test item {item_id}\n\n"
-        f"## Summary\nTest item.\n",
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=status,
+            set="testset",
+            priority="high",
+            work_kind="bug",
+            summary=f"Test item {item_id}",
+            when="2026-09-20",
+            body="## Summary\nTest item.",
+            text_only=True,
+            **extra,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", str(item_path)], cwd=repo, check=True)
@@ -119,12 +125,15 @@ def _write_plan(
     from_backlog: Optional[str] = "item01",
     blocks_release: Optional[str] = "next",
 ) -> Path:
-    fb_line = f"- From-Backlog: {from_backlog}\n" if from_backlog else ""
-    br_line = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
-    appr_line = "- Approval: test\n" if status == "approved" else ""
     gated = status in ("reviewed", "approved", "auto-approved")
-    rdy_line = "- Readiness: go-pending-approval\n" if gated else ""
-    review_line = "- 2026-09-26 /plan-review (test): APPROVE\n" if gated else ""
+    history = [f"- 2026-09-26 {status} (test): created"]
+    if gated:
+        history.append("- 2026-09-26 /plan-review (test): APPROVE")
+    extra: dict[str, str] = {}
+    if from_backlog:
+        extra["from_backlog"] = from_backlog
+    if blocks_release:
+        extra["blocks_release"] = blocks_release
     plan_path = (
         repo
         / ".aw"
@@ -134,29 +143,7 @@ def _write_plan(
         / f"20260926-testset-01-{plan_id}-test-plan.ipd.md"
     )
     plan_path.parent.mkdir(parents=True, exist_ok=True)
-    plan_path.write_text(
-        f"# IPD: Test plan {plan_id}\n\n"
-        "- Date: 2026-09-26\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test\n"
-        f"- Status: {status}\n"
-        f"{appr_line}"
-        f"{rdy_line}"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        "- Set: testset\n"
-        "- Order: 1\n"
-        f"- Id: {plan_id}\n"
-        f"{fb_line}"
-        f"{br_line}"
-        "- Scope-Paths: foo.py\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        f"- 2026-09-26 {status} (test): created\n"
-        f"{review_line}\n"
+    plan_body = (
         "## Goal\nTest\n\n"
         "## Detailed Implementation Checklist (TODO)\n"
         "### Task group 1: work\n"
@@ -187,7 +174,33 @@ def _write_plan(
         "  - Result: pending\n\n"
         "## Approval and execution gate\n"
         "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        "- Cohesion rationale: not required\n"
+    )
+    plan_path.write_text(
+        RecordBuilder().plan(
+            id6=plan_id,
+            title=f"Test plan {plan_id}",
+            when="2026-09-26",
+            status=status,
+            approval="test" if status == "approved" else None,
+            readiness="go-pending-approval" if gated else None,
+            work_kind="chore",
+            priority="medium",
+            set="testset",
+            order=1,
+            scope_paths="foo.py",
+            highest_e_allocated="01",
+            author="test",
+            item_dependencies="none",
+            history=history,
+            body=plan_body,
+            raw_fields={
+                "Concern": "Test concern.",
+                "Scope": "Test",
+            },
+            text_only=True,
+            **extra,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
@@ -207,8 +220,11 @@ def _write_spec(
     from_backlog: Optional[str] = "item01",
     blocks_release: Optional[str] = "next",
 ) -> Path:
-    fb_line = f"- From-Backlog: {from_backlog}\n" if from_backlog else ""
-    br_line = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
+    extra: dict[str, str] = {}
+    if from_backlog:
+        extra["from_backlog"] = from_backlog
+    if blocks_release:
+        extra["blocks_release"] = blocks_release
     spec_path = (
         repo
         / ".aw"
@@ -218,12 +234,15 @@ def _write_spec(
         / f"20260926-{spec_id}-01-{spec_id}-test-spec.spec.md"
     )
     spec_path.write_text(
-        f"# Spec: Test spec {spec_id}\n\n"
-        f"- Id: {spec_id}\n"
-        f"- Status: {status}\n"
-        f"{fb_line}"
-        f"{br_line}\n"
-        f"## Goal\nTest\n",
+        RecordBuilder().spec(
+            id6=spec_id,
+            title=f"Test spec {spec_id}",
+            status=status,
+            when="2026-09-26",
+            body="## Goal\nTest",
+            text_only=True,
+            **extra,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", str(spec_path)], cwd=repo, check=True)
@@ -277,8 +296,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -316,8 +336,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -353,8 +374,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -392,8 +414,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -430,8 +453,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -480,8 +504,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -531,8 +556,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertEqual(verdict.path, "HANDOFF")
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -587,8 +613,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(verdict.legitimate)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -637,8 +664,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(verdict.legitimate)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -660,8 +688,15 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         # Part 2: update spec to implemented -> allowed
         imp_dir = self.repo / ".aw" / "records" / "specs" / "implemented"
         new_spec_path = imp_dir / spec_path.name
-        spec_content = spec_path.read_text(encoding="utf-8").replace(
-            "- Status: approved", "- Status: implemented"
+        spec_content = RecordBuilder().spec(
+            id6="spec01",
+            title="Test spec spec01",
+            status="implemented",
+            when="2026-09-26",
+            from_backlog="item01",
+            blocks_release="next",
+            body="## Goal\nTest",
+            text_only=True,
         )
         spec_path.unlink()
         new_spec_path.write_text(spec_content, encoding="utf-8")
@@ -678,8 +713,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertEqual(verdict2.path, "HANDOFF")
 
         stderr_buf2 = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf2), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf2),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc2 = cli.main(
                 [
@@ -726,8 +762,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertEqual(verdict.path, "SATISFIED")
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -773,8 +810,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         rel_ev = ev_file.relative_to(self.repo).as_posix()
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -824,8 +862,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         rel_ev = ev_file.relative_to(self.repo).as_posix()
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -916,8 +955,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         rel_ev = ev_file.relative_to(self.repo).as_posix()
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -951,8 +991,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             from_backlog="item02",
             blocks_release="next",
         )
-        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc2 = cli.main(
                 [
@@ -1003,8 +1044,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         rel_ev = ev_file.relative_to(self.repo.resolve()).as_posix()
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1060,16 +1102,17 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             fake_root / ".aw" / "records" / "reviews" / "20260901-test.review.md"
         )
 
-        item_text = (
-            "- Id: item01\n"
-            "- Status: done\n"
-            "- Blocks-Release: next\n"
-            "- Set: testset\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Test item\n\n"
-            "## Workflow history\n"
-            "- 2026-10-02 done (tester): closed\n"
+        item_text = RecordBuilder().backlog(
+            id6="item01",
+            status="done",
+            blocks_release="next",
+            set="testset",
+            priority="high",
+            work_kind="bug",
+            summary="Test item",
+            when="2026-10-02",
+            history=["- 2026-10-02 done (tester): closed"],
+            text_only=True,
         )
         stored_text = backlog.set_close_evidence_line(
             item_text, str(fake_abs_ev), repo_root=fake_root
@@ -1107,8 +1150,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         rel_ev = ev_file.relative_to(self.repo).as_posix()
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1214,8 +1258,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1253,8 +1298,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1288,8 +1334,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc_a = cli.main(
                 [
@@ -1325,8 +1372,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf_b = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf_b), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf_b),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc_b = cli.main(
                 [
@@ -1378,8 +1426,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(runner_verdict.close)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1427,8 +1476,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertEqual(verdict.path, "HANDOFF")
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1480,8 +1530,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(verdict.legitimate)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1534,8 +1585,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(verdict.legitimate)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1585,8 +1637,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertEqual(verdict.path, "HANDOFF")
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1624,8 +1677,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(verdict.legitimate)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1677,8 +1731,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertFalse(verdict.legitimate)
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1724,8 +1779,9 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         )
 
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            io.StringIO()
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -1786,8 +1842,9 @@ class BacklogGateDirSplitTests(unittest.TestCase):
     def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
-            stdout_buf
+        with (
+            contextlib.redirect_stderr(stderr_buf),
+            contextlib.redirect_stdout(stdout_buf),
         ):
             try:
                 rc = cli.main(argv)
