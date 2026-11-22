@@ -1776,12 +1776,8 @@ def expand_selectors(
 # copy here; `tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode` fails if you do.
 
 
-# revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares. `review` is IMPLEMENTED
-# here; `plan` and `execute` are REGISTERED so the flag's grammar matches the spec, and then REFUSED
-# honestly, because their legality tables (2.6: `plan` only for an approved spec or open backlog
-# item, `execute` only for approved/auto-approved/reusable IPDs) need per-type dispatch this Set has
-# not built. Accepting them silently would be the worse failure: the operator would believe an action
-# was constrained when nothing constrained it.
+# revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares. `review` and `plan` are
+# implemented; `execute` is registered for grammar parity and refused honestly.
 # rununify 04 (`tx6q0h`): relocated to `runner_shared`; re-exported for existing call sites.
 ACTION_CHOICES = runner_shared.ACTION_CHOICES
 ACTION_IMPLEMENTED = runner_shared.ACTION_IMPLEMENTED
@@ -5091,16 +5087,19 @@ LAUNCH IDENTITY (model / variant / agent):
     )
     # revsweep 76gsmv E-03: the flag `aw oc review` expands to (spec 25kzda 2.1). It NARROWS, never
     # widens: `--action review` refuses any selected item whose next legal action is not review,
-    # BEFORE the queue is frozen, so the word "review" can never execute a plan. `plan`/`execute` are
-    # registered for grammar parity and refuse honestly rather than being silently accepted.
+    # BEFORE the queue is frozen, so the word "review" can never execute a plan. `plan` is also
+    # implemented (for approved specs, implementing specs with uncited non-deferred TRACE IDs, or
+    # open backlog items); `execute` is registered for grammar parity and refused honestly.
     start.add_argument(
         "--action",
         choices=ACTION_CHOICES,
         default=None,
-        help="Require a specific action for every selected item. Only 'review' is implemented: it "
-        "refuses the run if any selected plan's next legal action is not review, so it can never "
-        "execute a plan. 'plan' and 'execute' are accepted by the grammar and refused as not yet "
-        "implemented. This is what 'aw oc review' expands to.",
+        help="Require a specific action for every selected item. 'review' and 'plan' are "
+        "implemented. 'review' refuses the run if any selected item's next legal action is not "
+        "review, so it can never execute a plan (this is what 'aw oc review' expands to). 'plan' "
+        "refuses the run if any selected item's next legal action is not plan (approved specs, "
+        "implementing specs with uncited non-deferred TRACE IDs, or open backlog items). 'execute' "
+        "is accepted by the grammar and refused as not yet implemented.",
     )
     start.add_argument(
         "-y",

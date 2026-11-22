@@ -1797,6 +1797,32 @@ class AgyActionLegalityTests(unittest.TestCase):
         self.assertIn("illegal", str(ctx.exception))
         self.assertIn("'to-review'", str(ctx.exception))
 
+    def test_action_and_type_help_reflect_implemented_capabilities(self):
+        import argparse as _ap
+        import re as _re
+        from agent_workflows import oc_runipd
+
+        for host_name, mod in (("agy", agy_runipd), ("oc", oc_runipd)):
+            with self.subTest(host=host_name):
+                parser = mod.build_parser()
+                sub = next(
+                    a for a in parser._actions if isinstance(a, _ap._SubParsersAction)
+                )
+                rendered = _re.sub(r"\s+", " ", sub.choices["start"].format_help())
+                self.assertIn("'review' and 'plan' are implemented.", rendered)
+                self.assertIn(
+                    "'execute' is accepted by the grammar and refused as not yet implemented.",
+                    rendered,
+                )
+                self.assertNotIn("Only 'review' is implemented", rendered)
+                self.assertNotIn("'plan' and 'execute' are accepted", rendered)
+                self.assertIn(
+                    "'all' and named selectors accept 'ipd', 'spec', and 'backlog'.",
+                    rendered,
+                )
+                self.assertNotIn("Honored by the review sweep ONLY", rendered)
+                self.assertNotIn("refused at queue build", rendered)
+
 
 class AgyEmptyReviewSweepTests(unittest.TestCase):
     _MANIFEST = {

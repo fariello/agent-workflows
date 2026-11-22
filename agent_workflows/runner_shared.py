@@ -18706,15 +18706,12 @@ RUN_POLICY_FLAGS: tuple = (
         implemented=True,
         owner="runner_shared.sweep_review_candidates_for_type",
         help=(
-            "Scope a needs-review sweep to one or more artifact TYPES, repeatable (--type ipd "
-            "--type spec selects the union). Omitted, the sweep selects IPDs ONLY, which is "
-            "normative: a type never joins `reviews` implicitly. Only 'ipd' and 'spec' can be "
-            "enumerated today; the other types this flag accepts are refused by name, because "
-            "sweeping nothing and reporting success would be a falsehood (spec z7nbn1 owns the "
-            "remainder). Honored by the review sweep ONLY: passing it with `all` or a named "
-            "selector is REFUSED rather than ignored. SELECTING a spec is not RUNNING one - a "
-            "spec-typed selection is refused at queue build, because a queue entry is plan-shaped. "
-            "Cannot be changed on --resume: the frozen value stands"
+            "Scope selection to one or more artifact types (repeatable; e.g. --type ipd "
+            "--type spec selects the union). When omitted, sweeps select IPDs only: a type "
+            "never joins 'reviews' implicitly. 'reviews' enumerates 'ipd' and 'spec' "
+            "('backlog' has no review action); 'all' and named selectors accept 'ipd', "
+            "'spec', and 'backlog'. Other declared types are refused by name because they "
+            "cannot be queued yet. Cannot be changed on --resume: the frozen value stands."
         ),
         resume_rule=RESUME_REFUSE,
         choices=RUN_TYPE_CHOICES,
