@@ -155,6 +155,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-210-vaqtii-move-second-half-unmatched-test-data-chunk-1-of-3-onto-the-r.ipd.md
 - Moved to 30zur4 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G7b from E-09, with their helper deletions (F-41).
   - Carrier: 30zur4
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-211-30zur4-move-second-half-unmatched-test-data-chunk-2-of-3-onto-the-r.ipd.md
 - Moved to 9jmt3w (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G7b from E-09, with their helper deletions (F-41).
   - Carrier: 9jmt3w
 - Moved to 1bshrb (round-3 split 2026-11-09 per research nj8zdp guidance): E-09's deletion of the record-building helpers in the 8 test modules no batch names (F-41).
