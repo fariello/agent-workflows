@@ -6,7 +6,7 @@
 - Scope: Add `--poll-for-deps DURATION` (accepting positive durations with `s`, `m`, `h`, or `d` suffixes) to `agent_workflows/runner_shared.py::RUN_POLICY_FLAGS`, implement duration parsing (`parse_poll_duration` / `resolve_poll_for_deps`), distinguish actionable waitable external dependencies from permanently unsatisfiable dependencies in `agent_workflows/runner_shared.py::enforce_freeze_time_refusal`, add a Ctrl-C-interruptible pre-run poll loop in `agent_workflows/runner_shared.py::initialize_run_core` ahead of run-directory creation, add behavioral tests in `tests/test_poll_for_deps.py`, and document the feature in `CHANGELOG.md`. EXCLUDES: mid-run polling inside `run_queue`, `--poll-timeout` limits, changes to `aw partition`, and changes to off-machine notification channels.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_poll_for_deps.py, CHANGELOG.md, .aw/records/plans/pending/20261121-b7seii-01-z7uxhf-add-poll-for-deps-duration-flag-to-aw-agy-run-and-aw-oc-run.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Work-Kind: feature
@@ -22,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-11-22 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED
 - 2026-11-22 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED; review record .aw/records/reviews/20261121-b7seii-01-z7uxhf-add-poll-for-deps-duration-flag-to-aw-agy-run-and-aw-oc-run.review.md
 - 2026-11-22 to-review (antigravity/gemini): authored review-ready child plan graduated from backlog b7seii.
 - 2026-11-22 draft (antigravity/gemini): created.
