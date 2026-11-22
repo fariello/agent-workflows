@@ -32,39 +32,33 @@ import unittest
 
 from agent_workflows.agent_schema import validate_agent_record
 from agent_workflows.project_context import find_project_root
+from tests.record_builder import RecordBuilder
 
-_SPEC_CONTENT = """# Spec: Test Spec
+_SPEC_CONTENT = RecordBuilder().spec(
+    title="Test Spec",
+    when="2026-09-08",
+    status="approved",
+    author="tester",
+    id6="test01",
+    history=[
+        "- 2026-09-08 draft (tester): created.",
+        "- 2026-09-08 approved (tester): approved.",
+    ],
+    body="## Body\n\nSpec body text.",
+    text_only=True,
+)
 
-- Date: 2026-09-08
-- Status: approved
-- Author: tester
-- Id: test01
-
-## Body
-
-Spec body text.
-
-## Workflow history
-- 2026-09-08 draft (tester): created.
-- 2026-09-08 approved (tester): approved.
-"""
-
-_BACKLOG_CONTENT = """# Backlog: Test Item
-
-- Id: b00001
-- Status: open
-- Set: testset
-- Priority: high
-- Work-Kind: bug
-- Summary: Test item summary
-
-## Workflow history
-
-- 2026-01-01 created (aw backlog): fixture
-
-## Details
-Details text.
-"""
+_BACKLOG_CONTENT = RecordBuilder().backlog(
+    id6="b00001",
+    status="open",
+    set="testset",
+    priority="high",
+    work_kind="bug",
+    summary="Test item summary",
+    history=["- 2026-01-01 created (aw backlog): fixture"],
+    body="## Details\nDetails text.",
+    text_only=True,
+)
 
 
 class ValidatorNonsurveyableDirTests(unittest.TestCase):

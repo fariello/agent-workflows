@@ -20,6 +20,7 @@ from agent_workflows import cli
 from agent_workflows import command_surface
 from agent_workflows import set_records
 from agent_workflows import workflow_artifacts_prune as wap
+from tests.record_builder import RecordBuilder
 
 
 def _hash_tree(root: Path) -> str:
@@ -298,7 +299,9 @@ class TestWorkflowArtifactsPrune(unittest.TestCase):
     def test_assess_with_resolvable_ipd_link_is_prunable(self):
         """An assess run with resolvable ipd-link.md pointing to existing IPD is prunable."""
         ipd_file = self.tmp / "test-plan.ipd.md"
-        ipd_file.write_text("# IPD\n- Id: test01\n", encoding="utf-8")
+        ipd_file.write_text(
+            RecordBuilder().plan(id6="test01", text_only=True), encoding="utf-8"
+        )
 
         self._create_run(
             "assess",

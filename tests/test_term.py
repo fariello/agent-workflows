@@ -18,6 +18,7 @@ from agent_workflows import config as CFG
 from agent_workflows import lifecycle_style as LS
 from agent_workflows import render_stream
 from agent_workflows import term as T
+from tests.record_builder import RecordBuilder
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
 
@@ -1738,14 +1739,14 @@ class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
                 d = Path(fixture_dir) / ".aw" / "records" / "backlog" / st
                 d.mkdir(parents=True, exist_ok=True)
                 fname = f"20261001-item0{idx}-01-item0{idx}-sample-{st}.backlog.md"
-                content = (
-                    f"# Backlog: Sample {st}\n\n"
-                    f"- Id: item0{idx}\n"
-                    f"- Status: {st}\n"
-                    f"- Set: item0{idx}\n"
-                    f"- Priority: low\n"
-                    f"- Work-Kind: chore\n"
-                    f"- Summary: Sample item for testing {st}\n"
+                content = RecordBuilder().backlog(
+                    id6=f"item0{idx}",
+                    status=st,
+                    set=f"item0{idx}",
+                    priority="low",
+                    work_kind="chore",
+                    summary=f"Sample item for testing {st}",
+                    text_only=True,
                 )
                 (d / fname).write_text(content, encoding="utf-8")
 
