@@ -161,6 +161,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-212-9jmt3w-move-second-half-unmatched-test-data-chunk-3-of-3-onto-the-r.ipd.md
 - Moved to 1bshrb (round-3 split 2026-11-09 per research nj8zdp guidance): E-09's deletion of the record-building helpers in the 8 test modules no batch names (F-41).
   - Carrier: 1bshrb
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-215-1bshrb-delete-orphaned-record-building-helpers-in-test-modules-outs.ipd.md
 - Moved to 9rgn2w (split 2026-11-07 per maintainer step-complexity rule): E-13 (baselines), E-01 (the builder), E-02 (its tests), E-10 (tracked `.md` fixtures).
   - Carrier: 9rgn2w
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
