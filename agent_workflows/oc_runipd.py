@@ -4513,6 +4513,10 @@ def run_queue(
                 append_jsonl=append_jsonl,
                 host_labels=runner_shared.OC_HOST_LABELS,
             )
+            with contextlib.suppress(Exception):
+                from agent_workflows import tab_status as _tab_status
+
+                _tab_status.refresh_active_failure(state)
         except KeyboardInterrupt:
             # laneorphan-01 (`zwnjp3`) E-05: PRESERVE-AND-RECORD before the interrupt propagates,
             # so the run does not leak lanes (which wedged the next run at allocation) and does not
@@ -4577,7 +4581,15 @@ def run_queue(
                 },
             )
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
+            with contextlib.suppress(Exception):
+                from agent_workflows import tab_status as _tab_status
+
+                _tab_status.refresh_active_failure(state)
         else:
+            with contextlib.suppress(Exception):
+                from agent_workflows import tab_status as _tab_status
+
+                _tab_status.refresh_active_failure(state)
             # reaskscore-03 (`dy9ymn`) E-04/E-06: A TURN THAT PROVABLY ATTEMPTED NOTHING GETS ONE MORE
             # ATTEMPT INSTEAD OF TAKING ITS WHOLE SET DOWN.
             #
@@ -4781,6 +4793,12 @@ def run_queue(
         from agent_workflows import term as _term_bell
 
         _term_bell.ring_bell()
+    with contextlib.suppress(Exception):
+        from agent_workflows import tab_status as _tab_status
+
+        _tab_status.mark_active_finished(
+            state, paused=runner_shared.parked_question_count(state) > 0
+        )
     # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
     # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
     # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores
@@ -5797,6 +5815,29 @@ def main(argv: list[str] | None = None) -> int:
     # down, so they keep the pre-existing SIGTERM->exit behavior.
     install_exit_signal_handler()
 
+    from agent_workflows import tab_status as _tab_status
+
+    _tab_stack = contextlib.ExitStack()
+    if args.command in ("start", "resume") and not getattr(args, "prepare_only", False):
+        _repo_arg = getattr(args, "repo", None) or Path.cwd()
+        _tab_stack.enter_context(
+            _tab_status.runner_status_session(
+                host="oc",
+                repo=Path(_repo_arg).resolve(),
+                title_style=getattr(args, "title_style", None),
+                agent_mode=runner_shared.is_agent_mode(args),
+            )
+        )
+
+    def _mark_killed_tab_status() -> None:
+        with contextlib.suppress(Exception):
+            _st = (
+                load_state(run_dir)
+                if run_dir and (run_dir / "state.json").is_file()
+                else None
+            )
+            _tab_status.mark_active_killed(_st, only_if_activated=True)
+
     try:
         if args.command == "stop":
             # runstop 71vjbn (E-03/E-04): out-of-band, and deliberately BEFORE any run-lock or state
@@ -6086,6 +6127,7 @@ def main(argv: list[str] | None = None) -> int:
             runner_stop.stop_interrupt_hint(_detect_driver_command()),
             file=sys.stderr,
         )
+        _mark_killed_tab_status()
         return 143 if is_sigterm else 130
     except EmptyStatusSelection:
         # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY
@@ -6102,6 +6144,7 @@ def main(argv: list[str] | None = None) -> int:
                 exc, cmd="oc run", run_dir=run_dir
             )
         print(f"runipd: {exc}", file=sys.stderr)
+        _mark_killed_tab_status()
         return 2
     except DriverError as exc:
         if runner_shared.is_agent_mode(args):
@@ -6109,6 +6152,7 @@ def main(argv: list[str] | None = None) -> int:
                 exc, cmd="oc run", run_dir=run_dir
             )
             print(f"runipd: {exc}", file=sys.stderr)
+            _mark_killed_tab_status()
             return 2
         if run_dir and (run_dir / "state.json").is_file():
             try:
@@ -6134,10 +6178,14 @@ def main(argv: list[str] | None = None) -> int:
             except Exception:
                 pass
         print(f"runipd: {exc}", file=sys.stderr)
+        _mark_killed_tab_status()
         return 2
     except Exception as exc:
         print(f"runipd: unexpected failure: {exc}", file=sys.stderr)
+        _mark_killed_tab_status()
         raise
+    finally:
+        _tab_stack.close()
 
 
 if __name__ == "__main__":

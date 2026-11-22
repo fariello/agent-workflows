@@ -220,6 +220,12 @@ _DESCRIPTIONS = {
         "merging, but it is NOT a substitute for holding the lock: it is blind to a peer that "
         "advanced main in a way your branch can still fast-forward over."
     ),
+    "reset-title": (
+        "Strip runner status glyphs (such as '⏹', '⛒', '⏸', or '🚨') from the current Zellij "
+        "tab name, or clear the terminal window title via OSC 2 when running outside Zellij. "
+        "Pass `--all` under Zellij to strip runner glyphs from every tab in the current session, "
+        "or `--name TEXT` to set an explicit tab or window title."
+    ),
     "suite": (
         "Run the pytest suite (core tier by default, or thorough tier with --thorough) "
         "with a bounded xdist worker count and a tree-keyed result cache under "
@@ -1535,6 +1541,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Force terminal bell alerts on (overrides config bell=false).",
     )
+    presentation.add_argument(
+        "--title-style",
+        choices=config.TITLE_STYLE_VALUES,
+        default=None,
+        help=(
+            "Runner window title style outside Zellij: short ('▶ aw'), medium ('▶ aw <repo>', "
+            "default), long ('▶ aw <host> run <repo>'), or none (disable tab and window title updates)."
+        ),
+    )
 
     # A shared parent so --no-color, --color, --agent, and --json work consistently across all
     # subcommands `aw` itself handles.
@@ -1849,6 +1864,25 @@ def _build_parser() -> argparse.ArgumentParser:
         "locked_command",
         nargs=argparse.REMAINDER,
         help="The command to run while holding the lock, after `--` (e.g. -- git merge --ff-only <branch>).",
+    )
+
+    p_reset_title = sub.add_parser(
+        "reset-title",
+        aliases=["clear-title", "restore-title"],
+        parents=[common],
+        help="Strip runner status glyphs from the Zellij tab or clear the terminal window title.",
+        description=_DESCRIPTIONS["reset-title"],
+    )
+    p_reset_title.add_argument(
+        "--all",
+        dest="all_tabs",
+        action="store_true",
+        help="Under Zellij, strip runner status glyphs from all tabs in the current session.",
+    )
+    p_reset_title.add_argument(
+        "--name",
+        default=None,
+        help="Explicitly set this Zellij tab name or terminal window title instead of stripping glyphs.",
     )
 
     # suiteeff Order 02 (0o0wt2): tree-keyed full-suite entry point (`aw suite`).
@@ -20655,7 +20689,7 @@ def expand_host_integrate_argv(tail: Sequence[str]) -> list[str]:
 
 
 class _EarlyFlags(NamedTuple):
-    """The presentation, interactivity, and bell overrides taken from raw argv, before any parsing."""
+    """The presentation, interactivity, bell, and title-style overrides taken from raw argv, before any parsing."""
 
     color_override: Optional[bool]
     saw_color: bool
@@ -20666,6 +20700,8 @@ class _EarlyFlags(NamedTuple):
     bell_override: Optional[bool] = None
     saw_bell: bool = False
     saw_no_bell: bool = False
+    title_style_override: Optional[str] = None
+    title_style_error: Optional[str] = None
 
     @property
     def override(self) -> Optional[bool]:
@@ -20686,15 +20722,16 @@ _INTERACTIVITY_FLAG_INTERACTIVE = "--interactive"
 _INTERACTIVITY_FLAG_NO_INTERACTIVE = "--no-interactive"
 _BELL_FLAG_BELL = "--bell"
 _BELL_FLAG_NO_BELL = "--no-bell"
+_TITLE_STYLE_FLAG = "--title-style"
 
 
 def _consume_early_flags(
     argv_list: Sequence[str],
 ) -> Tuple[List[str], _EarlyFlags]:
-    """Strip `--color`/`--no-color`, `--interactive`/`--no-interactive`, and `--bell`/`--no-bell` from raw argv.
+    """Strip `--color`/`--no-color`, `--interactive`/`--no-interactive`, `--bell`/`--no-bell`, and `--title-style` from raw argv.
 
     ttyflags `yaxr4i` E-01 / svqhmp `bmf32u` E-02. Tokens after `--` are left alone,
-    `--flag=1` spellings are not recognized, and both-flags-seen is signalled
+    `--flag=1` spellings are not recognized for booleans, and both-flags-seen is signalled
     separately so `_dispatch` can refuse with exit 2.
     """
 
@@ -20705,9 +20742,14 @@ def _consume_early_flags(
     saw_no_interactive = False
     saw_bell = False
     saw_no_bell = False
+    title_style_override: Optional[str] = None
+    title_style_error: Optional[str] = None
     passthrough = False
-    for token in argv_list:
-        text = str(token)
+    idx = 0
+    total = len(argv_list)
+    while idx < total:
+        text = str(argv_list[idx])
+        idx += 1
         if passthrough:
             kept.append(text)
             continue
@@ -20732,6 +20774,27 @@ def _consume_early_flags(
             continue
         if text == _BELL_FLAG_BELL:
             saw_bell = True
+            continue
+        if text == _TITLE_STYLE_FLAG or text.startswith(_TITLE_STYLE_FLAG + "="):
+            if text == _TITLE_STYLE_FLAG:
+                if idx >= total:
+                    title_style_error = (
+                        "agent-workflows: error: argument --title-style: expected one argument "
+                        f"(choose from {', '.join(repr(v) for v in config.TITLE_STYLE_VALUES)})"
+                    )
+                    continue
+                raw_style = str(argv_list[idx])
+                idx += 1
+            else:
+                raw_style = text.split("=", 1)[1]
+            norm_style = raw_style.strip().lower()
+            if norm_style not in config.TITLE_STYLE_VALUES:
+                title_style_error = (
+                    f"agent-workflows: error: argument --title-style: invalid choice: {raw_style!r} "
+                    f"(choose from {', '.join(repr(v) for v in config.TITLE_STYLE_VALUES)})"
+                )
+            else:
+                title_style_override = norm_style
             continue
         kept.append(text)
 
@@ -20779,6 +20842,8 @@ def _consume_early_flags(
         bell_override=bell_override,
         saw_bell=saw_bell,
         saw_no_bell=saw_no_bell,
+        title_style_override=title_style_override,
+        title_style_error=title_style_error,
     )
 
 
@@ -20832,12 +20897,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             file=sys.stderr,
         )
         return 2
+    if _early_flags.title_style_error:
+        print(_early_flags.title_style_error, file=sys.stderr)
+        return 2
     # SET UNCONDITIONALLY, including to None, so an invocation that passes no flag RESETS a
     # previous in-process invocation's override instead of inheriting it (the test suite calls
     # `_dispatch` repeatedly in one process).
     _term_mod.set_color_override(_early_flags.color_override)
     _term_mod.set_interactive_override(_early_flags.interactive_override)
     _term_mod.set_bell_override(_early_flags.bell_override)
+    from agent_workflows import tab_status as _tab_status_mod
+
+    _tab_status_mod.set_title_style_override(_early_flags.title_style_override)
     # awocrunner Order 02 (nfo184): `aw oc runipd ...` / `aw opencode runipd ...` forward the tail
     # VERBATIM to the packaged runner's own parser (incl. its `--help` and implicit-`start` shim), so
     # the top-level parser never intercepts the runner's flags (e.g. a leading `--help`). This is the
@@ -21141,6 +21212,40 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     # entirely shared - `integration_lock` and `integration_lock_path` are the very functions the
     # drivers call - so the hand path and the driver path contend over ONE lock file derived from ONE
     # resolver, which is the property that makes this verb real instead of theatre.
+    if args.command in ("reset-title", "clear-title", "restore-title"):
+        from agent_workflows import agent_schema, tab_status as _ts
+
+        res = _ts.reset_title(
+            all_tabs=bool(getattr(args, "all_tabs", False)),
+            explicit_name=getattr(args, "name", None),
+        )
+        if context.is_agent:
+            rec: dict[str, Any] = {
+                "schema": "aw.agent/v1",
+                "kind": "result",
+                "cmd": "reset-title",
+                "outcome": "ok",
+                "exit": 0,
+                "verified": True,
+                "complete": True,
+                "environment": res.get("environment"),
+                "changed": bool(res.get("changed")),
+                "message": res.get("message", ""),
+                "evidence": ["reset-title"],
+                "next": None,
+            }
+            if "tabs_reset" in res:
+                rec["tabs_reset"] = res["tabs_reset"]
+            if context.fields:
+                rec = agent_schema.filter_record_fields(rec, context.fields)
+            sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+            return 0
+        if context.is_json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+            return 0
+        print(res.get("message", "Done."))
+        return 0
+
     if args.command == "integration-lock":
         import contextlib as _contextlib
         import os as _os
@@ -22269,10 +22374,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         checkout_pin.check_and_reexec()
 
+    from agent_workflows import tab_status as _tab_status_mod
+
     _term_mod.ensure_encodable_stdio()
     _entry_color_override = _term_mod.get_color_override()
     _entry_interactive_override = _term_mod.get_interactive_override()
     _entry_bell_override = _term_mod.get_bell_override()
+    _entry_title_style_override = _tab_status_mod.get_title_style_override()
     _entry_last_output_mode = get_last_output_mode()
     _entry_last_command = get_last_command()
     _entry_start_token = _INVOCATION_START.set(_entry_start)
@@ -22321,6 +22429,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _term_mod.set_color_override(_entry_color_override)
         _term_mod.set_interactive_override(_entry_interactive_override)
         _term_mod.set_bell_override(_entry_bell_override)
+        _tab_status_mod.set_title_style_override(_entry_title_style_override)
         set_last_output_mode(_entry_last_output_mode)
         set_last_command(_entry_last_command)
         _INVOCATION_START.reset(_entry_start_token)

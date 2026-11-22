@@ -2126,17 +2126,22 @@ def handle_interactive_interrupt(
     on_action: Callable[[int], None] | None = None,
 ) -> int:
     """Handle interactive SIGINT: pause children and statusline, prompt user, and resolve choice."""
-    from agent_workflows import render_stream, runner_shutdown
+    from agent_workflows import (
+        render_stream,
+        runner_shutdown,
+        tab_status as _tab_status,
+    )
 
     paused_children = pause_live_children()
     render_stream.pause_active_statusline()
 
     out = stream if stream is not None else sys.stderr
 
-    try:
-        action = prompt_interrupt_action(stdin=stdin, stream=stream)
-    except Exception:
-        action = INTERRUPT_ACTION_CLEANUP
+    with _tab_status.temporary_active_state(_tab_status.STATE_PAUSED):
+        try:
+            action = prompt_interrupt_action(stdin=stdin, stream=stream)
+        except Exception:
+            action = INTERRUPT_ACTION_CLEANUP
 
     if action == INTERRUPT_ACTION_RESUME:
         out.write("\nResuming...\n")

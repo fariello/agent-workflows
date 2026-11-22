@@ -1271,6 +1271,16 @@ def add_output_mode_flags(
         default=verbosity_default,
         help=verbose_help,
     )
+    sub_parser.add_argument(
+        "--title-style",
+        dest="title_style",
+        choices=("short", "medium", "long", "none"),
+        default=None,
+        help=(
+            "Terminal window title style outside Zellij: short ('▶ aw'), medium ('▶ aw <repo>', "
+            "default), long ('▶ aw <host> run <repo>'), or none (disable Zellij tab and window title updates)"
+        ),
+    )
 
 
 def print_status(run_dir: Path, *, driver_label: str) -> None:
@@ -3335,53 +3345,58 @@ def prompt_worktree_batch_action(
         color=is_color,
     )
     mark_active_startup_first_question()
-    out_stream.write(
-        "\n" + box + "\n " + pal("Choice [1-5] (default 1): ", "bold cyan")
-    )
-    out_stream.flush()
+    from agent_workflows import tab_status as _tab_status
 
-    choice_map = {
-        "1": "keep-all",
-        "2": "discard-interrupted",
-        "3": "discard-all",
-        "4": "ask-each",
-        "5": "cancel-resume",
-    }
+    with _tab_status.temporary_active_state(_tab_status.STATE_ASKING):
+        out_stream.write(
+            "\n" + box + "\n " + pal("Choice [1-5] (default 1): ", "bold cyan")
+        )
+        out_stream.flush()
 
-    import select
+        choice_map = {
+            "1": "keep-all",
+            "2": "discard-interrupted",
+            "3": "discard-all",
+            "4": "ask-each",
+            "5": "cancel-resume",
+        }
 
-    use_select = bool(getattr(in_stream, "isatty", None) and in_stream.isatty())
-    while True:
-        if use_select:
+        import select
+
+        use_select = bool(getattr(in_stream, "isatty", None) and in_stream.isatty())
+        while True:
+            if use_select:
+                try:
+                    ready, _w, _x = select.select([in_stream], [], [], timeout)
+                except Exception:
+                    out_stream.write("\n")
+                    out_stream.flush()
+                    return None
+                if not ready:
+                    out_stream.write(
+                        f"\n  (no answer in {timeout}s; taking the automatic decision: keep all)\n"
+                    )
+                    out_stream.flush()
+                    return "keep-all"
             try:
-                ready, _w, _x = select.select([in_stream], [], [], timeout)
-            except Exception:
-                out_stream.write("\n")
-                out_stream.flush()
-                return None
-            if not ready:
-                out_stream.write(
-                    f"\n  (no answer in {timeout}s; taking the automatic decision: keep all)\n"
-                )
+                line = in_stream.readline()
+            except KeyboardInterrupt:
+                out_stream.write("\n  (interrupted; keeping all worktrees)\n")
                 out_stream.flush()
                 return "keep-all"
-        try:
-            line = in_stream.readline()
-        except KeyboardInterrupt:
-            out_stream.write("\n  (interrupted; keeping all worktrees)\n")
+            except Exception:
+                return None
+            if not line:
+                return "keep-all"
+            ans = line.strip()
+            if not ans:
+                return "keep-all"
+            if ans in choice_map:
+                return choice_map[ans]
+            out_stream.write(
+                " " + pal("Please enter 1, 2, 3, 4, or 5: ", "bold yellow")
+            )
             out_stream.flush()
-            return "keep-all"
-        except Exception:
-            return None
-        if not line:
-            return "keep-all"
-        ans = line.strip()
-        if not ans:
-            return "keep-all"
-        if ans in choice_map:
-            return choice_map[ans]
-        out_stream.write(" " + pal("Please enter 1, 2, 3, 4, or 5: ", "bold yellow"))
-        out_stream.flush()
 
 
 def lane_reclaim_prompt(
@@ -21898,24 +21913,27 @@ def prompt_for_gate_phrase(
         if not (getattr(target, "isatty", None) and target.isatty()):
             return None
     mark_active_startup_first_question()
-    print(question, end="", file=stream_err, flush=True)
-    try:
-        ready, _w, _x = select.select([stream_in], [], [], timeout)
-    except Exception:
-        print(file=stream_err)
-        return None
-    if not ready:
-        msg = (
-            f"\n  (no answer in {timeout}s; taking the automatic decision)"
-            if timeout is not None
-            else "\n  (no answer; taking the automatic decision)"
-        )
-        print(msg, file=stream_err)
-        return None
-    try:
-        return stream_in.readline()
-    except Exception:
-        return None
+    from agent_workflows import tab_status as _tab_status
+
+    with _tab_status.temporary_active_state(_tab_status.STATE_ASKING):
+        print(question, end="", file=stream_err, flush=True)
+        try:
+            ready, _w, _x = select.select([stream_in], [], [], timeout)
+        except Exception:
+            print(file=stream_err)
+            return None
+        if not ready:
+            msg = (
+                f"\n  (no answer in {timeout}s; taking the automatic decision)"
+                if timeout is not None
+                else "\n  (no answer; taking the automatic decision)"
+            )
+            print(msg, file=stream_err)
+            return None
+        try:
+            return stream_in.readline()
+        except Exception:
+            return None
 
 
 #: Distinct timeout for pre-flight open question interactive prompts (spec 6kwd2e R1.3, 4kkcex E-02).
@@ -22128,65 +22146,68 @@ def prompt_for_free_text(
         prompt_str = str(question)
 
     mark_active_startup_first_question()
-    print(prompt_str, end="", file=stream_err, flush=True)
+    from agent_workflows import tab_status as _tab_status
 
-    deadline = time.monotonic() + float(timeout)
-    collected = bytearray()
+    with _tab_status.temporary_active_state(_tab_status.STATE_ASKING):
+        print(prompt_str, end="", file=stream_err, flush=True)
 
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0.0:
-            return None
-        try:
-            ready, _w, _x = select.select([stream_in], [], [], max(0.0, remaining))
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception:
-            return None
+        deadline = time.monotonic() + float(timeout)
+        collected = bytearray()
 
-        if not ready:
-            return None
-
-        try:
-            if read_chunk is not None:
-                try:
-                    chunk = read_chunk(stream_in, 4096)
-                except TypeError:
-                    try:
-                        chunk = read_chunk(4096)
-                    except TypeError:
-                        chunk = read_chunk(stream_in)
-            else:
-                fd = getattr(stream_in, "fileno", None)
-                if callable(fd):
-                    chunk = os.read(fd(), 4096)
-                elif hasattr(stream_in, "read"):
-                    chunk = stream_in.read(4096)
-                else:
-                    return None
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception:
-            return None
-
-        if isinstance(chunk, str):
-            chunk = chunk.encode("utf-8", errors="replace")
-        elif not isinstance(chunk, (bytes, bytearray)):
-            chunk = bytes(chunk or b"")
-
-        if not chunk:
-            return None
-
-        collected.extend(chunk)
-
-        if b"\n" in collected:
-            line_bytes, _ = collected.split(b"\n", 1)
-            text = line_bytes.decode("utf-8", errors="replace").strip()
-            if len(text) > 4000:
-                text = text[:4000]
-            if not text:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
                 return None
-            return text
+            try:
+                ready, _w, _x = select.select([stream_in], [], [], max(0.0, remaining))
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception:
+                return None
+
+            if not ready:
+                return None
+
+            try:
+                if read_chunk is not None:
+                    try:
+                        chunk = read_chunk(stream_in, 4096)
+                    except TypeError:
+                        try:
+                            chunk = read_chunk(4096)
+                        except TypeError:
+                            chunk = read_chunk(stream_in)
+                else:
+                    fd = getattr(stream_in, "fileno", None)
+                    if callable(fd):
+                        chunk = os.read(fd(), 4096)
+                    elif hasattr(stream_in, "read"):
+                        chunk = stream_in.read(4096)
+                    else:
+                        return None
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception:
+                return None
+
+            if isinstance(chunk, str):
+                chunk = chunk.encode("utf-8", errors="replace")
+            elif not isinstance(chunk, (bytes, bytearray)):
+                chunk = bytes(chunk or b"")
+
+            if not chunk:
+                return None
+
+            collected.extend(chunk)
+
+            if b"\n" in collected:
+                line_bytes, _ = collected.split(b"\n", 1)
+                text = line_bytes.decode("utf-8", errors="replace").strip()
+                if len(text) > 4000:
+                    text = text[:4000]
+                if not text:
+                    return None
+                return text
 
 
 def record_oq_answer(
@@ -30197,7 +30218,10 @@ def resume_via_launcher(
     `use_continue=False`), so this function holds no host knowledge at all.
     """
 
-    return launcher(*launch_args, **launch_kwargs)
+    from agent_workflows import tab_status as _tab_status
+
+    with _tab_status.temporary_active_state(_tab_status.STATE_RERUNNING):
+        return launcher(*launch_args, **launch_kwargs)
 
 
 def perform_defect_reask(
@@ -36022,7 +36046,10 @@ def make_integration_validation_runner(
         suite_cached = False
         suite_digest: str | None = None
         try:
-            result = suite_check(path, str((state or {}).get("run_id") or ""))
+            from agent_workflows import tab_status as _tab_status
+
+            with _tab_status.temporary_active_state(_tab_status.STATE_VALIDATING):
+                result = suite_check(path, str((state or {}).get("run_id") or ""))
             passed = bool(getattr(result, "passing", False))
             suite_cached = bool(getattr(result, "cached", False))
             raw_digest = getattr(result, "digest", None)
@@ -39645,7 +39672,10 @@ def initialize_run_core(
                 file=sys.stderr,
                 flush=True,
             )
-            _sleep_poll_interval(poll_interval, sleep_fn=poll_sleep_fn)
+            from agent_workflows import tab_status as _tab_status
+
+            with _tab_status.temporary_active_state(_tab_status.STATE_PAUSED):
+                _sleep_poll_interval(poll_interval, sleep_fn=poll_sleep_fn)
             from agent_workflows import selectors as _poll_selectors
 
             _poll_selectors._record_dirs_cached.cache_clear()
@@ -45782,6 +45812,12 @@ def execute_item_core(
         except Exception:
             status_before = item.get("status")
     attempt_no = len(item.get("attempts", [])) + 1
+    from agent_workflows import tab_status as _tab_status
+
+    _tab_status.set_active_state(
+        _tab_status.item_active_state(item, attempt_no=attempt_no, recovery=recovery),
+        run_state=state,
+    )
 
     # planstale 6h8j1r E-04 (backlog mlc6mj): item-local dispatch refusal on moved-terminal or
     # vanished literal Scope-Paths under .aw/records/. Fails open on exception. Placed before
@@ -48360,13 +48396,16 @@ def execute_item_core(
                     v_outcome_file.unlink(missing_ok=True)
                     try:
                         try:
-                            v_rc, v_session, _v_log, _v_argv = spawn_verifier(
-                                v_prompt_file,
-                                current_plan_path,
-                                work_dir,
-                                tracker,
-                                attempt_no,
-                            )
+                            with _tab_status.temporary_active_state(
+                                _tab_status.STATE_VALIDATING
+                            ):
+                                v_rc, v_session, _v_log, _v_argv = spawn_verifier(
+                                    v_prompt_file,
+                                    current_plan_path,
+                                    work_dir,
+                                    tracker,
+                                    attempt_no,
+                                )
                         except (
                             FileNotFoundError,
                             PermissionError,
@@ -49192,7 +49231,8 @@ def execute_item_core(
             )
         )
         if integration_gate_relevant and not validate:
-            suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
+            with _tab_status.temporary_active_state(_tab_status.STATE_VALIDATING):
+                suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
             attempt["suite_check"] = {
                 "passing": suite_result.passing,
                 "exit_code": suite_result.exit_code,
@@ -49304,6 +49344,11 @@ def execute_item_core(
                     # Showing the failing tests without the file list is worse than showing both and far
                     # better than refusing with no question asked at all.
                     pass
+
+            def _rerun_suite_with_status() -> Any:
+                with _tab_status.temporary_active_state(_tab_status.STATE_VALIDATING):
+                    return run_suite_check(repo, str(state.get("run_id") or ""))
+
             try:
                 gate_outcome = perform_gate_answer(
                     suite_result=suite_result,
@@ -49378,9 +49423,7 @@ def execute_item_core(
                     # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
                     # exactly as the first run was (`run_suite_check`'s docstring: a green primary tree
                     # is what integration endangers, so re-verification uses the primary checkout).
-                    rerun_suite=lambda: run_suite_check(
-                        repo, str(state.get("run_id") or "")
-                    ),
+                    rerun_suite=_rerun_suite_with_status,
                     retry_budget=frozen_retry_budget(state),
                     session_turn_counts=(
                         None

@@ -68,6 +68,7 @@ _ALLOWED_TOP_KEYS = frozenset(
         "aw_home",
         "color_depth",
         "bell",
+        "title_style",
     }
 )
 _ALLOWED_REPOS_KEYS = frozenset({"search", "installed", "exclude", "ignore"})
@@ -86,6 +87,9 @@ LEFTOVERS_VALUES: Tuple[str, ...] = ("keep", "remove", "defer")
 #: accepted: ``tests/test_term.py`` asserts this tuple equals ``term.COLOR_DEPTHS`` exactly, so the
 #: two cannot drift silently, which is the only real cost of duplicating a three-element enum.
 COLOR_DEPTH_VALUES: Tuple[str, ...] = ("none", "16", "256")
+
+#: Allowed values for ``title_style`` (duplicated as literals to keep tab_status -> config one-way).
+TITLE_STYLE_VALUES: Tuple[str, ...] = ("short", "medium", "long", "none")
 
 # The v1 flat keys and the v2 nested subkeys they migrate into (E-02). Kept as an explicit
 # mapping so the migration is data, not scattered conditionals.
@@ -204,6 +208,16 @@ CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
             "Emit a terminal bell (BEL, 0x07) on attention-worthy runner events "
             "(default: true). Overridden per invocation by --bell / --no-bell."
         ),
+    ),
+    "title_style": ConfigKeySpec(
+        key="title_style",
+        type_name="str",
+        description=(
+            "Terminal window title style for runners outside Zellij "
+            "(short, medium, long, or none; default: medium). Setting 'none' also "
+            "disables Zellij tab status prefixes. Overridden per invocation by --title-style."
+        ),
+        allowed_values=TITLE_STYLE_VALUES,
     ),
 }
 
@@ -674,6 +688,7 @@ def set_config_value(
             "defaults.leftovers",
             "color_depth",
             "bell",
+            "title_style",
             "aw_home",
         ):
             norm_cfg, _ = unset_config_value(canon_key, cfg, auto_save=auto_save)
@@ -827,6 +842,8 @@ def unset_config_value(
         cfg.pop("color_depth", None)
     elif canon_key == "bell":
         cfg.pop("bell", None)
+    elif canon_key == "title_style":
+        cfg.pop("title_style", None)
     else:
         _delete_nested(cfg, canon_key)
 
@@ -1009,6 +1026,13 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(bell_val, bool):
         out["bell"] = bell_val
 
+    title_style_val = config.get("title_style")
+    if (
+        isinstance(title_style_val, str)
+        and title_style_val.strip().lower() in TITLE_STYLE_VALUES
+    ):
+        out["title_style"] = title_style_val.strip().lower()
+
     # config_version is managed by migrate(); keep the current version on write.
     out["config_version"] = CONFIG_VERSION
 
@@ -1061,6 +1085,26 @@ def get_bell(cfg: Optional[Dict[str, Any]] = None) -> Optional[bool]:
         return None
     value = source.get("bell")
     return value if isinstance(value, bool) else None
+
+
+def get_title_style(cfg: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """Return the user's configured runner title style, or ``None`` when unset/unreadable.
+
+    Fail-open reader parallel to :func:`get_color_depth`. ``tab_status.resolve_title_style``
+    treats ``None`` as ``"medium"`` (the default) and layers ``--title-style`` above this.
+    """
+
+    try:
+        source = load() if cfg is None else cfg
+    except Exception:
+        return None
+    if not isinstance(source, dict):
+        return None
+    value = source.get("title_style")
+    if not isinstance(value, str):
+        return None
+    token = value.strip().lower()
+    return token if token in TITLE_STYLE_VALUES else None
 
 
 def get_aw_home(explicit_flag: Optional[str] = None) -> Tuple[Path, str]:

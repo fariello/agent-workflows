@@ -822,7 +822,7 @@ class DeclarativeAllowedValuesTests(unittest.TestCase):
     def test_declarative_allowed_values(self):
         self.assertTrue(str(CFG.config_path()).startswith(self._tmp.name))
         for key, spec in CFG.CONFIG_SCHEMA.items():
-            if key in ("color_depth", "defaults.leftovers"):
+            if key in ("color_depth", "defaults.leftovers", "title_style"):
                 self.assertIsNotNone(spec.allowed_values)
                 continue
             with self.subTest(key=key):
