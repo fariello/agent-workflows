@@ -5761,18 +5761,35 @@ def _front_matter_bullets(region: str) -> tuple[dict[str, list[str]], tuple[str,
 
 
 def _body_change_is_history_insert_only(
-    base_body: str, incoming_body: str
+    base_body: str,
+    incoming_body: str,
+    *,
+    path: str | None = None,
+    plan_id: str | None = None,
 ) -> tuple[bool, tuple[str, ...]]:
-    """Is the incoming side's body change ONLY the INSERTION of history bullets (and blank lines)?
+    """Is the incoming side's body change ONLY the INSERTION of history bullets (and blank lines),
+    or an append-only JSONL event addition to the plan's own ``meta/<id6>.jsonl`` log (spec 4sd62s 4.4)?
 
     A backfill appends one `## Workflow history` line and changes nothing else, so an insert-only body
     diff is part of the proven shape. Any REPLACEMENT or DELETION is not: it would mean the incoming
     side rewrote prose, and re-deriving two front-matter keys would silently drop that rewrite.
 
+    When ``path`` names a ``.jsonl`` metadata log, only the finalized plan's OWN ``meta/<id6>.jsonl``
+    (matching ``plan_id``) is accepted as insert-only JSON event lines; another artifact's log returns
+    ``(False, ())``.
+
     Uses `difflib.SequenceMatcher` opcodes rather than a line-count heuristic, because "the body grew
     by one line" is also true of a one-line replacement plus a one-line addition.
     """
     import difflib
+
+    norm_path = path.strip().replace("\\", "/") if path else ""
+    is_jsonl_log = bool(norm_path.endswith(".jsonl"))
+    if is_jsonl_log:
+        from agent_workflows import ipd_lifecycle as _life
+
+        if not _life.is_own_meta_log_path(norm_path, plan_id=plan_id):
+            return False, ()
 
     base_lines = base_body.splitlines()
     incoming_lines = incoming_body.splitlines()
@@ -5786,7 +5803,14 @@ def _body_change_is_history_insert_only(
         for line in incoming_lines[j1:j2]:
             if not line.strip():
                 continue
-            if not _HISTORY_BULLET_RE.match(line):
+            if is_jsonl_log:
+                try:
+                    parsed = json.loads(line)
+                except (ValueError, TypeError):
+                    return False, ()
+                if not isinstance(parsed, dict):
+                    return False, ()
+            elif not _HISTORY_BULLET_RE.match(line):
                 return False, ()
             inserted.append(line)
     return True, tuple(inserted)
@@ -38424,14 +38448,17 @@ def compute_scope_reconciliation(
     plan_id = str(evidence.get("plan_id") or "")
     if not plan_id and plan_path.is_file():
         try:
-            from agent_workflows import ipd_lint as _lint
-
-            plan_id = (
-                _lint.parse(plan_path.read_text(encoding="utf-8")).meta_fields.get("Id")
-                or ""
-            ).strip()
+            st_p, _raw_p = _read_state_for_path(repo, plan_path, record_type="ipd")
+            if st_p is not None and st_p.id6 and not getattr(st_p, "id_derived", False):
+                plan_id = str(st_p.id6).strip()
         except Exception:
             plan_id = ""
+    try:
+        plan_rel = str(plan_path.resolve().relative_to(repo.resolve())).replace(
+            "\\", "/"
+        )
+    except Exception:
+        plan_rel = str(plan_path).replace("\\", "/")
 
     agent_reasons = ipd_lifecycle.read_scope_reasons(repo, plan_id) if plan_id else {}
     reasons: dict[str, str] = {}
@@ -38439,6 +38466,8 @@ def compute_scope_reconciliation(
     widened_set = set(widened)
 
     for p in out_of_scope:
+        if ipd_lifecycle.is_own_meta_log_path(p, plan_rel, plan_id=plan_id):
+            continue
         if p in widened_set:
             continue
         if p in agent_reasons:

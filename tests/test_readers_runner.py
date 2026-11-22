@@ -949,3 +949,197 @@ def test_parse_plan_file_hits_artifact_meta_cache_on_initialized_repo(
         "reviewed",
         5,
     )
+
+
+def test_finalize_scope_own_log_accepted_and_foreign_log_flagged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """E-02 (k3hb06): finalized plan owns its meta/<id6>.jsonl without Scope-Paths; foreign log is out of scope."""
+    import subprocess
+    from agent_workflows import ipd_lifecycle as LC
+    from tests import support
+
+    monkeypatch.delenv("AW_EXECUTION_ROLE", raising=False)
+
+    repo = tmp_path / "own_log_repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@e.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+    (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+
+    own_id = "own001"
+    other_id = "oth002"
+    plan_name = f"20261109-ownset-01-{own_id}-own-log-scope.ipd.md"
+    plan_rel = f".aw/records/plans/pending/{plan_name}"
+    plan_path = repo / plan_rel
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_text = support.ready_plan_text(
+        plan_id=own_id, scope_paths="src/work.py", status="approved"
+    )
+    plan_text = (
+        plan_text.replace("- [ ] E-01 ", "- [x] E-01 ", 1)
+        .replace("  - Execution state: pending", "  - Execution state: performed", 1)
+        .replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+        .replace(
+            "  - Observed evidence:\n",
+            "  - Observed evidence: verified own-log scope.\n",
+            1,
+        )
+        .replace("  - Result: pending", "  - Result: pass", 1)
+    )
+    plan_path.write_text(plan_text, encoding="utf-8")
+
+    src_file = repo / "src" / "work.py"
+    src_file.parent.mkdir(parents=True, exist_ok=True)
+    src_file.write_text("VALUE = 1\n", encoding="utf-8")
+
+    meta_dir = repo / ".aw" / "records" / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    own_log = meta_dir / f"{own_id}.jsonl"
+    other_log = meta_dir / f"{other_id}.jsonl"
+    base_own_ev = (
+        json.dumps(
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-11-09T00:00:00Z",
+                "op": "create",
+                "path": f"plans/pending/{plan_name}",
+            }
+        )
+        + "\n"
+    )
+    base_other_ev = (
+        json.dumps(
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-11-09T00:00:00Z",
+                "op": "create",
+                "path": f"plans/pending/20261109-ownset-02-{other_id}-other.ipd.md",
+            }
+        )
+        + "\n"
+    )
+    own_log.write_text(base_own_ev, encoding="utf-8")
+    other_log.write_text(base_other_ev, encoding="utf-8")
+
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+    # Direct predicate checks: own log allowed, foreign log refused.
+    assert LC._is_implicitly_allowed(
+        f".aw/records/meta/{own_id}.jsonl", plan_rel, plan_id=own_id
+    )
+    assert LC._is_implicitly_allowed(f".aw/records/meta/{own_id}.jsonl", plan_rel)
+    assert not LC._is_implicitly_allowed(
+        f".aw/records/meta/{other_id}.jsonl", plan_rel, plan_id=own_id
+    )
+    assert not LC._is_implicitly_allowed(f".aw/records/meta/{other_id}.jsonl", plan_rel)
+
+    # Begin execution receipt (Scope-Paths declares only src/work.py, NOT meta/).
+    begin_res = LC.begin(repo, plan_path, "tester", timestamp="2026-11-09T01:00:00Z")
+    assert begin_res.exit_code == LC.EXIT_OK, begin_res.message
+
+    # Commit 1: edit in-scope src/work.py and the plan's OWN metadata log.
+    src_file.write_text("VALUE = 2\n", encoding="utf-8")
+    own_append = (
+        json.dumps(
+            {
+                "v": 1,
+                "seq": 2,
+                "append": 2,
+                "at": "2026-11-09T02:00:00Z",
+                "op": "note",
+                "message": "own log updated",
+            }
+        )
+        + "\n"
+    )
+    own_log.write_text(base_own_ev + own_append, encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "src/work.py", f".aw/records/meta/{own_id}.jsonl"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-qm", "edit work and own meta log"], cwd=repo, check=True
+    )
+
+    rc1, msg1, ev1, _findings1 = LC.finalize_precheck(repo, plan_path)
+    assert rc1 == LC.EXIT_OK, msg1
+    assert ev1["scope_audit"]["in_scope"] is True
+    assert ev1["scope_audit"]["out_of_scope_paths"] == []
+
+    for host in (oc_runipd, agy_runipd):
+        recon1 = host._compute_scope_reconciliation(repo, plan_path)
+        assert recon1.reasons == {}
+        assert recon1.acks == {}
+        assert recon1.unjustified_out_of_scope == ()
+
+    # Commit 2: also change ANOTHER plan's metadata log alongside in-scope work.
+    src_file.write_text("VALUE = 3\n", encoding="utf-8")
+    other_append = (
+        json.dumps(
+            {
+                "v": 1,
+                "seq": 2,
+                "append": 2,
+                "at": "2026-11-09T02:05:00Z",
+                "op": "note",
+                "message": "foreign log touched",
+            }
+        )
+        + "\n"
+    )
+    other_log.write_text(base_other_ev + other_append, encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "src/work.py", f".aw/records/meta/{other_id}.jsonl"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-qm", "edit work and foreign meta log"], cwd=repo, check=True
+    )
+
+    rc2, msg2, ev2, _findings2 = LC.finalize_precheck(repo, plan_path)
+    assert rc2 == LC.EXIT_OK, msg2
+    assert ev2["scope_audit"]["in_scope"] is False
+    assert ev2["scope_audit"]["out_of_scope_paths"] == [
+        f".aw/records/meta/{other_id}.jsonl"
+    ]
+
+    for host in (oc_runipd, agy_runipd):
+        recon2 = host._compute_scope_reconciliation(repo, plan_path)
+        assert recon2.unjustified_out_of_scope == (
+            f".aw/records/meta/{other_id}.jsonl",
+        )
+
+    # _body_change_is_history_insert_only accepts own-log JSONL append and rejects foreign log / edits.
+    ok_own, inserted_own = runner_shared._body_change_is_history_insert_only(
+        base_own_ev,
+        base_own_ev + own_append,
+        path=f".aw/records/meta/{own_id}.jsonl",
+        plan_id=own_id,
+    )
+    assert ok_own is True
+    assert len(inserted_own) == 1
+
+    ok_replace, _ = runner_shared._body_change_is_history_insert_only(
+        base_own_ev,
+        own_append,
+        path=f".aw/records/meta/{own_id}.jsonl",
+        plan_id=own_id,
+    )
+    assert ok_replace is False
+
+    ok_foreign, _ = runner_shared._body_change_is_history_insert_only(
+        base_other_ev,
+        base_other_ev + other_append,
+        path=f".aw/records/meta/{other_id}.jsonl",
+        plan_id=own_id,
+    )
+    assert ok_foreign is False

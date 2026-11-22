@@ -3065,11 +3065,55 @@ def _scope_match(path: str, pattern: str) -> bool:
     return p == pat or p.startswith(pat + "/")
 
 
-def _is_implicitly_allowed(path: str, plan_rel: str) -> bool:
-    """True when ``path`` is an implicit lifecycle-artifact allowance (Order oorry1) or the plan file.
+def is_own_meta_log_path(
+    path: str, plan_rel: str = "", *, plan_id: Optional[str] = None
+) -> bool:
+    """True when ``path`` is the finalized plan's own ``meta/<id6>.jsonl`` event log (spec 4sd62s 4.4).
 
-    The plan's own file (moving through the lifecycle) and the plans/records index refresh are always
-    in scope and need not be declared.
+    Only the plan's own log is admitted; another artifact's ``meta/<other>.jsonl`` returns False.
+    When ``plan_id`` is omitted, derives the id6 from ``plan_rel``'s filename via
+    ``artifact_naming.identity_parts``. Fails closed (False) when no valid id6 is known.
+    """
+    from agent_workflows import artifact_naming as _naming
+    from agent_workflows import ipd_schema as _schema
+
+    p = path.strip().replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    if not p.endswith(".jsonl"):
+        return False
+    own_id = (plan_id or "").strip()
+    if not own_id and plan_rel:
+        parts = _naming.identity_parts(Path(plan_rel).name)
+        if parts:
+            own_id = parts[3]
+    if not own_id or not _schema._core.is_valid_id6(own_id):
+        return False
+    expected_name = f"{own_id}.jsonl"
+    if p == f".aw/records/meta/{expected_name}":
+        return True
+    norm_plan = plan_rel.strip().replace("\\", "/")
+    while norm_plan.startswith("./"):
+        norm_plan = norm_plan[2:]
+    if "/plans/" in norm_plan:
+        records_prefix = norm_plan.split("/plans/", 1)[0]
+        if p == f"{records_prefix}/meta/{expected_name}":
+            return True
+    elif norm_plan.startswith("plans/") or not norm_plan:
+        if p == f"meta/{expected_name}":
+            return True
+    return False
+
+
+def _is_implicitly_allowed(
+    path: str, plan_rel: str, *, plan_id: Optional[str] = None
+) -> bool:
+    """True when ``path`` is an implicit lifecycle-artifact allowance (Order oorry1), the plan file,
+    or the plan's own ``meta/<id6>.jsonl`` event log (spec 4sd62s 4.4).
+
+    The plan's own file (moving through the lifecycle), its own metadata event log, and the
+    plans/records index refresh are always in scope and need not be declared. Another artifact's
+    metadata log is NOT implicitly allowed.
     """
     from agent_workflows import ipd_schema as _schema
 
@@ -3078,6 +3122,8 @@ def _is_implicitly_allowed(path: str, plan_rel: str) -> bool:
         return True
     # The plan file's destination (executed/…) and its pending origin both count as the plan itself.
     if p.startswith(".aw/records/plans/") and p.endswith(Path(plan_rel).name):
+        return True
+    if is_own_meta_log_path(p, plan_rel, plan_id=plan_id):
         return True
     for spec in _schema.scope_paths_implicit_allowances():
         if _scope_match(p, spec):
@@ -3092,6 +3138,7 @@ def _working_tree_path_is_owned(
     committed: Sequence[str],
     plan_rel: str,
     cohesive_committed: Optional[Collection[str]] = None,
+    plan_id: Optional[str] = None,
 ) -> bool:
     """Is this changed path attributable to THIS execution? (Order 01 E-02; scopeattr `h9cn0y` E-02.)
 
@@ -3132,7 +3179,7 @@ def _working_tree_path_is_owned(
     ``trailread``, ``199u11``), but remains for untrailered commits and for raw ``git commit``; this
     is the strongest attribution available, and it is deliberately weaker than a proof.
     """
-    if _is_implicitly_allowed(path, plan_rel):
+    if _is_implicitly_allowed(path, plan_rel, plan_id=plan_id):
         return True
     if path in set(committed):
         return True
@@ -3674,7 +3721,7 @@ def finalize_precheck(
             else ("commit-cohesion" if cohesive.anchored else "none-fail-closed")
         )
         for p in changed:
-            if _is_implicitly_allowed(p, plan_rel):
+            if _is_implicitly_allowed(p, plan_rel, plan_id=plan_id):
                 continue
             if any(_scope_match(p, pat) for pat in scope_paths):
                 continue
@@ -3699,6 +3746,7 @@ def finalize_precheck(
                             committed=(),
                             plan_rel=plan_rel,
                             cohesive_committed=cohesive.paths,
+                            plan_id=plan_id,
                         )
                         if cohesive.anchored
                         else True
@@ -3710,6 +3758,7 @@ def finalize_precheck(
                     scope_paths=scope_paths,
                     committed=sources.committed,
                     plan_rel=plan_rel,
+                    plan_id=plan_id,
                 )
             if not owned:
                 # Not attributable to this execution: not this plan's to justify.
@@ -3740,7 +3789,8 @@ def finalize_precheck(
     collisions = [
         c
         for c in collisions
-        if not _is_implicitly_allowed(c, plan_rel) and c not in layout_renamed
+        if not _is_implicitly_allowed(c, plan_rel, plan_id=plan_id)
+        and c not in layout_renamed
     ]
 
     evidence["scope_audit"] = {
