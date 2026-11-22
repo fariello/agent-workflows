@@ -127,9 +127,9 @@ From the `/assess-ui-ux` assessment of `aw` re-review and review-staleness workf
 ### OQ-01: Should human-attested approval commits be matched by a dedicated commit trailer/prefix or by inspecting `## Workflow history` in the commit diff?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor
-- Resolution or deferral rationale: Implementation detail delegated to executor of E-01/E-02. Both approaches are valid as long as only genuine human-attested approval/re-affirmation commits (written via `aw set approved --by-human` or `aw commit` with matching `approved (aw set)` / `same-status` re-affirmation history entry) advance the staleness baseline, and an arbitrary human edit commit without re-approval still triggers `[stale-review]`.
+- Resolution or deferral rationale: Implementation detail delegated to executor of E-01/E-02. Both approaches are valid as long as only genuine human-attested approval/re-affirmation commits (written via `aw set approved --by-human` or `aw commit` with matching `approved (aw set)` / `same-status` re-affirmation history entry) advance the staleness baseline, and an arbitrary human edit commit without re-approval still triggers `[stale-review]`. RESOLVED 2026-11-22 by maintainer via aw oc run pre-flight: no
 
 ## Validation and cross-check (verify before reporting done)
 
