@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` section 6 requires that test data be written by ONE shared record builder in phase B, so that the cutover (Order 13, `cxxmyv`) changes the builder and not hundreds of test files, and C10a requires the suite to pass at every commit. Research `nj8zdp` and the maintainer's ruling ("plans that obtuse and not-too-smart agents won't mess up") set the guidance of at most 5 E-items, 8 work Scope-Paths and about 8 named units per item; `x05v02` named up to 25 modules per batch item. This part carries 8 of `x05v02`'s modules (subset G1a; 441 F-01 legacy lines at `3d0ddb845`), each item at most 4 modules, converted by the Order-49 codemod (`653ndz`) plus only its census-counted refusals.
 - Scope: Chunk 2 of 7 of `x05v02` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `x05v02`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_backlog_history_empty_rule.py, tests/test_backlog_metadata_duplicate_and_gate_summary.py, tests/test_backlog_new_gate_vocabulary.py, tests/test_backlog_positional_close_gate.py, tests/test_backlog_production.py, tests/test_backlog.py, tests/test_backlog_set_adapter.py, tests/test_backlog_transition_authority.py, .aw/records/plans/pending/20261109-metastore-176-2fn0vd-move-backlog-release-gate-and-check-test-data-chunk-2-of-7-o.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-metastore-01-jchvu0-fixture-codemod-plan-site-silently-overwrites-alia.backlog.md (filed backlog defect jchvu0 for fixture_codemod._plan_site aliased-bullet overwrite discovered during 2fn0vd Step 3 audit); .aw/records/backlog/open/20261121-metastore-01-try1jq-fixture-codemod-parse-bullet-site-relocates-pre-hi.backlog.md (filed backlog defect try1jq for fixture_codemod._parse_bullet_site pre-history section relocation discovered during 2fn0vd Step 3 audit)
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,13 +17,13 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2fn0vd
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 2fn0vd verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-metastore-01-jchvu0-fixture-codemod-plan-site-silently-overwrites-alia.backlog.md: filed backlog defect jchvu0 for fixture_codemod._plan_site aliased-bullet overwrite discovered during 2fn0vd Step 3 audit; out-of-scope .aw/records/backlog/open/20261121-metastore-01-try1jq-fixture-codemod-parse-bullet-site-relocates-pre-hi.backlog.md: filed backlog defect try1jq for fixture_codemod._parse_bullet_site pre-history section relocation discovered during 2fn0vd Step 3 audit; in-scope-unmodified tests/test_backlog_new_gate_vocabulary.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-21 cap-update (maintainer decision): raised Batch rule step 4 hand-refusal cap from 25 to 100 (raw site count over-counts list elements and .replace() pairs); completed sibling E-item and Step-3 commits from run-20261121T014040Z-2638602 were salvaged onto main, so modules already at 0 rewrites and 0 hand refusals remain unmodified and are acknowledged via --scope-ack at finalize.
 - 2026-11-16 approved (aw set): status set to approved
 
