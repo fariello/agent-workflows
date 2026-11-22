@@ -93,15 +93,15 @@ Every top-level verb is a thin, well-documented front door over the existing cor
 ### OQ-04: Should `aw approve` require `--by-human` or treat interactive terminal invocation as human attestation?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Today `aw set approved <id6> --by-human` requires the explicit `--by-human` flag as an attested speed bump so autonomous agents cannot silently approve plans without recording human attribution.
+- Context: `agent_workflows/status_set.py` already treats an interactive terminal (`term.stdin_is_interactive()`, not `--agent`/`--json`) as human-attested on spec approvals while requiring `--by-human` on non-interactive/agent calls.
 - Options:
   1. **Interactive human TTY: `aw approve <ids>` prompts/confirms and records human attestation without requiring `--by-human`; non-TTY / agent invocations still require explicit `--by-human --message "<human instruction>"` (recommended).** Fast and natural for a human at a keyboard while preserving the agent speed bump.
   2. **Always require `--by-human` on `aw approve`, matching `aw set approved`.** Uniform across TTY and non-TTY, but keeps extra boilerplate for humans typing `aw approve`.
   3. **Reserve `aw approve` for interactive TTY only and refuse non-TTY invocations altogether.** Strongest guard against agent misuse, but prevents an agent from recording a human's explicit chat approval via `aw approve`.
 - Recommendation: Option 1 (TTY-interactive confirmation for humans; `--by-human --message` required when non-interactive).
-- Resolution or deferral rationale:
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (interactive terminal calls attest automatically without requiring `--by-human`, while non-interactive or `--agent` calls require `--by-human --message "<human instruction>"`). No reason was given.
 
 ### OQ-05: What should happen to `aw reviews` once its read-only views move under `aw show`?
 
