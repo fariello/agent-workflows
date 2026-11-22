@@ -162,6 +162,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-190-qb3n9s-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-9.ipd.md
 - Moved to 723ct1 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4c (items E-04; F-41 names each module).
   - Carrier: 723ct1
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-191-723ct1-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-1.ipd.md
 - Batch subset G5a (the runner, lane and merge tests, carried from `59aiyh` E-07): Moved to 1upea0 (restructuring 2026-11-08 per maintainer decision "Codemod first, then small runs"; at most 4 batch items per plan).
   - Carrier: 1upea0
 - The fixture codemod and its census (F-30, F-31).
