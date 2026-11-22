@@ -1,5 +1,6 @@
 - Id: es4blt
-- Status: open
+- Status: graduated
+- Graduated-To: es4blt
 - Set: es4blt
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 graduated (aw backlog): graduated by run run-20261122T025407Z-701312: wknwwz
 - 2026-11-22 created (aw backlog): handle_review_orchestrator_readiness reads unintegrated companion plan before worktree copy
 
 ## Symptom
