@@ -30,54 +30,30 @@ from tests.test_review_sequence_runner import (
     _write_plan,
     _write_review_record,
 )
+from tests.record_builder import RecordBuilder
 
-SAMPLE_PLAN_BASE = """# IPD: Sample Test Plan
-
-- Date: 2026-10-25
-- Id: spl001
-- Set: sample
-- Order: 1
-- Status: to-review
-- Kind: child
-- Concern: Test concern.
-- Scope: Test scope.
-- Scope-Paths: none
-- Item-Dependencies: none
-- Priority: medium
-- Work-Kind: feature
-- Author: test
-- Highest E allocated: 01
-
-## Workflow history
-
-- 2026-10-25 to-review (test): authored
-- 2026-10-25 draft (test): created
-
-## Goal
-
-Test goal.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Implement the feature
-  - Depends on: none
-  - Expected outcome: feature is working
-  - Execution state: pending
-
-## Validation and cross-check (verify before reporting done)
-
-- [ ] V-01 validates E-01
-  - Required evidence: tests pass
-  - Result: pending
-
-## Open questions
-
-### OQ-01: Is this a test question?
-
-- Blocking: no
-- Status: open
-- Rationale: Non-blocking test question.
-"""
+SAMPLE_PLAN_BASE = RecordBuilder().plan(
+    title="Sample Test Plan",
+    when="2026-10-25",
+    id6="spl001",
+    set="sample",
+    order=1,
+    status="to-review",
+    plan_role="child",
+    scope_paths="none",
+    item_dependencies="none",
+    priority="medium",
+    work_kind="feature",
+    author="test",
+    highest_e_allocated="01",
+    history=[
+        "- 2026-10-25 to-review (test): authored",
+        "- 2026-10-25 draft (test): created",
+    ],
+    open_questions="### OQ-01: Is this a test question?\n\n- Blocking: no\n- Status: open\n- Rationale: Non-blocking test question.",
+    body="## Goal\n\nTest goal.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Implement the feature\n  - Depends on: none\n  - Expected outcome: feature is working\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Required evidence: tests pass\n  - Result: pending",
+    text_only=True,
+)
 
 
 # ==============================================================================

@@ -19,6 +19,7 @@ import pytest
 
 from agent_workflows import plan_readiness, readiness_recheck
 from agent_workflows import review_findings as RF
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -377,12 +378,14 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
             pend_dir.mkdir(parents=True, exist_ok=True)
             p = pend_dir / "20260901-test-01-pnd001-test.ipd.md"
             p.write_text(
-                "# IPD: Pending Test\n\n"
-                "- Id: pnd001\n"
-                "- Status: to-review\n"
-                "- Readiness: no-go\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
+                RecordBuilder().plan(
+                    title="Pending Test",
+                    id6="pnd001",
+                    status="to-review",
+                    readiness="no-go",
+                    history=["- 2026-09-01 /plan-review (tester): APPROVE; PR-001"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(root, p)
@@ -417,17 +420,15 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
 
             p = plans_dir / "20260901-test-01-stale1-test.ipd.md"
             p.write_text(
-                "# IPD: Stale Test\n\n"
-                "- Id: stale1\n"
-                "- Status: superseded\n"
-                "- Readiness: no-go\n\n"
-                "## Open questions\n"
-                "### OQ-01: Question\n"
-                "- Blocking: no\n"
-                "- Status: resolved\n"
-                "- Finding: PR-001\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
+                RecordBuilder().plan(
+                    title="Stale Test",
+                    id6="stale1",
+                    status="superseded",
+                    readiness="no-go",
+                    history=["- 2026-09-01 /plan-review (tester): APPROVE; PR-001"],
+                    open_questions="### OQ-01: Question\n- Blocking: no\n- Status: resolved\n- Finding: PR-001",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             r_file = rev_dir / "20260901-test-01-stale1-test.review.md"
@@ -490,12 +491,14 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
             shard_dir.mkdir(parents=True, exist_ok=True)
             p = shard_dir / "20260901-test-01-shrd01-test.ipd.md"
             p.write_text(
-                "# IPD: Shard Test\n\n"
-                "- Id: shrd01\n"
-                "- Status: executed\n"
-                "- Readiness: no-go\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
+                RecordBuilder().plan(
+                    title="Shard Test",
+                    id6="shrd01",
+                    status="executed",
+                    readiness="no-go",
+                    history=["- 2026-09-01 /plan-review (tester): APPROVE; PR-001"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(root, p)
@@ -514,12 +517,14 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
             root.mkdir()
             p = root / "outside_plan.ipd.md"
             p.write_text(
-                "# IPD: Out of Tree\n\n"
-                "- Id: oot001\n"
-                "- Status: to-review\n"
-                "- Readiness: no-go\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
+                RecordBuilder().plan(
+                    title="Out of Tree",
+                    id6="oot001",
+                    status="to-review",
+                    readiness="no-go",
+                    history=["- 2026-09-01 /plan-review (tester): APPROVE; PR-001"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(root, p)
@@ -548,12 +553,14 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
             comp_plans.mkdir(parents=True)
             p = comp_plans / "20260901-test-01-cmp001-test.ipd.md"
             p.write_text(
-                "# IPD: Companion Test\n\n"
-                "- Id: cmp001\n"
-                "- Status: not-executed\n"
-                "- Readiness: no-go\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
+                RecordBuilder().plan(
+                    title="Companion Test",
+                    id6="cmp001",
+                    status="not-executed",
+                    readiness="no-go",
+                    history=["- 2026-09-01 /plan-review (tester): APPROVE; PR-001"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             res = plan_readiness.recheck_conditions(comp_root, p)
