@@ -1230,24 +1230,30 @@ class TestOrchestratorReadinessReaders:
         legacy_dir.mkdir(parents=True)
         legacy_orch = legacy_dir / "20261109-beta-00-or2001-beta-orch.ipd.md"
         legacy_orch.write_text(
-            "# IPD: Beta orchestrator\n\n"
-            "- Date: 2026-11-09\n"
-            "- Kind: orchestrator\n"
-            "- Set: beta (legacy set)\n"
-            "- Order: 0\n"
-            "- Status: to-review\n"
-            "- Id: or2001\n",
+            RecordBuilder().plan(
+                title="Beta orchestrator",
+                when="2026-11-09",
+                plan_role="orchestrator",
+                set="beta (legacy set)",
+                order=0,
+                status="to-review",
+                id6="or2001",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         legacy_child = legacy_dir / "20261109-beta-01-ch2001-beta-child.ipd.md"
         legacy_child.write_text(
-            "# IPD: Beta child\n\n"
-            "- Date: 2026-11-09\n"
-            "- Kind: child\n"
-            "- Set: beta\n"
-            "- Order: 1\n"
-            "- Status: approved\n"
-            "- Id: ch2001\n",
+            RecordBuilder().plan(
+                title="Beta child",
+                when="2026-11-09",
+                plan_role="child",
+                set="beta",
+                order=1,
+                status="approved",
+                id6="ch2001",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

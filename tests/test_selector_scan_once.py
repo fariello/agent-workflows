@@ -15,12 +15,15 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import selectors
+from tests.record_builder import RecordBuilder
 
 
 def _plan(pend: Path, order: int, id6: str, status: str = "to-review") -> Path:
     p = pend / f"20260101-demo-{order:02d}-{id6}-plan-{order}.ipd.md"
     p.write_text(
-        f"# Plan {order}\n\n- Id: {id6}\n- Status: {status}\n- Set: demo\n\n## Goal\nx\n",
+        RecordBuilder().plan(
+            id6=id6, status=status, set="demo", body="## Goal\nx", text_only=True
+        ),
         encoding="utf-8",
     )
     return p

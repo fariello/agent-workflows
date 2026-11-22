@@ -22,6 +22,7 @@ from agent_workflows import (
     ipd_lifecycle,
     ipd_schema,
 )
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -68,11 +69,13 @@ def _init_repo(repo: Path) -> None:
         / "20261101-rel001-01-rel001-v1.release.md"
     )
     rel_file.write_text(
-        "# Release: 1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Version: 1.0.0\n"
-        "- Summary: Test release\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            id6="rel001",
+            status="planned",
+            summary="Test release",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -396,7 +399,14 @@ def test_check_engine_lane_carrier_is_executed_plan_and_spec(tmp_path: Path) -> 
         / "20261101-demo-01-sp0001-carrier.spec.md"
     )
     spec_path.write_text(
-        "# Spec: Carrier\n\n- Id: sp0001\n- Status: approved\n- Set: demo\n\n## Details\n\nBody.\n",
+        RecordBuilder().spec(
+            title="Carrier",
+            id6="sp0001",
+            status="approved",
+            set="demo",
+            body="## Details\n\nBody.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     plan_pending = (
@@ -419,7 +429,14 @@ def test_check_engine_lane_carrier_is_executed_plan_and_spec(tmp_path: Path) -> 
     # On a lane branch, mark spec implemented and move plan to executed/.
     _git(tmp_path, "checkout", "-q", "-b", "lane-carriers")
     spec_path.write_text(
-        "# Spec: Carrier\n\n- Id: sp0001\n- Status: implemented\n- Set: demo\n\n## Details\n\nBody.\n",
+        RecordBuilder().spec(
+            title="Carrier",
+            id6="sp0001",
+            status="implemented",
+            set="demo",
+            body="## Details\n\nBody.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     plan_exec = (
@@ -795,10 +812,17 @@ def test_evaluate_ipd_dependencies_overlay_states_missing_respects_date_cutover(
         "- Date: 2026-11-01\n- Kind: child\n- Scope-Paths: x.py\n"
         "- Status: draft\n- Set: demo\n- Order: 1\n- Id: ov0001\n\n## Goal\ng\n"
     )
-    pre_text = (
-        "# IPD: Pre-cutover missing deps\n\n"
-        "- Date: 2019-01-01\n- Kind: child\n- Scope-Paths: x.py\n"
-        "- Status: draft\n- Set: demo\n- Order: 2\n- Id: ov0002\n\n## Goal\ng\n"
+    pre_text = RecordBuilder().plan(
+        title="Pre-cutover missing deps",
+        when="2019-01-01",
+        plan_role="child",
+        scope_paths="x.py",
+        status="draft",
+        set="demo",
+        order=2,
+        id6="ov0002",
+        body="## Goal\ng",
+        text_only=True,
     )
     overlay_states = {
         str(post_path.resolve()): meta.read_text(post_text, record_type="ipd"),

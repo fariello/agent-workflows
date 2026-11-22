@@ -21,6 +21,7 @@ import pytest
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -78,14 +79,16 @@ def test_plans_tree_attention_pin(tmp_path: Path) -> None:
 
     multi_rel = ".aw/records/plans/executed/20261001-pinset-02-pln002-multi-exec.ipd.md"
     (repo / multi_rel).write_text(
-        "# IPD: Legacy Executed Plan\n\n"
-        "- Date: 2026-10-01\n"
-        "- Status: EXECUTED 2026-10-02 completed\n"
-        "- Set: pinset\n"
-        "- Order: 2\n"
-        "- Id: pln002\n\n"
-        "## Workflow history\n"
-        "- 2026-10-02 executed (tester): done\n",
+        RecordBuilder().plan(
+            title="Legacy Executed Plan",
+            when="2026-10-01",
+            set="pinset",
+            order=2,
+            id6="pln002",
+            history=["- 2026-10-02 executed (tester): done"],
+            raw_fields={"Status": "EXECUTED 2026-10-02 completed"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -93,14 +96,16 @@ def test_plans_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/plans/executed/20261002-pinset-03-pln003-mismatch.ipd.md"
     )
     (repo / mismatch_rel).write_text(
-        "# IPD: Disposition Mismatch Plan\n\n"
-        "- Date: 2026-10-02\n"
-        "- Status: superseded\n"
-        "- Set: pinset\n"
-        "- Order: 3\n"
-        "- Id: pln003\n\n"
-        "## Workflow history\n"
-        "- 2026-10-02 superseded (tester): replaced\n",
+        RecordBuilder().plan(
+            title="Disposition Mismatch Plan",
+            when="2026-10-02",
+            status="superseded",
+            set="pinset",
+            order=3,
+            id6="pln003",
+            history=["- 2026-10-02 superseded (tester): replaced"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -114,10 +119,13 @@ def test_plans_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/plans/pending/20261004-pinset-05-pln005-bad-status.ipd.md"
     )
     (repo / unknown_rel).write_text(
-        "# IPD: Unknown Status Plan\n\n"
-        "- Status: bogus-state\n"
-        "- Set: pinset\n"
-        "- Id: pln005\n",
+        RecordBuilder().plan(
+            title="Unknown Status Plan",
+            set="pinset",
+            id6="pln005",
+            raw_fields={"Status": "bogus-state"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -207,11 +215,13 @@ def test_specs_tree_attention_pin(tmp_path: Path) -> None:
 
     unknown_rel = ".aw/records/specs/20261012-pinset-03-spc003-bad-status.spec.md"
     (repo / unknown_rel).write_text(
-        "# Spec: Unknown Status Spec\n\n"
-        "- Id: spc003\n"
-        "- Status: mythical\n\n"
-        "## Workflow history\n"
-        "- 2026-10-12 draft (tester): created\n",
+        RecordBuilder().spec(
+            title="Unknown Status Spec",
+            id6="spc003",
+            history=["- 2026-10-12 draft (tester): created"],
+            raw_fields={"Status": "mythical"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -284,7 +294,9 @@ def test_backlog_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/backlog/open/20261012-pinset-03-bkl003-bad-status.backlog.md"
     )
     (repo / unknown_rel).write_text(
-        "# Backlog: Bad Status\n\n- Id: bkl003\n- Status: sideways\n",
+        RecordBuilder().backlog(
+            id6="bkl003", raw_fields={"Status": "sideways"}, text_only=True
+        ),
         encoding="utf-8",
     )
 
@@ -350,7 +362,13 @@ def test_research_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/research/20261012-pinset-03-res003-bad-status.findings.md"
     )
     (repo / unknown_rel).write_text(
-        "---\nid: res003\nkind: findings\nstatus: limbo\n---\n\n# Research: Bad Status\n",
+        RecordBuilder().research(
+            id6="res003",
+            research_kind="findings",
+            body="\n# Research: Bad Status\n",
+            raw_fields={"status": "limbo"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -407,7 +425,12 @@ def test_releases_tree_attention_pin(tmp_path: Path) -> None:
 
     unknown_rel = ".aw/records/releases/20261012-pinset-03-rel003-bad-status.release.md"
     (repo / unknown_rel).write_text(
-        "# Release: Unknown Status\n\n- Id: rel003\n- Status: aborted\n",
+        RecordBuilder().release(
+            version="Unknown Status",
+            id6="rel003",
+            raw_fields={"Status": "aborted"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -501,14 +524,16 @@ def test_check_agent_exit_code_with_one_violation(tmp_path: Path) -> None:
     pending_dir.mkdir(parents=True)
 
     (pending_dir / "20261010-pinset-01-chk001-ok.ipd.md").write_text(
-        "# IPD: Clean Plan\n\n"
-        "- Date: 2026-10-10\n"
-        "- Status: draft\n"
-        "- Set: pinset\n"
-        "- Order: 1\n"
-        "- Id: chk001\n\n"
-        "## Workflow history\n"
-        "- 2026-10-10 draft (tester): created\n",
+        RecordBuilder().plan(
+            title="Clean Plan",
+            when="2026-10-10",
+            status="draft",
+            set="pinset",
+            order=1,
+            id6="chk001",
+            history=["- 2026-10-10 draft (tester): created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     bad_rel = ".aw/records/plans/pending/20261011-pinset-02-chk002-bad.ipd.md"
@@ -550,14 +575,28 @@ def test_incomplete_query_record_becomes_missing_status_violation(
     # 1. Valid plan for control
     ok_rel = ".aw/records/plans/pending/20261010-pinset-01-inc001-ok.ipd.md"
     (repo / ok_rel).write_text(
-        "# IPD: Control Plan\n\n- Date: 2026-10-10\n- Status: draft\n- Set: pinset\n- Id: inc001\n",
+        RecordBuilder().plan(
+            title="Control Plan",
+            when="2026-10-10",
+            status="draft",
+            set="pinset",
+            id6="inc001",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # 2. Plan with a corrupt authoritative log (has both .md mirror and invalid meta/<id6>.jsonl)
     bad_rel = ".aw/records/plans/pending/20261011-pinset-02-inc002-corrupt.ipd.md"
     (repo / bad_rel).write_text(
-        "# IPD: Corrupt Log Plan\n\n- Date: 2026-10-11\n- Status: approved\n- Set: pinset\n- Id: inc002\n",
+        RecordBuilder().plan(
+            title="Corrupt Log Plan",
+            when="2026-10-11",
+            status="approved",
+            set="pinset",
+            id6="inc002",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     (meta_dir / "inc002.jsonl").write_text("{not valid json\n", encoding="utf-8")
@@ -587,13 +626,15 @@ def test_short_description_wins_over_extract_detail_fallback(tmp_path: Path) -> 
 
     with_sd_rel = ".aw/records/plans/pending/20261010-pinset-01-sd0001-with-sd.ipd.md"
     (repo / with_sd_rel).write_text(
-        "# IPD: With Short Description\n\n"
-        "- Date: 2026-10-10\n"
-        "- Status: draft\n"
-        "- Scope: Long fallback scope paragraph.\n"
-        "- Short-Description: Crisp one-line description.\n"
-        "- Set: pinset\n"
-        "- Id: sd0001\n",
+        RecordBuilder().plan(
+            title="With Short Description",
+            when="2026-10-10",
+            status="draft",
+            short_description="Crisp one-line description.",
+            set="pinset",
+            id6="sd0001",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -629,7 +670,12 @@ def test_log_format_record_history_via_artifact_meta(tmp_path: Path) -> None:
 
     rel = ".aw/records/plans/pending/20261010-pinset-01-log001-log-plan.ipd.md"
     (repo / rel).write_text(
-        "---\nid: log001\nstatus: reviewed\n---\n\n# IPD: Log Plan\n",
+        RecordBuilder().research(
+            id6="log001",
+            body="\n# IPD: Log Plan\n",
+            raw_fields={"status": "reviewed"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     events = [
@@ -688,36 +734,39 @@ def test_item_dependencies_preserved_for_backlog_and_spec(tmp_path: Path) -> Non
 
     bkl1_rel = ".aw/records/backlog/open/20261010-bkl001-01-bkl001-root.backlog.md"
     (repo / bkl1_rel).write_text(
-        "# Backlog Root\n\n"
-        "- Id: bkl001\n"
-        "- Status: open\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-10-10 created (tester): root.\n",
+        RecordBuilder().backlog(
+            id6="bkl001",
+            status="open",
+            priority="high",
+            item_dependencies="none",
+            history=["- 2026-10-10 created (tester): root."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     bkl2_rel = ".aw/records/backlog/open/20261011-bkl002-01-bkl002-child.backlog.md"
     (repo / bkl2_rel).write_text(
-        "# Backlog Child\n\n"
-        "- Id: bkl002\n"
-        "- Status: open\n"
-        "- Priority: medium\n"
-        "- Item-Dependencies: exists:backlog:bkl001\n\n"
-        "## Workflow history\n"
-        "- 2026-10-11 created (tester): child.\n",
+        RecordBuilder().backlog(
+            id6="bkl002",
+            status="open",
+            priority="medium",
+            item_dependencies="exists:backlog:bkl001",
+            history=["- 2026-10-11 created (tester): child."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     spec_rel = ".aw/records/specs/20261012-spc001-01-spc001-dependent.spec.md"
     (repo / spec_rel).write_text(
-        "# Spec Dependent\n\n"
-        "- Id: spc001\n"
-        "- Status: draft\n"
-        "- Item-Dependencies: exists:backlog:bkl002\n\n"
-        "## Workflow history\n"
-        "- 2026-10-12 created (tester): spec.\n",
+        RecordBuilder().spec(
+            id6="spc001",
+            status="draft",
+            item_dependencies="exists:backlog:bkl002",
+            history=["- 2026-10-12 created (tester): spec."],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

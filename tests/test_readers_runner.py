@@ -20,6 +20,7 @@ from agent_workflows import (
     plan_readiness,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -141,16 +142,15 @@ def _valid_spec_text(
     *, id6: str, status: str = "to-review", setid: str | None = None
 ) -> str:
     sid = setid or id6
-    return (
-        f"# Spec: Sample {id6}\n\n"
-        f"- Id: {id6}\n"
-        f"- Status: {status}\n"
-        f"- Set: {sid}\n"
-        f"- Date: 2026-11-01\n\n"
-        "## Workflow history\n"
-        f"- 2026-11-01 {status} (tester): created.\n\n"
-        "## Requirements\n"
-        "- R-01 Must behave.\n"
+    return RecordBuilder().spec(
+        title=f"Sample {id6}",
+        id6=id6,
+        status=status,
+        set=sid,
+        when="2026-11-01",
+        history=[f"- 2026-11-01 {status} (tester): created."],
+        body="## Requirements\n- R-01 Must behave.",
+        text_only=True,
     )
 
 
@@ -267,11 +267,15 @@ def test_parse_plan_file_both_hosts_fields(tmp_path: Path) -> None:
     # Multi-word status in pending/: under D-1 normalizes first token ("executed").
     mw = pdir / "20261101-mwset-01-mw0001-multiword.ipd.md"
     mw.write_text(
-        "# IPD: Multiword\n\n"
-        "- Id: mw0001\n"
-        "- Status: EXECUTED (approved by maintainer)\n"
-        "- Set: mwset\n"
-        "- Order: 01\n\n## Goal\nMulti.\n",
+        RecordBuilder().plan(
+            title="Multiword",
+            id6="mw0001",
+            set="mwset",
+            order=1,
+            body="## Goal\nMulti.",
+            raw_fields={"Status": "EXECUTED (approved by maintainer)"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     mw_rec = runner_shared.parse_plan_file(mw, repo)

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -65,61 +66,43 @@ def _build_offline_fixture(tmp_path: Path) -> Path:
     (
         recs / "plans" / "pending" / "20261101-off-01-off001-offline-plan.ipd.md"
     ).write_text(
-        "# IPD: Offline Plan\n\n"
-        "- Date: 2026-11-01\n"
-        "- Kind: child\n"
-        "- Concern: Verify offline reader execution.\n"
-        "- Scope: Run readers with no network and no host binaries.\n"
-        "- Scope-Paths: tests/test_readers_offline.py\n"
-        "- Item-Dependencies: none\n"
-        "- Status: draft\n"
-        "- Work-Kind: chore\n"
-        "- Priority: low\n"
-        "- Set: off\n"
-        "- Order: 01\n"
-        "- Highest E allocated: 01\n"
-        "- Author: tester\n"
-        "- Review-Depth: simple\n"
-        "- Id: off001\n\n"
-        "## Workflow history\n"
-        "- 2026-11-01 draft (tester): created\n\n"
-        "## Goal\n\nConfirm offline readers succeed without network or model hosts.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 Execute offline reader\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: command exits 0\n"
-        "  - Execution state: pending\n\n"
-        "## Project conventions discovered (Step 0)\n\n- None.\n\n"
-        "## Findings\n\n- None.\n\n"
-        "## Proposed changes (ordered, validatable)\n\n1. Run offline reader.\n\n"
-        "## Deferred / out of scope (with reason)\n\nNone.\n\n"
-        "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
-        "## Required tests / validation\n\nRun pytest.\n\n"
-        "## Spec / documentation sync\n\nN/A.\n\n"
-        "## Open questions\n\nNone.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: paste pytest output\n"
-        "  - Observed evidence:\n"
-        "  - Result: pending\n\n"
-        "## Approval and execution gate\n\n"
-        "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        RecordBuilder().plan(
+            title="Offline Plan",
+            when="2026-11-01",
+            plan_role="child",
+            scope_paths="tests/test_readers_offline.py",
+            item_dependencies="none",
+            status="draft",
+            work_kind="chore",
+            priority="low",
+            set="off",
+            order=1,
+            highest_e_allocated="01",
+            author="tester",
+            review_depth="simple",
+            id6="off001",
+            history=["- 2026-11-01 draft (tester): created"],
+            open_questions="None.",
+            body="## Goal\n\nConfirm offline readers succeed without network or model hosts.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Execute offline reader\n  - Depends on: none\n  - Expected outcome: command exits 0\n  - Execution state: pending\n\n## Project conventions discovered (Step 0)\n\n- None.\n\n## Findings\n\n- None.\n\n## Proposed changes (ordered, validatable)\n\n1. Run offline reader.\n\n## Deferred / out of scope (with reason)\n\nNone.\n\n## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n## Required tests / validation\n\nRun pytest.\n\n## Spec / documentation sync\n\nN/A.\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Required evidence: paste pytest output\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n\n- Size assessment: standard\n- Cohesion rationale: not required",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     (
         recs / "specs" / "approved" / "20261101-ofs001-01-ofs001-offline-spec.spec.md"
     ).write_text(
-        "# Spec: Offline Spec\n\n"
-        "- Date: 2026-11-01\n"
-        "- Id: ofs001\n"
-        "- Status: approved\n"
-        "- Set: ofs001\n"
-        "- Order: 01\n\n"
-        "## Workflow history\n"
-        "- 2026-11-01 approved (by-human): approved\n\n"
-        "## Overview\n\nOffline spec body.\n",
+        RecordBuilder().spec(
+            title="Offline Spec",
+            when="2026-11-01",
+            id6="ofs001",
+            status="approved",
+            set="ofs001",
+            order=1,
+            history=["- 2026-11-01 approved (by-human): approved"],
+            body="## Overview\n\nOffline spec body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

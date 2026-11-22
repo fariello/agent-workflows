@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import check_engine, cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -74,7 +75,7 @@ def _setup_repo(tmp_path: Path, *, cutover: str | None = None) -> Path:
 def _write_release(repo: Path, id6: str, *, status: str = "planned") -> Path:
     p = repo / ".aw" / "records" / "releases" / f"20261001-{id6}-01-{id6}-v1.release.md"
     p.write_text(
-        f"# Release v1\n\n- Id: {id6}\n- Status: {status}\n- Set: {id6}\n",
+        RecordBuilder().release(id6=id6, status=status, set=id6, text_only=True),
         encoding="utf-8",
     )
     return p
@@ -1237,9 +1238,21 @@ class TestCheckEngineReadersOrder29:
             / "20261001-colset-01-col001-first.ipd.md"
         )
         p1.write_text(
-            "# IPD: First\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/a.py\n"
-            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
-            "- Set: colset (First desc)\n- Order: 1\n- Id: col001\n\n## Goal\n\nOne.\n",
+            RecordBuilder().plan(
+                title="First",
+                when="2026-10-01",
+                plan_role="child",
+                scope_paths="src/a.py",
+                item_dependencies="none",
+                status="draft",
+                priority="medium",
+                work_kind="feature",
+                set="colset (First desc)",
+                order=1,
+                id6="col001",
+                body="## Goal\n\nOne.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         p2 = (
@@ -1251,9 +1264,21 @@ class TestCheckEngineReadersOrder29:
             / "20261001-colset-02-col002-second.ipd.md"
         )
         p2.write_text(
-            "# IPD: Second\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/b.py\n"
-            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
-            "- Set: colset (Second desc)\n- Order: 2\n- Id: col001\n\n## Goal\n\nTwo.\n",
+            RecordBuilder().plan(
+                title="Second",
+                when="2026-10-01",
+                plan_role="child",
+                scope_paths="src/b.py",
+                item_dependencies="none",
+                status="draft",
+                priority="medium",
+                work_kind="feature",
+                set="colset (Second desc)",
+                order=2,
+                id6="col001",
+                body="## Goal\n\nTwo.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         p3 = (
@@ -1265,9 +1290,21 @@ class TestCheckEngineReadersOrder29:
             / "20261001-colset-03-slot99-third.ipd.md"
         )
         p3.write_text(
-            "# IPD: Third\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/c.py\n"
-            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
-            "- Set: colset (First desc)\n- Order: 3\n- Id: col003\n\n## Goal\n\nThree.\n",
+            RecordBuilder().plan(
+                title="Third",
+                when="2026-10-01",
+                plan_role="child",
+                scope_paths="src/c.py",
+                item_dependencies="none",
+                status="draft",
+                priority="medium",
+                work_kind="feature",
+                set="colset (First desc)",
+                order=3,
+                id6="col003",
+                body="## Goal\n\nThree.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -1478,7 +1515,9 @@ class TestCheckEngineReadersOrder29:
             prompts_dir / "pending" / "20261001-prmset-02-prm002-badid.prompt.md"
         )
         mismatch_id.write_text(
-            "<!-- aw-prompt: Id: wrong9 | Set: prmset | Status: pending -->\n\n# P\n",
+            RecordBuilder().prompt(
+                id6="wrong9", set="prmset", status="pending", body="# P", text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -1486,13 +1525,17 @@ class TestCheckEngineReadersOrder29:
             prompts_dir / "executed" / "20261001-prmset-03-prm003-badst.prompt.md"
         )
         mismatch_st.write_text(
-            "<!-- aw-prompt: Id: prm003 | Set: prmset | Status: pending -->\n\n# P\n",
+            RecordBuilder().prompt(
+                id6="prm003", set="prmset", status="pending", body="# P", text_only=True
+            ),
             encoding="utf-8",
         )
 
         good = prompts_dir / "pending" / "20261001-prmset-04-prm004-good.prompt.md"
         good.write_text(
-            "<!-- aw-prompt: Id: prm004 | Set: prmset | Status: pending -->\n\n# P\n",
+            RecordBuilder().prompt(
+                id6="prm004", set="prmset", status="pending", body="# P", text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -1535,7 +1578,10 @@ class TestCheckEngineReadersOrder29:
         fallback_p = (
             repo / ".aw" / "records" / "plans" / "pending" / "unusual-name.ipd.md"
         )
-        fallback_p.write_text("- Date: 2026-09-20\n- Id: dat002\n", encoding="utf-8")
+        fallback_p.write_text(
+            RecordBuilder().plan(when="2026-09-20", id6="dat002", text_only=True),
+            encoding="utf-8",
+        )
         assert (
             check_engine._artifact_compact_date(fallback_p, fallback_p.read_text())
             == "20260920"
@@ -1652,8 +1698,14 @@ class TestCheckEngineReadersOrder29:
             / "20261001-covset-01-covsp1-spec.spec.md"
         )
         spec_p.write_text(
-            "# Spec: Coverage\n\n- Id: covsp1\n- Status: approved\n- Set: covset\n\n"
-            "## Acceptance Criteria\n\n- **AC-1** First criterion.\n- **AC-2** Second criterion.\n",
+            RecordBuilder().spec(
+                title="Coverage",
+                id6="covsp1",
+                status="approved",
+                set="covset",
+                body="## Acceptance Criteria\n\n- **AC-1** First criterion.\n- **AC-2** Second criterion.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         _o30_write_full_plan(
@@ -2036,7 +2088,9 @@ class TestRecordSkipListAndMetaDirExclusion:
         )
         pending_readme = repo / ".aw" / "records" / "plans" / "pending" / "README.md"
         pending_readme.write_text(
-            "# Pending Plans README\n\n- Id: rdm001\n- Status: pending\n",
+            RecordBuilder().plan(
+                id6="rdm001", raw_fields={"Status": "pending"}, text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -2084,7 +2138,9 @@ class TestRecordSkipListAndMetaDirExclusion:
         old_spec_name = "20260701-1200-01-legacy.spec.md"
         spec_file = repo / ".aw" / "records" / "specs" / old_spec_name
         spec_file.write_text(
-            "# Spec: Legacy\n\n- Date: 2026-07-01\n- Status: draft\n",
+            RecordBuilder().spec(
+                title="Legacy", when="2026-07-01", status="draft", text_only=True
+            ),
             encoding="utf-8",
         )
         pending_readme = repo / ".aw" / "records" / "plans" / "pending" / "README.md"

@@ -20,6 +20,7 @@ from unittest.mock import patch
 import pytest
 
 from agent_workflows import artifact_meta, cli, meta_cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -188,15 +189,17 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
     (
         recs / "specs" / "approved" / "20261101-spc001-01-spc001-clean-spec.spec.md"
     ).write_text(
-        "# Spec: Clean Spec\n\n"
-        "- Date: 2026-11-01\n"
-        "- Id: spc001\n"
-        "- Status: approved\n"
-        "- Set: spc001\n"
-        "- Order: 01\n\n"
-        "## Workflow history\n"
-        "- 2026-11-01 approved (by-human): approved\n\n"
-        "## Overview\n\nClean spec body.\n",
+        RecordBuilder().spec(
+            title="Clean Spec",
+            when="2026-11-01",
+            id6="spc001",
+            status="approved",
+            set="spc001",
+            order=1,
+            history=["- 2026-11-01 approved (by-human): approved"],
+            body="## Overview\n\nClean spec body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -220,20 +223,21 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
         / "research"
         / "20261101-rset-01-res001-clean-study-claude.research-report.md"
     ).write_text(
-        "---\n"
-        "id: res001\n"
-        "created: 20261101\n"
-        "set: rset\n"
-        "order: 01\n"
-        "topic: [cache]\n"
-        "model: claude\n"
-        "kind: research-report\n"
-        "status: reference\n"
-        "outcome: informational\n"
-        "summary: Clean study\n"
-        "consumed-by: []\n"
-        "---\n"
-        "# Clean Study\n\nStudy body.\n",
+        RecordBuilder().research(
+            id6="res001",
+            when="2026-11-01",
+            set="rset",
+            order=1,
+            topic=["cache"],
+            model="claude",
+            research_kind="research-report",
+            status="reference",
+            outcome="informational",
+            summary="Clean study",
+            consumed_by=[],
+            body="# Clean Study\n\nStudy body.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -243,20 +247,29 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
         / "pending"
         / "20261101-pset-01-prm001-clean-prompt.research-prompt.md"
     ).write_text(
-        "<!-- aw-prompt: Kind: research | Id: prm001 | Set: pset | Status: pending | Created: 2026-11-01 -->\n"
-        "# Clean Prompt\n\nPrompt body.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="prm001",
+            set="pset",
+            status="pending",
+            when="2026-11-01",
+            body="# Clean Prompt\n\nPrompt body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     (recs / "releases" / "20261101-rel001-01-rel001-v1-0-0.release.md").write_text(
-        "# Release: 1.0.0\n\n"
-        "- Date: 2026-11-01\n"
-        "- Id: rel001\n"
-        "- Version: 1.0.0\n"
-        "- Status: planned\n"
-        "- Set: rel001 (1.0.0)\n"
-        "- Order: 01\n\n"
-        "## Summary\n\nRelease body.\n",
+        RecordBuilder().release(
+            version="1.0.0",
+            when="2026-11-01",
+            id6="rel001",
+            status="planned",
+            set="rel001 (1.0.0)",
+            order=1,
+            body="# Release: 1.0.0\n\n## Summary\n\nRelease body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -265,12 +278,14 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
         / "walkthroughs"
         / "20261101-wset-01-wlk001-clean-walkthrough.walkthrough.md"
     ).write_text(
-        "# Walkthrough: Clean Walkthrough\n\n"
-        "- Date: 2026-11-01\n"
-        "- Id: wlk001\n"
-        "- Set: wset\n"
-        "- Order: 01\n\n"
-        "## Summary\n\nWalkthrough body.\n",
+        RecordBuilder().walkthrough(
+            when="2026-11-01",
+            id6="wlk001",
+            set="wset",
+            order=1,
+            body="# Walkthrough: wset\n\n## Summary\n\nWalkthrough body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -593,13 +608,16 @@ def test_legacy_agents_record_root_visible_in_find_and_attention(
     plan_p = repo / plan_rel
     plan_p.parent.mkdir(parents=True, exist_ok=True)
     plan_p.write_text(
-        "# IPD: Legacy Root Plan\n\n"
-        "- Date: 2026-11-01\n"
-        "- Id: leg001\n"
-        "- Status: approved\n"
-        "- Set: legset\n"
-        "- Order: 01\n\n"
-        "## Goal\n\nVerify legacy .agents/ record root stays visible.\n",
+        RecordBuilder().plan(
+            title="Legacy Root Plan",
+            when="2026-11-01",
+            id6="leg001",
+            status="approved",
+            set="legset",
+            order=1,
+            body="## Goal\n\nVerify legacy .agents/ record root stays visible.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -684,13 +702,16 @@ def test_companion_fixture_find_cache_parity(tmp_path: Path) -> None:
     )
     comp_plan.parent.mkdir(parents=True, exist_ok=True)
     comp_plan.write_text(
-        "# IPD: Companion Plan\n\n"
-        "- Date: 2026-11-01\n"
-        "- Id: cmp001\n"
-        "- Status: approved\n"
-        "- Set: cmpset\n"
-        "- Order: 01\n\n"
-        "## Goal\n\nCompanion records lookup parity.\n",
+        RecordBuilder().plan(
+            title="Companion Plan",
+            when="2026-11-01",
+            id6="cmp001",
+            status="approved",
+            set="cmpset",
+            order=1,
+            body="## Goal\n\nCompanion records lookup parity.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

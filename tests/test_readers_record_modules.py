@@ -211,14 +211,17 @@ def test_plans_index_multiword_status_d1(tmp_path: Path) -> None:
     target = plans_dir / "executed" / "20260710-oldset-01-mlt001-multiword.ipd.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        "# IPD: Multiword Executed Plan\n\n"
-        "- Date: 2026-07-10\n"
-        "- Kind: child\n"
-        "- Id: mlt001\n"
-        "- Set: oldset\n"
-        "- Order: 01\n"
-        "- Status: EXECUTED (approved by maintainer)\n\n"
-        "## Goal\n\nPin D-1 multi-word status.\n",
+        RecordBuilder().plan(
+            title="Multiword Executed Plan",
+            when="2026-07-10",
+            plan_role="child",
+            id6="mlt001",
+            set="oldset",
+            order=1,
+            body="## Goal\n\nPin D-1 multi-word status.",
+            raw_fields={"Status": "EXECUTED (approved by maintainer)"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     entries, _ = plans_index.scan_plans(plans_dir)

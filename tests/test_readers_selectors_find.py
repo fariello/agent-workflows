@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import cli, plans, selectors
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -48,24 +49,30 @@ def _build_fixture_repo(tmp_path: Path) -> dict[str, Path]:
 
     p1 = recs / "plans" / "pending" / "20261101-alpha-01-pln001-first-plan.ipd.md"
     p1.write_text(
-        "# IPD: First Plan\n\n"
-        "- Id: pln001\n"
-        "- Status: approved\n"
-        "- Set: alpha (Alpha Set)\n"
-        "- Order: 01\n"
-        "- Blocks-Release: next\n\n"
-        "## Workflow history\n- 2026-11-01 created\n",
+        RecordBuilder().plan(
+            title="First Plan",
+            id6="pln001",
+            status="approved",
+            set="alpha (Alpha Set)",
+            order=1,
+            blocks_release="next",
+            history=["- 2026-11-01 created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     p2 = recs / "plans" / "pending" / "20261101-alpha-02-pln002-second-plan.ipd.md"
     p2.write_text(
-        "# IPD: Second Plan\n\n"
-        "- Id: pln002\n"
-        "- Status: draft\n"
-        "- Set: alpha (Alpha Set)\n"
-        "- Order: 02\n\n"
-        "## Workflow history\n- 2026-11-01 created\n",
+        RecordBuilder().plan(
+            title="Second Plan",
+            id6="pln002",
+            status="draft",
+            set="alpha (Alpha Set)",
+            order=2,
+            history=["- 2026-11-01 created"],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -73,44 +80,61 @@ def _build_fixture_repo(tmp_path: Path) -> dict[str, Path]:
         recs / "plans" / "executed" / "20260710-oldset-01-pln003-multiword-exec.ipd.md"
     )
     p_multi.write_text(
-        "# IPD: Multiword Executed Plan\n\n"
-        "- Id: pln003\n"
-        "- Status: EXECUTED (approved by maintainer)\n"
-        "- Set: oldset\n"
-        "- Order: 01\n\n"
-        "## Workflow history\n- 2026-07-10 executed\n",
+        RecordBuilder().plan(
+            title="Multiword Executed Plan",
+            id6="pln003",
+            set="oldset",
+            order=1,
+            history=["- 2026-07-10 executed"],
+            raw_fields={"Status": "EXECUTED (approved by maintainer)"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     s1 = recs / "specs" / "to-review" / "20261101-spc001-01-spc001-core-spec.spec.md"
     s1.write_text(
-        "# Spec: Core Spec\n\n- Id: spc001\n- Status: to-review\n- Set: spc001\n",
+        RecordBuilder().spec(
+            title="Core Spec",
+            id6="spc001",
+            status="to-review",
+            set="spc001",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     b1 = recs / "backlog" / "open" / "20261101-bklset-01-bkl001-open-bug.backlog.md"
     b1.write_text(
-        "- Id: bkl001\n- Status: open\n- Set: bklset\n- Work-Kind: bug\n- Priority: high\n\n"
-        "## Summary\nOpen bug item\n",
+        RecordBuilder().backlog(
+            id6="bkl001",
+            status="open",
+            set="bklset",
+            work_kind="bug",
+            priority="high",
+            body="## Summary\nOpen bug item",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     r1 = recs / "research" / "20261101-resset-01-res001-topic-study.research-report.md"
     r1.write_text(
-        "---\n"
-        "id: res001\n"
-        "created: 20261101\n"
-        "set: resset\n"
-        "order: 01\n"
-        "topic: [cache]\n"
-        "model: opus\n"
-        "kind: research-report\n"
-        "status: reference\n"
-        "outcome: informational\n"
-        "summary: Study of cache reads\n"
-        "consumed-by: []\n"
-        "---\n"
-        "# Topic Study\n\nBody text.\n",
+        RecordBuilder().research(
+            id6="res001",
+            when="2026-11-01",
+            set="resset",
+            order=1,
+            topic=["cache"],
+            model="opus",
+            research_kind="research-report",
+            status="reference",
+            outcome="informational",
+            summary="Study of cache reads",
+            consumed_by=[],
+            body="# Topic Study\n\nBody text.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -121,8 +145,15 @@ def _build_fixture_repo(tmp_path: Path) -> dict[str, Path]:
         / "20261101-prset1-01-pr0001-comment-prompt.prompt.md"
     )
     pr1.write_text(
-        "<!-- aw-prompt: Kind: research | Id: pr0001 | Set: prset1 | Status: pending | Created: 2026-11-01 -->\n"
-        "# Comment Prompt\n\nPrompt text.\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="pr0001",
+            set="prset1",
+            status="pending",
+            when="2026-11-01",
+            body="# Comment Prompt\n\nPrompt text.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -139,20 +170,28 @@ def _build_fixture_repo(tmp_path: Path) -> dict[str, Path]:
 
     rel1 = recs / "releases" / "20261101-relset-01-rel001-v2.release.md"
     rel1.write_text(
-        "# Release 2.0.0\n\n- Id: rel001\n- Status: planned\n- Set: relset\n",
+        RecordBuilder().release(
+            id6="rel001", status="planned", set="relset", text_only=True
+        ),
         encoding="utf-8",
     )
 
     w1 = recs / "walkthroughs" / "20261101-wlkset-01-wlk001-walkthrough.walkthrough.md"
     w1.write_text(
-        "# Walkthrough\n\n- Id: wlk001\n- Set: wlkset\n\n## Notes\nDone.\n",
+        RecordBuilder().walkthrough(
+            id6="wlk001",
+            set="wlkset",
+            body="# Walkthrough: wlkset\n\n## Notes\nDone.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     rev1 = recs / "reviews" / "20261101-alpha-01-pln001-first-plan.review.md"
     rev1.write_text(
-        "# Review: First Plan\n\n- Subject-Id: pln001\n- Subject-Type: ipd\n"
-        "- Verdict: APPROVE\n\n## Round 1\nClean.\n",
+        RecordBuilder().review(
+            subject="pln001", subject_type="ipd", verdict="APPROVE", text_only=True
+        ),
         encoding="utf-8",
     )
 
@@ -307,14 +346,12 @@ def test_loose_whitespace_and_quoted_example_fixtures(tmp_path: Path) -> None:
     assert selectors._read_id(tab_sep) is None
     assert selectors._read_status(tab_sep) is None
 
-    quoted = (
-        "# IPD: Real\n\n"
-        "- Id: real01\n"
-        "- Status: draft\n\n"
-        "## Example\n"
-        "- Id: quot01\n"
-        "- Status: approved\n"
-        "- Blocks-Release: next\n"
+    quoted = RecordBuilder().plan(
+        title="Real",
+        id6="real01",
+        status="draft",
+        body="## Example\n- Id: quot01\n- Status: approved\n- Blocks-Release: next",
+        text_only=True,
     )
     assert selectors.read_front_matter_id(quoted) == "real01"
     assert selectors.read_front_matter_status(quoted) == "draft"
