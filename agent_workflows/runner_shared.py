@@ -16561,57 +16561,387 @@ class PlanRecord(NamedTuple):
     from_backlog: str | None = None
 
 
-def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
-    """Read ONE plan file into the ONE shared :class:`PlanRecord`, or None when unreadable.
+def _normalize_loose_bullet_lines(text: str) -> tuple[str, bool]:
+    """Normalize loose leading bullet whitespace (`-  Key:`, `-\\tKey:`, `-Key:`) before first H2.
 
-    oc's body, verbatim apart from nothing: agy's differed in exactly the two lines that read and
-    pass `kind`, which the unified record now carries for both hosts.
-
-    WHY THE `selectors` IMPORT IS FUNCTION-LOCAL, since a module-level one would read more naturally.
-    `runner_shared` keeps exactly ONE module-level first-party import (`render_stream`) plus the
-    designated peer `runner_profiles`, and reaches `ipd_lint`/`ipd_schema`/`selectors` from inside the
-    functions that need them. No live test enforces this function-local convention (the historically cited
-    `tests/test_orchestrator_probe_cache.py::TheRowWalkIsSharedWithTheRetirementGate`, deleted in `19313eed7`,
-    was a row-walk spy test and never enforced imports), because a
-    module-level import here changes the import graph for BOTH host drivers and for the twelve other
-    modules that import this one. Measured: five of those (`attention`, `completion`, `ipd_lifecycle`,
-    `ipd_set_plan`, `runner_shutdown`) do NOT currently reach `selectors` at all, so a module-level
-    import would newly tax them. `_read_item_dependencies` and `_read_from_backlog` above take the same
-    approach for the same reason, so this is the module's convention rather than an exception to it.
-
-    THE ALIASES ARE THE PERMISSIVE PUBLIC READERS, which is a behavior decision and not a naming one.
-    Both runners' historical private copies tolerated any whitespace after the `-` while `selectors`'
-    STRICT internal readers require exactly one space, and that strictness is a documented `aw find`
-    matching contract. rununify 01 (`2r306y`) resolved this by binding the permissive public aliases,
-    and `tests/test_front_matter_loose_whitespace.py` (restoring behavioral coverage of the historical
-    `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` deleted in `19313eed`) guards
-    BOTH halves, so swapping to the strict readers here would silently narrow which front-matter
-    spellings both drivers accept.
+    Fence-aware and regex-free. Returns ``(normalized_text, changed)`` so callers only invoke
+    a second ``artifact_meta.read_text`` pass when a loose bullet line was actually present.
     """
-    from agent_workflows.selectors import read_front_matter_id as _read_id
-    from agent_workflows.selectors import read_front_matter_status as _read_status
+    lines = text.splitlines()
+    out: list[str] = []
+    changed = False
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    seen_h2 = False
 
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
+    for line in lines:
+        if seen_h2:
+            out.append(line)
+            continue
+        stripped = line.strip()
+        if not in_fence:
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                ch = stripped[0]
+                in_fence = True
+                fence_char = ch
+                fence_len = len(stripped) - len(stripped.lstrip(ch))
+                out.append(line)
+                continue
+        else:
+            if (
+                stripped.startswith(fence_char * fence_len)
+                and stripped.lstrip(fence_char) == ""
+            ):
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            out.append(line)
+            continue
+
+        if stripped.startswith("##"):
+            rest_h = stripped.lstrip("#")
+            if not rest_h or rest_h[0] in (" ", "\t"):
+                seen_h2 = True
+                out.append(line)
+                continue
+
+        if line.startswith("-") and not line.startswith("--"):
+            after_dash = line[1:]
+            is_strict = (
+                after_dash.startswith(" ")
+                and not after_dash.startswith("  ")
+                and not after_dash.startswith(" \t")
+            )
+            if not is_strict:
+                rest = after_dash.lstrip(" \t")
+                if ":" in rest:
+                    key = rest.split(":", 1)[0]
+                    if key and all(c.isalnum() or c in "_-" for c in key):
+                        out.append("- " + rest)
+                        changed = True
+                        continue
+        out.append(line)
+    return ("\n".join(out) if changed else text), changed
+
+
+def _read_text_with_loose(text: str, *, record_type: str = "ipd") -> Any:
+    """Parse in-memory metadata through ``artifact_meta.read_text``, preserving D-4 loose bullets."""
+    from agent_workflows import artifact_meta as _meta
+
+    st = _meta.read_text(text, record_type=record_type)
+    norm_text, changed = _normalize_loose_bullet_lines(text)
+    if not changed:
+        return st
+    st_norm = _meta.read_text(norm_text, record_type=record_type)
+    if not st.id6 and (st.loose_id or st_norm.id6):
+        st.id6 = st.loose_id or st_norm.id6
+    if not st.legacy_raw_status and st_norm.legacy_raw_status:
+        st.legacy_raw_status = st_norm.legacy_raw_status
+    if not st.status and (st.loose_status or st_norm.status):
+        st.status = st_norm.status or (
+            st.loose_status.lower() if st.loose_status else None
+        )
+    if not st.legacy_raw_set and st_norm.legacy_raw_set:
+        st.legacy_raw_set = st_norm.legacy_raw_set
+    if not st.set_id and st_norm.set_id:
+        st.set_id = st_norm.set_id
+    for k, v in st_norm.fields.items():
+        if k not in st.fields or st.fields[k] is None:
+            st.fields[k] = v
+    return st
+
+
+def _plan_status_from_state(st: Any) -> str | None:
+    """Return canonical plan status from ``artifact_meta.State`` (D-1/D-4)."""
+    if st is None:
         return None
-    id6 = _read_id(text)
-    setid = _read_set(text)
-    status = _read_status(text)
-    order = _read_order(text)
-    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import plans as _plans
+
+    raw = getattr(st, "legacy_raw_status", None) or getattr(st, "status", None)
+    if not raw:
+        raw = getattr(st, "loose_status", None)
+    if not raw:
+        return None
+    toks = str(raw).strip().split()
+    if not toks:
+        return None
+    if len(toks) > 1:
+        return _plans.normalize_status(toks[0])
+    low = toks[0].lower()
+    if low in _plans.RECOGNIZED:
+        return low
+    return toks[0]
+
+
+def _non_plan_status_from_state(st: Any) -> str | None:
+    """Return single-token status for non-plan records (D-1: no plan-vocab normalization)."""
+    if st is None:
+        return None
+    raw = getattr(st, "status", None)
+    if raw:
+        return str(raw).strip()
+    loose = getattr(st, "loose_status", None)
+    if loose:
+        return str(loose).strip()
+    return None
+
+
+def _deps_from_state(st: Any) -> tuple[list[str], str | None]:
+    """Return ``(canonical_edges, error)`` from an ``artifact_meta.State``."""
+    if st is None:
+        return [], None
+    from agent_workflows import ipd_schema as _schema
+
+    raw_deps = (getattr(st, "fields", None) or {}).get("item_dependencies")
+    if raw_deps is None:
+        return [], None
+    if isinstance(raw_deps, list):
+        edges_out: list[str] = []
+        for entry in raw_deps:
+            if isinstance(entry, dict) and entry.get("raw"):
+                edges_out.append(str(entry["raw"]))
+            elif isinstance(entry, str) and entry.strip():
+                edges_out.append(entry.strip())
+        return edges_out, None
+    if isinstance(raw_deps, str):
+        if not raw_deps.strip():
+            return [], None
+        edges, _ready, err = _schema.parse_item_dependencies(raw_deps)
+        if err:
+            return [], err
+        return [edge.canonical() for edge in edges], None
+    return [], None
+
+
+def _from_backlog_from_state(st: Any) -> str | None:
+    """Return validated ``From-Backlog`` id6 from an ``artifact_meta.State``."""
+    if st is None:
+        return None
+    from agent_workflows import ipd_schema as _schema
+
+    raw = str((getattr(st, "fields", None) or {}).get("from_backlog") or "").strip()
+    if not raw:
+        return None
+    cls = _schema.classify_source_link(raw)
+    if cls.verdict == _schema.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
+
+
+def _resolve_meta_abs_path(
+    st_path: str, records_root_res: Path, scan_repo_res: Path | None, meta_mod: Any
+) -> Path | None:
+    """Resolve an ``artifact_meta`` stored path to an absolute filesystem ``Path``."""
+    if not st_path:
+        return None
+    try:
+        if (
+            st_path.startswith("@repo/")
+            and scan_repo_res is not None
+            and "/../" not in st_path
+            and not st_path.endswith("/..")
+        ):
+            cand = scan_repo_res / st_path[6:]
+            return cand.resolve() if cand.is_symlink() else cand
+        if (
+            not st_path.startswith("@repo/")
+            and not st_path.startswith("..")
+            and not st_path.startswith("/")
+            and "/../" not in st_path
+        ):
+            cand = records_root_res / st_path
+            return cand.resolve() if cand.is_symlink() else cand
+        return meta_mod.source_path(st_path, records_root_res, scan_repo_res).resolve()
+    except Exception:
+        return None
+
+
+def _meta_context_for_repo(repo: Path, meta_mod: Any, proj_ctx_mod: Any) -> Any:
+    """Resolve the ``artifact_meta`` context for ``repo``, honoring a local ``.aw/records/meta``."""
+    ctx = proj_ctx_mod.resolve_project_context(target_repo=str(repo))
+    records_root = Path(ctx.logical_roots["records"])
+    local_records = Path(repo) / ".aw" / "records"
+    if (
+        local_records.is_dir()
+        and local_records.resolve() != records_root.resolve()
+        and not (records_root / "meta").is_dir()
+        and (local_records / "meta").is_dir()
+    ):
+        return meta_mod.legacy_context(Path(repo))
+    return ctx
+
+
+def _read_state_for_path(
+    repo: Path,
+    path: Path,
+    *,
+    record_type: str = "ipd",
+    id6: str | None = None,
+) -> tuple[Any | None, str | None]:
+    """Read ``artifact_meta.State`` for ``path`` from the cache (``read``/``query``) or ``read_text``.
+
+    Returns ``(state, raw_text_or_none)``. Returns ``(None, None)`` when ``path`` is unreadable.
+    """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    resolved = path.resolve()
+    if not resolved.is_file():
+        return None, None
 
     try:
-        _meta_fields: Mapping[str, str] | None = _lint.parse_meta_fields(text)
+        ctx = _meta_context_for_repo(repo, _meta, _proj_ctx)
+        records_root = Path(ctx.logical_roots["records"])
+        state_root = Path(ctx.logical_roots["state"])
+        scan_repo = _meta._scan_repo_root(ctx, records_root)
+        records_root_res = records_root.resolve()
+        scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+        use_cache = (
+            (state_root / "index.db").exists()
+            or (records_root / "meta").is_dir()
+            or _meta._SCAN_ONCE_CONNS.get() is not None
+        )
+        if use_cache:
+            try:
+                stored_p = _meta.stored_path(resolved, records_root, scan_repo)
+            except ValueError:
+                stored_p = None
+            if stored_p is not None:
+                with _meta.ephemeral_if_uninitialized():
+                    cand_ids: list[str] = []
+                    if id6 and ID6_RE.fullmatch(id6):
+                        cand_ids.append(id6)
+                    else:
+                        from agent_workflows import artifact_naming as _an_id
+
+                        _fn_parts = _an_id.identity_parts(resolved.name)
+                        if _fn_parts and ID6_RE.fullmatch(_fn_parts[3]):
+                            cand_ids.append(_fn_parts[3])
+                        else:
+                            for _tok in resolved.name.split("-"):
+                                if ID6_RE.fullmatch(_tok):
+                                    cand_ids.append(_tok)
+                                    break
+                    for _cand_id in cand_ids:
+                        with contextlib.suppress(Exception):
+                            st = _meta.read(_cand_id, project_context=ctx)
+                            st_abs = _resolve_meta_abs_path(
+                                st.path or "", records_root_res, scan_repo_res, _meta
+                            )
+                            if st_abs is not None and st_abs.resolve() == resolved:
+                                return st, None
+                    res = _meta.query(
+                        type=record_type, path=stored_p, project_context=ctx
+                    )
+                    for row in res.rows:
+                        if not row.id6:
+                            continue
+                        row_abs = _resolve_meta_abs_path(
+                            row.path or "", records_root_res, scan_repo_res, _meta
+                        )
+                        if row_abs is not None and row_abs.resolve() == resolved:
+                            with contextlib.suppress(Exception):
+                                return _meta.read(row.id6, project_context=ctx), None
     except Exception:
-        _meta_fields = None
-    deps, dep_err = _read_item_dependencies(text, _meta_fields=_meta_fields)
-    kind = _read_kind(text)
-    from_backlog = _read_from_backlog(text, _meta_fields=_meta_fields)
-    # The ONE file-name library reads the filename identity (maintainer ruling 2026-11-09).
+        pass
+
+    try:
+        text = resolved.read_text(encoding="utf-8")
+    except OSError:
+        return None, None
+    return _read_text_with_loose(text, record_type=record_type), text
+
+
+def _read_plan_status(repo: Path, path: Path, *, id6: str | None = None) -> str | None:
+    """Read a plan's canonical status through ``artifact_meta`` (D-1/D-4)."""
+    st, raw_text = _read_state_for_path(repo, path, record_type="ipd", id6=id6)
+    if st is None:
+        return None
+    status = _plan_status_from_state(st)
+    if status is None and raw_text is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        st = _read_text_with_loose(text, record_type="ipd")
+        status = _plan_status_from_state(st)
+    return status
+
+
+def _plan_record_from_state(
+    st: Any,
+    path: Path,
+    repo: Path,
+    *,
+    raw_text: str | None = None,
+) -> PlanRecord:
+    """Build a :class:`PlanRecord` from an ``artifact_meta.State`` with D-1/D-4 and legacy fallbacks."""
     from agent_workflows import artifact_naming as _an_id
 
-    _fn_parts = _an_id.identity_parts(path.name)
+    resolved = path.resolve()
+    needs_loose = raw_text is None and (
+        bool(getattr(st, "id_derived", False))
+        or not getattr(st, "id6", None)
+        or (
+            getattr(st, "status", None) is None
+            and getattr(st, "legacy_raw_status", None) is None
+        )
+    )
+    is_legacy_ts = bool(_an_id._LEGACY_TIMESTAMP_RE.match(resolved.name))
+    if needs_loose or (is_legacy_ts and raw_text is None):
+        try:
+            raw_text = resolved.read_text(encoding="utf-8")
+        except OSError:
+            raw_text = None
+        if raw_text is not None:
+            st_loose = _read_text_with_loose(raw_text, record_type="ipd")
+            if needs_loose:
+                st = st_loose
+            elif is_legacy_ts:
+                # Legacy timestamp filenames (YYYYMMDD-HHMM-NN-...) copy `nn` into `order` in
+                # `load_legacy_artifact` even when `- Order:` is absent; preserve `order=99`
+                # fallback unless `- Order:` is declared in front matter.
+                import dataclasses as _dc
+
+                st_fields = dict(getattr(st, "fields", None) or {})
+                if "order" not in st_loose.fields:
+                    st_fields["order"] = None
+                st = _dc.replace(st, fields=st_fields, order_nn=None)
+
+    id6: str | None = None
+    if getattr(st, "id6", None) and not getattr(st, "id_derived", False):
+        id6 = str(st.id6)
+    elif getattr(st, "loose_id", None):
+        id6 = str(st.loose_id)
+
+    raw_set = getattr(st, "legacy_raw_set", None)
+    if not raw_set:
+        raw_set = getattr(st, "set_id", None)
+    setid: str | None = None
+    if raw_set:
+        tok = str(raw_set).split("(")[0].strip().split()
+        if tok:
+            cleaned = tok[0].strip("\"'").strip()
+            setid = cleaned or None
+
+    status = _plan_status_from_state(st)
+
+    order: int | None = None
+    raw_order = (getattr(st, "fields", None) or {}).get("order")
+    if raw_order is not None:
+        with contextlib.suppress(ValueError, TypeError):
+            order = int(str(raw_order).strip())
+    if order is None and not is_legacy_ts and getattr(st, "order_nn", None) is not None:
+        with contextlib.suppress(ValueError, TypeError):
+            order = int(st.order_nn)
+
+    deps, dep_err = _deps_from_state(st)
+    raw_kind = (getattr(st, "fields", None) or {}).get("plan_role")
+    kind = str(raw_kind).strip().lower() if raw_kind else None
+    from_backlog = _from_backlog_from_state(st)
+
+    _fn_parts = _an_id.identity_parts(resolved.name)
     if _fn_parts:
         if not setid:
             setid = _fn_parts[1]
@@ -16620,33 +16950,33 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
         if not id6:
             id6 = _fn_parts[3]
     if not id6:
-        for part in path.name.split("-"):
+        for part in resolved.name.split("-"):
             if ID6_RE.fullmatch(part):
                 id6 = part
                 break
-    if not id6:
+    try:
+        rel = str(resolved.relative_to(repo.resolve()))
+    except ValueError:
         try:
             rel = str(path.relative_to(repo))
         except ValueError:
             rel = str(path)
+    if not id6:
         id6 = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:6]
     if not setid:
         setid = "standalone"
     if order is None:
         order = 99
     if not status:
-        bucket = plan_bucket(path)
+        bucket = plan_bucket(resolved)
         status = bucket or "to-review"
-    try:
-        rel = str(path.relative_to(repo))
-    except ValueError:
-        rel = str(path)
+
     return PlanRecord(
         id6=id6,
         setid=setid,
         status=status,
         order=order,
-        path=path.resolve(),
+        path=resolved,
         rel_path=rel,
         dependencies=deps,
         kind=kind,
@@ -16655,38 +16985,49 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     )
 
 
+def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
+    """Read ONE plan file into the ONE shared :class:`PlanRecord`, or None when unreadable.
+
+    Backed by ``artifact_meta.read``/``query`` resolved by path, falling back to
+    ``artifact_meta.read_text`` for uninitialized or untracked files and D-4 loose whitespace.
+    """
+    st, raw_text = _read_state_for_path(repo, path, record_type="ipd")
+    if st is None:
+        return None
+    if raw_text is None and (
+        getattr(st, "id_derived", False)
+        or (
+            getattr(st, "status", None) is None
+            and getattr(st, "legacy_raw_status", None) is None
+        )
+        or (getattr(st, "fields", None) or {}).get("plan_role") is None
+    ):
+        try:
+            probe_text = path.read_text(encoding="utf-8")
+        except OSError:
+            probe_text = None
+        if probe_text is not None:
+            norm_text, changed = _normalize_loose_bullet_lines(probe_text)
+            if changed:
+                st = _read_text_with_loose(probe_text, record_type="ipd")
+                raw_text = probe_text
+    return _plan_record_from_state(st, path, repo, raw_text=raw_text)
+
+
 def plan_kind_from_file(path: Path) -> str | None:
-    """The plan's `- Kind:` value, read from disk. THE LEGACY-MANIFEST FALLBACK.
-
-    orchretire-03 (`pgq326`) E-04 introduced this on the antigravity host as `_plan_kind`, where it
-    served TWO unrelated callers. rununify 06 (`sy7uwh`) removed the first (a workaround for the
-    record split this section ends, now simply `rec.kind`) and lifted the second HERE, so BOTH hosts
-    reach it.
-
-    WHAT IT IS FOR, which is NOT the record split. A runner can be pointed at a HAND-WRITTEN manifest
-    (the shipped `tools/ipdrunner/*-driver-manifest.json` is one). If such a manifest predates the
-    `kind` key, the plan's kind is absent from it, and deriving `execute` for an APPROVED
-    ORCHESTRATOR means spending a paid agent turn executing a plan that authors no code - precisely
-    the defect `pgq326` fixed. So the manifest-then-file fallback re-reads `- Kind:` instead, the same
-    shape `from_backlog` already uses.
-
-    WHY BOTH HOSTS NOW HAVE IT (`sy7uwh` OQ-03, resolved by the maintainer 2026-09-16). Only agy had
-    it, so the two hosts DISAGREED about a correctness gate, in oc's DISFAVOR: measured at execution,
-    given a legacy manifest naming an approved orchestrator, `aw agy run` derived `orchestrate` and
-    correctly retired it while `aw oc run` derived `execute`. Under the maintainer's directive that
-    "there should be one code base shared by the two runners that contains 100% of the otherwise
-    redundant code", the fallback was lifted here rather than preserved as agy-only (which would
-    leave the disagreement standing) or dropped from both (which would knowingly reintroduce
-    `pgq326`'s defect). The behavior change to oc is authorized by that ruling and is a FIX.
+    """The plan's `- Kind:` value, read through ``artifact_meta.read_text``. THE LEGACY-MANIFEST FALLBACK.
 
     Returns None when the file is unreadable, which makes `action_for` fall back to
     `determine_action` -- the pre-`pgq326` behavior, and the safe direction (a plan is agent-handled,
     never silently retired).
     """
     try:
-        return _read_kind(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return None
+    st = _read_text_with_loose(text, record_type="ipd")
+    raw_kind = (getattr(st, "fields", None) or {}).get("plan_role")
+    return str(raw_kind).strip().lower() if raw_kind else None
 
 
 def resolve_manifest_kind(
@@ -16749,26 +17090,50 @@ def build_dynamic_manifest(
 
 
 def populate_manifest_specs(manifest: dict[str, Any], repo: Path) -> dict[str, Any]:
-    """Populate manifest['specs'] lazily from discover_specs (artdispatch 8l8dgb E-03)."""
+    """Populate manifest['specs'] lazily from ``artifact_meta.query(type="spec")`` (artdispatch 8l8dgb E-03)."""
     if "specs" in manifest:
         return manifest["specs"]
     specs_dict: dict[str, Any] = {}
-    from agent_workflows import check_engine as _ce
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    root = Path(repo).resolve()
+    ctx = _meta_context_for_repo(repo, _meta, _proj_ctx)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+    spec_roots = [
+        (records_root_res / "specs").resolve(),
+        (_proj_ctx.project_records_dir(repo).resolve() / "specs"),
+        (root / ".aw" / "records" / "specs").resolve(),
+        (root / ".agents" / "specs").resolve(),
+    ]
+    blocks_by_id: dict[str, str | None] = {}
+    try:
+        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+            res = _meta.query(type="spec", project_context=ctx, include_fields=True)
+            for st in res.rows:
+                if not st.path or not st.id6 or getattr(st, "id_derived", False):
+                    continue
+                abs_p = _resolve_meta_abs_path(
+                    st.path, records_root_res, scan_repo_res, _meta
+                )
+                if abs_p is None:
+                    continue
+                if not any(sr == abs_p or sr in abs_p.parents for sr in spec_roots):
+                    continue
+                br = (getattr(st, "fields", None) or {}).get("blocks_release")
+                blocks_by_id[st.id6] = str(br).strip() if br else None
+    except Exception:
+        blocks_by_id = {}
 
     for id6, rec in discover_specs(repo).items():
-        blocks_release = None
-        try:
-            text = (repo / rec.file).read_text(encoding="utf-8")
-            mbr = _ce._META_BLOCKS_RELEASE_RE.search(text)
-            if mbr:
-                blocks_release = mbr.group(1).strip()
-        except OSError:
-            pass
         specs_dict[id6] = {
             "file": rec.file,
             "status": rec.status,
             "set": "",
-            "blocks_release": blocks_release,
+            "blocks_release": blocks_by_id.get(id6),
         }
     manifest["specs"] = specs_dict
     return specs_dict
@@ -16828,25 +17193,49 @@ def lookup_manifest_artifact(
 def discover_plans(
     repo: Path,
 ) -> dict[str, Any]:
-    """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
-    from agent_workflows.project_context import project_records_dir
+    """Scan the repository for all IPD files via one ``artifact_meta.query()``, returning id6 -> PlanRecord."""
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import project_context as _proj_ctx
+
+    repo_res = Path(repo).resolve()
+    ctx = _meta_context_for_repo(repo, _meta, _proj_ctx)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _meta._scan_repo_root(ctx, records_root)
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+    plans_roots = [
+        (records_root_res / "plans").resolve(),
+        (_proj_ctx.project_records_dir(repo).resolve() / "plans"),
+        (repo_res / ".aw" / "records" / "plans").resolve(),
+        (repo_res / ".agents" / "plans").resolve(),
+    ]
+    if not any(r.is_dir() for r in plans_roots):
+        return {}
 
     plans: dict[str, Any] = {}
-    search_dirs = [project_records_dir(repo) / "plans", repo / ".agents" / "plans"]
     seen: set[Path] = set()
-    for sdir in search_dirs:
-        if not sdir.exists():
-            continue
-        for path in sdir.rglob("*.md"):
-            if path.name in {"README.md", "INDEX.md", "STATUS.md"}:
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(type="ipd", project_context=ctx, include_fields=True)
+        for st in res.rows:
+            if not st.path:
                 continue
-            resolved = path.resolve()
-            if resolved in seen:
+            abs_p = _resolve_meta_abs_path(
+                st.path, records_root_res, scan_repo_res, _meta
+            )
+            if abs_p is None:
+                continue
+            resolved = abs_p.resolve()
+            if not any(
+                root == resolved or root in resolved.parents for root in plans_roots
+            ):
+                continue
+            if resolved.name in {"README.md", "INDEX.md", "STATUS.md"}:
+                continue
+            if resolved in seen or not resolved.is_file():
                 continue
             seen.add(resolved)
-            rec = parse_plan_file(resolved, repo)
-            if rec:
-                plans[rec.id6] = rec
+            rec = _plan_record_from_state(st, resolved, repo)
+            plans[rec.id6] = rec
     return plans
 
 
@@ -16906,61 +17295,64 @@ class SpecRecord(NamedTuple):
 
 
 def discover_specs(repo: Path) -> dict[str, SpecRecord]:
-    """Scan the repository's specs tree(s), returning id6 -> :class:`SpecRecord`.
+    """Scan the repository's specs tree(s) via one ``artifact_meta.query()``, returning id6 -> :class:`SpecRecord`.
 
-    The SPEC sibling of :func:`discover_plans`, and the piece `6ypimw` named as this plan's job. It
-    takes NO injected parser, unlike `discover_plans`: there is one spec record shape (above) rather
-    than two divergent per-runner ones, so there is nothing to inject.
-
-    Identity and status are read through the SHARED authorities, not by fresh regexes:
-    `check_engine._iter_spec_records` enumerates (no new path literal), `check_engine._ITEM_ID_RE`
-    reads `- Id:`, and `selectors.read_front_matter_status` reads `- Status:`. That last one matters:
-    it returns None for a MULTI-WORD status, so a legacy free-form status line yields no status rather
-    than a mis-parsed token, and an item with no status is simply not swept.
-
-    A spec with no `- Id:` is SKIPPED rather than keyed under an empty string. Without an id6 it
-    cannot be named by a selector, cannot carry a review record (which joins on `Subject-Id`), and
-    cannot be attested, so admitting it would put an unreviewable item in a review sweep.
-
-    THAT SKIP IS NOT HYPOTHETICALLY SAFE, IT IS MEASURED SAFE, and the number is recorded here because
-    a reader who sees "8 discovered" against "27 spec files" will otherwise assume a bug. At
-    implementation, 19 of 27 specs carried no `- Id:`: every one is a PRE-CUTOVER legacy
-    `YYYYMMDD-HHMM-NN-<slug>.spec.md` name that predates `check_engine.SPEC_ID6_CUTOVER_DATE`
-    (`20260828`), which grandfathers exactly those. Verified that the skip costs no review coverage:
-    all 19 sit at `implemented` (15), `approved` (1), `deferred` (2), or `superseded` (1), and asking
-    `run_selection_policy.needs_review` about each returned False for ALL of them, so ZERO id-less
-    specs would have been review-eligible even had they been admitted. A legacy spec that ever needs
-    reviewing is converted first with `aw rename specs <legacy> --to-id6`, which is the documented
-    forward path and mints the `- Id:` this function requires.
-
-    Never raises: an absent or unreadable specs tree yields an empty dict, which is the fail-safe
-    direction (nothing swept) rather than an exception inside selector expansion.
+    A spec with no declared `- Id:` (`id_derived=True`) is skipped rather than keyed under a
+    derived id, matching the pre-move contract. Non-plan status keeps raw single-token value (D-1).
+    Never raises: an absent or unreadable specs tree yields an empty dict.
     """
     specs: dict[str, SpecRecord] = {}
     try:
-        from agent_workflows import check_engine as _ce
-        from agent_workflows import selectors as _sel
+        from agent_workflows import artifact_meta as _meta
+        from agent_workflows import project_context as _proj_ctx
     except Exception:
         return specs
 
     root = Path(repo).resolve()
     try:
-        records = list(_ce._iter_spec_records(Path(repo)))
+        ctx = _meta_context_for_repo(repo, _meta, _proj_ctx)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _meta._scan_repo_root(ctx, records_root)
+        records_root_res = records_root.resolve()
+        scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
+        spec_roots = [
+            (records_root_res / "specs").resolve(),
+            (_proj_ctx.project_records_dir(repo).resolve() / "specs"),
+            (root / ".aw" / "records" / "specs").resolve(),
+            (root / ".agents" / "specs").resolve(),
+        ]
+        if not any(r.is_dir() for r in spec_roots):
+            return specs
+        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+            res = _meta.query(type="spec", project_context=ctx, include_fields=False)
+            for st in res.rows:
+                if not st.path or not st.id6 or getattr(st, "id_derived", False):
+                    continue
+                abs_p = _resolve_meta_abs_path(
+                    st.path, records_root_res, scan_repo_res, _meta
+                )
+                if abs_p is None:
+                    continue
+                resolved = abs_p.resolve()
+                if not any(
+                    sr == resolved or sr in resolved.parents for sr in spec_roots
+                ):
+                    continue
+                if resolved.name in {"README.md", "INDEX.md", "STATUS.md"}:
+                    continue
+                if not resolved.is_file():
+                    continue
+                id6 = st.id6
+                if id6 in specs:
+                    continue
+                status = (_non_plan_status_from_state(st) or "").strip().lower()
+                try:
+                    rel = str(resolved.relative_to(root)).replace("\\", "/")
+                except (ValueError, OSError):
+                    rel = resolved.name
+                specs[id6] = SpecRecord(id6=id6, status=status, file=rel, path=resolved)
     except Exception:
         return specs
-
-    for path, text in records:
-        id6 = _ce._read_item_id(text)
-        if not id6:
-            continue  # no id6 -> unnameable, unattestable; see docstring.
-        if id6 in specs:
-            continue  # first wins, matching `discover_plans`'s de-duplication by resolved path.
-        status = (_sel.read_front_matter_status(text) or "").strip().lower()
-        try:
-            rel = str(path.resolve().relative_to(root)).replace("\\", "/")
-        except (ValueError, OSError):
-            rel = path.name
-        specs[id6] = SpecRecord(id6=id6, status=status, file=rel, path=path)
     return specs
 
 
@@ -20002,6 +20394,7 @@ def expand_dependency_closure(
             "visited": [],
         }
 
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import ipd_schema as _schema
 
     selection = list(dict.fromkeys(ids))
@@ -20012,55 +20405,56 @@ def expand_dependency_closure(
     seen: set[str] = set()
     frontier = list(selection)
 
-    while frontier:
-        id6 = frontier.pop(0)
-        if id6 in seen:
-            # A cycle, a self-edge and a diamond all arrive here; this is the whole termination proof.
-            continue
-        seen.add(id6)
-        visited.append(id6)
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        while frontier:
+            id6 = frontier.pop(0)
+            if id6 in seen:
+                # A cycle, a self-edge and a diamond all arrive here; this is the whole termination proof.
+                continue
+            seen.add(id6)
+            visited.append(id6)
 
-        entry = manifest.get("plans", {}).get(id6)
-        configured = entry.get("file", "") if isinstance(entry, dict) else ""
-        try:
-            path = resolve_plan_path(repo, configured, id6)
-        except DriverError:
-            # A SELECTED id we cannot locate is NOT this function's error to raise: selector
-            # expansion produced it, and the pre-existing surfaces (the `selected_plan_paths` build
-            # and the dependency preflight) already decide what an unlocatable selection member
-            # means. Expanding it is simply impossible, so it contributes no edges.
-            continue
-        try:
-            raw_edges, err = _read_item_dependencies(path.read_text(encoding="utf-8"))
-        except OSError:
-            continue
-        if err:
-            # A MALFORMED STATEMENT IS NOT THE CLOSURE'S TO ADJUDICATE either: the dependency
-            # preflight reports it with the shared evaluator's own message, which is a better error
-            # than anything composed here. Contributing no edges leaves that report to fire.
-            continue
+            entry = manifest.get("plans", {}).get(id6)
+            configured = entry.get("file", "") if isinstance(entry, dict) else ""
+            try:
+                path = resolve_plan_path(repo, configured, id6)
+            except DriverError:
+                # A SELECTED id we cannot locate is NOT this function's error to raise: selector
+                # expansion produced it, and the pre-existing surfaces (the `selected_plan_paths` build
+                # and the dependency preflight) already decide what an unlocatable selection member
+                # means. Expanding it is simply impossible, so it contributes no edges.
+                continue
+            st, _raw = _read_state_for_path(repo, path, record_type="ipd", id6=id6)
+            if st is None:
+                continue
+            raw_edges, err = _deps_from_state(st)
+            if err:
+                # A MALFORMED STATEMENT IS NOT THE CLOSURE'S TO ADJUDICATE either: the dependency
+                # preflight reports it with the shared evaluator's own message, which is a better error
+                # than anything composed here. Contributing no edges leaves that report to fire.
+                continue
 
-        for tok in raw_edges:
-            edge, edge_err = _schema._parse_item_dependency_edge(tok)
-            if edge_err or edge is None:
-                continue
-            verdict, reason = closure_target_admission(
-                repo, edge, manifest=manifest, edge_satisfied_fn=edge_satisfied_fn
-            )
-            if verdict == "refuse":
-                raise ClosureRefusal(reason)
-            if verdict == "skip":
-                skipped.append({"from": id6, "edge": tok, "reason": reason})
-                continue
-            if edge.id6 == id6:
-                # A self-edge cannot be a prerequisite of itself; it is already in the selection.
-                continue
-            if edge.id6 not in in_selection:
-                in_selection.add(edge.id6)
-                selection.append(edge.id6)
-                added.append({"id6": edge.id6, "edge": tok, "required_by": id6})
-            if edge.id6 not in seen:
-                frontier.append(edge.id6)
+            for tok in raw_edges:
+                edge, edge_err = _schema._parse_item_dependency_edge(tok)
+                if edge_err or edge is None:
+                    continue
+                verdict, reason = closure_target_admission(
+                    repo, edge, manifest=manifest, edge_satisfied_fn=edge_satisfied_fn
+                )
+                if verdict == "refuse":
+                    raise ClosureRefusal(reason)
+                if verdict == "skip":
+                    skipped.append({"from": id6, "edge": tok, "reason": reason})
+                    continue
+                if edge.id6 == id6:
+                    # A self-edge cannot be a prerequisite of itself; it is already in the selection.
+                    continue
+                if edge.id6 not in in_selection:
+                    in_selection.add(edge.id6)
+                    selection.append(edge.id6)
+                    added.append({"id6": edge.id6, "edge": tok, "required_by": id6})
+                if edge.id6 not in seen:
+                    frontier.append(edge.id6)
 
     return selection, {
         "applied": True,
@@ -22323,59 +22717,65 @@ def read_set_membership(repo: Path, setid: str) -> SetMembership:
     cannot appear as `executed`, so the predicate refuses - the safe direction.
     """
 
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import (
         selectors as _selectors,
     )  # local: see the section note above
-    from agent_workflows import ipd_lint as _ipd_lint
 
     token = (setid or "").strip()
     if not token:
         return SetMembership(setid=token, orchestrator=None, children=())
 
-    resolution = _selectors.resolve(
-        repo, "plans", token, allow=frozenset({_selectors.MATCH_SETID})
-    )
-    note = ""
-    if resolution.rejected_kind:
-        note = (
-            f"selector {token!r} resolved only as a "
-            f"{resolution.rejected_kind!r} match, not as a Set name; Set membership was "
-            "not resolved (refusing rather than reading one plan as a whole Set)"
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        resolution = _selectors.resolve(
+            repo, "plans", token, allow=frozenset({_selectors.MATCH_SETID})
         )
+        note = ""
+        if resolution.rejected_kind:
+            note = (
+                f"selector {token!r} resolved only as a "
+                f"{resolution.rejected_kind!r} match, not as a Set name; Set membership was "
+                "not resolved (refusing rather than reading one plan as a whole Set)"
+            )
 
-    orchestrator: SetMember | None = None
-    children: list[SetMember] = []
-    for path in sorted(resolution.paths):
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        meta = _ipd_lint.parse(text).meta_fields
-        id6 = (meta.get("Id") or "").strip()
-        if not id6:
-            continue
-        raw_order = (meta.get("Order") or "").strip()
-        try:
-            order: int | None = int(raw_order)
-        except ValueError:
-            order = None
-        member = SetMember(
-            id6=id6,
-            order=order,
-            kind=(meta.get("Kind") or "").strip(),
-            status=(meta.get("Status") or "").strip(),
-            path=path,
-        )
-        if member.is_orchestrator:
-            # A Set with two Order-0 plans is malformed; keep the FIRST deterministically (paths are
-            # sorted) and treat the rest as children, so the extra one shows up as an unfinished
-            # member rather than being silently dropped.
-            if orchestrator is None:
-                orchestrator = member
+        orchestrator: SetMember | None = None
+        children: list[SetMember] = []
+        for path in sorted(resolution.paths):
+            st, _raw = _read_state_for_path(repo, path, record_type="ipd")
+            if st is None:
+                continue
+            id6 = (
+                (st.id6 or "").strip()
+                if not getattr(st, "id_derived", False)
+                else (getattr(st, "loose_id", None) or "").strip()
+            )
+            if not id6:
+                continue
+            raw_order = (getattr(st, "fields", None) or {}).get("order")
+            try:
+                order: int | None = (
+                    int(str(raw_order).strip()) if raw_order is not None else None
+                )
+            except (ValueError, TypeError):
+                order = None
+            raw_kind = (getattr(st, "fields", None) or {}).get("plan_role")
+            member = SetMember(
+                id6=id6,
+                order=order,
+                kind=(str(raw_kind) if raw_kind is not None else "").strip(),
+                status=(_plan_status_from_state(st) or "").strip(),
+                path=path,
+            )
+            if member.is_orchestrator:
+                # A Set with two Order-0 plans is malformed; keep the FIRST deterministically (paths are
+                # sorted) and treat the rest as children, so the extra one shows up as an unfinished
+                # member rather than being silently dropped.
+                if orchestrator is None:
+                    orchestrator = member
+                else:
+                    children.append(member)
             else:
                 children.append(member)
-        else:
-            children.append(member)
 
     children.sort(key=lambda m: (m.order is None, m.order or 0, m.id6))
     return SetMembership(
@@ -24169,7 +24569,6 @@ def enforce_freeze_time_refusal(
 
     from agent_workflows import backlog, ipd_lint, specs
     from agent_workflows import run_selection_policy as _policy
-    from agent_workflows.selectors import read_front_matter_status as _read_status
 
     enabled_color = should_color(sys.stderr) if color is None else bool(color)
     pal = Palette(enabled_color)
@@ -24354,7 +24753,7 @@ def enforce_freeze_time_refusal(
                         try:
                             dep_path = resolve_plan_path(repo, "", target_id6)
                             target_status = (
-                                _read_status(dep_path.read_text(encoding="utf-8"))
+                                _read_plan_status(repo, dep_path, id6=target_id6)
                                 or "unknown"
                             )
                         except Exception:
@@ -24439,7 +24838,7 @@ def enforce_freeze_time_refusal(
                             try:
                                 dep_path = resolve_plan_path(repo, "", target_id6)
                                 target_status = (
-                                    _read_status(dep_path.read_text(encoding="utf-8"))
+                                    _read_plan_status(repo, dep_path, id6=target_id6)
                                     or "unknown"
                                 )
                             except Exception:
@@ -43550,7 +43949,6 @@ def reconcile_disposition(
       5. Exit code fallback: fail-verify if exit 0, fail-gate otherwise.
     """
     from agent_workflows import runner_stop
-    from agent_workflows.selectors import read_front_matter_status as _read_status
 
     # runstop foi1b3 E-04 / spec 31u14q: A DELIBERATE STOP OUTRANKS EVERYTHING ELSE, including a
     # successful exit code or an outcome file left on disk. The operator said stop, so the item did
@@ -43594,8 +43992,10 @@ def reconcile_disposition(
                 )
                 if staged_spec is not None and staged_spec.is_file():
                     spec_path = staged_spec
-                spec_text = spec_path.read_text(encoding="utf-8")
-                status = _read_status(spec_text)
+                spec_state, _spec_raw = _read_state_for_path(
+                    source, spec_path, record_type="spec", id6=id6 or None
+                )
+                status = _non_plan_status_from_state(spec_state)
             except Exception:
                 status = None
 
@@ -43662,6 +44062,7 @@ def reconcile_disposition(
             return "fail-gate", None
 
         text: str | None = None
+        plan_state: Any | None = None
         try:
             current_plan = resolve_plan_path(
                 source, item.get("configured_file", ""), item["id6"]
@@ -43673,8 +44074,18 @@ def reconcile_disposition(
             )
             if staged_read is not None and staged_read.is_file():
                 current_plan = staged_read
-            text = current_plan.read_text(encoding="utf-8")
-            status = _read_status(text)
+            plan_state, _raw_plan = _read_state_for_path(
+                source, current_plan, record_type="ipd", id6=item.get("id6")
+            )
+            text = (
+                _raw_plan
+                if _raw_plan is not None
+                else current_plan.read_text(encoding="utf-8")
+            )
+            status = _plan_status_from_state(plan_state)
+            if status is None and text is not None:
+                plan_state = _read_text_with_loose(text, record_type="ipd")
+                status = _plan_status_from_state(plan_state)
         except Exception:
             status = None
         if exit_code == 0:
@@ -43691,7 +44102,17 @@ def reconcile_disposition(
                 )
                 return "fail-gate", None
             if item.get("rereview"):
-                has_readiness = bool(re.search(r"(?m)^-[ \t]*Readiness:", text or ""))
+                fields_map = (
+                    getattr(plan_state, "fields", None)
+                    if plan_state is not None
+                    else None
+                ) or {}
+                has_readiness = fields_map.get("readiness") is not None
+                if not has_readiness and text:
+                    loose_st = _read_text_with_loose(text, record_type="ipd")
+                    has_readiness = (getattr(loose_st, "fields", None) or {}).get(
+                        "readiness"
+                    ) is not None
                 if status != "reviewed" or not has_readiness:
                     reason = (
                         f"re-review of {item.get('id6', '<unknown>')} produced no fresh review "
@@ -54057,6 +54478,7 @@ def perform_coordinator_proposal_file(
 
         from agent_workflows import (
             artifact_core as _core,
+            artifact_meta as _meta,
             artifact_naming as _naming,
             attention_contract as _ac,
             backlog as _backlog,
@@ -54080,45 +54502,58 @@ def perform_coordinator_proposal_file(
                 skipped.append((rel_path, "invalid-utf8"))
                 continue
 
-            parsed = _backlog.parse_item(text)
+            bk_state = _meta.read_text(text, record_type="backlog")
             drift = _backlog.validate_item(target_path, text)
             if drift:
                 codes = ",".join(sorted({d.rule for d in drift}))
                 skipped.append((rel_path, f"backlog-validation-failed:{codes}"))
                 continue
 
+            parsed_id = bk_state.id6 or None
+            raw_set_field = bk_state.fields.get("set")
+            parsed_set = (
+                bk_state.set_id
+                if (
+                    raw_set_field
+                    and isinstance(raw_set_field, str)
+                    and len(raw_set_field.split()) == 1
+                )
+                else None
+            )
+            parsed_kind = str(bk_state.fields.get("work_kind") or "").strip() or None
+
             fname = Path(rel_path).name
             clustered = _naming.parse_clustered(fname)
-            id_matches_name = bool(parsed.id) and (
-                clustered.group("id6") == parsed.id
+            id_matches_name = bool(parsed_id) and (
+                clustered.group("id6") == parsed_id
                 if clustered is not None
-                else (f"-{parsed.id}-" in fname)
+                else (f"-{parsed_id}-" in fname)
             )
             if not id_matches_name:
                 skipped.append((rel_path, "filename-id-mismatch"))
                 continue
 
-            if parsed.id in existing_ids:
+            if parsed_id in existing_ids:
                 skipped.append((rel_path, "id6-collision"))
                 continue
 
             setid_err, _setid_warn = _config.validate_setid_length_for_authoring(
                 coord_path,
-                parsed.set,
+                parsed_set,
                 verb="perform_coordinator_proposal_file",
             )
             if setid_err:
                 skipped.append((rel_path, f"setid-length-error:{setid_err}"))
                 continue
 
-            br_val = (parsed.blocks_release or "").strip()
+            br_val = str(bk_state.fields.get("blocks_release") or "").strip()
             if br_val and br_val != "-":
                 if _releases.resolve_release(coord_path, br_val) is None:
                     skipped.append((rel_path, "blocks-release-dangling"))
                     continue
-            elif parsed.kind in gating_kinds and has_planned_next:
-                ex_kind = (parsed.release_exempt_kind or "").strip()
-                ex_ref = (parsed.release_exempt_ref or "").strip()
+            elif parsed_kind in gating_kinds and has_planned_next:
+                ex_kind = str(bk_state.fields.get("release_exempt_kind") or "").strip()
+                ex_ref = str(bk_state.fields.get("release_exempt_ref") or "").strip()
                 has_valid_exemption = (
                     bool(ex_kind)
                     and bool(ex_ref)
@@ -54130,7 +54565,8 @@ def perform_coordinator_proposal_file(
                     continue
 
             _core.atomic_write(target_path, text)
-            existing_ids.add(parsed.id)
+            if parsed_id:
+                existing_ids.add(parsed_id)
             recovered.append(rel_path)
 
         return recovered, skipped
@@ -55003,12 +55439,10 @@ def edge_satisfied(
         # `tests/test_runner_refork_guard.py` (a code pin deleted in `19313eed` under P16; will not
         # return) tabled it as `selectors`-owned under both hosts' local `_read_status` spelling.
         # Substituting another reader would change which front-matter spellings this comparison accepts.
-        from agent_workflows.selectors import read_front_matter_status as _read_status
-
         effective = bucket
         if bucket is not None and not _policy.is_in_terminal_directory(str(dep_path)):
             try:
-                field = _read_status(dep_path.read_text(encoding="utf-8"))
+                field = _read_plan_status(repo, dep_path, id6=edge.id6)
             except Exception:
                 field = None
             effective = field

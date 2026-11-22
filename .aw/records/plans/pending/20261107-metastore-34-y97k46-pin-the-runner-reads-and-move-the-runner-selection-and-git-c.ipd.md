@@ -102,6 +102,7 @@ flowchart TD
 
 - E-01, E-02, E-03 (the runner-file 4.4 rows, the runner pin with its ten-module baseline, the plan-selection move). Moved to k86yq7 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: k86yq7
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-147-k86yq7-pin-the-runner-reads-and-move-the-runner-selection-reads-ont.ipd.md
 - E-04, E-05 (the execution-path move, the own-log finalize scope). Moved to k3hb06 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: k3hb06
 - The five `runner_shared` git-content readers (moved onto `read_at`).
