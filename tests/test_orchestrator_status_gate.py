@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import agent_schema, coverage_record
-from tests.test_ipd_lint import _conforming_child
+from tests.test_ipd_lint import _CONFORMING_CHILD_BODY
 from tests.record_builder import RecordBuilder
 
 
@@ -47,9 +47,6 @@ def _make_orchestrator(
     omit_child_table: bool = False,
     readiness: str | None = None,
 ) -> Path:
-    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
-    orch_path = pending_dir / f"20261004-{setid}-00-{id6}-test.ipd.md"
-
     if child_rows is None:
         child_rows = [
             (
@@ -59,51 +56,18 @@ def _make_orchestrator(
             )
         ]
 
-    lines = [
-        f"# IPD: Orchestrator {id6}",
+    body_lines = [
+        "## Goal",
         "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
+        "Test orchestrator goal.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "",
+        checklist_item,
+        "",
     ]
-    if readiness:
-        lines.append(f"- Readiness: {readiness}")
-    lines.extend(
-        [
-            "- Priority: medium",
-            "- Work-Kind: chore",
-            "- Author: test",
-            "- Highest E allocated: 01",
-            "- Concern: test concern.",
-            "- Scope: test scope.",
-            "- Scope-Paths: none",
-            "- Item-Dependencies: none",
-        ]
-    )
-    if status == "approved":
-        lines.append("- Approval: 2026-10-04, test: approved")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            "",
-            f"- 2026-10-04 {status} (test): created.",
-            "",
-            "## Goal",
-            "",
-            "Test orchestrator goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "",
-            checklist_item,
-            "",
-        ]
-    )
     if not omit_child_table:
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "",
@@ -112,10 +76,10 @@ def _make_orchestrator(
             ]
         )
         for ord_tok, c_id6, c_path in child_rows:
-            lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-        lines.append("")
+            body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+        body_lines.append("")
 
-    lines.extend(
+    body_lines.extend(
         [
             "## Completion criteria (the whole Set is done only when)",
             "",
@@ -151,10 +115,30 @@ def _make_orchestrator(
             "## Approval and execution gate",
             "",
             "- None.",
-            "",
         ]
     )
-    orch_path.write_text("\n".join(lines), encoding="utf-8")
+    orch_path = RecordBuilder(repo).plan(
+        title=f"Orchestrator {id6}",
+        when="2026-10-04",
+        plan_role="orchestrator",
+        id6=id6,
+        set=setid,
+        order=0,
+        status=status,
+        readiness=readiness,
+        priority="medium",
+        work_kind="chore",
+        author="test",
+        highest_e_allocated="01",
+        scope_paths="none",
+        item_dependencies="none",
+        approval="2026-10-04, test: approved" if status == "approved" else None,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        body="\n".join(body_lines),
+        raw_fields={"Concern": "test concern.", "Scope": "test scope."},
+        slug="test",
+    )
+    assert isinstance(orch_path, Path)
     return orch_path
 
 
@@ -171,15 +155,33 @@ def _make_child(
     p_dir.mkdir(parents=True, exist_ok=True)
     child_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test.ipd.md"
 
-    text = (
-        _conforming_child()
-        .replace("- Set: x", f"- Set: {setid}")
-        .replace("- Order: 1", f"- Order: {order}")
-        .replace("- Id: abc123", f"- Id: {id6}")
-        .replace("- Status: to-review", f"- Status: {status}")
-    )
+    body = _CONFORMING_CHILD_BODY
     if broken_lint:
-        text = text.replace("## Goal\n", "")
+        body = body.replace("## Goal\n", "")
+    text = str(
+        RecordBuilder().plan(
+            title="sample (Set x, Order 1)",
+            when="2026-08-03",
+            plan_role="child",
+            status=status,
+            work_kind="chore",
+            priority="medium",
+            set=setid,
+            order=order,
+            highest_e_allocated="01",
+            author="tester",
+            id6=id6,
+            history=["- 2026-08-03 to-review (tester): created."],
+            body=body,
+            raw_fields={
+                "Concern": "sample.",
+                "Scope": "sample.",
+                "Item-Dependencies": None,
+                "Scope-Paths": None,
+            },
+            text_only=True,
+        )
+    )
     child_path.write_text(text, encoding="utf-8")
     return child_path
 
