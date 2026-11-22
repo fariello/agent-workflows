@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import artifact_core, cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -234,14 +235,27 @@ def test_w09_from_spec_unknown_id_refuses_and_leaves_bytes(repo: Path) -> None:
     _rec(
         repo,
         "specs/draft/20260101-sp0001-01-sp0001-x.spec.md",
-        "# Spec: S\n\n- Date: 2026-01-01\n- Status: draft\n- Id: sp0001\n\n"
-        "## Workflow history\n- 2026-01-01 draft (a): c\n",
+        RecordBuilder().spec(
+            title="S",
+            when="2026-01-01",
+            status="draft",
+            id6="sp0001",
+            history=["- 2026-01-01 draft (a): c"],
+            text_only=True,
+        ),
     )
     plan = _rec(
         repo,
         "plans/pending/20260101-fs-01-fs0001-x.ipd.md",
-        "# IPD: F\n\n- Date: 2026-01-01\n- Status: draft\n- Set: fs\n- Id: fs0001\n\n"
-        "## Workflow history\n- 2026-01-01 draft (a): c\n",
+        RecordBuilder().plan(
+            title="F",
+            when="2026-01-01",
+            status="draft",
+            set="fs",
+            id6="fs0001",
+            history=["- 2026-01-01 draft (a): c"],
+            text_only=True,
+        ),
     )
     before = plan.read_bytes()
     rc, out = _run(
@@ -266,9 +280,17 @@ def test_w09_from_spec_unknown_id_refuses_and_leaves_bytes(repo: Path) -> None:
 # E-14: the same setter call gives the same bytes and stdout whatever state the cache is in (AC-1a).
 # --------------------------------------------------------------------------------------------------
 
-_CACHE_PLAN = (
-    "# IPD: C\n\n- Date: 2026-01-01\n- Status: reviewed\n- Work-Kind: chore\n- Priority: low\n"
-    "- Set: cch\n- Id: cc0001\n\n## Workflow history\n- 2026-01-01 reviewed (a): c\n\n## Goal\nG\n"
+_CACHE_PLAN = RecordBuilder().plan(
+    title="C",
+    when="2026-01-01",
+    status="reviewed",
+    work_kind="chore",
+    priority="low",
+    set="cch",
+    id6="cc0001",
+    history=["- 2026-01-01 reviewed (a): c"],
+    body="## Goal\nG",
+    text_only=True,
 )
 
 

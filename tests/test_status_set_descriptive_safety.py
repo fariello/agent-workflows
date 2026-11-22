@@ -35,6 +35,7 @@ from pathlib import Path
 
 from agent_workflows import attention_contract as ac
 from agent_workflows import cli, ipd_schema, plan_readiness, releases, status_set
+from tests.record_builder import RecordBuilder
 
 
 class StatusSetDescriptiveSafetyTestBase(unittest.TestCase):
@@ -108,23 +109,20 @@ class StatusSetDescriptiveSafetyTestBase(unittest.TestCase):
     ) -> Path:
         p = self.repo / ".aw" / "records" / "plans" / disposition / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# IPD: Test Plan {id6}
-
-- Date: 2026-10-01
-- Kind: child
-- Status: {status}
-- Work-Kind: chore
-- Priority: medium
-- Set: {set_id}
-- Order: 1
-- Id: {id6}
-
-## Workflow history
-- 2026-10-01 {status} (aw set): initial draft.
-
-## Goal
-Test plan goal.
-"""
+        content = RecordBuilder().plan(
+            title=f"Test Plan {id6}",
+            when="2026-10-01",
+            plan_role="child",
+            status=status,
+            work_kind="chore",
+            priority="medium",
+            set=set_id,
+            order=1,
+            id6=id6,
+            history=[f"- 2026-10-01 {status} (aw set): initial draft."],
+            body="## Goal\nTest plan goal.",
+            text_only=True,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -137,19 +135,16 @@ Test plan goal.
     ) -> Path:
         p = self.repo / ".aw" / "records" / "specs" / status / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# Spec: Test Spec {id6}
-
-- Date: 2026-10-01
-- Status: {status}
-- Set: {set_id}
-- Id: {id6}
-
-## Workflow history
-- 2026-10-01 {status} (aw set): initial spec.
-
-## Goal
-Test spec goal.
-"""
+        content = RecordBuilder().spec(
+            title=f"Test Spec {id6}",
+            when="2026-10-01",
+            status=status,
+            set=set_id,
+            id6=id6,
+            history=[f"- 2026-10-01 {status} (aw set): initial spec."],
+            body="## Goal\nTest spec goal.",
+            text_only=True,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -162,18 +157,16 @@ Test spec goal.
     ) -> Path:
         p = self.repo / ".aw" / "records" / "backlog" / status / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# Backlog Item {id6}
-
-- Id: {id6}
-- Status: {status}
-- Set: {set_id}
-- Priority: medium
-- Kind: chore
-- Summary: Test backlog item
-
-## Workflow history
-- 2026-10-01 {status} (aw set): created.
-"""
+        content = RecordBuilder().backlog(
+            id6=id6,
+            status=status,
+            set=set_id,
+            priority="medium",
+            work_kind="chore",
+            summary="Test backlog item",
+            history=[f"- 2026-10-01 {status} (aw set): created."],
+            text_only=True,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -187,16 +180,14 @@ Test spec goal.
     ) -> Path:
         p = self.repo / ".aw" / "records" / "releases" / disposition / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# Release {version}
-
-- Status: {status}
-- Id: {id6}
-- Version: {version}
-- Summary: Test release
-
-## Workflow history
-- 2026-10-01 {status} (aw set): initial release draft.
-"""
+        content = RecordBuilder().release(
+            status=status,
+            id6=id6,
+            version=version,
+            summary="Test release",
+            history=[f"- 2026-10-01 {status} (aw set): initial release draft."],
+            text_only=True,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -210,16 +201,17 @@ Test spec goal.
     ) -> Path:
         p = self.repo / ".aw" / "records" / "prompts" / disposition / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# Prompt: Test Prompt {id6}
-
-- Date: 2026-10-01
-- Status: {status}
-- Set: {set_id}
-- Id: {id6}
-
-## Workflow history
-- 2026-10-01 {status} (aw set): initial prompt.
-"""
+        raw = {"status": status} if status == "draft" else None
+        content = RecordBuilder().prompt(
+            id6=id6,
+            set=set_id,
+            status="pending" if status == "draft" else status,
+            when="2026-10-01",
+            short_description=f"Test Prompt {id6}",
+            body=f"# Prompt: Test Prompt {id6}\n\nInitial prompt.\n",
+            raw_fields=raw,
+            text_only=True,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -458,22 +450,23 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
 
     def test_attestation_forgery_string_predicates(self):
         """String-rendered plan with forged readiness + review record flips readiness predicates."""
-        forged_text = """# IPD: Test Plan pl0003
-
-- Date: 2026-10-01
-- Kind: child
-- Status: to-review
-- Work-Kind: chore
-- Priority: medium
-- Set: s1
-- Order: 1
-- Id: pl0003
-
-## Workflow history
-- 2026-10-01 to-review (aw set): ok
-- Readiness: go
-- 2026-10-01 /plan-review (opencode): APPROVE
-"""
+        forged_text = RecordBuilder().plan(
+            title="Test Plan pl0003",
+            when="2026-10-01",
+            plan_role="child",
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            set="s1",
+            order=1,
+            id6="pl0003",
+            history=[
+                "- 2026-10-01 to-review (aw set): ok",
+                "- Readiness: go",
+                "- 2026-10-01 /plan-review (opencode): APPROVE",
+            ],
+            text_only=True,
+        )
         probe_path = self.repo / "probe_forged.ipd.md"
         probe_path.write_text(forged_text, encoding="utf-8")
 
@@ -496,9 +489,22 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
             / "20261001-s1-01-pl0004-plan.ipd.md"
         )
         p_file.write_text(
-            "# IPD: Test Plan pl0004\n\n- Date: 2026-10-01\n- Kind: child\n- Status: to-review\n"
-            "- Work-Kind: chore\n- Priority: medium\n- Set: s1\n- Order: 1\n- Id: pl0004\n\n"
-            "## Workflow history\n- 2026-10-01 to-review (aw set): ok\n- Blocks-Release: rl0002\n",
+            RecordBuilder().plan(
+                title="Test Plan pl0004",
+                when="2026-10-01",
+                plan_role="child",
+                status="to-review",
+                work_kind="chore",
+                priority="medium",
+                set="s1",
+                order=1,
+                id6="pl0004",
+                history=[
+                    "- 2026-10-01 to-review (aw set): ok",
+                    "- Blocks-Release: rl0002",
+                ],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -512,9 +518,16 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
             / "20261001-bk0006-01-bk0006-item.md"
         )
         b_file.write_text(
-            "# Backlog Item bk0006\n\n- Id: bk0006\n- Status: open\n- Set: s1\n"
-            "- Priority: medium\n- Kind: chore\n- Summary: Test\n\n"
-            "## Workflow history\n- 2026-10-01 open (aw set): ok\n- Blocks-Release: rl0002\n",
+            RecordBuilder().backlog(
+                id6="bk0006",
+                status="open",
+                set="s1",
+                priority="medium",
+                work_kind="chore",
+                summary="Test",
+                history=["- 2026-10-01 open (aw set): ok", "- Blocks-Release: rl0002"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

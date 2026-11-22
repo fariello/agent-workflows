@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import agy_run
+from tests.record_builder import RecordBuilder
 
 
 def _temp_base_dir() -> Path:
@@ -73,7 +74,9 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
         )
         self.sharded_plan.parent.mkdir(parents=True, exist_ok=True)
         self.sharded_plan.write_text(
-            "# Plan ab12cd\n- Id: ab12cd\n- Set: set (Set)\n- Status: executed\n",
+            RecordBuilder().plan(
+                id6="ab12cd", set="set (Set)", status="executed", text_only=True
+            ),
             encoding="utf-8",
         )
 
@@ -87,7 +90,12 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
         )
         self.legacy_plan.parent.mkdir(parents=True, exist_ok=True)
         self.legacy_plan.write_text(
-            "# Plan leg001\n- Id: leg001\n- Set: leg001 (Legacy)\n- Status: pending\n",
+            RecordBuilder().plan(
+                id6="leg001",
+                set="leg001 (Legacy)",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -103,7 +111,12 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
         )
         self.untracked_plan.parent.mkdir(parents=True, exist_ok=True)
         self.untracked_plan.write_text(
-            "# Plan untr01\n- Id: untr01\n- Set: untr01 (Untracked)\n- Status: pending\n",
+            RecordBuilder().plan(
+                id6="untr01",
+                set="untr01 (Untracked)",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -119,7 +132,12 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
         )
         self.scratch_plan.parent.mkdir(parents=True, exist_ok=True)
         self.scratch_plan.write_text(
-            "# Plan scrt01\n- Id: scrt01\n- Set: scrt01 (Scratch)\n- Status: pending\n",
+            RecordBuilder().plan(
+                id6="scrt01",
+                set="scrt01 (Scratch)",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -141,7 +159,9 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
         )
         self.dup_plan_top.parent.mkdir(parents=True, exist_ok=True)
         self.dup_plan_top.write_text(
-            "# Plan dd44ee top\n- Id: dd44ee\n- Set: set (Set)\n- Status: executed\n",
+            RecordBuilder().plan(
+                id6="dd44ee", set="set (Set)", status="executed", text_only=True
+            ),
             encoding="utf-8",
         )
         self.dup_plan_shard = (
@@ -154,7 +174,9 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
             / "20260901-set-03-dd44ee-dup.ipd.md"
         )
         self.dup_plan_shard.write_text(
-            "# Plan dd44ee shard\n- Id: dd44ee\n- Set: set (Set)\n- Status: executed\n",
+            RecordBuilder().plan(
+                id6="dd44ee", set="set (Set)", status="executed", text_only=True
+            ),
             encoding="utf-8",
         )
 

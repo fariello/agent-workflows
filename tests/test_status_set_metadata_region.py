@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import status_set
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -28,27 +29,27 @@ def fixture_records_tree(tmp_path: Path):
     # body quotes bbb222 / approved / otherset.
     quoting_doc = research_dir / "20260901-test-01-aaa111-doc.research-report.md"
     quoting_doc.write_text(
-        "---\n"
-        "id: aaa111\n"
-        "status: active\n"
-        "set: fxset\n"
-        "---\n\n"
-        "# Research Report\n\n"
-        "This document quotes another plan's metadata block:\n"
-        "- Id: bbb222\n"
-        "- Status: approved\n"
-        "- Set: otherset\n",
+        RecordBuilder().research(
+            id6="aaa111",
+            status="active",
+            set="fxset",
+            body="\n# Research Report\n\nThis document quotes another plan's metadata block:\n- Id: bbb222\n- Status: approved\n- Set: otherset\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # Fixture 2: Real plan declaring bbb222 / approved / otherset in bullet front matter.
     real_plan = plans_dir / "20260901-test-01-bbb222-plan.ipd.md"
     real_plan.write_text(
-        "# Plan Title\n\n"
-        "- Id: bbb222\n"
-        "- Status: approved\n"
-        "- Set: otherset\n\n"
-        "Plan body.\n",
+        RecordBuilder().plan(
+            title="Plan Title",
+            id6="bbb222",
+            status="approved",
+            set="otherset",
+            body="Plan body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -79,14 +80,20 @@ def test_read_artifact_record_bullet_frontmatter_all_fields(tmp_path: Path):
 
     bullet_doc = records_dir / "20260901-test-01-ccc333-plan.ipd.md"
     bullet_doc.write_text(
-        "# Bullet Plan\n\n"
-        "- Id: ccc333\n"
-        "- Status: open\n"
-        "- Set: bulletset\n\n"
-        "Body quotes another record:\n"
-        "- Id: bbb222\n"
-        "- Status: approved\n"
-        "- Set: otherset\n",
+        RecordBuilder().plan(
+            title="Bullet Plan",
+            id6="ccc333",
+            status="draft",
+            set="bulletset",
+            body=(
+                "Body quotes another record:\n"
+                "- Id: bbb222\n"
+                "- Status: approved\n"
+                "- Set: otherset\n"
+            ),
+            raw_fields={"status": "open"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
