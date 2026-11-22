@@ -25,12 +25,15 @@ EXCLUDED_PRESENTATION_DESTS: frozenset[str] = frozenset(
     {
         "help",
         "agent",
+        "bell",
+        "no_bell",
         "color",
         "no_color",
         "interactive",
         "no_interactive",
         "json",
         "fields",
+        "title_style",
         "verbose",
     }
 )

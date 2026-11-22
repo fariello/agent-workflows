@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -800,8 +801,34 @@ def extract_log_metrics(log_path: Path | str) -> tuple[float | None, dict[str, i
     return cost_res, tok_res
 
 
+def _list_session_jsonl_files(run_dir: Path) -> tuple[dict[str, Path], list[Path]]:
+    """List ``run_dir / 'sessions'`` once per run to avoid repeated Path.glob() scans."""
+    sessions_dir = run_dir / "sessions"
+    by_name: dict[str, Path] = {}
+    jsonl_files: list[Path] = []
+    try:
+        with os.scandir(sessions_dir) as it:
+            for entry in it:
+                name = entry.name
+                try:
+                    if not entry.is_file():
+                        continue
+                except OSError:
+                    continue
+                p = Path(entry.path)
+                by_name[name] = p
+                if name.endswith(".jsonl"):
+                    jsonl_files.append(p)
+    except OSError:
+        pass
+    return by_name, jsonl_files
+
+
 def extract_step_usage(
-    item: dict[str, Any], run_dir: Path
+    item: dict[str, Any],
+    run_dir: Path,
+    *,
+    sessions_index: tuple[dict[str, Path], list[Path]] | None = None,
 ) -> tuple[
     float | None,
     dict[str, int],
@@ -819,6 +846,12 @@ def extract_step_usage(
     attempts = item.get("attempts") or []
     pos = item.get("position", 0)
     id6 = item.get("id6", "")
+
+    if sessions_index is None and run_dir.is_dir():
+        sessions_index = _list_session_jsonl_files(run_dir)
+    sess_by_name, sess_jsonl = (
+        sessions_index if sessions_index is not None else ({}, [])
+    )
 
     for att_idx, att in enumerate(attempts):
         if not isinstance(att, dict):
@@ -841,8 +874,8 @@ def extract_step_usage(
                 if not p.is_file() and not p.is_absolute():
                     p = run_dir / p
                 if not p.is_file():
-                    alt = run_dir / "sessions" / p.name
-                    if alt.is_file():
+                    alt = sess_by_name.get(p.name)
+                    if alt is not None:
                         p = alt
                 if p.is_file():
                     c, t = extract_log_metrics(p)
@@ -870,21 +903,20 @@ def extract_step_usage(
                     vp = run_dir / vp
                 if vp.is_file():
                     v_file = vp
-            if not v_file and run_dir.is_dir():
-                sessions_dir = run_dir / "sessions"
-                if sessions_dir.is_dir() and id6:
-                    cand = (
-                        sessions_dir / f"{pos:02d}-{id6}-attempt-{att_num}-verify.jsonl"
-                    )
-                    if cand.is_file():
-                        v_file = cand
-                    else:
-                        matches = list(
-                            sessions_dir.glob(f"*{id6}*attempt-{att_num}*verify*.jsonl")
-                        )
-                        if matches:
-                            v_file = matches[0]
-            if v_file and v_file.is_file():
+            if not v_file and sess_jsonl and id6:
+                cand_name = f"{pos:02d}-{id6}-attempt-{att_num}-verify.jsonl"
+                v_file = sess_by_name.get(cand_name)
+                if v_file is None:
+                    att_tok = f"attempt-{att_num}"
+                    for sf in sess_jsonl:
+                        sname = sf.name
+                        i1 = sname.find(id6)
+                        if i1 >= 0:
+                            i2 = sname.find(att_tok, i1 + len(id6))
+                            if i2 >= 0 and sname.find("verify", i2 + len(att_tok)) >= 0:
+                                v_file = sf
+                                break
+            if v_file is not None and v_file.is_file():
                 c, t = extract_log_metrics(v_file)
                 if c is not None:
                     verify_cost = (verify_cost or 0.0) + c
@@ -898,28 +930,28 @@ def extract_step_usage(
         and not exec_tokens
         and verify_cost is None
         and not verify_tokens
-        and run_dir.is_dir()
+        and sess_jsonl
+        and id6
     ):
-        sessions_dir = run_dir / "sessions"
-        if sessions_dir.is_dir() and id6:
-            candidates = list(sessions_dir.glob(f"{pos:02d}-{id6}*.jsonl"))
-            if not candidates:
-                candidates = list(sessions_dir.glob(f"*{id6}*.jsonl"))
-            for sess_file in candidates:
-                if "verify" in sess_file.name:
-                    c, t = extract_log_metrics(sess_file)
-                    if c is not None:
-                        verify_cost = (verify_cost or 0.0) + c
-                    if t:
-                        for k, v in t.items():
-                            verify_tokens[k] = verify_tokens.get(k, 0) + v
-                else:
-                    c, t = extract_log_metrics(sess_file)
-                    if c is not None:
-                        exec_cost = (exec_cost or 0.0) + c
-                    if t:
-                        for k, v in t.items():
-                            exec_tokens[k] = exec_tokens.get(k, 0) + v
+        prefix = f"{pos:02d}-{id6}"
+        candidates = [sf for sf in sess_jsonl if sf.name.startswith(prefix)]
+        if not candidates:
+            candidates = [sf for sf in sess_jsonl if id6 in sf.name]
+        for sess_file in candidates:
+            if "verify" in sess_file.name:
+                c, t = extract_log_metrics(sess_file)
+                if c is not None:
+                    verify_cost = (verify_cost or 0.0) + c
+                if t:
+                    for k, v in t.items():
+                        verify_tokens[k] = verify_tokens.get(k, 0) + v
+            else:
+                c, t = extract_log_metrics(sess_file)
+                if c is not None:
+                    exec_cost = (exec_cost or 0.0) + c
+                if t:
+                    for k, v in t.items():
+                        exec_tokens[k] = exec_tokens.get(k, 0) + v
 
     total_cost: float | None = None
     if exec_cost is not None or verify_cost is not None:
@@ -1137,6 +1169,7 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     except OSError:
                         pass
 
+            sessions_index = _list_session_jsonl_files(run_dir)
             for idx, item in enumerate(queue, start=1):
                 pos = item.get("position", idx)
                 id6 = item.get("id6", "")
@@ -1221,7 +1254,7 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     step_e_toks,
                     step_v_cost,
                     step_v_toks,
-                ) = extract_step_usage(item, run_dir)
+                ) = extract_step_usage(item, run_dir, sessions_index=sessions_index)
 
                 step_el_sec, step_el_str = extract_step_elapsed(
                     item,
@@ -3871,7 +3904,15 @@ def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
 
 def run_viewer_cli(args: argparse.Namespace) -> int:
     """CLI entry point for `aw runs` / run viewer."""
+    from agent_workflows import artifact_meta as _am
+
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    with _am.scan_once(), _audit.status_read_session(repo_root):
+        return _run_viewer_cli_impl(args, repo_root)
+
+
+def _run_viewer_cli_impl(args: argparse.Namespace, repo_root: Path) -> int:
+    """Implementation of `aw runs` inside a single scan_once + status_read_session scope."""
     # ssk6nf E-04: `aw runs repair <run-id>` is an opt-in MUTATING verb on an otherwise read-only
     # surface, routed from the first target token so every read path stays side-effect free.
     raw_targets = getattr(args, "target", None) or getattr(args, "targets", None) or []

@@ -72,12 +72,14 @@ TRACKED-ONLY: see :func:`audit_tracked_artifact`.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 from collections import OrderedDict
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -258,14 +260,66 @@ class FinalizeEvidenceIndex:
     parents: Dict[str, List[str]] = field(default_factory=dict)
     head_reachable: Set[str] = field(default_factory=set)
     _ancestor_cache: Dict[str, Set[str]] = field(default_factory=dict, repr=False)
+    _commit_idx: Dict[str, int] = field(default_factory=dict, repr=False)
+    _ancestor_masks: Dict[str, int] = field(default_factory=dict, repr=False)
+    _mask_parents_len: int = field(default=-1, repr=False)
+
+    def _ensure_ancestor_masks(self) -> None:
+        """Build O(V+E) integer bitsets of all ancestors once so ancestry checks run in O(1)."""
+        if self._mask_parents_len == len(self.parents) and self._ancestor_masks:
+            return
+        nodes: Dict[str, int] = {}
+        for c, ps in self.parents.items():
+            if c not in nodes:
+                nodes[c] = len(nodes)
+            for p in ps:
+                if p not in nodes:
+                    nodes[p] = len(nodes)
+        masks: Dict[str, int] = {}
+        # Iterative post-order DFS avoids recursion limits on deep histories.
+        for start in nodes:
+            if start in masks:
+                continue
+            stack: List[Tuple[str, bool]] = [(start, False)]
+            in_progress: Set[str] = set()
+            while stack:
+                node, expanded = stack.pop()
+                if node in masks:
+                    continue
+                if expanded:
+                    m = 1 << nodes[node]
+                    for p in self.parents.get(node, ()):
+                        pm = masks.get(p)
+                        if pm is not None:
+                            m |= pm
+                    masks[node] = m
+                    in_progress.discard(node)
+                else:
+                    if node in in_progress:
+                        continue
+                    in_progress.add(node)
+                    stack.append((node, True))
+                    for p in self.parents.get(node, ()):
+                        if p not in masks and p not in in_progress:
+                            stack.append((p, False))
+        self._commit_idx = nodes
+        self._ancestor_masks = masks
+        self._mask_parents_len = len(self.parents)
+
+    def _is_ancestor(self, candidate: str, descendant: str) -> bool:
+        """True if ``candidate`` equals ``descendant`` or is reachable from ``descendant``."""
+        if candidate == descendant:
+            return True
+        if self.parents:
+            self._ensure_ancestor_masks()
+            c_idx = self._commit_idx.get(candidate)
+            d_mask = self._ancestor_masks.get(descendant)
+            if c_idx is not None and d_mask is not None:
+                return bool((d_mask >> c_idx) & 1)
+        return candidate in self._ancestors_of(descendant)
 
     def _ancestors_of(self, commit: str) -> Set[str]:
-        """``commit`` plus everything reachable FROM it, memoized per distinct commit.
-
-        Memoized because rows SHARE an ``ending_head``: a run's attempts write the same head for every
-        item it dispatched, so the number of distinct heads in a table is far smaller than the number
-        of rows, and this walk therefore runs a handful of times rather than 508.
-        """
+        """``commit`` plus everything reachable FROM it, memoized per distinct commit."""
         cached = self._ancestor_cache.get(commit)
         if cached is not None:
             return cached
@@ -303,11 +357,13 @@ class FinalizeEvidenceIndex:
             # clone). The range genuinely cannot be formed, which is a DIFFERENT operator situation
             # from "the range was searched and held no finalize", so it gets its own reason.
             return None, UNKNOWN_HEAD_UNREACHABLE
-        before = self._ancestors_of(ending_head)
-        for commit in self.finalize_commits.get(
-            id6, ()
-        ):  # SUBJECT matches, in history order
-            if commit in self.head_reachable and commit not in before:
+        candidates = self.finalize_commits.get(id6, ())
+        if not candidates:
+            return None, UNKNOWN_NO_EVIDENCE
+        for commit in candidates:  # SUBJECT matches, in history order
+            if commit in self.head_reachable and not self._is_ancestor(
+                commit, ending_head
+            ):
                 return commit, ""
         return None, UNKNOWN_NO_EVIDENCE
 
@@ -327,14 +383,18 @@ class FinalizeEvidenceIndex:
             return None, UNKNOWN_NO_ENDING_HEAD
         if ending_head not in self.head_reachable:
             return None, UNKNOWN_HEAD_UNREACHABLE
-        before = self._ancestors_of(ending_head)
+        candidates = self.transition_commits.get(id6, ())
+        if not candidates:
+            return None, "no lifecycle transition commit in the after-the-run range"
         targets = (
             {target_status}
             if isinstance(target_status, str)
             else (set(target_status) if target_status is not None else None)
         )
-        for commit, tgt in self.transition_commits.get(id6, ()):
-            if commit in self.head_reachable and commit not in before:
+        for commit, tgt in candidates:
+            if commit in self.head_reachable and not self._is_ancestor(
+                commit, ending_head
+            ):
                 if targets is None or tgt in targets:
                     return commit, ""
         return None, "no lifecycle transition commit in the after-the-run range"
@@ -1321,11 +1381,102 @@ def _infer_repo_root_for_path(path: Path) -> Optional[Path]:
         return None
 
 
+@dataclass
+class _StatusReadSession:
+    """Per-command bulk artifact_meta snapshot + declared-status memoization."""
+
+    repo_root_res: Path
+    records_root: Path
+    records_root_res: Optional[Path]
+    scan_repo: Optional[Path]
+    legacy_root_res: Optional[Path]
+    meta_by_path: Optional[Dict[str, Any]]
+    status_cache: Dict[Tuple[str, str], Optional[str]] = field(default_factory=dict)
+
+
+_STATUS_READ_SESSION: ContextVar[Optional[_StatusReadSession]] = ContextVar(
+    "_STATUS_READ_SESSION", default=None
+)
+
+
+@contextlib.contextmanager
+def status_read_session(repo_root: Path) -> Iterator[None]:
+    """Pre-load ``artifact_meta`` rows ONCE for a batch audit (e.g. ``aw runs``).
+
+    Avoids re-running ``legacy_context`` + per-path SQLite queries across thousands of
+    steps while keeping the cache strictly scoped to one command invocation.
+    """
+    from agent_workflows import artifact_meta as _am
+
+    root = Path(repo_root)
+    session: Optional[_StatusReadSession] = None
+    try:
+        root_res = root.resolve()
+        ctx = _am.legacy_context(root)
+        records_root = Path(ctx.logical_roots["records"])
+        records_root_res = records_root.resolve() if records_root.is_dir() else None
+        scan_repo = _am._scan_repo_root(ctx, records_root)
+        legacy_dir = (scan_repo / ".agents") if scan_repo is not None else None
+        legacy_root_res = (
+            legacy_dir.resolve()
+            if (legacy_dir is not None and legacy_dir.is_dir())
+            else None
+        )
+        state_root = Path(ctx.logical_roots["state"])
+        meta_by_path: Optional[Dict[str, Any]] = None
+        if (
+            (state_root / "index.db").exists()
+            or (records_root / "meta").is_dir()
+            or _am._SCAN_ONCE_CONNS.get() is not None
+        ):
+            with _am.ephemeral_if_uninitialized():
+                res = _am.query(project_context=ctx)
+            meta_by_path = {st.path: st for st in res.rows if getattr(st, "path", None)}
+        session = _StatusReadSession(
+            repo_root_res=root_res,
+            records_root=records_root,
+            records_root_res=records_root_res,
+            scan_repo=scan_repo,
+            legacy_root_res=legacy_root_res,
+            meta_by_path=meta_by_path,
+        )
+    except Exception:
+        session = None
+
+    token = _STATUS_READ_SESSION.set(session)
+    try:
+        yield
+    finally:
+        _STATUS_READ_SESSION.reset(token)
+
+
 def _cached_state_for_path(
     path: Path, *, repo_root: Optional[Path] = None
 ) -> Optional[Any]:
     """Return the cached ``artifact_meta.State`` for ``path``, or ``None`` if outside/unindexed."""
     from agent_workflows import artifact_meta as _am
+
+    session = _STATUS_READ_SESSION.get()
+    if session is not None and session.meta_by_path is not None:
+        try:
+            if repo_root is None or Path(repo_root).resolve() == session.repo_root_res:
+                p_res = path.resolve()
+                in_records = (
+                    session.records_root_res is not None
+                    and p_res.is_relative_to(session.records_root_res)
+                )
+                in_legacy = (
+                    session.legacy_root_res is not None
+                    and p_res.is_relative_to(session.legacy_root_res)
+                )
+                if not (in_records or in_legacy):
+                    return None
+                stored_p = _am.stored_path(
+                    p_res, session.records_root, session.scan_repo
+                )
+                return session.meta_by_path.get(stored_p)
+        except Exception:
+            pass
 
     root = Path(repo_root) if repo_root is not None else _infer_repo_root_for_path(path)
     if root is None:
@@ -1406,24 +1557,37 @@ def read_declared_status(
     from agent_workflows import artifact_meta as _am
 
     p = Path(path)
+    session = _STATUS_READ_SESSION.get()
+    cache_key: Optional[Tuple[str, str]] = None
+    if session is not None:
+        cache_key = (str(p), (record_type or "").strip().lower())
+        if cache_key in session.status_cache:
+            return session.status_cache[cache_key]
+
+    result: Optional[str]
     st = _cached_state_for_path(p, repo_root=repo_root)
     if st is not None:
         if record_type is not None:
             is_plan = record_type.strip().lower() in ("ipd", "plan", "plans")
         else:
             is_plan = getattr(st, "type", None) == "ipd"
-        return _status_from_state(st, is_plan=is_plan)
-
-    try:
-        txt = p.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return None
-    st = _am.read_text(txt)
-    if record_type is not None:
-        is_plan = record_type.strip().lower() in ("ipd", "plan", "plans")
+        result = _status_from_state(st, is_plan=is_plan)
     else:
-        is_plan = _is_plan_path(p)
-    return _status_from_state(st, is_plan=is_plan)
+        try:
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            result = None
+        else:
+            st = _am.read_text(txt)
+            if record_type is not None:
+                is_plan = record_type.strip().lower() in ("ipd", "plan", "plans")
+            else:
+                is_plan = _is_plan_path(p)
+            result = _status_from_state(st, is_plan=is_plan)
+
+    if session is not None and cache_key is not None:
+        session.status_cache[cache_key] = result
+    return result
 
 
 def audit_artifact(
