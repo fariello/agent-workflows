@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _am
 from agent_workflows import ipd_lint as _lint
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import orchestrate_isolation as _iso
@@ -517,11 +518,18 @@ def _findings_gate_reason(plans_dir: Path, plan_id6: str) -> Optional[str]:
 def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
     """E-01: resolve a Set into one deterministic inventory with every child + E-leaf exactly once.
 
-    Rejects globally invalid Set structure (empty/missing Set, duplicate ids, intra-IPD cycles).
-    Classifies an individually unapproved child as ``deferred_gate`` and blocks ONLY its descendants
-    while independent approved siblings remain runnable. Parses cross-IPD child->child edges from
-    the orchestrator child-table, falling back to conservative serial inference (never prompts).
+    Reads Set inventory through ``plans_index.scan_plans`` (backed by ``artifact_meta.query``) under
+    one ``artifact_meta.scan_once()`` session. Rejects globally invalid Set structure (empty/missing
+    Set, duplicate ids, intra-IPD cycles). Classifies an individually unapproved child as
+    ``deferred_gate`` and blocks ONLY its descendants while independent approved siblings remain
+    runnable. Parses cross-IPD child->child edges from the orchestrator child-table, falling back
+    to conservative serial inference (never prompts).
     """
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        return _resolve_set_inner(plans_dir, set_id)
+
+
+def _resolve_set_inner(plans_dir: Path, set_id: str) -> SetInventory:
     entries, drift = _pindex.scan_plans(plans_dir)
     members = [e for e in entries if e.set_id == set_id]
     if not members:

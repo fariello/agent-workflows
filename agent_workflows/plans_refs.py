@@ -48,27 +48,44 @@ _BARE_STEM_RE = re.compile(r"\b(\d{8}-\d{4}-\d{2})\b")
 # metadata read/write on a plan file
 # --------------------------------------------------------------------------------------
 
-_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-_DATE_RE = re.compile(r"(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$")
-_SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
+# Writer-side fail-safe regexes retained for `_check_order_lines` (owned by Order 07/11).
 _ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")
 _ORDER_LINE_RAW_RE = re.compile(r"(?m)^- Order:[^\r\n]*")
+_VALID_DATE_RE = re.compile(r"^(?:\d{8}|\d{4}-\d{2}-\d{2})$")
+_SIGNED_INT_RE = re.compile(r"^-?\d+$")
 
 
 def _read_id(text: str) -> Optional[str]:
-    m = _ID_RE.search(text)
-    return m.group(1) if m else None
+    st = _meta.read_text(text, record_type="ipd")
+    return st.id6 if (st.id6 and _core.is_valid_id6(st.id6)) else None
 
 
 def _find_plan_by_id(plans_dir: Path, id6: str) -> Optional[Path]:
+    if not plans_dir.is_dir() or not _core.is_valid_id6(id6):
+        return None
+    pdir_res = plans_dir.resolve()
     ignored_dirs = _core.get_ignored_dirs(plans_dir)
-    for p in plans_dir.rglob("*.md"):
-        if p.name in _idx._EXCLUDE_NAMES or _core.is_ignored_path(
-            p, plans_dir, ignored_dirs
-        ):
+    ctx, records_root, scan_repo = _idx._meta_context_for_plans_dir(pdir_res)
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        res = _meta.query(type="ipd", id6=id6, project_context=ctx)
+    for st in res.rows:
+        if st.id_derived or not st.path:
             continue
-        if _read_id(p.read_text(encoding="utf-8")) == id6:
-            return p
+        try:
+            abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        if (
+            abs_p.is_file()
+            and abs_p.is_relative_to(pdir_res)
+            and abs_p.name not in _idx._EXCLUDE_NAMES
+            and not _core.is_ignored_path(abs_p, pdir_res, ignored_dirs)
+        ):
+            return abs_p
+    if pdir_res.name != "plans":
+        for p in _idx.plan_files(plans_dir, ignored_dirs=ignored_dirs):
+            if _read_id(p.read_text(encoding="utf-8")) == id6:
+                return p
     return None
 
 
@@ -135,11 +152,12 @@ def _set_metadata(
 
 
 def _plan_date(text: str) -> str:
-    m = _DATE_RE.search(text)
-    if not m:
-        return "20260101"
-    raw = m.group(1)
-    return raw.replace("-", "") if "-" in raw else raw
+    st = _meta.read_text(text, record_type="ipd")
+    raw = st.fields.get("date") or st.created_day
+    if isinstance(raw, str) and _VALID_DATE_RE.fullmatch(raw.strip()):
+        val = raw.strip()
+        return val.replace("-", "") if "-" in val else val
+    return "20260101"
 
 
 # --------------------------------------------------------------------------------------
@@ -258,7 +276,9 @@ def _slug_of(old_name: str, id6: str) -> str:
     return _core.kebab("-".join(parts)) or "plan"
 
 
-def _preserved_order(name: str, text: str) -> int:
+def _preserved_order(
+    name: str, text: str = "", *, state: Optional[_meta.State] = None
+) -> int:
     """The Order a plan ALREADY has: its front-matter ``- Order:``, else its filename's ``NN``, else 0.
 
     e3hzyc: this is what a bare ``aw group plans ... --set X`` (no ``--order``) must write, so the
@@ -268,14 +288,28 @@ def _preserved_order(name: str, text: str) -> int:
     deliberately left byte-unchanged here rather than refactored into a shared helper.
     """
 
-    om = _ORDER_LINE_RE.search(text)
-    if om:
-        return int(om.group(1))
+    if state is not None and state.created_at is not None:
+        raw_s = state.fields.get("order") if isinstance(state.fields, dict) else None
+        if isinstance(raw_s, int):
+            return raw_s
+        if isinstance(raw_s, str) and _SIGNED_INT_RE.fullmatch(raw_s.strip()):
+            return int(raw_s.strip())
+        if isinstance(state.order_nn, int):
+            return state.order_nn
+    if text:
+        st_text = _meta.read_text(text, record_type="ipd")
+        raw_t = st_text.fields.get("order")
+        if isinstance(raw_t, int):
+            return raw_t
+        if isinstance(raw_t, str) and _SIGNED_INT_RE.fullmatch(raw_t.strip()):
+            return int(raw_t.strip())
     parsed = _CLUSTERED_RE.match(name)
     return int(parsed.group("nn")) if parsed else 0
 
 
-def _preserved_date(name: str, text: str) -> str:
+def _preserved_date(
+    name: str, text: str = "", *, state: Optional[_meta.State] = None
+) -> str:
     """The date a plan ALREADY has: filename (clustered then legacy), else front matter, else 20260101.
 
     949enf: resolve date from current filename before falling back to front matter.
@@ -295,6 +329,10 @@ def _preserved_date(name: str, text: str) -> str:
     parsed_legacy = _LEGACY_TIMESTAMP_RE.match(name)
     if parsed_legacy:
         return parsed_legacy.group("date")
+    if state is not None and isinstance(state.created_day, str):
+        val = state.created_day.strip()
+        if _VALID_DATE_RE.fullmatch(val):
+            return val.replace("-", "") if "-" in val else val
     return _plan_date(text)
 
 
@@ -308,7 +346,9 @@ def _order_grammar_error(order: int) -> Optional[str]:
     return None
 
 
-def _validate_plan_order(text: str, order: int) -> Optional[str]:
+def _validate_plan_order(
+    text: str, order: int, *, state: Optional[_meta.State] = None
+) -> Optional[str]:
     """Validate that the resolved Order is permitted for the plan's Kind.
 
     Consults `ipd_schema.validate_metadata` with the plan's Kind and resolved Order.
@@ -317,9 +357,14 @@ def _validate_plan_order(text: str, order: int) -> Optional[str]:
     Silent when Kind is absent.
     """
     from agent_workflows import ipd_schema
-    from agent_workflows.runner_shared import _read_kind
 
-    kind = _read_kind(text)
+    kind: Optional[str] = None
+    if state is not None and isinstance(state.fields, dict):
+        raw_k = state.fields.get("plan_role")
+        kind = str(raw_k).strip() if raw_k else None
+    if not kind and text:
+        raw_k = _meta.read_text(text, record_type="ipd").fields.get("plan_role")
+        kind = str(raw_k).strip() if raw_k else None
     if not kind:
         return None
     fields = {"Kind": kind, "Set": "set", "Order": str(order)}
@@ -386,12 +431,17 @@ def plan_set_assign(
             if p_res not in target_paths:
                 target_paths.append(p_res)
 
+    states = _idx._cached_plan_states(plans_dir, include_fields=True)
     plans: List[RenamePlan] = []
     for i, src in enumerate(target_paths):
         if not src.exists():
             return None, f"no plans artifact matched '{src.name}'"
+        st = states.get(src.resolve())
         text = src.read_text(encoding="utf-8")
-        id6 = _read_id(text)
+        if st is not None:
+            id6 = None if st.id_derived else (st.id6 or None)
+        else:
+            id6 = _read_id(text)
         if not id6:
             return (
                 None,
@@ -400,12 +450,12 @@ def plan_set_assign(
         order = (
             (start_order + i)
             if start_order is not None
-            else _preserved_order(src.name, text)
+            else _preserved_order(src.name, text, state=st)
         )
         grammar_err = _order_grammar_error(order)
         if grammar_err:
             return None, f"plan '{id6}' ({src.name}): {grammar_err}"
-        order_err = _validate_plan_order(text, order)
+        order_err = _validate_plan_order(text, order, state=st)
         if order_err:
             if allow_invalid_order:
                 msg = f"note: plan '{id6}' ({src.name}): overridden rule: {order_err}"
@@ -420,7 +470,7 @@ def plan_set_assign(
                 )
         if rename:
             new_name = clustered_name(
-                date=_preserved_date(src.name, text),
+                date=_preserved_date(src.name, text, state=st),
                 set_id=set_k,
                 order=order,
                 id6=id6,
@@ -1008,8 +1058,13 @@ def run_mv(
             ),
         )
 
+    states = _idx._cached_plan_states(plans_dir, include_fields=True)
+    st = states.get(src.resolve())
     text = src.read_text(encoding="utf-8")
-    id6 = _read_id(text)
+    if st is not None:
+        id6 = None if st.id_derived else (st.id6 or None)
+    else:
+        id6 = _read_id(text)
     if not id6:
         msg = f"error: plan '{src.name}' declares no '- Id:'; add one with `aw ipd sync {src} --apply`"
         if emit_human:
@@ -1026,19 +1081,18 @@ def run_mv(
             ),
         )
 
-    m = _SET_LINE_RE.search(text)
-    om = _ORDER_LINE_RE.search(text)
-    existing_terse = _idx.set_terse_id(m.group(1)) if m else None
+    if st is not None:
+        existing_terse = _idx._state_set_id(st)
+    else:
+        existing_terse = _idx.set_terse_id(
+            _meta.read_text(text, record_type="ipd").legacy_raw_set
+        )
     set_id = getattr(args, "set", None) or existing_terse or id6
     # Preserve the plan's existing Order unless --order is explicitly given (vf03z3: a bare rename
     # must NOT clobber Order to 0). Prefer the front-matter Order; fall back to the current filename.
     order = getattr(args, "order", None)
     if order is None:
-        if om:
-            order = int(om.group(1))
-        else:
-            parsed = _CLUSTERED_RE.match(src.name)
-            order = int(parsed.group("nn")) if parsed else 0
+        order = _preserved_order(src.name, text, state=st)
     grammar_err = _order_grammar_error(order)
     if grammar_err:
         msg = f"error: plan '{id6}' ({src.name}): {grammar_err}"
@@ -1060,7 +1114,7 @@ def run_mv(
     # unless --allow-invalid-order is passed, consulting ipd_schema.validate_metadata.
     # Mirrors plan_set_assign.
     allow_invalid_order = bool(getattr(args, "allow_invalid_order", False))
-    order_err = _validate_plan_order(text, order)
+    order_err = _validate_plan_order(text, order, state=st)
     collected_notes: List[str] = []
     if order_err:
         if allow_invalid_order:
@@ -1085,7 +1139,7 @@ def run_mv(
             )
     # Preserve the plan's existing date (vf03z3: a bare rename must NOT recompute the date;
     # 949enf: consult clustered name, then legacy name, then front-matter fallback via _preserved_date).
-    new_date = _preserved_date(src.name, text)
+    new_date = _preserved_date(src.name, text, state=st)
     slug = getattr(args, "slug", None)
     new_name = clustered_name(
         date=new_date,
