@@ -27,6 +27,7 @@ from unittest.mock import patch
 from agent_workflows import config as CFG
 from agent_workflows import pwatch, render_stream, runners_monitor
 from agent_workflows import term as T
+from tests.record_builder import RecordBuilder
 
 
 class _FakeTTY(io.StringIO):
@@ -233,7 +234,10 @@ class GenericColorDepthTests(_DepthTestBase):
         """Cell (g): end-to-end CLI commands index plans and check at pins none, 16, 256."""
         repo_root = str(Path(__file__).resolve().parent.parent)
 
-        with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as tmp_home:
+        with (
+            tempfile.TemporaryDirectory() as fixture_dir,
+            tempfile.TemporaryDirectory() as tmp_home,
+        ):
             subprocess.run(["git", "init", "-q"], cwd=fixture_dir, check=True)
 
             plans_dir = Path(fixture_dir) / ".aw" / "records" / "plans" / "pending"
@@ -242,7 +246,16 @@ class GenericColorDepthTests(_DepthTestBase):
             backlog_dir = Path(fixture_dir) / ".aw" / "records" / "backlog" / "open"
             backlog_dir.mkdir(parents=True, exist_ok=True)
             (backlog_dir / "20261001-test01-01-test01-sample.backlog.md").write_text(
-                "# Backlog: Sample\n\n- Id: test01\n- Status: open\n- Set: test01\n- Priority: low\n- Work-Kind: chore\n- Summary: Sample\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n",
+                RecordBuilder().backlog(
+                    id6="test01",
+                    status="open",
+                    set="test01",
+                    priority="low",
+                    work_kind="chore",
+                    summary="Sample",
+                    history=["- 2026-01-01 created (aw backlog): fixture"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -466,12 +479,16 @@ class RawLiteralColorDepthTests(_DepthTestBase):
             runner_decorations=decorations,
         )
 
-        with patch("agent_workflows.pwatch.read_processes", return_value=procs), patch(
-            "agent_workflows.runners_monitor.find_active_runners",
-            return_value=[(100, Path("/dummy/run"), "run-1")],
-        ), patch(
-            "agent_workflows.runners_monitor.extract_journey_info",
-            return_value=("1/3", "myset", "abc123", "execute", 1, "agy"),
+        with (
+            patch("agent_workflows.pwatch.read_processes", return_value=procs),
+            patch(
+                "agent_workflows.runners_monitor.find_active_runners",
+                return_value=[(100, Path("/dummy/run"), "run-1")],
+            ),
+            patch(
+                "agent_workflows.runners_monitor.extract_journey_info",
+                return_value=("1/3", "myset", "abc123", "execute", 1, "agy"),
+            ),
         ):
             for pin in ("none", "16", "256", "vt100"):
                 self._capable_tty()

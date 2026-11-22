@@ -12,6 +12,7 @@ import unittest
 
 from agent_workflows import check_engine
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _run_hint(cmd: str, repo: pathlib.Path) -> tuple[int, str, str]:
@@ -122,13 +123,12 @@ class TestIdentityRenameHint(unittest.TestCase):
         """Case (c) Control: research/ conforming roadmap firing Set branch resolves (already passes at HEAD)."""
         rdir = self.repo / ".aw" / "records" / "research"
         rdir.mkdir(parents=True)
-        doc = (
-            "---\n"
-            "id: aaa111\n"
-            "set: otherset\n"
-            "status: reference\n"
-            "---\n"
-            "# Roadmap Doc\n"
+        doc = RecordBuilder().research(
+            id6="aaa111",
+            set="otherset",
+            status="reference",
+            body="# Roadmap Doc\n",
+            text_only=True,
         )
         (rdir / "20260713-occomms-09-aaa111-another-roadmap.roadmap.md").write_text(
             doc, encoding="utf-8"
@@ -168,7 +168,10 @@ class TestIdentityRenameHint(unittest.TestCase):
             / "plans"
             / "pending"
             / "20260712-1200-01-a-plan.ipd.md"
-        ).write_text("- Id: pl0001\n- Status: draft\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().plan(id6="pl0001", status="draft", text_only=True),
+            encoding="utf-8",
+        )
         (
             self.repo
             / ".aw"
@@ -177,14 +180,20 @@ class TestIdentityRenameHint(unittest.TestCase):
             / "pending"
             / "20260712-myset-02-pl0002-group-plan.ipd.md"
         ).write_text(
-            "- Id: pl0002\n- Set: othergroup\n- Status: draft\n", encoding="utf-8"
+            RecordBuilder().plan(
+                id6="pl0002", set="othergroup", status="draft", text_only=True
+            ),
+            encoding="utf-8",
         )
 
         # 2. specs
         (self.repo / ".aw" / "records" / "specs").mkdir(parents=True)
         (
             self.repo / ".aw" / "records" / "specs" / "20260712-1200-01-a-spec.spec.md"
-        ).write_text("- Id: sp0001\n- Status: draft\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().spec(id6="sp0001", status="draft", text_only=True),
+            encoding="utf-8",
+        )
 
         # 3. backlog
         (self.repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
@@ -196,7 +205,14 @@ class TestIdentityRenameHint(unittest.TestCase):
             / "open"
             / "20260712-1200-01-a-backlog.backlog.md"
         ).write_text(
-            "- Id: bk0001\n- Status: open\n- Priority: high\n- Work-Kind: bug\n- Summary: x\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                priority="high",
+                work_kind="bug",
+                summary="x",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -219,7 +235,10 @@ class TestIdentityRenameHint(unittest.TestCase):
             / "records"
             / "walkthroughs"
             / "20260712-1200-01-a-walk.walkthrough.md"
-        ).write_text("- Id: wk0001\n- Status: draft\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().walkthrough(id6="wk0001", text_only=True),
+            encoding="utf-8",
+        )
 
         # 6. releases
         (self.repo / ".aw" / "records" / "releases").mkdir(parents=True)
@@ -229,7 +248,12 @@ class TestIdentityRenameHint(unittest.TestCase):
             / "records"
             / "releases"
             / "20260712-1200-01-a-release.release.md"
-        ).write_text("- Id: rl0001\n- Status: draft\n", encoding="utf-8")
+        ).write_text(
+            RecordBuilder().release(
+                id6="rl0001", raw_fields={"Status": "draft"}, text_only=True
+            ),
+            encoding="utf-8",
+        )
 
         # 7. roadmaps
         (self.repo / ".aw" / "records" / "roadmaps").mkdir(parents=True)
@@ -250,7 +274,13 @@ class TestIdentityRenameHint(unittest.TestCase):
             / "research"
             / "20260713-occomms-09-rs0001-research.roadmap.md"
         ).write_text(
-            "---\nid: rs0001\nset: otherset\nstatus: reference\n---\n# Doc\n",
+            RecordBuilder().research(
+                id6="rs0001",
+                set="otherset",
+                status="reference",
+                body="# Doc\n",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

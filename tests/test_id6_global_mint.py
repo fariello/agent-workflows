@@ -7,33 +7,23 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_core as core
+from tests.record_builder import RecordBuilder
 
 RESEARCH = ".aw/records/research"
 
-QUOTING_REPORT_TEXT = """---
-id: own111
-kind: research-report
----
+QUOTING_REPORT_TEXT = RecordBuilder().research(
+    id6="own111",
+    research_kind="research-report",
+    body="\n# Report\n\nHere is an example of a plan's metadata block:\n\n```markdown\n- Id: qut111\n- Status: approved\n```\n",
+    text_only=True,
+)
 
-# Report
-
-Here is an example of a plan's metadata block:
-
-```markdown
-- Id: qut111
-- Status: approved
-```
-"""
-
-NON_QUOTING_REPORT_TEXT = """---
-id: own111
-kind: research-report
----
-
-# Report
-
-No quoted metadata block here.
-"""
+NON_QUOTING_REPORT_TEXT = RecordBuilder().research(
+    id6="own111",
+    research_kind="research-report",
+    body="\n# Report\n\nNo quoted metadata block here.\n",
+    text_only=True,
+)
 
 
 class GlobalMintSupersetTests(unittest.TestCase):
