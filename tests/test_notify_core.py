@@ -50,6 +50,7 @@ from agent_workflows.notify import (
     seen_event,
     tracked_secret_warnings,
 )
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -429,7 +430,7 @@ def test_apply_inbound_duplicate_and_unverified(
 
 def _make_dummy_plan(repo: Path, id6: str = "txl556") -> Path:
     plan = repo / f"20261017-qchan-09-{id6}-test.ipd.md"
-    plan.write_text(f"# Plan {id6}\n- Id: {id6}\n", encoding="utf-8")
+    plan.write_text(RecordBuilder().plan(id6=id6, text_only=True), encoding="utf-8")
     return plan
 
 

@@ -35,6 +35,7 @@ from agent_workflows.notify import (
 )
 from agent_workflows.notify.telegram import TelegramChannel
 from tests.fake_telegram import run_fake_telegram
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -70,7 +71,7 @@ def _park(
     repo: Path, run_dir: Path, position: int, id6: str, text: str, options=None
 ) -> str:
     plan = repo / f"20261017-qchan-{position:02d}-{id6}-test.ipd.md"
-    plan.write_text(f"# Plan {id6}\n- Id: {id6}\n", encoding="utf-8")
+    plan.write_text(RecordBuilder().plan(id6=id6, text_only=True), encoding="utf-8")
     item = {
         "position": position,
         "id6": id6,

@@ -33,6 +33,7 @@ import pytest
 from agent_workflows import cli, question_inbox
 from agent_workflows.notify import registry
 from tests.fake_telegram import run_fake_telegram
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -837,7 +838,9 @@ def test_listen_lifecycle_and_answering(
 
     # Write a registered open question in run_dir through question_inbox
     plan1 = tmp_path / "20261017-qchan-09-it0001-test.ipd.md"
-    plan1.write_text("# Plan it0001\n- Id: it0001\n", encoding="utf-8")
+    plan1.write_text(
+        RecordBuilder().plan(id6="it0001", text_only=True), encoding="utf-8"
+    )
     item1 = {
         "position": 1,
         "id6": "it0001",

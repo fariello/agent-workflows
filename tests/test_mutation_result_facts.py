@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import artifact_rename, plans_refs, research_refs
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -38,7 +39,9 @@ def test_plans_backend_facts_preview_and_apply(temp_repo: Path):
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     plan_file = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
-    plan_file.write_text("# Plan Demo\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+    plan_file.write_text(
+        RecordBuilder().plan(id6="abc123", set="eeiytw", order=1, text_only=True)
+    )
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init plans", "-q"], cwd=temp_repo, check=True
@@ -92,7 +95,9 @@ def test_artifact_rename_backend_facts_preview_and_apply(temp_repo: Path):
     sdir = temp_repo / ".aw/records/specs"
     sdir.mkdir(parents=True, exist_ok=True)
     spec_file = sdir / "20261001-abc123-01-abc123-demo.spec.md"
-    spec_file.write_text("# Spec Demo\n\n- Id: abc123\n- Set: abc123\n- Order: 01\n")
+    spec_file.write_text(
+        RecordBuilder().spec(id6="abc123", set="abc123", order=1, text_only=True)
+    )
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init specs", "-q"], cwd=temp_repo, check=True
@@ -136,21 +141,23 @@ def test_research_backend_facts_preview_and_apply(temp_repo: Path):
     rdir = temp_repo / ".aw/records/research"
     rdir.mkdir(parents=True, exist_ok=True)
     res_file = rdir / "20261001-seta-01-r1id66-demo.findings.md"
-    res_file.write_text("""---
-id: r1id66
-created: 20261001
-set: seta
-order: 01
-topic: [testing]
-model: gpt5
-kind: findings
-status: active
-outcome: adopted
-summary: test
-consumed-by: []
----
-# Res
-""")
+    res_file.write_text(
+        RecordBuilder().research(
+            id6="r1id66",
+            when="2026-10-01",
+            set="seta",
+            order=1,
+            topic=["testing"],
+            model="gpt5",
+            research_kind="findings",
+            status="active",
+            outcome="adopted",
+            summary="test",
+            consumed_by=[],
+            body="# Res\n",
+            text_only=True,
+        )
+    )
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init research", "-q"], cwd=temp_repo, check=True
@@ -194,21 +201,23 @@ def test_research_index_refusal_captured_on_drift(temp_repo: Path):
     rdir.mkdir(parents=True, exist_ok=True)
     # Valid doc to move
     r1 = rdir / "20261001-seta-01-r1id66-demo.findings.md"
-    r1.write_text("""---
-id: r1id66
-created: 20261001
-set: seta
-order: 01
-topic: [testing]
-model: gpt5
-kind: findings
-status: active
-outcome: adopted
-summary: test
-consumed-by: []
----
-# Res
-""")
+    r1.write_text(
+        RecordBuilder().research(
+            id6="r1id66",
+            when="2026-10-01",
+            set="seta",
+            order=1,
+            topic=["testing"],
+            model="gpt5",
+            research_kind="findings",
+            status="active",
+            outcome="adopted",
+            summary="test",
+            consumed_by=[],
+            body="# Res\n",
+            text_only=True,
+        )
+    )
     # Drift doc: missing frontmatter block
     r2 = rdir / "20261001-seta-02-r2id66-drift.findings.md"
     r2.write_text("# Drift doc with no frontmatter\n")
@@ -249,21 +258,23 @@ def test_research_index_clean_no_drift_diagnostic(temp_repo: Path):
     rdir = temp_repo / ".aw/records/research"
     rdir.mkdir(parents=True, exist_ok=True)
     r1 = rdir / "20261001-seta-01-r1id66-demo.findings.md"
-    r1.write_text("""---
-id: r1id66
-created: 20261001
-set: seta
-order: 01
-topic: [testing]
-model: gpt5
-kind: findings
-status: active
-outcome: adopted
-summary: test
-consumed-by: []
----
-# Res
-""")
+    r1.write_text(
+        RecordBuilder().research(
+            id6="r1id66",
+            when="2026-10-01",
+            set="seta",
+            order=1,
+            topic=["testing"],
+            model="gpt5",
+            research_kind="findings",
+            status="active",
+            outcome="adopted",
+            summary="test",
+            consumed_by=[],
+            body="# Res\n",
+            text_only=True,
+        )
+    )
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init clean research", "-q"], cwd=temp_repo, check=True
@@ -290,7 +301,9 @@ def test_refusals_carry_diagnostics(temp_repo: Path):
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     f1 = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
-    f1.write_text("# Plan Demo\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+    f1.write_text(
+        RecordBuilder().plan(id6="abc123", set="eeiytw", order=1, text_only=True)
+    )
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init plans", "-q"], cwd=temp_repo, check=True
@@ -351,33 +364,41 @@ def test_human_stdout_byte_identical(temp_repo: Path):
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
-    pf.write_text("# Plan\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+    pf.write_text(
+        RecordBuilder().plan(id6="abc123", set="eeiytw", order=1, text_only=True)
+    )
 
     sdir = temp_repo / ".aw/records/specs"
     sdir.mkdir(parents=True, exist_ok=True)
     sf1 = sdir / "20261001-abc123-01-abc123-demo.spec.md"
-    sf1.write_text("# Spec\n\n- Id: abc123\n- Set: abc123\n- Order: 01\n")
+    sf1.write_text(
+        RecordBuilder().spec(id6="abc123", set="abc123", order=1, text_only=True)
+    )
     sf2 = sdir / "20261001-s2id66-01-s2id66-second.spec.md"
-    sf2.write_text("# Spec 2\n\n- Id: s2id66\n- Set: s2id66\n- Order: 01\n")
+    sf2.write_text(
+        RecordBuilder().spec(id6="s2id66", set="s2id66", order=1, text_only=True)
+    )
 
     rdir = temp_repo / ".aw/records/research"
     rdir.mkdir(parents=True, exist_ok=True)
     rf = rdir / "20261001-seta-01-r1id66-res.findings.md"
-    rf.write_text("""---
-id: r1id66
-created: 20261001
-set: seta
-order: 01
-topic: [slash-commands]
-model: reconciliation
-kind: findings
-status: active
-outcome: adopted
-summary: test
-consumed-by: []
----
-# Res
-""")
+    rf.write_text(
+        RecordBuilder().research(
+            id6="r1id66",
+            when="2026-10-01",
+            set="seta",
+            order=1,
+            topic=["slash-commands"],
+            model="reconciliation",
+            research_kind="findings",
+            status="active",
+            outcome="adopted",
+            summary="test",
+            consumed_by=[],
+            body="# Res\n",
+            text_only=True,
+        )
+    )
 
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(["git", "commit", "-m", "init all", "-q"], cwd=temp_repo, check=True)
@@ -511,7 +532,9 @@ def test_self_commit_path_set_unchanged(temp_repo: Path):
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     f1 = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
-    f1.write_text("# Plan\n\n- Id: abc123\n- Set: eeiytw\n- Order: 01\n")
+    f1.write_text(
+        RecordBuilder().plan(id6="abc123", set="eeiytw", order=1, text_only=True)
+    )
     subprocess.run(["git", "add", "."], cwd=temp_repo, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init plans", "-q"], cwd=temp_repo, check=True
