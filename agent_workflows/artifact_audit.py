@@ -77,17 +77,11 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import selectors as _sel
-
-# The status bullet as this audit reads it. Kept byte-identical to the pattern that shipped inside
-# `run_viewer` (`^- Status:\s*(\S+)\s*$`) so the extraction changes no verdict: a multi-word status
-# yields NO match here, exactly as before, which matches `selectors._STATUS_RE`'s documented parity
-# constraint rather than `plans_index._META_RE`'s looser reading.
-_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
 
 # Every record type whose tree may hold an artifact this audit is asked about. `selectors.resolve`
 # takes ONE `record_type` per call and there is deliberately no all-types entry point, so a caller
@@ -1291,18 +1285,145 @@ def find_artifact(
     return ArtifactLookup()
 
 
-def read_declared_status(path: Path) -> Optional[str]:
-    """The record's own single-token ``- Status:`` value, or None when absent/unreadable.
-
-    A multi-word status yields None, matching the pattern that shipped inside `run_viewer` and
-    `selectors._STATUS_RE`'s documented parity constraint.
-    """
+def _is_plan_path(path: Path) -> bool:
+    """Return True when ``path`` identifies a plan record by facet or directory tree."""
+    if path.name.endswith(".ipd.md"):
+        return True
     try:
-        txt = Path(path).read_text(encoding="utf-8", errors="ignore")
+        parts = path.resolve().parts
+    except OSError:
+        parts = path.parts
+    for i in range(len(parts) - 1):
+        if parts[i : i + 3] == (".aw", "records", "plans"):
+            return True
+        if parts[i : i + 2] == (".agents", "plans"):
+            return True
+    return False
+
+
+def _infer_repo_root_for_path(path: Path) -> Optional[Path]:
+    """Infer the repository root owning ``path`` if it lies under a records tree."""
+    try:
+        p_res = path.resolve()
     except OSError:
         return None
-    m = _STATUS_LINE_RE.search(txt)
-    return m.group(1).strip() if m else None
+    for cand in p_res.parents:
+        cparts = cand.parts
+        if len(cparts) >= 2 and cparts[-2:] == (".aw", "records"):
+            return cand.parents[1]
+        if cparts and cparts[-1] == ".agents":
+            return cand.parent
+    try:
+        from agent_workflows import project_context as _proj_ctx
+
+        return _proj_ctx.record_owner_root(p_res)
+    except Exception:
+        return None
+
+
+def _cached_state_for_path(
+    path: Path, *, repo_root: Optional[Path] = None
+) -> Optional[Any]:
+    """Return the cached ``artifact_meta.State`` for ``path``, or ``None`` if outside/unindexed."""
+    from agent_workflows import artifact_meta as _am
+
+    root = Path(repo_root) if repo_root is not None else _infer_repo_root_for_path(path)
+    if root is None:
+        return None
+    try:
+        p_res = path.resolve()
+        ctx = _am.legacy_context(root)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _am._scan_repo_root(ctx, records_root)
+        in_records = records_root.is_dir() and p_res.is_relative_to(
+            records_root.resolve()
+        )
+        in_legacy = (
+            scan_repo is not None
+            and (scan_repo / ".agents").is_dir()
+            and p_res.is_relative_to((scan_repo / ".agents").resolve())
+        )
+        if not (in_records or in_legacy):
+            return None
+        state_root = Path(ctx.logical_roots["state"])
+        if (
+            not (state_root / "index.db").exists()
+            and not (records_root / "meta").is_dir()
+            and _am._SCAN_ONCE_CONNS.get() is None
+        ):
+            # Without a persistent index.db, log-format meta/ tree, or active scan_once() session,
+            # querying under ephemeral_if_uninitialized() parses every record in the repo into a
+            # throwaway :memory: DB on each call. Fall back to single-file artifact_meta.read_text.
+            return None
+        stored_p = _am.stored_path(p_res, records_root, scan_repo)
+        with _am.ephemeral_if_uninitialized():
+            res = _am.query(path=stored_p, project_context=ctx)
+        for st in res.rows:
+            if st.path == stored_p:
+                return st
+    except Exception:
+        return None
+    return None
+
+
+def _status_from_state(st: Any, *, is_plan: bool) -> Optional[str]:
+    """Extract declared status from an ``artifact_meta.State`` under decision D-1.
+
+    PLAN records return the canonical normalized status (``plans.normalize_status`` of the first
+    token, preserving single-token unrecognized statuses such as ``complete``). Non-plan records
+    return their raw single-token status, or ``None`` for multi-word values.
+    """
+    raw = getattr(st, "legacy_raw_status", None)
+    if raw is None or not str(raw).strip():
+        raw = getattr(st, "status", None)
+    if not raw or not str(raw).strip():
+        return None
+    toks = str(raw).strip().split()
+    if not toks:
+        return None
+    if is_plan:
+        from agent_workflows import plans as _plans
+
+        norm = _plans.normalize_status(toks[0])
+        if norm != _plans.LEGACY_GROUP:
+            return norm
+        return toks[0] if len(toks) == 1 else norm
+    return toks[0] if len(toks) == 1 else None
+
+
+def read_declared_status(
+    path: Path,
+    *,
+    repo_root: Optional[Path] = None,
+    record_type: Optional[str] = None,
+) -> Optional[str]:
+    """The record's declared ``- Status:`` value via ``artifact_meta``, or None when absent/unreadable.
+
+    Applies decision D-1: PLAN records return the canonical normalized status (so multi-word
+    executed plans normalize to ``executed``), while every other record type keeps its strict
+    raw single-token status (multi-word yields ``None``).
+    """
+    from agent_workflows import artifact_meta as _am
+
+    p = Path(path)
+    st = _cached_state_for_path(p, repo_root=repo_root)
+    if st is not None:
+        if record_type is not None:
+            is_plan = record_type.strip().lower() in ("ipd", "plan", "plans")
+        else:
+            is_plan = getattr(st, "type", None) == "ipd"
+        return _status_from_state(st, is_plan=is_plan)
+
+    try:
+        txt = p.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    st = _am.read_text(txt)
+    if record_type is not None:
+        is_plan = record_type.strip().lower() in ("ipd", "plan", "plans")
+    else:
+        is_plan = _is_plan_path(p)
+    return _status_from_state(st, is_plan=is_plan)
 
 
 def audit_artifact(
@@ -1428,7 +1549,7 @@ def audit_artifact(
 
     actual_dir = actual_file.parent.name
     actual_disposition = _disposition_dir(actual_file)
-    file_status = read_declared_status(actual_file)
+    file_status = read_declared_status(actual_file, repo_root=repo_root)
 
     # A run status of `retired` (runner_shared.RETIRED_STATUS) names the CLASS of disposition, not
     # which retired directory: the plan's own declared status says whether it is `superseded` or
@@ -1557,7 +1678,7 @@ def audit_tracked_artifact(repo_root: Path, path: Path) -> Optional[ArtifactAudi
     while the same file in ``pending/`` declaring ``- Status: executed`` does yield ``IPD-M105``.
     """
     path = Path(path)
-    declared = read_declared_status(path)
+    declared = read_declared_status(path, repo_root=repo_root)
     if not declared:
         return None
     expected = expected_dir_for_status(declared)
