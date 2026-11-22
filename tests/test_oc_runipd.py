@@ -33,6 +33,7 @@ from agent_workflows import orchestrate_isolation
 from tests import support
 from tests.repo_template import copy_template_repo
 from tests.support import REPO_ROOT
+from tests.record_builder import RecordBuilder
 
 # Scrub AW_CONFIG_DIR so unittest without conftest does not leak ambient agent config
 os.environ.pop("AW_CONFIG_DIR", None)
@@ -144,12 +145,12 @@ class DriverTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True, exist_ok=True)
             for order, id6 in enumerate(("aaaaaa", "bbbbbb"), start=1):
-                text = _CONFORMING_PLAN.format(id6=id6)
-                if id6 == "bbbbbb":
-                    text = text.replace(
-                        "- Item-Dependencies: none",
-                        "- Item-Dependencies: executed:aaaaaa",
-                    )
+                text = _conforming_plan_text(
+                    id6=id6,
+                    item_dependencies=(
+                        "executed:aaaaaa" if id6 == "bbbbbb" else "none"
+                    ),
+                )
                 (pending / f"20260824-demo-{order:02d}-{id6}-test.ipd.md").write_text(
                     text,
                     encoding="utf-8",
@@ -261,14 +262,15 @@ class ReviewPlanRoutingTests(unittest.TestCase):
             pending.mkdir(parents=True, exist_ok=True)
 
             def _to_review_text(ident: str) -> str:
-                t = _CONFORMING_PLAN.format(id6=ident).replace(
-                    "- Status: approved", "- Status: to-review"
+                return _conforming_plan_text(
+                    id6=ident,
+                    status="to-review",
+                    approval=None,
+                    history=[
+                        "- 2026-08-28 /plan-review (test): APPROVE",
+                        "- 2026-08-28 draft (test): created.",
+                    ],
                 )
-                import re as _re
-
-                t = _re.sub(r"- Approval:[^\n]*\n", "", t)
-                t = _re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", t)
-                return t
 
             p1 = pending / "20260824-demo-01-rev001-test.ipd.md"
             p1.write_text(_to_review_text("rev001"), encoding="utf-8")
@@ -369,12 +371,24 @@ class SelectorResolutionTests(unittest.TestCase):
             pending.mkdir(parents=True, exist_ok=True)
             p1 = pending / "20260824-myset-01-abc111-first.ipd.md"
             p1.write_text(
-                "- Id: abc111\n- Set: myset\n- Status: to-review\n# First\n",
+                RecordBuilder().plan(
+                    title="First",
+                    id6="abc111",
+                    set="myset",
+                    status="to-review",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             p2 = pending / "20260824-myset-02-abc222-second.ipd.md"
             p2.write_text(
-                "- Id: abc222\n- Set: myset\n- Status: approved\n# Second\n",
+                RecordBuilder().plan(
+                    title="Second",
+                    id6="abc222",
+                    set="myset",
+                    status="approved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -624,7 +638,8 @@ class SelectorErrorTests(unittest.TestCase):
             backlog_dir = repo / ".aw" / "records" / "backlog" / "open"
             backlog_dir.mkdir(parents=True)
             (backlog_dir / "20260829-test-01-item01.backlog.md").write_text(
-                "- Id: item01\n- Status: open\n", encoding="utf-8"
+                RecordBuilder().backlog(id6="item01", status="open", text_only=True),
+                encoding="utf-8",
             )
             manifest = {"schema_version": 1, "plans": {}, "sets": {}}
             selected = driver.expand_selectors(manifest, ["item01"], repo=repo)
@@ -638,7 +653,8 @@ class SelectorErrorTests(unittest.TestCase):
             specs_dir = repo / ".aw" / "records" / "specs"
             specs_dir.mkdir(parents=True)
             (specs_dir / "20260829-0001-01-myspec.spec.md").write_text(
-                "- Id: spec01\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().spec(id6="spec01", status="approved", text_only=True),
+                encoding="utf-8",
             )
             manifest = {"schema_version": 1, "plans": {}, "sets": {}}
             selected = driver.expand_selectors(manifest, ["spec01"], repo=repo)
@@ -1986,17 +2002,13 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             p_field = Path(t) / "plan_field.md"
             p_field.write_text(
-                textwrap.dedent(
-                    """\
-                    # Test Plan
-
-                    - Id: test03
-                    - Status: reviewed
-                    - Readiness: go-pending-approval
-
-                    ## Workflow history
-                    - 2026-08-24 /plan-review (opencode): APPROVE; PR-001
-                    """
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="test03",
+                    status="reviewed",
+                    readiness="go-pending-approval",
+                    history=["- 2026-08-24 /plan-review (opencode): APPROVE; PR-001"],
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
@@ -2005,17 +2017,15 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             # The adversarial case: the OLD prose phrase present, the structured field says no.
             p_conflict = Path(t) / "plan_conflict.md"
             p_conflict.write_text(
-                textwrap.dedent(
-                    """\
-                    # Test Plan
-
-                    - Id: test04
-                    - Status: reviewed
-                    - Readiness: no-go
-
-                    ## Workflow history
-                    - 2026-08-24 /plan-review (opencode): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL.
-                    """
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="test04",
+                    status="reviewed",
+                    readiness="no-go",
+                    history=[
+                        "- 2026-08-24 /plan-review (opencode): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL."
+                    ],
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
@@ -2025,15 +2035,14 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             p_go = Path(t) / "plan_go.md"
             p_go.write_text(
-                textwrap.dedent(
-                    """\
-                    - Id: test01
-                    - Status: reviewed
-                    # Test Plan
-
-                    ## Workflow history
-                    - 2026-08-24 /plan-review (opencode): APPROVE WITH REVISIONS APPLIED; PR-001 fixed. Readiness: GO - PENDING HUMAN APPROVAL.
-                    """
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="test01",
+                    status="reviewed",
+                    history=[
+                        "- 2026-08-24 /plan-review (opencode): APPROVE WITH REVISIONS APPLIED; PR-001 fixed. Readiness: GO - PENDING HUMAN APPROVAL."
+                    ],
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
@@ -2041,15 +2050,14 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
 
             p_nogo = Path(t) / "plan_nogo.md"
             p_nogo.write_text(
-                textwrap.dedent(
-                    """\
-                    - Id: test02
-                    - Status: reviewed
-                    # Test Plan
-
-                    ## Workflow history
-                    - 2026-08-24 /plan-review (opencode): REVIEWED - OPEN QUESTIONS; findings G1-G7. Readiness: NO-GO until OQ1 is decided (then GO - PENDING HUMAN APPROVAL).
-                    """
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="test02",
+                    status="reviewed",
+                    history=[
+                        "- 2026-08-24 /plan-review (opencode): REVIEWED - OPEN QUESTIONS; findings G1-G7. Readiness: NO-GO until OQ1 is decided (then GO - PENDING HUMAN APPROVAL)."
+                    ],
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
@@ -2066,11 +2074,15 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True, exist_ok=True)
             p1 = pending / "20260824-demo-01-fa0001-test.ipd.md"
-            t = _CONFORMING_PLAN.format(id6="fa0001").replace(
-                "- Status: approved\n", "- Status: to-review\n"
+            t = _conforming_plan_text(
+                id6="fa0001",
+                status="to-review",
+                approval=None,
+                history=[
+                    "- 2026-08-28 /plan-review (test): APPROVE",
+                    "- 2026-08-28 draft (test): created.",
+                ],
             )
-            t = re.sub(r"- Approval:[^\n]*\n", "", t)
-            t = re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", t)
             p1.write_text(t, encoding="utf-8")
 
             fake = root / "fake_opencode"
@@ -2179,11 +2191,15 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True, exist_ok=True)
             p1 = pending / "20260824-demo-01-nofa01-test.ipd.md"
-            t = _CONFORMING_PLAN.format(id6="nofa01").replace(
-                "- Status: approved\n", "- Status: to-review\n"
+            t = _conforming_plan_text(
+                id6="nofa01",
+                status="to-review",
+                approval=None,
+                history=[
+                    "- 2026-08-28 /plan-review (test): APPROVE",
+                    "- 2026-08-28 draft (test): created.",
+                ],
             )
-            t = re.sub(r"- Approval:[^\n]*\n", "", t)
-            t = re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", t)
             p1.write_text(t, encoding="utf-8")
 
             fake = support.make_fake_executable(
@@ -2267,13 +2283,22 @@ class RunipdBugsFixesTests(unittest.TestCase):
         pending.mkdir(parents=True)
         executed.mkdir(parents=True)
         (pending / "20260919-dep-01-dep001-reviewed-plan.ipd.md").write_text(
-            "# IPD: d1\n\n- Id: dep001\n- Status: reviewed\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="d1", id6="dep001", status="reviewed", text_only=True
+            ),
+            encoding="utf-8",
         )
         (pending / "20260919-dep-02-dep002-approved-plan.ipd.md").write_text(
-            "# IPD: d2\n\n- Id: dep002\n- Status: approved\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="d2", id6="dep002", status="approved", text_only=True
+            ),
+            encoding="utf-8",
         )
         (executed / "20260919-dep-03-dep003-executed-plan.ipd.md").write_text(
-            "# IPD: d3\n\n- Id: dep003\n- Status: executed\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="d3", id6="dep003", status="executed", text_only=True
+            ),
+            encoding="utf-8",
         )
         state = {
             "repo": str(repo),
@@ -2328,10 +2353,13 @@ class RunipdBugsFixesTests(unittest.TestCase):
         # were rewritten (they previously asserted the legacy field parsed) so they now pin the
         # CANONICAL behavior. The `_read_set` assertions below are unchanged.
         # Canonical typed statement: read through the SHARED grammar, qualifiers preserved.
-        canonical = (
-            "# IPD: aaaaaa\n\n- Id: aaaaaa\n"
-            '- Set: "my-set" (descriptive)\n'
-            "- Item-Dependencies: executed:5ahblp, exists:spec:pr2nd0\n\n## Goal\n"
+        canonical = RecordBuilder().plan(
+            title="aaaaaa",
+            id6="aaaaaa",
+            set='"my-set" (descriptive)',
+            item_dependencies="executed:5ahblp, exists:spec:pr2nd0",
+            body="## Goal",
+            text_only=True,
         )
         self.assertEqual(
             driver._read_item_dependencies(canonical),
@@ -2340,18 +2368,42 @@ class RunipdBugsFixesTests(unittest.TestCase):
         self.assertEqual(driver._read_set(canonical), "my-set")
 
         # The legacy field names no longer contribute dependencies.
-        legacy1 = '- Dependencies: [5ahblp, pr2nd0]\n- Set: "my-set" (descriptive)'
+        legacy1 = RecordBuilder().plan(
+            title="aaaaaa",
+            id6="aaaaaa",
+            raw_fields={
+                "Dependencies": "[5ahblp, pr2nd0]",
+                "Set": '"my-set" (descriptive)',
+                "Item-Dependencies": None,
+            },
+            text_only=True,
+        )
         self.assertEqual(driver._read_item_dependencies(legacy1), ([], None))
         self.assertEqual(driver._read_set(legacy1), "my-set")
 
-        legacy2 = "- Depends-on: ['5ahblp', 'pr2nd0']\n- Set: 'custom-set'"
+        legacy2 = RecordBuilder().plan(
+            title="aaaaaa",
+            id6="aaaaaa",
+            raw_fields={
+                "Depends-on": "['5ahblp', 'pr2nd0']",
+                "Set": "'custom-set'",
+                "Item-Dependencies": None,
+            },
+            text_only=True,
+        )
         self.assertEqual(driver._read_item_dependencies(legacy2), ([], None))
         self.assertEqual(driver._read_set(legacy2), "custom-set")
 
         # `none` / `unresolved` / absent all mean "no edges" (the MISSING-vs-`none` judgement
         # belongs to the shared evaluator, not the runner; see 8guhs0 OQ-02).
         for value in ("none", "unresolved", ""):
-            text = f"# IPD: aaaaaa\n\n- Id: aaaaaa\n- Item-Dependencies: {value}\n\n## Goal\n"
+            text = RecordBuilder().plan(
+                title="aaaaaa",
+                id6="aaaaaa",
+                item_dependencies=value,
+                body="## Goal",
+                text_only=True,
+            )
             self.assertEqual(driver._read_item_dependencies(text), ([], None))
 
     def test_atomic_write_json_directory_fsync_suppresses_oserror(self):
@@ -2681,7 +2733,13 @@ class VerifierPromptTests(unittest.TestCase):
 
             plan_p = pending_dir / "20260827-testset-01-xyz999-test-plan.ipd.md"
             plan_p.write_text(
-                "- Id: xyz999\n- Set: testset\n- Status: approved\n# Test Plan\n",
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="xyz999",
+                    set="testset",
+                    status="approved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -2709,15 +2767,39 @@ class OrchestratorNotAgentExecutedTests(unittest.TestCase):
         pending = repo / ".aw" / "records" / "plans" / "pending"
         pending.mkdir(parents=True, exist_ok=True)
         (pending / "20260827-oset-00-orc001-orchestrator.ipd.md").write_text(
-            "- Id: orc001\n- Set: oset\n- Order: 0\n- Kind: orchestrator\n- Status: approved\n# Orch\n",
+            RecordBuilder().plan(
+                title="Orch",
+                id6="orc001",
+                set="oset",
+                order=0,
+                plan_role="orchestrator",
+                status="approved",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (pending / "20260827-oset-01-chi001-child-one.ipd.md").write_text(
-            "- Id: chi001\n- Set: oset\n- Order: 1\n- Kind: child\n- Status: approved\n# Child1\n",
+            RecordBuilder().plan(
+                title="Child1",
+                id6="chi001",
+                set="oset",
+                order=1,
+                plan_role="child",
+                status="approved",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         (pending / "20260827-oset-02-chi002-child-two.ipd.md").write_text(
-            "- Id: chi002\n- Set: oset\n- Order: 2\n- Kind: child\n- Status: approved\n# Child2\n",
+            RecordBuilder().plan(
+                title="Child2",
+                id6="chi002",
+                set="oset",
+                order=2,
+                plan_role="child",
+                status="approved",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -2806,101 +2888,105 @@ class OrchestratorNotAgentExecutedTests(unittest.TestCase):
 
 # --- driverfin-01 (p7peqf): driver self-finalize (aw ipd begin before + aw ipd finalize after) ---
 
-_CONFORMING_PLAN = """\
-# IPD: Demo self-finalize
 
-- Date: 2026-08-28
-- Kind: child
-- Concern: demo concern for the self-finalize test.
-- Scope: demo scope.
-- Scope-Paths: src/
-- Item-Dependencies: none
-- Status: approved
-- Set: demo
-- Order: 1
-- Highest E allocated: 01
-- Priority: medium
-- Work-Kind: chore
-- Author: test
-- Id: {id6}
-- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
-- Readiness: go-pending-approval
+def _conforming_plan_text(
+    *,
+    id6: str | None = None,
+    status: str = "approved",
+    scope_paths: str = "src/",
+    item_dependencies: str = "none",
+    from_backlog: str | None = None,
+    approval: str
+    | None = "2026-08-28, recorded via aw ipd set: status set to approved",
+    readiness: str | None = "go-pending-approval",
+    history: list[str] | None = None,
+) -> str:
+    raw_fields: dict[str, Any] = {
+        "Concern": "demo concern for the self-finalize test.",
+        "Scope": "demo scope.",
+    }
+    if id6 is None:
+        raw_fields["Id"] = "{id6}"
+    extra: dict[str, Any] = {}
+    if from_backlog is not None:
+        extra["from_backlog"] = from_backlog
+    eff_history = (
+        history
+        if history is not None
+        else [
+            "- 2026-08-28 approved (aw set): status set to approved",
+            "- 2026-08-28 /plan-review (test): APPROVE",
+            "- 2026-08-28 draft (test): created.",
+        ]
+    )
+    return str(
+        RecordBuilder().plan(
+            title="Demo self-finalize",
+            when="2026-08-28",
+            plan_role="child",
+            scope_paths=scope_paths,
+            item_dependencies=item_dependencies,
+            status=status,
+            set="demo",
+            order=1,
+            highest_e_allocated="01",
+            priority="medium",
+            work_kind="chore",
+            author="test",
+            id6=id6 or "slf001",
+            approval=approval,
+            readiness=readiness,
+            history=eff_history,
+            raw_fields=raw_fields,
+            body=(
+                "## Goal\n\n"
+                "Demo goal sentence.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.\n\n"
+                "### Task group 1: demo\n\n"
+                "- [x] E-01 Create the demo file.\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: the demo file exists.\n"
+                "  - Execution state: performed\n\n"
+                "## Project conventions discovered (Step 0)\n\n"
+                "- demo convention.\n\n"
+                "## Findings\n\n"
+                "demo findings.\n\n"
+                "## Proposed changes (ordered, validatable)\n\n"
+                "1. src/demo.txt: create it.\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                "none.\n\n"
+                "## Scope check\n\n"
+                "- Over-scope: none.\n"
+                "- Under-scope: none.\n\n"
+                "## Required tests / validation\n\n"
+                "Manual check that src/demo.txt exists.\n\n"
+                "## Spec / documentation sync\n\n"
+                "N/A: demo only.\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: none?\n\n"
+                "- Blocking: no\n"
+                "- Status: resolved\n"
+                "- Owner: none\n"
+                "- Resolution or deferral rationale: none.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "Validation-state rule: inspect evidence in a separate pass.\n\n"
+                "- [x] V-01 validates E-01\n"
+                "  - Required evidence: src/demo.txt present.\n"
+                "  - Observed evidence: src/demo.txt present.\n"
+                "  - Result: pass\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required\n\n"
+                "Execution contract: commit path-scoped; do not push."
+            ),
+            text_only=True,
+            **extra,
+        )
+    )
 
-## Workflow history
 
-- 2026-08-28 approved (aw set): status set to approved
-- 2026-08-28 /plan-review (test): APPROVE
-- 2026-08-28 draft (test): created.
-
-## Goal
-
-Demo goal sentence.
-
-## Detailed Implementation Checklist (TODO)
-
-Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
-
-### Task group 1: demo
-
-- [x] E-01 Create the demo file.
-  - Depends on: none
-  - Expected outcome: the demo file exists.
-  - Execution state: performed
-
-## Project conventions discovered (Step 0)
-
-- demo convention.
-
-## Findings
-
-demo findings.
-
-## Proposed changes (ordered, validatable)
-
-1. src/demo.txt: create it.
-
-## Deferred / out of scope (with reason)
-
-none.
-
-## Scope check
-
-- Over-scope: none.
-- Under-scope: none.
-
-## Required tests / validation
-
-Manual check that src/demo.txt exists.
-
-## Spec / documentation sync
-
-N/A: demo only.
-
-## Open questions
-
-### OQ-01: none?
-
-- Blocking: no
-- Status: resolved
-- Owner: none
-- Resolution or deferral rationale: none.
-
-## Validation and cross-check (verify before reporting done)
-
-Validation-state rule: inspect evidence in a separate pass.
-
-- [x] V-01 validates E-01
-  - Required evidence: src/demo.txt present.
-  - Observed evidence: src/demo.txt present.
-  - Result: pass
-
-## Approval and execution gate
-
-- Size assessment: standard
-- Cohesion rationale: not required
-
-Execution contract: commit path-scoped; do not push.
-"""
+_CONFORMING_PLAN = _conforming_plan_text(id6=None)
 
 
 def _init_repo_with_conforming_plan(repo: Path, id6: str = "slf001") -> Path:
@@ -3513,8 +3599,8 @@ class SpecEditReportBehavioralTests(unittest.TestCase):
             (repo / "docs").mkdir(parents=True, exist_ok=True)
             (repo / "docs" / "A.spec.md").write_text("# Spec A\n", encoding="utf-8")
 
-            plan_text = _CONFORMING_PLAN.format(id6="spe001").replace(
-                "- Scope-Paths: src/", "- Scope-Paths: docs/A.spec.md"
+            plan_text = _conforming_plan_text(
+                id6="spe001", scope_paths="docs/A.spec.md"
             )
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True, exist_ok=True)
@@ -4648,7 +4734,10 @@ class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
             rel = ".aw/records/plans/pending/20260101-s-01-aaaaaa-x.ipd.md"
             for root in (repo, lane):
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
-                (root / rel).write_text("# IPD: x\n\n- Id: aaaaaa\n", encoding="utf-8")
+                (root / rel).write_text(
+                    RecordBuilder().plan(title="x", id6="aaaaaa", text_only=True),
+                    encoding="utf-8",
+                )
             run_dir = repo / ".aw" / "records" / "runs" / "run-x"
             run_dir.mkdir(parents=True, exist_ok=True)
             item = {
@@ -4823,34 +4912,39 @@ def _repo_with_statuses(root: Path, statuses: dict) -> Path:
     pending = repo / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True, exist_ok=True)
     for order, (id6, status) in enumerate(statuses.items(), start=1):
-        text = _CONFORMING_PLAN.format(id6=id6).replace(
-            "- Status: approved", f"- Status: {status}", 1
+        if status == "approved":
+            approval = "2026-08-28, recorded via aw ipd set: status set to approved"
+            readiness = "go-pending-approval"
+            history = [
+                "- 2026-08-28 approved (aw set): status set to approved",
+                "- 2026-08-28 /plan-review (test): APPROVE",
+                "- 2026-08-28 draft (test): created.",
+            ]
+        elif status == "reviewed":
+            # The `--full-auto` danger path needs an APPROVING readiness attested by a review record
+            # in the plan's own history so `is_plan_review_approved` WOULD clear this fixture if the
+            # action gate did not refuse first (rdattest 8v5pwa).
+            approval = None
+            readiness = "go"
+            history = [
+                "- 2026-08-28 reviewed (test): /plan-review: APPROVE; no defects.",
+                "- 2026-08-28 /plan-review (test): APPROVE",
+                "- 2026-08-28 draft (test): created.",
+            ]
+        else:
+            approval = None
+            readiness = "go-pending-approval"
+            history = [
+                "- 2026-08-28 /plan-review (test): APPROVE",
+                "- 2026-08-28 draft (test): created.",
+            ]
+        text = _conforming_plan_text(
+            id6=id6,
+            status=status,
+            approval=approval,
+            readiness=readiness,
+            history=history,
         )
-        if status != "approved":
-            import re as _re
-
-            text = _re.sub(r"- Approval:[^\n]*\n", "", text)
-            text = _re.sub(r"- \d{4}-\d{2}-\d{2} approved[^\n]*\n", "", text)
-        if status == "reviewed":
-            # The `--full-auto` danger path needs an APPROVING readiness to be auto-cleared.
-            text = text.replace("- Author: test", "- Author: test\n- Readiness: go", 1)
-            # rdattest 8v5pwa: AND IT NEEDS A REVIEW RECORD, or the danger path is not reachable and
-            # `test_alias_refuses_a_reviewed_plan_even_with_full_auto_present` goes VACUOUS. That test's
-            # load-bearing assertion is that the plan file still reads `- Status: reviewed`, which only
-            # means anything while `is_plan_review_approved` WOULD have cleared this fixture had the
-            # action gate not refused first. That predicate now requires the `- Readiness:` field to be
-            # ATTESTED by a review record in the plan's own history, and `_CONFORMING_PLAN`'s history
-            # holds only `approved` and `draft` records (an approval is a review's CONSEQUENCE, not
-            # review evidence). MEASURED both ways on this exact fixture: pre-change the predicate
-            # cleared it (True), so the assertion could fail; without this record it cannot clear it
-            # (False), so the assertion passes whatever the ordering. The record is what keeps the
-            # ordering claim falsifiable. PREPENDED, because `aw set` writes history newest-first.
-            text = text.replace(
-                "## Workflow history\n",
-                "## Workflow history\n\n"
-                "- 2026-08-28 reviewed (test): /plan-review: APPROVE; no defects.\n",
-                1,
-            )
         (pending / f"20260828-demo-{order:02d}-{id6}-demo.ipd.md").write_text(
             text, encoding="utf-8"
         )
@@ -4869,7 +4963,10 @@ class TurnBudgetPromptTests(unittest.TestCase):
             run_dir = repo / ".aw" / "records" / "runs" / "run-x"
             run_dir.mkdir(parents=True, exist_ok=True)
             plan = repo / "plan.ipd.md"
-            plan.write_text("# IPD: x\n\n- Id: aaaaaa\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(title="x", id6="aaaaaa", text_only=True),
+                encoding="utf-8",
+            )
             item = {
                 "id6": "aaaaaa",
                 "setid": "demo",
@@ -7929,49 +8026,54 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
             root = Path(tmp)
             (root / ".aw/records/plans/pending").mkdir(parents=True, exist_ok=True)
             plan = root / ".aw/records/plans/pending/20260101-demo-01-abc123-p.ipd.md"
-            conforming_plan = (
-                "# IPD: abc123\n"
-                "- Date: 2026-01-01\n"
-                "- Kind: child\n"
-                "- Status: approved\n"
-                "- Set: demo\n"
-                "- Order: 1\n"
-                "- Id: abc123\n"
-                "- Author: test\n"
-                "- Priority: medium\n"
-                "- Work-Kind: feature\n"
-                "- Scope: test\n"
-                "- Scope-Paths: README.md\n"
-                "- Concern: test\n"
-                "- Highest E allocated: 01\n"
-                "- Approval: 2026-01-01, test\n"
-                "- Readiness: go-pending-approval\n\n"
-                "## Workflow history\n"
-                "- 2026-01-01 approved (test): approved\n"
-                "- 2026-01-01 /plan-review (test): APPROVE\n\n"
-                "## Goal\nGoal.\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "### Task group 1: work\n"
-                "- [ ] E-01 Step 1\n"
-                "  - Depends on: none\n"
-                "  - Expected outcome: done\n"
-                "  - Execution state: pending\n\n"
-                "## Project conventions discovered (Step 0)\nNone.\n\n"
-                "## Findings\nNone.\n\n"
-                "## Proposed changes (ordered, validatable)\nNone.\n\n"
-                "## Deferred / out of scope (with reason)\nNone.\n\n"
-                "## Scope check\nNone.\n\n"
-                "## Required tests / validation\nNone.\n\n"
-                "## Spec / documentation sync\nNone.\n\n"
-                "## Open questions\nNone.\n\n"
-                "## Validation and cross-check (verify before reporting done)\n"
-                "- [ ] V-01 validates E-01\n"
-                "  - Required evidence: done\n"
-                "  - Observed evidence:\n"
-                "  - Result: pending\n\n"
-                "## Approval and execution gate\n"
-                "- Size assessment: standard\n"
-                "- Cohesion rationale: not required\n"
+            conforming_plan = str(
+                RecordBuilder().plan(
+                    title="abc123",
+                    when="2026-01-01",
+                    plan_role="child",
+                    status="approved",
+                    set="demo",
+                    order=1,
+                    id6="abc123",
+                    author="test",
+                    priority="medium",
+                    work_kind="feature",
+                    scope_paths="README.md",
+                    highest_e_allocated="01",
+                    approval="2026-01-01, test",
+                    readiness="go-pending-approval",
+                    history=[
+                        "- 2026-01-01 approved (test): approved",
+                        "- 2026-01-01 /plan-review (test): APPROVE",
+                    ],
+                    raw_fields={"Concern": "test", "Scope": "test"},
+                    body=(
+                        "## Goal\nGoal.\n\n"
+                        "## Detailed Implementation Checklist (TODO)\n"
+                        "### Task group 1: work\n"
+                        "- [ ] E-01 Step 1\n"
+                        "  - Depends on: none\n"
+                        "  - Expected outcome: done\n"
+                        "  - Execution state: pending\n\n"
+                        "## Project conventions discovered (Step 0)\nNone.\n\n"
+                        "## Findings\nNone.\n\n"
+                        "## Proposed changes (ordered, validatable)\nNone.\n\n"
+                        "## Deferred / out of scope (with reason)\nNone.\n\n"
+                        "## Scope check\nNone.\n\n"
+                        "## Required tests / validation\nNone.\n\n"
+                        "## Spec / documentation sync\nNone.\n\n"
+                        "## Open questions\nNone.\n\n"
+                        "## Validation and cross-check (verify before reporting done)\n"
+                        "- [ ] V-01 validates E-01\n"
+                        "  - Required evidence: done\n"
+                        "  - Observed evidence:\n"
+                        "  - Result: pending\n\n"
+                        "## Approval and execution gate\n"
+                        "- Size assessment: standard\n"
+                        "- Cohesion rationale: not required"
+                    ),
+                    text_only=True,
+                )
             )
             plan.write_text(conforming_plan, encoding="utf-8")
             # Kept repo builder: writes non-conforming plan file directly into root before git init to test pre-prompt observation report.
@@ -8034,24 +8136,24 @@ class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
         bdir.mkdir(parents=True, exist_ok=True)
         bitem = bdir / "20260928-1200-01-bg0001-test.backlog.md"
         bitem.write_text(
-            "- Id: bg0001\n- Status: graduated\n- Priority: medium\n- Work-Kind: chore\n",
+            RecordBuilder().backlog(
+                id6="bg0001",
+                status="graduated",
+                priority="medium",
+                work_kind="chore",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         pdir = repo / ".aw" / "records" / "plans" / "pending"
         pdir.mkdir(parents=True, exist_ok=True)
 
-        p1_text = _CONFORMING_PLAN.format(id6="wir001").replace(
-            "- Item-Dependencies: none",
-            "- Item-Dependencies: none\n- From-Backlog: bg0001",
-        )
+        p1_text = _conforming_plan_text(id6="wir001", from_backlog="bg0001")
         p1 = pdir / "20260828-demo-01-wir001-demo.ipd.md"
         p1.write_text(p1_text, encoding="utf-8")
 
-        p2_text = _CONFORMING_PLAN.format(id6="wir002").replace(
-            "- Item-Dependencies: none",
-            "- Item-Dependencies: none\n- From-Backlog: bg0001",
-        )
+        p2_text = _conforming_plan_text(id6="wir002", from_backlog="bg0001")
         p2 = pdir / "20260828-demo-02-wir002-demo.ipd.md"
         p2.write_text(p2_text, encoding="utf-8")
 

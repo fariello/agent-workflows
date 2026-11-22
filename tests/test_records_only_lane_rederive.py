@@ -50,32 +50,88 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import runner_shared, worktree_lease
+from agent_workflows import artifact_meta, runner_shared, worktree_lease
+from tests.record_builder import RecordBuilder
 
 PLAN_NAME = "20260901-race-01-aaa111-a-plan.ipd.md"
 PENDING = f".aw/records/plans/pending/{PLAN_NAME}"
 EXECUTED = f".aw/records/plans/executed/{PLAN_NAME}"
 
-BASE_PLAN = """# IPD: a plan
+BASE_PLAN = str(
+    RecordBuilder().plan(
+        title="a plan",
+        when="2026-09-01",
+        plan_role="child",
+        scope_paths="agent_workflows/x.py",
+        item_dependencies="none",
+        status="approved",
+        readiness="go-pending-approval",
+        set="race",
+        order=1,
+        id6="aaa111",
+        from_backlog="bbb222",
+        history=["- 2026-09-01 draft (author): created."],
+        body="## Goal\n\nbody text that neither side edits",
+        raw_fields={"Work-Kind": None, "Priority": None},
+        text_only=True,
+    )
+)
 
-- Date: 2026-09-01
-- Kind: child
-- Scope-Paths: agent_workflows/x.py
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Set: race
-- Order: 1
-- Id: aaa111
-- From-Backlog: bbb222
 
-## Workflow history
-- 2026-09-01 draft (author): created.
+def _mutate_plan(
+    text: str,
+    fields: dict[str, object],
+    *,
+    tag: str = "set",
+    day: str = "2026-09-20",
+    actor: str = "aw set",
+    message: str | None = None,
+) -> str:
+    events: list[dict[str, object]] = []
+    other_fields = {k: v for k, v in fields.items() if k != "status"}
+    if "status" in fields:
+        ev_status: dict[str, object] = {"op": "transition", "to": fields["status"]}
+        if message is not None and not other_fields:
+            ev_status["message"] = message
+        events.append(ev_status)
+    if other_fields:
+        ev_set: dict[str, object] = {"op": "set", "fields": other_fields}
+        if message is not None:
+            ev_set["message"] = message
+        events.append(ev_set)
+    return artifact_meta.render_legacy_text(
+        text,
+        events,
+        record_type="ipd",
+        render=artifact_meta.LegacyRender(
+            tag=tag,
+            day=day,
+            actor_label=actor,
+            history=message is not None,
+        ),
+    )
 
-## Goal
 
-body text that neither side edits
-"""
+def _raw_plan_variant(**raw_fields: object) -> str:
+    return str(
+        RecordBuilder().plan(
+            title="a plan",
+            when="2026-09-01",
+            plan_role="child",
+            scope_paths="agent_workflows/x.py",
+            item_dependencies="none",
+            status="approved",
+            readiness="go-pending-approval",
+            set="race",
+            order=1,
+            id6="aaa111",
+            from_backlog="bbb222",
+            history=["- 2026-09-01 draft (author): created."],
+            body="## Goal\n\nbody text that neither side edits",
+            raw_fields={"Work-Kind": None, "Priority": None, **raw_fields},
+            text_only=True,
+        )
+    )
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -134,13 +190,13 @@ def race_repo(tmp_path: Path) -> tuple[Path, str]:
     base = _git(repo, "rev-parse", "HEAD").stdout.strip()
 
     _git(repo, "checkout", "-qb", "lane")
-    lane_text = BASE_PLAN.replace(
-        "- Status: approved\n",
-        "- Status: approved\n- Work-Kind: bug\n- Priority: medium\n",
-    ).replace(
-        "## Workflow history\n",
-        "## Workflow history\n- 2026-09-20 approved (aw set): inherited Priority/Work-Kind from"
-        " bbb222; status unchanged (no lifecycle transition).\n",
+    lane_text = _mutate_plan(
+        BASE_PLAN,
+        {"work_kind": "bug", "priority": "medium"},
+        tag="approved",
+        day="2026-09-20",
+        actor="aw set",
+        message="inherited Priority/Work-Kind from bbb222; status unchanged (no lifecycle transition).",
     )
     _write(repo, PENDING, lane_text)
     _git(repo, "commit", "-qam", "lane: backfill Priority/Work-Kind")
@@ -148,11 +204,13 @@ def race_repo(tmp_path: Path) -> tuple[Path, str]:
     _git(repo, "checkout", "-q", "main")
     (repo / ".aw/records/plans/executed").mkdir(parents=True, exist_ok=True)
     _git(repo, "mv", PENDING, EXECUTED)
-    main_text = BASE_PLAN.replace(
-        "- Status: approved\n", "- Status: executed\n"
-    ).replace(
-        "## Workflow history\n",
-        "## Workflow history\n- 2026-09-21 executed (aw oc run): finalized.\n",
+    main_text = _mutate_plan(
+        BASE_PLAN,
+        {"status": "executed"},
+        tag="executed",
+        day="2026-09-21",
+        actor="aw oc run",
+        message="finalized.",
     )
     _write(repo, EXECUTED, main_text)
     _git(repo, "add", "-A")
@@ -243,8 +301,8 @@ def test_a_code_path_is_proved_NOT_this_shape() -> None:
 
 def test_a_status_versus_status_disagreement_is_proved_NOT_this_shape() -> None:
     """The incoming side ASSERTING a transition is a real disagreement, never a race."""
-    incoming = BASE_PLAN.replace("- Status: approved\n", "- Status: not-executed\n")
-    target = BASE_PLAN.replace("- Status: approved\n", "- Status: executed\n")
+    incoming = _mutate_plan(BASE_PLAN, {"status": "not-executed"})
+    target = _mutate_plan(BASE_PLAN, {"status": "executed"})
     verdict = _classify_text(target=target, incoming=incoming)
     assert verdict.verdict == runner_shared.REDERIVE_SHAPE_NOT
     assert "Status" in verdict.reason
@@ -268,11 +326,9 @@ def test_a_gate_or_attestation_key_is_never_this_shape(key: str, value: str) -> 
     A deny-list of one key (`- Status:`) would admit every one of these. Each is refused because it
     would let an automated integration write a field whose forgery this repository treats as serious.
     """
-    base = BASE_PLAN.replace(f"- {key}: ", "- Unrelated-Key: ")
-    incoming = base.replace(
-        "- Status: approved\n", f"- Status: approved\n- {key}: {value}\n"
-    )
-    target = base.replace("- Status: approved\n", "- Status: executed\n")
+    base = _raw_plan_variant(**{key: None})
+    incoming = _raw_plan_variant(**{key: value})
+    target = _mutate_plan(base, {"status": "executed"})
     verdict = _classify_text(base=base, target=target, incoming=incoming)
     assert verdict.verdict == runner_shared.REDERIVE_SHAPE_NOT
     assert key in verdict.reason
@@ -289,10 +345,8 @@ def test_an_unmeasured_record_type_returns_UNKNOWN_not_a_plan_verdict(
     a backlog or spec status enum. An unproven type keeps today's refusal, which is correct and cheap.
     """
     path = f".aw/records/backlog/open/20260901-ccc333-01-ccc333-x{suffix}"
-    incoming = BASE_PLAN.replace(
-        "- Status: approved\n", "- Status: approved\n- Work-Kind: bug\n"
-    )
-    target = BASE_PLAN.replace("- Status: approved\n", "- Status: done\n")
+    incoming = _mutate_plan(BASE_PLAN, {"work_kind": "bug"})
+    target = _raw_plan_variant(Status="done")
     verdict = _classify_text(path=path, target=target, incoming=incoming)
     assert verdict.verdict == runner_shared.REDERIVE_SHAPE_UNKNOWN
     assert "UNMEASURED" in verdict.reason
@@ -306,10 +360,10 @@ def test_a_missing_merge_stage_returns_UNKNOWN_never_an_assumed_empty_file() -> 
 
 def test_a_body_prose_rewrite_is_NOT_this_shape() -> None:
     """A body change that is not history INSERTION would be silently dropped by re-derivation."""
-    incoming = BASE_PLAN.replace(
-        "- Status: approved\n", "- Status: approved\n- Work-Kind: bug\n"
-    ).replace("body text that neither side edits", "body text the LANE rewrote")
-    target = BASE_PLAN.replace("- Status: approved\n", "- Status: executed\n")
+    incoming = _mutate_plan(BASE_PLAN, {"work_kind": "bug"}).replace(
+        "body text that neither side edits", "body text the LANE rewrote"
+    )
+    target = _mutate_plan(BASE_PLAN, {"status": "executed"})
     verdict = _classify_text(target=target, incoming=incoming)
     assert verdict.verdict == runner_shared.REDERIVE_SHAPE_NOT
     assert "insertion only" in verdict.reason
@@ -317,10 +371,8 @@ def test_a_body_prose_rewrite_is_NOT_this_shape() -> None:
 
 def test_a_target_that_did_not_transition_is_NOT_this_shape() -> None:
     """Without a target transition the conflict is an ordinary stale edit, outside this carve-out."""
-    incoming = BASE_PLAN.replace(
-        "- Status: approved\n", "- Status: approved\n- Work-Kind: bug\n"
-    )
-    target = BASE_PLAN.replace("- Kind: child\n", "- Kind: orchestrator\n")
+    incoming = _mutate_plan(BASE_PLAN, {"work_kind": "bug"})
+    target = _mutate_plan(BASE_PLAN, {"plan_role": "orchestrator"})
     verdict = _classify_text(path=PENDING, target=target, incoming=incoming)
     assert verdict.verdict == runner_shared.REDERIVE_SHAPE_NOT
     assert "lifecycle race" in verdict.reason
@@ -328,12 +380,8 @@ def test_a_target_that_did_not_transition_is_NOT_this_shape() -> None:
 
 def test_a_value_disagreement_on_an_allow_listed_key_is_NOT_this_shape() -> None:
     """Both sides setting `- Priority:` differently is a real disagreement about the value."""
-    incoming = BASE_PLAN.replace(
-        "- Status: approved\n", "- Status: approved\n- Priority: medium\n"
-    )
-    target = BASE_PLAN.replace(
-        "- Status: approved\n", "- Status: executed\n- Priority: high\n"
-    )
+    incoming = _mutate_plan(BASE_PLAN, {"priority": "medium"})
+    target = _mutate_plan(BASE_PLAN, {"status": "executed", "priority": "high"})
     verdict = _classify_text(target=target, incoming=incoming)
     assert verdict.verdict == runner_shared.REDERIVE_SHAPE_NOT
     assert "DIFFERENT value" in verdict.reason
@@ -477,10 +525,7 @@ def test_a_mixed_conflict_set_refuses_ENTIRELY_and_writes_nothing(
     _write(
         repo,
         PENDING,
-        BASE_PLAN.replace(
-            "- Status: approved\n",
-            "- Status: approved\n- Work-Kind: bug\n- Priority: medium\n",
-        ),
+        _mutate_plan(BASE_PLAN, {"work_kind": "bug", "priority": "medium"}),
     )
     _write(repo, "mod.py", "x = 2  # lane\n")
     _git(repo, "commit", "-qam", "lane: records + code")
@@ -491,7 +536,7 @@ def test_a_mixed_conflict_set_refuses_ENTIRELY_and_writes_nothing(
     _write(
         repo,
         EXECUTED,
-        BASE_PLAN.replace("- Status: approved\n", "- Status: executed\n"),
+        _mutate_plan(BASE_PLAN, {"status": "executed"}),
     )
     _write(repo, "mod.py", "x = 3  # main\n")
     _git(repo, "add", "-A")
@@ -598,9 +643,10 @@ def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status() 
     widen what reaches a record.
     """
     # LAYER ONE, on the real shape.
+    statusless = _raw_plan_variant(Status=None)
     realistic = _classify_text(
-        base=BASE_PLAN.replace("- Status: approved\n", ""),
-        target=BASE_PLAN.replace("- Status: approved\n", "- Status: executed\n"),
+        base=statusless,
+        target=_mutate_plan(BASE_PLAN, {"status": "executed"}),
         incoming=BASE_PLAN,
         allow_list=frozenset(("Status", "Work-Kind", "Priority")),
     )
@@ -608,7 +654,6 @@ def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status() 
     assert "DIFFERENT value" in realistic.reason
 
     # LAYER TWO: the one shape that evades layer one, so the writer is the thing under test.
-    statusless = BASE_PLAN.replace("- Status: approved\n", "")
     widened = _classify_text(
         path=EXECUTED,
         base=statusless,

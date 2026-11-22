@@ -23,6 +23,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared, spec_citations
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
 BOTH = ("oc_runipd", "agy_runipd")
@@ -32,19 +33,25 @@ _MODULES = {
     "runner_shared": runner_shared,
 }
 
-_SPEC_CONTENT = """\
-# Test Spec
-- Id: demo01
-- Status: approved
-
-## 1. Introduction
-
-Line 7 content for intro.
-
-## 2. Details
-
-Line 11 content for details.
-"""
+_SPEC_CONTENT = str(
+    RecordBuilder().spec(
+        id6="demo01",
+        title="Test Spec",
+        status="approved",
+        body=(
+            "## 1. Introduction\n\n"
+            "Line content for intro.\n\n"
+            "## 2. Details\n\n"
+            "Line content for details.\n"
+        ),
+        text_only=True,
+    )
+)
+_INTRO_LINE = next(
+    idx
+    for idx, line in enumerate(_SPEC_CONTENT.splitlines(), 1)
+    if "Line content for intro." in line
+)
 
 
 class MergeGateSpecAnchorsTests(unittest.TestCase):
@@ -79,12 +86,12 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
         spec_path = specs_dir / "20260101-demo01-01-demo01-test.spec.md"
         spec_path.write_text(_SPEC_CONTENT, encoding="utf-8")
 
-        # Create a python file citing line 7 of demo01 under agent_workflows/
+        # Create a python file citing the intro line of demo01 under agent_workflows/
         src_dir = repo / "agent_workflows"
         src_dir.mkdir(parents=True, exist_ok=True)
         foo_path = src_dir / "foo.py"
         foo_path.write_text(
-            "# spec demo01 Section 1 :7\ndef foo():\n    pass\n",
+            f"# spec demo01 Section 1 :{_INTRO_LINE}\ndef foo():\n    pass\n",
             encoding="utf-8",
         )
 
@@ -208,9 +215,10 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                         / "approved"
                         / "20260101-demo01-01-demo01-test.spec.md"
                     )
-                    shifted = (
-                        "# Test Spec\n\n# Extra line 1\n# Extra line 2\n# Extra line 3\n# Extra line 4\n# Extra line 5\n"
-                        + _SPEC_CONTENT[len("# Test Spec\n") :]
+                    shifted = _SPEC_CONTENT.replace(
+                        "## 1. Introduction",
+                        "# Extra line 1\n# Extra line 2\n# Extra line 3\n# Extra line 4\n# Extra line 5\n\n## 1. Introduction",
+                        1,
                     )
                     spec_p.write_text(shifted, encoding="utf-8")
                     subprocess.run(
@@ -311,7 +319,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                     target_dir = pathlib.Path(work_dir)
                     bar_p = target_dir / "agent_workflows" / "bar.py"
                     bar_p.write_text(
-                        "# spec demo01 Section 2 :7\ndef bar():\n    pass\n",
+                        f"# spec demo01 Section 2 :{_INTRO_LINE}\ndef bar():\n    pass\n",
                         encoding="utf-8",
                     )
                     subprocess.run(
@@ -391,7 +399,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                 # Add a pre-existing stale pointer to base commit
                 stale_base = repo / "agent_workflows" / "stale_base.py"
                 stale_base.write_text(
-                    "# spec demo01 Section 2 :7\ndef stale():\n    pass\n",
+                    f"# spec demo01 Section 2 :{_INTRO_LINE}\ndef stale():\n    pass\n",
                     encoding="utf-8",
                 )
                 subprocess.run(["git", "add", str(stale_base)], cwd=repo, check=True)
@@ -413,7 +421,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                     target_dir = pathlib.Path(work_dir)
                     foo_p = target_dir / "agent_workflows" / "foo.py"
                     foo_p.write_text(
-                        "# spec demo01 Section 1 :7\ndef foo():\n    return 42\n",
+                        f"# spec demo01 Section 1 :{_INTRO_LINE}\ndef foo():\n    return 42\n",
                         encoding="utf-8",
                     )
                     subprocess.run(
@@ -479,7 +487,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                 # Add a stale pointer on base at line 2
                 stale_file = repo / "agent_workflows" / "stale_base.py"
                 stale_file.write_text(
-                    "# Header\n# spec demo01 Section 2 :7\ndef stale():\n    pass\n",
+                    f"# Header\n# spec demo01 Section 2 :{_INTRO_LINE}\ndef stale():\n    pass\n",
                     encoding="utf-8",
                 )
                 subprocess.run(["git", "add", str(stale_file)], cwd=repo, check=True)
@@ -502,7 +510,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                     target_stale = target_dir / "agent_workflows" / "stale_base.py"
                     # Move the comment down 5 lines without changing its text
                     target_stale.write_text(
-                        "# Header\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# spec demo01 Section 2 :7\ndef stale():\n    pass\n",
+                        f"# Header\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# spec demo01 Section 2 :{_INTRO_LINE}\ndef stale():\n    pass\n",
                         encoding="utf-8",
                     )
                     subprocess.run(
@@ -577,7 +585,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                     target_dir = pathlib.Path(work_dir)
                     foo_p = target_dir / "agent_workflows" / "foo.py"
                     foo_p.write_text(
-                        "# spec demo01 Section 1 :7\ndef foo():\n    return 'changed'\n",
+                        f"# spec demo01 Section 1 :{_INTRO_LINE}\ndef foo():\n    return 'changed'\n",
                         encoding="utf-8",
                     )
                     subprocess.run(
@@ -681,7 +689,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                         # Scripted agent fails to fix it: commits another change keeping stale pointer
                         foo_p = target_dir / "agent_workflows" / "foo.py"
                         foo_p.write_text(
-                            "# spec demo01 Section 2 :7\ndef foo():\n    pass # not fixed\n",
+                            f"# spec demo01 Section 2 :{_INTRO_LINE}\ndef foo():\n    pass # not fixed\n",
                             encoding="utf-8",
                         )
                         subprocess.run(
@@ -699,7 +707,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
                     # Initial turn introduces stale pointer
                     foo_p = target_dir / "agent_workflows" / "foo.py"
                     foo_p.write_text(
-                        "# spec demo01 Section 2 :7\ndef foo():\n    pass\n",
+                        f"# spec demo01 Section 2 :{_INTRO_LINE}\ndef foo():\n    pass\n",
                         encoding="utf-8",
                     )
                     subprocess.run(

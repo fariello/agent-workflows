@@ -27,9 +27,36 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, artifact_meta, oc_runipd, runner_shared
 from tests import support
 from tests.test_oc_runipd import _init_repo_with_conforming_plan
+
+
+def _set_plan_status(
+    text: str,
+    status: str,
+    *,
+    history: bool = False,
+    day: str = "2026-10-12",
+    actor: str = "aw set",
+    message: str | None = None,
+) -> str:
+    ev: dict[str, object] = {"op": "transition", "to": status}
+    if message is not None:
+        ev["message"] = message
+    return artifact_meta.render_legacy_text(
+        text,
+        [ev],
+        record_type="ipd",
+        render=artifact_meta.LegacyRender(
+            tag=status,
+            day=day,
+            actor_label=actor,
+            status=status,
+            history=history,
+        ),
+    )
+
 
 _HOSTS = (
     ("oc", oc_runipd, "run_opencode", runner_shared.OC_HOST_LABELS),
@@ -249,8 +276,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                     )
                     if call_count == 1:
                         # Attempt 1: Hand-edit status without a history line
-                        text = plan_file.read_text(encoding="utf-8").replace(
-                            "- Status: approved", "- Status: to-review"
+                        text = _set_plan_status(
+                            plan_file.read_text(encoding="utf-8"),
+                            "to-review",
+                            history=False,
                         )
                         plan_file.write_text(text, encoding="utf-8")
                         subprocess.run(
@@ -260,8 +289,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                         )
                     else:
                         # Attempt 2: Revert hand edit back to approved
-                        text = plan_file.read_text(encoding="utf-8").replace(
-                            "- Status: to-review", "- Status: approved"
+                        text = _set_plan_status(
+                            plan_file.read_text(encoding="utf-8"),
+                            "approved",
+                            history=False,
                         )
                         plan_file.write_text(text, encoding="utf-8")
                         # Also create demo.txt so execution succeeds
@@ -362,8 +393,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                         # Attempt 1: hand mv to executed/
                         plan_file = next(pending_dir.glob("*det001*"))
                         dest = exec_dir / plan_file.name
-                        text = plan_file.read_text(encoding="utf-8").replace(
-                            "- Status: approved", "- Status: executed"
+                        text = _set_plan_status(
+                            plan_file.read_text(encoding="utf-8"),
+                            "executed",
+                            history=False,
                         )
                         plan_file.write_text(text, encoding="utf-8")
                         subprocess.run(
@@ -380,8 +413,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                         if exec_plans:
                             plan_file = exec_plans[0]
                             dest = pending_dir / plan_file.name
-                            text = plan_file.read_text(encoding="utf-8").replace(
-                                "- Status: executed", "- Status: approved"
+                            text = _set_plan_status(
+                                plan_file.read_text(encoding="utf-8"),
+                                "approved",
+                                history=False,
                             )
                             plan_file.write_text(text, encoding="utf-8")
                             subprocess.run(
@@ -588,12 +623,13 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                     )
                     sup = wt / ".aw" / "records" / "plans" / "superseded"
                     sup.mkdir(parents=True, exist_ok=True)
-                    text = pending.read_text(encoding="utf-8").replace(
-                        "- Status: approved", "- Status: superseded"
-                    )
-                    text = text.replace(
-                        "## Workflow history\n",
-                        "## Workflow history\n- 2026-10-12 superseded (aw set): premise spent\n",
+                    text = _set_plan_status(
+                        pending.read_text(encoding="utf-8"),
+                        "superseded",
+                        history=True,
+                        day="2026-10-12",
+                        actor="aw set",
+                        message="premise spent",
                     )
                     pending.write_text(
                         "RETIRED 2026-10-12: premise spent.\n\n" + text,
@@ -647,8 +683,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                     )
                     sup = wt / ".aw" / "records" / "plans" / "superseded"
                     sup.mkdir(parents=True, exist_ok=True)
-                    text = pending.read_text(encoding="utf-8").replace(
-                        "- Status: approved", "- Status: superseded"
+                    text = _set_plan_status(
+                        pending.read_text(encoding="utf-8"),
+                        "superseded",
+                        history=False,
                     )
                     pending.write_text(
                         "RETIRED 2026-10-12: premise spent.\n\n" + text,
@@ -790,8 +828,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
         subprocess.run(
             ["git", "mv", str(plan), str(executed_plan)], cwd=repo, check=True
         )
-        content = executed_plan.read_text(encoding="utf-8").replace(
-            "- Status: approved", "- Status: executed"
+        content = _set_plan_status(
+            executed_plan.read_text(encoding="utf-8"),
+            "executed",
+            history=False,
         )
         executed_plan.write_text(content, encoding="utf-8")
         subprocess.run(

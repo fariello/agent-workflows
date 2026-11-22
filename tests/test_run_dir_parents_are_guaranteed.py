@@ -21,6 +21,7 @@ from typing import Any
 from agent_workflows import agy_runipd as _agy
 from agent_workflows import oc_runipd as _oc
 from agent_workflows import runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class RunDirParentsGuaranteedByWritersTests(unittest.TestCase):
@@ -103,7 +104,9 @@ class RunDirParentsGuaranteedByWritersTests(unittest.TestCase):
             prompt = root / "prompt.md"
             prompt.write_text("probe\n", encoding="utf-8")
             plan = repo / "plan.ipd.md"
-            plan.write_text("- Id: probe1\n", encoding="utf-8")
+            plan.write_text(
+                RecordBuilder().plan(id6="probe1", text_only=True), encoding="utf-8"
+            )
             dummy_exe = root / ("dummy.cmd" if sys.platform == "win32" else "dummy")
             dummy_exe.write_text("")
             dummy_exe.chmod(0o755)
