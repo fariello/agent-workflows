@@ -91,6 +91,7 @@ flowchart TD
 
 - E-01 (review findings, audit and review subject lookups). Moved to y4spqy (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: y4spqy
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-149-y4spqy-move-the-review-findings-audit-and-reviews-module-reads-onto.ipd.md
 - E-02, review-sequence and orchestration subset (`review_sequence`, `review_tier`, `review_rereview`, `orchestrator_readiness`). Moved to 0i0zsg (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 0i0zsg
 - E-02, production, work and adoption subset (`production_checks`, `work_cmd`, `artifact_adopt`). Moved to awmsyq (round-3 split 2026-11-09 per research nj8zdp guidance).
