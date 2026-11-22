@@ -1277,8 +1277,8 @@ def add_output_mode_flags(
         choices=("short", "medium", "long", "none"),
         default=None,
         help=(
-            "Terminal window title style outside Zellij: short ('▶ aw'), medium ('▶ aw <repo>', "
-            "default), long ('▶ aw <host> run <repo>'), or none (disable Zellij tab and window title updates)"
+            "Terminal window title style outside Zellij: short ('▶aw'), medium ('▶aw <repo>', "
+            "default), long ('▶aw <host> run <repo>'), or none (disable Zellij tab and window title updates)"
         ),
     )
 

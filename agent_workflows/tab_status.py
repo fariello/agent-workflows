@@ -215,14 +215,14 @@ def format_glyph_prefix(state: str, *, has_failure: bool = False) -> str:
 
 
 def format_tab_name(base_name: str, state: str, *, has_failure: bool = False) -> str:
-    """Format a Zellij tab name with leading runner glyph(s) and cleaned base name."""
+    """Format a Zellij tab name with leading runner glyph(s) and cleaned base name (no trailing space)."""
     prefix = format_glyph_prefix(state, has_failure=has_failure)
     clean_base = strip_runner_glyphs(base_name)
     if not prefix:
         return clean_base
     if not clean_base:
         return prefix
-    return f"{prefix} {clean_base}"
+    return f"{prefix}{clean_base}"
 
 
 def format_window_title(
@@ -246,7 +246,7 @@ def format_window_title(
         body = f"aw {clean_host} run {clean_repo}".strip()
     else:
         body = f"aw {clean_repo}".strip() if clean_repo else "aw"
-    return f"{prefix} {body}".strip() if prefix else body
+    return f"{prefix}{body}" if prefix else body
 
 
 def queue_has_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
