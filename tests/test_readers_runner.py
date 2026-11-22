@@ -905,3 +905,69 @@ def test_plan_audit_target_reads_executed_plan_setid(tmp_path: Path) -> None:
     assert target.id6 == "au0001"
     assert target.setid == "audset"
     assert target.plan_path.resolve() == p_exec.resolve()
+
+
+def test_parse_plan_file_hits_artifact_meta_cache_on_initialized_repo(
+    tmp_path: Path,
+) -> None:
+    """Verifies parse_plan_file resolves id6 and hits artifact_meta.read when index.db is initialized."""
+    from agent_workflows import artifact_meta, project_context
+
+    repo = _make_repo(tmp_path)
+    pdir = repo / ".aw" / "records" / "plans" / "pending"
+    plan_p = pdir / "20261101-cacheset-04-ch0004-cached.ipd.md"
+    plan_p.write_text(
+        _valid_ipd_text(
+            id6="ch0004",
+            status="approved",
+            kind="child",
+            setid="cacheset",
+            order=4,
+            deps="executed:dep001",
+            from_backlog="bkl004",
+        ),
+        encoding="utf-8",
+    )
+    renamed_p = pdir / "20261101-cacheset-05-zzz999-mismatched-name.ipd.md"
+    renamed_p.write_text(
+        _valid_ipd_text(
+            id6="ch0005",
+            status="reviewed",
+            kind="child",
+            setid="cacheset",
+            order=5,
+        ),
+        encoding="utf-8",
+    )
+
+    # Populate index.db for this repo.
+    ctx = project_context.resolve_project_context(target_repo=str(repo))
+    artifact_meta.query(type="ipd", project_context=ctx)
+    assert (Path(ctx.logical_roots["state"]) / "index.db").exists()
+
+    # Conforming filename hits artifact_meta.read(id6) directly (raw_text is None).
+    st, raw = runner_shared._read_state_for_path(repo, plan_p, record_type="ipd")
+    assert st is not None
+    assert raw is None
+    assert st.id6 == "ch0004"
+
+    rec = runner_shared.parse_plan_file(plan_p, repo)
+    assert rec is not None
+    assert (rec.id6, rec.status, rec.kind, rec.setid, rec.order, rec.from_backlog) == (
+        "ch0004",
+        "approved",
+        "child",
+        "cacheset",
+        4,
+        "bkl004",
+    )
+    assert rec.dependencies == ["executed:dep001"]
+
+    # Filename id6 disagreeing with declared - Id: must not false-match another record.
+    rec_renamed = runner_shared.parse_plan_file(renamed_p, repo)
+    assert rec_renamed is not None
+    assert (rec_renamed.id6, rec_renamed.status, rec_renamed.order) == (
+        "ch0005",
+        "reviewed",
+        5,
+    )

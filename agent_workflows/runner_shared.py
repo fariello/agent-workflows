@@ -16809,9 +16809,23 @@ def _read_state_for_path(
                 stored_p = None
             if stored_p is not None:
                 with _meta.ephemeral_if_uninitialized():
+                    cand_ids: list[str] = []
                     if id6 and ID6_RE.fullmatch(id6):
+                        cand_ids.append(id6)
+                    else:
+                        from agent_workflows import artifact_naming as _an_id
+
+                        _fn_parts = _an_id.identity_parts(resolved.name)
+                        if _fn_parts and ID6_RE.fullmatch(_fn_parts[3]):
+                            cand_ids.append(_fn_parts[3])
+                        else:
+                            for _tok in resolved.name.split("-"):
+                                if ID6_RE.fullmatch(_tok):
+                                    cand_ids.append(_tok)
+                                    break
+                    for _cand_id in cand_ids:
                         with contextlib.suppress(Exception):
-                            st = _meta.read(id6, project_context=ctx)
+                            st = _meta.read(_cand_id, project_context=ctx)
                             st_abs = _resolve_meta_abs_path(
                                 st.path or "", records_root_res, scan_repo_res, _meta
                             )
