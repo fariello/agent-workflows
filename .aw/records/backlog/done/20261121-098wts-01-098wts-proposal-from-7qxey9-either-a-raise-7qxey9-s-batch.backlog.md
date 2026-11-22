@@ -1,15 +1,15 @@
 - Id: 098wts
-- Status: open
+- Status: done
 - Set: 098wts
 - Work-Kind: feature
 - Priority: high
 - Summary: Proposal from 7qxey9: Either (a) raise 7qxey9's Batch rule step 4 hand-refusal cap
 - Short-Description: Proposal from 7qxey9: Either (a) raise 7qxey9's Batch rule step 4 hand-refusal cap
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 done (aw set): Superseded by maintainer decision raising Batch rule step 4 hand-refusal cap from 25 to 150 (and late-module cap from 8 to 20) on 8 remaining metastore plans and salvaging 7qxey9/nbfg7w lane commits onto main
 - 2026-11-22 created (aw backlog): Proposal from 7qxey9: Either (a) raise 7qxey9's Batch rule step 4 hand-refusal cap
 
 ## Agent Proposal from 7qxey9
@@ -18,7 +18,6 @@
 - Proposing-Item: 7qxey9
 - Lane-Branch: aw/lane/7qxey9
 - Blocked-By: 7qxey9 Batch rule step 4 stops hand conversion when an item hand count exceeds 25; E-04 (G4c-7qxey9-04) has 43 hand refusals (42 static in 653ndz F-30 [0 in tests/test_orchestrator_shape_composed.py + 12 in tests/test_orchestrator_shape_gate.py + 21 in tests/test_orchestrator_status_gate.py + 9 in tests/test_partition.py] plus 1 apply-time not-equivalent at tests/test_orchestrator_shape_gate.py L70-153).
-- Kind: gate-change
 - Size: material
 
 ### Why
