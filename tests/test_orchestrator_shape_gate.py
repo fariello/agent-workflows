@@ -68,30 +68,26 @@ _ORCH_TAIL_ONE_ITEM = """\
 - None.
 """
 
-CONFORMING_ORCH_TEXT = """# IPD: Conforming orchestrator fixture
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixconf
-- Order: 0
-- Highest E allocated: 02
-- Author: fixture
-- Id: fix001
-- Approval: 2026-09-24, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-
-- 2026-09-24 approved (fixture): created.
-- 2026-09-24 /plan-review (fixture): APPROVE
-
-## Goal
+CONFORMING_ORCH_TEXT = RecordBuilder().plan(
+    title="Conforming orchestrator fixture",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixconf",
+    order=0,
+    highest_e_allocated="02",
+    author="fixture",
+    id6="fix001",
+    approval="2026-09-24, fixture",
+    readiness="go-pending-approval",
+    history=[
+        "- 2026-09-24 approved (fixture): created.",
+        "- 2026-09-24 /plan-review (fixture): APPROVE",
+    ],
+    body="""## Goal
 
 Fixture.
 
@@ -150,8 +146,10 @@ Fixture.
 
 ## Approval and execution gate
 
-- None.
-"""
+- None.""",
+    raw_fields={"Concern": "fixture.", "Scope": "fixture."},
+    text_only=True,
+)
 
 NON_CONFORMING_ORCH_1_TEXT = RecordBuilder().plan(
     title="Non-conforming orchestrator 1 (untyped prose row)",
@@ -307,7 +305,7 @@ class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):
 
     def test_prepare_only_succeeds_on_conforming_queue(self):
         """--prepare-only succeeds on a conforming queue, creating run_dir and skipping probe."""
-        from tests.test_ipd_lint import _conforming_child
+        from tests.test_ipd_lint import _CONFORMING_CHILD_BODY
         from agent_workflows import coverage_record
 
         for label, module in BOTH_HOSTS:
@@ -316,17 +314,49 @@ class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):
                     CONFORMING_ORCH_TEXT, "20260924-fixconf-00-fix001.ipd.md"
                 )
                 p_dir = repo / ".aw" / "records" / "plans" / "pending"
-                c1_text = (
-                    _conforming_child()
-                    .replace("- Set: x", "- Set: fixconf")
-                    .replace("- Order: 1", "- Order: 1")
-                    .replace("- Id: abc123", "- Id: chd001")
+                child_raw = {
+                    "Concern": "sample.",
+                    "Scope": "sample.",
+                    "Item-Dependencies": None,
+                    "Scope-Paths": None,
+                }
+                c1_text = str(
+                    RecordBuilder().plan(
+                        title="sample (Set x, Order 1)",
+                        when="2026-08-03",
+                        plan_role="child",
+                        status="to-review",
+                        work_kind="chore",
+                        priority="medium",
+                        set="fixconf",
+                        order=1,
+                        highest_e_allocated="01",
+                        author="tester",
+                        id6="chd001",
+                        history=["- 2026-08-03 to-review (tester): created."],
+                        body=_CONFORMING_CHILD_BODY,
+                        raw_fields=child_raw,
+                        text_only=True,
+                    )
                 )
-                c2_text = (
-                    _conforming_child()
-                    .replace("- Set: x", "- Set: fixconf")
-                    .replace("- Order: 1", "- Order: 2")
-                    .replace("- Id: abc123", "- Id: chd002")
+                c2_text = str(
+                    RecordBuilder().plan(
+                        title="sample (Set x, Order 1)",
+                        when="2026-08-03",
+                        plan_role="child",
+                        status="to-review",
+                        work_kind="chore",
+                        priority="medium",
+                        set="fixconf",
+                        order=2,
+                        highest_e_allocated="01",
+                        author="tester",
+                        id6="chd002",
+                        history=["- 2026-08-03 to-review (tester): created."],
+                        body=_CONFORMING_CHILD_BODY,
+                        raw_fields=child_raw,
+                        text_only=True,
+                    )
                 )
                 (p_dir / "20260924-fixconf-01-chd001.ipd.md").write_text(
                     c1_text, encoding="utf-8"

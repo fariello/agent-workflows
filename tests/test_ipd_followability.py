@@ -17,8 +17,8 @@ from tests.test_ipd_lint import _conforming_child
 pytestmark = pytest.mark.core
 
 
-def _post_cutover(text: str) -> str:
-    return text.replace("- Date: 2026-08-03", "- Date: 2026-11-08")
+def _post_cutover(**kwargs) -> str:
+    return _conforming_child(when="2026-11-08", **kwargs)
 
 
 def _with_items(text: str, n: int, item_text: str = "do a thing.") -> str:
@@ -43,47 +43,42 @@ def _z603(result) -> list[str]:
 
 
 def test_a_small_post_cutover_plan_gets_no_guidance():
-    r = L.lint_text(_post_cutover(_conforming_child()))
+    r = L.lint_text(_post_cutover())
     assert r.disposition == "conforming"
     assert _z603(r) == []
 
 
 def test_too_many_items_is_advised_and_never_changes_the_disposition():
-    r = L.lint_text(_post_cutover(_with_items(_conforming_child(), 6)))
+    r = L.lint_text(_with_items(_post_cutover(), 6))
     msgs = _z603(r)
     assert any("6 E-items" in m for m in msgs), msgs
     assert r.disposition == "conforming"
 
 
 def test_five_items_is_within_guidance():
-    r = L.lint_text(_post_cutover(_with_items(_conforming_child(), 5)))
+    r = L.lint_text(_with_items(_post_cutover(), 5))
     assert not any("E-items" in m for m in _z603(r))
 
 
 def test_too_many_scope_paths_is_advised_excluding_plan_and_spec_files():
     paths = ", ".join(f"agent_workflows/m{i}.py" for i in range(9))
-    t = _post_cutover(_conforming_child()).replace(
-        "- Scope: sample.\n",
-        f"- Scope: sample.\n- Scope-Paths: {paths}, x.spec.md, y.ipd.md\n",
-    )
+    t = _post_cutover(scope_paths=f"{paths}, x.spec.md, y.ipd.md")
     assert any("9 work Scope-Paths" in m for m in _z603(L.lint_text(t)))
     eight = ", ".join(f"agent_workflows/m{i}.py" for i in range(8))
-    t8 = _post_cutover(_conforming_child()).replace(
-        "- Scope: sample.\n", f"- Scope: sample.\n- Scope-Paths: {eight}, x.spec.md\n"
-    )
+    t8 = _post_cutover(scope_paths=f"{eight}, x.spec.md")
     assert not any("Scope-Paths" in m for m in _z603(L.lint_text(t8)))
 
 
 def test_one_item_naming_many_units_is_advised():
     units = " ".join(f"`agent_workflows/m{i}.py`" for i in range(9))
-    t = _post_cutover(_conforming_child()).replace(
+    t = _post_cutover().replace(
         "- [ ] E-01 do a thing.", f"- [ ] E-01 move readers in {units}."
     )
     assert any("E-01 names 9 distinct units" in m for m in _z603(L.lint_text(t)))
 
 
 def test_suite_only_evidence_is_advised_but_specific_evidence_is_not():
-    suite_only = _post_cutover(_conforming_child()).replace(
+    suite_only = _post_cutover().replace(
         "the thing is present at path X.",
         "paste the bare `python3 -m pytest` summary line.",
     )
@@ -96,14 +91,12 @@ def test_suite_only_evidence_is_advised_but_specific_evidence_is_not():
         "paste the diff and the bare suite summary line.",
         "the new test FAILING before and passing after, and the bare suite summary line.",
     ):
-        t = _post_cutover(_conforming_child()).replace(
-            "the thing is present at path X.", specific
-        )
+        t = _post_cutover().replace("the thing is present at path X.", specific)
         assert not any("suite-level" in m for m in _z603(L.lint_text(t))), specific
 
 
 def test_pre_cutover_plans_and_orchestrators_get_no_guidance():
     big = _with_items(_conforming_child(), 7)
     assert _z603(L.lint_text(big)) == []  # dated 2026-08-03, before the cutover
-    orch = _post_cutover(big).replace("- Kind: child", "- Kind: orchestrator")
+    orch = _with_items(_post_cutover(plan_role="orchestrator"), 7)
     assert not any("E-items" in m for m in _z603(L.lint_text(orch)))
