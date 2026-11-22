@@ -64,104 +64,28 @@ def _write_backlog_item(
 ) -> Path:
     bkl_dir = repo / ".aw" / "records" / "backlog" / status
     bkl_dir.mkdir(parents=True, exist_ok=True)
-    if setid is None:
-        setid = id6
-    file_path = bkl_dir / f"20260927-{setid}-01-{id6}-{slug}.backlog.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""- Id: {id6}
-- Status: {status}
-- Set: {setid}
-{gate_line}- Priority: {priority}
-- Work-Kind: {work_kind}
-- Summary: {summary}
-
-## Workflow history
-- 2026-09-27 {status} (tester): created item
-"""
+    eff_set = id6 if setid is None else setid
+    file_path = bkl_dir / f"20260927-{eff_set}-01-{id6}-{slug}.backlog.md"
+    extra: dict[str, str] = {}
+    if gate:
+        extra["blocks_release"] = gate
+    valid_id6 = len(id6) == 6 and id6.isalnum() and id6 == id6.lower()
+    content = RecordBuilder().backlog(
+        id6=id6 if valid_id6 else "bk0000",
+        status=status,
+        set=eff_set,
+        priority=priority,
+        work_kind=work_kind,
+        summary=summary,
+        when="2026-09-27",
+        history=[f"- 2026-09-27 {status} (tester): created item"],
+        raw_fields=None if valid_id6 else {"Id": id6},
+        text_only=True,
+        **extra,
+    )
+    assert isinstance(content, str)
     file_path.write_text(content, encoding="utf-8")
     return file_path
-
-
-def _write_plan_content(
-    *,
-    id6: str,
-    backlog_id6: str | None = "bkl001",
-    spec_id6: str | None = None,
-    setid: str = "demo",
-    order: int = 1,
-    status: str = "to-review",
-    gate: str | None = None,
-    scope_paths: str = "README.md",
-    dependencies: str = "none",
-) -> str:
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    return f"""# IPD: Test Plan {id6}
-
-- Date: 2026-09-27
-- Kind: child
-- Concern: Test concern for plan {id6}.
-- Scope: Test scope for plan {id6}.
-- Scope-Paths: {scope_paths}
-- Status: {status}
-{bkl_line}{spec_line}{gate_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: {dependencies}
-
-## Workflow history
-- 2026-09-27 {status} (test): created.
-
-## Goal
-Test goal for plan {id6}.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Work item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-1. E-01 do work.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-- None.
-
-## Required tests / validation
-- None.
-
-## Spec / documentation sync
-- None.
-
-## Open questions
-- None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
 
 
 def _write_conforming_plan(
@@ -181,16 +105,71 @@ def _write_conforming_plan(
     dir_path = repo / ".aw" / "records" / "plans" / bucket
     dir_path.mkdir(parents=True, exist_ok=True)
     file_path = dir_path / f"20260927-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
-    content = _write_plan_content(
-        id6=id6,
-        backlog_id6=backlog_id6,
-        spec_id6=spec_id6,
-        setid=setid,
-        order=order,
+    extra: dict[str, str] = {}
+    if backlog_id6:
+        extra["from_backlog"] = backlog_id6
+    if spec_id6:
+        extra["from_spec"] = spec_id6
+    if gate:
+        extra["blocks_release"] = gate
+    plan_body = (
+        f"## Goal\n\nTest goal for plan {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "### Task group 1: work\n\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n\n"
+        "None.\n\n"
+        "## Findings\n\n"
+        "None.\n\n"
+        "## Proposed changes (ordered, validatable)\n\n"
+        "1. E-01 do work.\n\n"
+        "## Deferred / out of scope (with reason)\n\n"
+        "None.\n\n"
+        "## Scope check\n\n"
+        "- None.\n\n"
+        "## Required tests / validation\n\n"
+        "- None.\n\n"
+        "## Spec / documentation sync\n\n"
+        "- None.\n\n"
+        "## Open questions\n\n"
+        "- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n"
+    )
+    valid_id6 = len(id6) == 6 and id6.isalnum() and id6 == id6.lower()
+    raw_fields: dict[str, str] = {
+        "Concern": f"Test concern for plan {id6}.",
+        "Scope": f"Test scope for plan {id6}.",
+    }
+    if not valid_id6:
+        raw_fields["Id"] = id6
+    content = RecordBuilder().plan(
+        id6=id6 if valid_id6 else "pl0000",
+        title=f"Test Plan {id6}",
+        when="2026-09-27",
         status=status,
-        gate=gate,
+        set=setid,
+        order=order,
         scope_paths=scope_paths,
-        dependencies=dependencies,
+        highest_e_allocated="01",
+        author="test",
+        priority="medium",
+        work_kind="feature",
+        item_dependencies=dependencies,
+        history=[f"- 2026-09-27 {status} (test): created."],
+        body=plan_body,
+        raw_fields=raw_fields,
+        text_only=True,
+        **extra,
     )
     file_path.write_text(content, encoding="utf-8")
     return file_path
@@ -217,7 +196,16 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
     def test_backlog_graduate_count(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            _write_backlog_item(repo, id6="bkl001", status="open")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
 
             # 1. 0 new plans -> fails BACKLOG-GRADUATE-COUNT
             findings = production_checks.backlog_graduate_count(repo, "bkl001", set())
@@ -248,7 +236,16 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
     def test_backlog_graduate_ipd(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            _write_backlog_item(repo, id6="bkl001", status="open")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
 
             # Conforming plan -> passes
             p_ok = _write_conforming_plan(repo, id6="pok001", backlog_id6="bkl001")
@@ -309,8 +306,27 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
     def test_backlog_gate_handoff(self):
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bklgat", status="open", gate="next")
-            _write_backlog_item(repo, id6="bklung", status="open", gate=None)
+            RecordBuilder(repo).backlog(
+                id6="bklgat",
+                status="open",
+                blocks_release="next",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
+            RecordBuilder(repo).backlog(
+                id6="bklung",
+                status="open",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
 
             # Gated backlog with matching plan gate -> passes
             p_g_match = _write_conforming_plan(
@@ -351,7 +367,16 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
     def test_backlog_graduate_legitimacy(self):
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl001", status="open")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
             subprocess.run(["git", "add", "."], cwd=repo, check=True)
             subprocess.run(
                 ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -429,7 +454,17 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
         # Entry point 1: check_release_gates (e.g. from-backlog-gate-mismatch)
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl001", status="open", gate="next")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                blocks_release="next",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
             rel_dir = repo / ".aw" / "records" / "releases"
             (rel_dir / "20260901-rel002-01-rel002-v2.release.md").write_text(
                 RecordBuilder().release(
@@ -456,7 +491,16 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
         # Entry point 2: check_from_spec_dangling
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl002", status="open")
+            RecordBuilder(repo).backlog(
+                id6="bkl002",
+                status="open",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
             spc_dir = repo / ".aw" / "records" / "specs" / "approved"
             spc_dir.mkdir(parents=True, exist_ok=True)
             (spc_dir / "20260901-spc001-01-spc001-test.spec.md").write_text(
@@ -478,7 +522,17 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
         # Entry point 3: release_gate_warnings (check.orphaned-live-blocker)
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl003", status="open", gate="next")
+            RecordBuilder(repo).backlog(
+                id6="bkl003",
+                status="open",
+                blocks_release="next",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
             p_orph = _write_conforming_plan(
                 repo, id6="porph1", backlog_id6="bkl003", gate="next"
             )
@@ -495,7 +549,17 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
         # 1. Staged git mv rename (RM <old> -> <new>)
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl010", status="open", gate="next")
+            RecordBuilder(repo).backlog(
+                id6="bkl010",
+                status="open",
+                blocks_release="next",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
             _write_conforming_plan(
                 repo, id6="pln010", backlog_id6="bkl010", gate="next"
             )
@@ -620,7 +684,16 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
         # 2. Unstaged move ( D <old> + ?? <new>)
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl011", status="open")
+            RecordBuilder(repo).backlog(
+                id6="bkl011",
+                status="open",
+                work_kind="feature",
+                priority="high",
+                summary="Test backlog item",
+                slug="test-item",
+                when="2026-09-27",
+                history=["- 2026-09-27 open (tester): created item"],
+            )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "add bkl011"], cwd=repo, check=True)
 
@@ -691,7 +764,17 @@ class TestBacklogProductionE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl101", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl101",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -711,8 +794,9 @@ class TestBacklogProductionE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -727,9 +811,10 @@ class TestBacklogProductionE07(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -813,9 +898,10 @@ class TestBacklogProductionE07(unittest.TestCase):
                         self.fail("Spawn called on completed run during resume")
 
                     with _patch_host_agent(mod, fail_spawn):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
     def test_5_5c_case2_count_zero(self):
@@ -826,7 +912,16 @@ class TestBacklogProductionE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl102", status="open")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl102",
+                        status="open",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -846,8 +941,9 @@ class TestBacklogProductionE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -857,9 +953,10 @@ class TestBacklogProductionE07(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -885,7 +982,16 @@ class TestBacklogProductionE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl103", status="open")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl103",
+                        status="open",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -905,8 +1011,9 @@ class TestBacklogProductionE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -921,9 +1028,10 @@ class TestBacklogProductionE07(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -949,7 +1057,17 @@ class TestBacklogProductionE07(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl104", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl104",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -969,8 +1087,9 @@ class TestBacklogProductionE07(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -985,9 +1104,10 @@ class TestBacklogProductionE07(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1017,7 +1137,17 @@ class TestBacklogProductionE08(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl201", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl201",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1037,8 +1167,9 @@ class TestBacklogProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1068,8 +1199,16 @@ class TestBacklogProductionE08(unittest.TestCase):
                         bkl_file = list(
                             target.glob(".aw/records/backlog/open/*bkl201*.backlog.md")
                         )[0]
-                        bkl_text = bkl_file.read_text(encoding="utf-8").replace(
-                            "- Status: open", "- Status: done"
+                        bkl_text = RecordBuilder().backlog(
+                            id6="bkl201",
+                            status="done",
+                            blocks_release="next",
+                            work_kind="feature",
+                            priority="high",
+                            summary="Test backlog item",
+                            when="2026-09-27",
+                            history=["- 2026-09-27 open (tester): created item"],
+                            text_only=True,
                         )
                         done_dir = target / ".aw/records" / "backlog" / "done"
                         done_dir.mkdir(parents=True, exist_ok=True)
@@ -1080,9 +1219,10 @@ class TestBacklogProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1117,7 +1257,17 @@ class TestBacklogProductionE08(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl202", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl202",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1137,8 +1287,9 @@ class TestBacklogProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1182,9 +1333,10 @@ class TestBacklogProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1208,7 +1360,17 @@ class TestBacklogProductionE08(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl203", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl203",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     spc_dir = repo / ".aw" / "records" / "specs" / "approved"
                     spc_dir.mkdir(parents=True, exist_ok=True)
                     (spc_dir / "20260901-spc001-01-spc001-test.spec.md").write_text(
@@ -1238,8 +1400,9 @@ class TestBacklogProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1259,9 +1422,10 @@ class TestBacklogProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1338,7 +1502,17 @@ class TestBacklogProductionE08(unittest.TestCase):
                 # 1. Contrasting case A: agent achieves done WITHOUT invoking CLI (setter-bypassing)
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bk204a", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bk204a",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1358,8 +1532,9 @@ class TestBacklogProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1375,8 +1550,16 @@ class TestBacklogProductionE08(unittest.TestCase):
                         bkl_file = list(
                             target.glob(".aw/records/backlog/open/*bk204a*.backlog.md")
                         )[0]
-                        bkl_text = bkl_file.read_text(encoding="utf-8").replace(
-                            "- Status: open", "- Status: done"
+                        bkl_text = RecordBuilder().backlog(
+                            id6="bk204a",
+                            status="done",
+                            blocks_release="next",
+                            work_kind="feature",
+                            priority="high",
+                            summary="Test backlog item",
+                            when="2026-09-27",
+                            history=["- 2026-09-27 open (tester): created item"],
+                            text_only=True,
                         )
                         done_dir = target / ".aw/records" / "backlog" / "done"
                         done_dir.mkdir(parents=True, exist_ok=True)
@@ -1387,9 +1570,10 @@ class TestBacklogProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent_achieved):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1412,7 +1596,17 @@ class TestBacklogProductionE08(unittest.TestCase):
                 # 2. Contrasting case B: agent attempts gated close via CLI, is refused, touches nothing else
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bk204b", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bk204b",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1432,8 +1626,9 @@ class TestBacklogProductionE08(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1462,9 +1657,10 @@ class TestBacklogProductionE08(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent_refused):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1493,7 +1689,17 @@ class TestBacklogProductionE09(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl301", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl301",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     spc_dir = repo / ".aw" / "records" / "specs" / "approved"
                     spc_dir.mkdir(parents=True, exist_ok=True)
                     (spc_dir / "20260901-spc001-01-spc001-test.spec.md").write_text(
@@ -1521,8 +1727,9 @@ class TestBacklogProductionE09(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1541,9 +1748,10 @@ class TestBacklogProductionE09(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1560,7 +1768,17 @@ class TestBacklogProductionE09(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkl302", status="open", gate="next")
+                    RecordBuilder(repo).backlog(
+                        id6="bkl302",
+                        status="open",
+                        blocks_release="next",
+                        work_kind="feature",
+                        priority="high",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        when="2026-09-27",
+                        history=["- 2026-09-27 open (tester): created item"],
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1580,8 +1798,9 @@ class TestBacklogProductionE09(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1597,9 +1816,10 @@ class TestBacklogProductionE09(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(

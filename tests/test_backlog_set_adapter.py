@@ -65,18 +65,24 @@ class BacklogSetAdapterTests(unittest.TestCase):
         bk_dir = target_repo / ".aw" / "records" / "backlog" / status
         bk_dir.mkdir(parents=True, exist_ok=True)
         p = bk_dir / f"20261009-{id6}-{slug}.md"
-        br_line = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
-        text = (
-            f"# Backlog item {id6}\n\n"
-            f"- Id: {id6}\n"
-            f"- Status: {status}\n"
-            f"- Work-Kind: {work_kind}\n"
-            f"- Priority: {priority}\n"
-            f"- Set: {setid}\n"
-            f"{br_line}"
-            f"{body_extra}\n"
-            f"## Description\nFixture description\n\n"
-            f"## Workflow history\n- 2026-10-09 {status} (tester): initial\n"
+        extra: dict[str, str] = {}
+        if blocks_release:
+            extra["blocks_release"] = blocks_release
+        body = "## Description\nFixture description"
+        if body_extra.strip():
+            body = f"{body_extra.strip()}\n\n{body}"
+        text = RecordBuilder().backlog(
+            id6=id6,
+            status=status,
+            work_kind=work_kind,
+            priority=priority,
+            set=setid,
+            summary=f"Backlog item {id6}",
+            when="2026-10-09",
+            history=[f"- 2026-10-09 {status} (tester): initial"],
+            body=body,
+            text_only=True,
+            **extra,
         )
         p.write_text(text, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=target_repo, check=True)

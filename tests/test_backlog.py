@@ -800,15 +800,17 @@ class BacklogDryRunTests(unittest.TestCase):
             / "20260926-demo-01-bk0001-item.backlog.md"
         )
         item_path.write_text(
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Priority: medium\n"
-            "- Work-Kind: feature\n"
-            "- Set: demo\n"
-            "- Custom-Field: KEEP-ME\n"
-            "- Summary: an open item\n\n"
-            "## Workflow history\n"
-            "- 2026-09-26 created (tester): initial\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                priority="medium",
+                work_kind="feature",
+                set="demo",
+                summary="an open item",
+                history=["- 2026-09-26 created (tester): initial"],
+                raw_fields={"Custom-Field": "KEEP-ME"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         before_bytes = item_path.read_bytes()
@@ -979,23 +981,26 @@ class BacklogPreservationTests(unittest.TestCase):
         Blocks-Release, Custom-Field, Graduated-To; both spellings produce equal metadata blocks."""
         from agent_workflows import cli
 
-        with tempfile.TemporaryDirectory() as tmp1, tempfile.TemporaryDirectory() as tmp2:
+        with (
+            tempfile.TemporaryDirectory() as tmp1,
+            tempfile.TemporaryDirectory() as tmp2,
+        ):
             r1, r2 = Path(tmp1), Path(tmp2)
             self._setup_repo(r1)
             self._setup_repo(r2)
 
-            item_content = (
-                "- Id: bk0001\n"
-                "- Status: open\n"
-                "- Blocks-Release: rel001\n"
-                "- Custom-Field: keepme\n"
-                "- Graduated-To: foo\n"
-                "- Set: demo\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: test item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 created (tester): initial\n"
+            item_content = RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                blocks_release="rel001",
+                graduated_to="foo",
+                set="demo",
+                priority="medium",
+                work_kind="bug",
+                summary="test item",
+                history=["- 2026-09-26 created (tester): initial"],
+                raw_fields={"Custom-Field": "keepme"},
+                text_only=True,
             )
             p1 = (
                 r1
@@ -1078,71 +1083,78 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260926-demo-01-bk0002-item.backlog.md"
             )
             p.write_text(
-                "- Id: bk0002\n"
-                "- Status: open\n"
-                "- Custom-Field: keepme\n"
-                "- Graduated-To: foo\n"
-                "- Set: demo\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: item with custom field\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 created (tester): initial\n",
+                RecordBuilder().backlog(
+                    id6="bk0002",
+                    status="open",
+                    graduated_to="foo",
+                    set="demo",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="item with custom field",
+                    history=["- 2026-09-26 created (tester): initial"],
+                    raw_fields={"Custom-Field": "keepme"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             plan_dir = r / ".aw" / "records" / "plans" / "pending"
             plan_dir.mkdir(parents=True, exist_ok=True)
-            (plan_dir / "20260926-bar-01-pl0001-plan.ipd.md").write_text(
-                "# IPD: Test Plan pl0001\n\n"
-                "- Date: 2026-09-26\n"
-                "- Kind: child\n"
-                "- Concern: Test concern.\n"
-                "- Scope: Test scope.\n"
-                "- Status: to-review\n"
-                "- Work-Kind: chore\n"
-                "- Priority: medium\n"
-                "- Set: bar\n"
-                "- Order: 1\n"
-                "- Id: pl0001\n"
-                "- From-Backlog: bk0002\n"
-                "- Scope-Paths: README.md\n"
-                "- Highest E allocated: 01\n"
-                "- Author: test\n"
-                "- Item-Dependencies: none\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 to-review (test): created\n\n"
-                "## Goal\n"
-                "Goal pl0001.\n\n"
-                "## Detailed Implementation Checklist (TODO)\n"
-                "### Task group 1: work\n"
+            plan_body = (
+                "## Goal\n\nGoal pl0001.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "### Task group 1: work\n\n"
                 "- [ ] E-01 Work item\n"
                 "  - Depends on: none\n"
                 "  - Expected outcome: done\n"
                 "  - Execution state: pending\n\n"
-                "## Project conventions discovered (Step 0)\n"
+                "## Project conventions discovered (Step 0)\n\n"
                 "None.\n\n"
-                "## Findings\n"
+                "## Findings\n\n"
                 "None.\n\n"
-                "## Proposed changes (ordered, validatable)\n"
+                "## Proposed changes (ordered, validatable)\n\n"
                 "1. E-01 do work.\n\n"
-                "## Deferred / out of scope (with reason)\n"
+                "## Deferred / out of scope (with reason)\n\n"
                 "- None.\n\n"
-                "## Scope check\n"
+                "## Scope check\n\n"
                 "- None.\n\n"
-                "## Required tests / validation\n"
+                "## Required tests / validation\n\n"
                 "- None.\n\n"
-                "## Spec / documentation sync\n"
+                "## Spec / documentation sync\n\n"
                 "- None.\n\n"
-                "## Open questions\n"
+                "## Open questions\n\n"
                 "- None.\n\n"
-                "## Validation and cross-check (verify before reporting done)\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
                 "- [ ] V-01 validates E-01\n"
                 "  - Required evidence: check.\n"
                 "  - Observed evidence:\n"
                 "  - Result: pending\n\n"
-                "## Approval and execution gate\n"
+                "## Approval and execution gate\n\n"
                 "- Size assessment: standard\n"
-                "- Cohesion rationale: not required\n",
+                "- Cohesion rationale: not required\n"
+            )
+            (plan_dir / "20260926-bar-01-pl0001-plan.ipd.md").write_text(
+                RecordBuilder().plan(
+                    id6="pl0001",
+                    title="Test Plan pl0001",
+                    when="2026-09-26",
+                    status="to-review",
+                    work_kind="chore",
+                    priority="medium",
+                    set="bar",
+                    order=1,
+                    from_backlog="bk0002",
+                    scope_paths="README.md",
+                    highest_e_allocated="01",
+                    author="test",
+                    item_dependencies="none",
+                    history=["- 2026-09-26 to-review (test): created"],
+                    body=plan_body,
+                    raw_fields={
+                        "Concern": "Test concern.",
+                        "Scope": "Test scope.",
+                    },
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1189,16 +1201,18 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260926-demo-01-bk0003-item.backlog.md"
             )
             p.write_text(
-                "- Id: bk0003\n"
-                "- Status: open\n"
-                "- Blocks-Release: rel001\n"
-                "- Custom-Field: keepme\n"
-                "- Set: demo\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: item with gate and custom field\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 created (tester): initial\n",
+                RecordBuilder().backlog(
+                    id6="bk0003",
+                    status="open",
+                    blocks_release="rel001",
+                    set="demo",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="item with gate and custom field",
+                    history=["- 2026-09-26 created (tester): initial"],
+                    raw_fields={"Custom-Field": "keepme"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1243,17 +1257,19 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260901-rel001-01-pln001-plan.ipd.md"
             )
             carrier.write_text(
-                "# IPD: Carrier\n\n"
-                "- Id: pln001\n"
-                "- Status: executed\n"
-                "- From-Backlog: bk0004\n"
-                "- Blocks-Release: rel001\n"
-                "- Set: rel001\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: carrier plan\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 executed (tester): finished\n",
+                RecordBuilder().plan(
+                    title="Carrier",
+                    id6="pln001",
+                    status="executed",
+                    from_backlog="bk0004",
+                    blocks_release="rel001",
+                    set="rel001",
+                    priority="high",
+                    work_kind="bug",
+                    history=["- 2026-09-01 executed (tester): finished"],
+                    raw_fields={"Summary": "carrier plan"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1266,18 +1282,20 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260926-demo-01-bk0004-item.backlog.md"
             )
             p.write_text(
-                "- Id: bk0004\n"
-                "- Status: blocked\n"
-                "- Gate-Kind: spec\n"
-                "- Gate-Ref: rel001\n"
-                "- Blocks-Release: rel001\n"
-                "- Custom-Field: keepme\n"
-                "- Set: demo\n"
-                "- Priority: medium\n"
-                "- Work-Kind: bug\n"
-                "- Summary: blocked item\n\n"
-                "## Workflow history\n"
-                "- 2026-09-26 created (tester): initial\n",
+                RecordBuilder().backlog(
+                    id6="bk0004",
+                    status="blocked",
+                    gate_kind="spec",
+                    gate_ref="rel001",
+                    blocks_release="rel001",
+                    set="demo",
+                    priority="medium",
+                    work_kind="bug",
+                    summary="blocked item",
+                    history=["- 2026-09-26 created (tester): initial"],
+                    raw_fields={"Custom-Field": "keepme"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1312,17 +1330,19 @@ class BacklogPreservationTests(unittest.TestCase):
                 "- 2026-09-01 created (aw backlog): created 1",
             ]
             p.write_text(
-                "- Id: bk0001\n"
-                "- Status: blocked\n"
-                "- Set: demo\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D1\n"
-                "- Summary: test item\n\n"
-                "## Workflow history\n" + "\n".join(original_records) + "\n\n"
-                "## Body\n"
-                "Test body\n",
+                RecordBuilder().backlog(
+                    id6="bk0001",
+                    status="blocked",
+                    set="demo",
+                    priority="high",
+                    work_kind="bug",
+                    gate_kind="decision",
+                    gate_ref="D1",
+                    summary="test item",
+                    history=original_records,
+                    body="## Body\nTest body",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1356,19 +1376,20 @@ class BacklogPreservationTests(unittest.TestCase):
                 / "20260901-demo-01-bk0002-test.backlog.md"
             )
             p.write_text(
-                "- Id: bk0002\n"
-                "- Status: blocked\n"
-                "- Set: demo\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Gate-Kind: decision\n"
-                "- Gate-Ref: D1\n"
-                "- Summary: test item\n\n"
-                "PRE_HISTORY_PROSE_PARA_DISTINCTIVE\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 created (aw backlog): created 1\n\n"
-                "## Body\n\n"
-                "POST_HISTORY_PROSE_PARA_DISTINCTIVE\n",
+                RecordBuilder().backlog(
+                    id6="bk0002",
+                    status="blocked",
+                    set="demo",
+                    priority="high",
+                    work_kind="bug",
+                    gate_kind="decision",
+                    gate_ref="D1",
+                    summary="test item",
+                    history=["- 2026-09-01 created (aw backlog): created 1"],
+                    body="## Body\n\nPOST_HISTORY_PROSE_PARA_DISTINCTIVE",
+                    raw_fields={"Gate-Ref": "D1\n\nPRE_HISTORY_PROSE_PARA_DISTINCTIVE"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -1432,7 +1453,10 @@ class BacklogPreservationTests(unittest.TestCase):
         """(a) Header prose between metadata bullets and ## Workflow history survives re-render."""
         from agent_workflows import cli
 
-        with tempfile.TemporaryDirectory() as tmp1, tempfile.TemporaryDirectory() as tmp2:
+        with (
+            tempfile.TemporaryDirectory() as tmp1,
+            tempfile.TemporaryDirectory() as tmp2,
+        ):
             r1, r2 = Path(tmp1), Path(tmp2)
             self._setup_repo(r1)
             self._setup_repo(r2)
@@ -1445,7 +1469,13 @@ class BacklogPreservationTests(unittest.TestCase):
                 work_kind="bug",
                 summary="item with header prose",
                 history=["- 2026-09-26 created (tester): initial"],
-                body="## What is wrong\n\nThis is important header prose describing the problem in detail.",
+                raw_fields={
+                    "Summary": (
+                        "item with header prose\n\n"
+                        "## What is wrong\n\n"
+                        "This is important header prose describing the problem in detail."
+                    )
+                },
                 text_only=True,
             )
             p1 = (
@@ -1525,6 +1555,7 @@ class BacklogPreservationTests(unittest.TestCase):
             work_kind="bug",
             summary="item with dual kinds",
             history=["- 2026-09-26 created (tester): initial"],
+            raw_fields={"Work-Kind": None, "Kind": "chore\n- Work-Kind: bug"},
             text_only=True,
         )
         parsed = backlog.parse_item(raw_item)
@@ -1789,18 +1820,18 @@ class BacklogPreservationTests(unittest.TestCase):
 
     def test_render_item_preserves_release_exempt_with_source_text(self):
         """_render_item preserves Release-Exempt-Kind and Release-Exempt-Ref in original order when source_text is passed."""
-        text = (
-            "- Id: b00001\n"
-            "- Status: open\n"
-            "- Set: s\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Item\n"
-            "- Release-Exempt-Kind: decision\n"
-            "- Release-Exempt-Ref: D42\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (aw backlog): initial\n\n"
-            "Prose body\n"
+        text = RecordBuilder().backlog(
+            id6="b00001",
+            status="open",
+            set="s",
+            priority="high",
+            work_kind="bug",
+            summary="Item",
+            release_exempt_kind="decision",
+            release_exempt_ref="D42",
+            history=["- 2026-09-01 created (aw backlog): initial"],
+            body="Prose body",
+            text_only=True,
         )
         item = B.parse_item(text)
         rendered = B._render_item(item, "Prose body\n", source_text=text)
@@ -1814,15 +1845,16 @@ class BacklogPreservationTests(unittest.TestCase):
         self,
     ):
         """_render_item drops exempt fields when source_text is omitted, and run_new emits them via post-render writer."""
-        text = (
-            "- Id: b00001\n"
-            "- Status: open\n"
-            "- Set: s\n"
-            "- Priority: high\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Item\n"
-            "- Release-Exempt-Kind: decision\n"
-            "- Release-Exempt-Ref: D42\n"
+        text = RecordBuilder().backlog(
+            id6="b00001",
+            status="open",
+            set="s",
+            priority="high",
+            work_kind="bug",
+            summary="Item",
+            release_exempt_kind="decision",
+            release_exempt_ref="D42",
+            text_only=True,
         )
         item = B.parse_item(text)
         rendered_no_source = B._render_item(item, "body")
@@ -1867,27 +1899,27 @@ class BacklogPreservationTests(unittest.TestCase):
                 parents=True, exist_ok=True
             )
 
-            item1_text = (
-                "- Id: bk0001\n"
-                "- Status: open\n"
-                "- Set: s\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Bug 1\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 created (tester): initial\n\n"
-                "Prose\n"
+            item1_text = RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="s",
+                priority="high",
+                work_kind="bug",
+                summary="Bug 1",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose",
+                text_only=True,
             )
-            item2_text = (
-                "- Id: bk0002\n"
-                "- Status: open\n"
-                "- Set: s\n"
-                "- Priority: high\n"
-                "- Work-Kind: bug\n"
-                "- Summary: Bug 2\n\n"
-                "## Workflow history\n"
-                "- 2026-09-01 created (tester): initial\n\n"
-                "Prose\n"
+            item2_text = RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                set="s",
+                priority="high",
+                work_kind="bug",
+                summary="Bug 2",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose",
+                text_only=True,
             )
             f1 = (
                 repo
