@@ -27,31 +27,11 @@ from agent_workflows.plan_readiness import (
     review_staleness_from_texts,
     review_staleness_index,
 )
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-BASE_PLAN_TEMPLATE = """# IPD: Test {id6}
-
-- Date: 2026-10-15
-- Kind: child
-- Concern: Test concern for {id6}.
-- Scope: Test scope for {id6}.
-- Status: {status}
-- Work-Kind: chore
-- Priority: medium
-- Set: test
-- Order: 1
-- Id: {id6}
-- Scope-Paths: README.md
-- Highest E allocated: 01
-- Author: test
-- Item-Dependencies: none
-{readiness_field}
-## Workflow history
-
-{history_entry}
-
-## Goal
+BASE_PLAN_BODY_TEMPLATE = """## Goal
 Goal for {id6}.
 
 ## Detailed Implementation Checklist (TODO)
@@ -83,7 +63,8 @@ None.
 None.
 
 ## Open questions
-{open_questions}
+None.
+
 ## Validation and cross-check (verify before reporting done)
 - [ ] V-01 validates E-01
   - Required evidence: check.
@@ -103,31 +84,53 @@ def _make_plan_text(
     findings_extra: str = "",
     open_questions: str = "None.\n",
     readiness: str | None = None,
+    extra_history: list[str] | None = None,
 ) -> str:
     if readiness is None:
-        readiness_field = (
-            "- Readiness: go-pending-approval\n"
-            if status in ("reviewed", "approved")
-            else ""
+        eff_readiness: str | None = (
+            "go-pending-approval" if status in ("reviewed", "approved") else None
         )
     elif readiness:
-        readiness_field = f"- Readiness: {readiness}\n"
+        eff_readiness = readiness
     else:
-        readiness_field = ""
+        eff_readiness = None
 
     if status in ("reviewed", "approved"):
-        history_entry = f"- 2026-10-15 {status} (reviewer): /plan-review APPROVE."
+        history_entries = [f"- 2026-10-15 {status} (reviewer): /plan-review APPROVE."]
     else:
-        history_entry = f"- 2026-10-15 {status} (author): created."
+        history_entries = [f"- 2026-10-15 {status} (author): created."]
+    if extra_history:
+        history_entries.extend(extra_history)
 
-    return BASE_PLAN_TEMPLATE.format(
+    body = BASE_PLAN_BODY_TEMPLATE.format(
         id6=id6,
-        status=status,
-        readiness_field=readiness_field,
-        history_entry=history_entry,
         e01_extra=e01_extra,
         findings_extra=findings_extra,
-        open_questions=open_questions,
+    )
+    return str(
+        RecordBuilder().plan(
+            id6=id6,
+            title=f"Test {id6}",
+            when="2026-10-15",
+            status=status,
+            work_kind="chore",
+            priority="medium",
+            set="test",
+            order=1,
+            scope_paths="README.md",
+            item_dependencies="none",
+            author="test",
+            highest_e_allocated="01",
+            readiness=eff_readiness,
+            history=history_entries,
+            body=body,
+            open_questions=open_questions,
+            raw_fields={
+                "Concern": f"Test concern for {id6}.",
+                "Scope": f"Test scope for {id6}.",
+            },
+            text_only=True,
+        )
     )
 
 
@@ -222,10 +225,7 @@ class TestPurePredicate(unittest.TestCase):
     def test_non_substantive_edits_not_stale(self):
         # 1. Workflow history addition
         t_rev = _make_plan_text()
-        t_cur_hist = t_rev.replace(
-            "## Workflow history\n\n- 2026-10-15 reviewed (reviewer): /plan-review APPROVE.\n",
-            "## Workflow history\n\n- 2026-10-15 reviewed (reviewer): /plan-review APPROVE.\n- 2026-10-16 note (human): note.\n",
-        )
+        t_cur_hist = _make_plan_text(extra_history=["- 2026-10-16 note (human): note."])
         self.assertIsNone(review_staleness_from_texts(t_rev, t_cur_hist, "e" * 40))
 
         # 2. Checkbox-only edit

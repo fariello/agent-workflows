@@ -19,6 +19,7 @@ from agent_workflows import (
     run_analytics_cli as analytics_cli,
     run_analytics_query as query,
 )
+from tests.record_builder import RecordBuilder
 from tests.test_run_analytics_review_cost import (
     _NO_REVIEW_TIER,
     _review_run,
@@ -33,25 +34,6 @@ def _conforming_child(
     extra_e_count: int = 0,
     review_depth: str | None = None,
 ) -> str:
-    meta_lines = [
-        "- Date: 2026-08-03",
-        "- Kind: child",
-        "- Concern: sample concern.",
-        "- Scope: sample scope.",
-        "- Status: to-review",
-        "- Work-Kind: chore",
-        "- Priority: medium",
-        "- Set: x",
-        "- Order: 1",
-        f"- Highest E allocated: {1 + extra_e_count:02d}",
-        "- Author: tester",
-        "- Id: abc123",
-    ]
-    if scope_paths is not None:
-        meta_lines.append(f"- Scope-Paths: {scope_paths}")
-    if review_depth is not None:
-        meta_lines.append(f"- Review-Depth: {review_depth}")
-
     checklist_lines = [
         "- [ ] E-01 do the first thing.",
         "  - Depends on: none",
@@ -68,15 +50,7 @@ def _conforming_child(
             ]
         )
 
-    return f"""# IPD: sample (Set x, Order 1)
-
-{chr(10).join(meta_lines)}
-
-## Workflow history
-
-- 2026-08-03 to-review (tester): created.
-
-## Goal
+    body = f"""## Goal
 
 Sample goal.
 
@@ -141,6 +115,41 @@ Validation-state rule: inspect evidence in a separate pass.
 - Size assessment: small
 - Cohesion rationale: none
 """
+    raw_fields: dict[str, object] = {
+        "Concern": "sample concern.",
+        "Scope": "sample scope.",
+    }
+    if scope_paths is None:
+        raw_fields["Scope-Paths"] = None
+    extra_kwargs: dict[str, object] = {}
+    if review_depth is not None:
+        if review_depth in ("simple", "standard", "complex", "orchestrator"):
+            extra_kwargs["review_depth"] = review_depth
+        else:
+            raw_fields["Review-Depth"] = review_depth
+
+    return str(
+        RecordBuilder().plan(
+            title="sample (Set x, Order 1)",
+            when="2026-08-03",
+            plan_role="child",
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            set="x",
+            order=1,
+            highest_e_allocated=f"{1 + extra_e_count:02d}",
+            author="tester",
+            id6="abc123",
+            scope_paths=scope_paths or "agent_workflows/demo.py",
+            item_dependencies="none",
+            history=["- 2026-08-03 to-review (tester): created."],
+            body=body,
+            raw_fields=raw_fields,
+            text_only=True,
+            **extra_kwargs,
+        )
+    )
 
 
 def test_lint_text_review_depth_accepted() -> None:

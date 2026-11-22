@@ -11,6 +11,7 @@ from pathlib import Path
 
 from agent_workflows import check_engine as ce
 from agent_workflows import set_records
+from tests.record_builder import RecordBuilder
 
 
 class _RepoTestCase(unittest.TestCase):
@@ -34,8 +35,8 @@ class TestWalkthroughOutcome(_RepoTestCase):
     """E-01 outcome tests: producer mints own id6, post-cutover enforces id6, pre-cutover grandfathered."""
 
     def test_write_walkthrough_mints_own_id6(self):
-        plan_content = (
-            "# IPD: Test Plan\n\n" "- Id: pl1abc\n" "- Set: s\n" "- Status: executed\n"
+        plan_content = RecordBuilder().plan(
+            title="Test Plan", id6="pl1abc", set="s", status="executed", text_only=True
         )
         (self.executed_plans / "20260901-s-01-pl1abc-test-plan.ipd.md").write_text(
             plan_content, encoding="utf-8"
@@ -77,7 +78,10 @@ class TestWalkthroughOutcome(_RepoTestCase):
         late_file = (
             self.walkthroughs / "20260928-1200-01-late-walkthrough.walkthrough.md"
         )
-        late_file.write_text("# Walkthrough\n\n- Date: 2026-09-28\n", encoding="utf-8")
+        late_file.write_text(
+            RecordBuilder().walkthrough(when="2026-09-28", text_only=True),
+            encoding="utf-8",
+        )
         drifts = ce.check_names(self.tmp, "walkthroughs")
         name_drifts = [d for d in drifts if d.rule == "check.name-nonconformant"]
         self.assertEqual(len(name_drifts), 1)
@@ -93,7 +97,10 @@ class TestWalkthroughOutcome(_RepoTestCase):
         early_file = (
             self.walkthroughs / "20260712-1023-01-early-walkthrough.walkthrough.md"
         )
-        early_file.write_text("# Walkthrough\n\n- Date: 2026-07-12\n", encoding="utf-8")
+        early_file.write_text(
+            RecordBuilder().walkthrough(when="2026-07-12", text_only=True),
+            encoding="utf-8",
+        )
         drifts = ce.check_names(self.tmp, "walkthroughs")
         name_drifts = [d for d in drifts if d.rule == "check.name-nonconformant"]
         self.assertEqual(name_drifts, [])

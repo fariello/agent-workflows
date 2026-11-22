@@ -20,6 +20,7 @@ from unittest import mock
 import pytest
 
 from agent_workflows import artifact_types as at, cli, runner_shared, selectors
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def repo_with_review(tmp_path: Path) -> tuple[Path, Path]:
     reviews_dir = tmp_path / ".aw" / "records" / "reviews"
     reviews_dir.mkdir(parents=True, exist_ok=True)
     review_path = reviews_dir / "20260929-demo-01-ab12cd-x.review.md"
-    content = "# Review: x\n\n- Subject-Id: ab12cd\n"
+    content = RecordBuilder().review(subject="ab12cd", text_only=True)
     review_path.write_text(content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True)
@@ -174,7 +175,8 @@ def test_reviews_has_no_status_lifecycle_and_not_in_known_primary_types(
     specs_dir.mkdir(parents=True, exist_ok=True)
     spec_path = specs_dir / "20260929-qq12cd-01-qq12cd-y.spec.md"
     spec_path.write_text(
-        "# Spec: y\n\n- Id: qq12cd\n- Status: draft\n", encoding="utf-8"
+        RecordBuilder().spec(title="y", id6="qq12cd", status="draft", text_only=True),
+        encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "add spec"], cwd=repo, check=True)
