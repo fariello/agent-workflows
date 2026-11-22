@@ -147,6 +147,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-178-dg43sc-move-backlog-release-gate-and-check-test-data-chunk-4-of-7-o.ipd.md
 - Moved to wirc2e (round-3 split 2026-11-09 per research nj8zdp guidance): 8 modules of subsets G1b, G2a (items E-02, E-03; F-41 names each module).
   - Carrier: wirc2e
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-179-wirc2e-move-backlog-release-gate-and-check-test-data-chunk-5-of-7-o.ipd.md
 - Moved to 872zd9 (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G2a (items E-03; F-41 names each module).
   - Carrier: 872zd9
 - Moved to zl2pki (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G2b (items E-04; F-41 names each module).
