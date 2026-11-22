@@ -6,7 +6,7 @@
 - Scope: Add a shared `apply_resume_host_and_model_switch` helper in `agent_workflows/runner_shared.py`; add `--model` and `--effort` on `agent_workflows/agy_runipd.py` `resume` and `--model` and `--opencode` on `agent_workflows/oc_runipd.py` `resume` (alongside existing `--variant`); wire both drivers' `resume` handlers through `apply_resume_host_and_model_switch` so same-host model/effort/variant switches and cross-host handoffs (`agy` <-> `oc`) update `state["driver"]`, `options`, and `cost_attribution`, clear incompatible session IDs (`state["session_id"]`, `state["set_sessions"]`, `options["session"]`, `state["session_item_count"]`, and non-terminal `question_resume_session`), record an audit entry in `state["resume_handoffs"]`, preserve `options["launch_profile"]` untouched, and refuse blank `--model` values; add behavioral tests in `tests/test_resume_switch.py`; and add one bullet to `CHANGELOG.md`. EXCLUDES: changing the `3cm15q`/`kgpptv` refusal of `as <profile>` and `--verify-with` on `resume`, modifying `aw runs resume` (the ledger verb), and adding automatic quota-exhaustion auto-failover.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, tests/test_resume_switch.py, CHANGELOG.md, .aw/records/plans/pending/20261122-2s0u3d-01-c9v6ie-allow-resuming-a-run-with-a-different-model-or-runner.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Short-Description: Add --model/--effort/--opencode overrides on resume and cross-runner (agy <-> oc) resume handoff
 - Review-Depth: standard
@@ -23,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-22 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED
 - 2026-11-22 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED; review record .aw/records/reviews/20261122-2s0u3d-01-c9v6ie-allow-resuming-a-run-with-a-different-model-or-runner.review.md
 - 2026-11-22 to-review (antigravity/gemini): authored review-ready child plan graduated from backlog 2s0u3d.
 - 2026-11-22 draft (antigravity/gemini): created.
