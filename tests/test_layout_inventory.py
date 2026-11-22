@@ -13,14 +13,21 @@ Validates that:
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from typing import Dict
 
 import pytest
 
-from agent_workflows import layout_inventory, layout_migration
-from agent_workflows.layout_migration import PreflightGateError
+from agent_workflows import (
+    attention,
+    cli,
+    layout_inventory,
+    layout_migration,
+    project_context,
+)
+from agent_workflows.layout_migration import MigrationError, PreflightGateError
 
 
 @pytest.fixture(autouse=True)
@@ -338,3 +345,343 @@ def test_refusal_names_the_unrecognized_top_level_path(tmp_path: Path) -> None:
     assert "classify: .agents/mystery." in msg
     assert "Nothing was changed" in msg
     assert (repo / ".agents/mystery/c.md").exists()
+
+
+def _git_out(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_workflow_artifacts_classify_and_map_to_untracked_workflow_artifacts(
+    tmp_path: Path,
+) -> None:
+    """workflow-artifacts classifies as state-runtime and maps to untracked workflow-artifacts/."""
+    expected_cls = {
+        "ownership": "state-runtime",
+        "lifecycle_class": "state-runtime",
+        "expected_destination_class": "workflow-artifacts",
+        "disposition": "migrate",
+    }
+    assert layout_inventory.classify_item("workflow-artifacts", ".") == expected_cls
+    assert (
+        layout_inventory.classify_item(
+            "workflow-artifacts", "assess-bugs/20260726-115243/report.md"
+        )
+        == expected_cls
+    )
+    assert (
+        layout_inventory._legacy_class(
+            "workflow-artifacts", "assess-bugs/20260726-115243/report.md"
+        )
+        == "state-runtime"
+    )
+
+    repo = _make_git_repo(
+        tmp_path / "repo_wa_map",
+        {
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md": b"# Bug report\n",
+            "workflow-artifacts/README.md": b"# Run scratch\n",
+        },
+    )
+    roots = layout_inventory._default_roots(repo)
+    inv_res = layout_inventory.inventory(repo, roots, include_paths=False)
+    assert inv_res["valid"], inv_res["errors"]
+
+    map_res = layout_inventory.build_migration_map(
+        repo, inv_res, target_backend="repository"
+    )
+    assert map_res["valid"], map_res["errors"]
+
+    wa_items = [
+        item for item in map_res["items"] if item["source_root"] == "workflow-artifacts"
+    ]
+    assert wa_items
+    by_rel = {item["source_relpath"]: item for item in wa_items}
+
+    assert by_rel["."]["destination_root_class"] == "workflow-artifacts"
+    assert by_rel["."]["destination_relpath"] == "workflow-artifacts"
+    assert by_rel["."]["track_ignore_expectation"] == "untracked"
+
+    report_item = by_rel["assess-bugs/20260726-115243/report.md"]
+    assert report_item["destination_root_class"] == "workflow-artifacts"
+    assert (
+        report_item["destination_relpath"]
+        == "workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    )
+    assert report_item["track_ignore_expectation"] == "untracked"
+
+    readme_item = by_rel["README.md"]
+    assert readme_item["destination_root_class"] == "workflow-artifacts"
+    assert readme_item["destination_relpath"] == "workflow-artifacts/README.md"
+    assert readme_item["track_ignore_expectation"] == "untracked"
+
+    assert all(
+        not item["destination_relpath"].startswith("records/") for item in wa_items
+    )
+
+
+def test_migrate_layout_cli_routes_workflow_artifacts_and_passes_attention(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """aw migrate-layout --yes moves legacy workflow-artifacts to .aw/workflow-artifacts/ untracked."""
+    tracked_wa = {
+        "workflow-artifacts/assess-bugs/20260726-115243/report.md": b"# Assess bugs\n",
+        "workflow-artifacts/advise-architect/20260727-100000/notes.md": b"# Architect notes\n",
+        "workflow-artifacts/plan-review/20260728-090000/review.md": b"# Plan review\n",
+        "workflow-artifacts/README.md": b"# Legacy run scratch README\n",
+    }
+    repo = _make_git_repo(
+        tmp_path / "repo_legacy_121",
+        {
+            ".agents/plans/pending/20260701-01-plan.md": b"# IPD: Sample\n\n- Status: approved\n",
+            **tracked_wa,
+        },
+    )
+    untracked_rel = "workflow-artifacts/verify/20260729-080000/evidence.txt"
+    untracked_bytes = b"pytest output: 10 passed\n"
+    untracked_path = repo / untracked_rel
+    untracked_path.parent.mkdir(parents=True, exist_ok=True)
+    untracked_path.write_bytes(untracked_bytes)
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("AW_NONINTERACTIVE", "1")
+
+    rc = cli.main(["migrate-layout", "--yes"])
+    assert rc == 0
+
+    all_wa = dict(tracked_wa)
+    all_wa[untracked_rel] = untracked_bytes
+    for src_rel, expected_bytes in all_wa.items():
+        dst = repo / ".aw" / src_rel
+        assert dst.is_file(), f"Missing migrated artifact: {dst}"
+        assert dst.read_bytes() == expected_bytes
+
+    assert not (repo / "workflow-artifacts").exists()
+    for bad in (
+        "assess-bugs",
+        "advise-architect",
+        "plan-review",
+        "verify",
+        "README.md",
+    ):
+        assert not (repo / ".aw" / "records" / bad).exists(), bad
+
+    assert _git_out(repo, "status", "--porcelain").stdout.strip() == ""
+    assert (
+        _git_out(
+            repo, "ls-files", "--", ".aw/workflow-artifacts", "workflow-artifacts"
+        ).stdout.strip()
+        == ""
+    )
+
+    ign = _git_out(
+        repo,
+        "check-ignore",
+        "-v",
+        ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md",
+    )
+    assert ign.returncode == 0, ign.stderr
+    assert ".aw/.gitignore" in ign.stdout
+
+    att_doc = json.loads(attention.render_json(*attention.scan(repo), repo_root=repo))
+    assert att_doc["valid"] is True, att_doc
+    uninventoried = [
+        v
+        for v in att_doc.get("violations", [])
+        if v.get("rule") == "attention.uninventoried-tree"
+    ]
+    assert uninventoried == []
+    assert cli.main(["attention", "--check", "--dir", str(repo)]) == 0
+
+
+def test_workflow_artifacts_edge_cases_merge_collision_rename_home_and_rollback(
+    tmp_path: Path, isolate_aw_home: Path
+) -> None:
+    """Verify merge/collision guard, rename_to_grammar, home backend, and rollback + gitignore fallback."""
+    # (a.1) Pre-existing non-colliding .aw/workflow-artifacts/ merges cleanly
+    existing_bytes = b"# Newer run\n"
+    legacy_bytes = b"# Older legacy run\n"
+    repo_merge = _make_git_repo(
+        tmp_path / "repo_wa_merge",
+        {
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md": legacy_bytes,
+        },
+    )
+    pre_existing = (
+        repo_merge / ".aw/workflow-artifacts/assess-bugs/20260901-101010/report.md"
+    )
+    pre_existing.parent.mkdir(parents=True, exist_ok=True)
+    pre_existing.write_bytes(existing_bytes)
+
+    mgr_merge = layout_migration.MigrationManager(str(repo_merge))
+    mgr_merge.execute_migration(dry_run=False, leftover_disposition="remove")
+    assert pre_existing.read_bytes() == existing_bytes
+    assert (
+        repo_merge / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).read_bytes() == legacy_bytes
+    assert not (repo_merge / "workflow-artifacts").exists()
+
+    # (a.2) Pre-existing non-identical collision fails closed leaving both files untouched
+    foreign_bytes = b"# Different foreign bytes\n"
+    repo_collide = _make_git_repo(
+        tmp_path / "repo_wa_collide",
+        {
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md": legacy_bytes,
+        },
+    )
+    dst_collide = (
+        repo_collide / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    )
+    dst_collide.parent.mkdir(parents=True, exist_ok=True)
+    dst_collide.write_bytes(foreign_bytes)
+
+    mgr_collide = layout_migration.MigrationManager(str(repo_collide))
+    with pytest.raises(MigrationError, match="Refusing to overwrite"):
+        mgr_collide.execute_migration(dry_run=False, leftover_disposition="remove")
+    assert (
+        repo_collide / "workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).read_bytes() == legacy_bytes
+    assert dst_collide.read_bytes() == foreign_bytes
+
+    # (b) rename_to_grammar=True leaves .aw/workflow-artifacts/.../report.md unchanged
+    repo_rename = _make_git_repo(
+        tmp_path / "repo_wa_rename",
+        {
+            ".agents/plans/pending/20260701-01-plan.md": b"# IPD: Sample\n\n- Status: approved\n",
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md": legacy_bytes,
+        },
+    )
+    mgr_rename = layout_migration.MigrationManager(str(repo_rename))
+    mgr_rename.execute_migration(
+        dry_run=False, leftover_disposition="remove", rename_to_grammar=True
+    )
+    assert (
+        repo_rename / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).read_bytes() == legacy_bytes
+    assert not (
+        repo_rename / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.ipd.md"
+    ).exists()
+    assert (repo_rename / ".aw/records/plans/pending/20260701-01-plan.ipd.md").is_file()
+
+    # (c) Configured home backend moves records under AW_HOME while workflow-artifacts stays repo-local
+    repo_home = _make_git_repo(
+        tmp_path / "repo_wa_home",
+        {
+            ".aw/config/project.json": (
+                json.dumps({"schema_version": 2, "records_backend": "home"}, indent=2)
+                + "\n"
+            ).encode("utf-8"),
+            ".agents/plans/pending/20260701-01-homeplan.md": b"# IPD: Home\n\n- Status: approved\n",
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md": legacy_bytes,
+        },
+    )
+    mgr_home = layout_migration.MigrationManager(
+        str(repo_home), aw_home=str(isolate_aw_home)
+    )
+    mgr_home.execute_migration(
+        target_backend="home", dry_run=False, leftover_disposition="remove"
+    )
+    home_records = project_context.project_records_dir(
+        repo_home, aw_home=isolate_aw_home
+    )
+    assert (home_records / "plans/pending/20260701-01-homeplan.md").is_file()
+    assert (
+        repo_home / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).read_bytes() == legacy_bytes
+    assert not (home_records.parent / "workflow-artifacts").exists()
+    assert not (home_records / "assess-bugs").exists()
+
+    # (d.1) Standalone execute_migration + rollback_migration restores tracked files and index
+    repo_rb = _make_git_repo(
+        tmp_path / "repo_wa_rollback",
+        {
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md": legacy_bytes,
+        },
+    )
+    mgr_rb = layout_migration.MigrationManager(str(repo_rb))
+    mgr_rb.execute_migration(dry_run=False, leftover_disposition="remove")
+    assert not (repo_rb / "workflow-artifacts").exists()
+    assert (
+        repo_rb / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).is_file()
+
+    rb_res = mgr_rb.rollback_migration()
+    assert rb_res.get("status") == "rolled_back"
+    assert (
+        repo_rb / "workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).read_bytes() == legacy_bytes
+    assert not (repo_rb / ".aw/workflow-artifacts").exists()
+    assert (
+        _git_out(
+            repo_rb, "status", "--porcelain", "--", "workflow-artifacts", ".agents"
+        ).stdout.strip()
+        == ""
+    )
+    assert (
+        _git_out(repo_rb, "ls-files", "--", "workflow-artifacts").stdout.strip()
+        == "workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    )
+
+    # (d.2) Rollback with legacy root .gitignore ignoring workflow-artifacts/ while force-tracked in HEAD
+    repo_rb_ign = _make_git_repo(
+        tmp_path / "repo_wa_rollback_ignored",
+        {
+            ".gitignore": b"workflow-artifacts/\n",
+        },
+    )
+    forced_file = (
+        repo_rb_ign / "workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    )
+    forced_file.parent.mkdir(parents=True, exist_ok=True)
+    forced_file.write_bytes(legacy_bytes)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_rb_ign),
+            "add",
+            "-f",
+            "workflow-artifacts/assess-bugs/20260726-115243/report.md",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_rb_ign),
+            "commit",
+            "-m",
+            "force-track workflow artifact",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    mgr_rb_ign = layout_migration.MigrationManager(str(repo_rb_ign))
+    mgr_rb_ign.execute_migration(dry_run=False, leftover_disposition="remove")
+    assert not (repo_rb_ign / "workflow-artifacts").exists()
+    assert (
+        repo_rb_ign / ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    ).is_file()
+
+    rb_ign_res = mgr_rb_ign.rollback_migration()
+    assert rb_ign_res.get("status") == "rolled_back"
+    assert forced_file.read_bytes() == legacy_bytes
+    assert not (repo_rb_ign / ".aw/workflow-artifacts").exists()
+    assert (
+        _git_out(
+            repo_rb_ign, "status", "--porcelain", "--", "workflow-artifacts", ".agents"
+        ).stdout.strip()
+        == ""
+    )
+    assert (
+        _git_out(repo_rb_ign, "ls-files", "--", "workflow-artifacts").stdout.strip()
+        == "workflow-artifacts/assess-bugs/20260726-115243/report.md"
+    )
