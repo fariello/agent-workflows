@@ -21,10 +21,11 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, artifact_meta, oc_runipd, runner_shared
 from agent_workflows import run_analytics_cli as analytics_cli
 from agent_workflows import run_analytics_query as query
 from agent_workflows import run_dashboard as dash
+from tests.record_builder import RecordBuilder
 
 T0 = 1_787_949_977_000  # 2026-08-28T..Z in ms
 
@@ -605,71 +606,52 @@ class MissingBundleTests(unittest.TestCase):
             self.assertIn("aw runs analyze", str(ctx.exception))
 
 
-PLAN = """# IPD: label probe
-
-- Date: 2026-10-17
-- Kind: child
-- Concern: fixture
-- Scope: fixture
-- Scope-Paths: README.md
-- Status: approved
-- Set: lblprobe
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: lbl001
-- Approval: 2026-10-17, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-- 2026-10-17 reviewed (test): APPROVE.
-
-## Goal
-Goal.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Step 1
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-None.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-None.
-
-## Required tests / validation
-None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: done
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
+PLAN = str(
+    RecordBuilder().plan(
+        title="label probe",
+        when="2026-10-17",
+        plan_role="child",
+        scope_paths="README.md",
+        status="approved",
+        set="lblprobe",
+        order=1,
+        highest_e_allocated="01",
+        author="test",
+        priority="medium",
+        work_kind="feature",
+        id6="lbl001",
+        approval="2026-10-17, fixture",
+        readiness="go-pending-approval",
+        history=["- 2026-10-17 reviewed (test): APPROVE."],
+        raw_fields={"Concern": "fixture", "Scope": "fixture"},
+        body=(
+            "## Goal\nGoal.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n"
+            "### Task group 1: work\n"
+            "- [ ] E-01 Step 1\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\nNone.\n\n"
+            "## Findings\nNone.\n\n"
+            "## Proposed changes (ordered, validatable)\nNone.\n\n"
+            "## Deferred / out of scope (with reason)\nNone.\n\n"
+            "## Scope check\nNone.\n\n"
+            "## Required tests / validation\nNone.\n\n"
+            "## Spec / documentation sync\nNone.\n\n"
+            "## Open questions\nNone.\n\n"
+            "## Validation and cross-check (verify before reporting done)\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: done\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required"
+        ),
+        text_only=True,
+    )
+)
 
 
 class RunStartRecordingTests(unittest.TestCase):
@@ -909,44 +891,27 @@ class ReviewReadinessRecordingTests(unittest.TestCase):
         plan_dir.mkdir(parents=True, exist_ok=True)
         plan_path = plan_dir / "20261015-revcost-01-rev001-test-plan.ipd.md"
         plan_path.write_text(
-            """# IPD: Test Plan rev001
-
-- Date: 2026-10-15
-- Id: rev001
-- Set: revcost
-- Order: 1
-- Status: to-review
-- Kind: child
-- Concern: Test concern.
-- Scope: Test scope.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: feature
-- Author: test
-- Highest E allocated: 01
-- Item-Dependencies: none
-
-## Workflow history
-
-- 2026-10-15 to-review (test): authored
-- 2026-10-15 draft (test): created
-
-## Goal
-
-A test goal.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Test action item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Approval and execution gate
-
-- Size assessment: standard
-- Cohesion rationale: not required
-""",
+            RecordBuilder().plan(
+                title="Test Plan rev001",
+                when="2026-10-15",
+                id6="rev001",
+                set="revcost",
+                order=1,
+                status="to-review",
+                plan_role="child",
+                scope_paths="none",
+                priority="medium",
+                work_kind="feature",
+                author="test",
+                highest_e_allocated="01",
+                item_dependencies="none",
+                history=[
+                    "- 2026-10-15 to-review (test): authored",
+                    "- 2026-10-15 draft (test): created",
+                ],
+                body="## Goal\n\nA test goal.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Test action item\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n## Approval and execution gate\n\n- Size assessment: standard\n- Cohesion rationale: not required",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
@@ -985,13 +950,30 @@ A test goal.
             def fake_run(st, rd, it, p_rec, prompt_file, att_no, *a, **kw):
                 curr_plan = Path(st["repo"]) / it["configured_file"]
                 text = curr_plan.read_text(encoding="utf-8")
-                updated = text.replace(
-                    "- Status: to-review",
-                    "- Status: reviewed\n- Readiness: go-pending-approval",
-                )
-                updated = updated.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                updated = artifact_meta.render_legacy_text(
+                    text,
+                    [
+                        {
+                            "op": "transition",
+                            "to": "reviewed",
+                            "message": "/plan-review: APPROVE",
+                        },
+                        {
+                            "op": "review",
+                            "round": 1,
+                            "review_kind": "gate",
+                            "verdict": "APPROVE",
+                            "readiness": "go-pending-approval",
+                        },
+                    ],
+                    record_type="ipd",
+                    render=artifact_meta.LegacyRender(
+                        tag="reviewed",
+                        day="2026-10-16",
+                        actor_label="opencode",
+                        status="reviewed",
+                        history=True,
+                    ),
                 )
                 curr_plan.write_text(updated, encoding="utf-8")
                 return 0, "ses1", str(rd / "log"), ["oc"]
@@ -1012,10 +994,23 @@ A test goal.
             def fake_run(st, rd, it, p_rec, prompt_file, att_no, *a, **kw):
                 curr_plan = Path(st["repo"]) / it["configured_file"]
                 text = curr_plan.read_text(encoding="utf-8")
-                updated = text.replace("- Status: to-review", "- Status: reviewed")
-                updated = updated.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                updated = artifact_meta.render_legacy_text(
+                    text,
+                    [
+                        {
+                            "op": "transition",
+                            "to": "reviewed",
+                            "message": "/plan-review: APPROVE",
+                        }
+                    ],
+                    record_type="ipd",
+                    render=artifact_meta.LegacyRender(
+                        tag="reviewed",
+                        day="2026-10-16",
+                        actor_label="opencode",
+                        status="reviewed",
+                        history=True,
+                    ),
                 )
                 curr_plan.write_text(updated, encoding="utf-8")
                 return 0, "ses1", str(rd / "log"), ["oc"]

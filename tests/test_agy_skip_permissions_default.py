@@ -19,6 +19,7 @@ from typing import Any
 from unittest import mock
 
 from agent_workflows import agy_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 class TestParserDefault:
@@ -134,71 +135,51 @@ class TestAgyTurnArgvDefault:
         assert "--dangerously-skip-permissions" not in argv
 
 
-PLAN_FIXTURE = """# IPD: test fixture
-
-- Date: 2026-10-14
-- Kind: child
-- Concern: fixture
-- Scope: fixture
-- Scope-Paths: README.md
-- Status: approved
-- Set: fixture
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Priority: low
-- Work-Kind: chore
-- Id: {id6}
-- Approval: 2026-10-14, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-- 2026-10-14 reviewed (test): APPROVE; no blocking findings.
-
-## Goal
-Fixture.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Step 1
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-None.
-
-## Deferred / out of scope (with reason)
-None.
-
-## Scope check
-None.
-
-## Required tests / validation
-None.
-
-## Spec / documentation sync
-None.
-
-## Open questions
-None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: done
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
+PLAN_FIXTURE = str(
+    RecordBuilder().plan(
+        title="test fixture",
+        when="2026-10-14",
+        plan_role="child",
+        scope_paths="README.md",
+        status="approved",
+        set="fixture",
+        order=1,
+        highest_e_allocated="01",
+        author="test",
+        priority="low",
+        work_kind="chore",
+        approval="2026-10-14, fixture",
+        readiness="go-pending-approval",
+        history=["- 2026-10-14 reviewed (test): APPROVE; no blocking findings."],
+        raw_fields={"Id": "{id6}", "Concern": "fixture", "Scope": "fixture"},
+        body=(
+            "## Goal\nFixture.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n"
+            "### Task group 1: work\n"
+            "- [ ] E-01 Step 1\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\nNone.\n\n"
+            "## Findings\nNone.\n\n"
+            "## Proposed changes (ordered, validatable)\nNone.\n\n"
+            "## Deferred / out of scope (with reason)\nNone.\n\n"
+            "## Scope check\nNone.\n\n"
+            "## Required tests / validation\nNone.\n\n"
+            "## Spec / documentation sync\nNone.\n\n"
+            "## Open questions\nNone.\n\n"
+            "## Validation and cross-check (verify before reporting done)\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: done\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required"
+        ),
+        text_only=True,
+    )
+)
 
 
 def _make_temp_repo(root: Path, id6: str = "fix001") -> Path:
