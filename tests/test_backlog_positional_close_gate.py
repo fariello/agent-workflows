@@ -58,24 +58,9 @@ def _create_item(
     blocks_release: str | None = None,
 ) -> Path:
     """Create a backlog item in the given status."""
-    lines = [
-        f"- Id: {item_id}",
-        f"- Status: {status}",
-    ]
+    extra: dict[str, str] = {}
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines.extend(
-        [
-            f"- Set: {item_id}",
-            f"- Priority: {priority}",
-            f"- Work-Kind: {work_kind}",
-            "- Summary: Test defect",
-            "",
-            "## Workflow history",
-            "- 2026-09-28 created (tester): initial",
-            "",
-        ]
-    )
+        extra["blocks_release"] = blocks_release
     p = (
         repo
         / ".aw"
@@ -84,7 +69,21 @@ def _create_item(
         / status
         / f"20260928-{item_id}-01-{item_id}-test.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=status,
+            set=item_id,
+            priority=priority,
+            work_kind=work_kind,
+            summary="Test defect",
+            when="2026-09-28",
+            history=["- 2026-09-28 created (tester): initial"],
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -732,7 +731,10 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
 
     def test_evidence_satisfied_both_spellings_parity(self) -> None:
         """Both setter spellings persist the same normalized - Close-Evidence: bullet."""
-        with tempfile.TemporaryDirectory() as tmp1, tempfile.TemporaryDirectory() as tmp2:
+        with (
+            tempfile.TemporaryDirectory() as tmp1,
+            tempfile.TemporaryDirectory() as tmp2,
+        ):
             repo1 = _setup_repo(Path(tmp1))
             repo2 = _setup_repo(Path(tmp2))
             _create_item(repo1, status="open", work_kind="bug", blocks_release="next")

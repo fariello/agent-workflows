@@ -17,6 +17,7 @@ import tempfile
 import unittest
 
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 
 def _setup_repo(root: Path) -> Path:
@@ -40,24 +41,9 @@ def _create_item(
     blocks_release: str | None = None,
 ) -> Path:
     """Create a backlog item with valid metadata."""
-    lines = [
-        f"- Id: {item_id}",
-        f"- Status: {status}",
-        f"- Set: {item_id}",
-        "- Priority: low",
-        f"- Work-Kind: {work_kind}",
-        f"- Summary: Test defect {item_id}",
-    ]
+    extra: dict[str, str] = {}
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- 2026-10-07 created (tester): Test defect {item_id}",
-            "",
-        ]
-    )
+        extra["blocks_release"] = blocks_release
     p = (
         repo
         / ".aw"
@@ -66,7 +52,21 @@ def _create_item(
         / status
         / f"20261007-{item_id}-01-{item_id}-test.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=status,
+            set=item_id,
+            priority="low",
+            work_kind=work_kind,
+            summary=f"Test defect {item_id}",
+            when="2026-10-07",
+            history=[f"- 2026-10-07 created (tester): Test defect {item_id}"],
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -83,57 +83,64 @@ def _write_conforming_plan(
     plan_dir = repo / ".aw" / "records" / "plans" / target_dir
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
-    p.write_text(
-        f"# IPD: Plan {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test scope.\n"
-        f"- Status: {status}\n"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        "- Order: 1\n"
-        f"- Id: {id6}\n"
-        f"- From-Backlog: {backlog_id6}\n"
-        "- Scope-Paths: README.md\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        f"- 2026-09-01 {status} (test): created\n\n"
-        "## Goal\n"
-        f"Goal {id6}.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n"
-        "### Task group 1: work\n"
+    exec_state = "performed" if status == "executed" else "pending"
+    val_result = "pass" if status == "executed" else "pending"
+    plan_body = (
+        f"## Goal\n\nGoal {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "### Task group 1: work\n\n"
         "- [ ] E-01 Work item\n"
         "  - Depends on: none\n"
         "  - Expected outcome: done\n"
-        f"  - Execution state: {'performed' if status == 'executed' else 'pending'}\n\n"
-        "## Project conventions discovered (Step 0)\n"
+        f"  - Execution state: {exec_state}\n\n"
+        "## Project conventions discovered (Step 0)\n\n"
         "None.\n\n"
-        "## Findings\n"
+        "## Findings\n\n"
         "None.\n\n"
-        "## Proposed changes (ordered, validatable)\n"
+        "## Proposed changes (ordered, validatable)\n\n"
         "1. E-01 do work.\n\n"
-        "## Deferred / out of scope (with reason)\n"
+        "## Deferred / out of scope (with reason)\n\n"
         "- None.\n\n"
-        "## Scope check\n"
+        "## Scope check\n\n"
         "- None.\n\n"
-        "## Required tests / validation\n"
+        "## Required tests / validation\n\n"
         "- None.\n\n"
-        "## Spec / documentation sync\n"
+        "## Spec / documentation sync\n\n"
         "- None.\n\n"
-        "## Open questions\n"
+        "## Open questions\n\n"
         "- None.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
         "- [ ] V-01 validates E-01\n"
         "  - Required evidence: check.\n"
         "  - Observed evidence:\n"
-        f"  - Result: {'pass' if status == 'executed' else 'pending'}\n\n"
-        "## Approval and execution gate\n"
+        f"  - Result: {val_result}\n\n"
+        "## Approval and execution gate\n\n"
         "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        "- Cohesion rationale: not required\n"
+    )
+    p.write_text(
+        RecordBuilder().plan(
+            id6=id6,
+            title=f"Plan {id6}",
+            when="2026-09-01",
+            status=status,
+            work_kind="chore",
+            priority="medium",
+            set=set_id,
+            order=1,
+            from_backlog=backlog_id6,
+            scope_paths="README.md",
+            highest_e_allocated="01",
+            author="test",
+            item_dependencies="none",
+            history=[f"- 2026-09-01 {status} (test): created"],
+            body=plan_body,
+            raw_fields={
+                "Concern": "Test concern.",
+                "Scope": "Test scope.",
+            },
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
